@@ -7,6 +7,7 @@
 #include "CassoExplorer/Model/FolderWatch.h"
 #include "Core/AppTimerIds.h"
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
+#include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/Managers/ExplorerRename.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
@@ -302,17 +303,23 @@ void ExplorerFolderSync::CheckDrives()
 {
     HRESULT   hr           = S_OK;
     DWORD     mask         = GetLogicalDrives();
+    DWORD     media        = GetRemovableMediaMask (mask);
     bool      cardsChanged = UpdateStorageCards();
     Location  showing;
 
 
 
-    if (mask == m_driveMask && !cardsChanged)
+    LeaveDriveWithoutMedia (media);
+
+    //  A card reader has its drive letter with no card in it, so a card
+    //  put in or taken out changes the media mask and not the drive mask.
+    if (mask == m_driveMask && media == m_mediaMask && !cardsChanged)
     {
         return;
     }
 
     m_driveMask = mask;
+    m_mediaMask = media;
 
     m_context.browser.GetTreeModel().SetDrives (HostFolderNames::GetDriveRoots());
     m_context.browser.GetTreeModel().Invalidate (TreeModel::kThisPcRootId);
@@ -359,6 +366,94 @@ void ExplorerFolderSync::CheckDrives()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerFolderSync::LeaveDriveWithoutMedia
+//
+//  An empty card reader's drive root exists, so a tab on it, or on a
+//  folder or image under it, goes to This PC rather than listing what the
+//  card had.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFolderSync::LeaveDriveWithoutMedia (DWORD media)
+{
+    Location  showing;
+    wchar_t   letter = 0;
+    int       drive  = 0;
+
+
+
+    if (!m_context.browser.GetBrowserModel().HasTabs())
+    {
+        return;
+    }
+
+    showing = m_context.browser.GetLocation();
+
+    if (showing.kind != Location::Kind::HostFolder && showing.kind != Location::Kind::DiskImage &&
+        showing.kind != Location::Kind::DiskDirectory)
+    {
+        return;
+    }
+
+    if (showing.path.size() < 2 || showing.path[1] != L':')
+    {
+        return;
+    }
+
+    letter = (wchar_t) towupper (showing.path[0]);
+
+    if (letter < L'A' || letter > L'Z')
+    {
+        return;
+    }
+
+    drive = letter - L'A';
+
+    if ((media & (1u << drive)) != 0)
+    {
+        return;
+    }
+
+    m_context.addressBar.GoToLocation (Location::MakeRoot (TreeModel::kThisPcRootId));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::GetRemovableMediaMask
+//
+//  One bit per drive with media in it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DWORD ExplorerFolderSync::GetRemovableMediaMask (DWORD driveMask)
+{
+    DWORD  media = 0;
+
+
+
+    for (int drive = 0; drive < 26; drive++)
+    {
+        std::wstring  root = { (wchar_t) (L'A' + drive), L':', L'\\' };
+
+        if ((driveMask & (1u << drive)) != 0 && HostFolderNames::IsMediaPresent (root))
+        {
+            media |= 1u << drive;
+        }
+    }
+
+    return media;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerFolderSync::PollDrives
 //
 //  Listing the cards calls GetVolumeInformationW for each volume, and for a
@@ -370,7 +465,11 @@ void ExplorerFolderSync::CheckDrives()
 
 void ExplorerFolderSync::PollDrives()
 {
-    if (GetLogicalDrives() != m_driveMask)
+    DWORD  mask = GetLogicalDrives();
+
+
+
+    if (mask != m_driveMask || GetRemovableMediaMask (mask) != m_mediaMask)
     {
         CheckDrives();
     }
@@ -897,6 +996,7 @@ void ExplorerFolderSync::StartPolling()
 
 
     m_driveMask = GetLogicalDrives();
+    m_mediaMask = GetRemovableMediaMask (m_driveMask);
     CheckDrives();
     SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerDrive, kDrivePollMs, nullptr);
 

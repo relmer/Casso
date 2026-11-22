@@ -219,12 +219,8 @@ HRESULT ExplorerPickerHost::Open (HINSTANCE instance)
 
     m_browser->GetTreeModel().SetDrives (HostFolderNames::GetDriveRoots());
     m_browser->GetHostFolders().SetLocalizedNameLookup (&HostFolderNames::GetLocalizedFolderName);
-    m_browser->GetTreeModel().SetDirectoryProbe ([] (const std::wstring & path)
-    {
-        DWORD  attributes = GetFileAttributesW (path.c_str());
-
-        return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
-    });
+    m_browser->GetTreeModel().SetDirectoryProbe (&HostFolderNames::IsReadableDirectory);
+    m_browser->GetTreeModel().SetMediaProbe (&HostFolderNames::IsMediaPresent);
 
     m_window = std::make_unique<CassoExplorerWindow> (*m_browser, *m_actions, m_prefs, MakeContext());
 

@@ -71,6 +71,14 @@ HRESULT BrowserLoader::LoadHostFolder (const std::wstring & path)
 
 
 
+    //  Windows lists an empty card reader's drive from its cache, with the
+    //  files of the card taken out.
+    if (!m_parts.tree.IsDriveReadable (path))
+    {
+        m_parts.list.listError = L"Insert a disk into " + path.substr (0, 2) + L".";
+        return HRESULT_FROM_WIN32 (ERROR_NOT_READY);
+    }
+
     //  A network folder is read on a thread of its own; meanwhile the list has
     //  a working message, as for a shell folder, and fills when it arrives.
     if (PathResolver::IsNetworkPath (path) && m_hostListings.HasLister())

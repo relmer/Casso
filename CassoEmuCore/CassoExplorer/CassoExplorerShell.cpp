@@ -963,12 +963,8 @@ void CassoExplorerShell::ConfigureBrowser (CassoExplorerBrowser & browser)
     browser.SetPhysicalCards (&m_cards);
 
     browser.SetRecentLoads ([this] () { return CassoImagesListing::LoadRecent (m_fs, m_baseDir); });
-    browser.GetTreeModel().SetDirectoryProbe ([] (const std::wstring & path)
-    {
-        DWORD  attributes = GetFileAttributesW (path.c_str());
-
-        return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
-    });
+    browser.GetTreeModel().SetDirectoryProbe (&HostFolderNames::IsReadableDirectory);
+    browser.GetTreeModel().SetMediaProbe (&HostFolderNames::IsMediaPresent);
 }
 
 

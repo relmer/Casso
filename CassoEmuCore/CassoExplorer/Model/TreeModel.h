@@ -168,6 +168,8 @@ public:
     void                         SetStorageCards        (std::vector<StorageCardTreeEntry> cards);
     void                         SetDirectoryProbe      (DirectoryProbe probe) { m_directoryProbe = std::move (probe); }
     bool                         IsDirectory            (const std::wstring & path) const { return m_directoryProbe && m_directoryProbe (path); }
+    void                         SetMediaProbe          (DirectoryProbe probe) { m_mediaProbe = std::move (probe); }
+    bool                         IsDriveReadable        (const std::wstring & path) const { return !m_mediaProbe || m_mediaProbe (path); }
 
 
     //  The shell's navigation roots and pinned folders, read again on each
@@ -388,6 +390,7 @@ private:
     std::vector<std::wstring>                        m_drives;
     std::vector<StorageCardTreeEntry>                m_storageCards;
     DirectoryProbe                                   m_directoryProbe;
+    DirectoryProbe                                   m_mediaProbe;   // false for a path on a removable drive with no media
     HostFolderReader                               & m_hostFolders;
     std::map<std::wstring, std::vector<TreeNode>>    m_children;
     TreeImageNodes                                   m_images;
