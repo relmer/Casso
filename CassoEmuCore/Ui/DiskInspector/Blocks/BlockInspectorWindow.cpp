@@ -275,8 +275,10 @@ void BlockInspectorWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
         selection = m_panel->GetSelectionLine();
     }
 
-    DxuiPanel::Paint (painter, text, theme);
+    //  The band first, since its background would cover the zoom's slider,
+    //  which is one of the window's children.
     m_status.Paint (painter, text, theme, BlockInspectorState::BuildLead (m_model, isBusy, selection), palette.colors.sectorBad);
+    DxuiPanel::Paint (painter, text, theme);
 }
 
 
