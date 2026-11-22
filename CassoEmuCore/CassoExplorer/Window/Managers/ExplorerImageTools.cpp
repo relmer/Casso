@@ -179,16 +179,15 @@ void ExplorerImageTools::MakeArchive (bool shrinkItDisk)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerImageTools::CopyPartitionToImage()
+void ExplorerImageTools::CopyPartitionToImage (const std::wstring & partition)
 {
-    std::wstring                   partition;
     std::wstring                   created;
     CassoExplorerActions::Outcome  outcome;
     std::wstring                   target;
 
 
 
-    if (!m_context.actions.TryGetPartition (partition) || !m_context.opener.PickPartitionImage (partition, target))
+    if (partition.empty() || !m_context.opener.PickPartitionImage (partition, target))
     {
         return;
     }
@@ -216,10 +215,9 @@ void ExplorerImageTools::CopyPartitionToImage()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerImageTools::ReplacePartition()
+void ExplorerImageTools::ReplacePartition (const std::wstring & partition)
 {
     HRESULT                        hr       = S_OK;
-    std::wstring                   partition;
     std::wstring                   question;
     std::filesystem::path          picked;
     FileDialogSpec                 spec;
@@ -228,7 +226,7 @@ void ExplorerImageTools::ReplacePartition()
 
 
 
-    if (!m_context.actions.TryGetPartition (partition))
+    if (partition.empty())
     {
         return;
     }

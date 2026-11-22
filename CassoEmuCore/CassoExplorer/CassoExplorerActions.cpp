@@ -82,12 +82,7 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
                 verbs.push_back (Verb::InspectDiskImage);
             }
 
-            verbs.push_back (Verb::CopyPartitionToImage);
-
-            if (!m_browser.IsWriteProtected())
-            {
-                verbs.push_back (Verb::ReplacePartition);
-            }
+            ActionsPartition::AddVerbs (!m_browser.IsWriteProtected(), verbs);
         }
     }
     else if (m_browser.IsImageLocation())
@@ -164,12 +159,7 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
 
         if (isPartition)
         {
-            verbs.push_back (Verb::CopyPartitionToImage);
-
-            if (writable)
-            {
-                verbs.push_back (Verb::ReplacePartition);
-            }
+            ActionsPartition::AddVerbs (writable, verbs);
         }
     }
     else if (m_browser.IsAppleDriveLocation())

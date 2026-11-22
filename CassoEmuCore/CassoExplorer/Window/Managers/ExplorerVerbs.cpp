@@ -213,6 +213,7 @@ void ExplorerVerbs::RunVerb (CassoExplorerActions::Verb verb)
     int                                  answer    = 0;
     CassoExplorerActions::Outcome        outcome;
     std::wstring                         newName;
+    std::wstring                         partition;
     std::vector<std::wstring>            hostPaths;
     CassoExplorerNewDiskDialog::Outcome  newDisk;
     HostFileNaming::Style                style     = GetNamingStyle();
@@ -506,11 +507,13 @@ void ExplorerVerbs::RunVerb (CassoExplorerActions::Verb verb)
             break;
 
         case CassoExplorerActions::Verb::CopyPartitionToImage:
-            m_context.imageTools.CopyPartitionToImage();
+            m_context.actions.TryGetPartition (partition);
+            m_context.imageTools.CopyPartitionToImage (partition);
             break;
 
         case CassoExplorerActions::Verb::ReplacePartition:
-            m_context.imageTools.ReplacePartition();
+            m_context.actions.TryGetPartition (partition);
+            m_context.imageTools.ReplacePartition (partition);
             break;
 
         case CassoExplorerActions::Verb::Refresh:
