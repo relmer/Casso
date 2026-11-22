@@ -90,7 +90,7 @@ void ExplorerLayout::ConfigureWidgets()
     m_context.tabManager.Configure();
     m_context.addressBar.Configure();
 
-    m_context.browser.GetTypedPaths().Reset (m_context.prefs.typedPaths);
+    m_context.browser.GetNavigator().GetTypedPaths().Reset (m_context.prefs.typedPaths);
     m_context.listPane.GetColumns().ApplyStoredColumnWidths();
 
     m_context.folderSync.StartWatch();
@@ -146,7 +146,7 @@ void ExplorerLayout::ConfigureWidgets()
     m_context.pickerMode.Start();
 
     //  The tabs of the request, from the session or a torn-off tab, or Home.
-    m_context.browser.RestoreTabs (std::move (m_context.app.request.tabs), m_context.app.request.activeTab);
+    m_context.browser.GetNavigator().RestoreTabs (std::move (m_context.app.request.tabs), m_context.app.request.activeTab);
     m_context.browser.LeaveMissingLocation();
     m_context.browser.SetCardOpenAllowed (true);
 
@@ -172,7 +172,7 @@ void ExplorerLayout::ConfigureWidgets()
         //  Explorer's new window has none.
         if (onHome && m_context.browser.GetBrowserModel().GetTabCount() > 1)
         {
-            bool  closed = m_context.browser.CloseTab (0);
+            bool  closed = m_context.browser.GetNavigator().CloseTab (0);
 
             IGNORE_RETURN_VALUE (closed, true);
         }

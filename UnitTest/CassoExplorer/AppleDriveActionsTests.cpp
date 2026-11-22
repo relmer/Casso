@@ -78,7 +78,7 @@ public:
         //  Opens a drive and waits for its catalog.
         void  Open (int drive)
         {
-            browser->NavigateToLocation (Location::MakeAppleDrive (TreeModel::MakeLinkDriveId (L"Test", 6, drive), std::string()));
+            browser->GetNavigator().NavigateToLocation (Location::MakeAppleDrive (TreeModel::MakeLinkDriveId (L"Test", 6, drive), std::string()));
             Reload();
         }
 
@@ -268,13 +268,13 @@ public:
 
 
         rig.Open (1);
-        rig.browser->OpenInNewTab (Location::MakeAppleDrive (TreeModel::MakeLinkDriveId (L"Test", 6, 2), std::string()));
+        rig.browser->GetNavigator().OpenInNewTab (Location::MakeAppleDrive (TreeModel::MakeLinkDriveId (L"Test", 6, 2), std::string()));
         rig.Reload();
         rig.browser->ForgetLinkVisit();
         rig.Settle();
         reads = rig.apple.catalogReads;
 
-        Assert::IsTrue (rig.browser->SwitchTab (0));
+        Assert::IsTrue (rig.browser->GetNavigator().SwitchTab (0));
         rig.Settle();
         AssertSucceeded (rig.browser->Refresh());
 
@@ -353,7 +353,7 @@ public:
         Rig           rig;
         std::wstring  path;
 
-        rig.browser->NavigateToLocation (Location::MakeRoot (TreeModel::kCassoLinkRootId));
+        rig.browser->GetNavigator().NavigateToLocation (Location::MakeRoot (TreeModel::kCassoLinkRootId));
         rig.Open (1);
 
         for (int row = 0; row < (int) rig.browser->GetRows().size(); row++)
@@ -697,7 +697,7 @@ public:
             std::fill (rig.apple.drives[0].begin(), rig.apple.drives[0].end(), (Byte) 0);
         }
 
-        rig.browser->NavigateToLocation (Location::MakeAppleDrive (TreeModel::MakeLinkDriveId (L"Test", 6, 1), std::string()));
+        rig.browser->GetNavigator().NavigateToLocation (Location::MakeAppleDrive (TreeModel::MakeLinkDriveId (L"Test", 6, 1), std::string()));
 
         do
         {

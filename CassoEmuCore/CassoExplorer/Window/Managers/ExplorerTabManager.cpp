@@ -78,7 +78,7 @@ void ExplorerTabManager::Configure()
     m_tabs->SetOnChange ([this] (int index) { SwitchToTab ((size_t) index); });
     m_tabs->SetOnMove   ([this] (int from, int to)
     {
-        bool  moved = m_context.browser.MoveTab ((size_t) from, (size_t) to);
+        bool  moved = m_context.browser.GetNavigator().MoveTab ((size_t) from, (size_t) to);
 
         IGNORE_RETURN_VALUE (moved, true);
         m_context.window.SaveSession();
@@ -301,7 +301,7 @@ void ExplorerTabManager::SelectInFolder (const std::wstring & path)
         }
     }
 
-    m_context.browser.OpenInNewTab (Location::MakeHostFolder (folder));
+    m_context.browser.GetNavigator().OpenInNewTab (Location::MakeHostFolder (folder));
     m_context.listPane.SelectWhenListed (folder, { name });
 }
 
@@ -338,7 +338,7 @@ void ExplorerTabManager::OpenPathInNewTab (const std::wstring & path)
             }
         }
 
-        m_context.browser.OpenInNewTab (Location::MakeRecycleBin());
+        m_context.browser.GetNavigator().OpenInNewTab (Location::MakeRecycleBin());
         return;
     }
 
@@ -349,7 +349,7 @@ void ExplorerTabManager::OpenPathInNewTab (const std::wstring & path)
         HRESULT   hr          = m_context.shellVerbs.GetShellItemName (path, shellFolder.label);
 
         IGNORE_RETURN_VALUE (hr, S_OK);
-        m_context.browser.OpenInNewTab (shellFolder);
+        m_context.browser.GetNavigator().OpenInNewTab (shellFolder);
         return;
     }
 
@@ -380,22 +380,22 @@ void ExplorerTabManager::OpenPathInNewTab (const std::wstring & path)
 
     if ((attributes & FILE_ATTRIBUTE_DIRECTORY) != 0)
     {
-        m_context.browser.OpenInNewTab (Location::MakeHostFolder (full));
+        m_context.browser.GetNavigator().OpenInNewTab (Location::MakeHostFolder (full));
     }
     else if (HostFolderReader::IsSupportedImage (full))
     {
-        m_context.browser.OpenInNewTab (Location::MakeDiskImage (full));
+        m_context.browser.GetNavigator().OpenInNewTab (Location::MakeDiskImage (full));
     }
     else if (m_context.browser.GetHostFolders().IsArchive (full))
     {
-        m_context.browser.OpenInNewTab (Location::MakeShellFolder (full, std::filesystem::path (full).filename().wstring()));
+        m_context.browser.GetNavigator().OpenInNewTab (Location::MakeShellFolder (full, std::filesystem::path (full).filename().wstring()));
     }
     else
     {
         //  A file opens its folder with the file selected and previewed.
         std::wstring  folder = CassoExplorerBrowser::GetParentFolder (full);
 
-        m_context.browser.OpenInNewTab (Location::MakeHostFolder (folder));
+        m_context.browser.GetNavigator().OpenInNewTab (Location::MakeHostFolder (folder));
         m_context.listPane.SelectWhenListed (folder, { std::filesystem::path (full).filename().wstring() });
     }
 }
@@ -432,7 +432,7 @@ void ExplorerTabManager::ShowTabContextMenu (int x, int y, int index)
 
     m_context.menus.AddMenuCommand (items, L"Close &other tabs", [this, tab]()
     {
-        if (m_context.browser.CloseOtherTabs (tab))
+        if (m_context.browser.GetNavigator().CloseOtherTabs (tab))
         {
             m_context.listPane.FillList();
         }
@@ -440,7 +440,7 @@ void ExplorerTabManager::ShowTabContextMenu (int x, int y, int index)
 
     m_context.menus.AddMenuCommand (items, L"Close tabs to the &right", [this, tab]()
     {
-        if (m_context.browser.CloseTabsToRight (tab))
+        if (m_context.browser.GetNavigator().CloseTabsToRight (tab))
         {
             m_context.listPane.FillList();
         }
@@ -448,7 +448,7 @@ void ExplorerTabManager::ShowTabContextMenu (int x, int y, int index)
 
     m_context.menus.AddMenuCommand (items, L"&Duplicate tab", [this, tab]()
     {
-        m_context.browser.DuplicateTab (tab);
+        m_context.browser.GetNavigator().DuplicateTab (tab);
         m_context.listPane.FillList();
     });
 
@@ -619,7 +619,7 @@ void ExplorerTabManager::SwitchToTab (size_t index)
     m_context.browser.SetTabTreeRow (m_context.treePane.GetTopRow());
 
     //  A tab left on a folder deleted since moves up as it is shown.
-    if (m_context.browser.SwitchTab (index))
+    if (m_context.browser.GetNavigator().SwitchTab (index))
     {
         m_context.browser.LeaveMissingLocation();
         m_context.preview.RestoreTabState();
@@ -1030,7 +1030,7 @@ void ExplorerTabManager::CloseTabAt (size_t index)
         return;
     }
 
-    if (m_context.browser.CloseTab (index))
+    if (m_context.browser.GetNavigator().CloseTab (index))
     {
         m_context.listPane.FillList();
         m_context.window.SaveSession();
@@ -1138,7 +1138,7 @@ void ExplorerTabManager::AcceptTab (BrowserModel::Tab tab)
         index = (int) m_context.browser.GetBrowserModel().GetTabCount();
     }
 
-    m_context.browser.InsertTab ((size_t) index, std::move (tab));
+    m_context.browser.GetNavigator().InsertTab ((size_t) index, std::move (tab));
     m_context.browser.LeaveMissingLocation();
     m_context.listPane.FillList();
     CassoExplorerShell::FrontWindow (m_context.window.GetHwnd());

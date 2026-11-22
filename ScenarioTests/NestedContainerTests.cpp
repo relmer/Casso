@@ -83,7 +83,7 @@ public:
         io.files["C:\\Disks\\p.po"]  = saved;
         io.stamps["C:\\Disks\\p.po"] = FileStamp { saved.size(), 100 };
 
-        browser.NavigateToLocation (Location::MakeDiskImage (L"C:\\Disks\\p.po"));
+        browser.GetNavigator().NavigateToLocation (Location::MakeDiskImage (L"C:\\Disks\\p.po"));
         row = FindRow (browser, L"NOTES");
 
         Assert::IsTrue   (browser.TryGetRowLocation (row, target));

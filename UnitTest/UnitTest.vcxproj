@@ -551,6 +551,7 @@
     <ClCompile Include="CassoExplorer\CassoExplorerBrowserTests.cpp" />
     <ClCompile Include="CassoExplorer\BrowserColumnFiltersTests.cpp" />
     <ClCompile Include="CassoExplorer\BrowserNameFilterTests.cpp" />
+    <ClCompile Include="CassoExplorer\BrowserNavigatorTests.cpp" />
     <ClCompile Include="CassoExplorer\BrowserFormattingTests.cpp" />
     <ClCompile Include="CassoExplorer\ChooseDetailsModelTests.cpp" />
     <ClCompile Include="CassoExplorer\IconSizeStepsTests.cpp" />

@@ -76,7 +76,7 @@ void ExplorerCollectionTools::Open (ExplorerContext & context, CollectionQuery::
 
     if (!folder.empty())
     {
-        context.browser.NavigateToLocation (Location::MakeShellFolder (CollectionQuery::MakeId (tool, folder), CollectionQuery::GetLabel (tool, folder)));
+        context.browser.GetNavigator().NavigateToLocation (Location::MakeShellFolder (CollectionQuery::MakeId (tool, folder), CollectionQuery::GetLabel (tool, folder)));
     }
 }
 

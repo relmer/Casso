@@ -57,7 +57,7 @@ public:
             const std::vector<CatalogRow> &  rows = browser.GetRows();
             int                              row  = -1;
 
-            browser.NavigateToLocation (Location::MakeHostFolder (kDisks));
+            browser.GetNavigator().NavigateToLocation (Location::MakeHostFolder (kDisks));
 
             for (size_t i = 0; i < rows.size(); i++)
             {

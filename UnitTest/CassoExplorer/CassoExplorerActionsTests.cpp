@@ -448,7 +448,7 @@ public:
         std::vector<CassoExplorerActions::Verb>  verbs;
 
         host.OpenImage();
-        host.browser.GoUp();
+        host.browser.GetNavigator().GoUp();
 
         host.browser.SetSelectedRows ({ host.Find (L"dos33.dsk") });
         verbs = host.actions.GetListVerbs();
@@ -475,7 +475,7 @@ public:
         host.SeedBytes (ScratchImages::GetDos33 (false), L"C:\\Disks\\second.dsk");
         host.SeedBytes (ScratchImages::GetDos33 (false), L"C:\\Disks\\third.dsk");
         host.OpenImage();
-        host.browser.GoUp();
+        host.browser.GetNavigator().GoUp();
 
         host.browser.SetSelectedRows ({ host.Find (L"dos33.dsk") });
         verbs = host.actions.GetListVerbs();
@@ -503,7 +503,7 @@ public:
         host.SeedBytes (ScratchImages::GetDos33 (false), L"C:\\Disks\\second.dsk");
         host.SeedBytes   (Bytes ("hello"), L"C:\\Disks\\readme.txt");
         host.OpenImage();
-        host.browser.GoUp();
+        host.browser.GetNavigator().GoUp();
 
         host.browser.SetSelectedRows ({});
         Assert::IsFalse (host.actions.CanInspect(), L"nothing selected");
@@ -538,7 +538,7 @@ public:
 
         host.SeedBytes (Bytes ("hello"), L"C:\\Disks\\readme.txt");
         host.OpenImage();
-        host.browser.GoUp();
+        host.browser.GetNavigator().GoUp();
 
         host.browser.SetSelectedRows ({ host.Find (L"readme.txt") });
         verbs = host.actions.GetListVerbs();
@@ -1644,7 +1644,7 @@ public:
         DiskOperations::NewDiskRequest  request = CassoExplorerNewDiskChoices::MakeRequest (0, 1, L"", false);
 
         host.OpenImage();
-        host.browser.GoUp();
+        host.browser.GetNavigator().GoUp();
 
         Assert::IsTrue   (host.actions.CreateImage (L"C:\\Disks", L"fresh.dsk", request).Succeeded());
         Assert::IsTrue   (host.io.files.count ("C:\\Disks\\fresh.dsk") == 1);
@@ -1865,7 +1865,7 @@ public:
         Host  host;
 
         host.OpenImage();
-        host.browser.GoUp();
+        host.browser.GetNavigator().GoUp();
 
         Assert::IsFalse (host.actions.PutFiles ({ L"C:\\In\\x.txt" }).Succeeded());
     }

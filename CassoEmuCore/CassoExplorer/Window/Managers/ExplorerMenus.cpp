@@ -665,7 +665,7 @@ void ExplorerMenus::AddOpenRows (std::vector<DxuiPopupMenuItem> & items, const L
 
     AddMenuCommand (items, L"Open in new &tab", [this, location]()
     {
-        m_context.browser.OpenInNewTab (location);
+        m_context.browser.GetNavigator().OpenInNewTab (location);
         m_context.listPane.FillList();
     });
     m_menuCommands.back()->menuGlyph = s_kpszMdl2OpenInNewWindow;

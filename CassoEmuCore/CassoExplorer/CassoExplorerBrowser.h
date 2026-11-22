@@ -6,6 +6,8 @@
 #include "CassoExplorer/Browser/BrowserCells.h"
 #include "CassoExplorer/Browser/BrowserColumnFilters.h"
 #include "CassoExplorer/Browser/BrowserNameFilter.h"
+#include "CassoExplorer/Browser/BrowserNavigator.h"
+#include "CassoExplorer/Browser/IBrowserListing.h"
 
 #include "CassoExplorer/Model/BrowserModel.h"
 #include "CassoExplorer/Model/StockDisksListing.h"
@@ -45,7 +47,7 @@ class IDiskFileIo;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class CassoExplorerBrowser
+class CassoExplorerBrowser : private IBrowserListing
 {
 public:
     using Status = BrowserStatus;
@@ -93,68 +95,22 @@ public:
     //  path, or an entry inside an image after the image's address.
     bool  TryGetRowPath      (int row, std::wstring & outPath) const;
 
-    //  Tabs. A new tab opens where the active one is. The last tab does not
-    //  close, since the window always shows somewhere. Switching restores
-    //  the tab's selection by name. Restoring opens one tab per location and
-    //  makes the first active; an empty list leaves the tabs as they are.
-    size_t        NewTab      ();
-    bool          CloseTab    (size_t index);
-    bool          MoveTab     (size_t from, size_t to) { return m_model.MoveTab (from, to); }
-    bool          SwitchTab   (size_t index);
-    void          RestoreTabs (const std::vector<Location> & locations);
-    void          RestoreTabs (std::vector<BrowserModel::Tab> tabs, size_t active);
+    //  The tabs, and Back, Forward, Up and the address bar.
+    BrowserNavigator        & GetNavigator ()       { return m_navigator; }
+    const BrowserNavigator  & GetNavigator () const { return m_navigator; }
 
-    //  A tab arriving from another window goes in at `index`, history and view
-    //  included, and becomes the active tab.
-    size_t                           InsertTab              (size_t index, BrowserModel::Tab tab);
     std::vector<DxuiListView::Cell>  GetArchivePreviewCells (const CatalogRow & row) const { return m_previewer.GetArchivePreviewCells (row); }
-
-private:
-
-public:
-    std::wstring  GetTabLabel (size_t index) const { return m_cells.GetTabLabel (index); }
-
-    //  Opens a location in a new tab and switches to it. The tab menu's other
-    //  commands: a copy of a tab where it is, and closing every tab but one or
-    //  every tab after one. The last tab still never closes.
-    size_t        OpenInNewTab     (const Location & location);
-    size_t        DuplicateTab     (size_t index);
-    bool          CloseOtherTabs   (size_t index);
-    bool          CloseTabsToRight (size_t index);
+    std::wstring                     GetTabLabel            (size_t index) const           { return m_cells.GetTabLabel (index); }
 
     //  Opens a folder or disk image row in place, as a double-click does.
     //  False, with nothing changed, for a row that is neither.
     bool  OpenRow (int row);
-
-    bool  CanGoUp () const;
-
-    //  Where Up goes from the active tab, for its tooltip and for GoUp.
-    bool  TryGetUpTarget (Location & outTarget) const;
-    bool  GoBack         ();
-    bool  GoForward      ();
-
-    //  Several steps at once, as a pick from the Back or Forward list takes.
-    bool  GoBackBy    (size_t steps);
-    bool  GoForwardBy (size_t steps);
-    bool  GoUp        ();
-
-    //  Navigates the active tab to a location, as a click on an address bar
-    //  segment does, or to a typed path. False, with nothing changed, for a
-    //  path that is not a folder, an image or a directory inside one.
-    void  NavigateToLocation (const Location & location);
 
     //  When the folder or image the active tab shows is gone from the disk,
     //  moves to the nearest folder above it that is still there, as Explorer
     //  does when the folder it shows is deleted. False, with nothing
     //  changed, when the location still exists or is not on the host.
     bool  LeaveMissingLocation () { return m_loader.LeaveMissingLocation(); }
-    bool  NavigateToAddress    (const std::wstring & text);
-
-    //  The paths typed into the address bar. Held here because this is where a
-    //  typed path is told apart from a click, and where its navigation is known
-    //  to have succeeded. Seeded from the stored copy at startup.
-    TypedPathHistory        & GetTypedPaths ()       { return m_typedPaths; }
-    const TypedPathHistory  & GetTypedPaths () const { return m_typedPaths; }
 
     //  What an address bar separator lists: the folders and images in a host
     //  folder.
@@ -183,12 +139,12 @@ public:
     //  A folder's own sort and grouping, set together as it opens.
     void                              SetSortAndGroup (CatalogModel::Column column, bool descending, RowGrouping::Field group, bool groupDescending);
     std::vector<DxuiListView::Group>  GetListGroups   () const;
-    bool                              IsHomeLocation  () const;
+    bool                              IsHomeLocation  () const override;
     bool                              IsHomeSectioned () const { return IsHomeLocation() && (!m_model.HasTabs() || m_model.GetActiveTab().groupBy == RowGrouping::Field::None); }
     int                               GetHomeTab      () const { return m_homeTab; }
     void                              SetHomeTab      (int tab);
     void                              RemoveHomeRow   (const std::wstring & shellId);
-    void                              RequestHomeRead ();
+    void                              RequestHomeRead () override;
     void                              SetTabPreview   (bool open) { if (m_model.HasTabs()) { m_model.GetActiveTab().previewOpen = open; } }
 
     //  Whether the list is on a search that is being read, and stopping that
@@ -464,6 +420,12 @@ private:
     //  Selects the rows whose keys are in `names`, in one pass over the rows.
     void  SelectRowsByKeys (const std::vector<std::wstring> & names);
 
+    //  IBrowserListing, for the navigator.
+    void      ReloadAfterNavigation () override                                          { m_loader.ReloadAfterNavigation(); }
+    void      ReturnToTab           (const std::vector<std::wstring> & rowKeys) override;
+    bool      IsOnMissingDrive      (const Location & location) const override           { return m_loader.IsOnMissingDrive (location); }
+    Location  GetShellParent        () const override                                    { return m_loader.m_shellParent; }
+
     IFileSystem                           & m_fs;
     IDiskFileIo                           & m_fileIo;
     ImageClassCache                         m_imageClasses;
@@ -474,7 +436,6 @@ private:
     BrowserModel                            m_model;
     DiskOperations                          m_operations;
     DiskImageCatalog                        m_catalog           { m_operations };
-    TypedPathHistory                        m_typedPaths;
     std::vector<CatalogRow>                 m_rows;
     std::vector<RowGrouping::Group>         m_rowGroups;       // each row's group, when grouped
     BrowserColumnFilters                    m_columnFilters;
@@ -510,5 +471,6 @@ private:
     BrowserLoader     m_loader         { *this };
     BrowserPreviewer  m_previewer      { *this };
     BrowserCells      m_cells          { *this };
+    BrowserNavigator  m_navigator      { m_model, m_fs, m_hostFolders, *this };
 };
 

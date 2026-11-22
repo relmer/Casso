@@ -185,7 +185,7 @@ public:
         bin.items.push_back ({ L"D:\\$Recycle.Bin\\S-1\\$R2",     L"Old",       L"D:\\",     L"File folder",   4096, 1700000100, true, 0, false, true });
         host.browser.SetShellVerbs (&bin);
 
-        Assert::IsTrue  (host.browser.NavigateToAddress (L"recycle bin"));
+        Assert::IsTrue  (host.browser.GetNavigator().NavigateToAddress (L"recycle bin"));
         Assert::IsTrue  (host.browser.GetLocation() == Location::MakeRecycleBin());
         Assert::AreEqual ((size_t) 2, host.browser.GetRows().size());
 
@@ -224,7 +224,7 @@ public:
         shell.shellItems.push_back ({ L"::{NET}\\SERVER",               L"SERVER",    L"",                                  L"Computer", 0, 0, false, true, false });
         host.browser.SetShellVerbs (&shell);
 
-        Assert::IsTrue (host.browser.NavigateToAddress (L"shell:Libraries"));
+        Assert::IsTrue (host.browser.GetNavigator().NavigateToAddress (L"shell:Libraries"));
         Assert::IsTrue (host.browser.GetLocation().kind == Location::Kind::ShellFolder);
         Assert::AreEqual ((size_t) 3, host.browser.GetRows().size());
 
@@ -313,7 +313,7 @@ public:
         shell.shellItems = { image };
         host.browser.SetShellVerbs (&shell);
 
-        host.browser.NavigateToLocation (Location::MakeShellFolder (L"::{test}", L"Test"));
+        host.browser.GetNavigator().NavigateToLocation (Location::MakeShellFolder (L"::{test}", L"Test"));
         host.browser.SetSelectedRows ({ FindRow (host.browser, L"prodos.po") });
 
         Assert::IsTrue (host.browser.GetPreview().kind == PreviewContent::Kind::Catalog);
@@ -367,7 +367,7 @@ public:
         Assert::IsTrue   (host.browser.GetPreview().kind == PreviewContent::Kind::Error);
         Assert::AreEqual (std::wstring (L"broken.zip can't be opened because it is damaged."), host.browser.GetPreview().message);
 
-        host.browser.NavigateToLocation (Location::MakeShellFolder (L"C:\\Disks\\broken.zip", L"broken.zip"));
+        host.browser.GetNavigator().NavigateToLocation (Location::MakeShellFolder (L"C:\\Disks\\broken.zip", L"broken.zip"));
         Assert::AreEqual (std::wstring (L"broken.zip can't be opened because it is damaged."), host.browser.GetListError());
     }
 
@@ -393,7 +393,7 @@ public:
         host.browser.SetSelectedRows ({ FindRow (host.browser, L"notes.zip"), FindRow (host.browser, L"readme.txt") });
         Assert::IsTrue (host.browser.GetExtractTarget().empty(), L"nor does a selection of several");
 
-        host.browser.NavigateToLocation (Location::MakeShellFolder (L"C:\\Disks\\notes.zip\\docs", L"docs"));
+        host.browser.GetNavigator().NavigateToLocation (Location::MakeShellFolder (L"C:\\Disks\\notes.zip\\docs", L"docs"));
         Assert::AreEqual (std::wstring (L"C:\\Disks\\notes.zip"), host.browser.GetExtractTarget(), L"Inside, the archive open");
     }
 
@@ -413,7 +413,7 @@ public:
         shell.itemBytes = { 'h', 'i', '\r', '\n' };
         host.browser.SetShellVerbs (&shell);
 
-        host.browser.NavigateToLocation (Location::MakeShellFolder (L"C:\\Disks\\notes.zip", L"notes.zip"));
+        host.browser.GetNavigator().NavigateToLocation (Location::MakeShellFolder (L"C:\\Disks\\notes.zip", L"notes.zip"));
         host.browser.SetSelectedRows ({ FindRow (host.browser, L"hello.txt") });
 
         Assert::IsTrue   (host.browser.GetPreview().kind == PreviewContent::Kind::Hex);
@@ -452,7 +452,7 @@ public:
         shell.shellItems.push_back (inside);
         browser.SetShellVerbs (&shell);
 
-        browser.NavigateToLocation (Location::MakeShellFolder (L"C:\\Disks\\set.zip\\disks", L"disks"));
+        browser.GetNavigator().NavigateToLocation (Location::MakeShellFolder (L"C:\\Disks\\set.zip\\disks", L"disks"));
         row = FindRow (browser, L"dos33.dsk");
 
         Assert::IsTrue (browser.GetRows()[(size_t) row].isDiskImage);
@@ -605,7 +605,7 @@ public:
         CassoExplorerPrefs  saved;
         CassoExplorerPrefs  loaded;
 
-        Assert::IsTrue (host.browser.NavigateToAddress (L"shell:RecycleBinFolder"));
+        Assert::IsTrue (host.browser.GetNavigator().NavigateToAddress (L"shell:RecycleBinFolder"));
         Assert::IsTrue (host.browser.GetLocation().kind == Location::Kind::RecycleBin);
 
         saved.tabs = { Location::MakeRecycleBin() };
@@ -621,18 +621,18 @@ public:
     {
         Host  host;
 
-        Assert::IsTrue  (host.browser.NavigateToAddress (L"C:\\Disks"));
-        Assert::IsFalse (host.browser.NavigateToAddress (L"C:\\Nowhere"), L"A path that goes nowhere navigates nowhere");
+        Assert::IsTrue  (host.browser.GetNavigator().NavigateToAddress (L"C:\\Disks"));
+        Assert::IsFalse (host.browser.GetNavigator().NavigateToAddress (L"C:\\Nowhere"), L"A path that goes nowhere navigates nowhere");
 
-        Assert::AreEqual ((size_t) 1, host.browser.GetTypedPaths().GetEntries().size(), L"and is not recorded");
-        Assert::AreEqual (std::wstring (L"C:\\Disks"), host.browser.GetTypedPaths().GetEntries()[0]);
+        Assert::AreEqual ((size_t) 1, host.browser.GetNavigator().GetTypedPaths().GetEntries().size(), L"and is not recorded");
+        Assert::AreEqual (std::wstring (L"C:\\Disks"), host.browser.GetNavigator().GetTypedPaths().GetEntries()[0]);
 
         //  What the history dropdown does with a pick: submit the text again.
-        Assert::IsTrue (host.browser.NavigateToAddress (L"C:\\Disks\\prodos.po"));
-        Assert::IsTrue (host.browser.NavigateToAddress (L"C:\\Disks"));
+        Assert::IsTrue (host.browser.GetNavigator().NavigateToAddress (L"C:\\Disks\\prodos.po"));
+        Assert::IsTrue (host.browser.GetNavigator().NavigateToAddress (L"C:\\Disks"));
 
-        Assert::AreEqual ((size_t) 2, host.browser.GetTypedPaths().GetEntries().size(), L"A repeat does not appear twice");
-        Assert::AreEqual (std::wstring (L"C:\\Disks"), host.browser.GetTypedPaths().GetEntries()[0], L"and moves to the top");
+        Assert::AreEqual ((size_t) 2, host.browser.GetNavigator().GetTypedPaths().GetEntries().size(), L"A repeat does not appear twice");
+        Assert::AreEqual (std::wstring (L"C:\\Disks"), host.browser.GetNavigator().GetTypedPaths().GetEntries()[0], L"and moves to the top");
     }
 
 
@@ -642,11 +642,11 @@ public:
 
         Assert::IsTrue (SetEnvironmentVariableW (L"CASSO_TEST_DISKS", L"C:\\Disks") != FALSE);
 
-        Assert::IsTrue   (host.browser.NavigateToAddress (L"%CASSO_TEST_DISKS%"));
+        Assert::IsTrue   (host.browser.GetNavigator().NavigateToAddress (L"%CASSO_TEST_DISKS%"));
         Assert::AreEqual (std::wstring (L"C:\\Disks"), host.browser.GetLocation().path);
-        Assert::AreEqual (std::wstring (L"%CASSO_TEST_DISKS%"), host.browser.GetTypedPaths().GetEntries()[0], L"The history has the text as typed");
+        Assert::AreEqual (std::wstring (L"%CASSO_TEST_DISKS%"), host.browser.GetNavigator().GetTypedPaths().GetEntries()[0], L"The history has the text as typed");
 
-        Assert::AreEqual (std::wstring (L"%CASSO_UNDEFINED_VARIABLE%\\x"), CassoExplorerBrowser::ExpandVariables (L"%CASSO_UNDEFINED_VARIABLE%\\x"));
+        Assert::AreEqual (std::wstring (L"%CASSO_UNDEFINED_VARIABLE%\\x"), BrowserNavigator::ExpandVariables (L"%CASSO_UNDEFINED_VARIABLE%\\x"));
 
         SetEnvironmentVariableW (L"CASSO_TEST_DISKS", nullptr);
     }
@@ -819,7 +819,7 @@ public:
         shell.shellItems.push_back (match);
         host.browser.SetShellVerbs (&shell);
 
-        host.browser.NavigateToLocation (Location::MakeShellFolder (SearchQuery::MakeId (kDisks, L"hello"), SearchQuery::GetLabel (kDisks)));
+        host.browser.GetNavigator().NavigateToLocation (Location::MakeShellFolder (SearchQuery::MakeId (kDisks, L"hello"), SearchQuery::GetLabel (kDisks)));
         host.browser.SetSelectedRows ({ FindRow (host.browser, L"HELLO") });
 
         Assert::IsTrue  (host.browser.GetPreview().kind == PreviewContent::Kind::Listing, L"The match previews as the program it is");
@@ -848,7 +848,7 @@ public:
         AssertSucceeded (CollectionResultsItems::Read (host.io, id, shell.shellItems));
         host.browser.SetShellVerbs (&shell);
 
-        host.browser.NavigateToLocation (Location::MakeShellFolder (id, CollectionQuery::GetLabel (CollectionQuery::Tool::DiskList, kDisks)));
+        host.browser.GetNavigator().NavigateToLocation (Location::MakeShellFolder (id, CollectionQuery::GetLabel (CollectionQuery::Tool::DiskList, kDisks)));
 
         Assert::AreEqual ((size_t) 2, host.browser.GetRows().size());
 
@@ -858,7 +858,7 @@ public:
         Assert::AreEqual (std::wstring (L"ProDOS"), host.browser.GetRows()[(size_t) row].collection.fileSystem);
         Assert::IsFalse  (host.browser.GetRows()[(size_t) row].collection.csvLine.empty());
 
-        Assert::IsTrue   (host.browser.TryGetUpTarget (up));
+        Assert::IsTrue   (host.browser.GetNavigator().TryGetUpTarget (up));
         Assert::IsTrue   (up.kind == Location::Kind::HostFolder);
         Assert::AreEqual (std::wstring (kDisks), up.path);
     }
@@ -878,7 +878,7 @@ public:
         AssertSucceeded (CollectionResultsItems::Read (host.io, id, shell.shellItems));
         host.browser.SetShellVerbs (&shell);
 
-        host.browser.NavigateToLocation (Location::MakeShellFolder (id, CollectionQuery::GetLabel (CollectionQuery::Tool::Duplicates, kDisks)));
+        host.browser.GetNavigator().NavigateToLocation (Location::MakeShellFolder (id, CollectionQuery::GetLabel (CollectionQuery::Tool::Duplicates, kDisks)));
 
         Assert::IsTrue   (host.browser.GetRows().size() >= 2);
         Assert::AreEqual (1, host.browser.GetRows()[(size_t) FindRow (host.browser, L"copy.po")].collection.set);
@@ -928,7 +928,7 @@ public:
         shell.shellItems.push_back (match);
         host.browser.SetShellVerbs (&shell);
 
-        host.browser.NavigateToLocation (Location::MakeShellFolder (SearchQuery::MakeId (kDisks, L"x"), SearchQuery::GetLabel (kDisks)));
+        host.browser.GetNavigator().NavigateToLocation (Location::MakeShellFolder (SearchQuery::MakeId (kDisks, L"x"), SearchQuery::GetLabel (kDisks)));
         host.browser.SetSelectedRows ({ FindRow (host.browser, match.name.c_str()) });
 
         Assert::IsTrue (host.browser.GetPreview().kind != PreviewContent::Kind::Error, L"It previews from its directory");
@@ -955,7 +955,7 @@ public:
         shell.shellItems.push_back (image);
         host.browser.SetShellVerbs (&shell);
 
-        host.browser.NavigateToLocation (Location::MakeShellFolder (SearchQuery::MakeId (kDisks, L"dos"), SearchQuery::GetLabel (kDisks)));
+        host.browser.GetNavigator().NavigateToLocation (Location::MakeShellFolder (SearchQuery::MakeId (kDisks, L"dos"), SearchQuery::GetLabel (kDisks)));
         host.browser.SetSelectedRows ({ FindRow (host.browser, L"dos33.dsk") });
 
         Assert::IsTrue  (host.browser.GetPreview().kind == PreviewContent::Kind::Catalog, L"The image shows its catalog");
@@ -1352,12 +1352,12 @@ public:
         Assert::AreEqual (std::wstring (L"Casso"), host.browser.GetTabLabel (0));
         Assert::AreEqual ((size_t) 2, host.browser.GetRows().size(), L"the known folder's two images");
 
-        Assert::IsTrue   (host.browser.GoBack());
+        Assert::IsTrue   (host.browser.GetNavigator().GoBack());
         Assert::IsTrue   (host.browser.GetLocation() == Location::MakeRoot (TreeModel::kThisPcRootId));
-        Assert::IsFalse  (host.browser.CanGoUp());
+        Assert::IsFalse  (host.browser.GetNavigator().CanGoUp());
 
         //  And its label, typed, goes there.
-        Assert::IsTrue   (host.browser.NavigateToAddress (L"casso"));
+        Assert::IsTrue   (host.browser.GetNavigator().NavigateToAddress (L"casso"));
         Assert::IsTrue   (host.browser.GetLocation() == Location::MakeRoot (TreeModel::kCassoRootId));
         Assert::AreEqual ((size_t) 2, host.browser.GetRows().size());
     }
@@ -1450,15 +1450,15 @@ public:
         AssertSucceeded (host.browser.SelectTreeNode (host.OpenDisksFolder()));
         Assert::IsTrue (host.browser.OpenRow (FindRow (host.browser, L"prodos.po")));
 
-        Assert::IsTrue (host.browser.GoUp());
+        Assert::IsTrue (host.browser.GetNavigator().GoUp());
         Assert::IsTrue (host.browser.GetLocation() == Location::MakeHostFolder (kDisks));
 
-        Assert::IsTrue (host.browser.GoBack());
+        Assert::IsTrue (host.browser.GetNavigator().GoBack());
         Assert::IsTrue (host.browser.GetLocation().kind == Location::Kind::DiskImage);
 
-        Assert::IsTrue (host.browser.GoForward());
+        Assert::IsTrue (host.browser.GetNavigator().GoForward());
         Assert::IsTrue (host.browser.GetLocation() == Location::MakeHostFolder (kDisks));
-        Assert::IsTrue (host.browser.CanGoUp());
+        Assert::IsTrue (host.browser.GetNavigator().CanGoUp());
     }
 
 
@@ -1585,20 +1585,20 @@ public:
         host.browser.SetSelectedRows ({ FindRow (host.browser, L"NOTES") });
 
         //  A new tab opens at home, not on a copy of the tab it came from.
-        Assert::AreEqual ((size_t) 1, host.browser.NewTab());
+        Assert::AreEqual ((size_t) 1, host.browser.GetNavigator().NewTab());
         Assert::AreEqual (std::wstring (L"Home"), host.browser.GetTabLabel (1));
 
         AssertSucceeded  (host.browser.SelectTreeNode (folder));
         Assert::AreEqual (std::wstring (L"Disks"), host.browser.GetTabLabel (1));
 
-        Assert::IsTrue   (host.browser.SwitchTab (0));
+        Assert::IsTrue   (host.browser.GetNavigator().SwitchTab (0));
         Assert::AreEqual (std::wstring (L"dos33.dsk"), host.browser.GetTabLabel (0));
         Assert::AreEqual ((size_t) 1, host.browser.GetSelectedRows().size());
         Assert::AreEqual (std::wstring (L"NOTES"), host.browser.GetRows()[host.browser.GetSelectedRows()[0]].name);
 
-        Assert::IsTrue   (host.browser.CloseTab (0));
+        Assert::IsTrue   (host.browser.GetNavigator().CloseTab (0));
         Assert::IsTrue   (host.browser.GetLocation() == Location::MakeHostFolder (kDisks));
-        Assert::IsFalse  (host.browser.CloseTab (0));
+        Assert::IsFalse  (host.browser.GetNavigator().CloseTab (0));
     }
 
 
@@ -1612,20 +1612,20 @@ public:
 
         AssertSucceeded (host.browser.SelectTreeNode (folder));
 
-        Assert::AreEqual ((size_t) 1, host.browser.OpenInNewTab (image));
+        Assert::AreEqual ((size_t) 1, host.browser.GetNavigator().OpenInNewTab (image));
         Assert::IsTrue   (host.browser.GetLocation() == image, L"A new tab opens where it was asked to, and shows");
 
-        Assert::AreEqual ((size_t) 2, host.browser.DuplicateTab (1));
+        Assert::AreEqual ((size_t) 2, host.browser.GetNavigator().DuplicateTab (1));
         Assert::IsTrue   (host.browser.GetBrowserModel().GetTab (2).location == image, L"A copy is at the same place");
 
-        Assert::IsTrue   (host.browser.CloseTabsToRight (1));
+        Assert::IsTrue   (host.browser.GetNavigator().CloseTabsToRight (1));
         Assert::AreEqual ((size_t) 2, host.browser.GetBrowserModel().GetTabCount());
-        Assert::IsFalse  (host.browser.CloseTabsToRight (1), L"The last tab has none to its right");
+        Assert::IsFalse  (host.browser.GetNavigator().CloseTabsToRight (1), L"The last tab has none to its right");
 
-        Assert::IsTrue   (host.browser.CloseOtherTabs (1));
+        Assert::IsTrue   (host.browser.GetNavigator().CloseOtherTabs (1));
         Assert::AreEqual ((size_t) 1, host.browser.GetBrowserModel().GetTabCount());
         Assert::IsTrue   (host.browser.GetLocation() == image, L"The tab kept is the one the menu was opened on");
-        Assert::IsFalse  (host.browser.CloseOtherTabs (0), L"and with no others, nothing closes");
+        Assert::IsFalse  (host.browser.GetNavigator().CloseOtherTabs (0), L"and with no others, nothing closes");
     }
 
 
@@ -1660,7 +1660,7 @@ public:
         Host  host;
 
         host.OpenDisksFolder();
-        host.browser.RestoreTabs ({ Location::MakeDiskImage (L"C:\\Disks\\prodos.po"), Location::MakeHostFolder (kDisks) });
+        host.browser.GetNavigator().RestoreTabs ({ Location::MakeDiskImage (L"C:\\Disks\\prodos.po"), Location::MakeHostFolder (kDisks) });
 
         Assert::AreEqual ((size_t) 2, host.browser.GetBrowserModel().GetTabCount());
         Assert::IsTrue   (host.browser.GetLocation().kind == Location::Kind::DiskImage);
@@ -1673,7 +1673,7 @@ public:
         Host  host;
 
         host.OpenDisksFolder();
-        host.browser.RestoreTabs ({ Location::MakeHostFolder (L"H:\\Games"), Location::MakeHostFolder (kDisks) });
+        host.browser.GetNavigator().RestoreTabs ({ Location::MakeHostFolder (L"H:\\Games"), Location::MakeHostFolder (kDisks) });
 
         Assert::AreEqual ((size_t) 1, host.browser.GetBrowserModel().GetTabCount());
         Assert::IsTrue   (host.browser.GetLocation() == Location::MakeHostFolder (kDisks));
@@ -1684,7 +1684,7 @@ public:
     {
         Host  host;
 
-        host.browser.RestoreTabs ({ Location::MakeHostFolder (L"H:\\Games") });
+        host.browser.GetNavigator().RestoreTabs ({ Location::MakeHostFolder (L"H:\\Games") });
 
         Assert::AreEqual ((size_t) 1, host.browser.GetBrowserModel().GetTabCount());
         Assert::IsTrue   (host.browser.GetLocation().kind == Location::Kind::None);
@@ -1710,7 +1710,7 @@ public:
         shell.shellItems = { local, cloud };
         host.browser.SetShellVerbs (&shell);
 
-        host.browser.NavigateToLocation (Location());
+        host.browser.GetNavigator().NavigateToLocation (Location());
         AssertSucceeded (host.browser.Refresh());
 
         Assert::IsTrue   (host.browser.IsHomeLocation());
@@ -1893,7 +1893,7 @@ public:
     {
         Host  host;
 
-        host.browser.RestoreTabs ({});
+        host.browser.GetNavigator().RestoreTabs ({});
 
         Assert::AreEqual ((size_t) 1, host.browser.GetBrowserModel().GetTabCount(), L"a first run has a tab");
         Assert::IsTrue   (host.browser.GetLocation().kind == Location::Kind::None, L"at Home");

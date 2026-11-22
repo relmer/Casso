@@ -240,7 +240,7 @@ void ExplorerListPane::Configure()
 
             if (item.isDirectory && !item.hostPath.empty())
             {
-                m_context.browser.NavigateToLocation (Location::MakeHostFolder (item.hostPath));
+                m_context.browser.GetNavigator().NavigateToLocation (Location::MakeHostFolder (item.hostPath));
                 FillList();
             }
             else
@@ -1618,7 +1618,7 @@ void ExplorerListPane::HandleHomeRowAction (int row, int action)
     {
         std::wstring  folder = CassoExplorerBrowser::GetParentFolder (item.hostPath);
 
-        m_context.browser.NavigateToLocation (Location::MakeHostFolder (folder));
+        m_context.browser.GetNavigator().NavigateToLocation (Location::MakeHostFolder (folder));
         FillList();
         SelectWhenListed (folder, { item.name });
     }

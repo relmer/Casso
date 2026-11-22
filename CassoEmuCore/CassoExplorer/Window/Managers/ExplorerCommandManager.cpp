@@ -151,7 +151,7 @@ bool ExplorerCommandManager::IsEnabled (int id) const
     {
         case CassoExplorerCommands::kBack:              return model.HasTabs() && model.CanGoBack();
         case CassoExplorerCommands::kForward:           return model.HasTabs() && model.CanGoForward();
-        case CassoExplorerCommands::kUp:                return m_context.browser.CanGoUp();
+        case CassoExplorerCommands::kUp:                return m_context.browser.GetNavigator().CanGoUp();
         case CassoExplorerCommands::kShowDisassembly:
         case CassoExplorerCommands::kShowBytes:         return model.HasTabs() && m_context.browser.GetPreview().kind == PreviewContent::Kind::Hex && m_context.browser.GetPreview().hostPath.empty();
         case CassoExplorerCommands::kLineAddresses:
@@ -600,9 +600,9 @@ void ExplorerCommandManager::Dispatch (int id)
         case CassoExplorerCommands::kOptions:           ShowOptions(); break;
         case CassoExplorerCommands::kFullSendStatus:    m_context.fullSendWindows.ShowFullSendWindow (true); break;
 
-        case CassoExplorerCommands::kBack:    refill = m_context.browser.GoBack();    break;
-        case CassoExplorerCommands::kForward: refill = m_context.browser.GoForward(); break;
-        case CassoExplorerCommands::kUp:      refill = m_context.browser.GoUp();      break;
+        case CassoExplorerCommands::kBack:    refill = m_context.browser.GetNavigator().GoBack();    break;
+        case CassoExplorerCommands::kForward: refill = m_context.browser.GetNavigator().GoForward(); break;
+        case CassoExplorerCommands::kUp:      refill = m_context.browser.GetNavigator().GoUp();      break;
 
         case CassoExplorerCommands::kEditAddress:
             m_context.input.SetFocusPane (ExplorerPane::Address);
@@ -632,7 +632,7 @@ void ExplorerCommandManager::Dispatch (int id)
             break;
 
         case CassoExplorerCommands::kNewTab:
-            m_context.browser.NewTab();
+            m_context.browser.GetNavigator().NewTab();
             refill = true;
             break;
 

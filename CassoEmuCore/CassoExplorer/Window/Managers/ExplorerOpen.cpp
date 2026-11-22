@@ -140,7 +140,7 @@ void ExplorerOpen::OpenEachSelected()
 
     for (const Location & each : places)
     {
-        m_context.browser.OpenInNewTab (each);
+        m_context.browser.GetNavigator().OpenInNewTab (each);
     }
 
     if (!places.empty())
@@ -552,7 +552,7 @@ void ExplorerOpen::HandleCardProgress()
     else if (m_navigatePending)
     {
         m_navigatePending = false;
-        m_context.browser.NavigateToLocation (card);
+        m_context.browser.GetNavigator().NavigateToLocation (card);
         m_context.listPane.FillList();
     }
     else if (m_context.browser.GetLocation() == card)
@@ -713,13 +713,13 @@ void ExplorerOpen::FinishInitialize()
     //  A FAT32 card is opened at its drive letter, and a CFFA card as a card.
     if (m_initLayout == RawDeviceProtocol::kLayoutFat32 && !root.empty())
     {
-        m_context.browser.NavigateToLocation (Location::MakeHostFolder (root));
+        m_context.browser.GetNavigator().NavigateToLocation (Location::MakeHostFolder (root));
     }
     else
     {
         //  Opening the card reads its new partitions, which the tree then
         //  lists under the card's node, opened.
-        m_context.browser.NavigateToLocation (Location::MakeDiskImage (m_initCard));
+        m_context.browser.GetNavigator().NavigateToLocation (Location::MakeDiskImage (m_initCard));
         m_context.folderSync.CheckDrives();
         m_context.treePane.ExpandNode (std::wstring (TreeModel::kStorageCardTag) + m_initCard);
         m_context.treePane.RevealLocationInTree();

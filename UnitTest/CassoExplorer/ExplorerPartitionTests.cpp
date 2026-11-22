@@ -63,7 +63,7 @@ public:
 
         void OpenCard()
         {
-            browser.NavigateToLocation (Location::MakeDiskImage (PartitionCard::kCardPath));
+            browser.GetNavigator().NavigateToLocation (Location::MakeDiskImage (PartitionCard::kCardPath));
         }
 
         bool HasVerb (ActionsTypes::Verb verb)
@@ -165,7 +165,7 @@ public:
         Assert::IsTrue (target.kind == Location::Kind::Partition);
         Assert::AreEqual (std::wstring (kSecondPath), target.path);
 
-        host.browser.NavigateToLocation (target);
+        host.browser.GetNavigator().NavigateToLocation (target);
 
         Assert::AreEqual ((size_t) 1, host.browser.GetRows().size());
         Assert::AreEqual (std::wstring (L"SECOND"), host.browser.GetRows()[0].name);
@@ -194,7 +194,7 @@ public:
     {
         CardHost  host;
 
-        host.browser.NavigateToLocation (Location::MakeDiskImage (kDamagedPath));
+        host.browser.GetNavigator().NavigateToLocation (Location::MakeDiskImage (kDamagedPath));
 
         Assert::IsTrue (host.browser.GetRows().empty());
         Assert::IsFalse (host.browser.GetListError().empty());
@@ -219,7 +219,7 @@ public:
         host.OpenCard();
         Assert::IsTrue (host.browser.TryGetRowLocation (2, target));
 
-        host.browser.NavigateToLocation (target);
+        host.browser.GetNavigator().NavigateToLocation (target);
 
         Assert::IsTrue (host.browser.GetRows().empty());
         Assert::IsTrue (host.browser.GetListError().ends_with (DiskMessageText::kDamagedPartitionText), host.browser.GetListError().c_str());
@@ -262,7 +262,7 @@ public:
         CardHost      host;
         std::wstring  partition;
 
-        host.browser.NavigateToLocation (Location::MakeDiskImage (kSecondPath));
+        host.browser.GetNavigator().NavigateToLocation (Location::MakeDiskImage (kSecondPath));
 
         Assert::IsTrue (host.actions.TryGetPartition (partition));
         Assert::AreEqual (std::wstring (kSecondPath), partition);
@@ -345,7 +345,7 @@ public:
         AssertSucceeded (outcome.hr);
         Assert::IsTrue (host.io.files[PartitionCard::kCardName] == replaced);
 
-        host.browser.NavigateToLocation (Location::MakePartition (kSecondPath));
+        host.browser.GetNavigator().NavigateToLocation (Location::MakePartition (kSecondPath));
 
         Assert::AreEqual (std::wstring (L"FRESH"), host.browser.GetRows()[0].name);
     }

@@ -1513,7 +1513,7 @@ bool BrowserLoader::LeaveMissingLocation()
 
         if (!isOpen)
         {
-            m_browser.NavigateToLocation (Location::MakeRoot (TreeModel::kThisPcRootId));
+            m_browser.GetNavigator().NavigateToLocation (Location::MakeRoot (TreeModel::kThisPcRootId));
         }
 
         return !isOpen;
@@ -1543,7 +1543,7 @@ bool BrowserLoader::LeaveMissingLocation()
         return false;
     }
 
-    m_browser.NavigateToLocation (Location::MakeHostFolder (path));
+    m_browser.GetNavigator().NavigateToLocation (Location::MakeHostFolder (path));
 
     return true;
 }
