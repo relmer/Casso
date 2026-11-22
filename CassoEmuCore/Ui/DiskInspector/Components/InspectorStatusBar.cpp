@@ -246,7 +246,7 @@ float InspectorStatusBar::PlaceLead (IDxuiTextRenderer & text, vector<LeadItem> 
         text.MeasureString (item.text.c_str(), m_scaler.ToPxf (item.kind == LeadKind::Selection ? s_kHintTextDip : s_kChipTextDip),
                             item.kind == LeadKind::Selection ? DxuiTheme::GetUiFace() : DxuiTheme::kBodyFace, item.w, h);
 
-        item.w     += (isChip || item.kind == LeadKind::Result) ? 2 * pad : 0.0f;
+        item.w     += (isChip || item.kind == LeadKind::Result || item.kind == LeadKind::Unsaved) ? 2 * pad : 0.0f;
         selectionW  = (item.kind == LeadKind::Selection) ? item.w : selectionW;
     }
 
@@ -265,7 +265,7 @@ float InspectorStatusBar::PlaceLead (IDxuiTextRenderer & text, vector<LeadItem> 
 
         if (item.isPlaced)
         {
-            x += item.w + gap * (isChip || item.kind == LeadKind::Result ? 1.0f : 2.0f);
+            x += item.w + gap * (isChip || item.kind == LeadKind::Result || item.kind == LeadKind::Unsaved ? 1.0f : 2.0f);
         }
     }
 
@@ -302,6 +302,12 @@ void InspectorStatusBar::PaintLead (IDxuiPainter & painter, IDxuiTextRenderer & 
             case LeadKind::Result:
                 painter.FillRoundedRect (item.x, y, item.w, chipH, chipH / 2, theme.SelectionBackground());
                 text.DrawString (item.text.c_str(), item.x, y, item.w, chipH, theme.Foreground(), textPx, DxuiTheme::kBodyFace,
+                                 DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
+                break;
+
+            case LeadKind::Unsaved:
+                painter.FillRoundedRect (item.x, y, item.w, chipH, chipH / 2, badColor);
+                text.DrawString (item.text.c_str(), item.x, y, item.w, chipH, DxuiColor::GetContrastingInk (badColor), textPx, DxuiTheme::kBodyFace,
                                  DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
                 break;
 

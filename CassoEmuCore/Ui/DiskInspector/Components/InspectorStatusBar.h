@@ -24,9 +24,11 @@
 class InspectorStatusBar
 {
 public:
+    //  Unsaved is a count of unsaved edits, filled in the bad color.
     enum class LeadKind
     {
         Result,
+        Unsaved,
         Chip,
         BadChip,
         Note,

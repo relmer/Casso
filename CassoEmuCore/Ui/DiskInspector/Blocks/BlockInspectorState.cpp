@@ -99,7 +99,7 @@ vector<InspectorStatusBar::LeadItem> BlockInspectorState::BuildLead (const Block
 
     if (unsaved > 0)
     {
-        items.push_back ({ InspectorText::FormatCount ((int) unsaved, L"unsaved block", L"unsaved blocks"), LeadKind::Result });
+        items.push_back ({ InspectorText::FormatCount ((int) unsaved, L"unsaved block", L"unsaved blocks"), LeadKind::Unsaved });
     }
 
     if (isBusy)

@@ -163,6 +163,7 @@ public:
 
         Assert::AreEqual ((size_t) 1, items.size());
         Assert::AreEqual (std::wstring (L"1 unsaved block"), items[0].text);
+        Assert::IsTrue   (items[0].kind == InspectorStatusBar::LeadKind::Unsaved, L"the unsaved count is drawn in the bad color");
     }
 
 
