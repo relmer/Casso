@@ -34,6 +34,7 @@ public:
     void            SetVisible            (bool visible);
     void            SetZoom               (float zoom);
     bool            IsShowing             () const;
+    bool            IsPinging             () const;
     LPCWSTR         GetCursorForPoint     (POINT clientPx) const;
     bool            TryGetScrollbarMenu   (const DxuiMouseEvent & ev, std::vector<DxuiPopupMenuItem> & outItems) const;
     bool            TryGetSelectionDetail (std::wstring & outDetail) const;

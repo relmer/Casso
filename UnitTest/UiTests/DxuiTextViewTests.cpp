@@ -134,6 +134,103 @@ public:
     }
 
 
+    //  A zoomable picture with a ping, 100 pixels square, on the second line.
+    static void  SetMapRows (DxuiTextView & view)
+    {
+        DxuiTextView::Row  row     = MakeRow ({ L"" });
+        auto               picture = std::make_shared<DxuiTextView::Picture>();
+
+        picture->bgra.assign (100 * 100, 0xFF336699);
+        picture->width  = 100;
+        picture->height = 100;
+        picture->pingX  = 50;
+        picture->pingY  = 50;
+        picture->zoom   = true;
+        row.picture     = picture;
+
+        LayOut (view, 400, 400);
+        view.SetRows ({ MakeRow ({ L"above" }), row });
+    }
+
+
+    static void  Wheel (DxuiTextView & view, int x, int y, float notches)
+    {
+        DxuiMouseEvent  ev;
+
+        ev.kind        = DxuiMouseEventKind::Wheel;
+        ev.positionDip = POINT { x, y };
+        ev.wheelDelta  = notches;
+
+        view.OnMouse (ev);
+    }
+
+
+    //  The wheel over a zoomable picture zooms it around the pointer: the
+    //  pixel under the pointer stays put, and the others close in on it.
+    TEST_METHOD (MapZoom_KeepsThePixelUnderThePointer)
+    {
+        DxuiTextView  view;
+        int           hitRow = 0;
+        int           x      = 0;
+        int           y      = 0;
+
+        SetMapRows (view);
+        Wheel (view, 6 + 50, 6 + 16 + 50, 1.0f);
+
+        Assert::AreEqual (1.25f, view.GetMapZoom());
+        Assert::AreEqual (0, view.GetTopLine(), L"the wheel zooms the map rather than scroll the text");
+        Assert::IsTrue   (view.HitTestPicture (POINT { 6 + 50, 6 + 16 + 50 }, hitRow, x, y));
+        Assert::AreEqual (50, x);
+        Assert::IsTrue   (view.HitTestPicture (POINT { 6 + 10, 6 + 16 + 10 }, hitRow, x, y));
+        Assert::AreEqual (18, x, L"10 pixels left of the pointer at 1.25 times is 8 picture pixels left of 50, from an origin of 10");
+
+        Wheel (view, 6 + 50, 6 + 16 + 50, -5.0f);
+
+        Assert::AreEqual (1.0f, view.GetMapZoom(), L"no smaller than the whole picture");
+    }
+
+
+    //  A left drag on a zoomed picture pans it, and the picture stays in view.
+    TEST_METHOD (MapPan_FollowsTheDragInsideThePicture)
+    {
+        DxuiTextView  view;
+
+        SetMapRows (view);
+        Wheel (view, 6 + 50, 6 + 16 + 50, 4.0f);
+        Mouse (view, DxuiMouseEventKind::Down, 6 + 50, 6 + 16 + 50);
+        Mouse (view, DxuiMouseEventKind::Move, 6 + 40, 6 + 16 + 50);
+
+        Assert::IsTrue (view.GetMapOrigin().x > 0, L"dragged left, the view moves right across the picture");
+        Assert::IsFalse (view.HasSelection(), L"a drag on the map doesn't select text");
+
+        Mouse (view, DxuiMouseEventKind::Move, 6 + 400, 6 + 16 + 400);
+        Mouse (view, DxuiMouseEventKind::Up,   6 + 400, 6 + 16 + 400);
+
+        Assert::AreEqual (0L, view.GetMapOrigin().x, L"dragged far right and down, the view stops at the picture's left");
+        Assert::AreEqual (0L, view.GetMapOrigin().y, L"and its top");
+    }
+
+
+    //  The ping animates for the first part of every period, with one more
+    //  frame as it ends so its last ring is erased, and then rests.
+    TEST_METHOD (MapPing_RunsThenRestsEachPeriod)
+    {
+        DxuiTextView  view;
+
+        SetMapRows (view);
+
+        Assert::IsTrue  (view.IsPinging());
+        Assert::IsTrue  (view.TickPing (10000),        L"the ping starts on the first tick");
+        Assert::IsTrue  (view.TickPing (10000 + 1000), L"its rings are spreading");
+        Assert::IsTrue  (view.TickPing (10000 + 1600), L"one frame to erase the last ring");
+        Assert::IsFalse (view.TickPing (10000 + 2000), L"at rest until the next period");
+        Assert::IsTrue  (view.TickPing (10000 + 3100), L"the next ping");
+
+        view.SetRows ({ MakeRow ({ L"text only" }) });
+
+        Assert::IsFalse (view.IsPinging());
+    }
+
     //  A table fits when each row's cells fit at their natural widths; a
     //  narrower view would wrap the last cell, so it doesn't fit.
     TEST_METHOD (DoColumnsFit_OnlyWhenNoCellWraps)

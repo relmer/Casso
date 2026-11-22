@@ -154,6 +154,9 @@ std::vector<DxuiTextView::Row> PreviewText::BuildDocumentRows (const std::vector
             picture->bgra   = paragraph.picture;
             picture->width  = paragraph.width;
             picture->height = paragraph.height;
+            picture->pingX  = paragraph.pingX;
+            picture->pingY  = paragraph.pingY;
+            picture->zoom   = paragraph.canZoom;
             row.picture     = picture;
         }
 

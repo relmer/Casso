@@ -196,6 +196,9 @@ struct Paragraph
     int                                 tipLeft    = 0;
     int                                 tipTop     = 0;
     int                                 tipColumns = 0;
+    int                                 pingX      = -1;      // a picture's ping center, in its pixels; -1 for none
+    int                                 pingY      = -1;
+    bool                                canZoom    = false;   // the wheel zooms the picture and a drag pans it
     std::shared_ptr<const RecordTable>  table;
 
     bool  operator== (const Paragraph &) const = default;

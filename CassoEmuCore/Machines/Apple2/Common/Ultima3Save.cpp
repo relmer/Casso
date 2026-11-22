@@ -758,6 +758,10 @@ HRESULT Ultima3Save::Decode (std::span<const Byte> sectors, std::span<const bool
     RenderMap (sectors, unreadable, party.x, party.y, map.picture, map.width, map.height);
     LabelMap  (sectors, unreadable, party.x, party.y, map);
 
+    map.pingX   = party.x * s_kTilePixels + s_kTilePixels / 2;
+    map.pingY   = party.y * s_kTilePixels + s_kTilePixels / 2;
+    map.canZoom = true;
+
     outFile.paragraphs.push_back (MakeParagraph ({ Run { L"Ultima III: Exodus", true } }));
     outFile.paragraphs.push_back (MakeParagraph ({ Run { std::format (L"Saved game, the party at column {}, row {}", party.x, party.y), false, false, false, RunColor::Muted } }));
     outFile.paragraphs.push_back (std::move (map));

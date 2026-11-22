@@ -1129,7 +1129,7 @@ bool CassoExplorerWindow::IsTickWanted() const
         || m_parts->toolbars.IsMenuOpen() || m_parts->preview.GetToolbar().IsMenuOpen()
         || m_parts->toolbars.WantsTick() || m_parts->preview.GetToolbar().WantsTick()
         || GetPopupHost()->GetContextMenu().IsVisible() || GetPopupHost()->GetContextMenu().WantsTick()
-        || m_parts->input.HasCaretFocus();
+        || m_parts->input.HasCaretFocus() || m_parts->preview.GetText().IsPinging();
 }
 
 

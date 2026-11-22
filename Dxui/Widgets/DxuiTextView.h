@@ -4,6 +4,7 @@
 #include "Core/IDxuiControl.h"
 #include "Theme/IDxuiTheme.h"
 #include "DxuiScrollbar.h"
+#include "DxuiPictureMap.h"
 
 
 
@@ -74,6 +75,9 @@ public:
         std::vector<uint32_t>  bgra;
         int                    width  = 0;
         int                    height = 0;
+        int                    pingX  = -1;      // rings spread from here, in the picture's pixels, every few seconds; -1 for none
+        int                    pingY  = -1;
+        bool                   zoom   = false;   // the wheel zooms it around the pointer and a left drag pans it
     };
 
     //  A row of cells. A row of one cell is aligned in the text's width on
@@ -160,6 +164,16 @@ public:
     //  whether the outline moved.
     bool  SetPictureOutline (int row, const RECT & pictureRect);
 
+    //  Whether a picture with a ping is in the rows, and the ping's animation:
+    //  true when a frame changed, so the view needs painting.
+    bool  IsPinging () const;
+    bool  TickPing  (int64_t nowMs);
+
+    //  A zoomable picture's zoom, 1 for the whole picture, and the picture
+    //  pixel at its top left.
+    float  GetMapZoom   () const { return m_map.GetZoom(); }
+    POINT  GetMapOrigin () const { return m_map.GetOrigin(); }
+
     //  Whether every row of more than one cell fits the text's width with each
     //  cell at its natural width, so no cell wraps: false for a table that
     //  doesn't fit. True before the text is measured.
@@ -242,6 +256,9 @@ private:
     static int    GetCharClass      (wchar_t ch) { return (ch == L'\t') ? 2 : (ch == L' ') ? 1 : 0; }
     void          PaintLine         (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, int lineIndex, const DxuiFontHandle & font);
     void          PaintPicture      (IDxuiTextRenderer & text, const IDxuiTheme & theme, int lineIndex) const;
+    bool          GetPictureFrame   (int row, float & outLeft, float & outTop, float & outScale) const;
+    bool          ZoomPicture       (POINT point, float notches);
+    bool          TryStartMapPan    (POINT point);
     void          AddPictureLines   (int row, float widthPx);
     void          FillSelectedRange (IDxuiPainter & painter, int y, int row, int cell, int cellFrom, int flatStart, int count, float trailPx, int selFrom, int selTo, uint32_t argb) const;
     void          DrawRun           (IDxuiTextRenderer & text, const IDxuiTheme & theme, const DxuiFontHandle & font, int y, int row, int cell, int cellFrom,
@@ -249,6 +266,7 @@ private:
                                      const std::vector<uint32_t> & colors) const;
     std::vector<uint32_t>  GetRowColors (const Row & row) const;
     std::vector<uint8_t>   GetRowStyles (const Row & row) const;
+    DxuiPictureMap::Key    GetMapKey    (int row) const;
     float                  GetLineShift (int lineIndex) const;
 
     //  The line being painted: its shift for its row's alignment, each
@@ -264,6 +282,7 @@ private:
     IDxuiPainter         * m_paintPainter  = nullptr;
     int                    m_outlineRow    = -1;
     RECT                   m_outlineRect   = {};
+    DxuiPictureMap         m_map;
 
     std::vector<Row>   m_rows;
     std::vector<Line>  m_lines;

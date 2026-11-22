@@ -149,13 +149,36 @@ bool PreviewTextView::UpdateScrollbarHover (POINT at)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PreviewTextView::IsPinging
+//
+//  Whether the text shows a picture with a ping, such as a saved game's map
+//  with the party marked, which animates on the window's tick.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PreviewTextView::IsPinging() const
+{
+    return IsShowing() && m_text->IsPinging();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PreviewTextView::TickScrollbars
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool PreviewTextView::TickScrollbars (int64_t nowMs)
 {
-    return m_text->TickScrollbars (nowMs);
+    bool  moved  = m_text->TickScrollbars (nowMs);
+    bool  pinged = m_text->TickPing (nowMs);
+
+
+
+    return moved || pinged;
 }
 
 
@@ -243,6 +266,13 @@ void PreviewTextView::FillRows (const PreviewContent & preview, bool keepPlace)
     {
         m_text->Measure (*m_context.window.GetTextRenderer(), *m_context.theme);
         SetPlace (paragraph, within);
+    }
+
+    //  A map's ping animates on the window's tick, which otherwise waits for
+    //  input to start it.
+    if (m_text->IsPinging())
+    {
+        m_context.window.ArmTick();
     }
 }
 

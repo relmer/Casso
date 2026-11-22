@@ -372,6 +372,9 @@ void Ultima4Save::RenderMap (std::span<const Byte> sectors, std::span<const bool
     ioMap.tipLeft    = 0;
     ioMap.tipTop     = 0;
     ioMap.tipColumns = kWorldSide;
+    ioMap.pingX      = partyX * s_kTilePixels + s_kTilePixels / 2;
+    ioMap.pingY      = partyY * s_kTilePixels + s_kTilePixels / 2;
+    ioMap.canZoom    = true;
     ioMap.picture.assign ((size_t) side * (size_t) side, s_kOtherTile);
     ioMap.tips.assign ((size_t) kWorldSide * (size_t) kWorldSide, PictureTip());
 
