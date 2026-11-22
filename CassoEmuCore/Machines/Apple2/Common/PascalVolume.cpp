@@ -83,6 +83,9 @@ void PascalVolume::SetWord (std::span<Byte> bytes, size_t offset, Word value)
 //
 //  PascalVolume::IsFound
 //
+//  The volume's size in blocks can be larger than the disk: Wizardry IV's
+//  boot disk has 2048. The blocks past the disk are left out.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool PascalVolume::IsFound (const vector<Byte> & sectors)
@@ -106,7 +109,7 @@ bool PascalVolume::IsFound (const vector<Byte> & sectors)
         total   = GetWord (block, s_kOffVolumeBlocks);
         isFound = GetWord (block, s_kOffFirst) == 0 && GetWord (block, s_kOffNext) == kFirstDataBlock && GetWord (block, s_kOffKind) == 0
                && length >= 1 && length <= s_kVolumeNameMax
-               && total >= kFirstDataBlock && total <= (int) (sectors.size() / kBlockBytes)
+               && total >= kFirstDataBlock
                && GetWord (block, s_kOffFileCount) <= kMaxFiles;
     }
 
@@ -465,7 +468,7 @@ void PascalVolume::ReadDirectory (vector<Byte> & outDirectory) const
 
 void PascalVolume::ReadEntries (const vector<Byte> & directory, vector<RawEntry> & outEntries, vector<std::string> & outDamage) const
 {
-    int   total    = GetWord (directory, s_kOffVolumeBlocks);
+    int   total    = (std::min) ((int) GetWord (directory, s_kOffVolumeBlocks), (int) GetUnitCount());
     int   count    = (std::min) ((int) GetWord (directory, s_kOffFileCount), kMaxFiles);
     int   previous = kFirstDataBlock;
 
