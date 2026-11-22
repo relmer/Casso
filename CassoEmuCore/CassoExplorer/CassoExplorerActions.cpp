@@ -14,6 +14,7 @@
 #include "CassoExplorer/Model/PreviewDecoder.h"
 #include "CassoExplorer/Model/DragPayload.h"
 #include "CassoExplorer/Model/FilesystemChoices.h"
+#include "CassoExplorer/Model/HostFolderReader.h"
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/CpmVolume.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
@@ -1325,6 +1326,14 @@ ActionsTypes::PutPlan CassoExplorerActions::PlanPutByContent (const std::wstring
     else
     {
         plan.catalogName = MakeCatalogName (hostName, kind);
+    }
+
+    //  A disk image is data, not a program, so it goes in as a binary file
+    //  at address zero, with no load address prompt.
+    if (HostFolderReader::IsSupportedImage (GetLeafName (hostName)))
+    {
+        SetTypedPayload (plan, bytes, ProDosVolume::kTypeBinary, true, 0, isDos);
+        return plan;
     }
 
     verdict = ContentSniffer::Classify (std::span<const Byte> (bytes.data(), bytes.size()), suggested);
