@@ -11,7 +11,6 @@
 #include "CassoExplorer/Window/Managers/ExplorerVerbs.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Window/Managers/ExplorerOpen.h"
-#include "Core/AppMessages.h"
 
 
 
@@ -166,7 +165,6 @@ bool ExplorerListBars::FillCardBar()
     std::vector<std::wstring>    arrived;
     std::wstring                 text;
     HRESULT                      hr        = S_OK;
-    BOOL                         posted    = TRUE;
     bool                         visible   = m_cardBar->IsVisible();
     bool                         onCard    = false;
     bool                         atRoot    = false;
@@ -182,20 +180,7 @@ bool ExplorerListBars::FillCardBar()
     //  Files dropped on or from a card that Windows has moved since.
     m_context.actions.GetA2retroNet().ResolveMoves();
 
-    //  Images copied to a card that A2retroNET doesn't read. The question
-    //  about them waits for a message, so the list is filled first.
     m_context.actions.GetA2retroNet().TakeArrived (arrived);
-
-    if (!arrived.empty())
-    {
-        m_arrived.insert (m_arrived.end(), arrived.begin(), arrived.end());
-
-        if (m_context.window.GetHwnd() != nullptr)
-        {
-            posted = PostMessageW (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerCardArrivals, 0, 0);
-            IGNORE_RETURN_VALUE (posted, TRUE);
-        }
-    }
 
     onCard = location.kind == Location::Kind::HostFolder && !root.empty() && m_context.actions.IsA2PicoCard (root) && location.path != m_cardBarClosed;
     atRoot = onCard && location.path == root;
@@ -285,51 +270,6 @@ std::wstring ExplorerListBars::DescribeFiles (const std::vector<std::wstring> & 
     }
 
     return text;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerListBars::OfferArrived
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ExplorerListBars::OfferArrived()
-{
-    std::vector<std::wstring>  paths  = std::move (m_arrived);
-    std::wstring               text;
-    std::wstring               written;
-    int                        choice = IDNO;
-
-
-
-    m_arrived.clear();
-
-    if (paths.empty())
-    {
-        return;
-    }
-
-    text = paths.size() == 1
-         ? std::format (L"A2Pico doesn't support {}. Would you like to convert it to {}?", DescribeFiles (paths), std::filesystem::path (paths[0]).filename().replace_extension (L".po").wstring())
-         : std::format (L"A2Pico doesn't support {}. Would you like to convert them to .po images?", DescribeFiles (paths));
-
-    choice = DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, text.c_str(), L"Convert for A2Pico", MB_YESNO, { L"Convert", L"Don't convert" });
-
-    if (choice != IDYES)
-    {
-        return;
-    }
-
-    for (const std::wstring & path : paths)
-    {
-        m_context.verbs.ReportOutcome (m_context.actions.GetA2retroNet().ReplaceWithPo (path, written), L"Convert for A2Pico");
-    }
-
-    m_context.folderSync.RefreshAfterHostChange();
 }
 
 

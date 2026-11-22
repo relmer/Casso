@@ -286,12 +286,6 @@ bool ExplorerWindowParts::HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lPar
         return true;
     }
 
-    if (msg == (UINT) AppMessage::ExplorerCardArrivals)
-    {
-        listPane.GetBars().OfferArrived();
-        return true;
-    }
-
     if (msg == (UINT) AppMessage::ExplorerThumbnail)
     {
         preview.TakeThumbnail();
