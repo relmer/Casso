@@ -4,6 +4,7 @@
 #include "CassoExplorer/Browser/BrowserLoader.h"
 #include "CassoExplorer/Browser/BrowserPreviewer.h"
 #include "CassoExplorer/Browser/BrowserCells.h"
+#include "CassoExplorer/Browser/BrowserColumnFilters.h"
 
 #include "CassoExplorer/Model/BrowserModel.h"
 #include "CassoExplorer/Model/StockDisksListing.h"
@@ -176,16 +177,7 @@ public:
     //  within each, and the groups for the list to draw headers for.
     void                              SetGroupBy    (RowGrouping::Field field, bool descending);
 
-    //  File Explorer's column filters: the groups a column's rows fall in, as
-    //  Group by groups them, and the rows shown only in the groups checked.
-    //  The choices are the folder's before filtering; a filter ends when the
-    //  folder shown changes.
-    static RowGrouping::Field                 GetFilterField     (size_t column);
-    const std::vector<RowGrouping::Group>   & GetFilterChoices   (RowGrouping::Field field) const;
-    bool                                      IsFiltering        (RowGrouping::Field field) const { return m_filters.contains (field); }
-    bool                                      IsFilterChecked    (RowGrouping::Field field, const std::wstring & label) const;
-    void                                      ToggleFilter       (RowGrouping::Field field, const std::wstring & label);
-    void                                      ClearFilter        (RowGrouping::Field field);
+    BrowserColumnFilters  & GetColumnFilters () { return m_columnFilters; }
 
     //  A folder's own sort and grouping, set together as it opens.
     void                              SetSortAndGroup (CatalogModel::Column column, bool descending, RowGrouping::Field group, bool groupDescending);
@@ -465,7 +457,6 @@ private:
     bool                     m_returningToTab  = false;
     int                      m_homeFirstTabRow = 0;
     void  GroupRows              ();
-    void  FilterRows             ();
     void  CaptureNameSource      (const Location & location);
     void  ApplyNameFilter        ();
     void  ResortKeepingSelection ();
@@ -491,10 +482,8 @@ private:
     TypedPathHistory                    m_typedPaths;
     std::vector<CatalogRow>             m_rows;
     std::vector<RowGrouping::Group>     m_rowGroups;       // each row's group, when grouped
-    std::map<RowGrouping::Field, std::set<std::wstring>>             m_filters;          // the checked groups of each filtered column
-    std::map<RowGrouping::Field, std::vector<RowGrouping::Group>>    m_filterChoices;    // each column's groups before filtering
-    Location                                                          m_filterLocation;   // the folder the filters are for
-    bool                                                              m_rowsUnfiltered = false;   // loaded since the last filter
+    BrowserColumnFilters                m_columnFilters;
+
     size_t                                                            m_propertyCount  = 0;
     PropertyKeyFn                                                     m_propertyKey;
     PropertyKeyFn                                                     m_propertyPeek;     // a value already read, or none, without waiting for the file

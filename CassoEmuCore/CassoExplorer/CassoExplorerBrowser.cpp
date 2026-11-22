@@ -235,7 +235,7 @@ HRESULT CassoExplorerBrowser::Refresh()
     if (m_returningToTab && IsHomeLocation() && !m_homeRows.empty())
     {
         m_loader.m_shellParent = m_homeParent;
-        m_rowsUnfiltered       = true;
+        m_columnFilters.MarkRowsLoaded();
         SortRows();
         m_previewer.UpdatePreview();
         m_cells.UpdateStatus();
@@ -309,7 +309,7 @@ HRESULT CassoExplorerBrowser::Refresh()
         ApplyNameFilter();
     }
 
-    m_rowsUnfiltered = true;
+    m_columnFilters.MarkRowsLoaded();
 
     if (IsHomeLocation())
     {
@@ -525,7 +525,7 @@ void CassoExplorerBrowser::SortRows()
         return;
     }
 
-    FilterRows();
+    m_columnFilters.FilterRows (m_rows, GetLocation());
 
     if (m_model.GetActiveTab().sortColumn != CatalogModel::kRelevance && (size_t) m_model.GetActiveTab().sortColumn >= CatalogModel::kColumnCount && m_propertyKey)
     {
@@ -544,195 +544,6 @@ void CassoExplorerBrowser::SortRows()
     }
 
     GroupRows();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerBrowser::GetFilterField
-//
-//  The columns File Explorer filters by its groups: name, date, type and
-//  size.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-RowGrouping::Field CassoExplorerBrowser::GetFilterField (size_t column)
-{
-    switch ((CatalogModel::Column) column)
-    {
-        case CatalogModel::Column::Name:     return RowGrouping::Field::Name;
-        case CatalogModel::Column::Modified: return RowGrouping::Field::DateModified;
-        case CatalogModel::Column::Type:     return RowGrouping::Field::Type;
-        case CatalogModel::Column::Size:     return RowGrouping::Field::Size;
-        default:                             return RowGrouping::Field::None;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerBrowser::GetFilterChoices
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const std::vector<RowGrouping::Group> & CassoExplorerBrowser::GetFilterChoices (RowGrouping::Field field) const
-{
-    static const std::vector<RowGrouping::Group>  s_kNone;
-    auto                                          found  = m_filterChoices.find (field);
-
-
-
-    return (found != m_filterChoices.end()) ? found->second : s_kNone;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerBrowser::IsFilterChecked
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool CassoExplorerBrowser::IsFilterChecked (RowGrouping::Field field, const std::wstring & label) const
-{
-    auto  found = m_filters.find (field);
-
-
-
-    return found != m_filters.end() && found->second.contains (label);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerBrowser::ToggleFilter
-//
-//  The last group unchecked ends the column's filter.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CassoExplorerBrowser::ToggleFilter (RowGrouping::Field field, const std::wstring & label)
-{
-    std::set<std::wstring> &  checked = m_filters[field];
-
-
-
-    if (!checked.erase (label))
-    {
-        checked.insert (label);
-    }
-
-    if (checked.empty())
-    {
-        m_filters.erase (field);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerBrowser::ClearFilter
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CassoExplorerBrowser::ClearFilter (RowGrouping::Field field)
-{
-    m_filters.erase (field);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerBrowser::FilterRows
-//
-//  The choices come from every row the folder has; the rows kept are those
-//  in a checked group of every filtered column. Rows are filtered once each
-//  load, so a sort afterward sorts the rows the filter left.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CassoExplorerBrowser::FilterRows()
-{
-    RowGrouping::Today  today = RowGrouping::GetToday();
-
-
-
-    if (!m_rowsUnfiltered)
-    {
-        return;
-    }
-
-    m_rowsUnfiltered = false;
-
-    if (!(GetLocation() == m_filterLocation))
-    {
-        m_filters.clear();
-        m_filterLocation = GetLocation();
-    }
-
-    m_filterChoices.clear();
-
-    for (RowGrouping::Field field : { RowGrouping::Field::Name, RowGrouping::Field::DateModified, RowGrouping::Field::Type, RowGrouping::Field::Size })
-    {
-        std::vector<RowGrouping::Group> &  choices = m_filterChoices[field];
-
-        for (const CatalogRow & row : m_rows)
-        {
-            RowGrouping::Group  group = RowGrouping::GetGroup (row, field, today);
-
-            if (std::find (choices.begin(), choices.end(), group) == choices.end())
-            {
-                choices.push_back (group);
-            }
-        }
-
-        //  File Explorer's filter lists a group of rows with no value, such
-        //  as a folder's Unspecified size, after the others.
-        std::stable_sort (choices.begin(), choices.end(), [] (const RowGrouping::Group & a, const RowGrouping::Group & b)
-        {
-            if ((a.rank < 0) != (b.rank < 0))
-            {
-                return b.rank < 0;
-            }
-
-            return RowGrouping::IsBefore (a, b, false);
-        });
-    }
-
-    if (m_filters.empty())
-    {
-        return;
-    }
-
-    std::erase_if (m_rows, [this, &today] (const CatalogRow & row)
-    {
-        for (const auto & [field, checked] : m_filters)
-        {
-            if (!checked.contains (RowGrouping::GetGroup (row, field, today).label))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    });
 }
 
 
@@ -1321,7 +1132,7 @@ void CassoExplorerBrowser::SetNameFilter (const std::wstring & text)
     m_selectedRows.clear();
     ApplyNameFilter();
 
-    m_rowsUnfiltered = true;
+    m_columnFilters.MarkRowsLoaded();
     SortRows();
     m_previewer.UpdatePreview();
     m_cells.UpdateStatus();

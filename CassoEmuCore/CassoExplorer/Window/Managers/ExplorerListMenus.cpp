@@ -2020,7 +2020,7 @@ void ExplorerListMenus::AddConvertMenu (std::vector<DxuiPopupMenuItem> & items)
 void ExplorerListMenus::ShowFilterMenu (size_t column, RECT chevron)
 {
     std::vector<DxuiPopupMenuItem>  items;
-    RowGrouping::Field              field  = CassoExplorerBrowser::GetFilterField (column);
+    RowGrouping::Field              field  = BrowserColumnFilters::GetFilterField (column);
 
 
 
@@ -2031,7 +2031,7 @@ void ExplorerListMenus::ShowFilterMenu (size_t column, RECT chevron)
 
     m_context.menus.GetMenuCommands().clear();
 
-    for (const RowGrouping::Group & group : m_context.browser.GetFilterChoices (field))
+    for (const RowGrouping::Group & group : m_context.browser.GetColumnFilters().GetFilterChoices (field))
     {
         std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
         std::wstring                  label   = group.label;
@@ -2040,12 +2040,12 @@ void ExplorerListMenus::ShowFilterMenu (size_t column, RECT chevron)
         command->keepsMenuOpen = true;
         command->checkBox      = true;
         command->menuImage     = m_context.shellIcons.GetForIconResource (s_kFilterGroupIcon);
-        command->isChecked     = [this, field, label]() { return m_context.browser.IsFilterChecked (field, label); };
+        command->isChecked     = [this, field, label]() { return m_context.browser.GetColumnFilters().IsFilterChecked (field, label); };
         command->dispatch      = [this, field, label]()
         {
             HRESULT  hr = S_OK;
 
-            m_context.browser.ToggleFilter (field, label);
+            m_context.browser.GetColumnFilters().ToggleFilter (field, label);
             hr = m_context.browser.Reload (true);
             IGNORE_RETURN_VALUE (hr, S_OK);
             m_pane.FillList();
@@ -2055,14 +2055,14 @@ void ExplorerListMenus::ShowFilterMenu (size_t column, RECT chevron)
         m_context.menus.GetMenuCommands().push_back (std::move (command));
     }
 
-    if (m_context.browser.IsFiltering (field))
+    if (m_context.browser.GetColumnFilters().IsFiltering (field))
     {
         items.push_back (DxuiPopupMenuItem::ForSeparator());
         m_context.menus.AddMenuCommand (items, L"&Clear filter", [this, field]()
         {
             HRESULT  hr = S_OK;
 
-            m_context.browser.ClearFilter (field);
+            m_context.browser.GetColumnFilters().ClearFilter (field);
             hr = m_context.browser.Reload (true);
             IGNORE_RETURN_VALUE (hr, S_OK);
             m_pane.FillList();

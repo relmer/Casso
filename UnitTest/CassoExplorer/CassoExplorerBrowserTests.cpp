@@ -1170,18 +1170,18 @@ public:
         std::wstring  folder = host.OpenDisksFolder();
         size_t        all    = 0;
 
-        Assert::IsTrue (CassoExplorerBrowser::GetFilterField ((size_t) CatalogModel::Column::Type) == RowGrouping::Field::Type);
-        Assert::IsTrue (CassoExplorerBrowser::GetFilterField ((size_t) CatalogModel::Column::Address) ==RowGrouping::Field::None);
+        Assert::IsTrue (BrowserColumnFilters::GetFilterField ((size_t) CatalogModel::Column::Type) == RowGrouping::Field::Type);
+        Assert::IsTrue (BrowserColumnFilters::GetFilterField ((size_t) CatalogModel::Column::Address) ==RowGrouping::Field::None);
 
         AssertSucceeded (host.browser.SelectTreeNode (host.FindChildId (folder, L"dos33.dsk")));
         all = host.browser.GetRows().size();
 
-        Assert::AreEqual ((size_t) 2, host.browser.GetFilterChoices (RowGrouping::Field::Name).size());
+        Assert::AreEqual ((size_t) 2, host.browser.GetColumnFilters().GetFilterChoices (RowGrouping::Field::Name).size());
 
-        host.browser.ToggleFilter (RowGrouping::Field::Name, std::wstring (L"A ") + s_kpszEnDash + L" H");
+        host.browser.GetColumnFilters().ToggleFilter (RowGrouping::Field::Name, std::wstring (L"A ") + s_kpszEnDash + L" H");
         AssertSucceeded (host.browser.Reload (true));
 
-        Assert::IsTrue (host.browser.IsFiltering (RowGrouping::Field::Name));
+        Assert::IsTrue (host.browser.GetColumnFilters().IsFiltering (RowGrouping::Field::Name));
         Assert::IsTrue (host.browser.GetRows().size() < all);
 
         for (const CatalogRow & row : host.browser.GetRows())
@@ -1189,16 +1189,16 @@ public:
             Assert::IsTrue (row.name[0] <= L'H');
         }
 
-        Assert::AreEqual ((size_t) 2, host.browser.GetFilterChoices (RowGrouping::Field::Name).size(), L"The choices include the rows filtered out");
+        Assert::AreEqual ((size_t) 2, host.browser.GetColumnFilters().GetFilterChoices (RowGrouping::Field::Name).size(), L"The choices include the rows filtered out");
 
-        host.browser.ToggleFilter (RowGrouping::Field::Name, std::wstring (L"A ") + s_kpszEnDash + L" H");
+        host.browser.GetColumnFilters().ToggleFilter (RowGrouping::Field::Name, std::wstring (L"A ") + s_kpszEnDash + L" H");
         AssertSucceeded (host.browser.Reload (true));
-        Assert::IsFalse  (host.browser.IsFiltering (RowGrouping::Field::Name), L"Unchecking the last group ends the filter");
+        Assert::IsFalse  (host.browser.GetColumnFilters().IsFiltering (RowGrouping::Field::Name), L"Unchecking the last group ends the filter");
         Assert::AreEqual (all, host.browser.GetRows().size());
 
-        host.browser.ToggleFilter (RowGrouping::Field::Name, std::wstring (L"A ") + s_kpszEnDash + L" H");
+        host.browser.GetColumnFilters().ToggleFilter (RowGrouping::Field::Name, std::wstring (L"A ") + s_kpszEnDash + L" H");
         AssertSucceeded (host.browser.SelectTreeNode (folder));
-        Assert::IsFalse (host.browser.IsFiltering (RowGrouping::Field::Name), L"Another folder starts unfiltered");
+        Assert::IsFalse (host.browser.GetColumnFilters().IsFiltering (RowGrouping::Field::Name), L"Another folder starts unfiltered");
     }
 
 
@@ -1214,7 +1214,7 @@ public:
         folder = host.OpenDisksFolder();
         AssertSucceeded (host.browser.SelectTreeNode (folder));
 
-        const std::vector<RowGrouping::Group> &  choices = host.browser.GetFilterChoices (RowGrouping::Field::Size);
+        const std::vector<RowGrouping::Group> &  choices = host.browser.GetColumnFilters().GetFilterChoices (RowGrouping::Field::Size);
 
         Assert::IsTrue (choices.size() >= 2);
         Assert::AreEqual (std::wstring (L"Unspecified"), choices.back().label);
