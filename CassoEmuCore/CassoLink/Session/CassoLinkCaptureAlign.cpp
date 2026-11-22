@@ -510,6 +510,17 @@ std::vector<bool> CassoLinkCapture::FindAddressEndings (std::span<const Byte> re
         {
             endings[(at + field + k) % n] = true;
         }
+
+        //  An ending other than DE AA isn't one DOS wrote, so a write splice
+        //  doesn't follow it: the bytes up to the next sync byte are the
+        //  protection's.
+        if (isField && ((revolution[(at + field) % n] | 0x80) != s_kEpilog0 || (revolution[(at + field + 1) % n] | 0x80) != s_kEpilog1))
+        {
+            for (size_t k = s_kEndingBytes; k < s_kSpliceBytes && (revolution[(at + field + k) % n] | 0x80) != s_kSyncByte; k++)
+            {
+                endings[(at + field + k) % n] = true;
+            }
+        }
     }
 
     return endings;
