@@ -447,6 +447,72 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ProDosSkeleton::InstallNoSystemLoader
+//
+//  The Disk II boot ROM and a block device's boot code both load block 0 at
+//  $800 and jump to $801. Byte 0 is the sector count the Disk II ROM reads.
+//  The code clears the screen through the monitor, prints the message in the
+//  middle of it, and loops in place.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProDosSkeleton::InstallNoSystemLoader (vector<Byte> & buffer)
+{
+    static constexpr Byte  s_kCode[] =
+    {
+        0x01,                   // $800  one sector, for the Disk II ROM
+        0x20, 0x2F, 0xFB,       // $801  JSR INIT     text mode, full window
+        0x20, 0x84, 0xFE,       // $804  JSR SETNORM  normal video
+        0x20, 0x58, 0xFC,       // $807  JSR HOME
+        0xA9, 0x0B,             // $80A  LDA #11
+        0x85, 0x25,             // $80C  STA CV
+        0x20, 0x22, 0xFC,       // $80E  JSR VTAB
+        0xA9, 0x05,             // $811  LDA #5
+        0x85, 0x24,             // $813  STA CH
+        0xA0, 0x00,             // $815  LDY #0
+        0xB9, 0x25, 0x08,       // $817  LDA $0825,Y
+        0xF0, 0x06,             // $81A  BEQ $0822
+        0x20, 0xED, 0xFD,       // $81C  JSR COUT
+        0xC8,                   // $81F  INY
+        0xD0, 0xF5,             // $820  BNE $0817
+        0x4C, 0x22, 0x08,       // $822  JMP $0822
+    };
+    static constexpr char  s_kpszMessage[] = "*** UNABLE TO LOAD PRODOS ***";
+    size_t                 bufferBytes = buffer.size();
+    size_t                 i           = 0;
+    size_t                 at          = 0;
+    bool                   isEmpty     = IsValidVolumeSize (bufferBytes);
+
+
+
+    for (i = 0; i < (size_t) kBlockByteSize && isEmpty; i++)
+    {
+        isEmpty = buffer[GetBlockByteOffset (bufferBytes, 0, i)] == 0;
+    }
+
+    if (!isEmpty)
+    {
+        return;
+    }
+
+    for (i = 0; i < std::size (s_kCode); i++)
+    {
+        buffer[GetBlockByteOffset (bufferBytes, 0, at++)] = s_kCode[i];
+    }
+
+    //  High ASCII, ended by a zero byte the block already has.
+    for (i = 0; s_kpszMessage[i] != '\0'; i++)
+    {
+        buffer[GetBlockByteOffset (bufferBytes, 0, at++)] = (Byte) (s_kpszMessage[i] | 0x80);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ProDosSkeleton::TryGetVolumeName
 //
 //  The header's first byte is the storage type in its high nibble and the

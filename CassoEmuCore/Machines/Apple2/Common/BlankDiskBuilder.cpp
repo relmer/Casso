@@ -410,6 +410,8 @@ HRESULT BlankDiskBuilder::Build (
             hr = ProDosStartup::InstallSos (buffer, payload.sosSystemDisk, sosError);
             CHR (hr);
         }
+
+        ProDosSkeleton::InstallNoSystemLoader (buffer);
     }
     else if (spec.contents == BlankDiskContents::Pascal)
     {
