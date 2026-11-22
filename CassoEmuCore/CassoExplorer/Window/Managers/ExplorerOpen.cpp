@@ -674,8 +674,11 @@ void ExplorerOpen::FinishInitialize()
     }
 
     //  A FAT32 card is opened at its drive letter, and a CFFA card as a card.
+    //  The card's old node is removed from the tree, and its drive letter is
+    //  listed under This PC.
     if (m_initLayout == RawDeviceProtocol::kLayoutFat32 && !root.empty())
     {
+        m_context.folderSync.CheckDrives();
         m_context.browser.GetNavigator().NavigateToLocation (Location::MakeHostFolder (root));
     }
     else
