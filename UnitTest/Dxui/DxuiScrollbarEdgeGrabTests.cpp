@@ -121,7 +121,7 @@ public:
         view.SetRows     (std::move (rows));
         PaintOnce (view);
 
-        Assert::IsTrue (view.IsScrollbarVisible(), L"Four hundred lines need the bar");
+        Assert::IsTrue (view.GetScroll().IsScrollbarVisible(), L"Four hundred lines need the bar");
         Assert::IsTrue (view.IsOverScrollbar (POINT { kBarX, kBarY }),
                         L"A point on the bar, in the window's coordinates, is on the bar");
     }

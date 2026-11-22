@@ -579,7 +579,7 @@ public:
         Assert::AreEqual (std::wstring (L"DOS 3.3, damaged"), rig.parts->preview.GetThumbnail().GetFileSystemText());
         Assert::IsTrue   (rig.browser.GetPreview().kind == PreviewContent::Kind::Details, L"the disk doesn't mount");
 
-        for (const DxuiTextView::Row & row : static_cast<DxuiTextView *> (rig.parts->preview.GetText().GetControl())->GetRows())
+        for (const DxuiTextView::Row & row : static_cast<DxuiTextView *> (rig.parts->preview.GetText().GetControl())->GetLayout().GetRows())
         {
             system = (row.cells.size() > 1 && row.cells[0].starts_with (L"File system")) ? row.cells[1] : system;
         }

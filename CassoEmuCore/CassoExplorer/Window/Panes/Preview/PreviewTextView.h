@@ -43,10 +43,10 @@ public:
     bool            IsCrossReference      () const { return m_crossReference; }
     IDxuiControl  * GetControl            () const { return m_text; }
     int             GetContentHeightPx    () const override { return m_text->IsVisible() ? m_text->GetContentHeightPx() : 0; }
-    bool            IsAtTop               () const override { return !m_text->IsVisible() || m_text->GetTopLine() == 0; }
-    int             GetScrollPx           () const override { return m_text->GetTopLine() * m_text->GetLineHeightPx(); }
-    void            SetScrollPx           (int scrollPx) override { m_text->SetTopLine ((scrollPx + m_text->GetLineHeightPx() / 2) / (std::max) (1, m_text->GetLineHeightPx())); }
-    void            SetScrollbarHidden    (bool isHidden) override { m_text->SetVerticalScrollbarHidden (isHidden); }
+    bool            IsAtTop               () const override { return !m_text->IsVisible() || m_text->GetScroll().GetTopLine() == 0; }
+    int             GetScrollPx           () const override { return m_text->GetScroll().GetTopLine() * m_text->GetLayout().GetCellHeightPx(); }
+    void            SetScrollPx           (int scrollPx) override { m_text->GetScroll().SetTopLine ((scrollPx + m_text->GetLayout().GetCellHeightPx() / 2) / (std::max) (1, m_text->GetLayout().GetCellHeightPx())); }
+    void            SetScrollbarHidden    (bool isHidden) override { m_text->GetScroll().SetVerticalScrollbarHidden (isHidden); }
 
     bool            HandleKey             (const DxuiKeyEvent & ev) { return m_text->OnKey (ev); }
 
