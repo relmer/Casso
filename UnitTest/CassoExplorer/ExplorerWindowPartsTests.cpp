@@ -1248,7 +1248,7 @@ public:
 
     //  In a folder on an A2Pico card, where a copy lands, an image with a
     //  ProDOS volume in DOS order is offered as a .po, which Write as .po
-    //  writes beside it. The .po is then offered as a free drive, which Set
+    //  writes in its place. The .po is then offered as a free drive, which Set
     //  as drive sets.
     TEST_METHOD (CardBar_OffersAPoForAnImageA2retroNetDoesntRead)
     {
@@ -1280,12 +1280,13 @@ public:
         DxuiInfoBanner &  bar = rig.parts->listPane.GetBars().GetCardBar();
 
         Assert::IsTrue   (bar.IsVisible());
-        Assert::AreEqual (std::wstring (L"zork.dsk has a ProDOS volume in a form A2retroNET doesn't read. Write as .po makes a copy it reads."), bar.GetText());
+        Assert::AreEqual (std::wstring (L"zork.dsk has a ProDOS volume in a form A2retroNET doesn't read. Write as .po replaces it with a .po it reads."), bar.GetText());
         Assert::AreEqual ((size_t) 1, bar.GetActionCount());
 
         rig.Click (bar.GetAction (0)->GetBounds());
 
         Assert::IsTrue   (rig.io.files["E:\\games\\zork.po"] == po);
+        Assert::IsFalse  (rig.io.files.contains ("E:\\games\\zork.dsk"), L"the .po replaces the .dsk");
 
         //  The .po isn't on the in-memory file system the bar lists the
         //  folder through, so it is written there too.

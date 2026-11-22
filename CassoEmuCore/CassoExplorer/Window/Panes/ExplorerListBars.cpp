@@ -152,8 +152,9 @@ bool ExplorerListBars::FillSearchBar()
 //
 //  At an A2Pico card's root, its drives in a sentence. In any folder on the
 //  card, where a copy to the card lands, its images with a ProDOS volume in
-//  a form A2retroNET doesn't read, with Write as .po. A warning when a drive has a
-//  problem, the settings file has CR LF line ends, or an image is offered.
+//  a form A2retroNET doesn't read, with Write as .po, which replaces each
+//  with a .po. A warning when a drive has a problem, the settings file has
+//  CR LF line ends, or an image is offered.
 //  And a selected, copied or written image the firmware reads that isn't a
 //  drive, with Set as drive for a free drive.
 //
@@ -173,6 +174,7 @@ bool ExplorerListBars::FillCardBar()
     bool                         problem   = false;
     bool                         show      = false;
     bool                         relabeled = false;
+    bool                         isOne     = false;
 
 
 
@@ -219,7 +221,9 @@ bool ExplorerListBars::FillCardBar()
 
     if (!m_convertible.empty())
     {
-        text   += std::format (L"{}{} {} a ProDOS volume in a form A2retroNET doesn't read. Write as .po makes a copy it reads.", text.empty() ? L"" : L" ", DescribeFiles (m_convertible), m_convertible.size() == 1 ? L"has" : L"have");
+        isOne   = m_convertible.size() == 1;
+        text   += std::format (L"{}{} {} a ProDOS volume in a form A2retroNET doesn't read. Write as .po replaces {} with {} it reads.", text.empty() ? L"" : L" ", DescribeFiles (m_convertible),
+                               isOne ? L"has" : L"have", isOne ? L"it" : L"them", isOne ? L"a .po" : L".po images");
         problem = true;
 
         m_cardActions.push_back (CardAction::WritePo);
@@ -366,7 +370,7 @@ void ExplorerListBars::RunCardAction (size_t index)
     {
         for (const std::wstring & path : m_convertible)
         {
-            outcome = m_context.actions.GetA2retroNet().ConvertToPo (path, written);
+            outcome = m_context.actions.GetA2retroNet().ReplaceWithPo (path, written);
             m_context.verbs.ReportOutcome (outcome, L"Write as .po");
 
             //  The .po is offered as a drive.
