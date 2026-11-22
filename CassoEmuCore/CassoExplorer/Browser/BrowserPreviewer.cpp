@@ -661,14 +661,18 @@ void BrowserPreviewer::SetSavedGameShown (bool shown)
 //
 //  BrowserPreviewer::FindSavedGame
 //
-//  A Wizardry scenario disk's SCENARIO.DATA, or null for any other disk.
+//  A Wizardry scenario disk's SCENARIO.DATA, or Wizardry V's PLAYER.DATA,
+//  or null for any other disk.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 const FileEntry * BrowserPreviewer::FindSavedGame (const VolumeListing & listing, VolumeKind kind)
 {
     auto  scenario = std::find_if (listing.entries.begin(), listing.entries.end(),
-                                   [] (const FileEntry & entry) { return !entry.isDirectory && _stricmp (entry.name.c_str(), "SCENARIO.DATA") == 0; });
+                                   [] (const FileEntry & entry)
+                                   {
+                                       return !entry.isDirectory && (_stricmp (entry.name.c_str(), "SCENARIO.DATA") == 0 || _stricmp (entry.name.c_str(), "PLAYER.DATA") == 0);
+                                   });
 
 
 
@@ -683,9 +687,9 @@ const FileEntry * BrowserPreviewer::FindSavedGame (const VolumeListing & listing
 //
 //  BrowserPreviewer::PreviewSavedGame
 //
-//  A Wizardry scenario disk previews as the saved game in its SCENARIO.DATA:
-//  the roster and the map of the level the party is on. False, with the
-//  preview cleared, for any other disk or a SCENARIO.DATA that doesn't decode.
+//  A Wizardry disk previews as the saved game in its SCENARIO.DATA or
+//  PLAYER.DATA: the roster, and the map of the level the party is on. False,
+//  with the preview cleared, for any other disk or a file that doesn't decode.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

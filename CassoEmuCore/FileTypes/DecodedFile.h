@@ -26,6 +26,7 @@ enum class FileFormat
     IigsIcons, HiResFont, Apple3Font, FontrixFont, PrintShopFont,
     IigsFont, WizardryScenario, InfocomStory, HiResScreen,
     DoubleHiResScreen, LoResScreen, MacPaint, Disassembly, UltimaSave,
+    WizardryRoster,
 };
 
 

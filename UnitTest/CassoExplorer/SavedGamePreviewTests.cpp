@@ -6,6 +6,7 @@
 #include "../UiTests/InMemoryFileSystem.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "Core/TextEncoding.h"
+#include "FileTypes/WizardryRoster.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -18,8 +19,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  SavedGamePreviewTests
 //
-//  A Wizardry scenario disk selected in a folder previews as the saved game
-//  in its SCENARIO.DATA, without opening the disk.
+//  A Wizardry disk selected in a folder previews as the saved game in its
+//  SCENARIO.DATA or PLAYER.DATA, without opening the disk.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -148,6 +149,29 @@ public:
 
         host.browser.SetPreviewSavedGame (true);
         Assert::IsTrue  (host.browser.GetPreview().kind == PreviewContent::Kind::Document, L"and back");
+    }
+
+
+    //  Wizardry V's roster is in PLAYER.DATA, and the disk has no SCENARIO.DATA.
+    TEST_METHOD (WizardryVDisk_PreviewsAsTheSavedGame)
+    {
+        Host               host;
+        std::vector<Byte>  roster (2 * WizardryRoster::kCharacterBytes, 0);
+
+
+
+        memcpy (&roster[WizardryRoster::kNameAt], "\x06" "ALDRIC", 7);
+        roster[WizardryRoster::kRaceAt] = 3;
+        memcpy (&roster[WizardryRoster::kCharacterBytes + WizardryRoster::kNameAt], "\x05" "UNSET", 6);
+        roster[WizardryRoster::kCharacterBytes + WizardryRoster::kStatusAt] = WizardryRoster::kStatusLost;
+
+        host.Seed (MakeDisk ("PLAYER.DATA", roster), "C:\\Disks\\wizardry5.dsk");
+
+        const PreviewContent &  preview = host.Select (L"wizardry5.dsk");
+
+        Assert::IsTrue (preview.kind == PreviewContent::Kind::Document, L"The disk previews as its saved game");
+        Assert::IsTrue (HasText (preview, L"ALDRIC   Level 0 Dwarf Fighter, Unaligned"));
+        Assert::IsTrue (preview.hasSavedGame && preview.savedGameShown);
     }
 
 

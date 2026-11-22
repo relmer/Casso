@@ -440,6 +440,48 @@ public:
     }
 
 
+    //  Wizardry V's Side A with two characters made in Casso: a dwarf fighter
+    //  and an elf mage. The roster is in PLAYER.DATA, inside a volume larger
+    //  than the disk.
+    TEST_METHOD (WizardryV_PlayerDataHasTheRoster)
+    {
+        std::vector<Byte>         image = GuestSession::FindTestDisk ("wizardry5-a-saved.po");
+        std::vector<Byte>         sectors;
+        SectorDecodeReport        report;
+        std::unique_ptr<IVolume>  volume;
+        FilePayload               payload;
+        FileEntry                 entry;
+        DecodedFile               decoded;
+        std::wstring              error;
+        FileFormat                format = FileFormat::None;
+
+
+
+        if (image.empty())
+        {
+            Logger::WriteMessage ("SKIPPED: wizardry5-a-saved.po is not in the test disks folder\n");
+            return;
+        }
+
+        AssertSucceeded (VolumeImage::Load (image, "wizardry5-a-saved.po", sectors, report));
+        volume = VolumeImage::CreateVolume (VolumeKind::Pascal, sectors);
+        AssertSucceeded (volume->Read (FilePath::Parse ("PLAYER.DATA"), payload));
+
+        entry.name = "PLAYER.DATA";
+        entry.type = payload.type;
+        format     = FileFormatTable::Identify (entry, VolumeKind::Pascal, payload.bytes);
+        Assert::IsTrue (format == FileFormat::WizardryRoster);
+
+        AssertSucceeded (FileFormatTable::Decode (format, payload.bytes, FileFacts::From (entry, VolumeKind::Pascal), DecodeOptions(), decoded, error));
+
+        Assert::IsTrue (HasLineStarting (decoded, L"Wizardry V: Heart of the Maelstrom"));
+        Assert::IsTrue (HasLineStarting (decoded, L"Saved game: 2 characters"));
+        Assert::IsTrue (HasLineStarting (decoded, L"ALDRIC   Level 1 Dwarf Fighter, Good"));
+        Assert::IsTrue (HasLineStarting (decoded, L"MIRIEL   Level 1 Elf Mage, Neutral"));
+        Assert::IsTrue (HasLineStarting (decoded, L"Status OK   HP 7/7   Age 20"));
+    }
+
+
     //  The disk booted as a user boots it: mounted, then the power cycled.
     TEST_METHOD (ZorkI_BootsToWestOfHouse)
     {

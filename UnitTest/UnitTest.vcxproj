@@ -388,6 +388,7 @@
     <ClCompile Include="FileTypes\OmfFileTests.cpp" />
     <ClCompile Include="FileTypes\VisiCalcSheetTests.cpp" />
     <ClCompile Include="FileTypes\ZMachineStoryTests.cpp" />
+    <ClCompile Include="FileTypes\WizardryRosterTests.cpp" />
     <ClCompile Include="FileTypes\WizardryScenarioTests.cpp" />
     <ClCompile Include="FileTypes\Ultima3SaveTests.cpp" />
     <ClCompile Include="FileTypes\Ultima4SaveTests.cpp" />

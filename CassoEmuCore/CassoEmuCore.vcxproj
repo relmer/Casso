@@ -638,6 +638,7 @@
     <ClCompile Include="FileTypes\VisiCalcSheet.cpp" />
     <ClCompile Include="FileTypes\ZMachineStory.cpp" />
     <ClCompile Include="FileTypes\DiskSaveTable.cpp" />
+    <ClCompile Include="FileTypes\WizardryRoster.cpp" />
     <ClCompile Include="FileTypes\WizardryScenario.cpp" />
     <ClCompile Include="FileTypes\VisiCalcEvaluator.cpp" />
     <ClCompile Include="FileTypes\GutenbergDocument.cpp" />
@@ -1867,6 +1868,7 @@
     <ClInclude Include="FileTypes\VisiCalcSheet.h" />
     <ClInclude Include="FileTypes\ZMachineStory.h" />
     <ClInclude Include="FileTypes\DiskSaveTable.h" />
+    <ClInclude Include="FileTypes\WizardryRoster.h" />
     <ClInclude Include="FileTypes\WizardryScenario.h" />
     <ClInclude Include="FileTypes\VisiCalcEvaluator.h" />
     <ClInclude Include="FileTypes\GutenbergDocument.h" />

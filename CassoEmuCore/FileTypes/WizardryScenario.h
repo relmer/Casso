@@ -98,6 +98,13 @@ public:
     //  character is in the maze.
     static bool  FindParty    (std::span<const Byte> bytes, const Contents & contents, int & outX, int & outY, int & outLevel);
 
+    //  Fields of UCSD Pascal records, as the game writes them.
+    static int           ReadWord      (std::span<const Byte> bytes, size_t at);
+    static uint64_t      ReadAmount    (std::span<const Byte> bytes, size_t at);
+    static std::wstring  ReadString    (std::span<const Byte> bytes, size_t at, size_t maximum);
+    static RunColor      GetHpColor    (int left, int max);
+    static Paragraph     MakeParagraph (std::vector<Run> runs);
+
 private:
     static constexpr size_t  kNameField        = 40;
     static constexpr size_t  kNameWords        = 42;
@@ -129,18 +136,13 @@ private:
     static constexpr size_t  kSquareTypesAt    = 760;
     static constexpr int     kWordBits         = 16;
 
-    static int           ReadWord     (std::span<const Byte> bytes, size_t at);
-    static uint64_t      ReadAmount   (std::span<const Byte> bytes, size_t at);
-    static std::wstring  ReadString   (std::span<const Byte> bytes, size_t at, size_t maximum);
     static int           ReadPacked   (std::span<const Byte> bytes, size_t at, size_t rowBytes, int bits, int x, int y);
     static std::wstring  GetName      (const std::vector<std::wstring> & names, int index);
 
     static std::wstring  GetItemName    (std::span<const Byte> bytes, const Contents & contents, int item, bool identified);
     static void          ListRoster     (std::span<const Byte> bytes, const Contents & contents, std::vector<Paragraph> & ioParagraphs, std::vector<std::wstring> & ioNotes);
     static void          AddItemStates  (bool equipped, bool cursed, bool identified, std::vector<Run> & ioRuns);
-    static RunColor      GetHpColor     (int left, int max);
     static void          DrawPartyLevel (std::span<const Byte> bytes, const Contents & contents, std::vector<Paragraph> & ioParagraphs, std::vector<std::wstring> & ioNotes);
     static bool          IsPartyOut     (std::span<const Byte> bytes, const Contents & contents);
     static void          AddSquareTips  (std::span<const Byte> level, int partyX, int partyY, Paragraph & ioMap);
-    static Paragraph     MakeParagraph  (std::vector<Run> runs);
 };
