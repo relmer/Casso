@@ -290,4 +290,39 @@ public:
 
         Assert::IsTrue (whole, L"the name is drawn whole");
     }
+
+    //  A requested fit is measured by GDI's advances too, so the values of a
+    //  fixed column fitted to them are drawn whole.
+    TEST_METHOD (AFitAskedForShowsTheWidestValueWhole)
+    {
+        static constexpr int  kSizeDip = 80;
+
+        MockDxuiPainter                               painter;
+        MockDxuiTextRenderer                          text;
+        MockDxuiTheme                                 theme;
+        DxuiListView                                  list;
+        DxuiDpiScaler                                 scaler;
+        std::vector<std::vector<DxuiListView::Cell>>  data;
+        bool                                          whole = false;
+
+        scaler.SetDpi (96);
+        text.SetGdiGlyphWidth (9.0f);
+
+        data.push_back ({ DxuiListView::Cell { L"120 bytes", false } });
+
+        list.SetColumns    ({ DxuiListView::Column { L"Size", kSizeDip } });
+        list.SetShowHeader (true);
+        list.SetRows       (std::move (data));
+        list.Layout        (RECT { 0, 0, 600, 400 }, scaler);
+
+        list.AutoFitColumnToContent (0);
+        list.Paint (painter, text, theme);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            whole = whole || (call.kind == RecordedTextKind::DrawString && call.text == L"120 bytes");
+        }
+
+        Assert::IsTrue (whole, L"the size is drawn whole");
+    }
 };
