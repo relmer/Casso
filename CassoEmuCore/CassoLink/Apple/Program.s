@@ -4618,8 +4618,6 @@ ROWER = $06A8                   ; row 13: the last error, when there is one
 ROWHIST = $0728                 ; row 14: the history's title, its lines below
 LOGROWS = 8                     ; the history's lines, rows 15 to 22
 BARCELLS = 35                   ; one a track
-BARTEXT = 14                    ; the column of the track and sector over the bar
-BARTEXTW = 31                   ; and in 80 columns, where a track has two cells
 ROWKEYS = $07D0                 ; row 23: the keys
 KEYSCOL = 4                     ; centered on the standard screen
 FSKEYSCOL = 3                   ; and in a Full Send
@@ -5337,11 +5335,14 @@ dbput:  jsr putch
         beq dbtext
 dbover: lda bartop
         sta barcells
-        ldy #BARTEXT
-        bit wide
-        bpl dbcol
-        ldy #BARTEXTW
-dbcol:  ldx barx
+        jsr barlen              ; the text centered over the bar
+        sta barlength
+        lda barwidth
+        sec
+        sbc barlength
+        lsr a
+        tay
+        ldx barx
         lda barfail,x
         beq dbtrack
         lda #<ofailed
@@ -5402,10 +5403,29 @@ dbpct2: jsr putdec
         lda #'%'
         jmp putch
 
+; barlen: the length in A of the text drawbar puts over drive X + 1's bar:
+; FAILED, a capture's T07 or T07.25, a verify's T07, or T07 S05.
+barlen: lda barfail,x
+        bne bl6
+        lda op
+        cmp #OPCAPT
+        bne blread
+        lda sector
+        bne bl6
+bl3:    lda #3
+        rts
+blread: lda vflag
+        bne bl3
+        lda #7
+        rts
+bl6:    lda #6
+        rts
+
 barrowlo: .byte <ROWB1, <ROWB2
 barrowhi: .byte >ROWB1, >ROWB2
 barpct:  .byte 0, 0             ; each drive's percentage
 barover: .byte 0
+barlength: .byte 0              ; the length of the text over the bar
 barx:    .byte 0
 bartop:  .byte 0
 barcells: .byte 0               ; putch inverts left of this column
