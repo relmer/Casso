@@ -65,10 +65,9 @@ void ExplorerPreviewManager::Create()
     m_summary->SetVisible      (false);
 
     m_sections = m_context.window.CreateChild<DxuiSegmentedControl>();
-    m_sections->SetSegments          ({ L"Saved game", L"Disk" });
-    m_sections->SetAnimationsEnabled (false);
-    m_sections->SetVisible           (false);
-    m_sections->SetOnChange          ([this] (int index)
+    m_sections->SetSegments ({ L"Saved game", L"Disk" });
+    m_sections->SetVisible  (false);
+    m_sections->SetOnChange ([this] (int index)
     {
         m_context.browser.SetPreviewSavedGame (index == 0);
         FillPreview();
@@ -166,15 +165,18 @@ void ExplorerPreviewManager::Layout (const RECT & rect)
         content.top += barPx;
     }
 
-    //  The switch between a disk's saved game and the disk, under the toolbar.
+    //  The switch between a disk's saved game and the disk, under the toolbar:
+    //  the pane's width inside its padding, and centered at its widest.
     if (m_sections->IsVisible())
     {
         int  band   = scaler.ToPx (kSectionsBandDip);
         int  height = scaler.ToPx (kSectionsDip);
-        int  left   = content.left + scaler.ToPx (kSectionsPadDip);
+        int  pad    = scaler.ToPx (kSectionsPadDip);
+        int  width  = (std::min) ((int) (content.right - content.left) - 2 * pad, scaler.ToPx (kSectionsMaxDip));
+        int  left   = content.left + ((int) (content.right - content.left) - width) / 2;
         int  top    = content.top + (band - height) / 2;
 
-        m_sections->Layout (RECT { left, top, left + 2 * scaler.ToPx (kSectionDip), top + height }, scaler);
+        m_sections->Layout (RECT { left, top, left + (std::max) (width, 0), top + height }, scaler);
         content.top += band;
     }
 
@@ -975,6 +977,13 @@ bool ExplorerPreviewManager::TickScrollbars (int64_t nowMs)
     }
 
     moved = m_thumbnail.GetScrollbar().TickBar (nowMs) || moved;
+
+    //  The switch's pill slides to a new selection.
+    if (m_sections->WantsTick())
+    {
+        m_sections->Tick (nowMs);
+        moved = true;
+    }
 
     return moved;
 }
