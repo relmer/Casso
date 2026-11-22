@@ -141,11 +141,8 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
         hr = ReadPosition (run, position, 1, read);
         CHR (hr);
 
-        //  A position with a separate stream is read again, unless its first
-        //  read is the head across two tracks, which BuildWoz drops whatever
-        //  the reads.
-        hr = Analyze (run, [&] () { separate = MakeStream (read, stream, unstable) && !IsSameStream (stream.bytes, whole (lower).bytes) && !IsSameStream (stream.bytes, whole (upper).bytes)
-                                               && !IsCrosstalk (stream.bytes, position); });
+        //  A position with a separate stream is read again.
+        hr = Analyze (run, [&] () { separate = MakeStream (read, stream, unstable) && !IsSameStream (stream.bytes, whole (lower).bytes) && !IsSameStream (stream.bytes, whole (upper).bytes); });
         CHR (hr);
 
         if (separate)

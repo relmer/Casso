@@ -156,7 +156,7 @@ public:
 
         Assert::IsTrue   (result.hasReport && result.verdict == BootVerdict::Booted, TextEncoding::NarrowToWide (result.reason).c_str());
         Assert::AreEqual (std::string (FullSendManifest::kCheckBad), result.fsCheck, TextEncoding::NarrowToWide (line).c_str());
-        Assert::IsFalse  (result.isComplete, L"A bad file system is a failed capture, so the failure sounds");
+        Assert::IsTrue   (result.isComplete, L"An image that boots isn't a failed capture, even with a bad file system");
         Assert::IsTrue   (line.find (" File system: Bad, ") != std::string::npos, TextEncoding::NarrowToWide (line).c_str());
         Assert::AreEqual (std::string (FullSendManifest::kCheckBad), row.fsCheck, L"The verdict is in the manifest");
         Assert::AreEqual (std::wstring (L"Sent, boots, file system bad"), FullSendPanel::DescribeStatus (row));
