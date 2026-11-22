@@ -1171,6 +1171,18 @@ bool BlockInspectorPanel::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    //  A press anywhere else ends an edit of the address bar, as in Casso
+    //  Explorer, rather than going to the address bar's text field.
+    if (ev.kind == DxuiMouseEventKind::Down && m_nav.GetCrumbs().IsEditing())
+    {
+        RECT  crumbs = m_nav.GetCrumbs().GetBounds();
+
+        if (!PtInRect (&crumbs, ev.positionDip))
+        {
+            m_nav.GetCrumbs().EndEdit();
+        }
+    }
+
     //  A right-click on the address bar, while it isn't being edited, opens
     //  its menu, as Casso Explorer's does.
     if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Right && !m_nav.GetCrumbs().IsEditing())

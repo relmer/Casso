@@ -394,6 +394,14 @@ bool BlockInspectorWindow::OnKey (const DxuiKeyEvent & ev)
         return isResult;
     }
 
+    //  Enter and F4 open the address bar for a path, so they go to the
+    //  focused control alone. Otherwise Enter in the hex view opens the
+    //  address bar without the focus, and nothing ends that edit but Escape.
+    if ((ev.vk == VK_RETURN || ev.vk == VK_F4) && focused != (IDxuiControl *) &m_panel->GetNavigator().GetCrumbs())
+    {
+        return focused != nullptr && focused->OnKey (ev);
+    }
+
     return DxuiPanel::OnKey (ev);
 }
 

@@ -679,6 +679,37 @@ public:
     }
 
 
+    TEST_METHOD (Panel_APressOutsideTheAddressBarEndsItsEdit)
+    {
+        FakeDiskFileIo        io;
+        BlockInspectorModel   model;
+        BlockInspectorPanel   panel;
+        DxuiDarkTheme         theme;
+        DxuiDpiScaler         scaler;
+        MockDxuiTextRenderer  text;
+        DxuiMouseEvent        ev;
+        RECT                  map    = {};
+
+
+
+        OpenModel (io, model);
+
+        panel.Init   (&model, nullptr, &theme, nullptr, &text);
+        panel.Layout (RECT { 0, 0, 1180, 700 }, scaler);
+
+        panel.GetNavigator().GetCrumbs().BeginEdit();
+        Assert::IsTrue (panel.GetNavigator().GetCrumbs().IsEditing());
+
+        map            = panel.GetMap().GetBounds();
+        ev.kind        = DxuiMouseEventKind::Down;
+        ev.button      = DxuiMouseButton::Left;
+        ev.positionDip = { (map.left + map.right) / 2, (map.top + map.bottom) / 2 };
+        panel.OnMouse (ev);
+
+        Assert::IsFalse (panel.GetNavigator().GetCrumbs().IsEditing(), L"a press on the map ends the edit");
+    }
+
+
     TEST_METHOD (Panel_ADragOnTheZoomedMapPansIt)
     {
         FakeDiskFileIo        io;
