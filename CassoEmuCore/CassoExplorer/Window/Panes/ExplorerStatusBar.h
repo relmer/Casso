@@ -42,6 +42,10 @@ public:
     static constexpr int     kStatusDetailDip = 280;
     static constexpr int     kStatusZoomDip   = 64;
 
+    //  While a CassoLink job runs, the detail field is at least this share of
+    //  the band, for its progress line.
+    static constexpr int     kJobShareDivisor = 2;
+
     //  The CassoLink line's tip: the latest entries of the activity log.
     static constexpr size_t  kActivityTipLines    = 10;
     static constexpr float   kActivityTipWidthDip = 720.0f;   // a log line, time and link and all, on one line
@@ -51,7 +55,8 @@ public:
     void  Layout      (const RECT & band);
     void  SetHidden   (bool hidden) { m_status->SetVisible (!hidden); }
     void  Fill        ();
-    void  SetDetail   (const std::wstring & text) { m_status->SetText (kStatusDetail, text); }
+    void  SetDetail   (const std::wstring & text);
+    void  SetShimmer  (bool on);
     void  SetActivity (const std::wstring & text) { m_status->SetText (kStatusFill, text); }
     void  UpdateTip   (const DxuiMouseEvent & ev, POINT point);
 
@@ -74,4 +79,10 @@ private:
 
     //  The text of the CassoLink line's tip, for as long as the tip is up.
     std::wstring           m_activityTip;
+    std::wstring           m_detailTip;
+
+    //  The band at the last layout, and whether the detail field was widened
+    //  then for a CassoLink job's progress.
+    RECT                   m_band    = {};
+    bool                   m_widened = false;
 };

@@ -48,6 +48,7 @@ private:
     bool  FillFromManifest     (FullSendPanel::View & ioView);
     void  RunFullSendDisk      (const std::string & file, FullSendDialog::DiskAction action);
     bool  CanRepair            (const std::string & file) const;
+    void  ReportDisk           (const std::filesystem::path & image);
 
     static constexpr int  kCascadeDip = 40;     // between two Full Send windows open at once
 

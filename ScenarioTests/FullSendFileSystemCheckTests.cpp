@@ -175,6 +175,40 @@ public:
 
 
 
+    //  The same damage on a raw capture, as a copy-protected disk's odd DOS
+    //  bookkeeping is: the capture has no verdict of damage, and is
+    //  complete.
+    TEST_METHOD (ARawCapture_WithOddBookkeeping_HasNoVerdictOfDamage)
+    {
+        Win32DiskFileIo             io;
+        std::filesystem::path       folder  = MakeFolder (L"RawDamage");
+        std::filesystem::path       image   = folder / L"0001.dsk";
+        std::vector<Byte>           master  = GuestSession::RequireDos33Master();
+        Byte                      * vtoc    = RepairFixtures::GetDosSector (master, kVtocTrack, 0);
+        ExplorerBootWorker::Result  result;
+        FullSendRow                 row;
+
+
+
+        vtoc[kBitmap + kVtocTrack * kBitmapBytes]     = 0xFF;
+        vtoc[kBitmap + kVtocTrack * kBitmapBytes + 1] = 0xFF;
+
+        AssertSucceeded (io.WriteAllBytes (TextEncoding::WideToUtf8 (image.wstring()), master));
+        WriteManifest (io, folder, "0001.dsk", FullSendManifest::kStatusRawCapture);
+
+        result = Boot (io, folder, image);
+        row    = ReadRow (io, folder);
+
+        Assert::AreEqual (std::string (FullSendManifest::kCheckNone), result.fsCheck);
+        Assert::AreEqual (std::string (FullSendManifest::kCheckNone), row.fsCheck, L"The manifest has no verdict of damage");
+        Assert::IsTrue   (result.isComplete, L"No failure sound");
+        Assert::IsFalse  (FullSendDialog::IsRepairOffered (row));
+
+        std::filesystem::remove_all (folder);
+    }
+
+
+
     TEST_METHOD (ACopyProtectedDisk_ThatBoots_HasNoStandardFileSystem_AndIsComplete)
     {
         Win32DiskFileIo             io;

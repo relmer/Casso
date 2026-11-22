@@ -2945,7 +2945,7 @@ HRESULT AssetBootstrap::OfferOptionalRomDownload (
 {
     HRESULT                  hr        = S_OK;
     const RomSpec          * spec      = FindRomSpec ("", cassoName);
-    bool                           hasSource = (spec != nullptr) && !spec->altHost.empty();
+    bool                           hasSource = (spec != nullptr) && (!spec->altHost.empty() || !spec->appleWinName.empty());
     auto                           failure   = std::make_shared<string>();
     HINSTANCE                      hInst     = GetModuleHandleW (nullptr);
     StartupDownloadSet             set;
@@ -2966,7 +2966,7 @@ HRESULT AssetBootstrap::OfferOptionalRomDownload (
     entry.groupLabel    = L"Firmware";
     entry.displayName   = AsciiToWide (spec->description);
     entry.kindLabel     = L"ROM";
-    entry.source        = AsciiToWide (spec->sourceLabel);
+    entry.source        = spec->sourceLabel.empty() ? wstring (L"AppleWin (GitHub)") : AsciiToWide (spec->sourceLabel);
     entry.selectable    = false;
     entry.selected      = true;
     entry.expectedBytes = (std::uint64_t) spec->expectedSize;

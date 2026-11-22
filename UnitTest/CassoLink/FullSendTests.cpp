@@ -14,6 +14,7 @@
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/LinkProgram.h"
 #include "CassoLink/Session/CassoLinkDiskTransfer.h"
+#include "CassoLink/Session/CassoLinkFullSend.h"
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
@@ -79,6 +80,8 @@ public:
         Image                                  rawReads;   // a raw capture's reads, empty when they aren't saved
         std::string                            rawMarks;   // what a raw capture marked
         std::vector<std::string>               noted;   // the path of each image written
+        std::array<Image, 2>                   rawTrack0;   // each drive's revolution for ProbeRaw
+        std::vector<int>                       probes;   // the drive of each ProbeRaw
         std::function<void (const std::string &)>  onAwait;               // with one, each image is booted, and this is the wait for its result
         bool                                  bootTones      = false;
         std::array<bool, 2>                   writeProtected = { false, false };
@@ -199,6 +202,16 @@ public:
             outWoz   = rawWoz;
             outReads = rawReads;
             outMarks = rawMarks;
+            return S_OK;
+        }
+
+        //  A drive's raw track 0, a revolution that repeats, or empty for no
+        //  disk; the same revolution again is the same disk.
+        HRESULT  ProbeRaw (int drive, const Image & previous, Image & outRevolution, bool & outSame) override
+        {
+            probes.push_back (drive);
+            outRevolution = rawTrack0[(size_t) drive - 1];
+            outSame       = !previous.empty() && previous == outRevolution;
             return S_OK;
         }
 
@@ -625,6 +638,62 @@ public:
         Assert::AreEqual (0, snapshot.totals.sent);
     }
 
+    //  A disk whose directory is empty isn't blank when it's write-protected,
+    //  or when a probe track away from the directory has data, as an Infocom
+    //  disk's track 0 passed for an empty Pascal directory. Each is sent.
+    TEST_METHOD (Session_AnEmptyDirectory_WithDataPastIt_OrWriteProtected_IsSent)
+    {
+        for (bool isProtected : { false, true })
+        {
+            Rig  rig;
+
+            rig.link.drives[0]  = BlankDos();
+            rig.link.present[1] = false;
+
+            if (isProtected)
+            {
+                rig.link.writeProtected[0] = true;
+            }
+            else
+            {
+                size_t  at = (size_t) FullSendDisk::kBlankProbeTracks[1] * NibblizationLayer::kSectorsPerTrack * NibblizationLayer::kSectorByteSize;
+
+                rig.link.drives[0][at + 7] = 0x4C;
+            }
+
+            auto  session = rig.Run();
+
+            Assert::IsTrue (session->GetScreen().drives[0] != FullSendDriveState::Blank, isProtected ? L"Write-protected" : L"Data on a probe track");
+            Assert::AreEqual ((size_t) 1, session->GetManifest().GetRows().size(), L"The disk is sent");
+            Assert::AreEqual (0, rig.status.GetSnapshot().totals.blanks);
+        }
+    }
+
+    //  A drive whose track 0 has no sectors is probed raw. One with a disk is
+    //  captured raw with no sector read, and left in its drive it's a repeat
+    //  on the next Space. An empty drive is probed and has nothing captured.
+    TEST_METHOD (Session_ADiskWithNoSectorsOnTrackZero_IsCapturedRaw_AndAnEmptyDriveIsNot)
+    {
+        Rig  rig;
+
+        rig.link.drives[0]    = Other (1);
+        rig.link.blankTracks  = { 0 };
+        rig.link.rawTrack0[0] = Image (6000, 0x96);
+        rig.link.keys         = { FullSendKey::Space };
+
+        rig.link.rawTrack0[0][100] = 0xD5;
+
+        auto  session = rig.Run();
+
+        Assert::IsTrue (rig.link.captures == std::vector<int> { 1 }, L"Drive 1's disk is captured once");
+        Assert::IsTrue (rig.link.diskReads.empty(), L"With no sector read");
+        Assert::AreEqual ((size_t) 1, session->GetManifest().GetRows().size());
+        Assert::AreEqual (std::string ("0001.woz"), session->GetManifest().GetRows()[0].file);
+        Assert::IsTrue (std::count (rig.link.probes.begin(), rig.link.probes.end(), 2) >= 1, L"The empty drive 2 is probed");
+        Assert::IsTrue (session->GetScreen().drives[1] == FullSendDriveState::Empty, L"And it's empty");
+        Assert::IsTrue (session->GetScreen().drives[0] == FullSendDriveState::Repeat, L"Drive 1's disk is a repeat on the next Space");
+    }
+
     //  A raw capture's reads, when the link returns them, are written beside
     //  the image with .reads added to its file.
     TEST_METHOD (Session_ARawCapturesReads_AreWrittenBesideItsImage)
@@ -670,6 +739,117 @@ public:
         Assert::IsFalse (has (rig.link.pauseLines[2]), L"And the one after it doesn't");
     }
 
+    //  Whether the lines have line, with a line in inverse read as its text.
+    static bool  HasLine (const std::vector<std::string> & lines, const std::string & line)
+    {
+        return std::any_of (lines.begin(), lines.end(), [&line] (const std::string & each)
+        {
+            std::string  text = each;
+
+            std::transform (text.begin(), text.end(), text.begin(), [] (char c) { return (char) (c & 0x7F); });
+            return text == line;
+        });
+    }
+
+    //  A clean raw capture that doesn't boot fails the same way each time, so
+    //  the pause lists it with no offer to capture it again.
+    TEST_METHOD (Session_ACleanRawCaptureThatDidNotBoot_HasNoOffer)
+    {
+        Rig  rig;
+
+
+
+        rig.link.drives[0]   = Other (1);
+        rig.link.badDisk     = rig.link.drives[0];
+        rig.link.badSectors  = { { 5, 0 }, { 6, 0 } };
+        rig.link.reportEmpty = 3;
+        rig.link.present[1]  = false;
+        rig.link.onAwait     = [&rig] (const std::string & file) { rig.status.SetBoot (file, FullSendManifest::kBootDidNotBoot); };
+
+        rig.Run();
+
+        Assert::AreEqual ((size_t) 1, rig.link.captures.size(), L"Captured once");
+        Assert::IsTrue  (HasLine (rig.link.pauseLines[0], "0001 did not boot."));
+        Assert::IsFalse (HasLine (rig.link.pauseLines[0], "0001 did not boot. Capture it again"), L"No offer");
+    }
+
+    //  Several images that did not boot before a pause are one line, the
+    //  first four by number and a count of the rest, so the pause fits the
+    //  Apple's rows.
+    TEST_METHOD (Session_ImagesThatDidNotBoot_AreOneLineAtThePause)
+    {
+        Rig  rig;
+
+
+
+        rig.link.drives[0]    = Other (1);
+        rig.link.present[1]   = false;
+        rig.link.beforeKey[1] = [&rig] (ScriptedLink &)
+        {
+            for (int image = 7; image <= 12; image++)
+            {
+                rig.status.SetBoot (std::format ("{:04}.dsk", image), FullSendManifest::kBootDidNotBoot);
+            }
+        };
+        rig.link.keys         = { FullSendKey::Space, FullSendKey::Space };
+
+        rig.Run();
+
+        Assert::AreEqual ((size_t) 3, rig.link.pauseLines.size());
+        Assert::AreEqual (std::string ("0007, 0008, 0009, 0010 and 2 more did not boot."), rig.link.pauseLines[1][0]);
+        Assert::IsTrue (rig.link.pauseLines[1].size() <= FullSendSession::s_kPauseRows);
+    }
+
+    //  A pause's lines are cut to the Apple's rows and request: blank rows
+    //  first, then the quip, then the earliest notes; the instructions remain.
+    TEST_METHOD (PauseLines_AreCutToTheApplesRows_KeepingWhatToDo)
+    {
+        std::vector<std::string>  lines;
+
+
+
+        for (int note = 0; note < 7; note++)
+        {
+            lines.push_back (std::format ("Note {}", note));
+        }
+
+        lines.insert (lines.end(), { "", "Put in a new disk and press Space.", "", "The quip" });
+
+        FullSendSession::FitPauseLines (lines);
+
+        Assert::AreEqual (FullSendSession::s_kPauseRows, lines.size());
+        Assert::AreEqual (std::string ("Note 0"), lines[0]);
+        Assert::AreEqual (std::string ("Put in a new disk and press Space."), lines[7]);
+
+        std::vector<std::string>  wide (6, std::string (60, 'x'));
+
+        wide.insert (wide.end(), { "Put in a new disk and press Space.", "The quip" });
+        FullSendSession::FitPauseLines (wide);
+
+        size_t  bytes = 1;
+
+        for (const std::string & line : wide)
+        {
+            bytes += line.size() + 1;
+        }
+
+        Assert::IsTrue (bytes <= FullSendSession::s_kPauseBytes, L"The request fits");
+        Assert::AreEqual (std::string ("Put in a new disk and press Space."), wide.back());
+    }
+
+    //  The Apple's history line for a session that failed has the reason
+    //  first, and fits the line's characters after ERR.
+    TEST_METHOD (TheHistoryLine_OfAFailedSession_HasItsReasonFirst)
+    {
+        std::string  failed = CassoLinkFullSend::DescribeEnd (FullSendSession::EndReason::LinkFailed, 15, 0, 1);
+
+
+
+        Assert::AreEqual (std::string ("Link failed: 15 sent, 0 bad"), failed);
+        Assert::IsTrue   (failed.size() + 4 <= CassoLinkCodec::kLogLength, L"ERR and the line fit");
+        Assert::AreEqual (std::string ("Full Send: 15 sent, 0 bad, 1 dup"), CassoLinkFullSend::DescribeEnd (FullSendSession::EndReason::Quit, 15, 0, 1));
+    }
+
     //  An image that is booted is awaited with VALIDATING on the Apple, and
     //  one that did not boot is on the Apple at the pause that follows.
     TEST_METHOD (Session_AnImageBeingBooted_IsAwaited_AndItsResultIsAtThePauseThatFollows)
@@ -679,6 +859,7 @@ public:
 
         rig.link.drives[0]  = Other (1);
         rig.link.present[1] = false;
+        rig.link.rawMarks   = "weak 3";
         rig.link.onAwait    = [&rig, &validating] (const std::string & file)
         {
             validating = rig.link.screens.back().drives[0] == FullSendDriveState::Validating
@@ -694,7 +875,7 @@ public:
                         L"No tone for the result unless the Apple has them on");
         Assert::IsTrue (rig.link.screens.back().drives[0] != FullSendDriveState::Validating);
         Assert::AreEqual ((size_t) 1, rig.link.pauseLines.size());
-        Assert::IsTrue (std::find (rig.link.pauseLines[0].begin(), rig.link.pauseLines[0].end(), "0001 did not boot. Capture it again") != rig.link.pauseLines[0].end());
+        Assert::IsTrue (HasLine (rig.link.pauseLines[0], "0001 did not boot. Capture it again"));
     }
 
     //  Space with the disk that did not boot in its drive reads it again,
@@ -703,13 +884,14 @@ public:
     TEST_METHOD (Session_SpaceOnADiskThatDidNotBoot_ReadsItAgainOnce)
     {
         Rig   rig;
-        auto  has = [] (const std::vector<std::string> & lines, const char * line) { return std::find (lines.begin(), lines.end(), line) != lines.end(); };
+        auto  has = [] (const std::vector<std::string> & lines, const char * line) { return HasLine (lines, line); };
 
         rig.link.drives[0]   = Other (1);
         rig.link.badDisk     = rig.link.drives[0];
         rig.link.badSectors  = { { 5, 0 }, { 6, 0 } };
         rig.link.reportEmpty = 3;
         rig.link.present[1]  = false;
+        rig.link.rawMarks    = "weak 3";
         rig.link.onAwait     = [&rig] (const std::string & file) { rig.status.SetBoot (file, FullSendManifest::kBootDidNotBoot); };
         rig.link.keys        = { FullSendKey::Space, FullSendKey::Space };
 
@@ -764,6 +946,7 @@ public:
         rig.link.badSectors  = { { 20, 3 } };
         rig.link.reportEmpty = 3;
         rig.link.present[1]  = false;
+        rig.link.rawMarks    = "weak 3";
         rig.link.onAwait     = [&rig] (const std::string & file) { rig.status.SetBoot (file, FullSendManifest::kBootDidNotBoot); };
         rig.link.keys        = { FullSendKey::Space };
 
@@ -961,43 +1144,64 @@ public:
         Assert::IsTrue (std::none_of (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & screen) { return screen.tone == FullSendTone::Done; }));
     }
 
-    //  An image with unreadable sectors is a failed capture, even when it
-    //  boots.
-    TEST_METHOD (Session_WithBootTonesOnTheApple_AnImageWithBadSectors_HasTheFailureTone)
+    //  An image with unreadable sectors is a failed capture when its boot is
+    //  unclear. One that boots has the success's tone.
+    TEST_METHOD (Session_WithBootTonesOnTheApple_AnImageWithBadSectors_HasTheFailureToneUnlessItBoots)
     {
-        Rig  rig;
-
-        rig.link.drives[0]  = Other (1);
-        rig.link.badDisk    = rig.link.drives[0];
-        rig.link.badSectors = { { 5, 0 } };
-        rig.link.present[1] = false;
-        rig.link.bootTones  = true;
-        rig.link.onAwait    = [&rig] (const std::string & file) { rig.status.SetBoot (file, FullSendManifest::kBootBooted); };
-
-        rig.Run();
-
-        Assert::IsTrue (std::any_of (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & screen) { return screen.tone == FullSendTone::DidNotBoot; }));
-        Assert::IsTrue (std::none_of (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & screen) { return screen.tone == FullSendTone::Booted; }));
-    }
-
-    //  An image with a bad file system is a failed capture, even when it
-    //  boots. An image with no standard file system isn't.
-    TEST_METHOD (Session_WithBootTonesOnTheApple_AnImageWithABadFileSystem_HasTheFailureTone)
-    {
-        for (const char * check : { FullSendManifest::kCheckBad, FullSendManifest::kCheckNone })
+        for (const char * boot : { FullSendManifest::kBootUnclear, FullSendManifest::kBootBooted })
         {
             Rig   rig;
-            bool  isBad = std::string (check) == FullSendManifest::kCheckBad;
+            bool  isBooted = std::string (boot) == FullSendManifest::kBootBooted;
+
+            rig.link.drives[0]  = Other (1);
+            rig.link.badDisk    = rig.link.drives[0];
+            rig.link.badSectors = { { 5, 0 } };
+            rig.link.present[1] = false;
+            rig.link.bootTones  = true;
+            rig.link.onAwait    = [&rig, boot] (const std::string & file) { rig.status.SetBoot (file, boot); };
+
+            rig.Run();
+
+            Assert::AreEqual (!isBooted, std::any_of (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & screen) { return screen.tone == FullSendTone::DidNotBoot; }));
+            Assert::AreEqual (isBooted,  std::any_of (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & screen) { return screen.tone == FullSendTone::Booted; }));
+        }
+    }
+
+    //  An image with a bad file system that boots has the success's tone, as a
+    //  crack's odd catalog reads as bad, and the pause offers to capture its
+    //  disk again in raw mode. One whose boot is unclear has the failure's
+    //  tone. An image with no standard file system isn't a failure.
+    TEST_METHOD (Session_WithBootTonesOnTheApple_ABadFileSystem_FailsOnlyAnImageThatDidntBoot)
+    {
+        struct Case
+        {
+            const char *  boot;
+            const char *  check;
+            bool          isFailed;
+        };
+
+        for (const Case & each : { Case { FullSendManifest::kBootBooted,  FullSendManifest::kCheckBad,  false },
+                                   Case { FullSendManifest::kBootUnclear, FullSendManifest::kCheckBad,  true },
+                                   Case { FullSendManifest::kBootBooted,  FullSendManifest::kCheckNone, false } })
+        {
+            Rig   rig;
+            bool  isOffered = false;
 
             rig.link.drives[0]  = Other (1);
             rig.link.present[1] = false;
             rig.link.bootTones  = true;
-            rig.link.onAwait    = [&rig, check] (const std::string & file) { rig.status.SetBoot (file, FullSendManifest::kBootBooted, std::string(), check); };
+            rig.link.onAwait    = [&rig, each] (const std::string & file) { rig.status.SetBoot (file, each.boot, std::string(), each.check); };
 
             rig.Run();
 
-            Assert::AreEqual (isBad, std::any_of (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & screen) { return screen.tone == FullSendTone::DidNotBoot; }));
-            Assert::AreEqual (isBad, std::none_of (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & screen) { return screen.tone == FullSendTone::Booted; }));
+            for (const std::string & line : rig.link.pauseLines.back())
+            {
+                isOffered = isOffered || line.find ("booted, but its catalog is odd") != std::string::npos;
+            }
+
+            Assert::AreEqual (each.isFailed,  std::any_of (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & screen) { return screen.tone == FullSendTone::DidNotBoot; }));
+            Assert::AreEqual (!each.isFailed, std::any_of (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & screen) { return screen.tone == FullSendTone::Booted; }));
+            Assert::AreEqual (std::string (each.boot) == FullSendManifest::kBootBooted && std::string (each.check) == FullSendManifest::kCheckBad, isOffered, L"The raw capture is offered");
         }
     }
 
@@ -1308,6 +1512,37 @@ public:
         Assert::IsTrue   (rig.Files() == std::vector<std::string> ({ "0001.dsk", "0002.dsk", "manifest.fullsend" }));
         Assert::AreEqual (0, session->GetScreen().duplicates);
         Assert::AreEqual (std::string ("D1: Sent 0002"), session->GetScreen().GetRows()[3]);
+    }
+
+    //  A blank disk sent with its drive's key is captured raw too, as what
+    //  reads as blank may have more than its sectors.
+    TEST_METHOD (Session_DriveKey_CapturesABlankDiskRaw)
+    {
+        Rig  rig;
+
+        rig.link.drives[0]  = BlankDos();
+        rig.link.present[1] = false;
+        rig.link.keys       = { FullSendKey::Drive1 };
+
+        rig.Run();
+
+        Assert::IsTrue (rig.link.captures == std::vector<int> { 1 });
+    }
+
+    //  A raw capture started on the PC skips the sector read, whatever the
+    //  check found.
+    TEST_METHOD (Session_RawDriveKey_CapturesTheDiskRawOnly)
+    {
+        Rig  rig;
+
+        rig.link.drives[0]  = BlankDos();
+        rig.link.present[1] = false;
+        rig.link.keys       = { FullSendKey::RawDrive1 };
+
+        rig.Run();
+
+        Assert::IsTrue (rig.link.captures == std::vector<int> { 1 });
+        Assert::IsTrue (rig.link.diskReads.empty(), L"no sector read");
     }
 
     TEST_METHOD (Session_DriveKey_WithNoDiskListed_DoesNothing)

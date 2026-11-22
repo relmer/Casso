@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "CassoLink/FullSend/FullSendProtection.h"
+#include "CassoLink/FullSend/FullSendStatus.h"
 #include "CassoLink/LinkedDisk.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 
@@ -122,6 +123,11 @@ struct LinkOperation
     std::string                      imagePrefix;
     bool                             blankUnreadable = false;
 
+    //  Read disk with an automatic format: the copy-protection choices that
+    //  pick a raw capture or a WOZ, and otherwise .po or .dsk by the disk's
+    //  file system. The extension is appended to imagePath once it's chosen.
+    std::optional<FullSendProtectionChoices>  automatic;
+
     //  Read disk and Write disk of a block device: continue a transfer the
     //  link cut short, from its record beside the image.
     bool                             resume          = false;
@@ -150,6 +156,18 @@ struct LinkOperation
     //  label for a format differs from one for an image written.
     std::string                      formatted;
     std::vector<std::pair<int, int>> unreadable;
+
+    //  Read disk and Capture disk, once it ends: what it found and how long it
+    //  took, as a label and a value a row, and a capture's positions with weak
+    //  bits, in quarter tracks. Set on the session's thread before the state
+    //  is Done.
+    std::vector<std::pair<std::string, std::string>>  summary;
+    std::vector<int>                                  weakPositions;
+
+    //  Read disk and Capture disk: the drive as the job window draws it, a
+    //  Full Send status with that one drive, written on the session's thread
+    //  as the job goes; and whether the read chose its format.
+    std::shared_ptr<FullSendStatus>                   status;
 
     //  Check link disk: whether the drive has the link's boot disk.
     bool                             linkDisk = false;

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
+#include "CassoExplorer/Window/Managers/CassoLinkJobManager.h"
 #include "CassoExplorer/Window/Managers/CassoLinkDriveManager.h"
 #include "CassoExplorer/Window/Managers/FullSendWindowManager.h"
 #include "CassoExplorer/Model/CassoLinkConnectionText.h"
@@ -1239,20 +1240,11 @@ void CassoLinkManager::AddConnectionRows (std::vector<DxuiPopupMenuItem> & items
     else if (m_context.app.links != nullptr && hasLocation && location.kind == Location::Kind::AppleDrive && location.innerPath.empty())
     {
         //  A drive's whole disk, read or written from its node. A block device
-        //  has no raw capture, CassoLink disk or format here.
-        std::wstring  title   = m_context.browser.GetTreeModel().GetLinkDriveTitle (location.path);
+        //  has no CassoLink disk or format here.
         bool          isBlock = TreeModel::TryParseLinkId (location.path, link, slot, drive) && drive >= CassoLinkBlockDevices::kFirstDrive;
 
-        m_context.menus.AddMenuCommand (items, std::format (L"Create &image from {}...", title).c_str(), [this, location]() { m_context.linkDrives.ReadDiskToImage (location); });
-        m_context.menus.AddMenuCommand (items, std::format (L"Create &verified image from {}...", title).c_str(), [this, location]() { m_context.linkDrives.ReadDiskToImage (location, true); });
-
-        if (!isBlock)
-        {
-            m_context.menus.AddMenuCommand (items, std::format (L"Ca&pture raw disk from {}...", title).c_str(), [this, location]() { m_context.linkDrives.CaptureRawDisk (location); });
-        }
-
-        m_context.menus.AddMenuCommand (items, std::format (L"&Write image to {}...", title).c_str(), [this, location]() { m_context.linkDrives.WriteImageToDisk (location); });
-        m_context.menus.AddMenuCommand (items, std::format (L"Write image to {} and veri&fy...", title).c_str(), [this, location]() { m_context.linkDrives.WriteImageToDisk (location, true); });
+        m_context.menus.AddMenuCommand (items, L"Create &image...", [this, location]() { m_context.linkDrives.ReadDiskToImage (location); });
+        m_context.menus.AddMenuCommand (items, L"&Write image...",  [this, location]() { m_context.linkDrives.WriteImageToDisk (location); });
 
         if (!isBlock)
         {
@@ -1543,6 +1535,7 @@ void CassoLinkManager::UpdateTransferTimer()
     else if (!transferring && m_transferTimer)
     {
         KillTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerLinkTransfer);
+        m_context.statusBar.SetShimmer (false);
     }
 
     m_transferTimer = transferring;
@@ -1560,21 +1553,27 @@ void CassoLinkManager::UpdateTransferTimer()
 
 void CassoLinkManager::HandleTransferTimer()
 {
-    int  fromPeak = 0;
+    int        fromPeak = 0;
+    ULONGLONG  now      = GetTickCount64();
+    bool       animated = DxuiSystemSettings::Instance().AreAnimationsEnabled();
 
 
+
+    m_context.linkJobs.Update();
 
     //  The last progress aged out, as in a Full Send waiting for disks.
     if (m_context.app.links == nullptr || !m_context.app.links->IsAnyTransferring())
     {
+        m_context.statusBar.SetShimmer (false);
         RefreshCassoLinkViews();
         return;
     }
 
-    m_pulseFrame = (m_pulseFrame + 1) % (kPulseFrames * 2);
+    m_pulseFrame = (int) ((now / kPulseFrameMs) % (kPulseFrames * 2));
     fromPeak     = std::abs (m_pulseFrame - kPulseFrames);
 
-    m_context.treePane.SetActivityPulse (DxuiSystemSettings::Instance().AreAnimationsEnabled() ? (float) fromPeak / kPulseFrames : 1.0f);
+    m_context.treePane.SetActivityPulse (animated ? (float) fromPeak / kPulseFrames : 1.0f);
+    m_context.statusBar.SetShimmer (animated);
     m_context.window.Invalidate();
 }
 
@@ -1696,6 +1695,8 @@ std::wstring CassoLinkManager::DescribeJobs()
     {
         text += (text.empty() ? L"" : L"     ") + FullSendPanel::DescribeSummary (view.snapshot, view.connection);
     }
+
+    text = text.empty() ? m_context.linkJobs.DescribeJobs() : text;
 
     return text.empty() ? CassoLinkConnectionText::DescribeJobs (m_context.app.links->GetPendingJobs()) : text;
 }

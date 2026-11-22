@@ -99,4 +99,32 @@ public:
         AssertSucceeded (CassoLinkDiskTransfer::BuildImage ("out.nib", DiskFormat::Nib, disk, {}, 0, built));
         Assert::AreEqual (NibbleImageCodec::kNibImageSize, built.size());
     }
+
+
+
+
+    TEST_METHOD (Automatic_ATrack0WithNoSectorRead_IsCapturedRaw)
+    {
+        std::vector<Byte>                  disk (NibblizationLayer::kImageByteSize, 0);
+        std::vector<std::pair<int, int>>   unreadable;
+        FullSendProtectionChoices          none { false, false, false, false, false, false };
+
+        for (int sector = 0; sector < NibblizationLayer::kSectorsPerTrack; sector++)
+        {
+            unreadable.push_back ({ 0, sector });
+        }
+
+        Assert::IsTrue (CassoLinkDiskTransfer::IsAutomaticRaw (disk, unreadable, none));
+    }
+
+
+
+
+    TEST_METHOD (Automatic_WithNoSignChecked_IsASectorImage)
+    {
+        std::vector<Byte>          disk (NibblizationLayer::kImageByteSize, 0);
+        FullSendProtectionChoices  none { false, false, false, false, false, false };
+
+        Assert::IsFalse (CassoLinkDiskTransfer::IsAutomaticRaw (disk, { { 5, 3 } }, none));
+    }
 };

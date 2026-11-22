@@ -80,13 +80,13 @@ public:
 
 
     //  A track of disk bytes with a C0 in it, as a read at a write splice
-    //  has, built into a WOZ: no run of zero bits is longer than a
-    //  controller reads reliably.
+    //  has, built into a WOZ: no run of zero bits is longer than the three
+    //  a controller reads reliably.
     TEST_METHOD (ASpliceByte_IsWrittenWithNoLongRunOfZeros)
     {
         static constexpr size_t  kRevolution = 6000;
         static constexpr size_t  kReadBytes  = 14000;
-        static constexpr size_t  kMaxZeros   = 2;
+        static constexpr size_t  kMaxZeros   = 3;
 
         std::vector<Byte>                        revolution;
         std::vector<CassoLinkCapture::Position>  positions (1);

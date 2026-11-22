@@ -839,6 +839,19 @@ public:
 
 
 
+
+    TEST_METHOD (ADriveWithA13SectorDisk_IsLabeledSo)
+    {
+        LinkTreeEntry::Drive  drive;
+
+        drive.drive          = 2;
+        drive.thirteenSector = true;
+
+        Assert::AreEqual (std::wstring (L"Slot 6, Drive 2 (13-sector disk)"), TreeModel::GetLinkDriveLabel (drive));
+    }
+
+
+
     TEST_METHOD (Links_WithNoAppleReplying_HaveNoChildren_AndTheirStateIsForTheList)
     {
         InMemoryFileSystem     fs;

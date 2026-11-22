@@ -94,6 +94,10 @@ public:
     //  The bit of Status's drive byte that marks a write-protected disk.
     static constexpr Byte  kStatusWriteProtected = 0x40;
 
+    //  The bit for a drive whose disk has 13-sector address fields, which a
+    //  read for 16 sectors passes over.
+    static constexpr Byte  kStatusThirteenSector = 0x20;
+
     static constexpr Byte  kCancel        = 0xD1;
     static constexpr Byte  kLabel         = 0xDC;
     static constexpr Byte  kLog           = 0xDD;
@@ -134,6 +138,8 @@ public:
     static constexpr Byte  kKeyEscape     = 0x9B;
     static constexpr Byte  kKeyLeft       = 0x88;
     static constexpr Byte  kKeyDelete     = 0xFF;
+    static constexpr Byte  kKeyRawDrive1  = 0x01;     // pressed on the PC, never sent by the Apple
+    static constexpr Byte  kKeyRawDrive2  = 0x02;
     static constexpr Byte  kWaitKeys      = 0x00;
     static constexpr Byte  kWaitTyped     = 0x01;
 

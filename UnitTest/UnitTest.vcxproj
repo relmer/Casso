@@ -305,6 +305,7 @@
     <ClCompile Include="EmuTests\MachineConfigUpgradeTests.cpp" />
     <ClCompile Include="EmuTests\MachineScannerTests.cpp" />
     <ClCompile Include="EmuTests\VideoModeTests.cpp" />
+    <ClCompile Include="EmuTests\Disk2RomSwapTests.cpp" />
     <ClCompile Include="EmuTests\Disk2Tests.cpp" />
     <ClCompile Include="EmuTests\Disk2NibbleEngineTests.cpp" />
     <ClCompile Include="EmuTests\DiskImageTests.cpp" />
@@ -392,6 +393,7 @@
     <ClCompile Include="CassoExplorer\SavedGamePreviewTests.cpp" />
     <ClCompile Include="FileTypes\VisiCalcEvaluatorTests.cpp" />
     <ClCompile Include="FileTypes\PascalCodefileTests.cpp" />
+    <ClCompile Include="FileTypes\SaveSummaryTests.cpp" />
     <ClCompile Include="EmuTests\NuFxArchiveTests.cpp" />
     <ClCompile Include="EmuTests\ArchiveWrapperTests.cpp" />
     <ClCompile Include="EmuTests\ArchiveVolumeTests.cpp" />
@@ -483,6 +485,7 @@
     <ClCompile Include="CassoLink\CassoLinkCodecTests.cpp" />
     <ClCompile Include="CassoLink\CassoLinkHostTests.cpp" />
     <ClCompile Include="CassoLink\ByteStreamSettingsTests.cpp" />
+    <ClCompile Include="CassoLink\DiskProblemReportTests.cpp" />
     <ClCompile Include="CassoLink\LinkProgramTests.cpp" />
     <ClCompile Include="CassoLink\ShimSccTests.cpp" />
     <ClCompile Include="CassoLink\UniversalSccTests.cpp" />
@@ -608,6 +611,7 @@
     <ClCompile Include="CassoExplorer\CopyOptionRowsTests.cpp" />
     <ClCompile Include="CassoExplorer\HostAppleFileTests.cpp" />
     <ClCompile Include="CassoExplorer\SearchExpressionTests.cpp" />
+    <ClCompile Include="CassoExplorer\CassoLinkJobViewTests.cpp" />
     <ClCompile Include="CassoExplorer\FullSendDialogTests.cpp" />
     <ClCompile Include="CassoExplorer\KrunchMapTests.cpp" />
     <ClCompile Include="CassoExplorer\SearchQueryTests.cpp" />

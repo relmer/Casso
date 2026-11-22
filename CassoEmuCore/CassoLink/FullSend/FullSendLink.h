@@ -50,6 +50,8 @@ enum class FullSendKey
     Drive2,
     Verify,
     Prefix,
+    RawDrive1,      // a raw capture of the drive's disk, started on the PC
+    RawDrive2,
 };
 
 class IFullSendLink
@@ -106,6 +108,19 @@ public:
     //  from this capture's reads and those of the drive's capture before it,
     //  which was of the same disk.
     virtual HRESULT  CaptureRaw     (int drive, bool withEarlier, std::vector<Byte> & outWoz, std::vector<Byte> & outReads, std::string & outMarks) = 0;
+
+    //  One raw read of a drive's track 0, for a drive whose track 0 has no
+    //  sectors: a revolution that repeats when a disk is in it, and empty
+    //  for an empty drive. outSame is set when it is the revolution
+    //  `previous` came from (CassoLinkCapture::ProbeRevolution).
+    virtual HRESULT  ProbeRaw       (int drive, const std::vector<Byte> & previous, std::vector<Byte> & outRevolution, bool & outSame)
+    {
+        UNREFERENCED_PARAMETER (drive);
+        UNREFERENCED_PARAMETER (previous);
+        outRevolution.clear();
+        outSame = false;
+        return S_OK;
+    }
 
     //  An image the session wrote, by its path, for the boot check. True
     //  when the image is booted, and AwaitBoot then returns once its result

@@ -29,7 +29,7 @@ public:
     FullSendContext (IFullSendLink & link, FullSendStatus & status, FullSendFolder & folder);
 
     HRESULT  ShowScreen      ();
-    void     Report          (const std::string & text);
+    void     Report          (const std::string & text, int drive = 0);
     HRESULT  WriteManifest   ();
     HRESULT  FindMovedImages (const FullSendFolder::RowMatch & matches);
 

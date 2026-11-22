@@ -319,6 +319,7 @@ OPCAPT   = 6                    ; a raw capture: the bar has the quarter track
 
 QUIETDRIVE = $80                ; the drive's bit for a check the PC reports itself
 STATWP     = $40                ; Status's drive bit for a write-protected disk
+STAT13     = $20                ; and for a 13-sector address field seen
 
 ; Errors.
 ERRNONE    = $00
@@ -1386,7 +1387,11 @@ notedisk: ldx drive
         lda misses
         cmp #8
         bcc ndok
+        lda saw13               ; 2 for a 13-sector disk, 1 for none
+        beq ndnone
         lda #1
+ndnone: clc
+        adc #1
         sta nodisk,x
         rts
 ndok:   lda err
@@ -1394,7 +1399,8 @@ ndok:   lda err
         sta nodisk,x
 nddone: rts
 
-nodisk: .byte 0, 0
+nodisk: .byte 0, 0              ; 1 empty or unrecognized, 2 a 13-sector disk
+saw13:  .byte 0                 ; nonzero once a 13-sector address field passed
 quiet:  .byte 0                 ; nonzero for a check the PC reports itself
 wpbit:  .byte 0                 ; STATWP when begin found the disk write-protected
 
@@ -1772,6 +1778,7 @@ bgarmed:
         sta idles
         sta misses
         sta wpbit
+        sta saw13
         lda PKTBUF
         and #QUIETDRIVE
         sta quiet
@@ -1819,7 +1826,7 @@ bgwp:   sta wpbit
 
 ; sendready: Ready with this program's version, the shim's and the drives:
 ; bit 0 for drive 1, bit 1 for drive 2. Then the ROM's identification bytes,
-; and the program's CRC as selfcrc computed it.
+; the program's CRC as selfcrc computed it, and each slot's firmware bytes.
 sendready: ldx #0
 srloop: lda readypkt,x
         jsr putb
@@ -1828,11 +1835,12 @@ srloop: lda readypkt,x
         bne srloop
         rts
 
-readypkt: .byte $C1, $0B, $00, CMDREADY, $C1 ^ $0B ^ $00 ^ CMDREADY
+readypkt: .byte $C1, $27, $00, CMDREADY, $C1 ^ $27 ^ $00 ^ CMDREADY
           .byte <PROGVER, >PROGVER, READYVER
 readymap: .byte $03                ; probe sets it
 readyrom: .byte 0, 0, 0, 0, 0       ; $FBB3, $FBC0, $FBBF, $FB1E, and 1 on a IIgs
 readycrc: .byte 0, 0                ; selfcrc sets it, low byte first
+readyslot: .ds 28                  ; $Cn01, $Cn03, $Cn05 and $Cn07 of slots 1 to 7
 readychk: .byte 0
 readyend:
 
@@ -1867,13 +1875,37 @@ ridcaps: lda $FBC0
         bcs ridsum
         lda #1
         sta readyrom+4
-ridsum: lda #<PROGVER ^ >PROGVER ^ READYVER
+ridsum: jsr readslots
+        lda #<PROGVER ^ >PROGVER ^ READYVER
         eor readymap
-        ldx #6                  ; readyrom's 5 bytes and readycrc's 2
+        ldx #34                 ; readyrom's 5 bytes, readycrc's 2 and readyslot's 28
 ridnext: eor readyrom,x
         dex
         bpl ridnext
         sta readychk
+        rts
+
+; readslots: the bytes of each slot's firmware that identify a card, as a
+; Disk II's $20, $00, $03, $3C, into readyslot. Reading a slot's page selects
+; its $C800 ROM, so $CFFF deselects them after.
+readslots: ldx #0
+        lda #1
+        sta ptr
+        lda #$C1
+        sta ptr+1
+rsslot: ldy #0
+rsbyte: lda (ptr),y
+        sta readyslot,x
+        inx
+        iny
+        iny
+        cpy #8
+        bne rsbyte
+        inc ptr+1
+        lda ptr+1
+        cmp #$C8
+        bne rsslot
+        lda $CFFF
         rts
 
 ; probe: drive 2 into readymap. A drive at the port reads nibbles from a
@@ -1950,7 +1982,10 @@ ssloop: lda stathdr,x
         sta peor
         lda op
         jsr putpe
-        lda drive
+        lda saw13
+        beq ss16
+        lda #STAT13
+ss16:   ora drive
         ora wpbit
         jsr putpe
         lda track
@@ -3858,8 +3893,12 @@ ra2:    lda Q6L,x
 ra3:    lda Q6L,x
         bpl ra3
         cmp #$96
+        beq ra3ok
+        cmp #$B5                ; a 13-sector disk's address field
         bne ra1c
-        ldy #0
+        sta saw13
+        beq ra1
+ra3ok:  ldy #0
 ra4:    lda Q6L,x
         bpl ra4
         sec
@@ -5210,9 +5249,16 @@ stdrive1: sta pcsum+1
         ldx pcsum+1
         lda nodisk-1,x
         beq sdidle
+        cmp #2
+        beq sd13
         lda #<onodisk
         sta ptr
         lda #>onodisk
+        sta ptr+1
+        bne sdidle
+sd13:   lda #<o13sec
+        sta ptr
+        lda #>o13sec
         sta ptr+1
 sdidle: lda pcsum+1
         cmp drive
@@ -5389,6 +5435,8 @@ optext: .word oidle, oread, owrite, oformat
 oidle:   .text "Idle"
          .byte 0
 onodisk: .text "Empty or no recognized sectors"
+         .byte 0
+o13sec:  .text "13-sector disk"
          .byte 0
 oread:   .text "Reading"
          .byte 0

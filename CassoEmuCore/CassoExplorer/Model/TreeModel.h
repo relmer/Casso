@@ -114,6 +114,9 @@ struct LinkTreeEntry
 
         //  A ProDOS drive's top-level folders, once its catalog is read.
         std::vector<std::wstring>  folders;
+
+        //  Whether its disk has only 13-sector address fields.
+        bool          thirteenSector = false;
     };
 
     std::wstring        name;
@@ -348,6 +351,9 @@ public:
     //  A drive of a link, by its id, as the tree labels it: its slot, its drive
     //  and its volume once known.
     std::wstring  GetLinkDriveTitle (const std::wstring & driveId) const;
+
+    //  Whether a drive of a link, by its id, has a 13-sector disk.
+    bool  IsThirteenSectorDrive (const std::wstring & driveId) const;
 
     //  A root's label in the tree, the tab and the address bar, or empty for
     //  an id that is no root.
