@@ -550,6 +550,7 @@
     <ClCompile Include="CassoExplorer\FocusRingTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerBrowserTests.cpp" />
     <ClCompile Include="CassoExplorer\BrowserColumnFiltersTests.cpp" />
+    <ClCompile Include="CassoExplorer\BrowserRowOrderTests.cpp" />
     <ClCompile Include="CassoExplorer\BrowserNameFilterTests.cpp" />
     <ClCompile Include="CassoExplorer\BrowserNavigatorTests.cpp" />
     <ClCompile Include="CassoExplorer\BrowserFormattingTests.cpp" />

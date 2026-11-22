@@ -523,7 +523,7 @@ void ExplorerListColumns::ApplyFolderView()
 
 
 
-    if (key == m_viewKey && (m_view == DxuiListView::View::Home) == m_context.browser.IsHomeSectioned() && !(m_context.browser.IsHomeLocation() && m_view != DxuiListView::View::Home && m_view != DxuiListView::View::Details))
+    if (key == m_viewKey && (m_view == DxuiListView::View::Home) == m_context.browser.GetRowOrder().IsHomeSectioned() && !(m_context.browser.IsHomeLocation() && m_view != DxuiListView::View::Home && m_view != DxuiListView::View::Details))
     {
         return;
     }
@@ -533,7 +533,7 @@ void ExplorerListColumns::ApplyFolderView()
     if (m_context.browser.IsHomeLocation())
     {
         m_viewKey = key;
-        m_view    = m_context.browser.IsHomeSectioned() ? DxuiListView::View::Home : DxuiListView::View::Details;
+        m_view    = m_context.browser.GetRowOrder().IsHomeSectioned() ? DxuiListView::View::Home : DxuiListView::View::Details;
         m_iconDip = 0;
         m_pane.GetListView()->SetItemIconDip (0);
         m_pane.GetListView()->SetView (m_view);
@@ -566,7 +566,7 @@ void ExplorerListColumns::ApplyFolderView()
     {
         sortColumn = (size_t) CatalogModel::kRelevance;
     }
-    else if (!CatalogModel::TryGetColumn (entry.sortColumn, sortColumn) || (sortColumn >= CatalogModel::kColumnCount && !m_context.browser.IsPropertyColumn ((int) sortColumn)))
+    else if (!CatalogModel::TryGetColumn (entry.sortColumn, sortColumn) || (sortColumn >= CatalogModel::kColumnCount && !m_context.browser.GetRowOrder().IsPropertyColumn ((int) sortColumn)))
     {
         sortColumn = 0;
     }
@@ -621,8 +621,8 @@ void ExplorerListColumns::ApplyFolderView()
         entry.groupBy = 0;
     }
 
-    m_context.browser.SetSortAndGroup ((CatalogModel::Column) sortColumn, entry.sortDescending,
-                                        (RowGrouping::Field) entry.groupBy, entry.groupDescending);
+    m_context.browser.GetRowOrder().SetSortAndGroup ((CatalogModel::Column) sortColumn, entry.sortDescending,
+                                                      (RowGrouping::Field) entry.groupBy, entry.groupDescending);
 
     if (entry.columnWidthsDip.empty() && entry.addedColumnWidthsDip.empty())
     {
@@ -1144,7 +1144,7 @@ void ExplorerListColumns::LoadPropertyColumns()
     m_pane.GetPropertyValues().SetProperties (names);
 
     //  A sort by a property reads the values it lacks at once.
-    m_context.browser.SetPropertyColumns (names.size(), [this] (size_t row, size_t property)
+    m_context.browser.GetRowOrder().SetPropertyColumns (names.size(), [this] (size_t row, size_t property)
     {
         const std::vector<CatalogRow> &  rows = m_context.browser.GetRows();
         CatalogModel::PropertyKey        key;

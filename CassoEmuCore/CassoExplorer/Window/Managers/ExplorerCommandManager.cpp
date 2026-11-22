@@ -360,7 +360,7 @@ void ExplorerCommandManager::Dispatch (int id)
 
         if (!IsChecked (id))
         {
-            m_context.browser.SetGroupBy (field, field == RowGrouping::Field::DateModified || field == RowGrouping::Field::DateDeleted || field == RowGrouping::Field::Relevance);
+            m_context.browser.GetRowOrder().SetGroupBy (field, field == RowGrouping::Field::DateModified || field == RowGrouping::Field::DateDeleted || field == RowGrouping::Field::Relevance);
             m_context.listPane.GetColumns().RememberFolderSort();
             m_context.listPane.FillList();
             m_context.toolbars.SetCommandBarDropDowns();
@@ -377,11 +377,11 @@ void ExplorerCommandManager::Dispatch (int id)
         //  Explorer sorts them; the column already in use keeps its direction.
         if (!IsChecked (id))
         {
-            m_context.browser.SortByColumn (column);
+            m_context.browser.GetRowOrder().SortByColumn (column);
 
             if (m_context.browser.GetBrowserModel().GetActiveTab().sortDescending != (id == CassoExplorerCommands::kSortByRelevance))
             {
-                m_context.browser.SortByColumn (column);
+                m_context.browser.GetRowOrder().SortByColumn (column);
             }
 
             m_context.listPane.GetColumns().RememberFolderSort();
@@ -457,7 +457,7 @@ void ExplorerCommandManager::Dispatch (int id)
         case CassoExplorerCommands::kSortDescending:
             if (!IsChecked (id) && m_context.browser.GetBrowserModel().HasTabs())
             {
-                m_context.browser.SortByColumn ((int) m_context.browser.GetBrowserModel().GetActiveTab().sortColumn);
+                m_context.browser.GetRowOrder().SortByColumn ((int) m_context.browser.GetBrowserModel().GetActiveTab().sortColumn);
                 m_context.listPane.GetColumns().RememberFolderSort();
                 m_context.listPane.FillList();
             }
@@ -468,7 +468,7 @@ void ExplorerCommandManager::Dispatch (int id)
         case CassoExplorerCommands::kGroupDescending:
             if (!IsChecked (id) && m_context.browser.GetBrowserModel().HasTabs())
             {
-                m_context.browser.SetGroupBy (m_context.browser.GetBrowserModel().GetActiveTab().groupBy, id == CassoExplorerCommands::kGroupDescending);
+                m_context.browser.GetRowOrder().SetGroupBy (m_context.browser.GetBrowserModel().GetActiveTab().groupBy, id == CassoExplorerCommands::kGroupDescending);
                 m_context.listPane.GetColumns().RememberFolderSort();
                 m_context.listPane.FillList();
             }

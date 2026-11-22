@@ -1119,14 +1119,14 @@ public:
         AssertSucceeded (host.browser.SelectTreeNode (host.FindChildId (folder, L"dos33.dsk")));
         host.browser.SetSelectedRows ({ FindRow (host.browser, L"NOTES") });
 
-        host.browser.SortByColumn ((int) CatalogModel::Column::Name);
+        host.browser.GetRowOrder().SortByColumn ((int) CatalogModel::Column::Name);
         Assert::IsTrue (host.browser.GetBrowserModel().GetActiveTab().sortDescending);
 
         Assert::AreEqual ((size_t) 1, host.browser.GetSelectedRows().size());
         selected = host.browser.GetRows()[host.browser.GetSelectedRows()[0]].name;
         Assert::AreEqual (std::wstring (L"NOTES"), selected);
 
-        host.browser.SortByColumn ((int) CatalogModel::Column::Size);
+        host.browser.GetRowOrder().SortByColumn ((int) CatalogModel::Column::Size);
         Assert::IsFalse (host.browser.GetBrowserModel().GetActiveTab().sortDescending);
     }
 
@@ -1141,8 +1141,8 @@ public:
         AssertSucceeded (host.browser.SelectTreeNode (host.FindChildId (folder, L"dos33.dsk")));
         host.browser.SetSelectedRows ({ FindRow (host.browser, L"NOTES") });
 
-        host.browser.SetGroupBy (RowGrouping::Field::Name, false);
-        groups = host.browser.GetListGroups();
+        host.browser.GetRowOrder().SetGroupBy (RowGrouping::Field::Name, false);
+        groups = host.browser.GetRowOrder().GetListGroups();
 
         Assert::AreEqual ((size_t) 2, groups.size());
         Assert::AreEqual (std::wstring (L"A ") + s_kpszEnDash + L" H", groups[0].label);
@@ -1157,8 +1157,8 @@ public:
         selected = host.browser.GetRows()[host.browser.GetSelectedRows()[0]].name;
         Assert::AreEqual (std::wstring (L"NOTES"), selected);
 
-        host.browser.SetGroupBy (RowGrouping::Field::None, false);
-        Assert::IsTrue (host.browser.GetListGroups().empty());
+        host.browser.GetRowOrder().SetGroupBy (RowGrouping::Field::None, false);
+        Assert::IsTrue (host.browser.GetRowOrder().GetListGroups().empty());
     }
 
 
@@ -1823,7 +1823,7 @@ public:
 
         rows = host.browser.GetRows().size();
 
-        host.browser.SetPropertyColumns (1, [] (size_t, size_t)
+        host.browser.GetRowOrder().SetPropertyColumns (1, [] (size_t, size_t)
         {
             CatalogModel::PropertyKey  key;
 
@@ -1834,10 +1834,10 @@ public:
             return key;
         });
 
-        host.browser.SetGroupBy (RowGrouping::MakePropertyField (0), false);
+        host.browser.GetRowOrder().SetGroupBy (RowGrouping::MakePropertyField (0), false);
         Assert::AreEqual (rows * 2, host.browser.GetRows().size());
 
-        host.browser.SetGroupBy (RowGrouping::MakePropertyField (0), false);
+        host.browser.GetRowOrder().SetGroupBy (RowGrouping::MakePropertyField (0), false);
         Assert::AreEqual (rows * 2, host.browser.GetRows().size(), L"Regrouping drops the last copies first");
 
         for (int row = 0; row < (int) host.browser.GetRows().size(); row++)
@@ -1851,7 +1851,7 @@ public:
         host.browser.SetSelectedRows ({ first, second });
         Assert::AreEqual ((size_t) 1, host.browser.GetSelectedRows().size());
 
-        host.browser.SetGroupBy (RowGrouping::Field::None, false);
+        host.browser.GetRowOrder().SetGroupBy (RowGrouping::Field::None, false);
         Assert::AreEqual (rows, host.browser.GetRows().size(), L"Ungrouped, each is listed once");
     }
 

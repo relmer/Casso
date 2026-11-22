@@ -189,7 +189,7 @@ void ExplorerListPane::Configure()
 
     m_list->SetOnSortColumn ([this] (int column)
     {
-        m_context.browser.SortByColumn (column);
+        m_context.browser.GetRowOrder().SortByColumn (column);
         m_columns.RememberFolderSort();
         FillList();
     });
@@ -461,7 +461,7 @@ void ExplorerListPane::PressRight (POINT local, POINT point)
 
     //  A group's header selects its rows and adds the group's commands to
     //  the menu for them, as Explorer's does.
-    if (group >= 0 && m_context.browser.IsHomeSectioned())
+    if (group >= 0 && m_context.browser.GetRowOrder().IsHomeSectioned())
     {
         return;
     }
@@ -1111,7 +1111,7 @@ void ExplorerListPane::FillList()
     {
         return (row >= 0 && (size_t) row < m_context.browser.GetRows().size()) ? m_context.browser.GetRows()[(size_t) row].name : std::wstring();
     });
-    m_list->SetGroups    (m_context.browser.GetListGroups());
+    m_list->SetGroups    (m_context.browser.GetRowOrder().GetListGroups());
 
     //  A new tab's location is the list's first, so nothing below names Home
     //  in the search box.
@@ -1124,16 +1124,16 @@ void ExplorerListPane::FillList()
 
     m_context.folderSync.CheckOpenedCard();
 
-    if (m_context.browser.IsHomeSectioned())
+    if (m_context.browser.GetRowOrder().IsHomeSectioned())
     {
         static constexpr int  s_kSharedTab = 2;
 
         DxuiListViewTypes::HomeHeader  header;
-        bool                           shared = m_context.browser.GetHomeTab() == s_kSharedTab;
+        bool                           shared = m_context.browser.GetRowOrder().GetHomeTab() == s_kSharedTab;
 
         header.tabs     = { L"Recent", L"Favorites", L"Shared" };
         header.glyphs   = { L"\xE823", L"\xE734", L"\xE716" };
-        header.active   = m_context.browser.GetHomeTab();
+        header.active   = m_context.browser.GetRowOrder().GetHomeTab();
         header.columns  = shared ? std::vector<std::wstring> { L"Date shared", L"Shared by", L"Activity" } : std::vector<std::wstring> { L"Date accessed", L"Activity" };
         header.columnAt = shared ? std::vector<float> { 0.41f, 0.60f, 0.80f } : std::vector<float> { 0.495f, 0.755f };
         header.onTab    = [this] (int tab)
@@ -2177,7 +2177,7 @@ void ExplorerListPane::HandleContentDetailsArrived()
         static constexpr ULONGLONG  s_kRearrangeMs = 1000;
 
         ULONGLONG  now      = GetTickCount64();
-        bool       property = model.HasTabs() && (RowGrouping::IsPropertyField (model.GetActiveTab().groupBy) || m_context.browser.IsPropertyColumn ((int) model.GetActiveTab().sortColumn));
+        bool       property = model.HasTabs() && (RowGrouping::IsPropertyField (model.GetActiveTab().groupBy) || m_context.browser.GetRowOrder().IsPropertyColumn ((int) model.GetActiveTab().sortColumn));
 
         //  Rows sorted or grouped by a property move as its values arrive: at
         //  most once a second, so a large folder stays usable, and when the
@@ -2185,7 +2185,7 @@ void ExplorerListPane::HandleContentDetailsArrived()
         if (property && (m_propertyValues.IsQueueEmpty() || now - m_lastRearrangeMs >= s_kRearrangeMs))
         {
             m_lastRearrangeMs = now;
-            m_context.browser.SetGroupBy (model.GetActiveTab().groupBy, model.GetActiveTab().groupDescending);
+            m_context.browser.GetRowOrder().SetGroupBy (model.GetActiveTab().groupBy, model.GetActiveTab().groupDescending);
             FillList();
         }
 

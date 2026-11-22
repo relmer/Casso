@@ -7,6 +7,7 @@
 #include "CassoExplorer/Browser/BrowserColumnFilters.h"
 #include "CassoExplorer/Browser/BrowserNameFilter.h"
 #include "CassoExplorer/Browser/BrowserNavigator.h"
+#include "CassoExplorer/Browser/BrowserRowOrder.h"
 #include "CassoExplorer/Browser/IBrowserListing.h"
 
 #include "CassoExplorer/Model/BrowserModel.h"
@@ -121,27 +122,12 @@ public:
     static std::wstring  JoinPath          (const std::wstring & folder, const std::wstring & name);
     static bool          IsPartitionVolume (const std::wstring & path);
 
-    void  SortByColumn     (int column);
+    //  The rows' sort, Group by and Home sections.
+    BrowserRowOrder        & GetRowOrder      ()       { return m_rowOrder; }
+    const BrowserRowOrder  & GetRowOrder      () const { return m_rowOrder; }
+    BrowserColumnFilters   & GetColumnFilters ()       { return m_columnFilters; }
 
-    //  The count of shell property columns after the fixed ones, and the
-    //  function that returns a row's key for sorting by one.
-    using PropertyKeyFn = std::function<CatalogModel::PropertyKey (size_t row, size_t property)>;
-
-    void  SetPropertyColumns (size_t count, PropertyKeyFn keyFn, PropertyKeyFn peekFn = nullptr) { m_propertyCount = count; m_propertyKey = std::move (keyFn); m_propertyPeek = std::move (peekFn); }
-    bool  IsPropertyColumn   (int column) const { return column >= (int) CatalogModel::kColumnCount && (size_t) column < CatalogModel::kColumnCount + m_propertyCount; }
-
-    //  Explorer's Group by: the rows ordered by group, then by the sort
-    //  within each, and the groups for the list to draw headers for.
-    void                              SetGroupBy    (RowGrouping::Field field, bool descending);
-
-    BrowserColumnFilters  & GetColumnFilters () { return m_columnFilters; }
-
-    //  A folder's own sort and grouping, set together as it opens.
-    void                              SetSortAndGroup (CatalogModel::Column column, bool descending, RowGrouping::Field group, bool groupDescending);
-    std::vector<DxuiListView::Group>  GetListGroups   () const;
     bool                              IsHomeLocation  () const override;
-    bool                              IsHomeSectioned () const { return IsHomeLocation() && (!m_model.HasTabs() || m_model.GetActiveTab().groupBy == RowGrouping::Field::None); }
-    int                               GetHomeTab      () const { return m_homeTab; }
     void                              SetHomeTab      (int tab);
     void                              RemoveHomeRow   (const std::wstring & shellId);
     void                              RequestHomeRead () override;
@@ -402,15 +388,9 @@ public:
 private:
 
     CassoExplorerShellListings  m_shellListings;
-    void  SortRows               ();
     void  QueueVolumeFacts       (const std::wstring & folder);
-    std::vector<CatalogRow>  m_homeRows;            // all of Home's items; the rows are Quick access and one tab's
-    int                      m_homeTab         = 0;
     Location                 m_homeParent;
     bool                     m_returningToTab  = false;
-    int                      m_homeFirstTabRow = 0;
-    void  GroupRows              ();
-    void  ResortKeepingSelection ();
     bool  TryGetSelectedEntry    (const FileEntry *& outEntry) const;
 
     //  The key a selection stores for a row: its name and its occurrence among
@@ -437,11 +417,7 @@ private:
     DiskOperations                          m_operations;
     DiskImageCatalog                        m_catalog           { m_operations };
     std::vector<CatalogRow>                 m_rows;
-    std::vector<RowGrouping::Group>         m_rowGroups;       // each row's group, when grouped
     BrowserColumnFilters                    m_columnFilters;
-    size_t                                  m_propertyCount     = 0;
-    PropertyKeyFn                           m_propertyKey;
-    PropertyKeyFn                           m_propertyPeek;   // a value already read, or none, without waiting for the file
     VolumeListing                           m_listing;
     VolumeKind                              m_kind              = VolumeKind::Unknown;
     bool                                    m_isImage           = false;
@@ -472,5 +448,6 @@ private:
     BrowserPreviewer  m_previewer      { *this };
     BrowserCells      m_cells          { *this };
     BrowserNavigator  m_navigator      { m_model, m_fs, m_hostFolders, *this };
+    BrowserRowOrder   m_rowOrder       { m_model, m_rows, m_selectedRows, m_columnFilters, *this };
 };
 
