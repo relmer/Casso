@@ -32,32 +32,83 @@ InspectorMarquee::InspectorMarquee (const DiskInspectorPalette & palette, float 
 //
 //  InspectorMarquee::DrawLine
 //
+//  Only the part of the line inside the cull rectangle gets dashes, so a
+//  line far longer than the view, such as one step of an arc when zoomed
+//  far in, draws a view's worth of them. The pattern stays in phase with the whole line.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 float InspectorMarquee::DrawLine (IDxuiPainter & painter, float x0, float y0, float x1, float y1, float startPx) const
 {
-    float  length = std::hypot (x1 - x0, y1 - y0);
-    float  s      = startPx;
-    float  next   = 0.0f;
-    float  k      = 0.0f;
-    float  pad    = m_thicknessPx + 1.0f;
-    bool   isOut  = m_isCulled && (std::max (x0, x1) + pad < m_cull.left || std::min (x0, x1) - pad > m_cull.right ||
-                                   std::max (y0, y1) + pad < m_cull.top  || std::min (y0, y1) - pad > m_cull.bottom);
+    double  length = std::hypot ((double) x1 - x0, (double) y1 - y0);
+    double  first  = 0.0;
+    double  last   = 1.0;
+    double  s      = 0.0;
+    double  next   = 0.0;
+    double  k      = 0.0;
+    float   pad    = m_thicknessPx + 1.0f;
 
 
 
-    while (!isOut && length > 0.0f && s < startPx + length)
+    if (m_isCulled)
+    {
+        ClipToCull (x0, y0, x1, y1, pad, first, last);
+    }
+
+    s = startPx + first * length;
+
+    while (length > 0.0 && first < last && s < startPx + last * length)
     {
         k    = std::floor ((s + m_phasePx) / m_dashPx);
-        next = std::min ((k + 1.0f) * m_dashPx - m_phasePx, startPx + length);
+        next = std::min ((k + 1.0) * m_dashPx - m_phasePx, startPx + last * length);
 
-        painter.DrawLine (x0 + (x1 - x0) * (s - startPx) / length,    y0 + (y1 - y0) * (s - startPx) / length,
-                          x0 + (x1 - x0) * (next - startPx) / length, y0 + (y1 - y0) * (next - startPx) / length,
+        painter.DrawLine ((float) (x0 + (x1 - x0) * (s - startPx) / length),    (float) (y0 + (y1 - y0) * (s - startPx) / length),
+                          (float) (x0 + (x1 - x0) * (next - startPx) / length), (float) (y0 + (y1 - y0) * (next - startPx) / length),
                           m_thicknessPx, (std::abs (static_cast<int64_t> (k)) % 2 == 0) ? m_colorA : m_colorB);
         s = next;
     }
 
-    return startPx + length;
+    return startPx + (float) length;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorMarquee::ClipToCull
+//
+//  Narrows [ioFirst, ioLast], fractions of the line from (x0, y0), to the
+//  part inside the cull rectangle grown by `pad`; ioFirst ends past ioLast
+//  when no part is inside.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorMarquee::ClipToCull (float x0, float y0, float x1, float y1, float pad, double & ioFirst, double & ioLast) const
+{
+    double  dx       = (double) x1 - x0;
+    double  dy       = (double) y1 - y0;
+    double  deltas[] = { -dx, dx, -dy, dy };
+    double  room[]   = { x0 - (m_cull.left - pad), (m_cull.right + pad) - x0, y0 - (m_cull.top - pad), (m_cull.bottom + pad) - y0 };
+
+
+
+    for (int side = 0; side < 4; side++)
+    {
+        if (deltas[side] == 0.0)
+        {
+            ioLast = room[side] < 0.0 ? -1.0 : ioLast;
+        }
+        else if (deltas[side] < 0.0)
+        {
+            ioFirst = std::max (ioFirst, room[side] / deltas[side]);
+        }
+        else
+        {
+            ioLast = std::min (ioLast, room[side] / deltas[side]);
+        }
+    }
 }
 
 

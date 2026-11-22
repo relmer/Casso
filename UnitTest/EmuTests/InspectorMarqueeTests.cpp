@@ -47,6 +47,25 @@ public:
 
 
 
+    TEST_METHOD (ALineFarLongerThanTheView_DrawsOnlyTheDashesInView)
+    {
+        DiskInspectorPalette  palette = DiskInspectorPalette::MakeFallback (true);
+        InspectorMarquee      marquee (palette, 4.0f, 2.0f, 0);
+        MockDxuiPainter       painter;
+        float                 end     = 0.0f;
+
+
+
+        marquee.SetCullRect (RECT { 0, 0, 100, 100 });
+        end = marquee.DrawLine (painter, -1.0e7f, 50.0f, 1.0e7f, 50.0f, 0.0f);
+
+        Assert::AreEqual (2.0e7f, end);
+        Assert::IsTrue   (painter.Calls().size() <= 30, L"only the dashes across the view are drawn");
+        Assert::IsTrue   (painter.Calls().size() >= 25);
+    }
+
+
+
     TEST_METHOD (TheNextSegmentContinuesThePattern)
     {
         DiskInspectorPalette  palette = DiskInspectorPalette::MakeFallback (true);
