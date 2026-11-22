@@ -674,6 +674,7 @@ BrowserRowPaths::Listing CassoExplorerBrowser::GetRowListing()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CassoExplorerBrowser::IsSearchRunning
