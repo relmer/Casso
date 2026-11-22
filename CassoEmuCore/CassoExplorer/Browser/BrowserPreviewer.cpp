@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Browser/BrowserPreviewer.h"
+#include "CassoExplorer/Browser/BrowserHostInterfaces.h"
+#include "CassoExplorer/Browser/BrowserSelection.h"
 #include "CassoLink/FullSend/FullSendManifest.h"
 #include "Core/AppleSingleCodec.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
@@ -28,8 +30,13 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-BrowserPreviewer::BrowserPreviewer (CassoExplorerBrowser & browser)
-    : m_browser (browser)
+BrowserPreviewer::BrowserPreviewer (
+    const BrowserParts      & parts,
+    const BrowserSelection  & selection,
+    IBrowserPreviewHost     & host)
+    : m_parts     (parts),
+      m_selection (selection),
+      m_host      (host)
 {
 }
 
@@ -57,18 +64,18 @@ bool BrowserPreviewer::PreviewAppleDrive (const CatalogRow & row)
 
 
 
-    if (m_browser.m_links == nullptr || !TreeModel::TryParseLinkId (row.hostPath, link, slot, drive) || drive == 0)
+    if (m_parts.sources.links == nullptr || !TreeModel::TryParseLinkId (row.hostPath, link, slot, drive) || drive == 0)
     {
         return false;
     }
 
     m_preview.kind = PreviewContent::Kind::Error;
 
-    if (m_browser.m_links->IsWritingDisk (TextEncoding::WideToNarrow (link), drive))
+    if (m_parts.sources.links->IsWritingDisk (TextEncoding::WideToNarrow (link), drive))
     {
         m_preview.message = L"The disk is not available because an image is being written to it.";
     }
-    else if (!m_browser.m_links->TryGetListing (TextEncoding::WideToNarrow (link), drive, std::string(), listing, kind, result, message))
+    else if (!m_parts.sources.links->TryGetListing (TextEncoding::WideToNarrow (link), drive, std::string(), listing, kind, result, message))
     {
         m_preview.message = CassoExplorerBrowser::s_kWorkingText;
     }
@@ -118,11 +125,11 @@ void BrowserPreviewer::PreviewCassoLinkItem (const CatalogRow & row)
 
     //  The help is written out for Windows' own Markdown preview, where one
     //  is installed; otherwise the preview has the text as it is.
-    if (help && m_browser.m_shellVerbs != nullptr && !row.hostPath.empty())
+    if (help && m_parts.sources.shellVerbs != nullptr && !row.hostPath.empty())
     {
-        hr = m_browser.m_operations.GetFileIo().WriteAllBytes (TextEncoding::WideToNarrow (row.hostPath), std::vector<Byte> (bytes.begin(), bytes.end()));
+        hr = m_parts.operations.GetFileIo().WriteAllBytes (TextEncoding::WideToNarrow (row.hostPath), std::vector<Byte> (bytes.begin(), bytes.end()));
 
-        if (SUCCEEDED (hr) && m_browser.m_shellVerbs->HasShellPreview (row.hostPath))
+        if (SUCCEEDED (hr) && m_parts.sources.shellVerbs->HasShellPreview (row.hostPath))
         {
             m_preview.kind     = PreviewContent::Kind::Shell;
             m_preview.hostPath = row.hostPath;
@@ -163,9 +170,9 @@ void BrowserPreviewer::PreviewAppleEntry (const std::string & entryPath, const F
 
 
 
-    TreeModel::TryParseLinkId (m_browser.GetLocation().path, link, slot, drive);
+    TreeModel::TryParseLinkId (GetLocation().path, link, slot, drive);
 
-    if (!m_browser.m_links->TryGetFile (TextEncoding::WideToNarrow (link), drive, entryPath, payload, hr, message))
+    if (!m_parts.sources.links->TryGetFile (TextEncoding::WideToNarrow (link), drive, entryPath, payload, hr, message))
     {
         m_preview.kind    = PreviewContent::Kind::Error;
         m_preview.message = CassoExplorerBrowser::s_kWorkingText;
@@ -174,10 +181,10 @@ void BrowserPreviewer::PreviewAppleEntry (const std::string & entryPath, const F
 
     if (SUCCEEDED (hr))
     {
-        PreviewDecoder::HexForm  hexForm = GetHexForm (m_browser.GetLocation().path + L"|" + TextEncoding::NarrowToWide (entryPath));
+        PreviewDecoder::HexForm  hexForm = GetHexForm (GetLocation().path + L"|" + TextEncoding::NarrowToWide (entryPath));
 
-        hr = PreviewViewChoices::Render (m_viewAs, entry, m_browser.m_kind, payload, hexForm, m_bus, m_preview, m_previewMonitor, m_customArgb,
-                                         GetDecodeOptions (m_browser.GetLocation().path, entryPath));
+        hr = PreviewViewChoices::Render (m_viewAs, entry, m_parts.list.kind, payload, hexForm, m_bus, m_preview, m_previewMonitor, m_customArgb,
+                                         GetDecodeOptions (GetLocation().path, entryPath));
     }
 
     if (FAILED (hr) && m_preview.message.empty())
@@ -364,7 +371,7 @@ void BrowserPreviewer::SetDefaultDecodeOptions (const DecodeOptions & options)
 void BrowserPreviewer::UpdatePreview()
 {
     const FileEntry         * entry     = nullptr;
-    Location                  location  = m_browser.GetLocation();
+    Location                  location  = GetLocation();
     std::wstring              imagePath;
     std::wstring              folder    = location.path;
 
@@ -373,7 +380,7 @@ void BrowserPreviewer::UpdatePreview()
     m_preview = PreviewContent();
     m_preview.kind = PreviewContent::Kind::Text;
 
-    if (m_browser.GetSelection().TryGetSelectedEntry (entry))
+    if (m_selection.TryGetSelectedEntry (entry))
     {
         if (entry->isDirectory)
         {
@@ -382,13 +389,13 @@ void BrowserPreviewer::UpdatePreview()
             return;
         }
 
-        if (m_browser.m_isAppleDrive)
+        if (m_parts.list.isAppleDrive)
         {
-            PreviewAppleEntry (BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), *entry), *entry);
+            PreviewAppleEntry (BrowserRowPaths::GetEntryPath (GetLocation(), *entry), *entry);
         }
         else
         {
-            PreviewEntry (location.path, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), *entry), *entry, m_browser.m_kind);
+            PreviewEntry (location.path, BrowserRowPaths::GetEntryPath (GetLocation(), *entry), *entry, m_parts.list.kind);
         }
 
         return;
@@ -396,9 +403,9 @@ void BrowserPreviewer::UpdatePreview()
 
     //  CassoLink's own items, and a linked Apple's drive, which previews as
     //  its catalog once it is read.
-    if (location.kind == Location::Kind::Root && m_browser.m_selectedRows.size() == 1 && m_browser.m_selectedRows[0] >= 0 && (size_t) m_browser.m_selectedRows[0] < m_browser.m_rows.size())
+    if (location.kind == Location::Kind::Root && m_parts.list.selectedRows.size() == 1 && m_parts.list.selectedRows[0] >= 0 && (size_t) m_parts.list.selectedRows[0] < m_parts.list.rows.size())
     {
-        const CatalogRow &  row = m_browser.m_rows[(size_t) m_browser.m_selectedRows[0]];
+        const CatalogRow &  row = m_parts.list.rows[(size_t) m_parts.list.selectedRows[0]];
 
         if (row.cassoLinkItem != CatalogRow::CassoLinkItem::None)
         {
@@ -413,63 +420,63 @@ void BrowserPreviewer::UpdatePreview()
     }
 
     //  A search's match inside a disk image previews as it does in its image.
-    if (m_browser.m_selectedRows.size() == 1 && m_browser.m_selectedRows[0] >= 0 && (size_t) m_browser.m_selectedRows[0] < m_browser.m_rows.size() && !m_browser.m_rows[(size_t) m_browser.m_selectedRows[0]].imagePath.empty())
+    if (m_parts.list.selectedRows.size() == 1 && m_parts.list.selectedRows[0] >= 0 && (size_t) m_parts.list.selectedRows[0] < m_parts.list.rows.size() && !m_parts.list.rows[(size_t) m_parts.list.selectedRows[0]].imagePath.empty())
     {
-        PreviewSearchMatch (m_browser.m_rows[(size_t) m_browser.m_selectedRows[0]]);
+        PreviewSearchMatch (m_parts.list.rows[(size_t) m_parts.list.selectedRows[0]]);
         return;
     }
 
     //  A search's result on the disk previews as it does in its own folder.
-    if (!m_browser.m_isImage && m_browser.m_selectedRows.size() == 1 && SearchQuery::IsId (location.path) && !m_browser.m_rows[m_browser.m_selectedRows[0]].folderPath.empty())
+    if (!m_parts.list.isImage && m_parts.list.selectedRows.size() == 1 && SearchQuery::IsId (location.path) && !m_parts.list.rows[m_parts.list.selectedRows[0]].folderPath.empty())
     {
-        folder = m_browser.m_rows[m_browser.m_selectedRows[0]].folderPath;
+        folder = m_parts.list.rows[m_parts.list.selectedRows[0]].folderPath;
     }
 
     //  A file on Home with a file on the disk previews as it does in its folder.
-    else if (!m_browser.m_isImage && m_browser.IsHomeLocation() && m_browser.m_selectedRows.size() == 1 && !m_browser.m_rows[m_browser.m_selectedRows[0]].hostPath.empty())
+    else if (!m_parts.list.isImage && m_host.IsHomeLocation() && m_parts.list.selectedRows.size() == 1 && !m_parts.list.rows[m_parts.list.selectedRows[0]].hostPath.empty())
     {
-        folder = BrowserRowPaths::GetParentFolder (m_browser.m_rows[m_browser.m_selectedRows[0]].hostPath);
+        folder = BrowserRowPaths::GetParentFolder (m_parts.list.rows[m_parts.list.selectedRows[0]].hostPath);
     }
-    else if (!m_browser.m_isImage && m_browser.IsHomeLocation() && m_browser.m_selectedRows.size() == 1 && m_browser.m_rows[m_browser.m_selectedRows[0]].hostPath.empty())
+    else if (!m_parts.list.isImage && m_host.IsHomeLocation() && m_parts.list.selectedRows.size() == 1 && m_parts.list.rows[m_parts.list.selectedRows[0]].hostPath.empty())
     {
         //  A cloud item has no file here, and its stream is a web page.
         m_preview.kind    = PreviewContent::Kind::Error;
         m_preview.message = L"No preview available.";
         return;
     }
-    else if (!m_browser.m_isImage && (location.kind == Location::Kind::ShellFolder || m_browser.IsHomeLocation()) && m_browser.m_selectedRows.size() == 1)
+    else if (!m_parts.list.isImage && (location.kind == Location::Kind::ShellFolder || m_host.IsHomeLocation()) && m_parts.list.selectedRows.size() == 1)
     {
-        PreviewShellItem (m_browser.m_rows[m_browser.m_selectedRows[0]]);
+        PreviewShellItem (m_parts.list.rows[m_parts.list.selectedRows[0]]);
         return;
     }
-    else if (m_browser.m_isPartitionList && m_browser.m_selectedRows.size() == 1 && !m_browser.m_rows[m_browser.m_selectedRows[0]].containerPath.empty())
+    else if (m_parts.list.isPartitionList && m_parts.list.selectedRows.size() == 1 && !m_parts.list.rows[m_parts.list.selectedRows[0]].containerPath.empty())
     {
         //  A partition of a card or a card image previews as its volume's catalog.
-        PreviewImageCatalog (m_browser.m_rows[m_browser.m_selectedRows[0]].containerPath);
+        PreviewImageCatalog (m_parts.list.rows[m_parts.list.selectedRows[0]].containerPath);
         return;
     }
-    else if (!m_browser.m_isImage && location == Location::MakeRoot (TreeModel::kCassoRootId) && m_browser.m_selectedRows.size() == 1
-             && !m_browser.m_rows[m_browser.m_selectedRows[0]].isDirectory && !m_browser.m_rows[m_browser.m_selectedRows[0]].hostPath.empty())
+    else if (!m_parts.list.isImage && location == Location::MakeRoot (TreeModel::kCassoRootId) && m_parts.list.selectedRows.size() == 1
+             && !m_parts.list.rows[m_parts.list.selectedRows[0]].isDirectory && !m_parts.list.rows[m_parts.list.selectedRows[0]].hostPath.empty())
     {
         //  An image in the Casso node's list previews as it does in its folder.
-        folder = BrowserRowPaths::GetParentFolder (m_browser.m_rows[m_browser.m_selectedRows[0]].hostPath);
+        folder = BrowserRowPaths::GetParentFolder (m_parts.list.rows[m_parts.list.selectedRows[0]].hostPath);
     }
-    else if (m_browser.m_isImage || location.kind != Location::Kind::HostFolder || m_browser.m_selectedRows.size() != 1)
+    else if (m_parts.list.isImage || location.kind != Location::Kind::HostFolder || m_parts.list.selectedRows.size() != 1)
     {
         return;
     }
 
     //  An archive previews as what it holds, as a disk image does.
-    if (m_browser.m_rows[m_browser.m_selectedRows[0]].isArchive)
+    if (m_parts.list.rows[m_parts.list.selectedRows[0]].isArchive)
     {
-        PreviewArchive (BrowserRowPaths::JoinPath (folder, m_browser.m_rows[m_browser.m_selectedRows[0]].name));
+        PreviewArchive (BrowserRowPaths::JoinPath (folder, m_parts.list.rows[m_parts.list.selectedRows[0]].name));
         return;
     }
 
     //  Any other file in a host folder.
-    if (!m_browser.m_rows[m_browser.m_selectedRows[0]].isDiskImage)
+    if (!m_parts.list.rows[m_parts.list.selectedRows[0]].isDiskImage)
     {
-        PreviewHostFile (folder, m_browser.m_rows[m_browser.m_selectedRows[0]]);
+        PreviewHostFile (folder, m_parts.list.rows[m_parts.list.selectedRows[0]]);
         return;
     }
 
@@ -480,7 +487,7 @@ void BrowserPreviewer::UpdatePreview()
         imagePath += L'\\';
     }
 
-    imagePath += m_browser.m_rows[m_browser.m_selectedRows[0]].name;
+    imagePath += m_parts.list.rows[m_parts.list.selectedRows[0]].name;
 
     PreviewImageCatalog (imagePath);
 }
@@ -505,9 +512,9 @@ void BrowserPreviewer::PreviewImageCatalog (const std::wstring & imagePath)
 
 
 
-    if (!m_browser.m_model.TryGetCachedCatalog (imagePath, listing, kind))
+    if (!m_parts.model.TryGetCachedCatalog (imagePath, listing, kind))
     {
-        HRESULT  hrDescribe = m_browser.m_catalog.Describe (imagePath, std::string(), contents);
+        HRESULT  hrDescribe = m_parts.catalog.Describe (imagePath, std::string(), contents);
 
         IGNORE_RETURN_VALUE (hrDescribe, S_OK);
 
@@ -533,7 +540,7 @@ void BrowserPreviewer::PreviewImageCatalog (const std::wstring & imagePath)
             return;
         }
 
-        m_browser.m_model.CacheCatalog (imagePath, listing, kind);
+        m_parts.model.CacheCatalog (imagePath, listing, kind);
     }
 
     if (m_savedGameShown && PreviewSavedGame (imagePath, listing, kind))
@@ -689,7 +696,7 @@ void BrowserPreviewer::AddWozDetails (const std::wstring & imagePath)
 
     CBR (isWoz);
 
-    hr = m_browser.m_operations.GetFileIo().ReadAllBytes (TextEncoding::WideToNarrow (imagePath), bytes);
+    hr = m_parts.operations.GetFileIo().ReadAllBytes (TextEncoding::WideToNarrow (imagePath), bytes);
     CHR (hr);
 
     WozLoader::Describe (bytes, woz);
@@ -727,8 +734,8 @@ Error:
 
 bool BrowserPreviewer::IsLocalArchivePath (const std::wstring & id) const
 {
-    return m_browser.m_shellVerbs != nullptr && id.size() > 3 && id[1] == L':' && id[2] == L'\\'
-        && !m_browser.m_fs.DirectoryExists (id);
+    return m_parts.sources.shellVerbs != nullptr && id.size() > 3 && id[1] == L':' && id[2] == L'\\'
+        && !m_parts.fs.DirectoryExists (id);
 }
 
 
@@ -759,7 +766,7 @@ std::wstring BrowserPreviewer::DescribeEmptyArchive (const std::wstring & path) 
         return ArchiveProbe::GetReason (name, ArchiveProbe::Verdict::NotZip);
     }
 
-    hr = m_browser.m_fs.ReadAllText (path, bytes);
+    hr = m_parts.fs.ReadAllText (path, bytes);
 
     if (FAILED (hr))
     {
@@ -805,14 +812,14 @@ std::wstring BrowserPreviewer::GetExtractTarget() const
 {
     std::vector<std::wstring>  paths;
     std::wstring               prefix;
-    const Location           & location = m_browser.GetLocation();
+    const Location           & location = GetLocation();
 
 
 
-    if (location.kind == Location::Kind::HostFolder && m_browser.m_selectedRows.size() == 1
-        && m_browser.m_rows[(size_t) m_browser.m_selectedRows[0]].isArchive)
+    if (location.kind == Location::Kind::HostFolder && m_parts.list.selectedRows.size() == 1
+        && m_parts.list.rows[(size_t) m_parts.list.selectedRows[0]].isArchive)
     {
-        m_browser.GetSelection().GetSelectedHostPaths (paths);
+        m_selection.GetSelectedHostPaths (paths);
         return paths.empty() ? std::wstring() : paths[0];
     }
 
@@ -825,7 +832,7 @@ std::wstring BrowserPreviewer::GetExtractTarget() const
     {
         prefix = location.path.substr (0, at);
 
-        if (m_browser.m_fs.Exists (prefix) && !m_browser.m_fs.DirectoryExists (prefix))
+        if (m_parts.fs.Exists (prefix) && !m_parts.fs.DirectoryExists (prefix))
         {
             return prefix;
         }
@@ -856,7 +863,7 @@ void BrowserPreviewer::PreviewArchive (const std::wstring & path)
 
 
 
-    if (m_browser.m_shellVerbs == nullptr)
+    if (m_parts.sources.shellVerbs == nullptr)
     {
         return;
     }
@@ -865,9 +872,9 @@ void BrowserPreviewer::PreviewArchive (const std::wstring & path)
     //  message meanwhile, so an unreachable share never blocks the window.
     if (!PathResolver::IsNetworkPath (path))
     {
-        hr = m_browser.m_shellVerbs->ListShellFolder (path, items);
+        hr = m_parts.sources.shellVerbs->ListShellFolder (path, items);
     }
-    else if (!m_browser.m_shellListings.TryTake (CassoExplorerBrowser::s_kPreviewKey + path, path, items, hr))
+    else if (!m_parts.shellListings.TryTake (CassoExplorerBrowser::s_kPreviewKey + path, path, items, hr))
     {
         m_preview.kind    = PreviewContent::Kind::Error;
         m_preview.message = CassoExplorerBrowser::s_kWorkingText;
@@ -958,7 +965,7 @@ std::vector<DxuiListView::Column> BrowserPreviewer::GetArchivePreviewColumns()
 
 std::vector<DxuiListView::Cell> BrowserPreviewer::GetArchivePreviewCells (const CatalogRow & row) const
 {
-    std::vector<DxuiListView::Cell>  cells = BrowserCells::ToCells (row, Location::MakeShellFolder (row.shellId, row.name), m_browser.m_shellIcons);
+    std::vector<DxuiListView::Cell>  cells = BrowserCells::ToCells (row, Location::MakeShellFolder (row.shellId, row.name), m_parts.sources.shellIcons);
 
 
 
@@ -1096,7 +1103,7 @@ bool BrowserPreviewer::IsUtf8 (std::span<const Byte> sample)
 void BrowserPreviewer::ReadTextPreview (const std::wstring & path, const std::wstring & name)
 {
     std::string  content;
-    HRESULT      hr      = m_browser.m_fs.ReadAllText (path, content);
+    HRESULT      hr      = m_parts.fs.ReadAllText (path, content);
 
 
 
@@ -1413,12 +1420,12 @@ void BrowserPreviewer::PreviewShellItem (const CatalogRow & row)
         return;
     }
 
-    if (m_browser.m_shellVerbs == nullptr || row.shellId.empty())
+    if (m_parts.sources.shellVerbs == nullptr || row.shellId.empty())
     {
         return;
     }
 
-    hr = m_browser.m_shellVerbs->ReadItemBytes (row.shellId, s_kShellPreviewMaxBytes, m_preview.bytes);
+    hr = m_parts.sources.shellVerbs->ReadItemBytes (row.shellId, s_kShellPreviewMaxBytes, m_preview.bytes);
 
     if (FAILED (hr))
     {
@@ -1456,7 +1463,7 @@ void BrowserPreviewer::PreviewEntry (const std::wstring & imagePath, const std::
 
 
 
-    result = m_browser.m_operations.Read (TextEncoding::WideToNarrow (imagePath), entryPath, payload, entry.catalogIndex);
+    result = m_parts.operations.Read (TextEncoding::WideToNarrow (imagePath), entryPath, payload, entry.catalogIndex);
 
     if (!result.Succeeded() && PreviewDecoder::ParseDetails (result.message, m_preview.details))
     {
@@ -1556,9 +1563,9 @@ bool BrowserPreviewer::TryFindSearchMatch (const CatalogRow & row, BrowserSearch
     }
 
     //  The volume's own catalog is cached; a directory inside it is read.
-    if (!row.imageDirectory.empty() || !m_browser.m_model.TryGetCachedCatalog (row.imagePath, listing, kind))
+    if (!row.imageDirectory.empty() || !m_parts.model.TryGetCachedCatalog (row.imagePath, listing, kind))
     {
-        result = m_browser.m_operations.List (TextEncoding::WideToNarrow (row.imagePath), row.imageDirectory, listing, kind);
+        result = m_parts.operations.List (TextEncoding::WideToNarrow (row.imagePath), row.imageDirectory, listing, kind);
 
         if (!result.Succeeded())
         {
@@ -1568,7 +1575,7 @@ bool BrowserPreviewer::TryFindSearchMatch (const CatalogRow & row, BrowserSearch
 
         if (row.imageDirectory.empty())
         {
-            m_browser.m_model.CacheCatalog (row.imagePath, listing, kind);
+            m_parts.model.CacheCatalog (row.imagePath, listing, kind);
         }
     }
 
@@ -1611,9 +1618,9 @@ void BrowserPreviewer::GetSelectedSearchMatches (std::vector<BrowserSearchMatch>
 
     outMatches.clear();
 
-    for (int row : m_browser.m_selectedRows)
+    for (int row : m_parts.list.selectedRows)
     {
-        if (row >= 0 && (size_t) row < m_browser.m_rows.size() && TryFindSearchMatch (m_browser.m_rows[(size_t) row], match, error))
+        if (row >= 0 && (size_t) row < m_parts.list.rows.size() && TryFindSearchMatch (m_parts.list.rows[(size_t) row], match, error))
         {
             outMatches.push_back (match);
         }
@@ -1639,9 +1646,9 @@ bool BrowserPreviewer::AreSelectedRowsSearchMatches() const
 
 
 
-    for (int row : m_browser.m_selectedRows)
+    for (int row : m_parts.list.selectedRows)
     {
-        any = any || (row >= 0 && (size_t) row < m_browser.m_rows.size() && !m_browser.m_rows[(size_t) row].imagePath.empty());
+        any = any || (row >= 0 && (size_t) row < m_parts.list.rows.size() && !m_parts.list.rows[(size_t) row].imagePath.empty());
     }
 
     return any;
@@ -1677,7 +1684,7 @@ bool BrowserPreviewer::TryPreviewAppleSingle (const std::wstring & folder, const
         return false;
     }
 
-    hr = m_browser.m_fs.ReadAllText (BrowserRowPaths::JoinPath (folder, row.name), content);
+    hr = m_parts.fs.ReadAllText (BrowserRowPaths::JoinPath (folder, row.name), content);
 
     if (FAILED (hr))
     {
@@ -1771,7 +1778,7 @@ void BrowserPreviewer::PreviewHostFile (const std::wstring & folder, const Catal
     //  A Windows preview handler, as in Explorer, for a file type with one;
     //  an assembler's source and an exported Apple file are Casso Explorer's
     //  to preview.
-    if (m_browser.m_shellVerbs != nullptr && !IsSourceName (row.name) && !IsAppleExportName (row.name) && m_browser.m_shellVerbs->HasShellPreview (m_preview.hostPath))
+    if (m_parts.sources.shellVerbs != nullptr && !IsSourceName (row.name) && !IsAppleExportName (row.name) && m_parts.sources.shellVerbs->HasShellPreview (m_preview.hostPath))
     {
         m_preview.kind = PreviewContent::Kind::Shell;
     }
@@ -1821,7 +1828,7 @@ bool BrowserPreviewer::TryReadHostPayload (const std::wstring & path, const Cata
         return false;
     }
 
-    hr = m_browser.m_fs.ReadAllText (path, content);
+    hr = m_parts.fs.ReadAllText (path, content);
 
     if (FAILED (hr))
     {

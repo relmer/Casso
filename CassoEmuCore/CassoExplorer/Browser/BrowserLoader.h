@@ -2,12 +2,14 @@
 
 #include "Pch.h"
 
+#include "CassoExplorer/Browser/BrowserParts.h"
 #include "CassoExplorer/CassoExplorerShellListings.h"
+#include "CassoExplorer/Model/BrowserModel.h"
 #include "CassoExplorer/Model/PreviewDecoder.h"
 #include "CassoExplorer/Model/TreeModel.h"
 #include "Devices/Disk/Partitions/PartitionAccess.h"
 
-class CassoExplorerBrowser;
+class IBrowserLoaderHost;
 
 
 
@@ -26,7 +28,7 @@ class CassoExplorerBrowser;
 class BrowserLoader
 {
 public:
-    explicit BrowserLoader (CassoExplorerBrowser & browser);
+    BrowserLoader (const BrowserParts & parts, IBrowserLoaderHost & host);
 
     bool  LeaveMissingLocation ();
 
@@ -80,6 +82,16 @@ public:
 
     std::wstring  MakeContainerPath (const std::wstring & folderId, const std::wstring & name) const;
 
+    //  The tree nodes read so far, by id, and the readers of host folders on
+    //  a network path.
+    std::map<std::wstring, TreeNode>        & GetNodes        ()       { return m_nodes; }
+    const std::map<std::wstring, TreeNode>  & GetNodes        () const { return m_nodes; }
+    CassoExplorerHostListings               & GetHostListings ()       { return m_hostListings; }
+
+    //  The linked machine or drive last listed. Returning to a tab lists what
+    //  was last read there; forgetting the visit reads its disks again.
+    void  SetLinkVisit    (const Location & location) { m_linkVisit = location; }
+    void  ForgetLinkVisit ()                          { m_linkVisit = Location(); m_linkReadAt.clear(); }
     //  The path a shell folder's image row opens by: its path on the disk, or
     //  in a ZIP, its ContainerPath's text.
     static const std::wstring &  GetImagePath (const CatalogRow & row) { return row.hostPath.empty() ? row.containerPath : row.hostPath; }
@@ -94,18 +106,13 @@ private:
 
     std::unordered_map<std::wstring, ImageProblem>  m_imageProblems;
 
-    friend class CassoExplorerBrowser;
+    Location  GetLocation      () const { return m_parts.model.HasTabs() ? m_parts.model.GetActiveTab().location : Location(); }
+    bool      IsVolumeLocation () const { return m_parts.list.isImage || m_parts.list.isAppleDrive; }
 
-    CassoExplorerBrowser  & m_browser;
-
-    //  Where Up goes from the shell folder listed; none at the top.
-    Location                          m_shellParent;
-    CassoExplorerHostListings         m_hostListings;
-    Location                          m_linkVisit;   // the linked machine or drive last listed
-    std::map<std::wstring, ULONGLONG> m_linkReadAt;  // when each linked machine or drive was last read again
-    std::map<std::wstring, TreeNode>  m_nodes;
-    std::vector<FileSystemEntry>      m_hostEntries;
-    std::vector<TreeNode>             m_rootChildren;
-    bool                              m_writeProtected = false;
-    std::wstring                      m_listError;
+    BrowserParts                         m_parts;
+    IBrowserLoaderHost                 & m_host;
+    CassoExplorerHostListings            m_hostListings;
+    Location                             m_linkVisit;    // the linked machine or drive last listed
+    std::map<std::wstring, ULONGLONG>    m_linkReadAt;   // when each linked machine or drive was last read again
+    std::map<std::wstring, TreeNode>     m_nodes;
 };

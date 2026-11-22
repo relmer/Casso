@@ -1661,6 +1661,8 @@
     <ClInclude Include="CassoExplorer\Actions\ActionsTypes.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerBrowser.h" />
     <ClInclude Include="CassoExplorer\Browser\BrowserCells.h" />
+    <ClInclude Include="CassoExplorer\Browser\BrowserHostInterfaces.h" />
+    <ClInclude Include="CassoExplorer\Browser\BrowserParts.h" />
     <ClInclude Include="CassoExplorer\Browser\BrowserColumnFilters.h" />
     <ClInclude Include="CassoExplorer\Browser\BrowserNameFilter.h" />
     <ClInclude Include="CassoExplorer\Browser\BrowserNavigator.h" />

@@ -32,13 +32,13 @@ CassoExplorerBrowser::CassoExplorerBrowser (IFileSystem & fs, IDiskFileIo & file
     //  under a key of its own.
     m_tree.SetHostFetch ([this] (const std::wstring & path, std::vector<FileSystemEntry> & outEntries, HRESULT & outResult)
     {
-        if (!m_loader.m_hostListings.HasLister())
+        if (!m_loader.GetHostListings().HasLister())
         {
             outResult = m_fs.EnumerateAllEntries (path, outEntries);
             return true;
         }
 
-        return m_loader.m_hostListings.TryTake (s_kHostTreeKey + path, path, outEntries, outResult);
+        return m_loader.GetHostListings().TryTake (s_kHostTreeKey + path, path, outEntries, outResult);
     });
 
     m_tree.GetImageNodes().SetCatalog (&m_catalog);
@@ -65,8 +65,8 @@ void CassoExplorerBrowser::GetTreeRoots (std::vector<DxuiTreeNode> & outNodes)
 
     for (const TreeNode & node : roots)
     {
-        m_loader.m_nodes[node.id] = node;
-        outNodes.push_back (BrowserCells::ToTreeNode (node, m_shellIcons));
+        m_loader.GetNodes()[node.id] = node;
+        outNodes.push_back (BrowserCells::ToTreeNode (node, m_sources.shellIcons));
     }
 }
 
@@ -100,8 +100,8 @@ std::vector<DxuiTreeNode> CassoExplorerBrowser::GetTreeChildren (const std::wstr
 
     for (const TreeNode & node : children)
     {
-        m_loader.m_nodes[node.id] = node;
-        out.push_back (BrowserCells::ToTreeNode (node, m_shellIcons));
+        m_loader.GetNodes()[node.id] = node;
+        out.push_back (BrowserCells::ToTreeNode (node, m_sources.shellIcons));
     }
 
     return out;
@@ -153,12 +153,12 @@ std::wstring CassoExplorerBrowser::GetRootId() const
 
 HRESULT CassoExplorerBrowser::SelectTreeNode (const std::wstring & id)
 {
-    auto      found    = m_loader.m_nodes.find (id);
+    auto      found    = m_loader.GetNodes().find (id);
     Location  location;
 
 
 
-    if (found != m_loader.m_nodes.end())
+    if (found != m_loader.GetNodes().end())
     {
         location = found->second.location;
     }
@@ -174,18 +174,18 @@ HRESULT CassoExplorerBrowser::SelectTreeNode (const std::wstring & id)
 
     //  An image's tree node is read when it is selected or expanded, so the
     //  list can state why one doesn't open.
-    if (found != m_loader.m_nodes.end() && found->second.kind == TreeNode::Kind::DiskImage && found->second.loadError.empty())
+    if (found != m_loader.GetNodes().end() && found->second.kind == TreeNode::Kind::DiskImage && found->second.loadError.empty())
     {
         HRESULT  hr = m_tree.ReadImageNode (found->second);
 
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
-    if (found != m_loader.m_nodes.end() && !found->second.loadError.empty())
+    if (found != m_loader.GetNodes().end() && !found->second.loadError.empty())
     {
-        m_rows.clear();
-        m_selectedRows.clear();
-        m_loader.m_listError = found->second.loadError;
+        m_list.rows.clear();
+        m_list.selectedRows.clear();
+        m_list.listError = found->second.loadError;
         m_previewer.UpdatePreview();
         m_cells.UpdateStatus();
 
@@ -215,19 +215,19 @@ HRESULT CassoExplorerBrowser::Refresh()
 
 
 
-    m_rows.clear();
-    m_loader.m_hostEntries.clear();
-    m_loader.m_rootChildren.clear();
-    m_listing      = VolumeListing();
-    m_kind         = VolumeKind::Unknown;
-    m_isImage      = false;
-    m_isAppleDrive = false;
-    m_isPartitionList = false;
-    m_listingKept  = false;
-    m_loader.m_writeProtected = false;
-    m_loader.m_listError.clear();
-    m_selectedRows.clear();
-    m_loader.m_shellParent = Location();
+    m_list.rows.clear();
+    m_list.hostEntries.clear();
+    m_list.rootChildren.clear();
+    m_list.listing      = VolumeListing();
+    m_list.kind         = VolumeKind::Unknown;
+    m_list.isImage      = false;
+    m_list.isAppleDrive = false;
+    m_list.isPartitionList = false;
+    m_list.listingKept  = false;
+    m_list.writeProtected = false;
+    m_list.listError.clear();
+    m_list.selectedRows.clear();
+    m_list.shellParent = Location();
 
     m_loader.RevisitLink (location);
 
@@ -235,7 +235,7 @@ HRESULT CassoExplorerBrowser::Refresh()
     //  again.
     if (m_returningToTab && IsHomeLocation() && m_rowOrder.HasHomeRows())
     {
-        m_loader.m_shellParent = m_homeParent;
+        m_list.shellParent = m_homeParent;
         m_columnFilters.MarkRowsLoaded();
         m_rowOrder.SortRows();
         m_previewer.UpdatePreview();
@@ -288,14 +288,14 @@ HRESULT CassoExplorerBrowser::Refresh()
 
     if (m_rowScope && (location.kind == Location::Kind::HostFolder || (location.kind == Location::Kind::Root && location.path == TreeModel::kCassoRootId)))
     {
-        m_scopedOut = std::erase_if (m_rows, [this] (const CatalogRow & row) { return !m_rowScope (row); });
+        m_scopedOut = std::erase_if (m_list.rows, [this] (const CatalogRow & row) { return !m_rowScope (row); });
     }
 
-    m_nameFilter.CaptureSource (location, m_rowScope != nullptr, m_rows.size());
+    m_nameFilter.CaptureSource (location, m_rowScope != nullptr, m_list.rows.size());
 
     if (!m_mountedImages.empty() && (location.kind == Location::Kind::HostFolder || (location.kind == Location::Kind::Root && location.path == TreeModel::kCassoRootId)))
     {
-        for (CatalogRow & row : m_rows)
+        for (CatalogRow & row : m_list.rows)
         {
             std::wstring  path  = !row.hostPath.empty() ? row.hostPath : BrowserRowPaths::JoinPath (location.path, row.name);
             auto          found = row.isDirectory ? m_mountedImages.end() : m_mountedImages.find (CassoImagesListing::MakePathKey (path));
@@ -306,16 +306,16 @@ HRESULT CassoExplorerBrowser::Refresh()
 
     if (m_nameFilter.IsFilterable())
     {
-        m_nameFilter.SetSource (std::move (m_rows));
-        m_nameFilter.Apply (m_rows);
+        m_nameFilter.SetSource (std::move (m_list.rows));
+        m_nameFilter.Apply (m_list.rows);
     }
 
     m_columnFilters.MarkRowsLoaded();
 
     if (IsHomeLocation())
     {
-        m_rowOrder.SetHomeRows (m_rows);
-        m_homeParent = m_loader.m_shellParent;
+        m_rowOrder.SetHomeRows (m_list.rows);
+        m_homeParent = m_list.shellParent;
     }
 
     m_rowOrder.SortRows();
@@ -340,7 +340,7 @@ HRESULT CassoExplorerBrowser::Refresh()
 
 void CassoExplorerBrowser::SetShellVerbs (IShellItemVerbs * verbs)
 {
-    m_shellVerbs = verbs;
+    m_sources.shellVerbs = verbs;
     m_shellListings.SetLister ((verbs != nullptr) ? verbs->GetShellLister() : IShellItemVerbs::ShellLister());
     m_shellListings.SetProgressSetter ([] (CassoExplorerShellListings::Progress progress) { IShellItemVerbs::s_listingProgress = std::move (progress); });
     m_shellListings.SetStoppedSetter  ([] (CassoExplorerShellListings::Stopped stopped)   { IShellItemVerbs::s_listingStopped  = std::move (stopped); });
@@ -378,7 +378,7 @@ void CassoExplorerBrowser::QueueVolumeFacts (const std::wstring & folder)
 
 
 
-    for (CatalogRow & row : m_rows)
+    for (CatalogRow & row : m_list.rows)
     {
         std::wstring  path = folder.empty() ? row.hostPath : BrowserRowPaths::JoinPath (folder, row.name);
 
@@ -420,7 +420,7 @@ bool CassoExplorerBrowser::ApplyVolumeFacts()
 
 
 
-    for (CatalogRow & row : m_rows)
+    for (CatalogRow & row : m_list.rows)
     {
         std::wstring  path = !row.hostPath.empty()                  ? row.hostPath
                            : (at.kind == Location::Kind::HostFolder) ? BrowserRowPaths::JoinPath (at.path, row.name)
@@ -478,7 +478,7 @@ bool CassoExplorerBrowser::IsHomeLocation() const
 void CassoExplorerBrowser::SetHomeTab (int tab)
 {
     m_rowOrder.SetHomeTab (tab);
-    m_selectedRows.clear();
+    m_list.selectedRows.clear();
 
     m_rowOrder.SortRows();
     m_previewer.UpdatePreview();
@@ -531,7 +531,7 @@ void CassoExplorerBrowser::RemoveHomeRow (const std::wstring & shellId)
 {
     m_rowOrder.RemoveHomeRow (shellId);
 
-    m_selectedRows.clear();
+    m_list.selectedRows.clear();
 
     m_rowOrder.SortRows();
     m_previewer.UpdatePreview();
@@ -553,7 +553,7 @@ void CassoExplorerBrowser::RemoveHomeRow (const std::wstring & shellId)
 
 void CassoExplorerBrowser::ReturnToTab (const std::vector<std::wstring> & rowKeys)
 {
-    m_loader.m_linkVisit = GetLocation();
+    m_loader.SetLinkVisit (GetLocation());
     m_returningToTab     = true;
     m_loader.ReloadAfterNavigation();
     m_returningToTab     = false;
@@ -577,8 +577,8 @@ void CassoExplorerBrowser::SetNameFilter (const std::wstring & text)
         return;
     }
 
-    m_selectedRows.clear();
-    m_nameFilter.Apply (m_rows);
+    m_list.selectedRows.clear();
+    m_nameFilter.Apply (m_list.rows);
 
     m_columnFilters.MarkRowsLoaded();
     m_rowOrder.SortRows();
@@ -622,18 +622,18 @@ bool CassoExplorerBrowser::OpenRow (int row)
 
 
 
-    if (row >= 0 && (size_t) row < m_rows.size() && m_rows[(size_t) row].isMissing)
+    if (row >= 0 && (size_t) row < m_list.rows.size() && m_list.rows[(size_t) row].isMissing)
     {
         return false;
     }
 
     //  A search's match inside a disk image opens the image with the file
     //  selected, where it previews and copies as any of the image's files.
-    if (row >= 0 && (size_t) row < m_rows.size() && !m_rows[(size_t) row].imagePath.empty())
+    if (row >= 0 && (size_t) row < m_list.rows.size() && !m_list.rows[(size_t) row].imagePath.empty())
     {
-        std::wstring  name      = m_rows[(size_t) row].name;
-        std::wstring  image     = m_rows[(size_t) row].imagePath;
-        std::string   directory = m_rows[(size_t) row].imageDirectory;
+        std::wstring  name      = m_list.rows[(size_t) row].name;
+        std::wstring  image     = m_list.rows[(size_t) row].imagePath;
+        std::string   directory = m_list.rows[(size_t) row].imageDirectory;
 
         //  A match in a directory opens that directory.
         m_model.NavigateTo (directory.empty() ? Location::MakeDiskImage (image) : Location::MakeDiskDirectory (image, directory));
@@ -667,7 +667,7 @@ bool CassoExplorerBrowser::OpenRow (int row)
 
 BrowserRowPaths::Listing CassoExplorerBrowser::GetRowListing()
 {
-    return BrowserRowPaths::Listing { GetLocation(), m_rows, m_loader.m_rootChildren, m_isPartitionList, IsVolumeLocation(),
+    return BrowserRowPaths::Listing { GetLocation(), m_list.rows, m_list.rootChildren, m_list.isPartitionList, IsVolumeLocation(),
                                       [this] (const std::wstring & path) { return m_loader.CanListImage (path); } };
 }
 
@@ -716,7 +716,7 @@ void CassoExplorerBrowser::StopSearch()
 
 bool CassoExplorerBrowser::RenameSearchRow (int row, const std::wstring & newName)
 {
-    CatalogRow  *  renamed = (row >= 0 && (size_t) row < m_rows.size()) ? &m_rows[(size_t) row] : nullptr;
+    CatalogRow  *  renamed = (row >= 0 && (size_t) row < m_list.rows.size()) ? &m_list.rows[(size_t) row] : nullptr;
     std::wstring   oldPath;
     std::wstring   scope;
     std::wstring   query;
@@ -733,8 +733,8 @@ bool CassoExplorerBrowser::RenameSearchRow (int row, const std::wstring & newNam
     //  A row whose new name no longer matches is removed, as in File Explorer.
     if (byName && !SearchQuery::MatchesName (newName, SearchQuery::GetNameWords (query)))
     {
-        m_rows.erase (m_rows.begin() + row);
-        m_selectedRows.clear();
+        m_list.rows.erase (m_list.rows.begin() + row);
+        m_list.selectedRows.clear();
         return false;
     }
 
@@ -764,11 +764,11 @@ HRESULT CassoExplorerBrowser::Reload (bool keepSelection)
 {
     HRESULT                    hr    = S_OK;
     std::vector<std::wstring>  names;
-    int                        first = m_selectedRows.empty() ? -1 : *std::min_element (m_selectedRows.begin(), m_selectedRows.end());
+    int                        first = m_list.selectedRows.empty() ? -1 : *std::min_element (m_list.selectedRows.begin(), m_list.selectedRows.end());
 
 
 
-    for (int row : m_selectedRows)
+    for (int row : m_list.selectedRows)
     {
         names.push_back (m_selection.GetSelectionKey ((size_t) row));
     }
@@ -783,7 +783,7 @@ HRESULT CassoExplorerBrowser::Reload (bool keepSelection)
 
     m_selection.SelectRowsByKeys (names);
 
-    if (m_selectedRows.empty())
+    if (m_list.selectedRows.empty())
     {
         m_selection.SelectRowAt (first);
     }
@@ -803,11 +803,11 @@ HRESULT CassoExplorerBrowser::Reload (bool keepSelection)
 
 bool CassoExplorerBrowser::TryGetNodePath (const std::wstring & id, std::wstring & outPath) const
 {
-    auto  found = m_loader.m_nodes.find (id);
+    auto  found = m_loader.GetNodes().find (id);
 
 
 
-    if (found == m_loader.m_nodes.end() || found->second.location.kind != Location::Kind::HostFolder)
+    if (found == m_loader.GetNodes().end() || found->second.location.kind != Location::Kind::HostFolder)
     {
         return false;
     }
@@ -829,8 +829,8 @@ bool CassoExplorerBrowser::TryGetNodePath (const std::wstring & id, std::wstring
 
 bool CassoExplorerBrowser::TryGetNodeLocation (const std::wstring & id, Location & outLocation) const
 {
-    auto  found = m_loader.m_nodes.find (id);
-    bool  has   = found != m_loader.m_nodes.end() && found->second.location.kind != Location::Kind::None;
+    auto  found = m_loader.GetNodes().find (id);
+    bool  has   = found != m_loader.GetNodes().end() && found->second.location.kind != Location::Kind::None;
 
 
 
@@ -857,14 +857,14 @@ bool CassoExplorerBrowser::TryGetNodeLocation (const std::wstring & id, Location
 
 bool CassoExplorerBrowser::TryGetTreeNode (const std::wstring & id, DxuiTreeNode & outNode) const
 {
-    auto  found = m_loader.m_nodes.find (id);
-    bool  has   = found != m_loader.m_nodes.end();
+    auto  found = m_loader.GetNodes().find (id);
+    bool  has   = found != m_loader.GetNodes().end();
 
 
 
     if (has)
     {
-        outNode = BrowserCells::ToTreeNode (found->second, m_shellIcons);
+        outNode = BrowserCells::ToTreeNode (found->second, m_sources.shellIcons);
     }
 
     return has;
@@ -884,11 +884,11 @@ bool CassoExplorerBrowser::TryGetTreeNode (const std::wstring & id, DxuiTreeNode
 
 bool CassoExplorerBrowser::CanAddToCasso (const std::wstring & id) const
 {
-    auto  found = m_loader.m_nodes.find (id);
+    auto  found = m_loader.GetNodes().find (id);
 
 
 
-    return found != m_loader.m_nodes.end()
+    return found != m_loader.GetNodes().end()
         && found->second.location.kind == Location::Kind::HostFolder
         && found->second.kind != TreeNode::Kind::KnownFolder;
 }
@@ -907,11 +907,11 @@ bool CassoExplorerBrowser::CanAddToCasso (const std::wstring & id) const
 
 bool CassoExplorerBrowser::CanRemoveFromCasso (const std::wstring & id) const
 {
-    auto  found = m_loader.m_nodes.find (id);
+    auto  found = m_loader.GetNodes().find (id);
 
 
 
-    return found != m_loader.m_nodes.end() && found->second.kind == TreeNode::Kind::KnownFolder;
+    return found != m_loader.GetNodes().end() && found->second.kind == TreeNode::Kind::KnownFolder;
 }
 
 

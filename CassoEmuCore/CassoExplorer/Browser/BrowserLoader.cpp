@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Browser/BrowserLoader.h"
+#include "CassoExplorer/Browser/BrowserHostInterfaces.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Model/CassoImagesListing.h"
 #include "CassoExplorer/Model/DiskMessageText.h"
@@ -26,8 +27,9 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-BrowserLoader::BrowserLoader (CassoExplorerBrowser & browser)
-    : m_browser (browser)
+BrowserLoader::BrowserLoader (const BrowserParts & parts, IBrowserLoaderHost & host)
+    : m_parts (parts),
+      m_host  (host)
 {
 }
 
@@ -43,7 +45,7 @@ BrowserLoader::BrowserLoader (CassoExplorerBrowser & browser)
 
 void BrowserLoader::ReloadAfterNavigation()
 {
-    HRESULT  hr = m_browser.Refresh();
+    HRESULT  hr = m_host.Refresh();
 
 
 
@@ -73,36 +75,36 @@ HRESULT BrowserLoader::LoadHostFolder (const std::wstring & path)
     //  a working message, as for a shell folder, and fills when it arrives.
     if (PathResolver::IsNetworkPath (path) && m_hostListings.HasLister())
     {
-        if (!m_hostListings.TryTake (CassoExplorerBrowser::s_kHostListKey + path, path, m_hostEntries, hr))
+        if (!m_hostListings.TryTake (CassoExplorerBrowser::s_kHostListKey + path, path, m_parts.list.hostEntries, hr))
         {
-            m_listError = CassoExplorerBrowser::s_kWorkingText;
+            m_parts.list.listError = CassoExplorerBrowser::s_kWorkingText;
             return S_OK;
         }
     }
     else
     {
-        hr = m_browser.m_fs.EnumerateAllEntries (path, m_hostEntries);
+        hr = m_parts.fs.EnumerateAllEntries (path, m_parts.list.hostEntries);
     }
 
     if (FAILED (hr))
     {
-        m_listError = L"This folder could not be read.";
+        m_parts.list.listError = L"This folder could not be read.";
         return hr;
     }
 
-    m_browser.m_hostFolders.Classify (path, m_hostEntries, items);
+    m_parts.hostFolders.Classify (path, m_parts.list.hostEntries, items);
 
-    m_hostEntries.clear();
+    m_parts.list.hostEntries.clear();
 
     for (const HostFolderItem & item : items)
     {
-        m_hostEntries.push_back (item.entry);
+        m_parts.list.hostEntries.push_back (item.entry);
     }
 
     //  When Casso last loaded each image, for the Last used column.
-    if (m_browser.m_recentLoads)
+    if (m_parts.sources.recentLoads)
     {
-        for (const DiskMru::Entry & recent : m_browser.m_recentLoads())
+        for (const DiskMru::Entry & recent : m_parts.sources.recentLoads())
         {
             loadedAt.emplace (CassoImagesListing::MakePathKey (recent.path.wstring()), recent.lastLoadedUnix);
         }
@@ -112,43 +114,43 @@ HRESULT BrowserLoader::LoadHostFolder (const std::wstring & path)
     {
         const FileSystemEntry &  entry = items[index].entry;
 
-        m_browser.m_rows.push_back (CatalogModel::FromHostEntry (entry, items[index].kind == HostFolderItem::Kind::Image, index));
-        m_browser.m_rows.back().isArchive = items[index].kind == HostFolderItem::Kind::Archive;
+        m_parts.list.rows.push_back (CatalogModel::FromHostEntry (entry, items[index].kind == HostFolderItem::Kind::Image, index));
+        m_parts.list.rows.back().isArchive = items[index].kind == HostFolderItem::Kind::Archive;
 
         //  An image's form factor and formatted size, from its first bytes, and
         //  read once while its length and time stay the same.
         if (!entry.isFolder && ImageClassifier::IsImageExtension (std::filesystem::path (entry.name).extension().wstring()))
         {
-            m_browser.m_rows.back().imageClass = m_browser.m_imageClasses.Get (m_browser.m_fileIo,
+            m_parts.list.rows.back().imageClass = m_parts.imageClasses.Get (m_parts.fileIo,
                                                                                TextEncoding::WideToUtf8 (BrowserRowPaths::JoinPath (path, entry.name)),
                                                                                entry.sizeBytes,
                                                                                entry.modifiedUnix);
 
             auto  loaded = loadedAt.find (CassoImagesListing::MakePathKey (BrowserRowPaths::JoinPath (path, entry.name)));
 
-            m_browser.m_rows.back().lastUsedUnix = (loaded != loadedAt.end()) ? loaded->second : 0;
+            m_parts.list.rows.back().lastUsedUnix = (loaded != loadedAt.end()) ? loaded->second : 0;
         }
 
         //  A folder is listed by the name in its desktop.ini, as in the tree.
         if (items[index].label != entry.name)
         {
-            m_browser.m_rows.back().label = items[index].label;
+            m_parts.list.rows.back().label = items[index].label;
         }
 
         //  The shell's own type name, as Explorer's Type column shows.
-        if (m_browser.m_shellIcons != nullptr)
+        if (m_parts.sources.shellIcons != nullptr)
         {
-            std::wstring  typeName = m_browser.m_shellIcons->GetTypeName (BrowserRowPaths::JoinPath (path, entry.name), entry.isFolder);
+            std::wstring  typeName = m_parts.sources.shellIcons->GetTypeName (BrowserRowPaths::JoinPath (path, entry.name), entry.isFolder);
 
             //  A disk image has Casso's type for it, by its sector order.
             if (!typeName.empty() && CatalogModel::GetDiskImageTypeName (entry.name).empty())
             {
-                m_browser.m_rows.back().typeText = std::move (typeName);
+                m_parts.list.rows.back().typeText = std::move (typeName);
             }
         }
     }
 
-    m_browser.QueueVolumeFacts (path);
+    m_host.QueueVolumeFacts (path);
 
     return hr;
 }
@@ -174,9 +176,9 @@ HRESULT BrowserLoader::LoadShellFolder (const std::wstring & id)
 
 
 
-    if (m_browser.m_shellVerbs == nullptr)
+    if (m_parts.sources.shellVerbs == nullptr)
     {
-        m_listError = L"This folder could not be read.";
+        m_parts.list.listError = L"This folder could not be read.";
         return E_NOTIMPL;
     }
 
@@ -184,39 +186,39 @@ HRESULT BrowserLoader::LoadShellFolder (const std::wstring & id)
     //  list says so meanwhile, as Explorer's does, and fills when it arrives.
     //  A path inside an archive on a local drive is read at once: the read is
     //  quick, and a placeholder would only flash.
-    if (m_browser.m_previewer.IsLocalArchivePath (id))
+    if (m_host.IsLocalArchivePath (id))
     {
-        hr = m_browser.m_shellVerbs->ListShellFolder (id, items);
+        hr = m_parts.sources.shellVerbs->ListShellFolder (id, items);
     }
-    else if (!m_browser.m_shellListings.TryTake (CassoExplorerBrowser::s_kListKey + id, id, items, hr)
-             && !m_browser.m_shellListings.TryGetLatest (CassoExplorerBrowser::s_kListKey + id, items))
+    else if (!m_parts.shellListings.TryTake (CassoExplorerBrowser::s_kListKey + id, id, items, hr)
+             && !m_parts.shellListings.TryGetLatest (CassoExplorerBrowser::s_kListKey + id, items))
     {
-        m_listError = CassoExplorerBrowser::s_kWorkingText;
+        m_parts.list.listError = CassoExplorerBrowser::s_kWorkingText;
         return S_OK;
     }
 
     if (FAILED (hr))
     {
-        m_listError = PathResolver::IsNetworkPath (id) ? id.substr (id.find_last_of (L"\\/") + 1) + L" is unavailable."
+        m_parts.list.listError = PathResolver::IsNetworkPath (id) ? id.substr (id.find_last_of (L"\\/") + 1) + L" is unavailable."
                                                        : std::wstring (L"This folder could not be read.");
         return hr;
     }
 
     //  An archive the shell lists nothing in gets the reason, damaged or locked,
     //  in place of an empty folder.
-    if (items.empty() && m_browser.m_previewer.IsLocalArchivePath (id) && m_browser.m_fs.Exists (id))
+    if (items.empty() && m_host.IsLocalArchivePath (id) && m_parts.fs.Exists (id))
     {
-        m_listError = m_browser.m_previewer.DescribeEmptyArchive (id);
+        m_parts.list.listError = m_host.DescribeEmptyArchive (id);
     }
 
     //  Where Up goes: a folder on a disk opens as one.
     {
         IShellItemVerbs::ShellFolderItem  parent;
-        HRESULT                           hrUp = m_browser.m_shellVerbs->GetShellParent (id, parent);
+        HRESULT                           hrUp = m_parts.sources.shellVerbs->GetShellParent (id, parent);
 
         if (hrUp == S_OK)
         {
-            m_shellParent = parent.path.empty() ? Location::MakeShellFolder (parent.id, parent.name) : Location::MakeHostFolder (parent.path);
+            m_parts.list.shellParent = parent.path.empty() ? Location::MakeShellFolder (parent.id, parent.name) : Location::MakeHostFolder (parent.path);
         }
     }
 
@@ -225,7 +227,7 @@ HRESULT BrowserLoader::LoadShellFolder (const std::wstring & id)
     if (id == IShellItemVerbs::kHomeId)
     {
         std::vector<IShellItemVerbs::ShellFolderItem>  folders;
-        HRESULT                                        hrFolders = m_browser.m_shellVerbs->ListPinnedFolders (folders);
+        HRESULT                                        hrFolders = m_parts.sources.shellVerbs->ListPinnedFolders (folders);
 
         std::erase_if (items, [] (const IShellItemVerbs::ShellFolderItem & item) { return item.homeGroup == 1; });
 
@@ -270,7 +272,7 @@ HRESULT BrowserLoader::LoadShellFolder (const std::wstring & id)
         row.isDiskImage  = !row.hostPath.empty() && HostFolderReader::IsShellImage (items[index]);
 
         //  An image in a ZIP has no path on the disk, and opens by the ZIP's.
-        if (row.hostPath.empty() && HostFolderReader::IsShellImage (items[index]) && m_browser.m_previewer.IsLocalArchivePath (id))
+        if (row.hostPath.empty() && HostFolderReader::IsShellImage (items[index]) && m_host.IsLocalArchivePath (id))
         {
             row.containerPath = MakeContainerPath (id, row.name);
             row.isDiskImage   = !row.containerPath.empty();
@@ -317,7 +319,7 @@ HRESULT BrowserLoader::LoadShellFolder (const std::wstring & id)
             }
         }
 
-        m_browser.m_rows.push_back (std::move (row));
+        m_parts.list.rows.push_back (std::move (row));
     }
 
     return hr;
@@ -343,13 +345,13 @@ HRESULT BrowserLoader::LoadRecycleBin()
 
 
 
-    BAIL_OUT_IF (m_browser.m_shellVerbs == nullptr, S_OK);
+    BAIL_OUT_IF (m_parts.sources.shellVerbs == nullptr, S_OK);
 
-    hr = m_browser.m_shellVerbs->ListRecycled (items);
+    hr = m_parts.sources.shellVerbs->ListRecycled (items);
 
     if (FAILED (hr))
     {
-        m_listError = L"The Recycle Bin could not be read.";
+        m_parts.list.listError = L"The Recycle Bin could not be read.";
         return hr;
     }
 
@@ -369,7 +371,7 @@ HRESULT BrowserLoader::LoadRecycleBin()
         row.hasDeleted     = items[index].hasDeleted;
         row.sourceIndex    = index;
 
-        m_browser.m_rows.push_back (std::move (row));
+        m_parts.list.rows.push_back (std::move (row));
     }
 
 Error:
@@ -390,11 +392,11 @@ void BrowserLoader::GetSelectedRecycledIds (std::vector<std::wstring> & outIds) 
 {
     outIds.clear();
 
-    for (int row : m_browser.m_selectedRows)
+    for (int row : m_parts.list.selectedRows)
     {
-        if (row >= 0 && (size_t) row < m_browser.m_rows.size() && !m_browser.m_rows[(size_t) row].recycledId.empty())
+        if (row >= 0 && (size_t) row < m_parts.list.rows.size() && !m_parts.list.rows[(size_t) row].recycledId.empty())
         {
-            outIds.push_back (m_browser.m_rows[(size_t) row].recycledId);
+            outIds.push_back (m_parts.list.rows[(size_t) row].recycledId);
         }
     }
 }
@@ -411,12 +413,12 @@ void BrowserLoader::GetSelectedRecycledIds (std::vector<std::wstring> & outIds) 
 
 bool BrowserLoader::TryGetRowEntry (int row, FileEntry & outEntry) const
 {
-    if (!m_browser.IsVolumeLocation() || row < 0 || (size_t) row >= m_browser.m_rows.size() || m_browser.m_rows[(size_t) row].sourceIndex >= m_browser.m_listing.entries.size())
+    if (!IsVolumeLocation() || row < 0 || (size_t) row >= m_parts.list.rows.size() || m_parts.list.rows[(size_t) row].sourceIndex >= m_parts.list.listing.entries.size())
     {
         return false;
     }
 
-    outEntry = m_browser.m_listing.entries[m_browser.m_rows[(size_t) row].sourceIndex];
+    outEntry = m_parts.list.listing.entries[m_parts.list.rows[(size_t) row].sourceIndex];
 
     return true;
 }
@@ -435,7 +437,7 @@ void BrowserLoader::GetAllRecycledIds (std::vector<std::wstring> & outIds) const
 {
     outIds.clear();
 
-    for (const CatalogRow & row : m_browser.m_rows)
+    for (const CatalogRow & row : m_parts.list.rows)
     {
         if (!row.recycledId.empty())
         {
@@ -493,7 +495,7 @@ std::wstring BrowserLoader::GetImageProblem (const std::wstring & imagePath)
         }
     }
 
-    hr = m_browser.m_catalog.Describe (imagePath, std::string(), contents);
+    hr = m_parts.catalog.Describe (imagePath, std::string(), contents);
 
     if (FAILED (hr) && contents.result.message.find (s_kNoFileSystem) == std::string::npos)
     {
@@ -530,13 +532,13 @@ HRESULT BrowserLoader::LoadRoot (const std::wstring & id)
     //  Opening a link's root starts it, unless the user disconnected it or it is
     //  an ADTPro server, which its button starts; until Casso's program runs on
     //  the Apple, the list has the link's state in place of drives.
-    if (m_browser.m_links != nullptr && TreeModel::TryParseLinkId (id, link, slot, drive) && !m_browser.m_links->IsStarted (TextEncoding::WideToNarrow (link))
-        && !m_browser.m_links->IsHeld (TextEncoding::WideToNarrow (link)) && !IsAdtProServer (TextEncoding::WideToNarrow (link)))
+    if (m_parts.sources.links != nullptr && TreeModel::TryParseLinkId (id, link, slot, drive) && !m_parts.sources.links->IsStarted (TextEncoding::WideToNarrow (link))
+        && !m_parts.sources.links->IsHeld (TextEncoding::WideToNarrow (link)) && !IsAdtProServer (TextEncoding::WideToNarrow (link)))
     {
-        hr = m_browser.m_links->StartIfFree (TextEncoding::WideToNarrow (link));
+        hr = m_parts.sources.links->StartIfFree (TextEncoding::WideToNarrow (link));
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        m_browser.m_tree.SetLinks (m_browser.m_links->BuildTreeEntries());
+        m_parts.tree.SetLinks (m_parts.sources.links->BuildTreeEntries());
     }
 
     //  A picker's stock disks and demo disks, which have no folder.
@@ -544,13 +546,13 @@ HRESULT BrowserLoader::LoadRoot (const std::wstring & id)
     {
         std::vector<CatalogRow>  stock;
 
-        m_rootChildren.clear();
-        StockDisksListing::Build ((id == TreeModel::kStockDisksId) ? m_browser.m_stockDisks : m_browser.m_demoDisks, stock);
+        m_parts.list.rootChildren.clear();
+        StockDisksListing::Build ((id == TreeModel::kStockDisksId) ? m_parts.sources.stockDisks : m_parts.sources.demoDisks, stock);
 
         for (CatalogRow & row : stock)
         {
-            row.sourceIndex = m_browser.m_rows.size();
-            m_browser.m_rows.push_back (std::move (row));
+            row.sourceIndex = m_parts.list.rows.size();
+            m_parts.list.rows.push_back (std::move (row));
         }
 
         BAIL_OUT_IF (true, S_OK);
@@ -565,45 +567,45 @@ HRESULT BrowserLoader::LoadRoot (const std::wstring & id)
         BAIL_OUT_IF (true, S_OK);
     }
 
-    hr = m_browser.m_tree.GetChildren (id, m_rootChildren);
+    hr = m_parts.tree.GetChildren (id, m_parts.list.rootChildren);
     CHR (hr);
 
-    if (m_rootChildren.empty() && TreeModel::TryParseLinkId (id, link, slot, drive))
+    if (m_parts.list.rootChildren.empty() && TreeModel::TryParseLinkId (id, link, slot, drive))
     {
-        m_browser.m_tree.GetLinkStatus (link, m_listError);
+        m_parts.tree.GetLinkStatus (link, m_parts.list.listError);
     }
 
-    for (index = 0; index < m_rootChildren.size(); index++)
+    for (index = 0; index < m_parts.list.rootChildren.size(); index++)
     {
         FileSystemEntry  entry;
 
-        m_nodes[m_rootChildren[index].id] = m_rootChildren[index];
+        m_nodes[m_parts.list.rootChildren[index].id] = m_parts.list.rootChildren[index];
 
-        entry.name     = m_rootChildren[index].label;
+        entry.name     = m_parts.list.rootChildren[index].label;
         entry.isFolder = true;
 
-        m_browser.m_rows.push_back (CatalogModel::FromHostEntry (entry, false, index));
-        m_browser.m_rows.back().hostPath  = m_rootChildren[index].location.path;
-        m_browser.m_rows.back().isMissing = m_rootChildren[index].missing;
+        m_parts.list.rows.push_back (CatalogModel::FromHostEntry (entry, false, index));
+        m_parts.list.rows.back().hostPath  = m_parts.list.rootChildren[index].location.path;
+        m_parts.list.rows.back().isMissing = m_parts.list.rootChildren[index].missing;
 
-        if (m_rootChildren[index].kind == TreeNode::Kind::CassoLinkConnection)
+        if (m_parts.list.rootChildren[index].kind == TreeNode::Kind::CassoLinkConnection)
         {
-            m_browser.m_rows.back().typeText = L"CassoLink connection";
-            m_browser.m_rows.back().offline  = m_rootChildren[index].offline;
+            m_parts.list.rows.back().typeText = L"CassoLink connection";
+            m_parts.list.rows.back().offline  = m_parts.list.rootChildren[index].offline;
         }
-        else if (m_rootChildren[index].kind == TreeNode::Kind::AppleDrive)
+        else if (m_parts.list.rootChildren[index].kind == TreeNode::Kind::AppleDrive)
         {
-            m_browser.m_rows.back().typeText = L"Apple II disk drive";
+            m_parts.list.rows.back().typeText = L"Apple II disk drive";
         }
 
         //  A drive's tile has its name, its type and how full it is.
-        if (m_rootChildren[index].kind == TreeNode::Kind::Drive && m_browser.m_shellIcons != nullptr)
+        if (m_parts.list.rootChildren[index].kind == TreeNode::Kind::Drive && m_parts.sources.shellIcons != nullptr)
         {
             IShellIcons::DriveInfo  drive;
 
-            if (m_browser.m_shellIcons->GetDriveInfo (m_rootChildren[index].location.path, drive))
+            if (m_parts.sources.shellIcons->GetDriveInfo (m_parts.list.rootChildren[index].location.path, drive))
             {
-                CatalogRow &  row = m_browser.m_rows.back();
+                CatalogRow &  row = m_parts.list.rows.back();
 
                 row.name      = drive.name.empty() ? row.name : drive.name;
                 row.typeText  = drive.typeName.empty() ? row.typeText : drive.typeName;
@@ -612,7 +614,7 @@ HRESULT BrowserLoader::LoadRoot (const std::wstring & id)
                 row.freeBytes = drive.freeBytes;
 
                 //  A drive with no media has a size of 0, and isn't read.
-                if (drive.totalBytes > 0 && m_browser.m_fs.Exists (m_rootChildren[index].location.path + A2retroNetConfig::kpszWideFileName))
+                if (drive.totalBytes > 0 && m_parts.fs.Exists (m_parts.list.rootChildren[index].location.path + A2retroNetConfig::kpszWideFileName))
                 {
                     row.typeText = L"A2Pico card";
                 }
@@ -622,15 +624,15 @@ HRESULT BrowserLoader::LoadRoot (const std::wstring & id)
 
     if (id == TreeModel::kCassoLinkRootId)
     {
-        std::erase_if (m_browser.m_rows, [this] (const CatalogRow & row)
+        std::erase_if (m_parts.list.rows, [this] (const CatalogRow & row)
         {
-            return row.sourceIndex < m_rootChildren.size() && m_rootChildren[row.sourceIndex].kind == TreeNode::Kind::AddLink;
+            return row.sourceIndex < m_parts.list.rootChildren.size() && m_parts.list.rootChildren[row.sourceIndex].kind == TreeNode::Kind::AddLink;
         });
 
         AddCassoLinkItems();
     }
 
-    if (m_browser.m_links != nullptr && TreeModel::TryParseLinkId (id, link, slot, drive) && drive == 0 && IsAdtProServer (TextEncoding::WideToNarrow (link)))
+    if (m_parts.sources.links != nullptr && TreeModel::TryParseLinkId (id, link, slot, drive) && drive == 0 && IsAdtProServer (TextEncoding::WideToNarrow (link)))
     {
         AddAdtProHelpItem();
     }
@@ -665,9 +667,9 @@ HRESULT BrowserLoader::LoadCassoImages()
 
 
 
-    m_rootChildren.clear();
+    m_parts.list.rootChildren.clear();
 
-    hr = m_browser.m_tree.GetChildren (TreeModel::kCassoRootId, nodes);
+    hr = m_parts.tree.GetChildren (TreeModel::kCassoRootId, nodes);
     CHR (hr);
 
     for (const TreeNode & node : nodes)
@@ -678,12 +680,12 @@ HRESULT BrowserLoader::LoadCassoImages()
         }
     }
 
-    if (m_browser.m_recentLoads)
+    if (m_parts.sources.recentLoads)
     {
-        recent = m_browser.m_recentLoads();
+        recent = m_parts.sources.recentLoads();
     }
 
-    CassoImagesListing::Build (m_browser.m_fs, m_browser.m_fileIo, m_browser.m_imageClasses, folders, recent, rows);
+    CassoImagesListing::Build (m_parts.fs, m_parts.fileIo, m_parts.imageClasses, folders, recent, rows);
 
     for (const CatalogRow & row : rows)
     {
@@ -698,7 +700,7 @@ HRESULT BrowserLoader::LoadCassoImages()
             continue;
         }
 
-        StockDisksListing::Build ((node.id == TreeModel::kStockDisksId) ? m_browser.m_stockDisks : m_browser.m_demoDisks, stock);
+        StockDisksListing::Build ((node.id == TreeModel::kStockDisksId) ? m_parts.sources.stockDisks : m_parts.sources.demoDisks, stock);
 
         for (CatalogRow & row : stock)
         {
@@ -722,11 +724,11 @@ HRESULT BrowserLoader::LoadCassoImages()
 
     for (CatalogRow & row : rows)
     {
-        row.sourceIndex = m_browser.m_rows.size();
-        m_browser.m_rows.push_back (std::move (row));
+        row.sourceIndex = m_parts.list.rows.size();
+        m_parts.list.rows.push_back (std::move (row));
     }
 
-    m_browser.QueueVolumeFacts (std::wstring());
+    m_host.QueueVolumeFacts (std::wstring());
 
 Error:
     return hr;
@@ -753,7 +755,7 @@ void BrowserLoader::RevisitLink (const Location & location)
     std::wstring   link;
     int            slot    = 0;
     int            drive   = 0;
-    bool           parsed  = m_browser.m_links != nullptr && TreeModel::TryParseLinkId (location.path, link, slot, drive);
+    bool           parsed  = m_parts.sources.links != nullptr && TreeModel::TryParseLinkId (location.path, link, slot, drive);
     std::string    name    = TextEncoding::WideToNarrow (link);
     VolumeListing  listing;
     VolumeKind     kind    = VolumeKind::Unknown;
@@ -776,20 +778,20 @@ void BrowserLoader::RevisitLink (const Location & location)
     //  The first visit, before the link has started, reads the drive too.
     m_linkReadAt[location.path] = now;
 
-    if (!m_browser.m_links->IsStarted (name))
+    if (!m_parts.sources.links->IsStarted (name))
     {
         return;
     }
 
     for (int each = 1; each <= CassoLinkSessionTypes::kDriveCount; each++)
     {
-        if ((drive == 0 || drive == each) && !m_browser.m_links->IsWritingDisk (name, each))
+        if ((drive == 0 || drive == each) && !m_parts.sources.links->IsWritingDisk (name, each))
         {
-            m_browser.m_links->Invalidate (name, each);
+            m_parts.sources.links->Invalidate (name, each);
 
             if (drive == 0)
             {
-                m_browser.m_links->TryGetListing (name, each, std::string(), listing, kind, result, message);
+                m_parts.sources.links->TryGetListing (name, each, std::string(), listing, kind, result, message);
             }
         }
     }
@@ -817,10 +819,10 @@ void BrowserLoader::AddCassoLinkItems()
 
 
     add.name = L"Add a CassoLink connection...";
-    m_browser.m_rows.push_back (CatalogModel::FromHostEntry (add, false, m_rootChildren.size() + m_browser.m_rows.size()));
-    m_browser.m_rows.back().cassoLinkItem = CatalogRow::CassoLinkItem::AddMachine;
-    m_browser.m_rows.back().isDirectory   = true;            // no size, and listed with the machines
-    m_browser.m_rows.back().typeText.clear();
+    m_parts.list.rows.push_back (CatalogModel::FromHostEntry (add, false, m_parts.list.rootChildren.size() + m_parts.list.rows.size()));
+    m_parts.list.rows.back().cassoLinkItem = CatalogRow::CassoLinkItem::AddMachine;
+    m_parts.list.rows.back().isDirectory   = true;            // no size, and listed with the machines
+    m_parts.list.rows.back().typeText.clear();
 
     for (CatalogRow::CassoLinkItem item : { CatalogRow::CassoLinkItem::BootDisk, CatalogRow::CassoLinkItem::Help })
     {
@@ -828,14 +830,14 @@ void BrowserLoader::AddCassoLinkItems()
         bool             disk = item == CatalogRow::CassoLinkItem::BootDisk;
 
         entry.name = disk ? L"CassoLink.dsk" : L"What's CassoLink.md";
-        m_browser.m_rows.push_back (CatalogModel::FromHostEntry (entry, disk, m_rootChildren.size() + m_browser.m_rows.size()));
-        m_browser.m_rows.back().cassoLinkItem = item;
-        m_browser.m_rows.back().sizeBytes     = disk ? NibblizationLayer::kImageByteSize : wcslen (GetCassoLinkHelp());
-        m_browser.m_rows.back().hostPath      = (length > 0) ? std::wstring (temp) + entry.name : std::wstring();
+        m_parts.list.rows.push_back (CatalogModel::FromHostEntry (entry, disk, m_parts.list.rootChildren.size() + m_parts.list.rows.size()));
+        m_parts.list.rows.back().cassoLinkItem = item;
+        m_parts.list.rows.back().sizeBytes     = disk ? NibblizationLayer::kImageByteSize : wcslen (GetCassoLinkHelp());
+        m_parts.list.rows.back().hostPath      = (length > 0) ? std::wstring (temp) + entry.name : std::wstring();
 
-        if (!disk && m_browser.m_shellIcons != nullptr && !m_browser.m_shellIcons->GetTypeName (m_browser.m_rows.back().hostPath, false).empty())
+        if (!disk && m_parts.sources.shellIcons != nullptr && !m_parts.sources.shellIcons->GetTypeName (m_parts.list.rows.back().hostPath, false).empty())
         {
-            m_browser.m_rows.back().typeText = m_browser.m_shellIcons->GetTypeName (m_browser.m_rows.back().hostPath, false);
+            m_parts.list.rows.back().typeText = m_parts.sources.shellIcons->GetTypeName (m_parts.list.rows.back().hostPath, false);
         }
     }
 }
@@ -852,7 +854,7 @@ void BrowserLoader::AddCassoLinkItems()
 
 bool BrowserLoader::IsAdtProServer (const std::string & name) const
 {
-    const std::vector<CassoLinkSettings> &  links = m_browser.m_links->GetLinks();
+    const std::vector<CassoLinkSettings> &  links = m_parts.sources.links->GetLinks();
 
 
 
@@ -885,14 +887,14 @@ void BrowserLoader::AddAdtProHelpItem()
 
 
     entry.name = L"What's an ADTPro-compatible server.md";
-    m_browser.m_rows.push_back (CatalogModel::FromHostEntry (entry, false, m_rootChildren.size() + m_browser.m_rows.size()));
-    m_browser.m_rows.back().cassoLinkItem = CatalogRow::CassoLinkItem::AdtProHelp;
-    m_browser.m_rows.back().sizeBytes     = wcslen (GetAdtProHelp());
-    m_browser.m_rows.back().hostPath      = (length > 0) ? std::wstring (temp) + entry.name : std::wstring();
+    m_parts.list.rows.push_back (CatalogModel::FromHostEntry (entry, false, m_parts.list.rootChildren.size() + m_parts.list.rows.size()));
+    m_parts.list.rows.back().cassoLinkItem = CatalogRow::CassoLinkItem::AdtProHelp;
+    m_parts.list.rows.back().sizeBytes     = wcslen (GetAdtProHelp());
+    m_parts.list.rows.back().hostPath      = (length > 0) ? std::wstring (temp) + entry.name : std::wstring();
 
-    if (m_browser.m_shellIcons != nullptr && !m_browser.m_shellIcons->GetTypeName (m_browser.m_rows.back().hostPath, false).empty())
+    if (m_parts.sources.shellIcons != nullptr && !m_parts.sources.shellIcons->GetTypeName (m_parts.list.rows.back().hostPath, false).empty())
     {
-        m_browser.m_rows.back().typeText = m_browser.m_shellIcons->GetTypeName (m_browser.m_rows.back().hostPath, false);
+        m_parts.list.rows.back().typeText = m_parts.sources.shellIcons->GetTypeName (m_parts.list.rows.back().hostPath, false);
     }
 }
 
@@ -933,9 +935,9 @@ bool BrowserLoader::PrepareCassoLinkItems()
 
 
 
-    for (int row : m_browser.m_selectedRows)
+    for (int row : m_parts.list.selectedRows)
     {
-        const CatalogRow *  item  = (row >= 0 && (size_t) row < m_browser.m_rows.size()) ? &m_browser.m_rows[(size_t) row] : nullptr;
+        const CatalogRow *  item  = (row >= 0 && (size_t) row < m_parts.list.rows.size()) ? &m_parts.list.rows[(size_t) row] : nullptr;
         bool                named = false;
 
         if (item == nullptr || item->cassoLinkItem == CatalogRow::CassoLinkItem::None || item->cassoLinkItem == CatalogRow::CassoLinkItem::AddMachine)
@@ -957,7 +959,7 @@ bool BrowserLoader::PrepareCassoLinkItems()
             bytes = std::vector<Byte> (help.begin(), help.end());
         }
 
-        hr = m_browser.m_operations.GetFileIo().WriteAllBytes (TextEncoding::WideToNarrow (item->hostPath), bytes);
+        hr = m_parts.operations.GetFileIo().WriteAllBytes (TextEncoding::WideToNarrow (item->hostPath), bytes);
         CHR (hr);
     }
 
@@ -979,10 +981,10 @@ bool BrowserLoader::TryGetSelectedCassoLinkPaths (std::vector<std::wstring> & ou
 {
     outPaths.clear();
 
-    for (int row : m_browser.m_selectedRows)
+    for (int row : m_parts.list.selectedRows)
     {
-        bool  item = row >= 0 && (size_t) row < m_browser.m_rows.size() && m_browser.m_rows[(size_t) row].cassoLinkItem != CatalogRow::CassoLinkItem::None
-                  && m_browser.m_rows[(size_t) row].cassoLinkItem != CatalogRow::CassoLinkItem::AddMachine;
+        bool  item = row >= 0 && (size_t) row < m_parts.list.rows.size() && m_parts.list.rows[(size_t) row].cassoLinkItem != CatalogRow::CassoLinkItem::None
+                  && m_parts.list.rows[(size_t) row].cassoLinkItem != CatalogRow::CassoLinkItem::AddMachine;
 
         if (!item)
         {
@@ -990,7 +992,7 @@ bool BrowserLoader::TryGetSelectedCassoLinkPaths (std::vector<std::wstring> & ou
             return false;
         }
 
-        outPaths.push_back (m_browser.m_rows[(size_t) row].hostPath);
+        outPaths.push_back (m_parts.list.rows[(size_t) row].hostPath);
     }
 
     return !outPaths.empty();
@@ -1109,7 +1111,7 @@ HRESULT BrowserLoader::LoadImage (const std::wstring & path, const std::string &
     ImageContents  contents;
     HRESULT        hrReadOnly = S_OK;
     bool           onCard     = PhysicalCards::IsOnCard (path);
-    bool           cached     = !onCard && directory.empty() && m_browser.m_model.TryGetCachedCatalog (path, m_browser.m_listing, m_browser.m_kind);
+    bool           cached     = !onCard && directory.empty() && m_parts.model.TryGetCachedCatalog (path, m_parts.list.listing, m_parts.list.kind);
 
 
 
@@ -1120,12 +1122,12 @@ HRESULT BrowserLoader::LoadImage (const std::wstring & path, const std::string &
 
     if (!cached)
     {
-        HRESULT  hrDescribe = m_browser.m_catalog.Describe (path, directory, contents);
+        HRESULT  hrDescribe = m_parts.catalog.Describe (path, directory, contents);
 
         IGNORE_RETURN_VALUE (hrDescribe, S_OK);
 
-        m_browser.m_listing = std::move (contents.listing);
-        m_browser.m_kind    = contents.kind;
+        m_parts.list.listing = std::move (contents.listing);
+        m_parts.list.kind    = contents.kind;
 
         if (!contents.result.Succeeded() && AddPartitionRows (path, contents.layout, contents.partitions))
         {
@@ -1134,7 +1136,7 @@ HRESULT BrowserLoader::LoadImage (const std::wstring & path, const std::string &
 
         if (!contents.result.Succeeded())
         {
-            m_listError = contents.error;
+            m_parts.list.listError = contents.error;
             return contents.result.hr;
         }
 
@@ -1143,20 +1145,20 @@ HRESULT BrowserLoader::LoadImage (const std::wstring & path, const std::string &
         //  anew each time it is opened, so its catalog is not cached.
         if (directory.empty() && !onCard)
         {
-            m_browser.m_model.CacheCatalog (path, m_browser.m_listing, m_browser.m_kind);
+            m_parts.model.CacheCatalog (path, m_parts.list.listing, m_parts.list.kind);
         }
     }
 
-    m_browser.m_isImage = true;
-    CatalogModel::FromListing (m_browser.m_listing, m_browser.m_kind, m_browser.m_rows);
+    m_parts.list.isImage = true;
+    CatalogModel::FromListing (m_parts.list.listing, m_parts.list.kind, m_parts.list.rows);
 
     //  A read-only file refuses every write the runner would make, so the
     //  verbs that write are offered grayed rather than failing at the end.
-    m_writeProtected = false;
+    m_parts.list.writeProtected = false;
 
     if (!onCard)
     {
-        hrReadOnly = m_browser.m_fs.GetReadOnlyAttribute (path.substr (0, path.find (L'|')), m_writeProtected);
+        hrReadOnly = m_parts.fs.GetReadOnlyAttribute (path.substr (0, path.find (L'|')), m_parts.list.writeProtected);
         IGNORE_RETURN_VALUE (hrReadOnly, S_OK);
     }
 
@@ -1195,9 +1197,9 @@ HRESULT BrowserLoader::LoadCard (const std::wstring & path)
 
     name = std::format (L"physical drive {}", drive);
 
-    if (m_browser.m_cards != nullptr)
+    if (m_parts.sources.cards != nullptr)
     {
-        hrDrives = m_browser.m_cards->ListRemovableDrives (drives);
+        hrDrives = m_parts.sources.cards->ListRemovableDrives (drives);
     }
 
     if (SUCCEEDED (hrDrives))
@@ -1210,9 +1212,9 @@ HRESULT BrowserLoader::LoadCard (const std::wstring & path)
 
     //  A card being initialized is not opened until the write ends, and its
     //  list is the write's progress instead.
-    if (m_browser.m_cards != nullptr && m_browser.m_cards->TryGetWork (drive, done, total))
+    if (m_parts.sources.cards != nullptr && m_parts.sources.cards->TryGetWork (drive, done, total))
     {
-        m_listError = total == 0 ? std::format (L"Initializing {}...", name)
+        m_parts.list.listError = total == 0 ? std::format (L"Initializing {}...", name)
                                  : std::format (L"Initializing {}: {} of {} written.", name,
                                                 TextEncoding::NarrowToWide (PartitionAccess::FormatSize (done)),
                                                 TextEncoding::NarrowToWide (PartitionAccess::FormatSize (total)));
@@ -1223,16 +1225,16 @@ HRESULT BrowserLoader::LoadCard (const std::wstring & path)
 
     if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
     {
-        m_listError = std::format (L"Opening {} requires administrator access.", name);
+        m_parts.list.listError = std::format (L"Opening {} requires administrator access.", name);
     }
     else if (FAILED (hr))
     {
-        m_listError = std::format (L"Unable to open {}.", name);
+        m_parts.list.listError = std::format (L"Unable to open {}.", name);
     }
     else if (!AddPartitionRows (path, kind, entries))
     {
         hr          = HRESULT_FROM_WIN32 (ERROR_NOT_FOUND);
-        m_listError = std::format (L"No Apple partitions were found on {}.", name);
+        m_parts.list.listError = std::format (L"No Apple partitions were found on {}.", name);
     }
 
     return hr;
@@ -1272,17 +1274,17 @@ bool BrowserLoader::AddPartitionRows (const std::wstring & path, PartitionLayout
         row.isDiskImage   = true;
         row.isPartition   = true;
         row.containerPath = path + L"|" + TextEncoding::NarrowToWide (entry.step);
-        row.sourceIndex   = m_browser.m_rows.size();
+        row.sourceIndex   = m_parts.list.rows.size();
 
-        m_browser.m_rows.push_back (std::move (row));
+        m_parts.list.rows.push_back (std::move (row));
     }
 
-    m_browser.m_isPartitionList = true;
-    m_writeProtected            = false;
+    m_parts.list.isPartitionList = true;
+    m_parts.list.writeProtected            = false;
 
     if (!PhysicalCards::IsOnCard (path))
     {
-        hrReadOnly = m_browser.m_fs.GetReadOnlyAttribute (path.substr (0, path.find (L'|')), m_writeProtected);
+        hrReadOnly = m_parts.fs.GetReadOnlyAttribute (path.substr (0, path.find (L'|')), m_parts.list.writeProtected);
         IGNORE_RETURN_VALUE (hrReadOnly, S_OK);
     }
 
@@ -1319,7 +1321,7 @@ HRESULT BrowserLoader::LoadPartition (const std::wstring & path)
     CBREx (bar != std::wstring::npos, E_INVALIDARG);
 
     hr = ListPartitions (path.substr (0, bar), kind, entries);
-    CHRF (hr, m_listError = std::format (L"Unable to open {}.", path.substr (bar + 1)));
+    CHRF (hr, m_parts.list.listError = std::format (L"Unable to open {}.", path.substr (bar + 1)));
 
     for (const PartitionEntry & entry : entries)
     {
@@ -1328,14 +1330,14 @@ HRESULT BrowserLoader::LoadPartition (const std::wstring & path)
 
     if (found == nullptr)
     {
-        m_listError = std::format (L"Unable to open {}.", path.substr (bar + 1));
+        m_parts.list.listError = std::format (L"Unable to open {}.", path.substr (bar + 1));
     }
 
     CBRF (found != nullptr, hr = HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
 
     if (found->partition.damaged)
     {
-        m_listError = DiskImageCatalog::DescribeDamagedPartition (path.substr (0, bar), *found);
+        m_parts.list.listError = DiskImageCatalog::DescribeDamagedPartition (path.substr (0, bar), *found);
     }
 
     CBRF (!found->partition.damaged, hr = HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
@@ -1344,7 +1346,7 @@ HRESULT BrowserLoader::LoadPartition (const std::wstring & path)
     {
         PartitionLayoutKind          innerLayout = PartitionLayoutKind::None;
         std::vector<PartitionEntry>  inner;
-        HRESULT                      hrInner     = m_browser.m_catalog.ListPartitions (path, innerLayout, inner);
+        HRESULT                      hrInner     = m_parts.catalog.ListPartitions (path, innerLayout, inner);
 
         BAIL_OUT_IF (SUCCEEDED (hrInner) && AddPartitionRows (path, innerLayout, inner), S_OK);
     }
@@ -1356,12 +1358,12 @@ HRESULT BrowserLoader::LoadPartition (const std::wstring & path)
     row.containerPath = path;
     row.sourceIndex   = 0;
 
-    m_browser.m_rows.push_back (std::move (row));
+    m_parts.list.rows.push_back (std::move (row));
 
-    m_browser.m_isPartitionList = true;
-    m_writeProtected            = false;
+    m_parts.list.isPartitionList = true;
+    m_parts.list.writeProtected            = false;
 
-    hrReadOnly = m_browser.m_fs.GetReadOnlyAttribute (path.substr (0, path.find (L'|')), m_writeProtected);
+    hrReadOnly = m_parts.fs.GetReadOnlyAttribute (path.substr (0, path.find (L'|')), m_parts.list.writeProtected);
     IGNORE_RETURN_VALUE (hrReadOnly, S_OK);
 
 Error:
@@ -1393,27 +1395,27 @@ HRESULT BrowserLoader::ListPartitions (const std::wstring & path, PartitionLayou
 
     if (PhysicalCards::ParsePath (TextEncoding::WideToUtf8 (path), drive, partition) == PhysicalCards::PathKind::Card)
     {
-        CBREx (m_browser.m_cards != nullptr, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
+        CBREx (m_parts.sources.cards != nullptr, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
 
-        if (!m_browser.m_cards->IsOpen (drive))
+        if (!m_parts.sources.cards->IsOpen (drive))
         {
             HWND   front   = GetForegroundWindow();
             DWORD  process = 0;
 
-            CBREx (m_browser.m_cardOpenAllowed, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
+            CBREx (m_parts.sources.cardOpenAllowed, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
 
             GetWindowThreadProcessId (front, &process);
 
-            hr = m_browser.m_cards->Open (drive, process == GetCurrentProcessId() ? front : nullptr);
+            hr = m_parts.sources.cards->Open (drive, process == GetCurrentProcessId() ? front : nullptr);
             CHR (hr);
         }
 
-        hr = m_browser.m_cards->ListPartitions (drive, outKind, outEntries);
+        hr = m_parts.sources.cards->ListPartitions (drive, outKind, outEntries);
         CHR (hr);
     }
     else
     {
-        hr = m_browser.m_catalog.ListPartitions (path, outKind, outEntries);
+        hr = m_parts.catalog.ListPartitions (path, outKind, outEntries);
         CHR (hr);
     }
 
@@ -1445,32 +1447,32 @@ HRESULT BrowserLoader::LoadAppleDrive (const Location & location)
 
 
 
-    if (m_browser.m_links == nullptr || !parsed)
+    if (m_parts.sources.links == nullptr || !parsed)
     {
-        m_listError = DiskMessageText::FormatLinkError (HRESULT_FROM_WIN32 (ERROR_INVALID_DRIVE), std::string());
+        m_parts.list.listError = DiskMessageText::FormatLinkError (HRESULT_FROM_WIN32 (ERROR_INVALID_DRIVE), std::string());
         return HRESULT_FROM_WIN32 (ERROR_INVALID_DRIVE);
     }
 
-    if (m_browser.m_links->IsWritingDisk (TextEncoding::WideToNarrow (link), drive))
+    if (m_parts.sources.links->IsWritingDisk (TextEncoding::WideToNarrow (link), drive))
     {
-        m_listError = L"The disk is not available because an image is being written to it. Try again after the write finishes.";
+        m_parts.list.listError = L"The disk is not available because an image is being written to it. Try again after the write finishes.";
         return S_OK;
     }
 
-    if (!m_browser.m_links->TryGetListing (TextEncoding::WideToNarrow (link), drive, location.innerPath, m_browser.m_listing, m_browser.m_kind, hr, message, &m_browser.m_listingKept))
+    if (!m_parts.sources.links->TryGetListing (TextEncoding::WideToNarrow (link), drive, location.innerPath, m_parts.list.listing, m_parts.list.kind, hr, message, &m_parts.list.listingKept))
     {
-        m_listError = CassoExplorerBrowser::s_kWorkingText;
+        m_parts.list.listError = CassoExplorerBrowser::s_kWorkingText;
         return S_OK;
     }
 
     if (FAILED (hr))
     {
-        m_listError = DiskMessageText::FormatLinkError (hr, message);
+        m_parts.list.listError = DiskMessageText::FormatLinkError (hr, message);
         return hr;
     }
 
-    m_browser.m_isAppleDrive = true;
-    CatalogModel::FromListing (m_browser.m_listing, m_browser.m_kind, m_browser.m_rows);
+    m_parts.list.isAppleDrive = true;
+    CatalogModel::FromListing (m_parts.list.listing, m_parts.list.kind, m_parts.list.rows);
 
     return S_OK;
 }
@@ -1487,7 +1489,7 @@ HRESULT BrowserLoader::LoadAppleDrive (const Location & location)
 
 bool BrowserLoader::LeaveMissingLocation()
 {
-    Location      location = m_browser.GetLocation();
+    Location      location = GetLocation();
     std::wstring  path     = location.path.substr (0, location.path.find (L'|'));
     size_t        slash    = 0;
     int           drive    = 0;
@@ -1509,18 +1511,18 @@ bool BrowserLoader::LeaveMissingLocation()
     //  initialized is closed until the write ends, and is not left.
     if (PhysicalCards::ParsePath (TextEncoding::WideToUtf8 (path), drive, part) != PhysicalCards::PathKind::None)
     {
-        isOpen = m_browser.m_cards != nullptr &&
-                 (m_browser.m_cards->IsOpen (drive) || m_browser.m_cards->TryGetWork (drive, done, total));
+        isOpen = m_parts.sources.cards != nullptr &&
+                 (m_parts.sources.cards->IsOpen (drive) || m_parts.sources.cards->TryGetWork (drive, done, total));
 
         if (!isOpen)
         {
-            m_browser.GetNavigator().NavigateToLocation (Location::MakeRoot (TreeModel::kThisPcRootId));
+            m_host.NavigateToLocation (Location::MakeRoot (TreeModel::kThisPcRootId));
         }
 
         return !isOpen;
     }
 
-    if (path.empty() || m_browser.m_fs.Exists (path) || m_browser.GetTreeModel().IsDirectory (path))
+    if (path.empty() || m_parts.fs.Exists (path) || m_parts.tree.IsDirectory (path))
     {
         return false;
     }
@@ -1537,14 +1539,14 @@ bool BrowserLoader::LeaveMissingLocation()
         //  A drive's root keeps its backslash.
         path = (slash <= 2) ? path.substr (0, slash + 1) : path.substr (0, slash);
     }
-    while (!m_browser.GetTreeModel().IsDirectory (path) && path.size() > 3);
+    while (!m_parts.tree.IsDirectory (path) && path.size() > 3);
 
-    if (!m_browser.GetTreeModel().IsDirectory (path))
+    if (!m_parts.tree.IsDirectory (path))
     {
         return false;
     }
 
-    m_browser.GetNavigator().NavigateToLocation (Location::MakeHostFolder (path));
+    m_host.NavigateToLocation (Location::MakeHostFolder (path));
 
     return true;
 }
@@ -1563,18 +1565,18 @@ bool BrowserLoader::LeaveMissingLocation()
 
 bool BrowserLoader::TryGetImageLocation (int row, Location & outLocation) const
 {
-    Location      location = m_browser.GetLocation();
+    Location      location = GetLocation();
     std::wstring  path;
 
 
 
-    if (row < 0 || row >= (int) m_browser.m_rows.size() || !m_browser.m_rows[(size_t) row].isDiskImage)
+    if (row < 0 || row >= (int) m_parts.list.rows.size() || !m_parts.list.rows[(size_t) row].isDiskImage)
     {
         return false;
     }
 
-    path = (location.kind == Location::Kind::HostFolder)  ? BrowserRowPaths::JoinPath (location.path, m_browser.m_rows[(size_t) row].name)
-         : (location.kind == Location::Kind::ShellFolder) ? GetImagePath (m_browser.m_rows[(size_t) row])
+    path = (location.kind == Location::Kind::HostFolder)  ? BrowserRowPaths::JoinPath (location.path, m_parts.list.rows[(size_t) row].name)
+         : (location.kind == Location::Kind::ShellFolder) ? GetImagePath (m_parts.list.rows[(size_t) row])
                                                           : std::wstring();
 
     if (path.empty())
@@ -1610,7 +1612,7 @@ bool BrowserLoader::IsOnMissingDrive (const Location & location) const
 
 
     return hostPath && location.path.size() >= 2 && location.path[1] == L':'
-        && !m_browser.m_fs.DirectoryExists (location.path.substr (0, 2) + L"\\");
+        && !m_parts.fs.DirectoryExists (location.path.substr (0, 2) + L"\\");
 }
 
 
@@ -1652,7 +1654,7 @@ std::wstring BrowserLoader::MakeContainerPath (const std::wstring & folderId, co
         at   = folderId.find (L'\\', at + 1);
         host = folderId.substr (0, at);
 
-        found = isZip (host) && m_browser.m_fs.Exists (host);
+        found = isZip (host) && m_parts.fs.Exists (host);
     }
 
     if (!found)
@@ -1699,18 +1701,18 @@ bool BrowserLoader::CanListImage (const std::wstring & imagePath)
     VolumeListing           listing;
     VolumeKind              kind   = VolumeKind::Unknown;
     DiskOperations::Result  result;
-    bool                    listed = m_browser.m_model.TryGetCachedCatalog (imagePath, listing, kind);
+    bool                    listed = m_parts.model.TryGetCachedCatalog (imagePath, listing, kind);
 
 
 
     if (!listed)
     {
-        result = m_browser.m_operations.List (TextEncoding::WideToNarrow (imagePath), listing, kind);
+        result = m_parts.operations.List (TextEncoding::WideToNarrow (imagePath), listing, kind);
         listed = result.Succeeded();
 
         if (listed)
         {
-            m_browser.m_model.CacheCatalog (imagePath, listing, kind);
+            m_parts.model.CacheCatalog (imagePath, listing, kind);
         }
     }
 

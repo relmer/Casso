@@ -4,6 +4,8 @@
 #include "CassoExplorer/Browser/BrowserLoader.h"
 #include "CassoExplorer/Browser/BrowserPreviewer.h"
 #include "CassoExplorer/Browser/BrowserCells.h"
+#include "CassoExplorer/Browser/BrowserHostInterfaces.h"
+#include "CassoExplorer/Browser/BrowserParts.h"
 #include "CassoExplorer/Browser/BrowserColumnFilters.h"
 #include "CassoExplorer/Browser/BrowserNameFilter.h"
 #include "CassoExplorer/Browser/BrowserNavigator.h"
@@ -51,7 +53,11 @@ class IDiskFileIo;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class CassoExplorerBrowser : private IBrowserListing, private IBrowserSelectionSource
+class CassoExplorerBrowser : private IBrowserListing,
+                             private IBrowserSelectionSource,
+                             private IBrowserLoaderHost,
+                             private IBrowserPreviewHost,
+                             private IBrowserCellsHost
 {
 public:
     using Status = BrowserStatus;
@@ -75,7 +81,7 @@ public:
     HRESULT  SelectTreeNode (const std::wstring & id);
 
     //  Loads the active tab's location into rows, applying its sort.
-    HRESULT  Refresh();
+    HRESULT  Refresh() override;
 
     //  Rereads the location, dropping every cached catalog, and reselects
     //  the rows whose names were selected, for a return to the window after
@@ -95,7 +101,7 @@ public:
     bool  TryGetTreeNode     (const std::wstring & id, DxuiTreeNode & outNode) const;
 
     //  The listing BrowserRowPaths reads a row's location and path from.
-    BrowserRowPaths::Listing  GetRowListing ();
+    BrowserRowPaths::Listing  GetRowListing () override;
 
     //  The tabs, and Back, Forward, Up and the address bar.
     BrowserNavigator        & GetNavigator ()       { return m_navigator; }
@@ -162,13 +168,13 @@ public:
     void                   SetDefaultDecodeOptions (const DecodeOptions & options)                                       { m_previewer.SetDefaultDecodeOptions (options); }
     const DecodeOptions  & GetDefaultDecodeOptions () const                                                              { return m_previewer.GetDefaultDecodeOptions(); }
 
-    const std::vector<CatalogRow>  & GetRows    () const { return m_rows;      }
-    const PreviewContent           & GetPreview () const { return m_previewer.m_preview;   }
+    const std::vector<CatalogRow>  & GetRows    () const { return m_list.rows;      }
+    const PreviewContent           & GetPreview () const { return m_previewer.GetPreview();   }
 
     //  The monitor a picture preview is drawn for, with the custom monitor's
     //  color; a change draws the current picture again.
     void                     SetPreviewMonitor (PicturePreview::Monitor monitor, uint32_t customArgb = PicturePreview::kDefaultCustomArgb) { m_previewer.SetPreviewMonitor (monitor, customArgb); }
-    PicturePreview::Monitor  GetPreviewMonitor () const { return m_previewer.m_previewMonitor; }
+    PicturePreview::Monitor  GetPreviewMonitor () const { return m_previewer.GetPreviewMonitor(); }
 
     //  The monitor the current picture is drawn on: the chosen one, except
     //  for a double hi-res picture, whose monitor follows its form. Its color
@@ -181,25 +187,25 @@ public:
     //  automatic choice was not; again to go back. False for any other preview.
     bool                      TogglePictureColor    () { return m_previewer.TogglePictureColor(); }
     bool                      CanTogglePictureColor () const { return m_previewer.CanTogglePictureColor(); }
-    const std::wstring      & GetListError          () const { return m_loader.m_listError; }
-    bool                      IsListLoading         () const { return m_loader.m_listError == s_kWorkingText; }
-    const Status            & GetStatus             () const { return m_status;    }
-    const std::vector<int>  & GetSelectedRows       () const { return m_selectedRows; }
+    const std::wstring      & GetListError          () const { return m_list.listError; }
+    bool                      IsListLoading         () const { return m_list.listError == s_kWorkingText; }
+    const Status            & GetStatus             () const { return m_list.status;    }
+    const std::vector<int>  & GetSelectedRows       () const { return m_list.selectedRows; }
     Location                  GetLocation           () const override;
-    VolumeKind                GetVolumeKind         () const { return m_kind; }
-    bool                      IsAppleDriveLocation  () const { return m_isAppleDrive; }
-    bool                      IsListingKept         () const { return m_listingKept; }
+    VolumeKind                GetVolumeKind         () const { return m_list.kind; }
+    bool                      IsAppleDriveLocation  () const { return m_list.isAppleDrive; }
+    bool                      IsListingKept         () const { return m_list.listingKept; }
 
     //  An Apple drive is open, whether or not its catalog could be read, as
     //  for a disk to format.
     bool                             IsAppleDriveOpen () const { return GetLocation().kind == Location::Kind::AppleDrive; }
 
     //  An image or an Apple drive: a volume whose catalog is in the list.
-    bool  IsVolumeLocation () const override { return m_isImage || m_isAppleDrive; }
-    bool  IsImageLocation  () const override { return m_isImage; }
+    bool  IsVolumeLocation () const override { return m_list.isImage || m_list.isAppleDrive; }
+    bool  IsImageLocation  () const override { return m_list.isImage; }
 
     //  An image with no catalog, whose partitions are the rows.
-    bool  IsPartitionListLocation () const { return m_isPartitionList; }
+    bool  IsPartitionListLocation () const { return m_list.isPartitionList; }
 
     //  The root being listed, or empty when the list is another location's.
     std::wstring                     GetRootId () const;
@@ -207,8 +213,8 @@ public:
     //  Whether the image shown is write-protected, read once when it loads:
     //  the commands that would write to it ask on every repaint, which is too
     //  often to hit the file system.
-    bool                   IsWriteProtected () const { return m_loader.m_writeProtected; }
-    const VolumeListing  & GetListing       () const override { return m_listing; }
+    bool                   IsWriteProtected () const { return m_list.writeProtected; }
+    const VolumeListing  & GetListing       () const override { return m_list.listing; }
 
     //  The selected CassoLink items written to their files, so they open and
     //  drag as files; false when any could not be written.
@@ -219,7 +225,7 @@ public:
 
     //  The next list of a linked machine or drive reads its disks again, as
     //  a refresh does.
-    void  ForgetLinkVisit () { m_loader.m_linkVisit = Location(); m_loader.m_linkReadAt.clear(); }
+    void  ForgetLinkVisit () { m_loader.ForgetLinkVisit(); }
 
     //  The archive Extract all applies to, selected or open; empty for none.
     std::wstring  GetExtractTarget () const { return m_previewer.GetExtractTarget(); }
@@ -239,25 +245,25 @@ public:
 
 
     //  The shell's icons for the tree and the list. None set, none drawn.
-    void  SetShellIcons (IShellIcons * icons) { m_shellIcons = icons; }
+    void  SetShellIcons (IShellIcons * icons) { m_sources.shellIcons = icons; }
 
     //  The CassoLink connections an Apple drive is listed and read through. Without
     //  them, an Apple drive lists nothing.
-    void                    SetLinks (CassoLinkConnections * links) { m_links = links; }
+    void                    SetLinks (CassoLinkConnections * links) { m_sources.links = links; }
 
     //  The file systems the user chose, which outlive this browser.
     void                    SetFilesystemChoices (FilesystemChoices * choices) { m_filesystemChoices = choices; m_operations.SetFilesystemChoices (choices); }
     FilesystemChoices     * GetFilesystemChoices () const { return m_filesystemChoices; }
-    CassoLinkConnections  * GetLinks             () const                       { return m_links; }
+    CassoLinkConnections  * GetLinks             () const                       { return m_sources.links; }
 
     //  The cards open through removable drives. Without them, a path on a card
     //  lists nothing.
-    void                    SetPhysicalCards     (PhysicalCards * cards)         { m_cards = cards; }
+    void                    SetPhysicalCards     (PhysicalCards * cards)         { m_sources.cards = cards; }
 
     //  The recent list's images and their load times, read each time the
     //  Casso node is listed, for its Last used column.
     using RecentLoadsFn = std::function<std::vector<DiskMru::Entry> ()>;
-    void                    SetRecentLoads       (RecentLoadsFn recentLoads)     { m_recentLoads = std::move (recentLoads); }
+    void                    SetRecentLoads       (RecentLoadsFn recentLoads)     { m_sources.recentLoads = std::move (recentLoads); }
 
     //  Called on a worker's thread when an image's file system and volume
     //  name are read; ApplyVolumeFacts, on the window's thread, puts them in
@@ -272,8 +278,8 @@ public:
     void                    SetMountedImages     (const std::map<std::wstring, std::wstring> & mounted);
 
     //  The rows of a picker's "Stock disks" node.
-    void                    SetStockDisks        (std::vector<StockDiskRow> disks)  { m_stockDisks = std::move (disks); }
-    void                    SetDemoDisks         (std::vector<StockDiskRow> disks)  { m_demoDisks  = std::move (disks); }
+    void                    SetStockDisks        (std::vector<StockDiskRow> disks)  { m_sources.stockDisks = std::move (disks); }
+    void                    SetDemoDisks         (std::vector<StockDiskRow> disks)  { m_sources.demoDisks  = std::move (disks); }
     IDiskFileIo           & GetFileIo            ()                              { return m_fileIo; }
     size_t                  GetScopedOutCount    () const                        { return m_scopedOut; }
 
@@ -289,8 +295,8 @@ public:
 
     //  Until set, a card that is not open is not opened, so the tabs restored
     //  at launch raise no UAC prompt.
-    void                    SetCardOpenAllowed   (bool allowed)                 { m_cardOpenAllowed = allowed; }
-    PhysicalCards         * GetPhysicalCards     () const                       { return m_cards; }
+    void                    SetCardOpenAllowed   (bool allowed)                 { m_sources.cardOpenAllowed = allowed; }
+    PhysicalCards         * GetPhysicalCards     () const                       { return m_sources.cards; }
 
     HRESULT                 ListPartitions       (const std::wstring & path, PartitionLayoutKind & outKind, std::vector<PartitionEntry> & outEntries) { return m_loader.ListPartitions (path, outKind, outEntries); }
 
@@ -317,7 +323,7 @@ public:
     //  set, every host folder is read through the file system at once.
     static constexpr const wchar_t *  s_kHostListKey = L"hostlist:";
     static constexpr const wchar_t *  s_kHostTreeKey = L"hosttree:";
-    CassoExplorerHostListings &  GetHostListings  () { return m_loader.m_hostListings; }
+    CassoExplorerHostListings &  GetHostListings  () { return m_loader.GetHostListings(); }
 
 
     //  Quick access as the shell keeps it, read again after a pin changes.
@@ -352,12 +358,6 @@ public:
     static std::wstring  ExpandVariables   (const std::wstring & text);
 
 private:
-
-    CassoExplorerShellListings  m_shellListings;
-    void  QueueVolumeFacts       (const std::wstring & folder);
-    Location                 m_homeParent;
-    bool                     m_returningToTab  = false;
-
     //  IBrowserSelectionSource, for the selection.
     void      UpdatePreviewAndStatus () override                                         { m_previewer.UpdatePreview(); m_cells.UpdateStatus(); }
 
@@ -365,8 +365,17 @@ private:
     void      ReloadAfterNavigation () override                                          { m_loader.ReloadAfterNavigation(); }
     void      ReturnToTab           (const std::vector<std::wstring> & rowKeys) override;
     bool      IsOnMissingDrive      (const Location & location) const override           { return m_loader.IsOnMissingDrive (location); }
-    Location  GetShellParent        () const override                                    { return m_loader.m_shellParent; }
+    Location  GetShellParent        () const override                                    { return m_list.shellParent; }
 
+    //  IBrowserLoaderHost, for the loader.
+    void          QueueVolumeFacts     (const std::wstring & folder) override;
+    void          NavigateToLocation   (const Location & location) override              { m_navigator.NavigateToLocation (location); }
+    bool          IsLocalArchivePath   (const std::wstring & id) const override          { return m_previewer.IsLocalArchivePath (id); }
+    std::wstring  DescribeEmptyArchive (const std::wstring & path) const override        { return m_previewer.DescribeEmptyArchive (path); }
+
+    CassoExplorerShellListings              m_shellListings;
+    Location                                m_homeParent;
+    bool                                    m_returningToTab    = false;
     IFileSystem                           & m_fs;
     IDiskFileIo                           & m_fileIo;
     ImageClassCache                         m_imageClasses;
@@ -377,39 +386,21 @@ private:
     BrowserModel                            m_model;
     DiskOperations                          m_operations;
     DiskImageCatalog                        m_catalog           { m_operations };
-    std::vector<CatalogRow>                 m_rows;
     BrowserColumnFilters                    m_columnFilters;
-    VolumeListing                           m_listing;
-    VolumeKind                              m_kind              = VolumeKind::Unknown;
-    bool                                    m_isImage           = false;
-    bool                                    m_isAppleDrive      = false;
-    bool                                    m_isPartitionList   = false;
-    bool                                    m_listingKept       = false;   // an Apple drive's listing as last read, while it is read again
-    CassoLinkConnections                  * m_links             = nullptr;
-    PhysicalCards                         * m_cards             = nullptr;
-    RecentLoadsFn                           m_recentLoads;
     RowScopeFn                              m_rowScope;
     std::map<std::wstring, std::wstring>    m_mountedImages;   // by CassoImagesListing::MakePathKey
-    std::vector<StockDiskRow>               m_stockDisks;
-    std::vector<StockDiskRow>               m_demoDisks;
     size_t                                  m_scopedOut         = 0;
     BrowserNameFilter                       m_nameFilter;
-    bool                                    m_cardOpenAllowed   = false;
     FilesystemChoices                     * m_filesystemChoices = nullptr;
-    std::vector<int>                        m_selectedRows;
-    Status                                  m_status;
-    IShellIcons                           * m_shellIcons        = nullptr;
-    IShellItemVerbs                       * m_shellVerbs        = nullptr;
+    BrowserListState                        m_list;
+    BrowserSources                          m_sources;
 
-    //  The browser's parts, each with the state it uses.
-    friend class      BrowserLoader;
-    friend class      BrowserPreviewer;
-    friend class      BrowserCells;
-    BrowserLoader     m_loader         { *this };
-    BrowserPreviewer  m_previewer      { *this };
-    BrowserCells      m_cells          { *this };
+    //  The browser's components, each with the parts it uses.
+    BrowserParts      m_parts          { m_fs, m_fileIo, m_imageClasses, m_catalog, m_tree, m_hostFolders, m_model, m_operations, m_shellListings, m_list, m_sources };
+    BrowserSelection  m_selection      { m_model, m_list.rows, m_list.selectedRows, *this };
+    BrowserLoader     m_loader         { m_parts, *this };
+    BrowserPreviewer  m_previewer      { m_parts, m_selection, *this };
+    BrowserCells      m_cells          { m_parts, *this };
     BrowserNavigator  m_navigator      { m_model, m_fs, m_hostFolders, *this };
-    BrowserRowOrder   m_rowOrder       { m_model, m_rows, m_selectedRows, m_columnFilters, *this };
-    BrowserSelection  m_selection      { m_model, m_rows, m_selectedRows, *this };
+    BrowserRowOrder   m_rowOrder       { m_model, m_list.rows, m_list.selectedRows, m_columnFilters, *this };
 };
-

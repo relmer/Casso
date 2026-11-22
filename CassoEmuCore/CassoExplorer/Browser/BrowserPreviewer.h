@@ -2,13 +2,16 @@
 
 #include "Pch.h"
 
+#include "CassoExplorer/Browser/BrowserParts.h"
 #include "CassoExplorer/Browser/BrowserTypes.h"
+#include "CassoExplorer/Model/BrowserModel.h"
 
 #include "CassoExplorer/Model/PreviewDecoder.h"
 #include "Devices/Disk/Partitions/PartitionAccess.h"
 #include "Core/MemoryBus.h"
 
-class CassoExplorerBrowser;
+class BrowserSelection;
+class IBrowserPreviewHost;
 
 
 
@@ -27,7 +30,7 @@ class CassoExplorerBrowser;
 class BrowserPreviewer
 {
 public:
-    explicit BrowserPreviewer (CassoExplorerBrowser & browser);
+    BrowserPreviewer (const BrowserParts & parts, const BrowserSelection & selection, IBrowserPreviewHost & host);
 
     //  How much of a file with no file of its own, such as one inside a zip,
     //  is read for its preview.
@@ -100,7 +103,10 @@ public:
     void                   SetDefaultDecodeOptions (const DecodeOptions & options);
     const DecodeOptions &  GetDefaultDecodeOptions () const { return m_defaultOptions; }
 
+    const PreviewContent  & GetPreview () const { return m_preview; }
+
     void                     SetPreviewMonitor (PicturePreview::Monitor monitor, uint32_t customArgb = PicturePreview::kDefaultCustomArgb);
+    PicturePreview::Monitor  GetPreviewMonitor () const { return m_previewMonitor; }
 
     PicturePreview::Monitor  GetPictureMonitor () const;
 
@@ -136,12 +142,14 @@ public:
     void  UpdatePreview      ();
 
 private:
-    friend class CassoExplorerBrowser;
-
     //  The form for a file, Auto when it isn't the file previewed last.
     PreviewDecoder::HexForm  GetHexForm (const std::wstring & fileKey);
 
-    CassoExplorerBrowser  & m_browser;
+    Location  GetLocation () const { return m_parts.model.HasTabs() ? m_parts.model.GetActiveTab().location : Location(); }
+
+    BrowserParts              m_parts;
+    const BrowserSelection  & m_selection;
+    IBrowserPreviewHost     & m_host;
 
     MemoryBus                           m_bus;
     PicturePreview::Monitor             m_previewMonitor = PicturePreview::Monitor::Color;
