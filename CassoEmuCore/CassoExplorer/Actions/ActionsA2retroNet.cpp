@@ -916,35 +916,72 @@ void ActionsA2retroNet::ExpectArrivals (const std::vector<std::wstring> & target
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ActionsA2retroNet::TakeArrived (std::vector<std::wstring> & outConvertible)
+void ActionsA2retroNet::TakeArrived (std::vector<std::wstring> & outArrived)
 {
     IDiskFileIo  & io  = m_actions.m_browser.GetOperations().GetFileIo();
     ULONGLONG      now = GetTickCount64();
 
 
 
-    outConvertible.clear();
+    outArrived.clear();
 
-    std::erase_if (m_arrivals, [this, &io, &outConvertible, now] (const ExpectedMove & arrival)
+    std::erase_if (m_arrivals, [this, &io, &outArrived, now] (const ExpectedMove & arrival)
     {
-        Layout  layout;
-        bool    isThere  = m_actions.m_fs.Exists (arrival.to);
-        bool    isHeld   = isThere && io.IsHeldByAnotherProcess (TextEncoding::WideToNarrow (arrival.to));
-        bool    hasPo    = m_actions.m_fs.Exists (std::filesystem::path (arrival.to).replace_extension (L".po").wstring());
-        bool    isListed = std::find (outConvertible.begin(), outConvertible.end(), arrival.to) != outConvertible.end();
+        bool  isThere  = m_actions.m_fs.Exists (arrival.to);
+        bool  isHeld   = isThere && io.IsHeldByAnotherProcess (TextEncoding::WideToNarrow (arrival.to));
+        bool  isListed = std::find (outArrived.begin(), outArrived.end(), arrival.to) != outArrived.end();
 
         if (!isThere || isHeld)
         {
             return now >= arrival.untilMs;
         }
 
-        if (!hasPo && !isListed && TryGetConvertibleLayout (arrival.to, layout))
+        if (!isListed)
         {
-            outConvertible.push_back (arrival.to);
+            outArrived.push_back (arrival.to);
         }
 
         return true;
     });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsA2retroNet::TryGetFreeDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ActionsA2retroNet::TryGetFreeDrive (const std::wstring & imagePath, int & outDrive)
+{
+    A2retroNetConfig       config;
+    std::filesystem::path  root  = std::filesystem::path (imagePath).root_path();
+    std::string            path  = A2retroNetConfig::MakePath (root, imagePath);
+    int                    index = 0;
+    Drive                  drive;
+
+
+
+    outDrive = 0;
+
+    if (!TryReadConfigFor (imagePath, config) || !config.FindDrives (path).empty() || !config.TryFindFreeDrive (index))
+    {
+        return false;
+    }
+
+    drive = CheckDrive (root.wstring(), index + 1, path);
+
+    if (!drive.isPresent || !drive.problem.empty())
+    {
+        return false;
+    }
+
+    outDrive = index + 1;
+
+    return true;
 }
 
 

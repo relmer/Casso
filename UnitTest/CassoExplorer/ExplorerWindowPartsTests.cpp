@@ -1248,7 +1248,8 @@ public:
 
     //  In a folder on an A2Pico card, where a copy lands, an image with a
     //  ProDOS volume in DOS order is offered as a .po, which Write as .po
-    //  writes beside it.
+    //  writes beside it. The .po is then offered as a free drive, which Set
+    //  as drive sets.
     TEST_METHOD (CardBar_OffersAPoForAnImageA2retroNetDoesntRead)
     {
         Rig                rig;
@@ -1284,7 +1285,22 @@ public:
 
         rig.Click (bar.GetAction (0)->GetBounds());
 
-        Assert::IsTrue (rig.io.files["E:\\games\\zork.po"] == po);
+        Assert::IsTrue   (rig.io.files["E:\\games\\zork.po"] == po);
+
+        //  The .po isn't on the in-memory file system the bar lists the
+        //  folder through, so it is written there too.
+        AssertSucceeded (rig.fs.WriteAllText (L"E:\\games\\zork.po", std::string (po.begin(), po.end())));
+        rig.io.stamps["E:\\games\\zork.po"] = FileStamp { po.size(), 100 };
+        rig.parts->listPane.FillList();
+
+        Assert::AreEqual (std::wstring (L"zork.po isn't set as a drive. Drive 1 is free."), bar.GetText());
+        Assert::AreEqual ((size_t) 1, bar.GetActionCount());
+
+        rig.parts->listPane.FillList();
+        rig.Click (bar.GetAction (0)->GetBounds());
+
+        Assert::AreEqual (std::string ("[drives]\n1=games/zork.po\n"), std::string (rig.io.files["E:\\A2retroNET.txt"].begin(), rig.io.files["E:\\A2retroNET.txt"].end()));
+        Assert::IsFalse  (bar.IsVisible(), L"the .po is a drive");
     }
 
 

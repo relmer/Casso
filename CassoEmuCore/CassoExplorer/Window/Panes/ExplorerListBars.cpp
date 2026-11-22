@@ -154,6 +154,8 @@ bool ExplorerListBars::FillSearchBar()
 //  card, where a copy to the card lands, its images with a ProDOS volume in
 //  a form A2retroNET doesn't read, with Write as .po. A warning when a drive has a
 //  problem, the settings file has CR LF line ends, or an image is offered.
+//  And a selected, copied or written image the firmware reads that isn't a
+//  drive, with Set as drive for a free drive.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -176,11 +178,14 @@ bool ExplorerListBars::FillCardBar()
 
     m_cardActions.clear();
     m_convertible.clear();
+    m_setPath.clear();
+    m_setDrive = 0;
 
     //  Files dropped on or from a card that Windows has moved since.
     m_context.actions.GetA2retroNet().ResolveMoves();
 
     m_context.actions.GetA2retroNet().TakeArrived (arrived);
+    m_settable.insert (m_settable.end(), arrived.begin(), arrived.end());
 
     onCard = location.kind == Location::Kind::HostFolder && !root.empty() && m_context.actions.IsA2PicoCard (root) && location.path != m_cardBarClosed;
     atRoot = onCard && location.path == root;
@@ -195,6 +200,8 @@ bool ExplorerListBars::FillCardBar()
     {
         hr = m_context.actions.GetA2retroNet().FindConvertible (location.path, m_convertible);
         IGNORE_RETURN_VALUE (hr, S_OK);
+
+        FindSettable (root);
     }
 
     if (atRoot)
@@ -218,11 +225,21 @@ bool ExplorerListBars::FillCardBar()
         m_cardActions.push_back (CardAction::WritePo);
     }
 
+    if (m_setDrive != 0)
+    {
+        text += std::format (L"{}{} isn't set as a drive. Drive {} is free.", text.empty() ? L"" : L" ", std::filesystem::path (m_setPath).filename().wstring(), m_setDrive);
+
+        m_cardActions.push_back (CardAction::SetDrive);
+    }
+
     show = !text.empty();
 
     for (CardAction action : m_cardActions)
     {
-        labels.push_back (action == CardAction::Drives ? L"Drives..." : action == CardAction::Repair ? L"Repair" : L"Write as .po");
+        labels.push_back (action == CardAction::Drives   ? std::wstring (L"Drives...")
+                        : action == CardAction::Repair   ? std::wstring (L"Repair")
+                        : action == CardAction::SetDrive ? std::format (L"Set as drive {}", m_setDrive)
+                        :                                  std::wstring (L"Write as .po"));
     }
 
     //  New buttons have no place until the bar is laid out, so they are
@@ -278,14 +295,50 @@ std::wstring ExplorerListBars::DescribeFiles (const std::vector<std::wstring> & 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerListBars::FindSettable
+//
+//  The selected images come first, then those copied or written to the card.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerListBars::FindSettable (const std::wstring & root)
+{
+    std::vector<std::wstring>  candidates;
+    int                        drive = 0;
+
+
+
+    m_context.browser.GetSelection().GetSelectedHostPaths (candidates);
+    candidates.insert (candidates.end(), m_settable.begin(), m_settable.end());
+
+    for (const std::wstring & path : candidates)
+    {
+        bool  onCard = _wcsicmp (std::filesystem::path (path).root_path().wstring().c_str(), root.c_str()) == 0;
+
+        if (onCard && m_context.actions.GetA2retroNet().TryGetFreeDrive (path, drive))
+        {
+            m_setPath  = path;
+            m_setDrive = drive;
+            return;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerListBars::RunCardAction
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerListBars::RunCardAction (size_t index)
 {
-    CardAction    action = index < m_cardActions.size() ? m_cardActions[index] : CardAction::Drives;
-    std::wstring  written;
+    CardAction             action = index < m_cardActions.size() ? m_cardActions[index] : CardAction::Drives;
+    std::wstring           written;
+    ActionsTypes::Outcome  outcome;
 
 
 
@@ -302,11 +355,25 @@ void ExplorerListBars::RunCardAction (size_t index)
     {
         m_context.verbs.ReportOutcome (m_context.actions.RepairA2retroNetConfig (m_card.root), L"Repair A2retroNET.txt");
     }
+    else if (action == CardAction::SetDrive)
+    {
+        outcome = m_context.actions.GetA2retroNet().Add (m_setPath);
+        m_context.verbs.ReportOutcome (outcome, L"Set as drive");
+
+        std::erase_if (m_settable, [this] (const std::wstring & path) { return _wcsicmp (path.c_str(), m_setPath.c_str()) == 0; });
+    }
     else
     {
         for (const std::wstring & path : m_convertible)
         {
-            m_context.verbs.ReportOutcome (m_context.actions.GetA2retroNet().ConvertToPo (path, written), L"Write as .po");
+            outcome = m_context.actions.GetA2retroNet().ConvertToPo (path, written);
+            m_context.verbs.ReportOutcome (outcome, L"Write as .po");
+
+            //  The .po is offered as a drive.
+            if (outcome.Succeeded())
+            {
+                m_settable.push_back (written);
+            }
         }
 
         m_context.folderSync.RefreshAfterHostChange();

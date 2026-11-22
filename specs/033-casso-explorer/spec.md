@@ -2207,7 +2207,8 @@ The owner has no A2Pico, so nothing is checked on the hardware.
    listed, **Then** the problem is listed with the drive, and Repair
    rewrites the file with LF line ends.
 3. **Given** a disk image copied to an A2Pico card, **When** a drive is
-   free, **Then** Casso Explorer offers to set it as that drive. **When** it
+   free, **Then** the infobar offers to set it as that drive, as it does for a
+   selected image the firmware reads that isn't a drive. **When** it
    has a block volume in a form the firmware doesn't read, as a ProDOS
    volume in a DOS-order `.dsk` or a `.2mg` with a longer header, **Then**
    the infobar offers to write it as a `.po`, with no question after the copy. An image with no block

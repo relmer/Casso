@@ -354,8 +354,9 @@ public:
 
         host.io.reportHeldByOther = false;
         host.actions.GetA2retroNet().TakeArrived (arrived);
-        Assert::AreEqual ((size_t) 1, arrived.size());
-        Assert::AreEqual (std::wstring (L"E:\\games\\zork.dsk"), arrived[0]);
+        Assert::AreEqual ((size_t) 2, arrived.size(), L"the files on the card");
+        Assert::AreEqual (std::wstring (L"E:\\games\\zork.dsk"),  arrived[0]);
+        Assert::AreEqual (std::wstring (L"E:\\games\\dos33.dsk"), arrived[1]);
 
         host.actions.GetA2retroNet().TakeArrived (arrived);
         Assert::IsTrue (arrived.empty(), L"an arrival is taken once");
@@ -366,6 +367,34 @@ public:
         Assert::IsTrue  (host.io.files["E:\\games\\zork.po"] == po);
         Assert::IsFalse (host.io.files.contains ("E:\\games\\zork.dsk"), L"the .dsk is removed");
         Assert::AreEqual (std::string ("[drives]\nnumber=2\n1=games/zork.po\n"), std::string (host.io.files["E:\\A2retroNET.txt"].begin(), host.io.files["E:\\A2retroNET.txt"].end()));
+    }
+
+
+    //  An image the firmware reads that isn't a drive is offered the first
+    //  free drive. One that is a drive, one it doesn't read, one off the card
+    //  and one on a card with each drive set aren't.
+    TEST_METHOD (TryGetFreeDrive_OffersTheFirstFreeDrive)
+    {
+        Host               host;
+        std::vector<Byte>  image (280 * 512, 0);
+        int                drive = 0;
+
+
+
+        host.SeedBytes (Bytes ("[drives]\nnumber=2\n1=system.po\n"), L"E:\\A2retroNET.txt");
+        host.SeedBytes (image, L"E:\\system.po");
+        host.SeedBytes (image, L"E:\\games\\new.po");
+        host.SeedBytes (image, L"C:\\Disks\\new.po");
+        host.SeedFixture ("CassoExplorer/dos33.dsk", L"E:\\games\\dos33.dsk");
+
+        Assert::IsTrue   (host.actions.GetA2retroNet().TryGetFreeDrive (L"E:\\games\\new.po", drive));
+        Assert::AreEqual (2, drive);
+        Assert::IsFalse  (host.actions.GetA2retroNet().TryGetFreeDrive (L"E:\\system.po", drive), L"a drive already");
+        Assert::IsFalse  (host.actions.GetA2retroNet().TryGetFreeDrive (L"E:\\games\\dos33.dsk", drive), L"not a form the firmware reads");
+        Assert::IsFalse  (host.actions.GetA2retroNet().TryGetFreeDrive (L"C:\\Disks\\new.po", drive), L"not on a card");
+
+        host.SeedBytes (Bytes ("[drives]\nnumber=2\n1=system.po\n2=system.po\n"), L"E:\\A2retroNET.txt");
+        Assert::IsFalse  (host.actions.GetA2retroNet().TryGetFreeDrive (L"E:\\games\\new.po", drive), L"each drive set");
     }
 
 
