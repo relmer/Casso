@@ -64,6 +64,17 @@ void ExplorerPreviewManager::Create()
     m_summary->SetProportional (true);
     m_summary->SetVisible      (false);
 
+    m_sections = m_context.window.CreateChild<DxuiSegmentedControl>();
+    m_sections->SetSegments          ({ L"Saved game", L"Disk" });
+    m_sections->SetAnimationsEnabled (false);
+    m_sections->SetVisible           (false);
+    m_sections->SetOnChange          ([this] (int index)
+    {
+        m_context.browser.SetPreviewSavedGame (index == 0);
+        FillPreview();
+        m_context.window.Invalidate();
+    });
+
     m_find.Create();
     m_thumbnail.Create();
 
@@ -155,34 +166,67 @@ void ExplorerPreviewManager::Layout (const RECT & rect)
         content.top += barPx;
     }
 
+    //  The switch between a disk's saved game and the disk, under the toolbar.
+    if (m_sections->IsVisible())
+    {
+        int  band   = scaler.ToPx (kSectionsBandDip);
+        int  height = scaler.ToPx (kSectionsDip);
+        int  left   = content.left + scaler.ToPx (kSectionsPadDip);
+        int  top    = content.top + (band - height) / 2;
+
+        m_sections->Layout (RECT { left, top, left + 2 * scaler.ToPx (kSectionDip), top + height }, scaler);
+        content.top += band;
+    }
+
     //  A disk image's small platter and chips, under the toolbar (FR-072),
-    //  scrolled away by the wheel no further than the view under them
-    //  overflows the pane.
+    //  and a WOZ image's details under them, scrolled away by the wheel or
+    //  the pane's bar as one, no further than the view under them overflows
+    //  the pane.
     m_headerTop = content.top;
+
+    if (m_summary->IsVisible())
+    {
+        m_summary->Layout  (content, scaler);
+        m_summary->Measure (*m_context.window.GetTextRenderer(), *m_context.theme);
+    }
 
     if (m_thumbnail.IsShown())
     {
         //  The thumbnail is laid out no narrower than the pane's least width,
         //  and clipped at the pane's edge when the window forces it narrower.
-        int  thumbW = (std::max) (static_cast<int> (content.right - content.left), scaler.ToPx (ExplorerLayout::kMinPreviewWidthDip));
-        int  height = m_thumbnail.GetHeightPx (thumbW);
-        int  need   = 0;
+        int  thumbW    = (std::max) (static_cast<int> (content.right - content.left), scaler.ToPx (ExplorerLayout::kMinPreviewWidthDip));
+        int  height    = m_thumbnail.GetHeightPx (thumbW);
+        int  detailsPx = m_summary->IsVisible() ? m_summary->GetContentHeightPx() + scaler.ToPx (kRuleBandDip) : 0;
+        int  need      = 0;
 
         for (const PreviewView * view : m_views)
         {
             need = (std::max) (need, view->GetContentHeightPx());
         }
 
-        m_headerRange  = (std::max) (0, height + need - static_cast<int> (content.bottom - content.top));
-        m_headerMax    = (std::min) (m_headerRange, height);
+        m_headerRange  = (std::max) (0, height + detailsPx + need - static_cast<int> (content.bottom - content.top));
+        m_headerMax    = (std::min) (m_headerRange, height + detailsPx);
         m_headerScroll = std::clamp (m_headerScroll, 0, m_headerMax);
         m_headerPage   = static_cast<int> (content.bottom - content.top);
         content.top    = m_thumbnail.Layout (RECT { content.left, content.top, content.left + thumbW - scaler.ToPx (ThumbnailScrollbar::kWidthDip), content.top + height },
-                                             m_headerScroll, content.bottom, content.right - scaler.ToPx (ThumbnailScrollbar::kWidthDip));
+                                             (std::min) (m_headerScroll, height), content.bottom, content.right - scaler.ToPx (ThumbnailScrollbar::kWidthDip));
 
         m_thumbnail.GetScrollbar().Layout     (RECT { m_rect.right - scaler.ToPx (ThumbnailScrollbar::kWidthDip), m_headerTop, m_rect.right, m_rect.bottom }, scaler);
         m_thumbnail.GetScrollbar().SetVisible (m_headerRange > 0);
         SyncScrollbar();
+
+        //  The details scroll away by whole lines once the thumbnail is gone.
+        if (m_summary->IsVisible())
+        {
+            int  lineH  = (std::max) (1, m_summary->GetLineHeightPx());
+            int  hidden = (std::max) (0, m_headerScroll - height);
+            int  lines  = (hidden + lineH - 1) / lineH;
+
+            m_summary->SetVerticalScrollbarHidden (true);
+            m_summary->SetTopLine (lines);
+
+            summaryPx = std::clamp (m_summary->GetContentHeightPx() - hidden, 0, (std::max) (0, static_cast<int> (content.bottom - content.top)));
+        }
     }
     else
     {
@@ -190,6 +234,14 @@ void ExplorerPreviewManager::Layout (const RECT & rect)
         m_headerMax    = 0;
         m_headerScroll = 0;
         m_thumbnail.Hide();
+
+        //  With no thumbnail, the details are as tall as their lines at the
+        //  pane's width, up to a share of the pane.
+        if (m_summary->IsVisible())
+        {
+            m_summary->SetVerticalScrollbarHidden (false);
+            summaryPx = (std::min) (m_summary->GetContentHeightPx(), (int) (content.bottom - content.top) / kSummaryShare);
+        }
     }
 
     //  The views' bars are hidden while the pane's bar scrolls the thumbnail
@@ -199,19 +251,13 @@ void ExplorerPreviewManager::Layout (const RECT & rect)
         view->SetScrollbarHidden (m_thumbnail.IsShown());
     }
 
-    //  A WOZ image's details, between the toolbar and the catalog, as tall as
-    //  their lines at the pane's width, up to a share of the pane.
+    //  A WOZ image's details, between the thumbnail and the catalog.
     if (m_summary->IsVisible())
     {
-        m_summary->Layout  (content, scaler);
-        m_summary->Measure (*m_context.window.GetTextRenderer(), *m_context.theme);
-
-        summaryPx = (std::min) (m_summary->GetContentHeightPx(), (int) (content.bottom - content.top) / kSummaryShare);
-
         m_summary->Layout (RECT { content.left, content.top, content.right, content.top + summaryPx }, scaler);
 
         m_ruleBand  = RECT { content.left, content.top + summaryPx, content.right, content.top + summaryPx + scaler.ToPx (kRuleBandDip) };
-        content.top = m_ruleBand.bottom;
+        content.top = (std::min) (m_ruleBand.bottom, content.bottom);
     }
 
     m_content = content;
@@ -245,9 +291,10 @@ void ExplorerPreviewManager::Hide()
         view->Hide();
     }
 
-    m_message->SetVisible (false);
-    m_summary->SetVisible (false);
-    m_toolbar->SetVisible (false);
+    m_message->SetVisible  (false);
+    m_summary->SetVisible  (false);
+    m_sections->SetVisible (false);
+    m_toolbar->SetVisible  (false);
     m_thumbnail.Hide();
 }
 
@@ -314,11 +361,21 @@ void ExplorerPreviewManager::FillPreview()
 
     m_lastKind = preview.kind;
 
+    //  A disk with a saved game has the switch between the two, and the
+    //  disk's thumbnail only with the disk.
+    if (m_sections->IsVisible() != (visible && preview.hasSavedGame))
+    {
+        m_sections->SetVisible (visible && preview.hasSavedGame);
+        m_context.layout.RecomputeLayout();
+    }
+
+    m_sections->SetSelected (preview.savedGameShown ? 0 : 1);
+
     //  The thumbnail of an image or a card's partition selected alone, in a
     //  format the inspector reads; none for one that fails to open (FR-072).
     {
         bool          wasShown = m_thumbnail.IsShown();
-        bool          isOne    = visible && !error && m_context.browser.GetSelectedRows().size() == 1;
+        bool          isOne    = visible && !error && !preview.savedGameShown && m_context.browser.GetSelectedRows().size() == 1;
         std::wstring  path     = isOne && m_context.browser.AreSelectedRowsImages() ? m_context.cassoTarget.GetSelectedImagePath() : std::wstring();
 
         if (isOne && m_context.browser.IsPartitionListLocation())

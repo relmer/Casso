@@ -411,6 +411,13 @@ bool ExplorerWindowParts::HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lPar
         return true;
     }
 
+    //  An installer that changes a file association may also add commands.
+    if (msg == (UINT) AppMessage::ExplorerAssocChanged)
+    {
+        menus.RefreshPackagedCommands();
+        return true;
+    }
+
     if (msg == (UINT) AppMessage::ExplorerRunCommand)
     {
         if (commandManager.IsEnabled ((int) wParam))

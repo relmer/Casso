@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Seams/Win32PackageWatcher.h"
+
 
 
 
@@ -24,8 +26,13 @@
 //  command store or static verbs registered for the item's type, of which
 //  only Windows' own few appear on File Explorer's first level.
 //
-//  The manifests are read once on a worker thread, and the commands are
-//  created when a menu opens, as File Explorer creates them.
+//  The manifests are read on a worker thread at startup, and again whenever
+//  a package is installed, updated or removed, or a file association
+//  changes. After each read the worker creates every command once and
+//  releases it, so the first menu doesn't load their DLLs. A menu creates a
+//  command the first time it applies and reuses it until the next read;
+//  creating one takes up to 60 ms, while its state and title take well under
+//  one, so they are requested again for each menu.
 //
 //  New's choices are the shell's own New menu, read once on a thread of their
 //  own, since the shell's handler for it takes a few hundred milliseconds to
@@ -66,8 +73,13 @@ public:
     ~Win32PackagedCommands();
 
     //  Starts reading the installed packages' manifests and New's choices,
-    //  and posts `message` to `notify` once the choices are read.
-    void  Start (HWND notify, UINT message);
+    //  and posts `message` to `notify` once the choices are read. The shell
+    //  sends `assocMessage` to `notify` when a file association changes.
+    void  Start (HWND notify, UINT message, UINT assocMessage);
+
+    //  Reads the manifests again, as after a package change; called when a
+    //  file association changes.
+    void  Refresh ();
 
     //  Returns the commands that apply to the items; empty until the
     //  manifests are read.
@@ -110,8 +122,18 @@ private:
     static constexpr UINT  s_kFirstNewCommandId = 1;
     static constexpr UINT  s_kLastNewCommandId  = 0x7FFF;
 
-    void  ReadAll        ();
-    void  ReadNewChoices ();
+    struct CachedCommand
+    {
+        CLSID                                       clsid = {};
+        Microsoft::WRL::ComPtr<IExplorerCommand>    command;
+    };
+
+    void     ReadAll        ();
+    void     ReadNewChoices ();
+    HRESULT  GetCommand     (const CLSID & clsid, IExplorerCommand ** outCommand);
+
+    static void  PrepareCommands (const std::vector<Registration> & registrations);
+    static bool  IsDisconnected  (HRESULT hr);
 
     static HRESULT       OpenManifest       (const wchar_t * fullName, IStream ** outStream);
     static HRESULT       ReadManifest       (IStream * stream, const wchar_t * fullName, std::vector<Registration> & outRegistrations);
@@ -139,9 +161,13 @@ private:
     std::thread                 m_reader;
     std::thread                 m_newReader;
     std::mutex                  m_lock;
-    bool                        m_read          = false;
+    bool                        m_read               = false;
+    unsigned                    m_generation         = 0;        // advanced by each read of the manifests
     std::vector<Registration>   m_registrations;
+    std::vector<CachedCommand>  m_commands;                      // used only on the thread that opens menus
+    unsigned                    m_commandsGeneration = 0;
     std::vector<NewChoice>      m_newChoices;
-    HWND                        m_notify        = nullptr;
-    UINT                        m_notifyMessage = 0;
+    HWND                        m_notify             = nullptr;
+    UINT                        m_notifyMessage      = 0;
+    Win32PackageWatcher         m_watcher;                       // last, so it stops before ReadAll's members are destroyed
 };

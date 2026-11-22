@@ -1,0 +1,115 @@
+#pragma once
+
+#include "Pch.h"
+
+#include "SettingsPanelState.h"
+#include "Ui/Settings/SerialCardPage.h"
+
+
+
+class DxuiHwndSource;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SlotsPage
+//
+//  The settings sheet's "Slots" tab, on a machine with slots. The slots are
+//  listed down the left, each with its card. The selected slot's card and
+//  that card's options are on the right: how many drives are connected to a
+//  storage or Disk II card, or which kind of drive is on each SCSI ID, the
+//  firmware a storage card runs, and a Super Serial Card's switches and
+//  connection. Images are inserted and ejected from the drives themselves,
+//  not here. Each edit takes a machine reset to apply.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class SlotsPage : public DxuiPropertyPage
+{
+public:
+    explicit SlotsPage (std::wstring title = L"Slots");
+
+    static constexpr int     kFirstSlot = 1;
+    static constexpr int     kLastSlot  = 7;
+    static constexpr size_t  kMaxPorts  = 8;
+
+    // Called with a card's device once the card is put in a slot.
+    using CardChosenFn = std::function<void (const std::string & device)>;
+
+    void  Layout          (const RECT & rect, const DxuiDpiScaler & scaler) override;
+    void  Paint           (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    void  SetState        (SettingsPanelState * state);
+    void  SetPopupHost    (DxuiHwndSource * host);
+    void  SetOnCardChosen (CardChosenFn fn) { m_onCardChosen = std::move (fn); }
+    void  SetOnAnimate    (std::function<void()> fn) { m_onAnimate = std::move (fn); }
+    void  Rebuild         ();
+
+    // The Super Serial Card's switches and connection, on the card's slot.
+    SerialCardPage  & GetSerialPage () { return m_serial; }
+
+    // The edits, exposed for unit tests.
+    void                  SelectSlot       (int slot);
+    void                  ChooseCard       (int choice);
+    void                  ChoosePortDrive  (size_t port, int choice);
+    void                  ChooseDriveCount (int choice);
+    void                  SetAppleFirmware (bool isApple);
+    int                   GetSelectedSlot  () const { return m_selectedSlot; }
+    const std::wstring  & GetStoragePrompt () const { return m_prompt; }
+    DxuiComboBox        & GetCardDropdown  ()       { return m_cardDropdown; }
+    size_t                GetPortRowCount  () const { return m_portRows; }
+    DxuiComboBox        & GetPortDropdown  (size_t port) { return m_portDropdowns[port]; }
+    DxuiComboBox        & GetCountDropdown ()       { return m_countDropdown; }
+
+    const DxuiSegmentedControl  & GetFirmwareChoice () const { return m_firmware; }
+
+    // Whether a control on the page is moving and wants frame-rate ticks.
+    bool  IsAnimating () const { return m_firmware.WantsTick(); }
+
+    // A slot's line in the list, "Slot 5: Apple II SCSI Card" or "Slot 2:
+    // Empty". Exposed for unit tests.
+    static std::wstring  MakeSlotLabel (const std::vector<HardwareEntry> & entries, int slot);
+
+private:
+    static RECT          MakeRect         (int l, int t, int w, int h);
+    static std::wstring  Widen            (const std::string & narrow);
+    static std::wstring  GetCardName      (const HardwareEntry & entry);
+    int                  GetSelectedEntry () const;
+    bool                 IsDiskIiSelected () const;
+    bool                 IsSerialSelected () const;
+    void                 RebuildList      ();
+    void                 RebuildDetail    ();
+    void                 ApplyCard        (const std::string & device);
+    void                 OnEdited         (HRESULT hr, const std::wstring & error = std::wstring());
+    void                 Relayout         ();
+    RECT                 GetRowRect       (int row) const;
+
+    SettingsPanelState            * m_state          = nullptr;
+    CardChosenFn                    m_onCardChosen;
+    std::function<void()>           m_onAnimate;
+    RECT                            m_baseRect       = {};
+    RECT                            m_panelRect      = {};
+    DxuiDpiScaler                   m_scaler;
+
+    DxuiListView                          m_list;
+    DxuiLabel                             m_cardLabel;
+    DxuiComboBox                          m_cardDropdown;
+    DxuiLabel                             m_promptLabel;
+    DxuiSegmentedControl                  m_firmware;
+    DxuiLabel                             m_firmwareNote;
+    DxuiLabel                             m_countLabel;
+    DxuiComboBox                          m_countDropdown;
+    std::array<DxuiLabel,    kMaxPorts>   m_portLabels;
+    std::array<DxuiComboBox, kMaxPorts>   m_portDropdowns;
+    std::array<DxuiCheckbox, kMaxPorts>   m_timingBoxes;
+    SerialCardPage                        m_serial;
+
+    std::vector<SlotCardChoice>     m_cardChoices;
+    std::wstring                    m_prompt;
+    int                             m_selectedSlot   = kFirstSlot;
+    int                             m_countBase      = 0;
+    size_t                          m_portRows       = 0;
+    bool                            m_isCounted      = false;
+};

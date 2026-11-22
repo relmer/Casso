@@ -32,6 +32,12 @@ public:
     static std::wstring  GetDetail  (DeskDriveModel model, uint32_t diskBlocks, uint32_t capacityBlocks);
     static std::wstring  FormatSize (uint32_t blocks);
 
+    //  A drive's line under its disk's name on the desk: its label, if it
+    //  has one, then its model and size, as "SCSI-6: Hard disk 20SC (32MB)".
+    //  A 3.5-inch drive's size is its disk's when a smaller disk is in it,
+    //  and a hard disk's is its image's.
+    static std::wstring  GetCaption (const DeskDrive & drive, bool numbered, uint32_t diskBlocks, uint32_t capacityBlocks);
+
     //  A desk drive's tip: its two lines, then its image's name, or "No disk"
     //  ("No image" for a hard disk), then whether the image is write-protected.
     static std::wstring  GetTip     (const std::wstring & title,

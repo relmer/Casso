@@ -148,7 +148,7 @@ Win32PackagedCommands::~Win32PackagedCommands()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Win32PackagedCommands::Start (HWND notify, UINT message)
+void Win32PackagedCommands::Start (HWND notify, UINT message, UINT assocMessage)
 {
     if (m_reader.joinable())
     {
@@ -192,6 +192,8 @@ void Win32PackagedCommands::Start (HWND notify, UINT message)
             CoUninitialize();
         }
     });
+
+    m_watcher.Start (notify, assocMessage, [this]() { ReadAll(); });
 }
 
 
@@ -261,9 +263,63 @@ void Win32PackagedCommands::ReadAll()
     {
         std::lock_guard<std::mutex>  guard (m_lock);
 
-        m_registrations = std::move (found);
+        m_registrations = found;
         m_read          = true;
+        m_generation++;
     }
+
+    PrepareCommands (found);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32PackagedCommands::PrepareCommands
+//
+//  Create each command once and release it, which loads its DLL or starts
+//  its server, so the first menu that lists it opens quickly.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32PackagedCommands::PrepareCommands (const std::vector<Registration> & registrations)
+{
+    std::vector<CLSID>  made;
+
+
+
+    for (const Registration & registration : registrations)
+    {
+        Microsoft::WRL::ComPtr<IExplorerCommand>  command;
+        HRESULT                                   hr = S_OK;
+
+        if (std::any_of (made.begin(), made.end(), [&registration] (const CLSID & clsid) { return IsEqualCLSID (clsid, registration.clsid); }))
+        {
+            continue;
+        }
+
+        made.push_back (registration.clsid);
+
+        hr = CoCreateInstance (registration.clsid, nullptr, CLSCTX_LOCAL_SERVER | CLSCTX_INPROC_SERVER, IID_PPV_ARGS (&command));
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32PackagedCommands::Refresh
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32PackagedCommands::Refresh()
+{
+    m_watcher.Refresh();
 }
 
 
@@ -901,6 +957,13 @@ std::vector<Win32PackagedCommands::Entry> Win32PackagedCommands::GetEntries (con
 
         BAIL_OUT_IF (!m_read, S_OK);
         registrations = m_registrations;
+
+        //  A new read of the manifests releases the commands made from the old one.
+        if (m_commandsGeneration != m_generation)
+        {
+            m_commands.clear();
+            m_commandsGeneration = m_generation;
+        }
     }
 
     BAIL_OUT_IF (paths.empty() && kind != ItemKind::Background, S_OK);
@@ -929,7 +992,7 @@ std::vector<Win32PackagedCommands::Entry> Win32PackagedCommands::GetEntries (con
             }
 
             applies++;
-            hrMade = CoCreateInstance (registrations[next].clsid, nullptr, CLSCTX_LOCAL_SERVER | CLSCTX_INPROC_SERVER, IID_PPV_ARGS (&command));
+            hrMade = GetCommand (registrations[next].clsid, &command);
 
             if (SUCCEEDED (hrMade))
             {
@@ -942,6 +1005,73 @@ std::vector<Win32PackagedCommands::Entry> Win32PackagedCommands::GetEntries (con
 
 Error:
     return entries;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32PackagedCommands::GetCommand
+//
+//  Reuse the command made for an earlier menu. A local server's command
+//  stops working when its server exits, so a disconnected one is made again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32PackagedCommands::GetCommand (const CLSID & clsid, IExplorerCommand ** outCommand)
+{
+    HRESULT                                   hr      = S_OK;
+    EXPCMDFLAGS                               flags   = ECF_DEFAULT;
+    Microsoft::WRL::ComPtr<IExplorerCommand>  command;
+    auto                                      cached  = std::find_if (m_commands.begin(), m_commands.end(), [&clsid] (const CachedCommand & entry)
+    {
+        return IsEqualCLSID (entry.clsid, clsid);
+    });
+
+
+
+    *outCommand = nullptr;
+
+    if (cached != m_commands.end() && IsDisconnected (cached->command->GetFlags (&flags)))
+    {
+        m_commands.erase (cached);
+        cached = m_commands.end();
+    }
+
+    if (cached != m_commands.end())
+    {
+        command = cached->command;
+    }
+    else
+    {
+        hr = CoCreateInstance (clsid, nullptr, CLSCTX_LOCAL_SERVER | CLSCTX_INPROC_SERVER, IID_PPV_ARGS (&command));
+        CHR (hr);
+
+        m_commands.push_back ({ clsid, command });
+    }
+
+    *outCommand = command.Detach();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32PackagedCommands::IsDisconnected
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Win32PackagedCommands::IsDisconnected (HRESULT hr)
+{
+    return hr == RPC_E_DISCONNECTED || hr == CO_E_OBJNOTCONNECTED || hr == RPC_E_SERVER_DIED || hr == RPC_E_SERVER_DIED_DNE ||
+           hr == HRESULT_FROM_WIN32 (RPC_S_SERVER_UNAVAILABLE) || hr == HRESULT_FROM_WIN32 (RPC_S_CALL_FAILED);
 }
 
 

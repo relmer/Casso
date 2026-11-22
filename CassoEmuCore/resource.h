@@ -164,6 +164,9 @@
 #define IDM_STORAGE_ATTACH_APPLE35  40501
 #define IDM_STORAGE_ATTACH_FLOPPY   40502
 
+// The cassette recorder's place with the desk scene: the desk or the drive dock.
+#define IDM_VIEW_RECORDER_ON_DESK   40503
+
 // The //c Plus's second 5.25-inch drive on its disk port, slot 6 drive 2.
 // Taken from a separate block above every open branch's ids.
 #define IDM_DISK_INSERT3            40600

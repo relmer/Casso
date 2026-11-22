@@ -199,6 +199,11 @@ struct PreviewContent
     //  and metadata in `details`, listed above it.
     std::wstring               wozPath;
 
+    //  Set for a disk with a game's saved game on it, which previews as either
+    //  the saved game or the disk; `savedGameShown` indicates which.
+    bool                       hasSavedGame   = false;
+    bool                       savedGameShown = false;
+
     //  The character set text was read in, Default when the preview has no
     //  choice of one, and the record length a random-access text file was
     //  split by, 0 for any other file. The sheet form is the one a

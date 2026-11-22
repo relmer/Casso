@@ -21,7 +21,8 @@
 //  the band grows with it. The band is the closed row's height, so the //c's
 //  switch strip sits right above the row and an open class fans out over it.
 //  With auto-hide on, the drives slide up over the picture from the bottom
-//  edge, so the band collapses too. Otherwise the band zooms with the scene so it hugs the
+//  edge, so the band collapses too. A recorder in the dock makes the row as
+//  tall as the recorder. Otherwise the band zooms with the scene so it hugs the
 //  scaled widgets instead of leaving dead space around them.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,7 +31,7 @@ int ChromeBandLayout::DriveBandDp (const ChromeBandInputs & inputs)
 {
     int   dp    = 0;
     bool  bar   = inputs.drivesOnBar;
-    int   rowDp = bar ? kDriveBarRowDp : inputs.driveBarThicknessDp;
+    int   rowDp = bar ? std::max (kDriveBarRowDp, inputs.dockRecorderDp) : inputs.driveBarThicknessDp;
     float scale = bar ? inputs.driveBarZoom : inputs.chromeSceneScale;
 
 

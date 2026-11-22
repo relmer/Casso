@@ -71,6 +71,14 @@ public:
     //  Removes the drive on `port` of a chain card.
     static HRESULT  RemoveChainDrive (std::vector<HardwareEntry> & entries, size_t index, size_t port);
 
+    //  Connects the drive `device` to `port` of a card whose ports each take
+    //  their own kind of drive, such as a SCSI ID; an empty device leaves
+    //  the port with no drive.
+    static HRESULT  SetPortDrive (std::vector<HardwareEntry> & entries, size_t index, size_t port, const std::string & device);
+
+    //  Connects the first `count` drives of a chain card, in chain order.
+    static HRESULT  SetChainCount (std::vector<HardwareEntry> & entries, size_t index, size_t count);
+
     //  "Slot 5: UniDisk 3.5 interface card".
     static std::string  MakeDisplayName (int slot, const std::string & label);
 };

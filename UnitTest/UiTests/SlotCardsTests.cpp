@@ -3,7 +3,7 @@
 #include "Core/JsonParser.h"
 #include "Core/JsonWriter.h"
 #include "Devices/BlockDevice/BlockDeviceCatalog.h"
-#include "Ui/Settings/HardwarePage.h"
+#include "Ui/Settings/SlotsPage.h"
 #include "Ui/Settings/SettingsJson.h"
 #include "Ui/Settings/SettingsPanelState.h"
 #include "Ui/Settings/SlotCards.h"
@@ -185,53 +185,28 @@ public:
     }
 
 
-    //  Replacing a card in a filled slot takes a confirmation, and after
-    //  Cancel the slot's card is in place.
-    TEST_METHOD (Page_ConfirmsBeforeReplacingACard)
+    //  Every slot is listed with its card, and an empty slot as empty.
+    TEST_METHOD (Page_ListsEverySlotWithItsCard)
     {
         SettingsPanelState  st;
-        HardwarePage        page;
         JsonValue           machine = Parse (kMachineJson);
-        int                 profile = -1;
 
 
 
         AssertSucceeded (st.LoadFromMachine ("Apple2e", machine, machine));
-        page.SetState (&st);
-        page.SelectSlot (4);
 
-        for (size_t i = 0; i < page.GetCardDropdown().GetItems().size(); i++)
-        {
-            if (page.GetCardDropdown().GetItems()[i] == L"ProFile interface card")
-            {
-                profile = (int) i;
-            }
-        }
-
-        Assert::IsTrue (profile >= 0);
-
-        page.ChooseCard (profile);
-        Assert::IsTrue (page.IsReplacePending());
-        Assert::IsTrue (page.GetStoragePrompt().starts_with (L"Replace the Mockingboard"), page.GetStoragePrompt().c_str());
-        Assert::IsFalse (st.RequiresReset(), L"nothing changes before the confirmation");
-
-        page.CancelReplace();
-        Assert::IsFalse (page.IsReplacePending());
-        Assert::AreEqual (std::string ("mockingboard-c"), st.GetHardware()[(size_t) SlotCards::FindSlot (st.GetHardware(), 4)].type);
-
-        page.ChooseCard (profile);
-        page.ConfirmReplace();
-        Assert::AreEqual (std::string (kpszProFileCardDevice), st.GetHardware()[(size_t) SlotCards::FindSlot (st.GetHardware(), 4)].type);
-        Assert::IsTrue (st.RequiresReset());
+        Assert::AreEqual (std::wstring (L"Slot 1: Empty"),  SlotsPage::MakeSlotLabel (st.GetHardware(), 1));
+        Assert::AreEqual (std::wstring (L"Slot 6: Disk ]["), SlotsPage::MakeSlotLabel (st.GetHardware(), 6));
+        Assert::IsTrue   (SlotsPage::MakeSlotLabel (st.GetHardware(), 4).starts_with (L"Slot 4: Mockingboard"));
     }
 
 
-    //  A card put in a slot is reported, so its firmware download can be
-    //  offered; a card the confirmation was canceled for isn't.
-    TEST_METHOD (Page_ReportsTheCardPutInASlot)
+    //  A card chosen for a filled slot replaces the card in it at once, and
+    //  is reported, so its firmware download can be offered.
+    TEST_METHOD (Page_ReplacesACardAtOnce)
     {
         SettingsPanelState  st;
-        HardwarePage        page;
+        SlotsPage           page;
         JsonValue           machine = Parse (kMachineJson);
         int                 profile = -1;
         std::string         chosen;
@@ -254,24 +229,20 @@ public:
         Assert::IsTrue (profile >= 0);
 
         page.ChooseCard (profile);
-        page.CancelReplace();
-        Assert::IsTrue (chosen.empty(), L"the replacement was canceled");
-
-        page.ChooseCard (profile);
-        page.ConfirmReplace();
+        Assert::AreEqual (std::string (kpszProFileCardDevice), st.GetHardware()[(size_t) SlotCards::FindSlot (st.GetHardware(), 4)].type);
         Assert::AreEqual (std::string (kpszProFileCardDevice), chosen);
+        Assert::IsTrue   (st.RequiresReset());
     }
 
 
-    //  A drive selected in the tree takes an image from the file dialog, and
-    //  a chain's Add drive stops at its limit with the limit in the prompt.
-    TEST_METHOD (Page_AttachesAnImageAndLimitsAChain)
+    //  A chain card has a number of drives connected, from none to its
+    //  limit.
+    TEST_METHOD (Page_SetsHowManyDrivesAChainHas)
     {
         SettingsPanelState  st;
-        HardwarePage        page;
+        SlotsPage           page;
         JsonValue           machine = Parse (kMachineJson);
         std::wstring        error;
-        std::string         browsedFor;
         int                 liron   = -1;
 
 
@@ -281,23 +252,50 @@ public:
         liron = SlotCards::FindSlot (st.GetHardware(), 5);
 
         page.SetState (&st);
-        page.SetOnBrowseImage ([&browsedFor] (const std::string & device, std::string & path) { browsedFor = device; path = "C:/disks/800k.po"; return true; });
-        page.SelectTreeRow (std::format (L"drive:{}:0", liron));
-        Assert::AreEqual (5, page.GetSelectedSlot());
-        Assert::IsTrue (page.GetAttachButton().IsEnabled());
-        Assert::IsFalse (page.GetEjectButton().IsEnabled(), L"the drive is empty");
+        page.SelectSlot (5);
+        Assert::AreEqual ((size_t) 5, page.GetCountDropdown().GetItems().size(), L"none to four drives");
+        Assert::AreEqual (1, page.GetCountDropdown().GetSelectedIndex());
 
-        page.AttachImage();
-        Assert::AreEqual (std::string ("C:/disks/800k.po"), st.GetHardware()[(size_t) liron].portImages[0]);
-        Assert::AreEqual (std::string (kpszUniDisk35Device), browsedFor, L"the request has the port's drive, whose images the picker lists");
+        page.ChooseDriveCount (3);
+        Assert::AreEqual ((size_t) 3, st.GetHardware()[(size_t) liron].ports.size());
 
-        for (int i = 0; i < 4; i++)
-        {
-            page.AddDrive();
-        }
+        page.ChooseDriveCount (0);
+        Assert::IsTrue (st.GetHardware()[(size_t) liron].ports.empty());
+        Assert::IsTrue (st.RequiresReset());
+    }
 
-        Assert::AreEqual ((size_t) 4, st.GetHardware()[(size_t) liron].ports.size());
-        Assert::IsTrue (page.GetStoragePrompt().find (L"at most 4") != std::wstring::npos, page.GetStoragePrompt().c_str());
+
+    //  Each SCSI ID takes a kind of drive, or none.
+    TEST_METHOD (Page_ChoosesADriveForEachScsiId)
+    {
+        SettingsPanelState  st;
+        SlotsPage           page;
+        JsonValue           machine = Parse (kMachineJson);
+        std::wstring        error;
+        int                 scsi    = -1;
+
+
+
+        AssertSucceeded (st.LoadFromMachine ("Apple2e", machine, machine));
+        AssertSucceeded (st.SetSlotCard (7, kpszAppleScsiCardDevice, error));
+        scsi = SlotCards::FindSlot (st.GetHardware(), 7);
+
+        page.SetState (&st);
+        page.SelectSlot (7);
+        Assert::AreEqual ((size_t) 7, page.GetPortRowCount());
+        Assert::AreEqual (1, page.GetFirmwareChoice().GetSelected(), L"Apple's ROM");
+
+        page.SetAppleFirmware (false);
+        Assert::IsTrue   (st.GetHardware()[(size_t) scsi].cassoFirmware);
+        Assert::AreEqual (0, page.GetFirmwareChoice().GetSelected(), L"Casso's fast firmware");
+        Assert::AreEqual (1, page.GetPortDropdown (6).GetSelectedIndex(), L"the HD20SC is at ID 6");
+        Assert::AreEqual (0, page.GetPortDropdown (2).GetSelectedIndex());
+
+        page.ChoosePortDrive (2, 1);
+        Assert::AreEqual (std::string (kpszHd20scDevice), st.GetHardware()[(size_t) scsi].ports[2]);
+
+        page.ChoosePortDrive (6, 0);
+        Assert::IsTrue (st.GetHardware()[(size_t) scsi].ports[6].empty());
     }
 
 
@@ -306,7 +304,7 @@ public:
     TEST_METHOD (Page_BlockedCardShowsItsHosts)
     {
         SettingsPanelState  st;
-        HardwarePage        page;
+        SlotsPage           page;
         JsonValue           machine = Parse (kMachineJson);
 
 

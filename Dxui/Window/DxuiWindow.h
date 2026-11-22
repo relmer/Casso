@@ -241,7 +241,9 @@ public:
     //
     //  Request a repaint of the window (the backend's WM_PAINT pump
     //  walks this panel tree). Consumers with a per-frame data model
-    //  call this after mutating state.
+    //  call this after mutating state. The window is painted before this
+    //  returns, except while a mouse event is dispatched: then it is
+    //  painted once, after the event.
     //
     void     Invalidate ();
 
@@ -448,6 +450,7 @@ private:
     bool                               m_wheelCtrl       = false;   // Ctrl, by the flags of the wheel message being dispatched
     int                                m_modalResult     = 0;
     int                                m_defaultButtonId = 0;
+    int                                m_mouseDepth      = 0;       // mouse events being dispatched, nested ones included
     UINT                               m_dialogTickMs    = kDefaultDialogTickMs;   // dialog repaint / tick cadence (caret-blink default)
     std::function<void (int)>        m_onDialogEnd;            // modeless close callback
     std::function<void ()>           m_onModalLoopTick;        // OS size/move-loop keep-alive tick

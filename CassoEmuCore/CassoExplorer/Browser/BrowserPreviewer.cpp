@@ -535,8 +535,94 @@ void BrowserPreviewer::PreviewImageCatalog (const std::wstring & imagePath)
         m_browser.m_model.CacheCatalog (imagePath, listing, kind);
     }
 
+    if (m_savedGameShown && PreviewSavedGame (imagePath, listing, kind))
+    {
+        m_preview.hasSavedGame   = true;
+        m_preview.savedGameShown = true;
+        return;
+    }
+
     PreviewDecoder::RenderCatalog (listing, kind, m_preview);
     AddWozDetails (imagePath);
+
+    m_preview.hasSavedGame = FindSavedGame (listing, kind) != nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserPreviewer::SetSavedGameShown
+//
+//  Whether a disk with a saved game previews as the saved game or as the
+//  disk. The choice applies to every such disk until it is changed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BrowserPreviewer::SetSavedGameShown (bool shown)
+{
+    m_savedGameShown = shown;
+    UpdatePreview();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserPreviewer::FindSavedGame
+//
+//  A Wizardry scenario disk's SCENARIO.DATA, or null for any other disk.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const FileEntry * BrowserPreviewer::FindSavedGame (const VolumeListing & listing, VolumeKind kind)
+{
+    auto  scenario = std::find_if (listing.entries.begin(), listing.entries.end(),
+                                   [] (const FileEntry & entry) { return !entry.isDirectory && _stricmp (entry.name.c_str(), "SCENARIO.DATA") == 0; });
+
+
+
+    return (kind == VolumeKind::Pascal && scenario != listing.entries.end()) ? &*scenario : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserPreviewer::PreviewSavedGame
+//
+//  A Wizardry scenario disk previews as the saved game in its SCENARIO.DATA:
+//  the roster and the map of the level the party is on. False, with the
+//  preview cleared, for any other disk or a SCENARIO.DATA that doesn't decode.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BrowserPreviewer::PreviewSavedGame (const std::wstring & imagePath, const VolumeListing & listing, VolumeKind kind)
+{
+    const FileEntry  * scenario = FindSavedGame (listing, kind);
+
+
+
+    if (scenario == nullptr)
+    {
+        return false;
+    }
+
+    PreviewEntry (imagePath, scenario->name, *scenario, kind);
+
+    if (m_preview.kind != PreviewContent::Kind::Document)
+    {
+        m_preview = PreviewContent();
+        return false;
+    }
+
+    return true;
 }
 
 

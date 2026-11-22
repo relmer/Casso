@@ -1212,8 +1212,17 @@ Fixed during the walk:
 
 ### 7f. CassoLink additions
 
-Not walked: the owner's //c is on COM3 for another session's captures, and the
-emulator targets are that session's.
+Walked on the emulator targets by the Story 23 to 29 tasks; the results are in the
+sections below. The steps on the owner's //c are left under T580 and T585.
+
+| Step | Result |
+|---|---|
+| 1. Block devices | AppleWin's hard disk and MAME's //c with a UniDisk 3.5: Block devices in other emulators (T574) and Block devices in MAME (T709) |
+| 2. Raw capture | Each protected WOZ captured in an emulated //c and booted: `CassoLinkCaptureTests` (T579). Archon on the owner's //c took 18 minutes 47 seconds, over SC-055's 5 minutes: section 16 (T580, open) |
+| 3. Virtual drives | SAVE to each drive on an emulated //c: `CassoLinkVirtualDriveTests` (T585). The owner's //c is left |
+| 4. Cassette disks | A 140K disk each way on an emulated ][+ and //e, and ADTPro's audio client: `CassoLinkCassetteTests` and `CassoLinkAdtProAudioTests` (T592) |
+| 5. Tape recordings | Each format loaded and run in an emulated ][+ and read back: `TapeRecordingTests` (T597) |
+| 6. Interfaces and the Apple /// | Story 28's emulator targets (T602) and section 18 (T606) |
 
 ### 7g. File systems and layouts
 

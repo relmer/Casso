@@ -319,7 +319,7 @@ public:
     }
 
 
-    TEST_METHOD (CounterSitsBesideTheButtonsUnderTheRail)
+    TEST_METHOD (CounterSitsBesideTheButtonsUnderTheName)
     {
         TapeDeckWidget  widget;
         RECT            name    = {};
@@ -327,6 +327,7 @@ public:
 
 
 
+        widget.SyncFromView (MakeView (TapeTransport::Stopped));
         LayOut (widget);
         name    = widget.GetNameRect();
         counter = widget.GetCounterRect();
@@ -336,6 +337,47 @@ public:
         Assert::IsTrue (widget.HitTest ((counter.left + counter.right) / 2, (counter.top + counter.bottom) / 2) == TapeDeckRegion::Counter);
         Assert::IsTrue (TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Counter, MakeView (TapeTransport::Stopped)));
         Assert::IsFalse (TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Counter, TapeDeckView()), L"no tape, nothing to wind");
+    }
+
+
+    TEST_METHOD (NameJustAboveTheRestingButtonsOpensThePicker)
+    {
+        TapeDeckWidget  widget;
+        RECT            name = {};
+        int             x    = 0;
+        int             y    = 0;
+
+
+
+        LayOut (widget);
+        name = widget.GetNameRect();
+        x    = (name.left + name.right) / 2;
+        y    = name.bottom - 2;
+
+        widget.UpdateHover (x, y);
+
+        Assert::IsTrue (widget.GetHover() == TapeDeckRegion::Name, L"the resting row doesn't reach up over the name");
+    }
+
+
+    TEST_METHOD (EmptyDeckCentersTheButtonsWithNoCounter)
+    {
+        TapeDeckWidget  widget;
+        RECT            name    = {};
+        RECT            counter = {};
+        int             left    = 0;
+        int             right   = 0;
+
+
+
+        LayOut (widget);
+        name    = widget.GetNameRect();
+        counter = widget.GetCounterRect();
+        left    = widget.GetButtonRect (TapeDeckRegion::Record).left - name.left;
+        right   = name.right - widget.GetButtonRect (TapeDeckRegion::Eject).right;
+
+        Assert::AreEqual (counter.left, counter.right, L"no tape, no counter");
+        Assert::IsTrue (abs (left - right) <= 1, L"the buttons are centered under the name");
     }
 
 
