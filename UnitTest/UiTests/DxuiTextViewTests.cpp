@@ -125,12 +125,12 @@ public:
         LayOut (view, 400, 400);
         view.SetRows ({ MakeRow ({ L"above" }), row, MakeRow ({ L"below" }) });
 
-        Assert::IsTrue   (view.HitTestPicture (POINT { 6 + 3, 6 + 16 + 5 }, hitRow, x, y), L"The picture starts on the second line");
+        Assert::IsTrue   (view.GetPictures().HitTest (POINT { 6 + 3, 6 + 16 + 5 }, hitRow, x, y), L"The picture starts on the second line");
         Assert::AreEqual (1, hitRow);
         Assert::AreEqual (3, x);
         Assert::AreEqual (5, y);
-        Assert::IsFalse  (view.HitTestPicture (POINT { 6 + 3, 6 + 4 }, hitRow, x, y), L"The first line is text");
-        Assert::IsFalse  (view.HitTestPicture (POINT { 6 + 30, 6 + 16 + 5 }, hitRow, x, y), L"Past the picture's right edge");
+        Assert::IsFalse  (view.GetPictures().HitTest (POINT { 6 + 3, 6 + 4 }, hitRow, x, y), L"The first line is text");
+        Assert::IsFalse  (view.GetPictures().HitTest (POINT { 6 + 30, 6 + 16 + 5 }, hitRow, x, y), L"Past the picture's right edge");
     }
 
 
@@ -177,16 +177,16 @@ public:
         SetMapRows (view);
         Wheel (view, 6 + 50, 6 + 16 + 50, 1.0f);
 
-        Assert::AreEqual (1.25f, view.GetMapZoom());
+        Assert::AreEqual (1.25f, view.GetPictures().GetMapZoom());
         Assert::AreEqual (0, view.GetTopLine(), L"the wheel zooms the map rather than scroll the text");
-        Assert::IsTrue   (view.HitTestPicture (POINT { 6 + 50, 6 + 16 + 50 }, hitRow, x, y));
+        Assert::IsTrue   (view.GetPictures().HitTest (POINT { 6 + 50, 6 + 16 + 50 }, hitRow, x, y));
         Assert::AreEqual (50, x);
-        Assert::IsTrue   (view.HitTestPicture (POINT { 6 + 10, 6 + 16 + 10 }, hitRow, x, y));
+        Assert::IsTrue   (view.GetPictures().HitTest (POINT { 6 + 10, 6 + 16 + 10 }, hitRow, x, y));
         Assert::AreEqual (18, x, L"10 pixels left of the pointer at 1.25 times is 8 picture pixels left of 50, from an origin of 10");
 
         Wheel (view, 6 + 50, 6 + 16 + 50, -5.0f);
 
-        Assert::AreEqual (1.0f, view.GetMapZoom(), L"no smaller than the whole picture");
+        Assert::AreEqual (1.0f, view.GetPictures().GetMapZoom(), L"no smaller than the whole picture");
     }
 
 
@@ -200,14 +200,14 @@ public:
         Mouse (view, DxuiMouseEventKind::Down, 6 + 50, 6 + 16 + 50);
         Mouse (view, DxuiMouseEventKind::Move, 6 + 40, 6 + 16 + 50);
 
-        Assert::IsTrue (view.GetMapOrigin().x > 0, L"dragged left, the view moves right across the picture");
+        Assert::IsTrue (view.GetPictures().GetMapOrigin().x > 0, L"dragged left, the view moves right across the picture");
         Assert::IsFalse (view.HasSelection(), L"a drag on the map doesn't select text");
 
         Mouse (view, DxuiMouseEventKind::Move, 6 + 400, 6 + 16 + 400);
         Mouse (view, DxuiMouseEventKind::Up,   6 + 400, 6 + 16 + 400);
 
-        Assert::AreEqual (0L, view.GetMapOrigin().x, L"dragged far right and down, the view stops at the picture's left");
-        Assert::AreEqual (0L, view.GetMapOrigin().y, L"and its top");
+        Assert::AreEqual (0L, view.GetPictures().GetMapOrigin().x, L"dragged far right and down, the view stops at the picture's left");
+        Assert::AreEqual (0L, view.GetPictures().GetMapOrigin().y, L"and its top");
     }
 
 
@@ -219,16 +219,16 @@ public:
 
         SetMapRows (view);
 
-        Assert::IsTrue  (view.IsPinging());
-        Assert::IsTrue  (view.TickPing (10000),        L"the ping starts on the first tick");
-        Assert::IsTrue  (view.TickPing (10000 + 1000), L"its rings are spreading");
-        Assert::IsTrue  (view.TickPing (10000 + 1600), L"one frame to erase the last ring");
-        Assert::IsFalse (view.TickPing (10000 + 2000), L"at rest until the next period");
-        Assert::IsTrue  (view.TickPing (10000 + 3100), L"the next ping");
+        Assert::IsTrue  (view.GetPictures().IsPinging());
+        Assert::IsTrue  (view.GetPictures().TickPing (10000),        L"the ping starts on the first tick");
+        Assert::IsTrue  (view.GetPictures().TickPing (10000 + 1000), L"its rings are spreading");
+        Assert::IsTrue  (view.GetPictures().TickPing (10000 + 1600), L"one frame to erase the last ring");
+        Assert::IsFalse (view.GetPictures().TickPing (10000 + 2000), L"at rest until the next period");
+        Assert::IsTrue  (view.GetPictures().TickPing (10000 + 3100), L"the next ping");
 
         view.SetRows ({ MakeRow ({ L"text only" }) });
 
-        Assert::IsFalse (view.IsPinging());
+        Assert::IsFalse (view.GetPictures().IsPinging());
     }
 
     //  A table fits when each row's cells fit at their natural widths; a

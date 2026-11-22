@@ -4,7 +4,9 @@
 #include "Core/IDxuiControl.h"
 #include "Theme/IDxuiTheme.h"
 #include "DxuiScrollbar.h"
-#include "DxuiPictureMap.h"
+#include "DxuiTextPicture.h"
+#include "DxuiTextViewPictures.h"
+#include "IDxuiTextPictureHost.h"
 
 
 
@@ -49,7 +51,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DxuiTextView : public IDxuiControl
+class DxuiTextView : public IDxuiControl, private IDxuiTextPictureHost
 {
 public:
     //  A run of a cell's characters drawn in a color of their own.
@@ -68,17 +70,8 @@ public:
         bool      inverse   = false;
     };
 
-    //  A picture in 32-bit BGRA pixels, drawn a pixel a DIP, or smaller to
-    //  fit the text's width.
-    struct Picture
-    {
-        std::vector<uint32_t>  bgra;
-        int                    width  = 0;
-        int                    height = 0;
-        int                    pingX  = -1;      // rings spread from here, in the picture's pixels, every few seconds; -1 for none
-        int                    pingY  = -1;
-        bool                   zoom   = false;   // the wheel zooms it around the pointer and a left drag pans it
-    };
+    //  A picture in the rows: see DxuiTextPicture.
+    using Picture = DxuiTextPicture;
 
     //  A row of cells. A row of one cell is aligned in the text's width on
     //  each line it wraps onto; Justify draws as Left. A row with a picture
@@ -155,24 +148,10 @@ public:
 
     Position  HitTest (POINT point) const;
 
-    //  The picture under a point, as its row and the pixel of the picture;
-    //  false off a picture.
-    bool  HitTestPicture (POINT point, int & outRow, int & outX, int & outY) const;
-
-    //  A rectangle of a row's picture, in its pixels, outlined in the accent
-    //  color, as the cell under the pointer is; row -1 for none. Returns
-    //  whether the outline moved.
-    bool  SetPictureOutline (int row, const RECT & pictureRect);
-
-    //  Whether a picture with a ping is in the rows, and the ping's animation:
-    //  true when a frame changed, so the view needs painting.
-    bool  IsPinging () const;
-    bool  TickPing  (int64_t nowMs);
-
-    //  A zoomable picture's zoom, 1 for the whole picture, and the picture
-    //  pixel at its top left.
-    float  GetMapZoom   () const { return m_map.GetZoom(); }
-    POINT  GetMapOrigin () const { return m_map.GetOrigin(); }
+    //  The rows' pictures: painting, hit testing, the outline, and the zoom,
+    //  pan and ping of a picture shown as a map.
+    DxuiTextViewPictures        & GetPictures ()       { return m_pictures; }
+    const DxuiTextViewPictures  & GetPictures () const { return m_pictures; }
 
     //  Whether every row of more than one cell fits the text's width with each
     //  cell at its natural width, so no cell wraps: false for a table that
@@ -226,47 +205,51 @@ private:
     };
 
     static constexpr int  s_kPadDip             = 6;
-    static constexpr int  s_kOutlineMinCellDip  = 8;   // a picture cell smaller than this is outlined a cell's width out
     static constexpr int  s_kScrollbarWidthDip  = 10;
 
 
-    void          Rebuild                ();
-    void          BuildLines             (int columns);
-    void          BuildProportionalLines (float widthPx);
-    void          MeasureCharacters      (IDxuiTextRenderer & text, const DxuiFontHandle & font);
-    float         GetCellX               (const Row & row, int cell) const;
-    float         GetCharsPx             (int row, int cell, int from, int to) const;
-    int           GetNearestChar         (int row, int cell, int from, int to, float x) const;
-    int           GetTextColumns         (bool scrollbar) const;
-    int           GetContentColumns      () const;
-    float         GetTextLeft            () const;
-    bool          IsOverVertScrollbar    (POINT pt) const { return IsScrollbarVisible() && !m_vertBarHidden && m_vertScroll.HitTest (pt.x, pt.y); }
-    bool          IsOverHorzScrollbar    (POINT pt) const { return m_horzVisible && m_horzScroll.HitTest (pt.x, pt.y); }
-    int           GetCellStart           (const Row & row, int cell) const;
-    int           GetCellBase            (const Row & row, int cell) const;
-    int           GetRowLength           (const Row & row) const;
-    std::wstring  GetRowText             (const Row & row) const;
-    void          SyncScrollbar          ();
-    void          EnsureCellSize         (IDxuiTextRenderer & text, const IDxuiTheme & theme);
-    void          SelectWordAt           (Position pos);
-    void          GetWordBounds          (Position pos, Position & outFirst, Position & outLast) const;
+    //  IDxuiTextPictureHost: the lines, rows and geometry the pictures read.
+    int                      GetPictureLineCount    () const override         { return (int) m_lines.size(); }
+    int                      GetPictureLineRow      (int line) const override { return m_lines[(size_t) line].row; }
+    int                      GetPictureRowCount     () const override         { return (int) m_rows.size(); }
+    const DxuiTextPicture  * GetRowPicture          (int row) const override  { return (row >= 0 && row < (int) m_rows.size()) ? m_rows[(size_t) row].picture.get() : nullptr; }
+    int                      GetPictureTopLine      () const override         { return m_topLine; }
+    int                      GetPictureLineHeight   () const override         { return m_cellHeightPx; }
+    int                      GetPictureTextTop      () const override         { return (int) m_boundsDip.top + m_scaler.ToPx (s_kPadDip); }
+    float                    GetPictureTextLeft     () const override         { return GetTextLeft(); }
+    float                    GetPictureTextWidth    () const override         { return (float) GetTextColumns (IsScrollbarVisible()) * m_cellAdvance; }
+    const DxuiDpiScaler    & GetPictureScaler       () const override         { return m_scaler; }
+    void                     Rebuild                ();
+    void                     BuildLines             (int columns);
+    void                     BuildProportionalLines (float widthPx);
+    void                     MeasureCharacters      (IDxuiTextRenderer & text, const DxuiFontHandle & font);
+    float                    GetCellX               (const Row & row, int cell) const;
+    float                    GetCharsPx             (int row, int cell, int from, int to) const;
+    int                      GetNearestChar         (int row, int cell, int from, int to, float x) const;
+    int                      GetTextColumns         (bool scrollbar) const;
+    int                      GetContentColumns      () const;
+    float                    GetTextLeft            () const;
+    bool                     IsOverVertScrollbar    (POINT pt) const { return IsScrollbarVisible() && !m_vertBarHidden && m_vertScroll.HitTest (pt.x, pt.y); }
+    bool                     IsOverHorzScrollbar    (POINT pt) const { return m_horzVisible && m_horzScroll.HitTest (pt.x, pt.y); }
+    int                      GetCellStart           (const Row & row, int cell) const;
+    int                      GetCellBase            (const Row & row, int cell) const;
+    int                      GetRowLength           (const Row & row) const;
+    std::wstring             GetRowText             (const Row & row) const;
+    void                     SyncScrollbar          ();
+    void                     EnsureCellSize         (IDxuiTextRenderer & text, const IDxuiTheme & theme);
+    void                     SelectWordAt           (Position pos);
+    void                     GetWordBounds          (Position pos, Position & outFirst, Position & outLast) const;
 
     //  Word characters, spaces and tabs are three kinds; a run of one kind is
     //  what a double-click selects.
     static int    GetCharClass      (wchar_t ch) { return (ch == L'\t') ? 2 : (ch == L' ') ? 1 : 0; }
     void          PaintLine         (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, int lineIndex, const DxuiFontHandle & font);
-    void          PaintPicture      (IDxuiTextRenderer & text, const IDxuiTheme & theme, int lineIndex) const;
-    bool          GetPictureFrame   (int row, float & outLeft, float & outTop, float & outScale) const;
-    bool          ZoomPicture       (POINT point, float notches);
-    bool          TryStartMapPan    (POINT point);
-    void          AddPictureLines   (int row, float widthPx);
     void          FillSelectedRange (IDxuiPainter & painter, int y, int row, int cell, int cellFrom, int flatStart, int count, float trailPx, int selFrom, int selTo, uint32_t argb) const;
     void          DrawRun           (IDxuiTextRenderer & text, const IDxuiTheme & theme, const DxuiFontHandle & font, int y, int row, int cell, int cellFrom,
                                      int flatStart, const std::wstring & chars, bool selected, int selFrom, int selTo,
                                      const std::vector<uint32_t> & colors) const;
     std::vector<uint32_t>  GetRowColors (const Row & row) const;
     std::vector<uint8_t>   GetRowStyles (const Row & row) const;
-    DxuiPictureMap::Key    GetMapKey    (int row) const;
     float                  GetLineShift (int lineIndex) const;
 
     //  The line being painted: its shift for its row's alignment, each
@@ -280,9 +263,7 @@ private:
     float                  m_paintShift    = 0.0f;
     std::vector<uint8_t>   m_paintStyles;
     IDxuiPainter         * m_paintPainter  = nullptr;
-    int                    m_outlineRow    = -1;
-    RECT                   m_outlineRect   = {};
-    DxuiPictureMap         m_map;
+    DxuiTextViewPictures   m_pictures      { *this };
 
     std::vector<Row>   m_rows;
     std::vector<Line>  m_lines;

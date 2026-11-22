@@ -158,7 +158,7 @@ bool PreviewTextView::UpdateScrollbarHover (POINT at)
 
 bool PreviewTextView::IsPinging() const
 {
-    return IsShowing() && m_text->IsPinging();
+    return IsShowing() && m_text->GetPictures().IsPinging();
 }
 
 
@@ -174,7 +174,7 @@ bool PreviewTextView::IsPinging() const
 bool PreviewTextView::TickScrollbars (int64_t nowMs)
 {
     bool  moved  = m_text->TickScrollbars (nowMs);
-    bool  pinged = m_text->TickPing (nowMs);
+    bool  pinged = m_text->GetPictures().TickPing (nowMs);
 
 
 
@@ -270,7 +270,7 @@ void PreviewTextView::FillRows (const PreviewContent & preview, bool keepPlace)
 
     //  A map's ping animates on the window's tick, which otherwise waits for
     //  input to start it.
-    if (m_text->IsPinging())
+    if (m_text->GetPictures().IsPinging())
     {
         m_context.window.ArmTick();
     }
@@ -482,7 +482,7 @@ void PreviewTextView::UpdatePictureTipAt (const DxuiMouseEvent & ev)
 
 
 
-    if (over && m_text->HitTestPicture (ev.positionDip, row, x, y) && row < (int) m_rowParagraph.size() && m_rowParagraph[(size_t) row] < (int) preview.paragraphs.size())
+    if (over && m_text->GetPictures().HitTest (ev.positionDip, row, x, y) && row < (int) m_rowParagraph.size() && m_rowParagraph[(size_t) row] < (int) preview.paragraphs.size())
     {
         const Paragraph &  paragraph = preview.paragraphs[(size_t) m_rowParagraph[(size_t) row]];
 
@@ -499,7 +499,7 @@ void PreviewTextView::UpdatePictureTipAt (const DxuiMouseEvent & ev)
 
     //  The cell under the pointer is outlined, as the inspector and the
     //  debugger's heat map outline theirs.
-    if (m_text->SetPictureOutline (tip != nullptr ? row : -1, cell))
+    if (m_text->GetPictures().SetOutline (tip != nullptr ? row : -1, cell))
     {
         m_context.window.Invalidate();
     }
@@ -542,7 +542,7 @@ LPCWSTR PreviewTextView::GetCursorForPoint (POINT clientPx) const
     int   row     = 0;
     int   x       = 0;
     int   y       = 0;
-    bool  picture = inside && m_text->HitTestPicture (clientPx, row, x, y);
+    bool  picture = inside && m_text->GetPictures().HitTest (clientPx, row, x, y);
 
 
 

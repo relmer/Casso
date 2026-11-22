@@ -24,7 +24,7 @@ void DxuiTextView::SetRows (std::vector<Row> rows)
     m_caret      = Position();
     m_topLine    = 0;
     m_dragging   = false;
-    m_outlineRow = -1;
+    m_pictures.ClearOutline();
 
     m_leftColumn = 0;
 
@@ -447,7 +447,11 @@ void DxuiTextView::BuildLines (int columns)
 
         if (row.picture != nullptr)
         {
-            AddPictureLines (r, (float) columns * m_cellAdvance);
+            for (int i = 0; i < m_pictures.GetLineCount (r, (float) columns * m_cellAdvance, m_cellHeightPx); i++)
+            {
+                m_lines.push_back (Line { r, 0, 0, i == 0 });
+            }
+
             continue;
         }
 
@@ -500,7 +504,11 @@ void DxuiTextView::BuildProportionalLines (float widthPx)
 
         if (row.picture != nullptr)
         {
-            AddPictureLines (r, widthPx);
+            for (int i = 0; i < m_pictures.GetLineCount (r, widthPx, m_cellHeightPx); i++)
+            {
+                m_lines.push_back (Line { r, 0, 0, i == 0 });
+            }
+
             continue;
         }
 
@@ -1268,7 +1276,7 @@ void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, 
     {
         if (line.first || lineIndex == m_topLine)
         {
-            PaintPicture (text, theme, lineIndex);
+            m_pictures.Paint (text, theme, line.row);
         }
 
         return;
@@ -1327,152 +1335,6 @@ void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiTextView::AddPictureLines
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiTextView::AddPictureLines (int row, float widthPx)
-{
-    int  count = DxuiTextRowLayout::GetPictureLines (*m_rows[(size_t) row].picture, widthPx, m_scaler.ToPxf (1.0f), m_cellHeightPx);
-
-
-
-    for (int i = 0; i < count; i++)
-    {
-        m_lines.push_back (Line { row, 0, 0, i == 0 });
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiTextView::HitTestPicture
-//
-//  The picture is drawn from its first line, scaled as PaintPicture scales
-//  it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiTextView::HitTestPicture (POINT point, int & outRow, int & outX, int & outY) const
-{
-    int                  textTop = (int) m_boundsDip.top + m_scaler.ToPx (s_kPadDip);
-    int                  line    = (m_cellHeightPx > 0 && point.y >= textTop) ? m_topLine + (point.y - textTop) / m_cellHeightPx : -1;
-    int                  row     = 0;
-    float                left    = 0.0f;
-    float                top     = 0.0f;
-    float                scale   = 0.0f;
-    DxuiPictureMap::Key  key;
-
-
-
-    if (line < 0 || line >= (int) m_lines.size() || m_rows[(size_t) m_lines[(size_t) line].row].picture == nullptr)
-    {
-        return false;
-    }
-
-    row = m_lines[(size_t) line].row;
-
-    if (!GetPictureFrame (row, left, top, scale))
-    {
-        return false;
-    }
-
-    const Picture &  picture = *m_rows[(size_t) row].picture;
-
-    key    = GetMapKey (row);
-    outRow = row;
-    outX   = (int) (((float) point.x - left) / (scale * m_map.GetZoom (key)) + m_map.GetOriginX (key));
-    outY   = (int) (((float) point.y - top)  / (scale * m_map.GetZoom (key)) + m_map.GetOriginY (key));
-
-    return (float) point.x >= left && (float) point.y >= top
-        && (float) point.x < left + (float) picture.width * scale && (float) point.y < top + (float) picture.height * scale
-        && outX >= 0 && outX < picture.width && outY >= 0 && outY < picture.height;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiTextView::PaintPicture
-//
-//  At the top of the picture's first line, which can be above the view.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiTextView::PaintPicture (IDxuiTextRenderer & text, const IDxuiTheme & theme, int lineIndex) const
-{
-    int              row     = m_lines[(size_t) lineIndex].row;
-    const Picture &  picture = *m_rows[(size_t) row].picture;
-    float            left    = 0.0f;
-    float            top     = 0.0f;
-    float            scale   = 0.0f;
-    float            zoom    = m_map.GetZoom    (GetMapKey (row));
-    float            originX = m_map.GetOriginX (GetMapKey (row));
-    float            originY = m_map.GetOriginY (GetMapKey (row));
-    float            stroke  = m_scaler.ToPxf (2.0f);
-    HRESULT          hr      = S_OK;
-
-
-
-    if (!GetPictureFrame (row, left, top, scale))
-    {
-        return;
-    }
-
-    //  A zoomed picture is drawn larger, shifted by its origin, and clipped
-    //  to the place it has at its normal size.
-    hr = text.PushClipRect (left, top, (float) picture.width * scale, (float) picture.height * scale);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    if (picture.width > 0 && picture.height > 0 && picture.bgra.size() >= (size_t) picture.width * (size_t) picture.height)
-    {
-        hr = text.DrawFramebuffer (picture.bgra.data(), picture.width, picture.height,
-                                   left - originX * scale * zoom, top - originY * scale * zoom,
-                                   (float) picture.width * scale * zoom, (float) picture.height * scale * zoom);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
-
-    //  The outline is drawn by the text renderer, which draws over the
-    //  picture, around the cell. A cell smaller than the minimum is outlined
-    //  a cell's width out from its edge, so the outline doesn't cover it.
-    if (row == m_outlineRow)
-    {
-        float  minimum = m_scaler.ToPxf (s_kOutlineMinCellDip);
-        float  shown   = scale * zoom;
-        float  w       = (float) (m_outlineRect.right - m_outlineRect.left) * shown;
-        float  h       = (float) (m_outlineRect.bottom - m_outlineRect.top) * shown;
-        float  margin  = (w < minimum) ? w : 0.0f;
-        float  x       = left + ((float) m_outlineRect.left - originX) * shown - margin - stroke;
-        float  y       = top  + ((float) m_outlineRect.top  - originY) * shown - margin - stroke;
-
-        w += 2.0f * (margin + stroke);
-        h += 2.0f * (margin + stroke);
-
-        for (const auto & edge : { std::array<float, 4> { x, y, w, stroke },          std::array<float, 4> { x, y + h - stroke, w, stroke },
-                                   std::array<float, 4> { x, y, stroke, h },          std::array<float, 4> { x + w - stroke, y, stroke, h } })
-        {
-            hr = text.FillRect (edge[0], edge[1], edge[2], edge[3], theme.Accent());
-            IGNORE_RETURN_VALUE (hr, S_OK);
-        }
-    }
-
-    m_map.PaintPing (text, theme, m_scaler, picture.pingX, picture.pingY, left - originX * scale * zoom, top - originY * scale * zoom, scale * zoom);
-
-    hr = text.PopClipRect();
-    IGNORE_RETURN_VALUE (hr, S_OK);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DxuiTextView::DoColumnsFit
 //
 //  A row's last cell starts past the columns before it, and its natural
@@ -1499,195 +1361,6 @@ bool DxuiTextView::DoColumnsFit() const
     }
 
     return fits;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiTextView::GetPictureFrame
-//
-//  Where a row's picture is drawn at its normal size: its left and top, and
-//  the scale from its pixels to the view's. False for a row with no picture
-//  or none of whose lines are laid out.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiTextView::GetPictureFrame (int row, float & outLeft, float & outTop, float & outScale) const
-{
-    int  first = -1;
-
-
-
-    for (int i = 0; i < (int) m_lines.size() && first < 0; i++)
-    {
-        first = (m_lines[(size_t) i].row == row) ? i : -1;
-    }
-
-    if (first < 0 || m_rows[(size_t) row].picture == nullptr)
-    {
-        return false;
-    }
-
-    outLeft  = GetTextLeft();
-    outTop   = (float) m_boundsDip.top + (float) m_scaler.ToPx (s_kPadDip) + (float) ((first - m_topLine) * m_cellHeightPx);
-    outScale = DxuiTextRowLayout::GetPictureScale (*m_rows[(size_t) row].picture, (float) GetTextColumns (IsScrollbarVisible()) * m_cellAdvance, m_scaler.ToPxf (1.0f));
-
-    return outScale > 0.0f;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiTextView::IsPinging
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiTextView::IsPinging() const
-{
-    for (const Row & row : m_rows)
-    {
-        if (row.picture != nullptr && row.picture->pingX >= 0 && row.picture->pingY >= 0)
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiTextView::TickPing
-//
-//  The ping starts on the first tick after a pinging picture is shown. A
-//  frame changes while its rings are spreading, and once more as they end
-//  so the last one is erased.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiTextView::TickPing (int64_t nowMs)
-{
-    return m_map.TickPing (nowMs, IsPinging());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiTextView::ZoomPicture
-//
-//  The wheel over a zoomable picture zooms it around the pointer, so the
-//  picture pixel under the pointer stays under it, from the whole picture
-//  to s_kMaxMapZoom times. False off a zoomable picture, so the wheel
-//  scrolls the text there.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiTextView::ZoomPicture (POINT point, float notches)
-{
-    int                    row   = 0;
-    int                    x     = 0;
-    int                    y     = 0;
-    DxuiPictureMap::Frame  frame;
-
-
-
-    if (!HitTestPicture (point, row, x, y) || !m_rows[(size_t) row].picture->zoom || !GetPictureFrame (row, frame.left, frame.top, frame.scale))
-    {
-        return false;
-    }
-
-    m_map.Zoom (GetMapKey (row), frame, point, notches);
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiTextView::GetMapKey
-//
-//  What identifies a row's picture to the map: the row, and the picture's
-//  size and ping point, so a different picture in the row starts unzoomed.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiPictureMap::Key DxuiTextView::GetMapKey (int row) const
-{
-    const Picture  * picture = (row >= 0 && row < (int) m_rows.size()) ? m_rows[(size_t) row].picture.get() : nullptr;
-
-
-
-    return (picture == nullptr || !picture->zoom) ? DxuiPictureMap::Key()
-                                                  : DxuiPictureMap::Key { row, picture->width, picture->height, picture->pingX, picture->pingY };
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiTextView::TryStartMapPan
-//
-//  A left press on a zoomable picture starts panning it; false anywhere
-//  else, where a press selects text.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiTextView::TryStartMapPan (POINT point)
-{
-    int  row = 0;
-    int  x   = 0;
-    int  y   = 0;
-
-
-
-    if (!HitTestPicture (point, row, x, y) || !m_rows[(size_t) row].picture->zoom)
-    {
-        return false;
-    }
-
-    m_map.StartPan (GetMapKey (row), point);
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiTextView::SetPictureOutline
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiTextView::SetPictureOutline (int row, const RECT & pictureRect)
-{
-    bool  moved = row != m_outlineRow || (row >= 0 && !EqualRect (&pictureRect, &m_outlineRect));
-
-
-
-    m_outlineRow  = row;
-    m_outlineRect = pictureRect;
-
-    return moved;
 }
 
 
@@ -1976,7 +1649,7 @@ bool DxuiTextView::OnMouse (const DxuiMouseEvent & ev)
     {
     case DxuiMouseEventKind::Wheel:
         //  The wheel over a zoomable picture zooms it.
-        if (!ev.wheelHorizontal && !ev.shift && ZoomPicture (point, ev.wheelDelta))
+        if (!ev.wheelHorizontal && !ev.shift && m_pictures.Zoom (point, ev.wheelDelta))
         {
             handled = true;
             break;
@@ -2020,7 +1693,7 @@ bool DxuiTextView::OnMouse (const DxuiMouseEvent & ev)
             handled = m_horzScroll.OnMouseDown (point.x, point.y);
             SetLeftColumn (m_horzScroll.GetScrollPos());
         }
-        else if (ev.button == DxuiMouseButton::Left && TryStartMapPan (point))
+        else if (ev.button == DxuiMouseButton::Left && m_pictures.TryStartPan (point))
         {
             handled = true;
         }
@@ -2071,18 +1744,9 @@ bool DxuiTextView::OnMouse (const DxuiMouseEvent & ev)
         break;
 
     case DxuiMouseEventKind::Move:
-        if (m_map.IsPanning())
+        if (m_pictures.IsPanning())
         {
-            DxuiPictureMap::Frame  frame;
-
-            for (int row = 0; row < (int) m_rows.size(); row++)
-            {
-                if (m_map.IsFor (GetMapKey (row)) && GetPictureFrame (row, frame.left, frame.top, frame.scale))
-                {
-                    m_map.Pan (frame, point);
-                }
-            }
-
+            m_pictures.Pan (point);
             handled = true;
         }
         else if (m_vertScroll.IsDragging())
@@ -2138,9 +1802,9 @@ bool DxuiTextView::OnMouse (const DxuiMouseEvent & ev)
         break;
 
     case DxuiMouseEventKind::Up:
-        if (m_map.IsPanning())
+        if (m_pictures.IsPanning())
         {
-            m_map.EndPan();
+            m_pictures.EndPan();
             handled = true;
         }
         else if (m_vertScroll.IsDragging())

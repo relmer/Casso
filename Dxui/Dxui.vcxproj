@@ -222,6 +222,7 @@
     <ClCompile Include="Widgets\DxuiTextRowLayout.cpp" />
     <ClCompile Include="Widgets\DxuiTextView.cpp" />
     <ClCompile Include="Widgets\DxuiPictureMap.cpp" />
+    <ClCompile Include="Widgets\DxuiTextViewPictures.cpp" />
     <ClCompile Include="Widgets\DxuiToolbarEditBox.cpp" />
     <ClCompile Include="Widgets\DxuiTabDragModel.cpp" />
     <ClCompile Include="Widgets\DxuiReorderStack.cpp" />
@@ -369,6 +370,9 @@
     <ClInclude Include="Widgets\DxuiTextRowLayout.h" />
     <ClInclude Include="Widgets\DxuiTextView.h" />
     <ClInclude Include="Widgets\DxuiPictureMap.h" />
+    <ClInclude Include="Widgets\DxuiTextViewPictures.h" />
+    <ClInclude Include="Widgets\DxuiTextPicture.h" />
+    <ClInclude Include="Widgets\IDxuiTextPictureHost.h" />
     <ClInclude Include="Widgets\DxuiToolbarEditBox.h" />
     <ClInclude Include="Widgets\DxuiTabDragModel.h" />
     <ClInclude Include="Widgets\DxuiReorderStack.h" />
