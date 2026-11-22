@@ -120,7 +120,7 @@ uint32_t PreviewText::GetRunColor (RunColor color, const SourceSyntax::Colors & 
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<DxuiTextView::Row> PreviewText::BuildDocumentRows (const std::vector<Paragraph> & paragraphs, const SourceSyntax::Colors & colors,
-                                                               bool wide, std::vector<int> * outRowParagraph)
+                                                               TableForm form, std::vector<int> * outRowParagraph)
 {
     std::vector<DxuiTextView::Row>  rows;
 
@@ -133,7 +133,7 @@ std::vector<DxuiTextView::Row> PreviewText::BuildDocumentRows (const std::vector
 
         if (paragraph.table != nullptr)
         {
-            AddTableRows (*paragraph.table, colors, wide, rows);
+            AddTableRows (*paragraph.table, colors, form, rows);
 
             if (outRowParagraph != nullptr)
             {
@@ -193,17 +193,17 @@ std::vector<DxuiTextView::Row> PreviewText::BuildDocumentRows (const std::vector
 //
 //  PreviewText::AddTableRows
 //
-//  The title in bold first. Wide, a heading row in bold and a row a record,
-//  their cells in columns, each record's details under its row and a blank
-//  row between records. Narrow, a
-//  rule under the title, then each record's card and details, a blank line
-//  between records.
+//  The title in bold first. As a table, a heading row in bold and a row a
+//  record, their cells in columns, each record's details under its row. In
+//  the other forms, a rule under the title, then each record's fields or
+//  card and its details, a blank line between records.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PreviewText::AddTableRows (const RecordTable & table, const SourceSyntax::Colors & colors, bool wide, std::vector<DxuiTextView::Row> & ioRows)
+void PreviewText::AddTableRows (const RecordTable & table, const SourceSyntax::Colors & colors, TableForm form, std::vector<DxuiTextView::Row> & ioRows)
 {
     auto  untitled = std::make_shared<RecordTable> (table);
+    bool  wide     = form == TableForm::Table;
 
 
 
@@ -219,6 +219,12 @@ void PreviewText::AddTableRows (const RecordTable & table, const SourceSyntax::C
         title.spans = { span };
         title.rule  = !wide;
         ioRows.push_back (std::move (title));
+    }
+
+    if (form == TableForm::TwoFields || form == TableForm::ThreeFields || form == TableForm::FourFields)
+    {
+        AddFieldRows (table, colors, (int) form - (int) TableForm::TwoFields + 2, ioRows);
+        return;
     }
 
     if (!wide)
@@ -254,11 +260,6 @@ void PreviewText::AddTableRows (const RecordTable & table, const SourceSyntax::C
         DxuiTextView::Row               row;
         std::vector<DxuiTextView::Row>  details = BuildDocumentRows (record.details, colors);
 
-        if (i > 0)
-        {
-            ioRows.push_back (DxuiTextView::Row { { std::wstring() } });
-        }
-
         for (const Run & run : record.cells)
         {
             row.cells.push_back (std::wstring());
@@ -266,6 +267,66 @@ void PreviewText::AddTableRows (const RecordTable & table, const SourceSyntax::C
         }
 
         ioRows.push_back (std::move (row));
+        ioRows.insert (ioRows.end(), details.begin(), details.end());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewText::AddFieldRows
+//
+//  Each record's first cell on a line, then its other cells as fields, a
+//  heading in the muted color and the cell after it, perLine to a line in
+//  columns, then its details. A blank line between records.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewText::AddFieldRows (const RecordTable & table, const SourceSyntax::Colors & colors, int perLine, std::vector<DxuiTextView::Row> & ioRows)
+{
+    uint32_t  muted = GetRunColor (RunColor::Muted, colors);
+
+
+
+    for (size_t i = 0; i < table.records.size(); i++)
+    {
+        const RecordTable::Record &     record  = table.records[i];
+        DxuiTextView::Row               first   { { std::wstring() } };
+        DxuiTextView::Row               fields;
+        std::vector<DxuiTextView::Row>  details = BuildDocumentRows (record.details, colors);
+
+        if (record.cells.empty())
+        {
+            continue;
+        }
+
+        if (i > 0)
+        {
+            ioRows.push_back (DxuiTextView::Row { { std::wstring() } });
+        }
+
+        AddRunText (first, record.cells[0], GetRunColor (record.cells[0].color, colors), record.cells[0].text);
+        ioRows.push_back (std::move (first));
+
+        for (size_t c = 1; c < record.cells.size(); c++)
+        {
+            const Run &   cell  = record.cells[c];
+            std::wstring  label = L"   " + ((c < table.headings.size()) ? table.headings[c] : std::wstring()) + L" ";
+
+            fields.cells.push_back (std::wstring());
+            AddRunText (fields, Run { label, false, false, false, RunColor::Muted }, muted, label);
+            AddRunText (fields, cell, GetRunColor (cell.color, colors), cell.text);
+
+            if ((int) fields.cells.size() == perLine || c + 1 == record.cells.size())
+            {
+                ioRows.push_back (std::move (fields));
+                fields = DxuiTextView::Row();
+            }
+        }
+
         ioRows.insert (ioRows.end(), details.begin(), details.end());
     }
 }
@@ -379,7 +440,7 @@ std::vector<DxuiTextView::Row> PreviewText::BuildCrossReferenceRows (const Previ
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent & preview, bool lineAddresses, const SourceSyntax::Colors & colors,
-                                                           bool wide, std::vector<int> * outRowParagraph)
+                                                           TableForm form, std::vector<int> * outRowParagraph)
 {
     std::vector<DxuiTextView::Row>  rows;
     std::vector<DxuiTextView::Row>  warnings;
@@ -412,7 +473,7 @@ std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent 
     }
     else if (preview.kind == PreviewContent::Kind::Document)
     {
-        rows = BuildDocumentRows (preview.paragraphs, colors, wide, outRowParagraph);
+        rows = BuildDocumentRows (preview.paragraphs, colors, form, outRowParagraph);
     }
     else if (preview.kind == PreviewContent::Kind::Details)
     {

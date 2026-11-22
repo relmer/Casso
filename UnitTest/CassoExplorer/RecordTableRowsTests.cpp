@@ -55,23 +55,37 @@ public:
     TEST_METHOD (Wide_IsAHeadingRowAndARowARecord)
     {
         std::vector<int>                outParagraph;
-        std::vector<DxuiTextView::Row>  rows = PreviewText::BuildDocumentRows (MakeDocument(), {}, true, &outParagraph);
+        std::vector<DxuiTextView::Row>  rows = PreviewText::BuildDocumentRows (MakeDocument(), {}, TableForm::Table, &outParagraph);
 
 
 
-        Assert::AreEqual ((size_t) 7, rows.size(), L"The title, the headings, and a row and a detail for each record, a blank row between");
-        Assert::AreEqual (std::wstring (L""), rows[4].cells[0], L"The blank row between records");
+        Assert::AreEqual ((size_t) 6, rows.size(), L"The title, the headings, and a row and a detail for each record, no blank row between");
+        Assert::IsTrue   (rows[4].cells == std::vector<std::wstring> ({ L"SHADE", L"Bishop" }));
         Assert::IsTrue   (rows[1].cells == std::vector<std::wstring> ({ L"Name", L"Class" }));
         Assert::IsTrue   (rows[1].spans[0].bold, L"The headings are bold");
         Assert::IsTrue   (rows[2].cells == std::vector<std::wstring> ({ L"ELVE", L"Bishop" }));
         Assert::IsTrue   (rows[3].cells == std::vector<std::wstring> ({ L"      MACE", L"equipped" }), L"The record's detail is under it, its tab a column");
-        Assert::IsTrue   (outParagraph == std::vector<int> ({ 0, 1, 1, 1, 1, 1, 1 }), L"Each row's paragraph");
+        Assert::IsTrue   (outParagraph == std::vector<int> ({ 0, 1, 1, 1, 1, 1 }), L"Each row's paragraph");
+    }
+
+
+    TEST_METHOD (Fields_AreTheFirstCellThenHeadingAndValuePairs)
+    {
+        std::vector<DxuiTextView::Row>  rows = PreviewText::BuildDocumentRows (MakeDocument(), {}, TableForm::TwoFields);
+
+
+
+        Assert::AreEqual ((size_t) 8, rows.size(), L"The title, then the name, its fields and a detail for each record, a blank line between");
+        Assert::AreEqual (std::wstring (L"ELVE"), rows[1].cells[0]);
+        Assert::IsTrue   (rows[2].cells == std::vector<std::wstring> ({ L"   Class Bishop" }));
+        Assert::AreEqual (std::wstring (L""),      rows[4].cells[0]);
+        Assert::AreEqual (std::wstring (L"SHADE"), rows[5].cells[0]);
     }
 
 
     TEST_METHOD (Narrow_IsEachRecordsCard)
     {
-        std::vector<DxuiTextView::Row>  rows = PreviewText::BuildDocumentRows (MakeDocument(), {}, false);
+        std::vector<DxuiTextView::Row>  rows = PreviewText::BuildDocumentRows (MakeDocument(), {}, TableForm::Cards);
 
 
 
@@ -93,8 +107,8 @@ public:
 
         table->title       = L"Party";
         document[1].table  = table;
-        narrow = PreviewText::BuildDocumentRows (document, {}, false);
-        wide   = PreviewText::BuildDocumentRows (document, {}, true);
+        narrow = PreviewText::BuildDocumentRows (document, {}, TableForm::Cards);
+        wide   = PreviewText::BuildDocumentRows (document, {}, TableForm::Table);
 
         Assert::AreEqual (std::wstring (L"Party"), narrow[1].cells[0]);
         Assert::IsTrue   (narrow[1].spans[0].bold && narrow[1].rule, L"Above the cards, bold with a rule");

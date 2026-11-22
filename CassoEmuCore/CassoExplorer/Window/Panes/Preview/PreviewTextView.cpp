@@ -187,40 +187,46 @@ void PreviewTextView::Fill (const PreviewContent & preview)
 //
 //  PreviewTextView::FillRows
 //
-//  A document's record tables as tables where the pane is wide enough and
-//  every column fits at its natural width, and as cards where not. The rows
-//  are measured as tables, and built as cards when a cell would wrap.
+//  A document's record tables in the widest form whose columns all fit at
+//  their natural width: as tables where the pane is wide enough, then as
+//  fields four, three and two to a line, then as cards. Each form is
+//  measured, and the next narrower one built when a cell would wrap.
+//  Without a renderer to measure with, a table or cards by the width alone.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void PreviewTextView::FillRows (const PreviewContent & preview)
 {
-    SourceSyntax::Colors  colors = PreviewText::GetSourceColors (m_context.theme);
-    RECT                  bounds = m_text->GetBounds();
+    SourceSyntax::Colors  colors  = PreviewText::GetSourceColors (m_context.theme);
+    RECT                  bounds  = m_text->GetBounds();
+    bool                  measure = m_context.theme != nullptr && m_context.window.GetTextRenderer() != nullptr;
+    TableForm             form    = IsWide() ? TableForm::Table : measure ? TableForm::FourFields : TableForm::Cards;
+    bool                  done    = false;
 
 
 
-    m_wide       = IsWide();
     m_tableWidth = bounds.right - bounds.left;
-    m_rowParagraph.clear();
 
     if (m_crossReference)
     {
+        m_rowParagraph.clear();
         m_text->SetRows (PreviewText::BuildCrossReferenceRows (preview, m_context.prefs.lineAddresses, colors));
         return;
     }
 
-    m_text->SetRows (PreviewText::BuildTextRows (preview, m_context.prefs.lineAddresses, colors, m_wide, &m_rowParagraph));
-
-    if (m_wide && m_context.theme != nullptr && m_context.window.GetTextRenderer() != nullptr)
+    while (!done)
     {
-        m_text->Measure (*m_context.window.GetTextRenderer(), *m_context.theme);
+        m_rowParagraph.clear();
+        m_text->SetRows (PreviewText::BuildTextRows (preview, m_context.prefs.lineAddresses, colors, form, &m_rowParagraph));
 
-        if (!m_text->DoColumnsFit())
+        done = form == TableForm::Cards || !measure;
+
+        if (!done)
         {
-            m_wide = false;
-            m_rowParagraph.clear();
-            m_text->SetRows (PreviewText::BuildTextRows (preview, m_context.prefs.lineAddresses, colors, false, &m_rowParagraph));
+            m_text->Measure (*m_context.window.GetTextRenderer(), *m_context.theme);
+
+            done = m_text->DoColumnsFit();
+            form = done ? form : (TableForm) ((int) form - 1);
         }
     }
 }
