@@ -712,6 +712,39 @@ public:
     }
 
 
+    TEST_METHOD (Panel_BackAfterFollowingAFieldDrawsTheEarlierBlock)
+    {
+        FakeDiskFileIo        io;
+        BlockInspectorModel   model;
+        BlockInspectorPanel   panel;
+        DxuiDarkTheme         theme;
+        DxuiDpiScaler         scaler;
+        MockDxuiTextRenderer  text;
+
+
+
+        OpenModel (io, model);
+
+        panel.Init   (&model, nullptr, &theme, nullptr, &text);
+        panel.Layout (RECT { 0, 0, 1180, 700 }, scaler);
+
+        //  As a click on the volume directory's row, then on its link to the
+        //  next directory block.
+        panel.GetNavigator().SelectForBlock (2);
+        Assert::AreEqual ((uint32_t) 2, model.GetBlock());
+
+        panel.SelectBlock (3);
+        Assert::AreEqual ((uint32_t) 3, model.GetBlock());
+        Assert::IsTrue   (panel.GetNavigator().GetBrowser().CanGoBack());
+
+        panel.GoBack();
+        Assert::AreEqual ((uint32_t) 2, model.GetBlock(), L"Back draws block 2 again");
+
+        panel.GoForward();
+        Assert::AreEqual ((uint32_t) 3, model.GetBlock(), L"Forward draws block 3 again");
+    }
+
+
     TEST_METHOD (Panel_ADoubleClickOnTheMapOpensTheBlock)
     {
         FakeDiskFileIo        io;

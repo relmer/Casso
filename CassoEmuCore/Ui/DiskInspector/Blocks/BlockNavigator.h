@@ -74,10 +74,11 @@ public:
     //  selected, or the block's file is selected in its directory.
     void  SelectForBlock (uint32_t block);
 
-    const BlockPlace     & GetPlace     () const { return m_browser.GetPlace(); }
-    const BlockBrowser   & GetBrowser   () const { return m_browser; }
-    const BlockListing   & GetListing   () const { return m_listing; }
-    bool                   IsBlockPlace () const { return GetPlace().kind == BlockPlace::Kind::Block; }
+    const BlockPlace    & GetPlace     () const { return m_browser.GetPlace(); }
+    const BlockBrowser  & GetBrowser   () const { return m_browser; }
+    BlockBrowser        & GetBrowser   ()       { return m_browser; }
+    const BlockListing  & GetListing   () const { return m_listing; }
+    bool                  IsBlockPlace () const { return GetPlace().kind == BlockPlace::Kind::Block; }
 
     //  The selected row's name or path, or the place's, for the status line.
     std::wstring  GetSelectionLine () const;

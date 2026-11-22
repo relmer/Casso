@@ -580,15 +580,24 @@ bool BlockInspectorPanel::IsBlockLevel() const
 //
 //  The levels went to another location: at the Block level, its block is
 //  selected and drawn once loaded; at any other, the grid is drawn with
-//  the level's highlight.
+//  the level's highlight, and the block drawn there before, after Back or
+//  Forward, is drawn below the list again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void BlockInspectorPanel::OnLevelChanged()
 {
+    uint32_t  drawn = m_nav.GetBrowser().GetDrawnBlock();
+
+
+
     if (IsBlockLevel() && m_model->GetBlock() != m_nav.GetPlace().block)
     {
         m_model->SelectBlock (m_nav.GetPlace().block);
+    }
+    else if (!IsBlockLevel() && m_model->GetBlock() != drawn && drawn < m_model->GetBlockCount())
+    {
+        m_model->ReplaceBlock (drawn);
     }
 
     if (m_scaler.GetDpi() != 0)
@@ -810,6 +819,8 @@ void BlockInspectorPanel::Present()
     isRelayout    = isRelayout || m_isRecording || m_isStepping || (int) m_nav.GetPlace().kind != m_laidOutLevel;
     m_isRecording = false;
     m_isStepping  = false;
+
+    m_nav.GetBrowser().SetDrawnBlock (m_model->GetBlock());
 
     ApplyHighlight();
     ShowBytes();
