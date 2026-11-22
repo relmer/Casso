@@ -110,9 +110,9 @@ namespace FullSendRig
             return S_OK;
         }
 
-        bool     IsVerifying() override { return verifying; }
-        void     ToggleVerify() override { verifying = !verifying; }
-        void     SetMeasuring (bool on) override { measuring = on; }
+        bool  IsVerifying  () override { return verifying; }
+        void  ToggleVerify () override { verifying = !verifying; }
+        void  SetMeasuring (bool on) override { measuring = on; }
 
         HRESULT  MeasureLayouts (int drive, int tracks, std::vector<TrackLayout> & outLayouts) override
         {
@@ -199,8 +199,8 @@ namespace FullSendRig
 
         bool     NoteImage (const std::string & path) override { noted.push_back (path); return (bool) onAwait; }
 
-        bool     HasBootTones() override { return bootTones; }
-        bool     IsWriteProtected (int drive) override { return writeProtected[(size_t) drive - 1]; }
+        bool  HasBootTones     () override { return bootTones; }
+        bool  IsWriteProtected (int drive) override { return writeProtected[(size_t) drive - 1]; }
 
         HRESULT  AwaitBoot (const std::string & file) override
         {
