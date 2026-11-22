@@ -14,6 +14,7 @@
 #include "Devices/Disk/IDiskFileIo.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 
 
@@ -59,13 +60,13 @@ void ExplorerProperties::ShowRowProperties (int row)
 
     //  An entry inside an image or on a linked drive: its Apple properties,
     //  editable.
-    if (m_context.browser.IsVolumeLocation() && m_context.browser.TryGetRowEntry (row, entry))
+    if (m_context.browser.IsVolumeLocation() && m_context.browser.GetLoader().TryGetRowEntry (row, entry))
     {
         ShowAppleProperties();
         return;
     }
 
-    if (!m_context.browser.TryGetRowPath (row, path))
+    if (!BrowserRowPaths::TryGetRowPath (m_context.browser.GetRowListing(), row, path))
     {
         return;
     }
@@ -78,7 +79,7 @@ void ExplorerProperties::ShowRowProperties (int row)
     }
 
     //  A search's match inside an image has the sheet it has in its image.
-    if (m_context.browser.TryFindSearchMatch (m_context.browser.GetRows()[(size_t) row], match, error))
+    if (m_context.browser.GetPreviewer().TryFindSearchMatch (m_context.browser.GetRows()[(size_t) row], match, error))
     {
         CassoExplorerPropertiesDialog::Show (m_context.window.GetHwnd(), m_context.theme, m_context.browser.GetRows()[(size_t) row].name,
                                             CassoExplorerProperties::DescribeEntry (match.entry, match.kind,
@@ -122,7 +123,7 @@ void ExplorerProperties::ShowAppleProperties()
 
 
 
-    m_context.browser.GetSelectedEntries (entries);
+    m_context.browser.GetSelection().GetSelectedEntries (entries);
 
     AppleFilePropertiesDialog::Show (m_context.window.GetHwnd(), m_context.theme, entries, m_context.browser.GetVolumeKind(), readOnly,
                                      [this] (const AppleFileProperties::Edits & edits, std::vector<FileEntry> & inOutEntries) -> std::wstring
@@ -141,7 +142,7 @@ void ExplorerProperties::ShowAppleProperties()
 
             for (int row = 0; row < (int) m_context.browser.GetRows().size(); row++)
             {
-                if (m_context.browser.TryGetRowEntry (row, fresh) && _stricmp (fresh.name.c_str(), name.c_str()) == 0)
+                if (m_context.browser.GetLoader().TryGetRowEntry (row, fresh) && _stricmp (fresh.name.c_str(), name.c_str()) == 0)
                 {
                     entry = fresh;
                     break;
@@ -251,7 +252,7 @@ void ExplorerProperties::ShowWozProperties (const std::wstring & path, int tab)
 
         if (SUCCEEDED (result))
         {
-            m_context.browser.RefreshPreview();
+            m_context.browser.GetPreviewer().UpdatePreview();
             m_context.preview.FillPreview();
         }
 

@@ -47,7 +47,7 @@ public:
 
         rig.Open();
 
-        Assert::IsTrue (rig.browser.GetTypedPaths().GetEntries() == rig.prefs.typedPaths);
+        Assert::IsTrue (rig.browser.GetNavigator().GetTypedPaths().GetEntries() == rig.prefs.typedPaths);
     }
 
 
@@ -310,7 +310,7 @@ public:
 
         rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\dos33.dsk");
         rig.Open();
-        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks\\dos33.dsk"));
+        Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (L"C:\\Disks\\dos33.dsk"));
         Assert::IsTrue (rig.browser.IsVolumeLocation());
 
         rig.parts->input.SetFocusPane (ExplorerPane::List);
@@ -375,7 +375,7 @@ public:
                                                          DiskOperations::Encoding::Verbatim).Succeeded());
 
         rig.prefs.previewVisible = true;
-        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks\\prodos.po"));
+        Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (L"C:\\Disks\\prodos.po"));
         rig.parts->listPane.FillList();
 
         Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"SAVED"));
@@ -512,7 +512,7 @@ public:
 
         rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\dos33.dsk");
         rig.Open();
-        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks\\dos33.dsk"));
+        Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (L"C:\\Disks\\dos33.dsk"));
         rig.parts->listPane.FillList();
         Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"HELLO"));
 
@@ -553,7 +553,7 @@ public:
         rig.verbs->onRename = [] (const std::wstring &, const std::wstring &) { return S_OK; };
 
         rig.Open();
-        Assert::IsTrue (rig.browser.NavigateToAddress (L"E:\\games"));
+        Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (L"E:\\games"));
         rig.parts->listPane.FillList();
         Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"zork.po"));
 
@@ -600,7 +600,7 @@ public:
         rig.verbs->onRename = [&renamed] (const std::wstring &, const std::wstring & name) { renamed = name; return S_OK; };
 
         rig.Open();
-        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Sends"));
+        Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (L"C:\\Sends"));
         rig.parts->listPane.FillList();
         Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"Disk 001.dsk"));
 
@@ -703,7 +703,7 @@ public:
         }
 
         rig.Open();
-        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks"));
+        Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (L"C:\\Disks"));
         rig.parts->listPane.FillList();
         Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"b.dsk"));
 
@@ -749,7 +749,7 @@ public:
         AssertSucceeded (rig.fs.WriteAllText (L"C:\\Disks\\readme.txt", "hello"));
 
         rig.Open();
-        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks"));
+        Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (L"C:\\Disks"));
         rig.parts->listPane.FillList();
 
         Assert::IsFalse (isShown (CassoExplorerCommands::kInspectDiskImage), L"nothing selected");
@@ -765,14 +765,14 @@ public:
         Assert::IsFalse (isShown (CassoExplorerCommands::kInspectDiskImage), L"a text file");
 
         Assert::IsTrue  (rig.parts->listPane.SelectRowNamed (L"a.dsk"));
-        rig.browser.SetSelectedRows ({ rig.browser.GetSelectedRows()[0], rig.browser.GetSelectedRows()[0] + 1 });
+        rig.browser.GetSelection().SetSelectedRows ({ rig.browser.GetSelectedRows()[0], rig.browser.GetSelectedRows()[0] + 1 });
         rig.parts->toolbars.UpdateCommandBar();
         Assert::AreEqual (std::wstring (L"b.dsk"), rig.browser.GetRows()[(size_t) rig.browser.GetSelectedRows()[1]].name);
         Assert::IsTrue  (isShown (CassoExplorerCommands::kInspectDiskImage), L"two images");
         Assert::IsTrue  (isShown (CassoExplorerCommands::kCompareDiskImages));
         Assert::IsTrue  (isEnabled (CassoExplorerCommands::kCompareDiskImages));
 
-        Assert::IsTrue  (rig.browser.NavigateToAddress (L"C:\\Disks\\a.dsk"));
+        Assert::IsTrue  (rig.browser.GetNavigator().NavigateToAddress (L"C:\\Disks\\a.dsk"));
         rig.parts->listPane.FillList();
         Assert::IsTrue  (isShown (CassoExplorerCommands::kInspectDiskImage), L"inside an image");
         Assert::IsFalse (isShown (CassoExplorerCommands::kCompareDiskImages));
@@ -789,7 +789,7 @@ public:
 
         rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\dos33.dsk");
         rig.Open();
-        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks\\dos33.dsk"));
+        Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (L"C:\\Disks\\dos33.dsk"));
 
         dialogs        = static_cast<FakeHostDialogs *> (rig.parts->services.dialogs.get());
         dialogs->picks = false;
@@ -814,7 +814,7 @@ public:
 
         rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\dos33.dsk");
         rig.Open();
-        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks\\dos33.dsk"));
+        Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (L"C:\\Disks\\dos33.dsk"));
 
         dialogs        = static_cast<FakeHostDialogs *> (rig.parts->services.dialogs.get());
         dialogs->picks = false;
@@ -842,7 +842,7 @@ public:
 
         rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\m.dsk");
         rig.Open();
-        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks"));
+        Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (L"C:\\Disks"));
         rig.parts->listPane.FillList();
 
         for (at.x = 640, at.y = 0; at.y < 800 && !hit; at.y += 2)
@@ -917,7 +917,7 @@ public:
         rig.Open();
 
         rig.prefs.previewVisible = true;
-        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks\\prodos.po"));
+        Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (L"C:\\Disks\\prodos.po"));
         rig.parts->listPane.FillList();
 
         files = GetFileRows (rig);
@@ -973,7 +973,7 @@ public:
         rig.Open();
 
         rig.prefs.previewVisible = true;
-        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks\\prodos.po"));
+        Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (L"C:\\Disks\\prodos.po"));
         rig.parts->listPane.FillList();
 
         files = GetFileRows (rig);
@@ -1009,26 +1009,26 @@ public:
         rig.Open();
 
         rig.prefs.previewVisible = true;
-        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks\\prodos.po"));
+        Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (L"C:\\Disks\\prodos.po"));
         rig.parts->listPane.FillList();
 
         Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"HELLO"));
         rig.parts->preview.FillPreview();
 
-        Assert::IsTrue (rig.browser.GetPreview().kind == PreviewContent::Kind::Listing);
+        Assert::IsTrue (rig.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Listing);
         Assert::IsTrue (rig.parts->commandManager.IsEnabled (CassoExplorerCommands::kViewAs));
         Assert::IsTrue (rig.parts->commandManager.IsChecked (CassoExplorerCommands::kViewAsDefault));
         Assert::AreEqual (std::wstring (L"BASIC listing (default)"), rig.parts->commandManager.GetCommandLabel (CassoExplorerCommands::kViewAsDefault));
 
         rig.parts->commandManager.Dispatch (CassoExplorerCommands::kViewAsHex);
 
-        Assert::IsTrue (rig.browser.GetPreview().kind == PreviewContent::Kind::Hex);
+        Assert::IsTrue (rig.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Hex);
         Assert::IsTrue (rig.parts->commandManager.IsChecked (CassoExplorerCommands::kViewAsHex));
 
         files = GetFileRows (rig);
         rig.parts->listPane.SetListSelection ({ files[0] == rig.browser.GetSelectedRows()[0] ? files[1] : files[0] });
 
-        Assert::IsTrue (rig.browser.GetPreview().viewAs == ViewChoice::Default, L"Another file opens in its default view");
+        Assert::IsTrue (rig.browser.GetPreviewer().GetPreview().viewAs == ViewChoice::Default, L"Another file opens in its default view");
     }
 
 
@@ -1047,13 +1047,13 @@ public:
         rig.Open();
 
         rig.prefs.previewVisible = true;
-        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks\\prodos.po"));
+        Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (L"C:\\Disks\\prodos.po"));
         rig.parts->listPane.FillList();
 
         Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"PICTURE"));
         rig.parts->preview.FillPreview();
 
-        Assert::IsTrue (rig.browser.GetPreview().kind == PreviewContent::Kind::Picture);
+        Assert::IsTrue (rig.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Picture);
         Assert::IsTrue (rig.parts->commandManager.IsEnabled (CassoExplorerCommands::kSavePreviewAs));
 
         rig.dialogs->path = L"C:\\Out\\picture.png";
@@ -1094,7 +1094,7 @@ public:
 
         rig.prefs.previewVisible      = false;
         rig.prefs.enterExpandsPreview = true;
-        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks\\prodos.po"));
+        Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (L"C:\\Disks\\prodos.po"));
         rig.parts->listPane.FillList();
 
         Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"HELLO"));
@@ -1132,7 +1132,7 @@ public:
                                                          DiskOperations::Encoding::Verbatim).Succeeded());
 
         rig.prefs.previewVisible = true;
-        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks\\prodos.po"));
+        Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (L"C:\\Disks\\prodos.po"));
         rig.parts->listPane.FillList();
 
         rig.parts->listPane.SetListSelection ({ GetFileRows (rig)[0] });
@@ -1178,7 +1178,7 @@ public:
         AssertSucceeded (rig.fs.WriteAllText (L"C:\\Host\\HELLO#FC0801", std::string (hello.payload.begin(), hello.payload.end())));
 
         rig.prefs.previewVisible = true;
-        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Host"));
+        Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (L"C:\\Host"));
         rig.parts->listPane.FillList();
 
         Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"screen.bin"));
@@ -1187,14 +1187,14 @@ public:
         Assert::IsTrue (rig.parts->commandManager.IsEnabled (CassoExplorerCommands::kViewAs));
         rig.parts->commandManager.Dispatch (CassoExplorerCommands::kViewAsHiRes);
 
-        Assert::IsTrue (rig.browser.GetPreview().kind == PreviewContent::Kind::Picture);
-        Assert::IsTrue (rig.browser.GetPreview().viewAs == ViewChoice::HiRes);
+        Assert::IsTrue (rig.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Picture);
+        Assert::IsTrue (rig.browser.GetPreviewer().GetPreview().viewAs == ViewChoice::HiRes);
 
         Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"HELLO#FC0801"));
         rig.parts->preview.FillPreview();
 
-        Assert::IsTrue (rig.browser.GetPreview().kind == PreviewContent::Kind::Listing, L"An exported BASIC program lists");
-        Assert::IsTrue (rig.browser.GetPreview().viewAs == ViewChoice::Default, L"Another file opens in its default view");
+        Assert::IsTrue (rig.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Listing, L"An exported BASIC program lists");
+        Assert::IsTrue (rig.browser.GetPreviewer().GetPreview().viewAs == ViewChoice::Default, L"Another file opens in its default view");
     }
 
 
@@ -1214,7 +1214,7 @@ public:
         rig.io.files["E:\\A2retroNET.txt"].assign (text.begin(), text.end());
 
         rig.Open();
-        Assert::IsTrue (rig.browser.NavigateToAddress (L"E:\\"));
+        Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (L"E:\\"));
         rig.parts->listPane.FillList();
 
         DxuiInfoBanner &  bar = rig.parts->listPane.GetBars().GetCardBar();
@@ -1240,7 +1240,7 @@ public:
         Assert::IsTrue   (bar.GetSeverity() == DxuiInfoBanner::Severity::Info, bar.GetText().c_str());
         Assert::AreEqual ((size_t) 1, bar.GetActionCount(), L"A2retroNET drives alone");
 
-        Assert::IsTrue  (rig.browser.NavigateToAddress (L"C:\\Disks"));
+        Assert::IsTrue  (rig.browser.GetNavigator().NavigateToAddress (L"C:\\Disks"));
         rig.parts->listPane.FillList();
         Assert::IsFalse (bar.IsVisible());
     }
@@ -1273,7 +1273,7 @@ public:
         rig.io.stamps["E:\\games\\zork.dsk"] = FileStamp { dsk.size(), 100 };
 
         rig.Open();
-        Assert::IsTrue (rig.browser.NavigateToAddress (L"E:\\games"));
+        Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (L"E:\\games"));
         rig.parts->listPane.FillList();
 
         DxuiInfoBanner &  bar = rig.parts->listPane.GetBars().GetCardBar();
@@ -1392,7 +1392,7 @@ public:
 
         rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\a.dsk");
         rig.Open();
-        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks"));
+        Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (L"C:\\Disks"));
 
         Assert::IsTrue (rig.parts->toolbars.GetNavToolbar().TryGetEntryRect (CassoExplorerCommands::kUp, up));
         rig.Click (up);
@@ -1418,7 +1418,7 @@ public:
 
         rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\a.dsk");
         rig.Open();
-        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks"));
+        Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (L"C:\\Disks"));
         rig.parts->listPane.FillList();
         Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"a.dsk"));
 
@@ -1488,7 +1488,7 @@ public:
             rig.scaler.SetDpi (dpi);
             rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\a.dsk");
             rig.Open();
-            Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks"));
+            Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (L"C:\\Disks"));
 
             rig.parts->listPane.GetColumns().SetView (DxuiListView::View::LargeIcons);
             rig.parts->layout.RecomputeLayout();

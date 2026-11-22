@@ -2,12 +2,14 @@
 
 #include "Pch.h"
 
+#include "CassoExplorer/Browser/BrowserParts.h"
 #include "CassoExplorer/Browser/BrowserTypes.h"
+#include "CassoExplorer/Model/BrowserModel.h"
 
 #include "CassoExplorer/Model/TreeModel.h"
 #include "Seams/IShellIcons.h"
 
-class CassoExplorerBrowser;
+class IBrowserCellsHost;
 struct CatalogRow;
 
 
@@ -27,7 +29,7 @@ struct CatalogRow;
 class BrowserCells
 {
 public:
-    explicit BrowserCells (CassoExplorerBrowser & browser);
+    BrowserCells (const BrowserParts & parts, IBrowserCellsHost & host);
 
     std::wstring  GetTabLabel (size_t index) const;
 
@@ -91,7 +93,8 @@ public:
     static std::shared_ptr<const DxuiIconImage>  GetNodeIcon (const TreeNode & node, IShellIcons & icons);
 
 private:
-    friend class CassoExplorerBrowser;
+    Location  GetLocation () const { return m_parts.model.HasTabs() ? m_parts.model.GetActiveTab().location : Location(); }
 
-    CassoExplorerBrowser  & m_browser;
+    BrowserParts         m_parts;
+    IBrowserCellsHost  & m_host;
 };

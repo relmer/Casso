@@ -1,12 +1,14 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Browser/BrowserCells.h"
+#include "CassoExplorer/Browser/BrowserHostInterfaces.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Model/SearchExpression.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/ImageClassifier.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 
 
@@ -18,8 +20,9 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-BrowserCells::BrowserCells (CassoExplorerBrowser & browser)
-    : m_browser (browser)
+BrowserCells::BrowserCells (const BrowserParts & parts, IBrowserCellsHost & host)
+    : m_parts (parts),
+      m_host  (host)
 {
 }
 
@@ -89,32 +92,32 @@ DxuiTreeNode BrowserCells::ToTreeNode (const TreeNode & node, IShellIcons * icon
 
 void BrowserCells::UpdateStatus()
 {
-    m_browser.m_status = BrowserStatus();
-    m_browser.m_status.selection = FormatSelection (0, m_browser.m_rows.size());
+    m_parts.list.status = BrowserStatus();
+    m_parts.list.status.selection = FormatSelection (0, m_parts.list.rows.size());
 
-    if (!m_browser.m_selectedRows.empty())
+    if (!m_parts.list.selectedRows.empty())
     {
         uint64_t  bytes   = 0;
         bool      anyFile = false;
 
-        for (int selected : m_browser.m_selectedRows)
+        for (int selected : m_parts.list.selectedRows)
         {
             //  A cloud item on Home has no size here.
-            if (!m_browser.m_rows[(size_t) selected].isDirectory && !(m_browser.IsHomeLocation() && m_browser.m_rows[(size_t) selected].hostPath.empty()))
+            if (!m_parts.list.rows[(size_t) selected].isDirectory && !(m_host.IsHomeLocation() && m_parts.list.rows[(size_t) selected].hostPath.empty()))
             {
-                bytes  += m_browser.m_rows[(size_t) selected].sizeBytes;
+                bytes  += m_parts.list.rows[(size_t) selected].sizeBytes;
                 anyFile = true;
             }
         }
 
-        m_browser.m_status.selected = FormatSelected (m_browser.m_selectedRows.size(), bytes, anyFile);
+        m_parts.list.status.selected = FormatSelected (m_parts.list.selectedRows.size(), bytes, anyFile);
     }
 
-    if (m_browser.m_selectedRows.size() == 1)
+    if (m_parts.list.selectedRows.size() == 1)
     {
-        const CatalogRow &  row    = m_browser.m_rows[m_browser.m_selectedRows[0]];
-        std::wstring      & detail = m_browser.m_status.detail;
-        bool                sized  = !row.isDirectory && !(m_browser.IsHomeLocation() && row.hostPath.empty()) && !(row.isStockDisk && !row.stockDownloaded);
+        const CatalogRow &  row    = m_parts.list.rows[m_parts.list.selectedRows[0]];
+        std::wstring      & detail = m_parts.list.status.detail;
+        bool                sized  = !row.isDirectory && !(m_host.IsHomeLocation() && row.hostPath.empty()) && !(row.isStockDisk && !row.stockDownloaded);
 
         //  The type, size and address that the row has, with a comma between
         //  each two. A stock disk has no type.
@@ -133,20 +136,20 @@ void BrowserCells::UpdateStatus()
 
     //  As Explorer words a drive's: what is free of the whole. For the image
     //  or linked drive open, or for one image selected in a folder.
-    if (m_browser.m_isImage || (m_browser.m_isAppleDrive && m_browser.m_listing.totalUnits > 0))
+    if (m_parts.list.isImage || (m_parts.list.isAppleDrive && m_parts.list.listing.totalUnits > 0))
     {
-        DescribeVolumeSpace (m_browser.GetLocation().path, m_browser.m_listing, m_browser.m_kind, m_browser.m_status);
+        DescribeVolumeSpace (GetLocation().path, m_parts.list.listing, m_parts.list.kind, m_parts.list.status);
     }
-    else if (m_browser.m_selectedRows.size() == 1)
+    else if (m_parts.list.selectedRows.size() == 1)
     {
         Location       image;
         VolumeListing  listing;
         VolumeKind     kind = VolumeKind::Unknown;
 
-        if (m_browser.TryGetRowLocation (m_browser.m_selectedRows[0], image) && image.kind == Location::Kind::DiskImage &&
-            m_browser.m_operations.List (TextEncoding::WideToNarrow (image.path), std::string(), listing, kind).Succeeded())
+        if (BrowserRowPaths::TryGetRowLocation (m_host.GetRowListing(), m_parts.list.selectedRows[0], image) && image.kind == Location::Kind::DiskImage &&
+            m_parts.operations.List (TextEncoding::WideToNarrow (image.path), std::string(), listing, kind).Succeeded())
         {
-            DescribeVolumeSpace (image.path, listing, kind, m_browser.m_status);
+            DescribeVolumeSpace (image.path, listing, kind, m_parts.list.status);
         }
     }
 }
@@ -823,12 +826,12 @@ std::wstring BrowserCells::GetLocationLabel (const Location & location)
 
 std::wstring BrowserCells::GetTabLabel (size_t index) const
 {
-    if (index >= m_browser.m_model.GetTabCount())
+    if (index >= m_parts.model.GetTabCount())
     {
         return std::wstring();
     }
 
-    return GetLocationLabel (m_browser.m_model.GetTab (index).location);
+    return GetLocationLabel (m_parts.model.GetTab (index).location);
 }
 
 
@@ -858,7 +861,7 @@ std::shared_ptr<const DxuiIconImage> BrowserCells::GetRowIcon (const CatalogRow 
     //  where the icons are drawn as thumbnails.
     if (row.isDiskImage && !row.isDirectory && at.kind == Location::Kind::HostFolder)
     {
-        return icons.GetForDiskImage (CassoExplorerBrowser::JoinPath (at.path, row.name));
+        return icons.GetForDiskImage (BrowserRowPaths::JoinPath (at.path, row.name));
     }
 
     //  A partition of an image has the partition's icon.
@@ -896,7 +899,7 @@ std::shared_ptr<const DxuiIconImage> BrowserCells::GetRowIcon (const CatalogRow 
 
     if (at.kind == Location::Kind::HostFolder)
     {
-        return icons.GetForPath (CassoExplorerBrowser::JoinPath (at.path, row.name), row.isDirectory);
+        return icons.GetForPath (BrowserRowPaths::JoinPath (at.path, row.name), row.isDirectory);
     }
 
     //  A root's rows are its known folders and drives, with their own icons.

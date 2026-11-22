@@ -324,7 +324,7 @@ void PreviewListingView::Fill (const PreviewContent & preview, bool columns)
 
         for (const CatalogRow & row : preview.rows)
         {
-            rows.push_back (preview.archive ? m_context.browser.GetArchivePreviewCells (row) : BrowserCells::ToCatalogPreviewCells (row));
+            rows.push_back (preview.archive ? m_context.browser.GetPreviewer().GetArchivePreviewCells (row) : BrowserCells::ToCatalogPreviewCells (row));
         }
     }
 
@@ -486,7 +486,7 @@ bool PreviewListingView::ToggleArray (int row, bool open, bool toParent)
     array = m_varLines[(size_t) row].array;
     BAIL_OUT_IF (array < 0, S_OK);
 
-    name   = m_context.browser.GetPreview().arrays[(size_t) array].name;
+    name   = m_context.browser.GetPreviewer().GetPreview().arrays[(size_t) array].name;
     result = true;
 
     if (open)
@@ -498,7 +498,7 @@ bool PreviewListingView::ToggleArray (int row, bool open, bool toParent)
         m_varExpanded.erase (name);
     }
 
-    FillVariables (m_context.browser.GetPreview(), false);
+    FillVariables (m_context.browser.GetPreviewer().GetPreview(), false);
 
     for (size_t i = 0; i < m_varLines.size(); i++)
     {
@@ -852,7 +852,7 @@ void PreviewListingView::SortVariables (int column)
     m_varDescending = (column == m_varColumn) ? !m_varDescending : false;
     m_varColumn     = column;
 
-    FillVariables (m_context.browser.GetPreview(), false);
+    FillVariables (m_context.browser.GetPreviewer().GetPreview(), false);
     m_context.window.Invalidate();
 }
 
@@ -876,7 +876,7 @@ void PreviewListingView::SetVariablesFilter (const std::wstring & filter)
 
     m_varFilter = filter;
 
-    FillVariables (m_context.browser.GetPreview(), cleared);
+    FillVariables (m_context.browser.GetPreviewer().GetPreview(), cleared);
     m_context.window.Invalidate();
 }
 

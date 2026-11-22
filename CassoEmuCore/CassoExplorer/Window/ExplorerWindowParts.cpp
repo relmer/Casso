@@ -227,8 +227,8 @@ void ExplorerWindowParts::Configure()
     services.shellIcons->SetSizePx (MulDiv (DxuiTreeView::s_kIconDip, dpi, (int) DxuiDpiScaler::kBaseDpi));
     context.browser.SetShellIcons (services.shellIcons.get());
     context.browser.SetShellVerbs (services.shellVerbs.get());
-    context.browser.SetPreviewMonitor (preview.GetPicture().GetMonitor(), context.prefs.previewCustomArgb);
-    context.browser.SetDefaultDecodeOptions (context.prefs.copyOptions);
+    context.browser.GetPreviewer().SetPreviewMonitor (preview.GetPicture().GetMonitor(), context.prefs.previewCustomArgb);
+    context.browser.GetPreviewer().SetDefaultDecodeOptions (context.prefs.copyOptions);
     explorerOptions = FolderOptions::ReadFromShell();
     context.browser.SetFolderOptions (explorerOptions);
     treePane.ApplyNavPaneOptions();
@@ -326,7 +326,7 @@ bool ExplorerWindowParts::HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lPar
             listPane.HandleShellListed (key);
         }
 
-        for (const std::wstring & key : context.browser.GetHostListings().TakeArrivedKeys())
+        for (const std::wstring & key : context.browser.GetLoader().GetHostListings().TakeArrivedKeys())
         {
             listPane.HandleShellListed (key);
         }

@@ -4,6 +4,7 @@
 #include "CassoExplorer/Model/BasicListingOutput.h"
 #include "CassoExplorer/Model/CrossVolumeCopy.h"
 #include "CassoExplorer/Model/HostAppleFile.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 #include "CassoExplorer/Actions/ActionsCopy.h"
 #include "CassoExplorer/CassoExplorerActions.h"
@@ -95,7 +96,7 @@ ActionsTypes::Outcome ActionsCopy::PasteVirtualFiles (IDataObject * data, const 
 
         if (hostNames[i].empty())
         {
-            hostPath = CassoExplorerBrowser::JoinPath (hostFolder, items[i].cFileName);
+            hostPath = BrowserRowPaths::JoinPath (hostFolder, items[i].cFileName);
             hr       = m_actions.m_fs.DirectoryExists (hostPath) ? S_OK : m_actions.m_fs.MakeDirectory (hostPath);
         }
         else
@@ -300,7 +301,7 @@ void ActionsCopy::ExtractDirectory (const std::string & image, VolumeKind kind, 
         std::string             catalogPath = directory.empty() ? entry.name : directory + "/" + entry.name;
         bool                    altered     = false;
         bool                    appleSingle = style == HostFileNaming::Style::AppleSingle;
-        DecodeOptions           options     = m_actions.m_browser.GetDecodeOptions (TextEncoding::NarrowToWide (image), catalogPath);
+        DecodeOptions           options     = m_actions.m_browser.GetPreviewer().GetDecodeOptions (TextEncoding::NarrowToWide (image), catalogPath);
         FileFormat              format      = appleSingle ? FileFormat::None : CopyOutConversion::Find (m_actions.m_browser.GetOperations(), image, catalogPath, entry, kind, options);
         std::wstring            hostName    = entry.isDirectory ? HostFileNaming::MakeHostFolderName (entry.name, altered)
                                                                 : DragPayload::GetHostName (entry, kind, style, altered, format);
@@ -315,7 +316,7 @@ void ActionsCopy::ExtractDirectory (const std::string & image, VolumeKind kind, 
             BasicListingOutput::RenameForOptions (hostName, options);
         }
 
-        hostPath = entry.isDirectory ? CassoExplorerBrowser::JoinPath (hostFolder, hostName) : MakeFreeFilePath (hostFolder, hostName);
+        hostPath = entry.isDirectory ? BrowserRowPaths::JoinPath (hostFolder, hostName) : MakeFreeFilePath (hostFolder, hostName);
 
         if (entry.isDirectory)
         {
@@ -572,13 +573,13 @@ Error:
 
 std::wstring ActionsCopy::MakeFreeFolderPath (const std::wstring & parent, const std::wstring & name)
 {
-    std::wstring  path = CassoExplorerBrowser::JoinPath (parent, name);
+    std::wstring  path = BrowserRowPaths::JoinPath (parent, name);
 
 
 
     for (int copy = 2; m_actions.m_fs.Exists (path) || m_actions.m_fs.DirectoryExists (path); copy++)
     {
-        path = CassoExplorerBrowser::JoinPath (parent, std::format (L"{} ({})", name, copy));
+        path = BrowserRowPaths::JoinPath (parent, std::format (L"{} ({})", name, copy));
     }
 
     return path;
@@ -604,13 +605,13 @@ std::wstring ActionsCopy::MakeFreeFilePath (const std::wstring & folder, const s
     size_t        split = name.find_first_of (L".#");
     std::wstring  stem  = name.substr (0, split);
     std::wstring  rest  = (split == std::wstring::npos) ? std::wstring() : name.substr (split);
-    std::wstring  path  = CassoExplorerBrowser::JoinPath (folder, name);
+    std::wstring  path  = BrowserRowPaths::JoinPath (folder, name);
 
 
 
     for (int copy = 2; m_actions.m_fs.Exists (path) || m_actions.m_fs.DirectoryExists (path); copy++)
     {
-        path = CassoExplorerBrowser::JoinPath (folder, std::format (L"{} ({}){}", stem, copy, rest));
+        path = BrowserRowPaths::JoinPath (folder, std::format (L"{} ({}){}", stem, copy, rest));
     }
 
     return path;
@@ -637,7 +638,7 @@ int ActionsCopy::CountCollisions (const std::wstring & hostFolder, const std::ve
 
     for (const std::wstring & name : hostNames)
     {
-        bool  taken = !name.empty() && m_actions.m_fs.Exists (CassoExplorerBrowser::JoinPath (hostFolder, name));
+        bool  taken = !name.empty() && m_actions.m_fs.Exists (BrowserRowPaths::JoinPath (hostFolder, name));
 
         count += taken ? 1 : 0;
     }
@@ -664,7 +665,7 @@ int ActionsCopy::CountCollisions (const std::wstring & hostFolder, const std::ve
 std::wstring ActionsCopy::ResolveCopyOutPath (const std::wstring & hostFolder, const std::wstring & hostName, const ActionsTypes::CollisionFn & collision,
                                               int & inOutIndex, int count)
 {
-    std::wstring             path   = CassoExplorerBrowser::JoinPath (hostFolder, hostName);
+    std::wstring             path   = BrowserRowPaths::JoinPath (hostFolder, hostName);
     bool                     taken  = m_actions.m_fs.Exists (path);
     ActionsTypes::Collision  choice = ActionsTypes::Collision::KeepBoth;
 
@@ -1212,7 +1213,7 @@ void ActionsCopy::PutFolder (
 
     for (const FileSystemEntry & entry : entries)
     {
-        children.push_back (CassoExplorerBrowser::JoinPath (hostFolder, entry.name));
+        children.push_back (BrowserRowPaths::JoinPath (hostFolder, entry.name));
     }
 
     PutItems (image, kind, target, children, askAddress, conversion, inOutOutcome);
@@ -1329,7 +1330,7 @@ std::wstring ActionsCopy::CheckFitsNewDisk (VolumeKind kind, const std::vector<s
 
             for (const FileSystemEntry & entry : entries)
             {
-                pending.push_back (CassoExplorerBrowser::JoinPath (path, entry.name));
+                pending.push_back (BrowserRowPaths::JoinPath (path, entry.name));
             }
 
             continue;
