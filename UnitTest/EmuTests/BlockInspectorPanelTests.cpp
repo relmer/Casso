@@ -304,6 +304,75 @@ public:
     }
 
 
+    TEST_METHOD (MapView_ATallRunHasItsNameCenteredInTheWholeRun)
+    {
+        static constexpr size_t  kBigBytes = 200 * kBlockBytes;
+        static constexpr float   kMostCell = 48.0f;
+
+        FakeDiskFileIo                   io;
+        BlockInspectorModel              model;
+        BlockMapView                     view;
+        DxuiDpiScaler                    scaler;
+        DxuiDarkTheme                    theme;
+        MockDxuiPainter                  painter;
+        MockDxuiTextRenderer             text;
+        BlockMapGrid                     grid (k800KBlocks, 400, 400);
+        vector<Byte>                     buffer (k800KBlocks * kBlockBytes, 0);
+        vector<Byte>                     next;
+        FilePayload                      payload;
+        std::unique_ptr<BlockImageFile>  file;
+        std::wstring                     error;
+        vector<uint32_t>                 blocks;
+        POINT                            at    = {};
+        const RecordedTextCall         * label = nullptr;
+
+
+
+        AssertSucceeded (ProDosSkeleton::Write (buffer, "BLOCKS"));
+
+        payload.bytes.assign (kBigBytes, 0x5A);
+        payload.type           = ProDosVolume::kTypeBinary;
+        payload.loadAddress    = kLoad;
+        payload.hasLoadAddress = true;
+
+        AssertSucceeded (ProDosVolume (buffer).Write (FilePath::Parse ("BIG"), payload, next));
+
+        io.files["vol.po"]  = next;
+        io.stamps["vol.po"] = { next.size(), kTime };
+
+        AssertSucceeded (BlockImageFile::Open (io, "vol.po", file, error));
+        AssertSucceeded (model.Open (std::move (file)));
+
+        for (uint32_t block = 0; block < k800KBlocks; block++)
+        {
+            if (model.GetOwners (block).find (L"BIG") != std::wstring::npos)
+            {
+                blocks.push_back (block);
+            }
+        }
+
+        Assert::IsTrue (blocks.size() > 150);
+
+        view.SetModel    (&model);
+        view.SetZoomable (true);
+        view.Layout      (RECT { 0, 0, 400, 400 }, scaler);
+        view.Refresh();
+
+        at = grid.GetCellOrigin (grid.GetCellOf (blocks[blocks.size() / 2]));
+        view.StepZoomAt (100, { at.x + 1, at.y + 1 });
+        view.Paint (painter, text, theme);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            label = (call.text == L"BIG") ? &call : label;
+        }
+
+        Assert::IsNotNull (label);
+        Assert::IsTrue    (label->height > kMostCell * 2, L"the name's rectangle spans the rows of the run, not one row");
+        Assert::IsTrue    (label->vAlign == DxuiTextVAlign::Center);
+    }
+
+
     TEST_METHOD (MapView_ZoomStepsEvenlyToALargeCellAndTipsAsTheFileMapGrid)
     {
         FakeDiskFileIo             io;

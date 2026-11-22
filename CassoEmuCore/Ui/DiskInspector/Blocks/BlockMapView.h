@@ -116,6 +116,8 @@ private:
     static constexpr float   kLabelDip     = 18.0f;  // the least cell a run of blocks is labeled in
     static constexpr float   kLabelPadDip  = 4.0f;
 
+    struct LabelSpot;
+
     RECT             GetGridRect    () const;
     bool             IsDiffersShown (int64_t cell) const;
     void             PaintCells     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & grid) const;
@@ -124,6 +126,7 @@ private:
     void             PaintMarquee   (IDxuiPainter & painter, const DiskInspectorPalette & palette, const RECT & grid) const;
     uint32_t         GetCellColor   (const DiskInspectorPalette & palette, uint32_t cell) const;
     void             PaintLabels    (IDxuiTextRenderer & text, const DiskInspectorPalette & palette, const RECT & grid, float left, float top) const;
+    void             FindLabelSpots (const RECT & grid, float left, float top, vector<LabelSpot> & outSpots) const;
     void             GetCellsInView (const RECT & grid, int & outFirstColumn, int & outLastColumn, int & outFirstRow, int & outLastRow) const;
     void             ReadBlocks     ();
     static uint32_t  GetFileColor   (int64_t key, bool isDark);
