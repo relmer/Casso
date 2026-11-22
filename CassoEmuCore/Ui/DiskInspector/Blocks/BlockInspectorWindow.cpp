@@ -123,7 +123,7 @@ void BlockInspectorWindow::OnCreate()
     m_panel->SetOnJobQueued    ([this] () { m_isDirty = true; });
     m_panel->SetOnCopy         ([this] () { m_edits->CopyBlock(); });
     m_panel->SetOnHint         ([this] (const std::wstring & hint) { m_status.SetHint (hint); m_isDirty = true; });
-    m_edits->ConnectEditBar();
+    m_edits->ConnectEditControls();
 
     FocusControl (m_panel->GetHexView());
 }
@@ -184,7 +184,7 @@ void BlockInspectorWindow::RenderIfChanged()
     m_session.RunPendingReload();
 
     m_panel->UpdateBusy();
-    m_edits->UpdateEditBar();
+    m_edits->UpdateEditControls();
     m_session.UpdateTitle();
     DxuiPanel::Tick ((int64_t) GetTickCount64());
     m_menus.Tick ((int64_t) GetTickCount64());

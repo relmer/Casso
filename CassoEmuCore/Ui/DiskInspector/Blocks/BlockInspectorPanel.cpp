@@ -10,7 +10,6 @@
 #include "Ui/DiskInspector/Blocks/BlockMapGrid.h"
 #include "Ui/DiskInspector/Blocks/BlockMapView.h"
 #include "Ui/DiskInspector/Components/InspectorCommands.h"
-#include "Ui/DiskInspector/EditBar.h"
 #include "Ui/DiskInspector/FloatingGroup.h"
 #include "Ui/DiskInspector/InspectorMarquee.h"
 #include "Ui/DiskInspector/OverlayChip.h"
@@ -199,6 +198,16 @@ void BlockInspectorPanel::InitRightColumn (const IDxuiTheme * theme, HWND hwnd)
         }
     });
 
+    //  A double-click on a byte starts editing with the caret on it.
+    hex.SetOnOpen ([this] (uint64_t offset)
+    {
+        if (!m_isEditing && !IsBusy() && m_model->IsOpen())
+        {
+            SetEditing (true);
+            m_hexPane.GetHexView().GoToOffset (offset);
+        }
+    });
+
     fields.SetOnHover ([this] (const BlockField * field)
     {
         if (!IsBusy())
@@ -359,14 +368,14 @@ void BlockInspectorPanel::SetEditing (bool isEditing)
 //
 //  BlockInspectorPanel::SetEditState
 //
-//  The edit bar's controls, and the layout again when the bar's height
-//  changes.
+//  The edit controls, and the layout again when the controls in the
+//  header's second row change.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BlockInspectorPanel::SetEditState (const EditBarState & state)
+void BlockInspectorPanel::SetEditState (const BlockEditState & state)
 {
-    if (m_header.SetEditState (state, m_scaler) && !m_jobs.IsLongJob())
+    if (m_header.SetEditState (state) && m_scaler.GetDpi() != 0)
     {
         Layout (GetBounds(), m_scaler);
     }

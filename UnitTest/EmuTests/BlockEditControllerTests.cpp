@@ -96,7 +96,7 @@ public:
 
         rig.EditOneByte();
         rig.edits.Save();
-        rig.edits.UpdateEditBar();
+        rig.edits.UpdateEditControls();
 
         Assert::AreEqual (kValue, rig.GetFileByte());
         Assert::IsTrue (rig.model.GetEdits().IsEmpty());
@@ -128,7 +128,7 @@ public:
         rig.EditOneByte();
         rig.edits.Save();
         rig.edits.UndoApplied();
-        rig.edits.UpdateEditBar();
+        rig.edits.UpdateEditControls();
 
         Assert::AreEqual ((Byte) 0, rig.GetFileByte());
         Assert::AreEqual (std::wstring (L"Undid the save to vol.po"), rig.view.lastState.note);

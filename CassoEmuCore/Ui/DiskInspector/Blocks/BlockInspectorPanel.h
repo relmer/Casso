@@ -13,11 +13,10 @@ class BlockFieldsView;
 class BlockHexView;
 class BlockInspectorModel;
 class BlockMapView;
-class EditBar;
 class FloatingGroup;
 class OverlayChip;
 struct BlockField;
-struct EditBarState;
+struct BlockEditState;
 struct InspectorCommands;
 
 
@@ -97,15 +96,15 @@ public:
     void  GoToBlock   (uint32_t block) override;
 
     //  Editing, as Edit block turns on and off: typing in the hex view
-    //  changes the block only while it is on. The edit bar's state is the
-    //  window's.
-    void       SetEditing   (bool isEditing) override;
-    bool       IsEditing    () const override { return m_isEditing; }
-    void       SetEditState (const EditBarState & state) override;
-    EditBar  & GetEditBar   () const override { return m_header.GetEditBar(); }
-    void       Step         (int64_t delta) override;
-    void       GoBack       () override;
-    void       GoForward    () override;
+    //  changes the block only while it is on. The edit controls' state is
+    //  the window's.
+    void               SetEditing   (bool isEditing) override;
+    bool               IsEditing    () const override { return m_isEditing; }
+    void               SetEditState (const BlockEditState & state) override;
+    BlockHeaderView  & GetHeader    () override       { return m_header; }
+    void               Step         (int64_t delta) override;
+    void               GoBack       () override;
+    void               GoForward    () override;
 
     //  The overlays, as the corner chips and the View menu turn them.
     bool  IsFilesOn      () const override { return m_isFilesOn; }

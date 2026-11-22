@@ -7,9 +7,9 @@
 #include "Seams/IHostClipboard.h"
 #include "Seams/IHostDialogs.h"
 #include "Ui/DiskInspector/Blocks/BlockEditController.h"
+#include "Ui/DiskInspector/Blocks/BlockHeaderView.h"
 #include "Ui/DiskInspector/Blocks/BlockHexView.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorState.h"
-#include "Ui/DiskInspector/EditBar.h"
 #include "Ui/DiskInspector/InspectorText.h"
 
 
@@ -33,26 +33,23 @@ BlockEditController::BlockEditController (const Parts & parts) :
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BlockEditController::ConnectEditBar
+//  BlockEditController::ConnectEditControls
 //
-//  The edit bar's buttons.
+//  The block pane's edit buttons: Edit and Done, Undo block changes, and
+//  Use B's bytes. Saving and discarding every edit are in the File and Edit
+//  menus.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BlockEditController::ConnectEditBar()
+void BlockEditController::ConnectEditControls()
 {
-    EditBar  & bar = m_parts.view.GetEditBar();
+    BlockHeaderView  & header = m_parts.view.GetHeader();
 
 
 
-    bar.SetOnEdit          ([this] () { m_parts.view.SetEditing (false); });
-    bar.SetOnDiscardSector ([this] () { if (!m_parts.jobs.IsBusy()) { m_parts.model.DiscardBlock (m_parts.model.GetBlock()); m_parts.view.Refresh(); } });
-    bar.SetOnDiscard       ([this] () { Discard(); });
-    bar.SetOnApply         ([this] () { Save(); });
-    bar.SetOnSaveCopy      ([this] () { SaveEditedCopy(); });
-    bar.SetOnUndoApplied   ([this] () { UndoApplied(); });
-    bar.SetOnRedoApplied   ([this] () { RedoApplied(); });
-    bar.SetOnUseB          ([this] () { if (!m_parts.jobs.IsBusy() && m_parts.model.UseOtherBlock (m_parts.model.GetBlock())) { m_parts.view.Refresh(); } });
+    header.SetOnEdit     ([this] () { if (!m_parts.jobs.IsBusy()) { m_parts.view.SetEditing (!m_parts.view.IsEditing()); } });
+    header.SetOnUndo     ([this] () { UndoBlock(); });
+    header.SetOnUseOther ([this] () { if (!m_parts.jobs.IsBusy() && m_parts.model.UseOtherBlock (m_parts.model.GetBlock())) { m_parts.view.Refresh(); } });
 }
 
 
@@ -61,15 +58,36 @@ void BlockEditController::ConnectEditBar()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BlockEditController::UpdateEditBar
+//  BlockEditController::UndoBlock
 //
-//  The edit bar from the pending edits, once a frame.
+//  The current block's pending edits are dropped.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BlockEditController::UpdateEditBar()
+void BlockEditController::UndoBlock()
 {
-    m_parts.view.SetEditState (BlockInspectorState::BuildEditBarState (m_parts.model, m_parts.jobs.IsBusy(), m_parts.view.IsEditing(), m_parts.file.IsOnCard(), m_note));
+    if (!m_parts.jobs.IsBusy() && m_parts.model.IsOpen())
+    {
+        m_parts.model.DiscardBlock (m_parts.model.GetBlock());
+        m_parts.view.Refresh();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockEditController::UpdateEditControls
+//
+//  The edit controls from the pending edits, once a frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockEditController::UpdateEditControls()
+{
+    m_parts.view.SetEditState (BlockInspectorState::BuildEditState (m_parts.model, m_parts.jobs.IsBusy(), m_parts.view.IsEditing(), m_note));
 }
 
 
@@ -338,7 +356,7 @@ void BlockEditController::RedoApplied()
 //  BlockEditController::QueueWrite
 //
 //  A save, undo or redo on the worker's thread. Its result goes in the
-//  edit bar's note, as "Saved to" the file. A save chosen when closing the
+//  edit controls' note, as "Saved to" the file. A save chosen when closing the
 //  window closes it once the save succeeds.
 //
 ////////////////////////////////////////////////////////////////////////////////

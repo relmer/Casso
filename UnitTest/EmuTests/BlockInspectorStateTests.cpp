@@ -3,6 +3,7 @@
 #include "FakeDiskFileIo.h"
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
+#include "Ui/DiskInspector/Blocks/BlockHeaderView.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorState.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -81,64 +82,57 @@ public:
     }
 
 
-    TEST_METHOD (EditBar_ClosedModelCantEdit)
+    TEST_METHOD (EditState_ClosedModelCantEdit)
     {
         BlockInspectorModel  model;
-        EditBarState         state = BlockInspectorState::BuildEditBarState (model, false, false, false, L"");
+        BlockEditState       state = BlockInspectorState::BuildEditState (model, false, false, L"");
 
 
 
         Assert::IsFalse (state.canEdit);
-        Assert::IsFalse (state.canApply);
-        Assert::AreEqual (0, state.bytes);
-        Assert::AreEqual (0, state.sectors);
-        Assert::IsFalse (state.hasChecksum);
+        Assert::IsFalse (state.canUndo);
+        Assert::AreEqual (0, state.blockBytes);
     }
 
 
-    TEST_METHOD (EditBar_CountsAPastedByte)
+    TEST_METHOD (EditState_CountsAPastedByteInTheBlock)
     {
         FakeDiskFileIo       io;
         BlockInspectorModel  model;
-        EditBarState         state;
+        BlockEditState       state;
 
 
 
         OpenModel (io, model);
         EditOneByte (model);
 
-        state = BlockInspectorState::BuildEditBarState (model, false, true, false, L"Saved to vol.po");
+        state = BlockInspectorState::BuildEditState (model, false, true, L"Saved to vol.po");
 
         Assert::IsTrue (state.canEdit);
         Assert::IsTrue (state.isEditing);
-        Assert::IsTrue (state.hasSectorEdit);
-        Assert::IsTrue (state.canSaveCopy);
-        Assert::AreEqual (1, state.bytes);
-        Assert::AreEqual (1, state.sectors);
+        Assert::IsTrue (state.canUndo);
+        Assert::AreEqual (1, state.blockBytes);
+        Assert::AreEqual (std::wstring (L"1 byte changed in this block"), BlockHeaderView::FormatBlockCount (state.blockBytes));
         Assert::AreEqual (std::wstring (L"Saved to vol.po"), state.note);
     }
 
 
-    TEST_METHOD (EditBar_BusyOrOnACardLimitsTheActions)
+    TEST_METHOD (EditState_BusyLimitsTheActions)
     {
         FakeDiskFileIo       io;
         BlockInspectorModel  model;
-        EditBarState         busy;
-        EditBarState         card;
+        BlockEditState       busy;
 
 
 
         OpenModel (io, model);
         EditOneByte (model);
 
-        busy = BlockInspectorState::BuildEditBarState (model, true, false, false, L"");
-        card = BlockInspectorState::BuildEditBarState (model, false, false, true, L"");
+        busy = BlockInspectorState::BuildEditState (model, true, false, L"");
 
         Assert::IsFalse (busy.canEdit);
-        Assert::IsFalse (busy.hasSectorEdit);
-        Assert::AreEqual (1, busy.sectors, L"the count is drawn while a job runs");
-        Assert::IsFalse (card.canSaveCopy);
-        Assert::IsTrue (card.canApply);
+        Assert::IsFalse (busy.canUndo);
+        Assert::AreEqual (1, busy.blockBytes, L"the count is drawn while a job runs");
     }
 
 

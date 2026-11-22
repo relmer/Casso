@@ -14,8 +14,9 @@
 //  in the hex column sets the caret byte's high nibble, the next its low
 //  nibble, and then the caret moves on; a character typed in the text column
 //  replaces the caret byte and the caret moves on. A Ctrl+click on a byte
-//  reports its offset, so a link there can be followed, and Page Up, Page
-//  Down and Alt with an arrow are reported before the view handles them.
+//  reports its offset, so a link there can be followed, a double-click on a
+//  byte reports its offset, and Page Up, Page Down and Alt with an arrow are
+//  reported before the view handles them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,6 +29,7 @@ public:
 
     void  SetOnType     (TypeFn fn)     { m_onType     = std::move (fn); }
     void  SetOnClick    (ClickFn fn)    { m_onClick    = std::move (fn); }
+    void  SetOnOpen     (ClickFn fn)    { m_onOpen     = std::move (fn); }
     void  SetOnNavigate (NavigateFn fn) { m_onNavigate = std::move (fn); }
 
     //  The next hex digit sets a high nibble again, as after a step to
@@ -41,7 +43,10 @@ public:
 private:
     TypeFn      m_onType;
     ClickFn     m_onClick;
+    ClickFn     m_onOpen;
     NavigateFn  m_onNavigate;
     bool        m_isLowNibble = false;
     uint64_t    m_nibbleAt    = 0;
+    uint64_t    m_pressAt     = 0;   // the byte the last press was on
+    int64_t     m_pressMs     = 0;   // and when, for a double-click
 };

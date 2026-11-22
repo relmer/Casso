@@ -9,6 +9,7 @@
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Ui/DiskInspector/Blocks/BlockFieldsView.h"
+#include "Ui/DiskInspector/Blocks/BlockHeaderView.h"
 #include "Ui/DiskInspector/Blocks/BlockHexSource.h"
 #include "Ui/DiskInspector/Blocks/BlockHexView.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorPanel.h"
@@ -773,6 +774,58 @@ public:
         }
 
         Assert::IsTrue (panel.GetMap().GetZoom() > 1.0, L"the flight ends zoomed in");
+    }
+
+
+    TEST_METHOD (Panel_ADoubleClickOnAByteEditsItWithoutMovingTheHexView)
+    {
+        FakeDiskFileIo        io;
+        BlockInspectorModel   model;
+        BlockInspectorPanel   panel;
+        DxuiDarkTheme         theme;
+        DxuiDpiScaler         scaler;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        DxuiMouseEvent        ev;
+        RECT                  before = {};
+        RECT                  after  = {};
+        RECT                  byte   = {};
+        BlockEditState        state;
+        int                   click  = 0;
+
+
+
+        OpenModel (io, model);
+
+        panel.Init   (&model, nullptr, &theme, nullptr, &text);
+        panel.Layout (RECT { 0, 0, 1180, 700 }, scaler);
+        panel.SelectBlock (2);
+        panel.Paint  (painter, text, theme);
+
+        before         = panel.GetHexView()->GetBounds();
+        byte           = panel.GetHexView()->GetByteRect (5, DxuiHexView::Column::Hex);
+        ev.button      = DxuiMouseButton::Left;
+        ev.positionDip = { (byte.left + byte.right) / 2, (byte.top + byte.bottom) / 2 };
+
+        for (click = 0; click < 2; click++)
+        {
+            ev.kind = DxuiMouseEventKind::Down;
+            panel.OnMouse (ev);
+            ev.kind = DxuiMouseEventKind::Up;
+            panel.OnMouse (ev);
+        }
+
+        Assert::IsTrue   (panel.IsEditing(), L"a double-click starts editing");
+        Assert::AreEqual ((uint64_t) 5, panel.GetHexView()->GetCaret());
+
+        state.canEdit   = true;
+        state.isEditing = true;
+        panel.SetEditState (state);
+
+        after = panel.GetHexView()->GetBounds();
+        Assert::AreEqual (before.top, after.top, L"the hex view stays where it was");
+        Assert::AreEqual (std::wstring (L"Done"), panel.GetHeader().GetEdit().GetAccessibleName());
+        Assert::IsTrue   (panel.GetHeader().GetUndo().IsVisible());
     }
 
 

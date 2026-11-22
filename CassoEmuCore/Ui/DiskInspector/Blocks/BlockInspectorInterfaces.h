@@ -4,13 +4,13 @@
 
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorWorker.h"
 
+class BlockHeaderView;
 class BlockHexView;
 class BlockMapView;
 class BlockNavigator;
-class EditBar;
 class IDiskFileIo;
 class IHostDialogs;
-struct EditBarState;
+struct BlockEditState;
 
 
 
@@ -51,13 +51,13 @@ class IBlockView
 public:
     virtual ~IBlockView() = default;
 
-    virtual void            Refresh        () = 0;
-    virtual void            SetEditing     (bool isEditing) = 0;
-    virtual bool            IsEditing      () const = 0;
-    virtual void            SetEditState   (const EditBarState & state) = 0;
-    virtual EditBar       & GetEditBar     () const = 0;
-    virtual BlockHexView  * GetHexView     () const = 0;
-    virtual std::wstring    BuildBlockText () const = 0;
+    virtual void               Refresh        () = 0;
+    virtual void               SetEditing     (bool isEditing) = 0;
+    virtual bool               IsEditing      () const = 0;
+    virtual void               SetEditState   (const BlockEditState & state) = 0;
+    virtual BlockHeaderView  & GetHeader      () = 0;
+    virtual BlockHexView     * GetHexView     () const = 0;
+    virtual std::wstring       BuildBlockText () const = 0;
 };
 
 
@@ -172,7 +172,7 @@ public:
 };
 
 
-//  The edit bar's note, as the last save's result or a repair's.
+//  The edit controls' note, as the last save's result or a repair's.
 class IBlockEditNote
 {
 public:
@@ -182,7 +182,7 @@ public:
 };
 
 
-//  A note that goes nowhere, for a part with no edit bar.
+//  A note that goes nowhere, for a part with no edit controls.
 class NullBlockEditNote : public IBlockEditNote
 {
 public:

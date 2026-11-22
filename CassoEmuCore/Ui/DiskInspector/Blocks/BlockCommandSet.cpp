@@ -62,7 +62,7 @@ void BlockCommandSet::Build()
     };
 
     //  File
-    c.save                      = make (L"&Save...", L"Ctrl+S", [&editing] () { editing.Save(); });
+    c.save                      = make (L"&Save", L"Ctrl+S", [&editing] () { editing.Save(); });
     c.save->isEnabled           = hasEdits;
     c.saveEditedCopy            = make (L"Save &as...", L"", [&editing] () { editing.SaveEditedCopy(); });
     c.saveEditedCopy->isEnabled = [this, hasEdits] () { return hasEdits() && !m_parts.file.IsOnCard(); };
@@ -218,7 +218,8 @@ bool BlockCommandSet::TryRunWindowKey (const DxuiKeyEvent & ev, bool & outResult
 //  BlockCommandSet::TryRunKey
 //
 //  The shortcuts after the focused control's typing and editing keys. Escape
-//  cancels the running job and goes on to the focused control. False for a
+//  cancels the running job, stops editing, and goes on to the focused
+//  control. False for a
 //  key the focused control takes; otherwise `outResult` is whether it was
 //  handled.
 //
@@ -258,7 +259,7 @@ bool BlockCommandSet::TryRunKey (const DxuiKeyEvent & ev, bool & outResult)
             case VK_PRIOR:  command = m_commands.previousSector;                                               break;
             case VK_NEXT:   command = m_commands.nextSector;                                                   break;
             case VK_F8:     command = ev.shift ? m_commands.previousDifference : m_commands.nextDifference;    break;
-            case VK_ESCAPE: m_parts.jobs.CancelJobs();                                                         break;
+            case VK_ESCAPE: CancelOrStopEditing();                                                             break;
             default:                                                                                           break;
         }
     }
@@ -271,6 +272,26 @@ bool BlockCommandSet::TryRunKey (const DxuiKeyEvent & ev, bool & outResult)
     outResult = Run (command);
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockCommandSet::CancelOrStopEditing
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockCommandSet::CancelOrStopEditing()
+{
+    m_parts.jobs.CancelJobs();
+
+    if (m_parts.view.IsEditing())
+    {
+        m_parts.view.SetEditing (false);
+    }
 }
 
 
