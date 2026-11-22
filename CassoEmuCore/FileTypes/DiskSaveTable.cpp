@@ -98,7 +98,7 @@ HRESULT DiskSaveTable::DecodeInfocomSave (const std::vector<Byte> & sectors, std
     outFile.kind = DecodedFile::Kind::Document;
 
     heading.runs = { Run { TextEncoding::NarrowToWide (GetInfocomTitle (positions)), true },
-                     Run { std::format (L" saved game, release {}, serial {}", positions[0].release, TextEncoding::NarrowToWide (positions[0].serial)) } };
+                     Run { std::format (L", release {}, serial {}", positions[0].release, TextEncoding::NarrowToWide (positions[0].serial)) } };
     outFile.paragraphs.push_back (heading);
 
     for (const InfocomSave::Position & position : positions)
@@ -158,7 +158,7 @@ void DiskSaveTable::AddInfocomPosition (const InfocomSave::Position & position, 
 
 
     ioParagraphs.push_back (Paragraph());
-    line.runs = { Run { L"Save position " }, Run { std::format (L"{}", position.number), true } };
+    line.runs = { Run { L"Save position\t", false, false, false, RunColor::Muted }, Run { std::format (L"{}", position.number), true } };
     ioParagraphs.push_back (line);
 
     line.runs = { Run { L"Room\t", false, false, false, RunColor::Muted }, Run { position.room.empty() ? std::wstring (L"Unknown") : position.room, true } };
@@ -233,8 +233,8 @@ void DiskSaveTable::AddInfocomItems (const wchar_t * heading, const std::vector<
 //
 //  DiskSaveTable::AddScoreBar
 //
-//  A bar of s_kScoreBarCells blocks, green for the score, rounded up so any
-//  score has a block, and gray for the rest of the maximum.
+//  A solid line s_kScoreBarCells characters long: green for the score,
+//  rounded up so any score is visible, and gray for the rest of the maximum.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -248,7 +248,7 @@ void DiskSaveTable::AddScoreBar (int score, int maxScore, std::vector<Run> & ioR
 
     for (int i = 0; i < s_kScoreBarCells; i++)
     {
-        (i < filled ? done : rest) += s_kpszFullBlock;
+        (i < filled ? done : rest) += s_kpszHeavyLine;
     }
 
     ioRuns.push_back (Run { done, false, false, false, RunColor::Good });
