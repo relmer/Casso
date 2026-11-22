@@ -588,12 +588,12 @@ bool PreviewTextView::TryGetSelectionDetail (std::wstring & outDetail) const
 
 
 
-    if (!IsShowing() || !m_text->HasSelection())
+    if (!IsShowing() || !m_text->GetSelection().HasSelection())
     {
         return false;
     }
 
-    for (wchar_t ch : m_text->GetSelectionText())
+    for (wchar_t ch : m_text->GetSelection().GetSelectionText())
     {
         chars += (ch != L'\r' && ch != L'\n') ? 1 : 0;
     }

@@ -7,6 +7,7 @@
 #include "DxuiTextLayout.h"
 #include "DxuiTextPicture.h"
 #include "DxuiTextScroll.h"
+#include "DxuiTextSelection.h"
 #include "DxuiTextViewPictures.h"
 #include "DxuiTextViewInterfaces.h"
 #include "IDxuiTextPictureHost.h"
@@ -29,10 +30,6 @@
 //  wrap indent past it, as source code wraps under its operand. A BASIC line is
 //  a number and a statement, so a long statement wraps under itself; a detail
 //  is a label and a value, so a long value wraps under the value.
-//
-//  A SELECTION RUNS FROM ANY CHARACTER TO ANY CHARACTER, across cells and rows.
-//  Positions count characters in a row's text with its cells joined by tabs, so
-//  a copy has a tab between cells and a line break between rows.
 //
 //  A TABLE DOESN'T WRAP. With SetNoWrap, each row is one line, and a row wider
 //  than the view scrolls sideways by whole characters under a horizontal
@@ -69,10 +66,12 @@ public:
     ~DxuiTextView() override = default;
 
     //  Replaces the text, clearing the selection and scrolling to the top.
-    void                    SetRows   (std::vector<Row> rows);
-    const DxuiTextLayout &  GetLayout () const { return m_layout; }
-    DxuiTextScroll       &  GetScroll ()       { return m_scroll; }
-    const DxuiTextScroll &  GetScroll () const { return m_scroll; }
+    void                       SetRows      (std::vector<Row> rows);
+    const DxuiTextLayout     & GetLayout    () const { return m_layout; }
+    DxuiTextScroll           & GetScroll    ()       { return m_scroll; }
+    const DxuiTextScroll     & GetScroll    () const { return m_scroll; }
+    DxuiTextSelection        & GetSelection ()       { return m_selection; }
+    const DxuiTextSelection  & GetSelection () const { return m_selection; }
 
     //  One character cell, in the same coordinates as the bounds.
     void  SetCellSize      (int widthPx, int heightPx);
@@ -94,8 +93,6 @@ public:
     void  Measure            (IDxuiTextRenderer & text, const IDxuiTheme & theme);
     int   GetContentHeightPx () const;
 
-    Position  HitTest (POINT point) const;
-
     //  The rows' pictures: painting, hit testing, the outline, and the zoom,
     //  pan and ping of a picture shown as a map.
     DxuiTextViewPictures        & GetPictures ()       { return m_pictures; }
@@ -106,14 +103,7 @@ public:
     //  doesn't fit. True before the text is measured.
     bool  DoColumnsFit () const;
 
-    void          Select           (Position anchor, Position caret);
-    void          SelectAll        ();
-    void          ClearSelection   ();
-    bool          HasSelection     () const { return !(m_anchor == m_caret); }
-    std::wstring  GetSelectionText () const;
-    void          CopySelection    () const;
-
-    bool  IsInteracting   () const { return m_dragging || m_scroll.IsDragging(); }
+    bool  IsInteracting   () const { return m_selection.IsDragging() || m_scroll.IsDragging(); }
     bool  IsOverScrollbar (POINT pt) const override { return m_scroll.IsOverScrollbar (pt); }
 
     void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
@@ -155,12 +145,7 @@ private:
     void                     Rebuild                ();
     float                    GetTextLeft            () const;
     void                     EnsureCellSize         (IDxuiTextRenderer & text, const IDxuiTheme & theme);
-    void                     SelectWordAt           (Position pos);
-    void                     GetWordBounds          (Position pos, Position & outFirst, Position & outLast) const;
 
-    //  Word characters, spaces and tabs are three kinds; a run of one kind is
-    //  what a double-click selects.
-    static int    GetCharClass      (wchar_t ch) { return (ch == L'\t') ? 2 : (ch == L' ') ? 1 : 0; }
     void          PaintLine         (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, int lineIndex, const DxuiFontHandle & font);
     void          FillSelectedRange (IDxuiPainter & painter, int y, int row, int cell, int cellFrom, int flatStart, int count, float trailPx, int selFrom, int selTo, uint32_t argb) const;
     void          DrawRun           (IDxuiTextRenderer & text, const IDxuiTheme & theme, const DxuiFontHandle & font, int y, int row, int cell, int cellFrom,
@@ -180,15 +165,7 @@ private:
     DxuiTextScroll     m_scroll        { m_layout, *this };
     float              m_zoom          = 1.0f;
     float              m_textStrength  = 1.0f;
-    Position           m_anchor;
-    Position           m_caret;
-    Position           m_lastClick;
-    int64_t            m_lastClickMs   = 0;
-    int                m_clicks        = 0;   // the clicks in a row on one spot, each within the double-click time
-    bool               m_dragging      = false;
-    bool               m_wordDrag      = false;
-    Position           m_wordFirst;
-    Position           m_wordLast;
+    DxuiTextSelection  m_selection     { m_layout, *this, m_scroll };
     HWND               m_hwnd          = nullptr;
     const wchar_t    * m_iconFace      = L"Segoe MDL2 Assets";
     ContextMenuFn      m_onContextMenu;

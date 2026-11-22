@@ -56,22 +56,6 @@ public:
     }
 
 
-    TEST_METHOD (LastCell_WrapsAtASpaceUnderItsOwnFirstCharacter)
-    {
-        DxuiTextView  view;
-
-        LayOut (view, 12 + 16 * 8, 400);
-        view.SetRows ({ MakeRow ({ L"10", L"PRINT AAAA BBBB CCCC" }) });
-
-        Assert::AreEqual (2, view.GetLayout().GetLineCount(), L"Sixteen columns less the number and its gap leave twelve, so the statement wraps once");
-
-        //  The second line's fifth column is the first character after the
-        //  number's column and gap, which is where the wrapped run begins.
-        Assert::AreEqual (14, view.HitTest (POINT { 6 + 4 * 8, 6 + 16 + 4 }).offset,
-            L"and the wrapped run starts with BBBB, under the P of PRINT");
-    }
-
-
     //  A picture row is as many lines as the picture is tall, and the picture
     //  is drawn once, a pixel a DIP.
     TEST_METHOD (Picture_TakesTheLinesOfItsHeightAndIsDrawnOnce)
@@ -154,29 +138,12 @@ public:
         Mouse (view, DxuiMouseEventKind::Move, 6 + 40, 6 + 16 + 50);
 
         Assert::IsTrue  (view.GetPictures().IsPanning());
-        Assert::IsFalse (view.HasSelection(), L"a drag on the map doesn't select text");
+        Assert::IsFalse (view.GetSelection().HasSelection(), L"a drag on the map doesn't select text");
 
         Mouse (view, DxuiMouseEventKind::Up, 6 + 40, 6 + 16 + 50);
 
         Assert::IsFalse (view.GetPictures().IsPanning());
         Assert::IsTrue  (view.GetPictures().IsPinging());
-    }
-
-
-    //  A row's wrap indent starts each wrapped line that many characters past    //  the last cell's first, as source code wraps under its operand.
-    TEST_METHOD (WrapIndent_StartsAWrappedLinePastTheCellsFirstCharacter)
-    {
-        DxuiTextView       view;
-        DxuiTextView::Row  row = MakeRow ({ L"10", L"X LDA AAAA BBBB" });
-
-        row.wrapIndent = 6;
-
-        LayOut (view, 12 + 16 * 8, 400);
-        view.SetRows ({ row });
-
-        Assert::AreEqual (2, view.GetLayout().GetLineCount());
-        Assert::AreEqual (14, view.HitTest (POINT { 6 + 10 * 8, 6 + 16 + 4 }).offset, L"BBBB starts under the first A");
-        Assert::AreEqual (15, view.HitTest (POINT { 6 + 11 * 8, 6 + 16 + 4 }).offset);
     }
 
 
@@ -248,21 +215,8 @@ public:
     }
 
 
-    TEST_METHOD (SelectionText_SpansCellsAndRows)
-    {
-        DxuiTextView  view;
-
-        LayOut (view, 400, 400);
-        view.SetRows ({ MakeRow ({ L"A", L"one" }), MakeRow ({ L"B", L"two" }) });
-
-        view.Select (DxuiTextView::Position { 0, 2 }, DxuiTextView::Position { 1, 3 });
-
-        Assert::AreEqual (std::wstring (L"one\r\nB\tt"), view.GetSelectionText(),
-            L"A tab separates cells and a line break separates rows");
-    }
-
-
-    TEST_METHOD (Drag_SelectsFromTheCharacterPressedToTheOneReleased)
+    //  A press and a drag on the text go to the selection.
+    TEST_METHOD (Drag_GoesToTheSelection)
     {
         DxuiTextView  view;
 
@@ -273,14 +227,14 @@ public:
         Mouse (view, DxuiMouseEventKind::Move, 6 + 5 * 8, 6 + 16 + 4);
         Mouse (view, DxuiMouseEventKind::Up,   6 + 5 * 8, 6 + 16 + 4);
 
-        Assert::AreEqual (std::wstring (L"one\r\nB\ttw"), view.GetSelectionText());
+        Assert::AreEqual (std::wstring (L"one\r\nB\ttw"), view.GetSelection().GetSelectionText());
         Assert::IsFalse  (view.IsInteracting());
     }
 
 
     //  Proportional text is laid out once a paint has measured its
-    //  characters, and a point is hit-tested by those measured places.
-    TEST_METHOD (Proportional_LaysOutAndHitTestsByMeasuredPlaces)
+    //  characters.
+    TEST_METHOD (Proportional_LaysOutOnceAPaintMeasures)
     {
         DxuiTextView          view;
         MockDxuiPainter       painter;
@@ -296,58 +250,6 @@ public:
         view.Paint (painter, text, theme);
 
         Assert::AreEqual (2, view.GetLayout().GetLineCount());
-        Assert::AreEqual (0,  view.HitTest (POINT { 0, 6 + 4 }).offset, L"The row's left edge is its first character");
-        Assert::AreEqual (12, view.HitTest (POINT { 399, 6 + 4 }).offset, L"and past its end is the end of its text");
-
-        view.SelectAll();
-        Assert::AreEqual (std::wstring (L"Format\tWOZ 2\r\n\tsecond line"), view.GetSelectionText());
-    }
-
-
-    //  A bold run is measured bold, so the text after it starts where the
-    //  bold run ends, not where the same characters end in the regular face.
-    TEST_METHOD (Proportional_MeasuresABoldRunBold)
-    {
-        DxuiTextView          view;
-        DxuiTextView::Row     row = MakeRow ({ L"XXXYY" });
-        MockDxuiPainter       painter;
-        MockDxuiTextRenderer  text;
-        MockDxuiTheme         theme;
-
-        row.spans.push_back ({ 0, 0, 3, 0, true });
-        text.SetBoldGlyphWidth (9.0f);
-
-        LayOut (view, 400, 400);
-        view.SetProportional (true);
-        view.SetRows ({ row });
-        view.Paint (painter, text, theme);
-
-        Assert::AreEqual (2, view.HitTest (POINT { 6 + 18, 6 + 4 }).offset, L"Two bold characters are 18 wide, not 14");
-        Assert::AreEqual (4, view.HitTest (POINT { 6 + 27 + 7, 6 + 4 }).offset, L"and a regular one after them starts at 27");
-    }
-
-
-    //  A double-click selects a word, and a third click on the same spot
-    //  selects everything.
-    TEST_METHOD (TripleClick_SelectsEverything)
-    {
-        DxuiTextView  view;
-
-        LayOut (view, 400, 400);
-        view.SetRows ({ MakeRow ({ L"A", L"one two" }), MakeRow ({ L"B", L"three" }) });
-
-        for (int click = 0; click < 2; click++)
-        {
-            Mouse (view, DxuiMouseEventKind::Down, 6 + 3 * 8, 6 + 4);
-            Mouse (view, DxuiMouseEventKind::Up,   6 + 3 * 8, 6 + 4);
-        }
-
-        Assert::AreEqual (std::wstring (L"one"), view.GetSelectionText(), L"Two clicks select the word");
-
-        Mouse (view, DxuiMouseEventKind::Down, 6 + 3 * 8, 6 + 4);
-        Mouse (view, DxuiMouseEventKind::Up,   6 + 3 * 8, 6 + 4);
-
-        Assert::AreEqual (std::wstring (L"A\tone two\r\nB\tthree"), view.GetSelectionText(), L"and a third selects everything");
     }
 
 
@@ -363,19 +265,7 @@ public:
         Assert::IsFalse  (enabled, L"Nothing selected, nothing to copy");
 
         Assert::IsTrue   (view.InvokeCommand (DxuiStandardCommand::SelectAll));
-        Assert::AreEqual (std::wstring (L"A\tone\r\nB\ttwo"), view.GetSelectionText());
-    }
-
-
-    TEST_METHOD (WarningRow_StartsItsTextAfterTheMark)
-    {
-        DxuiTextView  view;
-
-        LayOut (view, 400, 400);
-        view.SetRows ({ MakeRow ({ L"Line 10: the file ends" }, true) });
-
-        Assert::AreEqual (0, view.HitTest (POINT { 6 + DxuiTextLayout::kWarningCells * 8, 6 + 4 }).offset,
-            L"The first character is past the warning mark");
+        Assert::AreEqual (std::wstring (L"A\tone\r\nB\ttwo"), view.GetSelection().GetSelectionText());
     }
 
 
@@ -393,7 +283,6 @@ public:
         view.GetScroll().ScrollColumns (7);
 
         Assert::AreEqual (7, view.GetScroll().GetLeftColumn());
-        Assert::AreEqual (7, view.HitTest (POINT { 6, 6 + 4 }).offset, L"The character at the left edge is the one scrolled to");
 
         view.GetScroll().ScrollColumns (1000);
 
