@@ -90,7 +90,7 @@ void PreviewTextView::Layout (const RECT & content)
     //  again when the width changes.
     if (tables && m_text->IsVisible() && content.right - content.left != m_tableWidth)
     {
-        FillRows (preview);
+        FillRows (preview, true);
     }
 }
 
@@ -192,18 +192,27 @@ void PreviewTextView::Fill (const PreviewContent & preview)
 //  fields four, three and two to a line, then as cards. Each form is
 //  measured, and the next narrower one built when a cell would wrap.
 //  Without a renderer to measure with, a table or cards by the width alone.
+//  When the same preview is laid out again, it is scrolled to the same
+//  place in the paragraph that was at the top.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PreviewTextView::FillRows (const PreviewContent & preview)
+void PreviewTextView::FillRows (const PreviewContent & preview, bool keepPlace)
 {
-    SourceSyntax::Colors  colors  = PreviewText::GetSourceColors (m_context.theme);
-    RECT                  bounds  = m_text->GetBounds();
-    bool                  measure = m_context.theme != nullptr && m_context.window.GetTextRenderer() != nullptr;
-    TableForm             form    = IsWide() ? TableForm::Table : measure ? TableForm::FourFields : TableForm::Cards;
-    bool                  done    = false;
+    SourceSyntax::Colors  colors    = PreviewText::GetSourceColors (m_context.theme);
+    RECT                  bounds    = m_text->GetBounds();
+    bool                  measure   = m_context.theme != nullptr && m_context.window.GetTextRenderer() != nullptr;
+    TableForm             form      = IsWide() ? TableForm::Table : measure ? TableForm::FourFields : TableForm::Cards;
+    bool                  done      = false;
+    int                   paragraph = -1;
+    float                 within    = 0.0f;
 
 
+
+    if (keepPlace)
+    {
+        GetPlace (paragraph, within);
+    }
 
     m_tableWidth = bounds.right - bounds.left;
 
@@ -229,6 +238,111 @@ void PreviewTextView::FillRows (const PreviewContent & preview)
             form = done ? form : (TableForm) ((int) form - 1);
         }
     }
+
+    if (paragraph >= 0 && measure)
+    {
+        m_text->Measure (*m_context.window.GetTextRenderer(), *m_context.theme);
+        SetPlace (paragraph, within);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewTextView::GetPlace
+//
+//  The paragraph of the top line, and how far into its lines the top line
+//  is, from 0 at its first line to 1 past its last. No paragraph at the
+//  top of the text or when the rows have no paragraphs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewTextView::GetPlace (int & outParagraph, float & outWithin) const
+{
+    int  top   = m_text->GetTopLine();
+    int  row   = m_text->GetLineRow (top);
+    int  first = top;
+    int  last  = top;
+
+
+
+    outParagraph = -1;
+    outWithin    = 0.0f;
+
+    if (top <= 0 || row < 0 || row >= (int) m_rowParagraph.size())
+    {
+        return;
+    }
+
+    outParagraph = m_rowParagraph[(size_t) row];
+
+    while (first > 0 && GetLineParagraph (first - 1) == outParagraph)
+    {
+        first--;
+    }
+
+    while (last + 1 < m_text->GetLineCount() && GetLineParagraph (last + 1) == outParagraph)
+    {
+        last++;
+    }
+
+    outWithin = (float) (top - first) / (float) (last - first + 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewTextView::SetPlace
+//
+//  The top line at the same fraction into the paragraph's lines.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewTextView::SetPlace (int paragraph, float within)
+{
+    int  first = -1;
+    int  count = 0;
+
+
+
+    for (int line = 0; line < m_text->GetLineCount(); line++)
+    {
+        if (GetLineParagraph (line) == paragraph)
+        {
+            first = (first < 0) ? line : first;
+            count++;
+        }
+    }
+
+    if (first >= 0)
+    {
+        m_text->SetTopLine (first + (int) (within * (float) count));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewTextView::GetLineParagraph
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int PreviewTextView::GetLineParagraph (int line) const
+{
+    int  row = m_text->GetLineRow (line);
+
+
+
+    return (row >= 0 && row < (int) m_rowParagraph.size()) ? m_rowParagraph[(size_t) row] : -1;
 }
 
 

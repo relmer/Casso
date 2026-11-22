@@ -59,10 +59,13 @@ public:
     static constexpr int  s_kWideTableDip = 640;
 
 private:
-    void  ShowContextMenu (int x, int y);
-    bool  HandleTextMouse (const DxuiMouseEvent & ev);
-    bool  IsWide          () const;
-    void  FillRows        (const PreviewContent & preview);
+    void  ShowContextMenu  (int x, int y);
+    bool  HandleTextMouse  (const DxuiMouseEvent & ev);
+    bool  IsWide           () const;
+    void  FillRows         (const PreviewContent & preview, bool keepPlace = false);
+    void  GetPlace         (int & outParagraph, float & outWithin) const;
+    void  SetPlace         (int paragraph, float within);
+    int   GetLineParagraph (int line) const;
 
     DxuiTextView      * m_text           = nullptr;
     bool                m_crossReference = false;

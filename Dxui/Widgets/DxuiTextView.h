@@ -134,6 +134,7 @@ public:
 
     int   GetLineCount () const { return (int) m_lines.size(); }
     int   GetLineCap   () const;
+    int   GetLineRow   (int line) const { return (line >= 0 && line < (int) m_lines.size()) ? m_lines[(size_t) line].row : -1; }
 
     //  The text measured and laid out at its bounds' width before it is drawn,
     //  and the height its lines take there, for a view sized to its text.
