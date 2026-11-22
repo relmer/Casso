@@ -12,7 +12,8 @@
 //  InfocomSave
 //
 //  A save disk of an Infocom game's Apple II interpreter, which has no
-//  catalog: eight positions of four tracks each, position n from track 4n.
+//  catalog: eight positions of four tracks each, position n from track 4n,
+//  or from track 4n + 3 for an early interpreter, as Zork III's release 10.
 //  A position is written in physical sector order, three pages of the
 //  interpreter's state and then the story's dynamic memory, which begins
 //  with the story's header. Measured from Zork I, release 88, saved in
@@ -71,12 +72,13 @@ public:
     static constexpr int     kStatePages        = 3;
     static constexpr size_t  kPageBytes         = 256;
     static constexpr int     kSectorsPerTrack   = 16;
+    static constexpr int     kEarlyFirstTrack   = 3;
 
     //  The positions a disk in DOS sector order has saved, in order.
     static void  FindPositions   (const std::vector<Byte> & sectors, std::vector<Position> & outPositions);
 
-    //  Position `number`, or false when it has no saved game.
-    static bool  TryReadPosition (const std::vector<Byte> & sectors, int number, Position & outPosition);
+    //  Position `number`, from `firstTrack` on, or false when it has no saved game.
+    static bool  TryReadPosition (const std::vector<Byte> & sectors, int number, Position & outPosition, int firstTrack = 0);
 
     //  One position as a line: the title and release, the room, and the
     //  score out of the maximum and the moves, or the time. The title and
@@ -98,6 +100,6 @@ private:
     static Word  GetWord       (const std::vector<Byte> & memory, size_t at);
     static int   CountObjects  (const std::vector<Byte> & memory, Word objects);
     static int   GetObjectLink (const std::vector<Byte> & memory, Word objects, int count, int number, size_t which);
-    static int   FindPlayer    (const std::vector<Byte> & memory, Word objects, Word globals, int count, int room);
+    static int   FindPlayer    (const std::vector<Byte> & memory, const ZMachineStory::Header & header, int count, int room);
     static void  AddTree       (const std::vector<Byte> & memory, const ZMachineStory::Header & header, int count, int parent, int skip, int depth, std::vector<Item> & ioItems);
 };

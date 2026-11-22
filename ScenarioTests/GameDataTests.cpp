@@ -540,4 +540,92 @@ public:
                                                                             { 1, L"glass bottle" }, { 2, L"quantity of water" } }),
                         L"The table, and the sack and bottle on it");
     }
+
+
+    //  A story disk from the test disks folder booted with a blank disk in
+    //  drive 2, then `steps` typed: a step is a line typed and RETURN, or
+    //  keys alone after a "!", and "~" is a space for [MORE]. What drive 2
+    //  then has saved. Empty when the story disk is not on this machine.
+    static std::vector<InfocomSave::Position> SaveInfocomGame (const char * fileName, DiskFormat format, std::initializer_list<const char *> steps)
+    {
+        constexpr uint64_t  kBootCycles = 150'000'000ULL;
+        constexpr uint64_t  kMoreCycles = 30'000'000ULL;
+        constexpr uint64_t  kStepCycles = 20'000'000ULL;
+
+        TestMachine                         machine ("Apple2eEnhanced");
+        std::vector<Byte>                   image = GuestSession::FindTestDisk (fileName);
+        std::vector<Byte>                   blank (143360, 0);
+        std::vector<InfocomSave::Position>  positions;
+        SectorDecodeReport                  report;
+
+
+
+        if (image.empty())
+        {
+            Logger::WriteMessage (std::format ("SKIPPED: {} is not in the test disks folder\n", fileName).c_str());
+            return positions;
+        }
+
+        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, fileName,   format,           image));
+        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 1, "save.dsk", DiskFormat::Dsk, blank));
+        machine.PowerCycle();
+        machine.RunCycles (kBootCycles);
+
+        for (std::string step : steps)
+        {
+            if (step == "~")
+            {
+                AssertSucceeded (KeystrokeInjector::InjectKey (machine, (Byte) ' '));
+                machine.RunCycles (kMoreCycles);
+            }
+            else if (step.starts_with ("!"))
+            {
+                TypeToZork (machine, step.substr (1), false);
+            }
+            else
+            {
+                TypeToZork (machine, step, true);
+            }
+
+            machine.RunCycles (kStepCycles);
+        }
+
+        InfocomSave::FindPositions (GuestSession::DecodeThroughTheDrive (*machine.GetDiskStore().GetImage (6, 1), report), positions);
+
+        return positions;
+    }
+
+
+    //  Zork II, from its original disk: the lamp taken, the sword left on the
+    //  ground, saved at position 0 in drive 2.
+    TEST_METHOD (ZorkII_ASaveHasTheLampCarriedAndTheSwordHere)
+    {
+        std::vector<InfocomSave::Position>  positions = SaveInfocomGame ("zork2.woz", DiskFormat::Woz, { "!N", "TAKE LAMP", "SAVE", "", "!2", "", "", "" });
+
+
+
+        if (!positions.empty())
+        {
+            Assert::AreEqual (std::string ("Zork II (release 48): Inside the Barrow, score 0 of 400, 1 move"), InfocomSave::Describe (positions[0]));
+            Assert::IsTrue   (positions[0].carried == std::vector<InfocomSave::Item> ({ { 0, L"lamp" } }));
+            Assert::IsTrue   (positions[0].here    == std::vector<InfocomSave::Item> ({ { 0, L"sword" } }));
+        }
+    }
+
+
+    //  Zork III's early interpreter asks for the position, slot and drive a
+    //  key each, and saves from track 3. Its serial number is "ZORK 3".
+    TEST_METHOD (ZorkIII_AnEarlyInterpretersSaveIsFound)
+    {
+        std::vector<InfocomSave::Position>  positions = SaveInfocomGame ("zork3.po", DiskFormat::Po, { "~", "SAVE", "!0", "!6", "!2", "" });
+
+
+
+        if (!positions.empty())
+        {
+            Assert::AreEqual (std::string ("Zork III (release 10): Endless Stair, score 0 of 7, 0 moves"), InfocomSave::Describe (positions[0]));
+            Assert::IsTrue   (positions[0].carried.empty());
+            Assert::IsTrue   (positions[0].here == std::vector<InfocomSave::Item> ({ { 0, L"lamp" } }));
+        }
+    }
 };

@@ -136,6 +136,7 @@ static constexpr InfocomSave::Story  s_kStories[] =
     {  48, "840904", "Zork II",                              400 },
     {  63, "860811", "Zork II",                              400 },
     {  10, "820818", "Zork III",                               7 },
+    {  10, "ZORK 3", "Zork III",                               7 },
     {  12, "821025", "Zork III",                               7 },
     {  15, "830331", "Zork III",                               7 },
     {  16, "830410", "Zork III",                               7 },
@@ -181,18 +182,18 @@ Word InfocomSave::GetWord (const std::vector<Byte> & memory, size_t at)
 //  InfocomSave::TryReadPosition
 //
 //  The position's pages in physical order, then the header checked as a
-//  story's: a version from 1 to 3, a serial number of six digits, and the
-//  objects, the globals and the abbreviations in dynamic memory, which fits
-//  the position.
+//  story's: a version from 1 to 3, a serial number of six printable
+//  characters, high bits ignored, and the objects, the globals and the
+//  abbreviations in dynamic memory, which fits the position.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool InfocomSave::TryReadPosition (const std::vector<Byte> & sectors, int number, Position & outPosition)
+bool InfocomSave::TryReadPosition (const std::vector<Byte> & sectors, int number, Position & outPosition, int firstTrackOfAll)
 {
     constexpr size_t        kTrackBytes = kSectorsPerTrack * kPageBytes;
     std::vector<Byte>       memory;
     ZMachineStory::Header   header;
-    size_t                  firstTrack  = (size_t) number * kTracksPerPosition;
+    size_t                  firstTrack  = (size_t) firstTrackOfAll + (size_t) number * kTracksPerPosition;
     bool                    isValid     = number >= 0 && number < kPositions && (firstTrack + kTracksPerPosition) * kTrackBytes <= sectors.size();
     Word                    globals     = 0;
     int                     room        = 0;
@@ -212,7 +213,8 @@ bool InfocomSave::TryReadPosition (const std::vector<Byte> & sectors, int number
 
     for (size_t at = 0x12; isValid && at < 0x18; at++)
     {
-        isValid = memory[at] >= '0' && memory[at] <= '9';
+        memory[at] &= 0x7F;
+        isValid     = memory[at] >= ' ' && memory[at] < 0x7F;
     }
 
     if (isValid)
@@ -248,7 +250,7 @@ bool InfocomSave::TryReadPosition (const std::vector<Byte> & sectors, int number
         outPosition.room    = (room > 0) ? ZMachineStory::ReadObjectName (memory, header, (size_t) room) : std::wstring();
 
         int  count  = CountObjects (memory, header.objects);
-        int  player = FindPlayer (memory, header.objects, globals, count, room);
+        int  player = FindPlayer (memory, header, count, room);
 
         if (room > 0 && room <= count)
         {
@@ -321,28 +323,31 @@ int InfocomSave::GetObjectLink (const std::vector<Byte> & memory, Word objects, 
 //
 //  InfocomSave::FindPlayer
 //
-//  The first object in the room whose number is a global variable's, after
-//  the room, score and moves, or 0.
+//  The named object in the room that the lowest global variable after the
+//  room, score and moves has, or 0. Two globals can have the player, and
+//  the first is the one the parser started with.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int InfocomSave::FindPlayer (const std::vector<Byte> & memory, Word objects, Word globals, int count, int room)
+int InfocomSave::FindPlayer (const std::vector<Byte> & memory, const ZMachineStory::Header & header, int count, int room)
 {
     int  player = 0;
 
 
 
-    for (int child = GetObjectLink (memory, objects, count, room, 2); player == 0 && child != 0; child = GetObjectLink (memory, objects, count, child, 1))
+    for (int g = 3; player == 0 && g < kGlobals && header.globals + 2u * (size_t) g + 1 < memory.size(); g++)
     {
-        for (int g = 3; player == 0 && g < kGlobals && globals + 2u * (size_t) g + 1 < memory.size(); g++)
+        int  value = GetWord (memory, header.globals + 2u * (size_t) g);
+
+        if (value > 0 && value <= count && GetObjectLink (memory, header.objects, count, value, 0) == room
+            && !ZMachineStory::ReadObjectName (memory, header, (size_t) value).empty())
         {
-            player = (GetWord (memory, globals + 2u * (size_t) g) == child) ? child : 0;
+            player = value;
         }
     }
 
     return player;
 }
-
 
 
 
@@ -395,11 +400,17 @@ void InfocomSave::FindPositions (const std::vector<Byte> & sectors, std::vector<
 
     outPositions.clear();
 
-    for (int number = 0; number < kPositions; number++)
+    //  The early layout is tried only when the usual one has no positions.
+    for (int first : { 0, kEarlyFirstTrack })
     {
-        if (TryReadPosition (sectors, number, position))
+        bool  isFound = !outPositions.empty();
+
+        for (int number = 0; !isFound && number < kPositions; number++)
         {
-            outPositions.push_back (position);
+            if (TryReadPosition (sectors, number, position, first))
+            {
+                outPositions.push_back (position);
+            }
         }
     }
 }
