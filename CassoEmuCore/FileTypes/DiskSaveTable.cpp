@@ -2,6 +2,7 @@
 
 #include "FileTypes/DiskSaveTable.h"
 #include "Core/TextEncoding.h"
+#include "Core/UnicodeSymbols.h"
 #include "Machines/Apple2/Common/InfocomSave.h"
 #include "Machines/Apple2/Common/Ultima3Save.h"
 #include "Machines/Apple2/Common/Ultima4Save.h"
@@ -16,7 +17,6 @@ static constexpr DiskSaveTable::Entry  s_kEntries[] =
     { &DiskSaveTable::IsUltima3Save, &DiskSaveTable::DecodeUltima3Save },
     { &DiskSaveTable::IsUltima4Save, &DiskSaveTable::DecodeUltima4Save },
 };
-
 
 
 
@@ -43,7 +43,6 @@ const DiskSaveTable::Entry * DiskSaveTable::Find (const std::vector<Byte> & sect
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskSaveTable::IsInfocomSave
@@ -64,17 +63,16 @@ bool DiskSaveTable::IsInfocomSave (const std::vector<Byte> & sectors)
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskSaveTable::DecodeInfocomSave
 //
-//  The game's title and subtitle as the heading, or "Infocom" when the
-//  positions are of different games or one not in the table, then each
-//  saved position: its number and the game in bold,
-//  the release and serial in gray, the room, the score and moves or the
-//  time, a bar of the score out of the game's maximum, then what the player
-//  carries and what's in the room, nested as they are.
+//  The game's title and subtitle in bold as the heading, or "Infocom" when
+//  the positions are of different games or one not in the table, with the
+//  first position's release and serial. Then each saved position as a
+//  table of a label and a value: the room, the score out of the game's
+//  maximum with a bar, the moves or the time, then what the player has
+//  and what's in the room, nested as they are.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -96,7 +94,8 @@ HRESULT DiskSaveTable::DecodeInfocomSave (const std::vector<Byte> & sectors, std
     outFile      = DecodedFile();
     outFile.kind = DecodedFile::Kind::Document;
 
-    heading.runs = { Run { TextEncoding::NarrowToWide (GetInfocomTitle (positions)) + L" saved game", true } };
+    heading.runs = { Run { TextEncoding::NarrowToWide (GetInfocomTitle (positions)), true },
+                     Run { std::format (L" saved game, release {}, serial {}", positions[0].release, TextEncoding::NarrowToWide (positions[0].serial)) } };
     outFile.paragraphs.push_back (heading);
 
     for (const InfocomSave::Position & position : positions)
@@ -107,7 +106,6 @@ HRESULT DiskSaveTable::DecodeInfocomSave (const std::vector<Byte> & sectors, std
 Error:
     return hr;
 }
-
 
 
 
@@ -140,7 +138,6 @@ std::string DiskSaveTable::GetInfocomTitle (const std::vector<InfocomSave::Posit
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskSaveTable::AddInfocomPosition
@@ -150,43 +147,38 @@ std::string DiskSaveTable::GetInfocomTitle (const std::vector<InfocomSave::Posit
 void DiskSaveTable::AddInfocomPosition (const InfocomSave::Position & position, std::vector<Paragraph> & ioParagraphs)
 {
     const InfocomSave::Story *  story = InfocomSave::FindStory (position.release, position.serial);
-    std::wstring                title = story ? TextEncoding::NarrowToWide (story->title) : std::wstring (L"Unknown story");
     int                         hours = (position.score % 12 == 0) ? 12 : position.score % 12;
     Paragraph                   line;
 
 
 
     ioParagraphs.push_back (Paragraph());
-    line.runs = { Run { std::format (L"Position {}   {}", position.number, title), true },
-                  Run { std::format (L"   release {}, serial {}", position.release, TextEncoding::NarrowToWide (position.serial)), false, false, false, RunColor::Muted } };
+    line.runs = { Run { L"Save position " }, Run { std::format (L"{}", position.number), true } };
     ioParagraphs.push_back (line);
 
-    line.runs = { Run { L"Room   ", false, false, false, RunColor::Muted }, Run { position.room.empty() ? std::wstring (L"Unknown") : position.room, true } };
+    line.runs = { Run { L"Room\t", false, false, false, RunColor::Muted }, Run { position.room.empty() ? std::wstring (L"Unknown") : position.room, true } };
     ioParagraphs.push_back (line);
 
     if (position.isTimed)
     {
-        line.runs = { Run { L"Time   ", false, false, false, RunColor::Muted },
+        line.runs = { Run { L"Time\t", false, false, false, RunColor::Muted },
                       Run { std::format (L"{}:{:02} {}", hours, position.moves, (position.score < 12) ? L"AM" : L"PM"), true, false, false, RunColor::Keyword } };
         ioParagraphs.push_back (line);
     }
     else
     {
-        line.runs = { Run { L"Score   ", false, false, false, RunColor::Muted }, Run { std::format (L"{}", position.score), true, false, false, RunColor::Keyword } };
+        line.runs = { Run { L"Score\t", false, false, false, RunColor::Muted }, Run { std::format (L"{}", position.score), true, false, false, RunColor::Keyword } };
 
         if (story != nullptr && story->maxScore > 0)
         {
-            line.runs.push_back (Run { std::format (L" of {}", story->maxScore), false, false, false, RunColor::Muted });
+            line.runs.push_back (Run { std::format (L" of {}   ", story->maxScore), false, false, false, RunColor::Muted });
+            AddScoreBar (position.score, story->maxScore, line.runs);
         }
 
-        line.runs.push_back (Run { L"   Moves   ", false, false, false, RunColor::Muted });
-        line.runs.push_back (Run { std::format (L"{}", position.moves), true, false, false, RunColor::Keyword });
         ioParagraphs.push_back (line);
 
-        if (story != nullptr && story->maxScore > 0)
-        {
-            ioParagraphs.push_back (MakeScoreBar (position.score, story->maxScore));
-        }
+        line.runs = { Run { L"Moves\t", false, false, false, RunColor::Muted }, Run { std::format (L"{}", position.moves), true, false, false, RunColor::Keyword } };
+        ioParagraphs.push_back (line);
     }
 
     AddInfocomItems (L"Carrying", position.carried, ioParagraphs);
@@ -196,12 +188,12 @@ void DiskSaveTable::AddInfocomPosition (const InfocomSave::Position & position, 
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskSaveTable::AddInfocomItems
 //
-//  A heading in gray, then the items, each indented under what it's in.
+//  A blank line, then the label in gray beside the first item, and the
+//  other items under it in bold, each indented under what it's in.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -211,18 +203,18 @@ void DiskSaveTable::AddInfocomItems (const wchar_t * heading, const std::vector<
 
 
 
-    line.runs = { Run { heading, true, false, false, RunColor::Muted } };
-    ioParagraphs.push_back (line);
+    ioParagraphs.push_back (Paragraph());
 
     if (items.empty())
     {
-        line.runs = { Run { L"   Nothing", false, true, false, RunColor::Muted } };
+        line.runs = { Run { std::wstring (heading) + L"\t", false, false, false, RunColor::Muted }, Run { L"Nothing", false, true, false, RunColor::Muted } };
         ioParagraphs.push_back (line);
     }
 
-    for (const InfocomSave::Item & item : items)
+    for (size_t i = 0; i < items.size(); i++)
     {
-        line.runs = { Run { std::wstring (3 + (size_t) item.depth * 5, L' ') + item.name } };
+        line.runs = { Run { std::wstring ((i == 0) ? heading : L"") + L"\t", false, false, false, RunColor::Muted },
+                      Run { std::wstring ((size_t) items[i].depth * s_kItemIndent, L' ') + items[i].name, true } };
         ioParagraphs.push_back (line);
     }
 }
@@ -230,35 +222,31 @@ void DiskSaveTable::AddInfocomItems (const wchar_t * heading, const std::vector<
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskSaveTable::MakeScoreBar
+//  DiskSaveTable::AddScoreBar
 //
-//  A bar s_kScoreBarWidth pixels wide, green for the score and gray for the
-//  rest of the maximum.
+//  A bar of s_kScoreBarCells blocks, green for the score, rounded up so any
+//  score has a block, and gray for the rest of the maximum.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Paragraph DiskSaveTable::MakeScoreBar (int score, int maxScore)
+void DiskSaveTable::AddScoreBar (int score, int maxScore, std::vector<Run> & ioRuns)
 {
-    Paragraph  bar;
-    int        filled = (std::clamp) (score, 0, maxScore) * s_kScoreBarWidth / maxScore;
+    int           filled = ((std::clamp) (score, 0, maxScore) * s_kScoreBarCells + maxScore - 1) / maxScore;
+    std::wstring  done;
+    std::wstring  rest;
 
 
 
-    bar.width  = s_kScoreBarWidth;
-    bar.height = s_kScoreBarHeight;
-    bar.picture.assign ((size_t) bar.width * (size_t) bar.height, s_kScoreBarRest);
-
-    for (int y = 0; y < bar.height; y++)
+    for (int i = 0; i < s_kScoreBarCells; i++)
     {
-        std::fill_n (bar.picture.begin() + (ptrdiff_t) y * bar.width, filled, s_kScoreBarFill);
+        (i < filled ? done : rest) += s_kpszFullBlock;
     }
 
-    return bar;
+    ioRuns.push_back (Run { done, false, false, false, RunColor::Good });
+    ioRuns.push_back (Run { rest, false, false, false, RunColor::Muted });
 }
-
 
 
 
@@ -273,7 +261,6 @@ bool DiskSaveTable::IsUltima3Save (const std::vector<Byte> & sectors)
 {
     return Ultima3Save::IsFound (sectors);
 }
-
 
 
 
@@ -299,7 +286,6 @@ HRESULT DiskSaveTable::DecodeUltima3Save (const std::vector<Byte> & sectors, std
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskSaveTable::IsUltima4Save
@@ -310,7 +296,6 @@ bool DiskSaveTable::IsUltima4Save (const std::vector<Byte> & sectors)
 {
     return Ultima4Save::IsFound (sectors);
 }
-
 
 
 

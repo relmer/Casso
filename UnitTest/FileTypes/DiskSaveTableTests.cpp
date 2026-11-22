@@ -49,7 +49,8 @@ public:
         std::vector<Byte>  disk = InfocomSaveBuilder::MakeDisk (memory, 0);
 
         AssertSucceeded  (DiskSaveTable::Find (disk)->decode (disk, {}, file));
-        Assert::AreEqual (std::wstring (L"Zork I: The Great Underground Empire saved game"), GetText (file.paragraphs[0]));
+        Assert::AreEqual (std::wstring (L"Zork I: The Great Underground Empire saved game, release 88, serial 840726"), GetText (file.paragraphs[0]));
+        Assert::IsTrue   (file.paragraphs[0].runs[0].bold && !file.paragraphs[0].runs[1].bold, L"The title is bold");
     }
 
 
@@ -65,10 +66,13 @@ public:
         AssertSucceeded   (entry->decode (disk, {}, file));
 
         Assert::IsTrue   (file.kind == DecodedFile::Kind::Document);
-        Assert::AreEqual (std::wstring (L"Infocom saved game"), GetText (file.paragraphs[0]));
-        Assert::AreEqual (std::wstring (L"Position 2   Unknown story   release 5, serial 123456"), GetText (file.paragraphs[2]));
-        Assert::AreEqual (std::wstring (L"Room   hall"), GetText (file.paragraphs[3]));
-        Assert::IsTrue   (file.paragraphs[2].runs[0].bold, L"The position's number is bold");
+        Assert::AreEqual (std::wstring (L"Infocom saved game, release 5, serial 123456"), GetText (file.paragraphs[0]));
+        Assert::AreEqual (std::wstring (L"Save position 2"), GetText (file.paragraphs[2]));
+        Assert::AreEqual (std::wstring (L"Room\thall"), GetText (file.paragraphs[3]));
+        Assert::IsTrue   (file.paragraphs[2].runs[1].bold, L"The position's number is bold");
+        Assert::AreEqual (std::wstring (L"Score\t7"), GetText (file.paragraphs[4]));
+        Assert::AreEqual (std::wstring (L"Moves\t12"), GetText (file.paragraphs[5]));
+        Assert::AreEqual (std::wstring (L"Carrying\tNothing"), GetText (file.paragraphs[7]));
     }
 
 
