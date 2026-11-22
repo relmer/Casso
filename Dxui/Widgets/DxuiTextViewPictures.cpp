@@ -78,6 +78,9 @@ DxuiPictureMap::Key DxuiTextViewPictures::GetKey (int row) const
 //
 //  DxuiTextViewPictures::HitTest
 //
+//  The picture under a point, as its row and the pixel of the picture,
+//  through any zoom; false off a picture.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiTextViewPictures::HitTest (POINT point, int & outRow, int & outX, int & outY) const
@@ -122,6 +125,10 @@ bool DxuiTextViewPictures::HitTest (POINT point, int & outRow, int & outX, int &
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiTextViewPictures::SetOutline
+//
+//  A rectangle of a row's picture, in its pixels, outlined in the accent
+//  color, as the cell under the pointer is; row -1 for none. Returns
+//  whether the outline moved.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -219,6 +226,8 @@ void DxuiTextViewPictures::Paint (IDxuiTextRenderer & text, const IDxuiTheme & t
 //
 //  DxuiTextViewPictures::IsPinging
 //
+//  Whether a picture with a ping is in the rows.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiTextViewPictures::IsPinging() const
@@ -244,6 +253,9 @@ bool DxuiTextViewPictures::IsPinging() const
 //
 //  DxuiTextViewPictures::TickPing
 //
+//  The ping's animation: true when a frame changed, so the view needs
+//  painting.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiTextViewPictures::TickPing (int64_t nowMs)
@@ -258,6 +270,9 @@ bool DxuiTextViewPictures::TickPing (int64_t nowMs)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiTextViewPictures::Zoom
+//
+//  The wheel over a zoomable picture; false off one, so the view scrolls
+//  there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -287,6 +302,9 @@ bool DxuiTextViewPictures::Zoom (POINT point, float notches)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiTextViewPictures::TryStartPan
+//
+//  A left press on a zoomable picture starts panning it; false off one, so
+//  the view selects text there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

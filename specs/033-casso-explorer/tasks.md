@@ -1999,6 +1999,7 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 - [ ] T793 [US38] `Ultima3Save` in `CassoEmuCore/Machines/Apple2/Common/`: recognize a player disk by its party and map, and decode the map with the party marked and its legend one entry to a line, then each member and the rest of the roster as a block with one fact to a line, rows an unreadable sector covers striped. Tests first, on a disk built in memory (FR-305). Done: the decoder and `Ultima3SaveTests`. Left: show it under the preview's Saved game tab through the disk-level path the Infocom save work is adding, passing the sectors that couldn't be read
 - [ ] T794 [US38] Add the Ultima III and Ultima IV rows to `FileFormatTable`, with RTF copy outs and the map as a picture in each
 - [ ] T795 [US38] Scenario tests on the owner's Ultima III player disks and Ultima IV Disk B and C, checked against the games run in Casso
+- [X] T796 [US38] Split DxuiTextView, which the map ping, zoom and pan pushed past the 2,000-line limit: the pictures into DxuiTextViewPictures, which reads the view through IDxuiTextPictureHost, and the zoom, pan and ping state into DxuiPictureMap. DxuiTextView.cpp was 2,117 lines before the map work and 2,330 with it, and 1,994 after the split. Tests moved to DxuiPictureMapTests and DxuiTextViewPicturesTests; DxuiTextViewTests keeps the routing of the wheel and drag.
 
 ## Phase 57: Volumes read and written by the block (User Story 39)
 
