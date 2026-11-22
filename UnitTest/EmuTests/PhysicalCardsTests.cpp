@@ -243,6 +243,7 @@ public:
             PhysicalCardFileIo  io (unused, cards);
 
             Assert::IsTrue  (card.TryOpen (io, kPath), L"the partition opens by the block");
+            Assert::AreEqual (std::string ("Partition 1: CARD1"), card.GetLabel());
             AssertSucceeded (card.GetVolume().Write (FilePath::Parse ("FILE"), payload, edited));
 
             HRESULT  hr = card.Commit (edited, refusal);
@@ -259,6 +260,19 @@ public:
             AssertSucceeded (volume.Read (FilePath::Parse ("FILE"), readBack));
             Assert::IsTrue  (readBack.bytes == payload.bytes, L"the file is on the card");
         }
+    }
+
+
+    //  The sentence for a failed card write includes the reason when one is known.
+    TEST_METHOD (CardVolumeEdit_DescribeWriteFailure_IncludesTheReason)
+    {
+        std::string  denied  = CardVolumeEdit::DescribeWriteFailure (E_ACCESSDENIED);
+        std::string  gone    = CardVolumeEdit::DescribeWriteFailure (HRESULT_FROM_WIN32 (ERROR_DEVICE_NOT_CONNECTED));
+        std::string  other   = CardVolumeEdit::DescribeWriteFailure (E_FAIL);
+
+        Assert::IsTrue   (denied.starts_with ("could not be written. The storage card broker"));
+        Assert::IsTrue   (gone.starts_with ("could not be written. The card is no longer open"));
+        Assert::AreEqual (std::string ("could not be written"), other);
     }
 
 
