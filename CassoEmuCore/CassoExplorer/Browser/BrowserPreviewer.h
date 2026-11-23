@@ -131,7 +131,7 @@ public:
     static constexpr unsigned         s_kWindowsCodePage       = 1252;
     static constexpr wchar_t          s_kByteOrderMark         = 0xFEFF;
     static constexpr size_t           s_kTabStop               = 8;
-    void  PreviewEntry       (const std::wstring & imagePath, const std::string & entryPath, const FileEntry & entry, VolumeKind kind);
+    void  PreviewEntry       (const std::wstring & imagePath, const std::string & entryPath, const FileEntry & entry, VolumeKind kind, std::span<const Byte> diskSectors = {});
     void  SetSavedGameShown  (bool shown);
     void  PreviewSearchMatch (const CatalogRow & row);
     void  UpdatePreview      ();

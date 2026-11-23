@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "FileTypes/FileFormatTable.h"
+#include "FileTypes/WizardryText.h"
 
 
 
@@ -22,7 +23,8 @@
 //  class, alignment, status and age in weeks, each a word; the six
 //  attributes, five bits each, three to a word; the saving throws; the gold
 //  as three words of four decimal digits each, low first; the item count
-//  and the items; the experience as the gold; the highest level, the level,
+//  and the items, a word of the item's number and a word of flags each;
+//  the experience as the gold; the highest level, the level,
 //  and the hit points left and most. A slot not in use has the status lost.
 //
 //  Wizardry IV's WERDNA.DATA has Werdna's record once for each of the eight
@@ -50,6 +52,10 @@ public:
     static constexpr size_t  kStatusAt       = 40;
     static constexpr size_t  kAgeAt          = 42;
     static constexpr size_t  kGoldAt         = 52;
+    static constexpr size_t  kItemCountAt    = 58;
+    static constexpr size_t  kItemsAt        = 60;
+    static constexpr size_t  kItemBytes      = 4;
+    static constexpr int     kMaxItems       = 8;
     static constexpr size_t  kExperienceAt   = 92;
     static constexpr size_t  kLevelAt        = 100;
     static constexpr size_t  kHpLeftAt       = 102;
@@ -83,5 +89,5 @@ private:
     static std::wstring  GetClassName  (int kind);
     static std::wstring  GetAlignName  (int align);
     static std::wstring  GetStatusName (int status);
-    static void          ListRoster    (std::span<const Byte> bytes, std::vector<Paragraph> & ioParagraphs);
+    static void          ListRoster    (std::span<const Byte> bytes, const std::vector<WizardryText::ItemName> & items, std::vector<Paragraph> & ioParagraphs);
 };

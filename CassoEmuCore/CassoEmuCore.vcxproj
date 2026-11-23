@@ -640,6 +640,7 @@
     <ClCompile Include="FileTypes\DiskSaveTable.cpp" />
     <ClCompile Include="FileTypes\WizardryRoster.cpp" />
     <ClCompile Include="FileTypes\WizardryScenario.cpp" />
+    <ClCompile Include="FileTypes\WizardryText.cpp" />
     <ClCompile Include="FileTypes\VisiCalcEvaluator.cpp" />
     <ClCompile Include="FileTypes\GutenbergDocument.cpp" />
     <ClCompile Include="FileTypes\MagicWindowDocument.cpp" />
@@ -1870,6 +1871,7 @@
     <ClInclude Include="FileTypes\DiskSaveTable.h" />
     <ClInclude Include="FileTypes\WizardryRoster.h" />
     <ClInclude Include="FileTypes\WizardryScenario.h" />
+    <ClInclude Include="FileTypes\WizardryText.h" />
     <ClInclude Include="FileTypes\VisiCalcEvaluator.h" />
     <ClInclude Include="FileTypes\GutenbergDocument.h" />
     <ClInclude Include="FileTypes\MagicWindowDocument.h" />

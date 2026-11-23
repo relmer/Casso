@@ -269,11 +269,12 @@ std::wstring WizardryRoster::GetStatusName (int status)
 //  Each character with a slot in use, as the roster of Wizardry I, II and
 //  III: the name in bold, the level, race, class and alignment, the status
 //  in green when OK and red otherwise, the hit points, the age in years,
-//  the gold and the experience.
+//  the gold and the experience. With the game's item text, a line under it
+//  for each item, by its true name.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void WizardryRoster::ListRoster (std::span<const Byte> bytes, std::vector<Paragraph> & ioParagraphs)
+void WizardryRoster::ListRoster (std::span<const Byte> bytes, const std::vector<WizardryText::ItemName> & items, std::vector<Paragraph> & ioParagraphs)
 {
     auto  roster = std::make_shared<RecordTable>();
     int   listed = 0;
@@ -326,6 +327,16 @@ void WizardryRoster::ListRoster (std::span<const Byte> bytes, std::vector<Paragr
                                                                   Run { L"   Exp ", false, false, false, RunColor::Muted },
                                                                   Run { exp, true, false, false, RunColor::Keyword } }));
 
+        int  count = items.empty() ? 0 : (std::clamp) (WizardryScenario::ReadWord (bytes, at + kItemCountAt), 0, kMaxItems);
+
+        for (int k = 0; k < count; k++)
+        {
+            int           item = WizardryScenario::ReadWord (bytes, at + kItemsAt + (size_t) k * kItemBytes);
+            std::wstring  text = (item >= 0 && item < (int) items.size()) ? items[(size_t) item].name : std::format (L"Item {}", item);
+
+            record.details.push_back (WizardryScenario::MakeParagraph ({ Run { L"      " + text } }));
+        }
+
         roster->records.push_back (std::move (record));
         listed++;
     }
@@ -359,12 +370,11 @@ void WizardryRoster::ListRoster (std::span<const Byte> bytes, std::vector<Paragr
 
 HRESULT WizardryRoster::Decode (std::span<const Byte> bytes, const FileFacts & facts, const DecodeOptions & options, DecodedFile & outFile, std::wstring & outError)
 {
-    HRESULT  hr      = S_OK;
-    bool     isValid = Matches (facts, bytes);
+    HRESULT                               hr      = S_OK;
+    bool                                  isValid = Matches (facts, bytes);
+    std::vector<WizardryText::ItemName>   items;
 
 
-
-    UNREFERENCED_PARAMETER (options);
 
     outFile        = DecodedFile();
     outFile.format = FileFormat::WizardryRoster;
@@ -382,7 +392,13 @@ HRESULT WizardryRoster::Decode (std::span<const Byte> bytes, const FileFacts & f
     {
         outFile.paragraphs.push_back (WizardryScenario::MakeParagraph ({ Run { L"Wizardry V: Heart of the Maelstrom", true } }));
         outFile.paragraphs.push_back (Paragraph());
-        ListRoster (bytes, outFile.paragraphs);
+        //  Without the disk the file came from, the items aren't listed.
+        if (!WizardryText::ReadItemNames (options.diskSectors, items))
+        {
+            items.clear();
+        }
+
+        ListRoster (bytes, items, outFile.paragraphs);
     }
 
 Error:

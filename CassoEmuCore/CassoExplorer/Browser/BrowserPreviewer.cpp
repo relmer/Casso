@@ -697,6 +697,10 @@ const FileEntry * BrowserPreviewer::FindSavedGame (const VolumeListing & listing
 bool BrowserPreviewer::PreviewSavedGame (const std::wstring & imagePath, const VolumeListing & listing, VolumeKind kind)
 {
     const FileEntry  * scenario = FindSavedGame (listing, kind);
+    std::vector<Byte>  bytes;
+    std::vector<Byte>  sectors;
+    SectorDecodeReport report;
+    std::string        narrow   = TextEncoding::WideToNarrow (imagePath);
 
 
 
@@ -705,7 +709,23 @@ bool BrowserPreviewer::PreviewSavedGame (const std::wstring & imagePath, const V
         return false;
     }
 
-    PreviewEntry (imagePath, scenario->name, *scenario, kind);
+    //  Wizardry V's roster has item numbers, and the text for them is
+    //  elsewhere on the disk.
+    if (_stricmp (scenario->name.c_str(), "PLAYER.DATA") == 0)
+    {
+        HRESULT  read = m_browser.m_operations.GetFileIo().ReadAllBytes (narrow, bytes);
+
+        IGNORE_RETURN_VALUE (read, S_OK);
+    }
+
+    if (!bytes.empty())
+    {
+        HRESULT  loaded = VolumeImage::Load (bytes, narrow, sectors, report);
+
+        IGNORE_RETURN_VALUE (loaded, S_OK);
+    }
+
+    PreviewEntry (imagePath, scenario->name, *scenario, kind, sectors);
 
     if (m_preview.kind != PreviewContent::Kind::Document)
     {
@@ -1537,12 +1557,13 @@ void BrowserPreviewer::PreviewShellItem (const CatalogRow & row)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BrowserPreviewer::PreviewEntry (const std::wstring & imagePath, const std::string & entryPath, const FileEntry & entry, VolumeKind kind)
+void BrowserPreviewer::PreviewEntry (const std::wstring & imagePath, const std::string & entryPath, const FileEntry & entry, VolumeKind kind, std::span<const Byte> diskSectors)
 {
     DiskOperations::Result  result;
     FilePayload             payload;
     HRESULT                 hr          = S_OK;
     PreviewDecoder::HexForm hexForm     = PreviewDecoder::HexForm::Auto;
+    DecodeOptions           options     = GetDecodeOptions (imagePath, entryPath);
 
 
 
@@ -1562,8 +1583,8 @@ void BrowserPreviewer::PreviewEntry (const std::wstring & imagePath, const std::
     }
 
     hexForm = GetHexForm (imagePath + L"|" + TextEncoding::NarrowToWide (entryPath));
-    hr      = PreviewViewChoices::Render (m_viewAs, entry, kind, payload, hexForm, m_bus, m_preview, m_previewMonitor, m_customArgb,
-                                          GetDecodeOptions (imagePath, entryPath));
+    options.diskSectors = diskSectors;
+    hr                  = PreviewViewChoices::Render (m_viewAs, entry, kind, payload, hexForm, m_bus, m_preview, m_previewMonitor, m_customArgb, options);
 
     //  A double hi-res picture's monitor follows its form, which is known once
     //  it is decoded.
