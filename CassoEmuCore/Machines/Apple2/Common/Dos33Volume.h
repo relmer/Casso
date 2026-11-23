@@ -9,6 +9,7 @@
 #include "Machines/Apple2/Common/Dos33SectorAccess.h"
 #include "Machines/Apple2/Common/Dos33StartupProgram.h"
 #include "Machines/Apple2/Common/Dos33VolumeRemover.h"
+#include "Machines/Apple2/Common/Dos33VolumeWriter.h"
 #include "Machines/Apple2/Common/IVolume.h"
 
 class ISectorReadObserver;
@@ -33,8 +34,9 @@ class ISectorReadObserver;
 //  subdirectories and no tree. Geometry constants come from Dos33Skeleton
 //  rather than being restated here, so the format is described in one place.
 //
-//  Addressing for the integrity pass is unit = track * 16 + sector, giving 560
-//  units for a 35-track disk.
+//  The listing and reads are here. The catalog, the track/sector lists, the
+//  free bitmap, the integrity pass, deletion, placement and the startup
+//  program are separate components over one Dos33SectorAccess.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,6 +46,10 @@ public:
     //  Holds the buffer by reference and never modifies it. Every mutating
     //  operation produces a complete new buffer instead.
     explicit Dos33Volume (const vector<Byte> & sectors);
+
+    //  The components have references to m_access and to each other.
+    Dos33Volume             (const Dos33Volume &) = delete;
+    Dos33Volume & operator= (const Dos33Volume &) = delete;
 
     //  Called with each sector the volume reads from here on; null for none.
     void     SetReadObserver (ISectorReadObserver * observer) { m_access.SetReadObserver (observer); }
@@ -91,20 +97,12 @@ public:
     static constexpr uint32_t  kUnitCount = 560;   // 35 tracks x 16 sectors
 
 private:
-    //  Lays down a file whose name the catalog does not already hold, over the
-    //  buffer this volume was constructed with. Replacement stages the removal
-    //  into a working buffer and calls this on a volume over that, so one code
-    //  path places every file and a replacement cannot half-happen.
-    HRESULT  AddFile (const vector<Byte>  & nameBytes,
-                           Byte                  typeByte,
-                           const vector<Byte>  & stored,
-                           vector<Byte>        & outBuffer) const;
-
     Dos33SectorAccess      m_access;
     Dos33Catalog           m_catalog { m_access };
     Dos33FileChain         m_chain   { m_access };
     Dos33FreeMap           m_freeMap { m_access };
     Dos33IntegrityScanner  m_scanner { m_access };
     Dos33VolumeRemover     m_remover { m_access };
+    Dos33VolumeWriter      m_writer  { m_access, m_remover };
     Dos33StartupProgram    m_startup { m_access };
 };

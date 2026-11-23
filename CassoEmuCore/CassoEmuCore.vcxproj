@@ -430,6 +430,7 @@
     <ClCompile Include="Devices\Disk\ChainWalkGuard.cpp" />
     <ClCompile Include="Machines\Apple2\Common\AppleFileName.cpp" />
     <ClCompile Include="Machines\Apple2\Common\Dos33Volume.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\Dos33VolumeWriter.cpp" />
     <ClCompile Include="Machines\Apple2\Common\Dos33StartupProgram.cpp" />
     <ClCompile Include="Machines\Apple2\Common\Dos33VolumeRemover.cpp" />
     <ClCompile Include="Machines\Apple2\Common\Dos33IntegrityScanner.cpp" />
@@ -1671,6 +1672,7 @@
     <ClInclude Include="Machines\Apple2\Common\AssembledFilePlacement.h" />
     <ClInclude Include="Machines\Apple2\Common\AppleFileName.h" />
     <ClInclude Include="Machines\Apple2\Common\Dos33Volume.h" />
+    <ClInclude Include="Machines\Apple2\Common\Dos33VolumeWriter.h" />
     <ClInclude Include="Machines\Apple2\Common\Dos33StartupProgram.h" />
     <ClInclude Include="Machines\Apple2\Common\Dos33VolumeRemover.h" />
     <ClInclude Include="Machines\Apple2\Common\Dos33VolumeInterfaces.h" />
