@@ -37,14 +37,18 @@ public:
     //  The first entry whose test accepts the sectors, or nullptr.
     static const Entry *  Find (const std::vector<Byte> & sectors);
 
-    static bool     IsInfocomSave     (const std::vector<Byte> & sectors);
-    static HRESULT  DecodeInfocomSave (const std::vector<Byte> & sectors, std::span<const bool> unreadable, DecodedFile & outFile);
-    static bool     IsUltima3Save     (const std::vector<Byte> & sectors);
-    static HRESULT  DecodeUltima3Save (const std::vector<Byte> & sectors, std::span<const bool> unreadable, DecodedFile & outFile);
-    static bool     IsUltima4Save     (const std::vector<Byte> & sectors);
-    static HRESULT  DecodeUltima4Save (const std::vector<Byte> & sectors, std::span<const bool> unreadable, DecodedFile & outFile);
-    static bool     IsUltima5Save     (const std::vector<Byte> & sectors);
-    static HRESULT  DecodeUltima5Save (const std::vector<Byte> & sectors, std::span<const bool> unreadable, DecodedFile & outFile);
-    static bool     IsUltima1Save     (const std::vector<Byte> & sectors);
-    static HRESULT  DecodeUltima1Save (const std::vector<Byte> & sectors, std::span<const bool> unreadable, DecodedFile & outFile);
+    static bool     IsInfocomSave        (const std::vector<Byte> & sectors);
+    static HRESULT  DecodeInfocomSave    (const std::vector<Byte> & sectors, std::span<const bool> unreadable, DecodedFile & outFile);
+    static bool     IsUltima3Save        (const std::vector<Byte> & sectors);
+    static HRESULT  DecodeUltima3Save    (const std::vector<Byte> & sectors, std::span<const bool> unreadable, DecodedFile & outFile);
+    static bool     IsUltima4Save        (const std::vector<Byte> & sectors);
+    static HRESULT  DecodeUltima4Save    (const std::vector<Byte> & sectors, std::span<const bool> unreadable, DecodedFile & outFile);
+    static bool     IsUltima5Save        (const std::vector<Byte> & sectors);
+    static HRESULT  DecodeUltima5Save    (const std::vector<Byte> & sectors, std::span<const bool> unreadable, DecodedFile & outFile);
+    static bool     IsUltima1Save        (const std::vector<Byte> & sectors);
+    static HRESULT  DecodeUltima1Save    (const std::vector<Byte> & sectors, std::span<const bool> unreadable, DecodedFile & outFile);
+    static bool     IsUltima1981Save     (const std::vector<Byte> & sectors);
+    static HRESULT  DecodeUltima1981Save (const std::vector<Byte> & sectors, std::span<const bool> unreadable, DecodedFile & outFile);
+    static bool     IsUltima2Save        (const std::vector<Byte> & sectors);
+    static HRESULT  DecodeUltima2Save    (const std::vector<Byte> & sectors, std::span<const bool> unreadable, DecodedFile & outFile);
 };

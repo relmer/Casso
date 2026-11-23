@@ -437,6 +437,8 @@
     <ClCompile Include="Machines\Apple2\Common\Ultima4Save.cpp" />
     <ClCompile Include="Machines\Apple2\Common\Ultima5Save.cpp" />
     <ClCompile Include="Machines\Apple2\Common\Ultima1Save.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\Ultima1981Save.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\Ultima2Save.cpp" />
     <ClCompile Include="Machines\Apple2\Common\ProDosTypeNames.cpp" />
     <ClCompile Include="Machines\Apple2\Common\ProDosVolume.cpp" />
     <ClCompile Include="Machines\Apple2\Common\ProDosVolumeRemover.cpp" />
@@ -1647,6 +1649,8 @@
     <ClInclude Include="Machines\Apple2\Common\Ultima4Save.h" />
     <ClInclude Include="Machines\Apple2\Common\Ultima5Save.h" />
     <ClInclude Include="Machines\Apple2\Common\Ultima1Save.h" />
+    <ClInclude Include="Machines\Apple2\Common\Ultima1981Save.h" />
+    <ClInclude Include="Machines\Apple2\Common\Ultima2Save.h" />
     <ClInclude Include="Machines\Apple2\Common\ProDosTypeNames.h" />
     <ClInclude Include="Machines\Apple2\Common\ProDosVolume.h" />
     <ClInclude Include="Machines\Apple2\Common\ProDosVolumeRemover.h" />

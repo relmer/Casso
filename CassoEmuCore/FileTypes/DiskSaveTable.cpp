@@ -7,6 +7,8 @@
 #include "Machines/Apple2/Common/Ultima4Save.h"
 #include "Machines/Apple2/Common/Ultima5Save.h"
 #include "Machines/Apple2/Common/Ultima1Save.h"
+#include "Machines/Apple2/Common/Ultima1981Save.h"
+#include "Machines/Apple2/Common/Ultima2Save.h"
 
 
 
@@ -19,6 +21,8 @@ static constexpr DiskSaveTable::Entry  s_kEntries[] =
     { &DiskSaveTable::IsUltima4Save, &DiskSaveTable::DecodeUltima4Save },
     { &DiskSaveTable::IsUltima5Save, &DiskSaveTable::DecodeUltima5Save },
     { &DiskSaveTable::IsUltima1Save, &DiskSaveTable::DecodeUltima1Save },
+    { &DiskSaveTable::IsUltima1981Save, &DiskSaveTable::DecodeUltima1981Save },
+    { &DiskSaveTable::IsUltima2Save, &DiskSaveTable::DecodeUltima2Save },
 };
 
 
@@ -257,4 +261,72 @@ HRESULT DiskSaveTable::DecodeUltima1Save (const std::vector<Byte> & sectors, std
 
 
     return Ultima1Save::Decode (sectors, unreadable, outFile, error);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskSaveTable::IsUltima2Save
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskSaveTable::IsUltima2Save (const std::vector<Byte> & sectors)
+{
+    return Ultima2Save::IsFound (sectors);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskSaveTable::DecodeUltima2Save
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskSaveTable::DecodeUltima2Save (const std::vector<Byte> & sectors, std::span<const bool> unreadable, DecodedFile & outFile)
+{
+    std::wstring  error;
+
+
+
+    return Ultima2Save::Decode (sectors, unreadable, outFile, error);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskSaveTable::IsUltima1981Save
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskSaveTable::IsUltima1981Save (const std::vector<Byte> & sectors)
+{
+    return Ultima1981Save::IsFound (sectors);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskSaveTable::DecodeUltima1981Save
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskSaveTable::DecodeUltima1981Save (const std::vector<Byte> & sectors, std::span<const bool> unreadable, DecodedFile & outFile)
+{
+    std::wstring  error;
+
+
+
+    return Ultima1981Save::Decode (sectors, unreadable, outFile, error);
 }
