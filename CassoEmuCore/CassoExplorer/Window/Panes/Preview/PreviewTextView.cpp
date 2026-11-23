@@ -78,7 +78,7 @@ void PreviewTextView::Configure()
 
 void PreviewTextView::Layout (const RECT & content)
 {
-    const PreviewContent  & preview = m_context.browser.GetPreview();
+    const PreviewContent  & preview = m_context.browser.GetPreviewer().GetPreview();
     bool                    tables  = preview.kind == PreviewContent::Kind::Document
                                    && std::any_of (preview.paragraphs.begin(), preview.paragraphs.end(), [] (const Paragraph & p) { return p.table != nullptr; });
 
@@ -523,7 +523,7 @@ bool PreviewTextView::HandleTextMouse (const DxuiMouseEvent & ev)
 
 void PreviewTextView::UpdatePictureTipAt (const DxuiMouseEvent & ev)
 {
-    const PreviewContent            & preview = m_context.browser.GetPreview();
+    const PreviewContent            & preview = m_context.browser.GetPreviewer().GetPreview();
     const PictureTip                * tip     = nullptr;
     int                               row     = 0;
     int                               x       = 0;

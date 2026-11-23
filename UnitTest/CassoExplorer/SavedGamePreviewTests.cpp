@@ -165,11 +165,11 @@ public:
         Assert::IsTrue (HasText (preview, L"release 5: hall, score 7, 12 moves"));
         Assert::IsTrue (preview.hasSavedGame && preview.savedGameShown);
 
-        host.browser.SetPreviewSavedGame (false);
+        host.browser.GetPreviewer().SetSavedGameShown (false);
 
-        Assert::IsTrue  (host.browser.GetPreview().kind == PreviewContent::Kind::Details, L"The disk previews as its details");
-        Assert::IsTrue  (host.browser.GetPreview().hasSavedGame);
-        Assert::IsFalse (host.browser.GetPreview().savedGameShown);
+        Assert::IsTrue  (host.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Details, L"The disk previews as its details");
+        Assert::IsTrue  (host.browser.GetPreviewer().GetPreview().hasSavedGame);
+        Assert::IsFalse (host.browser.GetPreviewer().GetPreview().savedGameShown);
     }
 
 

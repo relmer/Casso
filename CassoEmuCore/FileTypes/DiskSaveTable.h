@@ -37,6 +37,9 @@ public:
     //  The first entry whose test accepts the sectors, or nullptr.
     static const Entry *  Find (const std::vector<Byte> & sectors);
 
+    //  A disk image file's sectors decoded by the entry that accepts them.
+    static HRESULT  DecodeImage (const std::vector<Byte> & bytes, const std::string & path, DecodedFile & outFile);
+
     static bool     IsInfocomSave        (const std::vector<Byte> & sectors);
     static HRESULT  DecodeInfocomSave    (const std::vector<Byte> & sectors, std::span<const bool> unreadable, DecodedFile & outFile);
     static bool     IsUltima3Save        (const std::vector<Byte> & sectors);

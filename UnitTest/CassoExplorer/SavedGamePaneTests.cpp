@@ -113,7 +113,7 @@ public:
         rig.browser.GetTreeModel().SetDrives ({});
         rig.browser.GetTreeModel().SetDirectoryProbe ([] (const std::wstring & path) { return _wcsicmp (path.c_str(), kDisks) == 0; });
         rig.Open();
-        rig.browser.NavigateToLocation (Location::MakeHostFolder (kDisks));
+        rig.browser.GetNavigator().NavigateToLocation (Location::MakeHostFolder (kDisks));
         rig.parts->listPane.FillList();
 
         //  A Wizardry scenario disk: the switch on Saved game, the game under
@@ -124,7 +124,7 @@ public:
         Assert::AreEqual (0, rig.parts->preview.GetSections().GetSelected(), L"on Saved game");
         Assert::IsFalse  (rig.parts->preview.GetThumbnail().IsShown(), L"with no thumbnail");
         Assert::IsTrue   (rig.parts->preview.GetContentRect().top >= rig.parts->preview.GetSections().GetBounds().bottom, L"and the game below the switch");
-        Assert::IsTrue   (rig.browser.GetPreview().kind == PreviewContent::Kind::Document);
+        Assert::IsTrue   (rig.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Document);
 
         //  The map: a tip for the square under the pointer, and
         //  the arrow over it rather than the text's I-beam.
@@ -139,7 +139,7 @@ public:
         rig.Click (disk);
 
         Assert::AreEqual (1, rig.parts->preview.GetSections().GetSelected(), L"Disk is selected");
-        Assert::IsTrue   (rig.browser.GetPreview().kind == PreviewContent::Kind::Catalog, L"and the disk's catalog shown");
+        Assert::IsTrue   (rig.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Catalog, L"and the disk's catalog shown");
         Assert::IsTrue   (rig.parts->preview.GetSections().IsVisible(), L"and the switch above it");
 
         //  Disk is selected for the next disk with a saved game too: the Infocom
@@ -148,7 +148,7 @@ public:
 
         Assert::IsTrue   (rig.parts->preview.GetSections().IsVisible(), L"An Infocom save disk has the switch");
         Assert::AreEqual (1, rig.parts->preview.GetSections().GetSelected());
-        Assert::IsTrue   (rig.browser.GetPreview().kind == PreviewContent::Kind::Details);
+        Assert::IsTrue   (rig.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Details);
 
         //  A disk with no saved game has no switch.
         Select (rig, L"notes.dsk");

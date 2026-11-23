@@ -13,8 +13,6 @@
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Devices/Disk/DiskImageSession.h"
 #include "FileTypes/DiskSaveTable.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
-#include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Devices/Disk/IDiskFileIo.h"
 #include "Devices/Disk/Partitions/PartitionAccess.h"
@@ -595,48 +593,23 @@ void BrowserPreviewer::PreviewImageCatalog (const std::wstring & imagePath)
 //
 //  BrowserPreviewer::TryDecodeDiskSave
 //
-//  The image's sectors decoded by the DiskSaveTable entry that accepts them,
-//  with a flag for each sector the track layer couldn't read. False for an
-//  image that can't be read or that no entry accepts.
+//  The image decoded by DiskSaveTable::DecodeImage. False for an image that
+//  can't be read or that no entry accepts.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool BrowserPreviewer::TryDecodeDiskSave (const std::wstring & imagePath, DecodedFile & outFile)
 {
-    HRESULT                       hr     = S_OK;
-    std::string                   narrow = TextEncoding::WideToNarrow (imagePath);
-    std::vector<Byte>             bytes;
-    std::vector<Byte>             sectors;
-    SectorDecodeReport            report;
-    const DiskSaveTable::Entry  * entry  = nullptr;
-    size_t                        count  = 0;
-    std::unique_ptr<bool[]>       lost;
+    HRESULT            hr     = S_OK;
+    std::string        narrow = TextEncoding::WideToNarrow (imagePath);
+    std::vector<Byte>  bytes;
 
 
 
-    hr = m_browser.m_operations.GetFileIo().ReadAllBytes (narrow, bytes);
+    hr = m_parts.operations.GetFileIo().ReadAllBytes (narrow, bytes);
     CHR (hr);
 
-    hr = VolumeImage::Load (bytes, narrow, sectors, report);
-    CHR (hr);
-
-    entry = DiskSaveTable::Find (sectors);
-    CBR (entry != nullptr);
-
-    if (report.HasDataLoss())
-    {
-        count = (size_t) report.GetTrackCount() * NibblizationLayer::kSectorsPerTrack;
-        lost  = std::make_unique<bool[]> (count);
-
-        for (size_t i = 0; i < count; i++)
-        {
-            int  track = (int) (i / NibblizationLayer::kSectorsPerTrack);
-
-            lost[i] = report.GetOutcome (track) == TrackDecodeOutcome::Partial && !report.IsSectorRecovered (track, (int) (i % NibblizationLayer::kSectorsPerTrack));
-        }
-    }
-
-    hr = entry->decode (sectors, std::span<const bool> (lost.get(), count), outFile);
+    hr = DiskSaveTable::DecodeImage (bytes, narrow, outFile);
     CHR (hr);
 
 Error:

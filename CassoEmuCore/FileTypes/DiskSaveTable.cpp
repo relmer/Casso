@@ -3,12 +3,14 @@
 #include "FileTypes/DiskSaveTable.h"
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/InfocomSave.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/Ultima3Save.h"
 #include "Machines/Apple2/Common/Ultima4Save.h"
 #include "Machines/Apple2/Common/Ultima5Save.h"
 #include "Machines/Apple2/Common/Ultima1Save.h"
 #include "Machines/Apple2/Common/Ultima1981Save.h"
 #include "Machines/Apple2/Common/Ultima2Save.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
 
 
 
@@ -46,6 +48,57 @@ const DiskSaveTable::Entry * DiskSaveTable::Find (const std::vector<Byte> & sect
     }
 
     return nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskSaveTable::DecodeImage
+//
+//  The image's sectors decoded by the entry that accepts them, with a flag
+//  for each sector the track layer couldn't read. Fails for an image that no
+//  entry accepts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskSaveTable::DecodeImage (const std::vector<Byte> & bytes, const std::string & path, DecodedFile & outFile)
+{
+    HRESULT                  hr     = S_OK;
+    std::vector<Byte>        sectors;
+    SectorDecodeReport       report;
+    const Entry            * entry  = nullptr;
+    size_t                   count  = 0;
+    std::unique_ptr<bool[]>  lost;
+
+
+
+    hr = VolumeImage::Load (bytes, path, sectors, report);
+    CHR (hr);
+
+    entry = Find (sectors);
+    CBR (entry != nullptr);
+
+    if (report.HasDataLoss())
+    {
+        count = (size_t) report.GetTrackCount() * NibblizationLayer::kSectorsPerTrack;
+        lost  = std::make_unique<bool[]> (count);
+
+        for (size_t i = 0; i < count; i++)
+        {
+            int  track = (int) (i / NibblizationLayer::kSectorsPerTrack);
+
+            lost[i] = report.GetOutcome (track) == TrackDecodeOutcome::Partial && !report.IsSectorRecovered (track, (int) (i % NibblizationLayer::kSectorsPerTrack));
+        }
+    }
+
+    hr = entry->decode (sectors, std::span<const bool> (lost.get(), count), outFile);
+    CHR (hr);
+
+Error:
+    return hr;
 }
 
 
