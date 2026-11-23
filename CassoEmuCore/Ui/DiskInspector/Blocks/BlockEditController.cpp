@@ -109,23 +109,13 @@ bool BlockEditController::HandleKey (const DxuiKeyEvent & ev)
 
 
 
-    if (ev.ctrl && !ev.alt && ev.vk == 'Z')
+    if (ev.ctrl && !ev.alt && !ev.shift && ev.vk == 'Z')
     {
-        m_note.clear();
-
-        if (m_parts.model.Undo())
-        {
-            m_parts.view.Refresh();
-        }
+        Undo();
     }
-    else if (ev.ctrl && !ev.alt && ev.vk == 'Y')
+    else if (ev.ctrl && !ev.alt && (ev.vk == 'Y' || (ev.shift && ev.vk == 'Z')))
     {
-        m_note.clear();
-
-        if (m_parts.model.Redo())
-        {
-            m_parts.view.Refresh();
-        }
+        Redo();
     }
     else if (ev.ctrl && !ev.alt && ev.vk == 'V')
     {
@@ -303,6 +293,82 @@ void BlockEditController::SaveToPreservedCopy()
                                      m_parts.frame.CloseWindow();
                                  }
                              } });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockEditController::Undo
+//
+//  Undoes the last unsaved edit, in or out of editing. With no unsaved edit
+//  to undo, undoes the last save.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockEditController::Undo()
+{
+    bool  canUndo = m_parts.model.GetEdits().CanUndo();
+
+
+
+    if (m_parts.jobs.IsBusy())
+    {
+        return;
+    }
+
+    if (!canUndo)
+    {
+        UndoApplied();
+        return;
+    }
+
+    m_note.clear();
+
+    if (m_parts.model.Undo())
+    {
+        m_parts.view.Refresh();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockEditController::Redo
+//
+//  Redoes the last undone edit, in or out of editing. With no edit to redo,
+//  redoes the last undone save.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockEditController::Redo()
+{
+    bool  canRedo = m_parts.model.GetEdits().CanRedo();
+
+
+
+    if (m_parts.jobs.IsBusy())
+    {
+        return;
+    }
+
+    if (!canRedo)
+    {
+        RedoApplied();
+        return;
+    }
+
+    m_note.clear();
+
+    if (m_parts.model.Redo())
+    {
+        m_parts.view.Refresh();
+    }
 }
 
 

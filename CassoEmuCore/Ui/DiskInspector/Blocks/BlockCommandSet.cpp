@@ -69,10 +69,12 @@ void BlockCommandSet::Build()
     c.close                     = make (L"&Close", L"Alt+F4", [&frame] () { frame.RequestClose(); });
 
     //  Edit
-    c.undoApplied                = make (L"&Undo save", L"Ctrl+Z", [&editing] () { editing.UndoApplied(); });
-    c.undoApplied->isEnabled     = [&model, isOpen] () { return isOpen() && model.CanUndoApplied(); };
-    c.redoApplied                = make (L"&Redo save", L"Ctrl+Y", [&editing] () { editing.RedoApplied(); });
-    c.redoApplied->isEnabled     = [&model, isOpen] () { return isOpen() && model.CanRedoApplied(); };
+    c.undoApplied                = make (L"&Undo save", L"Ctrl+Z", [&editing] () { editing.Undo(); });
+    c.undoApplied->isEnabled     = [&model, isOpen] () { return isOpen() && (model.GetEdits().CanUndo() || model.CanUndoApplied()); };
+    c.undoApplied->labelText     = [&model] () { return std::wstring (model.GetEdits().CanUndo() ? L"&Undo" : L"&Undo save"); };
+    c.redoApplied                = make (L"&Redo save", L"Ctrl+Y", [&editing] () { editing.Redo(); });
+    c.redoApplied->isEnabled     = [&model, isOpen] () { return isOpen() && (model.GetEdits().CanRedo() || model.CanRedoApplied()); };
+    c.redoApplied->labelText     = [&model] () { return std::wstring (model.GetEdits().CanRedo() ? L"&Redo" : L"&Redo save"); };
     c.copySector                 = make (L"Copy &block", L"Ctrl+Shift+C", [&editing] () { editing.CopyBlock(); });
     c.copySector->isEnabled      = isOpen;
     c.copySector->glyph          = kpszGlyphCopy;
@@ -239,12 +241,12 @@ bool BlockCommandSet::TryRunKey (const DxuiKeyEvent & ev, bool & outResult)
     {
         switch (ev.vk)
         {
-            case 'G': command = m_commands.goTo;                                    break;
-            case 'C': command = ev.shift ? m_commands.copySector : nullptr;         break;
-            case 'S': command = m_commands.save;                                    break;
-            case 'Z': command = m_commands.undoApplied;                             break;
-            case 'Y': command = m_commands.redoApplied;                             break;
-            default:                                                                break;
+            case 'G': command = m_commands.goTo;                                            break;
+            case 'C': command = ev.shift ? m_commands.copySector : nullptr;                 break;
+            case 'S': command = m_commands.save;                                            break;
+            case 'Z': command = ev.shift ? m_commands.redoApplied : m_commands.undoApplied; break;
+            case 'Y': command = m_commands.redoApplied;                                     break;
+            default:                                                                        break;
         }
 
         if (command == nullptr)

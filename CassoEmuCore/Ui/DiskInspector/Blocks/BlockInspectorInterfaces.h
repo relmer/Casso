@@ -165,6 +165,8 @@ public:
 
     virtual void  Save           () = 0;
     virtual void  SaveEditedCopy () = 0;
+    virtual void  Undo           () = 0;
+    virtual void  Redo           () = 0;
     virtual void  UndoApplied    () = 0;
     virtual void  RedoApplied    () = 0;
     virtual void  Discard        () = 0;

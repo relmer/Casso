@@ -48,6 +48,8 @@ public:
 
     void  Save           () override;
     void  SaveEditedCopy () override;
+    void  Undo           () override;
+    void  Redo           () override;
     void  UndoApplied    () override;
     void  RedoApplied    () override;
     void  Discard        () override;

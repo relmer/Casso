@@ -167,6 +167,41 @@ public:
     }
 
 
+    TEST_METHOD (Undo_OutsideEditingUndoesAndRedoesTheUnsavedEdit)
+    {
+        Rig  rig;
+
+
+
+        rig.EditOneByte();
+        rig.view.isEditing = false;
+
+        rig.edits.Undo();
+        Assert::IsTrue (rig.model.GetEdits().IsEmpty());
+
+        rig.edits.Redo();
+        Assert::IsFalse (rig.model.GetEdits().IsEmpty());
+        Assert::AreEqual ((Byte) 0, rig.GetFileByte(), L"the edit is unsaved");
+    }
+
+
+    TEST_METHOD (HandleKey_CtrlShiftZRedoes)
+    {
+        Rig           rig;
+        DxuiKeyEvent  redo = MakeKey ('Z', true);
+
+
+
+        redo.shift = true;
+        rig.EditOneByte();
+        rig.view.isEditing = true;
+
+        Assert::IsTrue (rig.edits.HandleKey (MakeKey ('Z', true)));
+        Assert::IsTrue (rig.edits.HandleKey (redo));
+        Assert::IsFalse (rig.model.GetEdits().IsEmpty());
+    }
+
+
     TEST_METHOD (CopyBlock_PutsTheBlockTextOnTheClipboard)
     {
         Rig  rig;
