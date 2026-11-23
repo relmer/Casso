@@ -168,6 +168,7 @@
     <ClCompile Include="Core\IDxuiControl.cpp" />
     <ClCompile Include="Render\Dxui3DRenderer.cpp" />
     <ClCompile Include="Render\DxuiPainter.cpp" />
+    <ClCompile Include="Render\DxuiRoundedOutline.cpp" />
     <ClCompile Include="Render\DxuiShadow.cpp" />
     <ClCompile Include="Render\DxuiSvgPath.cpp" />
     <ClCompile Include="Render\DxuiGdiText.cpp" />
@@ -299,6 +300,7 @@
     <ClInclude Include="Core\IDxuiViewportInputSink.h" />
     <ClInclude Include="Render\Dxui3DRenderer.h" />
     <ClInclude Include="Render\DxuiPainter.h" />
+    <ClInclude Include="Render\DxuiRoundedOutline.h" />
     <ClInclude Include="Render\DxuiShadow.h" />
     <ClInclude Include="Render\DxuiSvgPath.h" />
     <ClInclude Include="Render\DxuiGdiText.h" />

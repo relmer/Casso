@@ -452,8 +452,14 @@
     <ClCompile Include="CassoExplorer\Actions\ActionsGoTo.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerBrowser.cpp" />
     <ClCompile Include="CassoExplorer\Browser\BrowserCells.cpp" />
+    <ClCompile Include="CassoExplorer\Browser\BrowserColumnFilters.cpp" />
+    <ClCompile Include="CassoExplorer\Browser\BrowserNameFilter.cpp" />
+    <ClCompile Include="CassoExplorer\Browser\BrowserNavigator.cpp" />
     <ClCompile Include="CassoExplorer\Browser\BrowserLoader.cpp" />
     <ClCompile Include="CassoExplorer\Browser\BrowserPreviewer.cpp" />
+    <ClCompile Include="CassoExplorer\Browser\BrowserRowOrder.cpp" />
+    <ClCompile Include="CassoExplorer\Browser\BrowserRowPaths.cpp" />
+    <ClCompile Include="CassoExplorer\Browser\BrowserSelection.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerCommands.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerDragOut.cpp" />
     <ClCompile Include="CassoExplorer\RawCopyDropHandler.cpp" />
@@ -586,6 +592,7 @@
     <ClCompile Include="Seams\ShellVerbs\Win32ShareSheet.cpp" />
     <ClCompile Include="Seams\ShellVerbs\Win32ShellTransfers.cpp" />
     <ClCompile Include="Seams\Win32PackagedCommands.cpp" />
+    <ClCompile Include="Seams\Win32PackageWatcher.cpp" />
     <ClCompile Include="Seams\Win32PreviewHelper.cpp" />
     <ClCompile Include="Seams\Win32ShellPreview.cpp" />
     <ClCompile Include="CassoExplorer\Model\ArchiveProbe.cpp" />
@@ -1146,6 +1153,7 @@
     <ClCompile Include="Ui\Settings\GeneralPage.cpp" />
     <ClCompile Include="Ui\Settings\GeneralPageModel.cpp" />
     <ClCompile Include="Ui\Settings\HardwarePage.cpp" />
+    <ClCompile Include="Ui\Settings\SlotsPage.cpp" />
     <ClCompile Include="Ui\Settings\DiskPage.cpp" />
     <ClCompile Include="Ui\Settings\SettingsApplyAdapter.cpp" />
     <ClCompile Include="Ui\Settings\ControllerReadoutViews.cpp" />
@@ -1659,9 +1667,19 @@
     <ClInclude Include="CassoExplorer\Actions\ActionsTypes.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerBrowser.h" />
     <ClInclude Include="CassoExplorer\Browser\BrowserCells.h" />
+    <ClInclude Include="CassoExplorer\Browser\BrowserHostInterfaces.h" />
+    <ClInclude Include="CassoExplorer\Browser\BrowserParts.h" />
+    <ClInclude Include="CassoExplorer\Browser\BrowserColumnFilters.h" />
+    <ClInclude Include="CassoExplorer\Browser\BrowserNameFilter.h" />
+    <ClInclude Include="CassoExplorer\Browser\BrowserNavigator.h" />
+    <ClInclude Include="CassoExplorer\Browser\IBrowserListing.h" />
     <ClInclude Include="CassoExplorer\Browser\BrowserTypes.h" />
     <ClInclude Include="CassoExplorer\Browser\BrowserLoader.h" />
     <ClInclude Include="CassoExplorer\Browser\BrowserPreviewer.h" />
+    <ClInclude Include="CassoExplorer\Browser\BrowserRowOrder.h" />
+    <ClInclude Include="CassoExplorer\Browser\BrowserRowPaths.h" />
+    <ClInclude Include="CassoExplorer\Browser\BrowserSelection.h" />
+    <ClInclude Include="CassoExplorer\Browser\IBrowserSelectionSource.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerCommands.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerDragOut.h" />
     <ClInclude Include="CassoExplorer\RawCopyDropHandler.h" />
@@ -1811,6 +1829,7 @@
     <ClInclude Include="Seams\ShellVerbs\Win32ShellTransfers.h" />
     <ClInclude Include="Seams\ShellVerbs\Win32ShellVerbsTypes.h" />
     <ClInclude Include="Seams\Win32PackagedCommands.h" />
+    <ClInclude Include="Seams\Win32PackageWatcher.h" />
     <ClInclude Include="Seams\Win32PreviewHelper.h" />
     <ClInclude Include="Seams\ShellItemId.h" />
     <ClInclude Include="Seams\Win32ShellPreview.h" />
@@ -2235,6 +2254,7 @@
     <ClInclude Include="Ui\Settings\GeneralPage.h" />
     <ClInclude Include="Ui\Settings\GeneralPageModel.h" />
     <ClInclude Include="Ui\Settings\HardwarePage.h" />
+    <ClInclude Include="Ui\Settings\SlotsPage.h" />
     <ClInclude Include="Ui\Settings\DiskPage.h" />
     <ClInclude Include="Ui\Settings\SettingsApplyAdapter.h" />
     <ClInclude Include="Ui\Settings\ControllerReadoutViews.h" />

@@ -390,6 +390,7 @@
     <ClCompile Include="FileTypes\VisiCalcSheetTests.cpp" />
     <ClCompile Include="FileTypes\ZMachineStoryTests.cpp" />
     <ClCompile Include="FileTypes\WizardryScenarioTests.cpp" />
+    <ClCompile Include="CassoExplorer\SavedGamePreviewTests.cpp" />
     <ClCompile Include="FileTypes\VisiCalcEvaluatorTests.cpp" />
     <ClCompile Include="FileTypes\PascalCodefileTests.cpp" />
     <ClCompile Include="FileTypes\SaveSummaryTests.cpp" />
@@ -552,6 +553,13 @@
     <ClCompile Include="CassoExplorer\CassoExplorerShellIconsTests.cpp" />
     <ClCompile Include="CassoExplorer\FocusRingTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerBrowserTests.cpp" />
+    <ClCompile Include="CassoExplorer\BrowserCellsStatusTests.cpp" />
+    <ClCompile Include="CassoExplorer\BrowserColumnFiltersTests.cpp" />
+    <ClCompile Include="CassoExplorer\BrowserRowOrderTests.cpp" />
+    <ClCompile Include="CassoExplorer\BrowserRowPathsTests.cpp" />
+    <ClCompile Include="CassoExplorer\BrowserSelectionTests.cpp" />
+    <ClCompile Include="CassoExplorer\BrowserNameFilterTests.cpp" />
+    <ClCompile Include="CassoExplorer\BrowserNavigatorTests.cpp" />
     <ClCompile Include="CassoExplorer\BrowserFormattingTests.cpp" />
     <ClCompile Include="CassoExplorer\ChooseDetailsModelTests.cpp" />
     <ClCompile Include="CassoExplorer\IconSizeStepsTests.cpp" />
@@ -1008,6 +1016,7 @@
     <ClInclude Include="MerlinCorpus\MerlinFixture.h" />
     <ClInclude Include="TestCpu65C02.h" />
     <ClInclude Include="EhmTestHelper.h" />
+    <ClInclude Include="FileTypes\WizardryScenarioBuilder.h" />
     <ClInclude Include="HarteTestRunner.h" />
     <ClInclude Include="EmuTests\IFixtureProvider.h" />
     <ClInclude Include="EmuTests\EmbeddedMachineJson.h" />

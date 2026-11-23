@@ -246,7 +246,7 @@ bool PreviewPictureView::HandlePictureMouse (const DxuiMouseEvent & ev)
 
 
 
-    if (press && ev.button == DxuiMouseButton::Right && m_context.browser.CanTogglePictureColor())
+    if (press && ev.button == DxuiMouseButton::Right && m_context.browser.GetPreviewer().CanTogglePictureColor())
     {
         m_context.input.SetFocusPane (ExplorerPane::Preview);
         m_context.input.ReleasePressed();
@@ -389,7 +389,7 @@ const ThemeCrtDefaults * PreviewPictureView::GetCrtDefaults()
 
 void PreviewPictureView::UpdateCrtPicture (bool force)
 {
-    const PreviewContent   & preview  = m_context.browser.GetPreview();
+    const PreviewContent   & preview  = m_context.browser.GetPreviewer().GetPreview();
     int                      width    = 0;
     int                      height   = 0;
     int                      margin   = 0;
@@ -413,8 +413,8 @@ void PreviewPictureView::UpdateCrtPicture (bool force)
         return;
     }
 
-    found    = m_context.prefs.crtOverrides.find (CassoExplorerPrefs::kMonitorNames[(int) m_context.browser.GetPictureMonitor()]);
-    resolved = CrtResolver::Resolve (CrtPresets::GetPreset (PicturePreview::GetPresetIndex (m_context.browser.GetPictureMonitor())), GetCrtDefaults(),
+    found    = m_context.prefs.crtOverrides.find (CassoExplorerPrefs::kMonitorNames[(int) m_context.browser.GetPreviewer().GetPictureMonitor()]);
+    resolved = CrtResolver::Resolve (CrtPresets::GetPreset (PicturePreview::GetPresetIndex (m_context.browser.GetPreviewer().GetPictureMonitor())), GetCrtDefaults(),
                                      (found != m_context.prefs.crtOverrides.end()) ? found->second : CrtOverrides());
     params             = MakeCrtParams (resolved, (float) width, (float) height);
     params.persistence = 0.0f;
@@ -447,7 +447,7 @@ void PreviewPictureView::UpdateCrtPicture (bool force)
 void PreviewPictureView::SelectMonitor (PicturePreview::Monitor monitor)
 {
     m_context.prefs.previewMonitor = CassoExplorerPrefs::kMonitorNames[(int) monitor];
-    m_context.browser.SetPreviewMonitor (monitor, m_context.prefs.previewCustomArgb);
+    m_context.browser.GetPreviewer().SetPreviewMonitor (monitor, m_context.prefs.previewCustomArgb);
     m_manager.FillPreview();
     m_context.window.Invalidate();
 }
@@ -468,7 +468,7 @@ void PreviewPictureView::SelectMonitor (PicturePreview::Monitor monitor)
 
 void PreviewPictureView::ShowForm (bool color)
 {
-    if ((m_context.browser.GetPreview().pictureMode != PicturePreview::Mode::DoubleHiResMono) != color && m_context.browser.TogglePictureColor())
+    if ((m_context.browser.GetPreviewer().GetPreview().pictureMode != PicturePreview::Mode::DoubleHiResMono) != color && m_context.browser.GetPreviewer().TogglePictureColor())
     {
         m_manager.FillPreview();
         m_context.window.Invalidate();
@@ -491,7 +491,7 @@ void PreviewPictureView::ShowForm (bool color)
 void PreviewPictureView::ShowContextMenu (int x, int y)
 {
     std::vector<DxuiPopupMenuItem>  items;
-    bool                            color = m_context.browser.GetPreview().pictureMode != PicturePreview::Mode::DoubleHiResMono;
+    bool                            color = m_context.browser.GetPreviewer().GetPreview().pictureMode != PicturePreview::Mode::DoubleHiResMono;
 
 
 
@@ -527,7 +527,7 @@ void PreviewPictureView::ShowContextMenu (int x, int y)
 
 void PreviewPictureView::SavePicture()
 {
-    const PreviewContent        & preview  = m_context.browser.GetPreview();
+    const PreviewContent        & preview  = m_context.browser.GetPreviewer().GetPreview();
     const std::vector<int>      & selected = m_context.browser.GetSelectedRows();
     HRESULT                       hr       = S_OK;
     std::filesystem::path         picked;

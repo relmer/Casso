@@ -16,6 +16,7 @@
 #include "CassoExplorer/Model/DiskImageCatalog.h"
 #include "CassoExplorer/Model/HostFolderNames.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 
 
@@ -60,7 +61,7 @@ void ExplorerFolderSync::RefreshAfterHostChange (const std::wstring & select)
     {
         if (_wcsicmp (rows[i].name.c_str(), select.c_str()) == 0)
         {
-            m_context.browser.SetSelectedRows ({ (int) i });
+            m_context.browser.GetSelection().SetSelectedRows ({ (int) i });
             break;
         }
     }
@@ -346,7 +347,7 @@ void ExplorerFolderSync::CheckDrives()
         IGNORE_RETURN_VALUE (hr, S_OK);
         m_context.listPane.FillList();
     }
-    else if (m_context.browser.LeaveMissingLocation())
+    else if (m_context.browser.GetLoader().LeaveMissingLocation())
     {
         m_context.listPane.FillList();
     }
@@ -615,12 +616,12 @@ void ExplorerFolderSync::UpdateWatchedFolders()
 
         if (showing.path.size() > 3)
         {
-            folders.push_back (CassoExplorerBrowser::GetParentFolder (showing.path));
+            folders.push_back (BrowserRowPaths::GetParentFolder (showing.path));
         }
     }
     else if (!showing.path.empty())
     {
-        folders.push_back (CassoExplorerBrowser::GetParentFolder (showing.path));
+        folders.push_back (BrowserRowPaths::GetParentFolder (showing.path));
     }
 
     for (row = 0; row < m_context.treePane.GetVisibleCount(); row++)
@@ -691,7 +692,7 @@ bool ExplorerFolderSync::IsShownFolderIn (const std::vector<std::wstring> & fold
         return false;
     }
 
-    shown = (showing.kind == Location::Kind::HostFolder) ? showing.path : CassoExplorerBrowser::GetParentFolder (showing.path);
+    shown = (showing.kind == Location::Kind::HostFolder) ? showing.path : BrowserRowPaths::GetParentFolder (showing.path);
 
     return std::any_of (folders.begin(), folders.end(), [&] (const std::wstring & folder) { return IsSameFolder (folder, shown); });
 }
@@ -728,7 +729,7 @@ bool ExplorerFolderSync::RefreshOpenTreeFolders (const std::vector<std::wstring>
             && m_context.browser.TryGetNodeLocation (node->id, at) && !at.path.empty()
             && (node->expanded || at.kind == Location::Kind::HostFolder))
         {
-            std::wstring  holder = (at.kind == Location::Kind::HostFolder) ? at.path : CassoExplorerBrowser::GetParentFolder (at.path);
+            std::wstring  holder = (at.kind == Location::Kind::HostFolder) ? at.path : BrowserRowPaths::GetParentFolder (at.path);
 
             if (std::any_of (folders.begin(), folders.end(), [&] (const std::wstring & folder) { return IsSameFolder (folder, holder); }))
             {
@@ -808,7 +809,7 @@ void ExplorerFolderSync::RefreshChangedFolders()
 
     //  The folder shown was deleted: the change is its parent's, so the list
     //  moves up, as Explorer's does, rather than staying on what is gone.
-    if (m_context.browser.GetBrowserModel().HasTabs() && m_context.browser.LeaveMissingLocation())
+    if (m_context.browser.GetBrowserModel().HasTabs() && m_context.browser.GetLoader().LeaveMissingLocation())
     {
         m_context.listPane.FillList();
         return;
@@ -821,7 +822,7 @@ void ExplorerFolderSync::RefreshChangedFolders()
     }
 
     //  The view as it stands, in keys, before the rows under it change.
-    m_context.browser.GetRowKeys (before.keys);
+    m_context.browser.GetSelection().GetRowKeys (before.keys);
     m_context.listPane.CaptureView (before);
 
     //  Re-read without the browser's own restore: the anchor decides both the
@@ -831,10 +832,10 @@ void ExplorerFolderSync::RefreshChangedFolders()
 
     //  The selection is set before the list is filled, so the preview pane
     //  doesn't close and reopen in between.
-    m_context.browser.GetRowKeys (keys);
+    m_context.browser.GetSelection().GetRowKeys (keys);
     after = RefreshAnchor::Compute (before, keys);
 
-    m_context.browser.SetSelectedRows (after.selected);
+    m_context.browser.GetSelection().SetSelectedRows (after.selected);
     m_context.listPane.FillList();
     m_context.listPane.RestoreView (after);
 

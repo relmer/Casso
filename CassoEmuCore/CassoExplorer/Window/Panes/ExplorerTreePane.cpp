@@ -1598,7 +1598,7 @@ void ExplorerTreePane::UpdateTip (const DxuiMouseEvent & ev, POINT point)
     if (broken && node->id != m_treeTipId)
     {
         m_treeTipId   = node->id;
-        m_treeTipText = m_context.browser.TryGetNodeLocation (node->id, location) ? m_context.browser.GetImageProblem (location.path) : std::wstring();
+        m_treeTipText = m_context.browser.TryGetNodeLocation (node->id, location) ? m_context.browser.GetLoader().GetImageProblem (location.path) : std::wstring();
     }
 
     //  A connection the firewall blocks has the cause as its tip.

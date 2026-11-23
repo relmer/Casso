@@ -18,6 +18,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 #include "Core/TextEncoding.h"
 #include "Seams/IShellItemVerbs.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 
 
@@ -369,7 +370,7 @@ void ExplorerRename::EndRename (bool commit)
 
     if (!m_context.browser.IsVolumeLocation())
     {
-        if (m_context.browser.TryGetRowPath (row, path) && !ResolveTakenName (path, newName))
+        if (BrowserRowPaths::TryGetRowPath (m_context.browser.GetRowListing(), row, path) && !ResolveTakenName (path, newName))
         {
             return;
         }
@@ -418,7 +419,7 @@ void ExplorerRename::EndRename (bool commit)
 
         //  The row renamed is the one the box was over, whatever else is
         //  selected.
-        m_context.browser.SetSelectedRows ({ row });
+        m_context.browser.GetSelection().SetSelectedRows ({ row });
         renamed = m_context.actions.RenameSelected (newName);
 
         if (renamed.Succeeded())

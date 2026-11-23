@@ -273,7 +273,7 @@ bool ExplorerUndo::UndoInImage (const ExplorerUndoStep & step)
 
     if (m_context.browser.GetLocation() != step.location)
     {
-        m_context.browser.NavigateToLocation (step.location);
+        m_context.browser.GetNavigator().NavigateToLocation (step.location);
         m_context.listPane.FillList();
     }
 

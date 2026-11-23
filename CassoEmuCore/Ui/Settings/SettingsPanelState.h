@@ -438,6 +438,8 @@ public:
     HRESULT                      SetSlotPortImage (int slot, size_t port, const std::string & path);
     HRESULT                      AddChainDrive    (size_t index, std::wstring & outError) { return SlotCards::AddChainDrive (m_current.hardware, index, outError); }
     HRESULT                      RemoveChainDrive (size_t index, size_t port) { return SlotCards::RemoveChainDrive (m_current.hardware, index, port); }
+    HRESULT                      SetPortDrive     (size_t index, size_t port, const std::string & device) { return SlotCards::SetPortDrive (m_current.hardware, index, port, device); }
+    HRESULT                      SetChainCount    (size_t index, size_t count) { return SlotCards::SetChainCount (m_current.hardware, index, count); }
 
     // An image on a port of the machine rather than of a card, such as the
     // //c Plus's internal 3.5-inch drive. Not found when the machine has no

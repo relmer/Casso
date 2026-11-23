@@ -1797,19 +1797,19 @@ void CassoLinkManager::RefreshCassoLinkViews()
         std::vector<CatalogRow>  rows     = m_context.browser.GetRows();
         std::vector<int>         selected = m_context.browser.GetSelectedRows();
         std::wstring             message  = m_context.browser.GetListError();
-        PreviewContent           preview  = m_context.browser.GetPreview();
+        PreviewContent           preview  = m_context.browser.GetPreviewer().GetPreview();
 
         hr = m_context.browser.Reload (true);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        m_context.browser.RefreshPreview();
+        m_context.browser.GetPreviewer().UpdatePreview();
 
         //  Filling the list fills the preview as well.
         if (m_context.browser.GetRows() != rows || m_context.browser.GetSelectedRows() != selected || m_context.browser.GetListError() != message)
         {
             m_context.listPane.FillList();
         }
-        else if (m_context.browser.GetPreview() != preview)
+        else if (m_context.browser.GetPreviewer().GetPreview() != preview)
         {
             m_context.preview.FillPreview();
         }

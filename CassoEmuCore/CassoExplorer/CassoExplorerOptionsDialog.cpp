@@ -14,6 +14,7 @@
 static constexpr int  s_kSheetWidthDip  = 720;   // Casso's own Settings sheet's width, which the Display page is laid out for
 static constexpr int  s_kSheetHeightDip = 700;
 static constexpr int  s_kSheetMinHeight = 320;
+static constexpr UINT s_kSlideTickMs    = 16;    // the tick rate while a control slides
 
 
 
@@ -700,6 +701,42 @@ void CassoExplorerOptionsDialog::OnBuildPages()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerOptionsDialog::OnDialogTick
+//
+//  Advances the controls that animate, the sounds choice's sliding pill.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerOptionsDialog::OnDialogTick()
+{
+    m_fullSendSounds.Tick ((int64_t) GetTickCount64());
+    UpdateTickRate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerOptionsDialog::UpdateTickRate
+//
+//  Frame rate while the pill slides, so it moves smoothly and starts at
+//  once; the default rate otherwise.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerOptionsDialog::UpdateTickRate()
+{
+    SetDialogTickIntervalMs (m_fullSendSounds.WantsTick() ? s_kSlideTickMs : kDefaultDialogTickMs);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerOptionsDialog::WireFullSend
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -767,7 +804,7 @@ void CassoExplorerOptionsDialog::WireFullSend()
     m_fullSendSoundsLabel.SetText (L"Play capture success or failure sounds on");
     ExplorerTextStyles::Apply (m_fullSendSoundsLabel, ExplorerTextStyles::kFormLabel);
 
-    m_fullSendSounds.SetAnimationsEnabled (false);
+    m_fullSendSounds.SetOnChange ([this] (int) { UpdateTickRate(); });
     m_fullSendSounds.SetSegments ({ L"The PC", L"The Apple", L"Both", L"Neither" });
     m_fullSendSounds.SetSelected (m_choices.bootSoundPlace);
 

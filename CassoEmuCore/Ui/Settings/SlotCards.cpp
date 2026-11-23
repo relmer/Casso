@@ -271,6 +271,96 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetPortDrive
+//
+//  A drive the card doesn't take is not connected.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SlotCards::SetPortDrive (std::vector<HardwareEntry> & entries, size_t index, size_t port, const std::string & device)
+{
+    HRESULT                 hr      = S_OK;
+    const BlockCardSpec   * card    = nullptr;
+    HardwareEntry         * entry   = nullptr;
+    bool                    inRange = index < entries.size();
+    bool                    isTaken = device.empty();
+
+
+
+    CBR (inRange);
+
+    entry = &entries[index];
+    card  = BlockDeviceCatalog::FindCard (entry->type);
+    CBR (card != nullptr && !card->isChain && port < (size_t) card->portCount);
+
+    for (const char * drive : card->drives)
+    {
+        isTaken = isTaken || device == drive;
+    }
+
+    CBREx (isTaken, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+
+    entry->ports.resize          ((size_t) card->portCount);
+    entry->portImages.resize     (entry->ports.size());
+    entry->portRealTiming.resize (entry->ports.size(), false);
+
+    if (entry->ports[port] != device)
+    {
+        entry->ports[port]      = device;
+        entry->portImages[port] = std::string();
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetChainCount
+//
+//  The images and timing of drives already connected are not changed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SlotCards::SetChainCount (std::vector<HardwareEntry> & entries, size_t index, size_t count)
+{
+    HRESULT                 hr      = S_OK;
+    const BlockCardSpec   * card    = nullptr;
+    HardwareEntry         * entry   = nullptr;
+    bool                    inRange = index < entries.size();
+    bool                    isChain = false;
+
+
+
+    CBR (inRange);
+
+    entry   = &entries[index];
+    card    = BlockDeviceCatalog::FindCard (entry->type);
+    isChain = card != nullptr && card->isChain && !card->drives.empty() && count <= (size_t) card->portCount;
+    CBR (isChain);
+
+    std::erase (entry->ports, std::string());
+    entry->portImages.resize     (entry->ports.size());
+    entry->portRealTiming.resize (entry->ports.size(), false);
+
+    entry->ports.resize          (count, card->drives[0]);
+    entry->portImages.resize     (count);
+    entry->portRealTiming.resize (count, false);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MakeDisplayName
 //
 ////////////////////////////////////////////////////////////////////////////////
