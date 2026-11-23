@@ -14,7 +14,8 @@
 //
 //  An Ultima I: The Beginning player disk, a ProDOS disk with the file
 //  U1.VARS, as the saved game: the character's race, class, sex, hit
-//  points, stats, gold and position.
+//  points, stats, gold, food, position, readied weapon and armor, and
+//  inventory.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,6 +38,11 @@ public:
         int           gold           = 0;
         int           x              = 0;
         int           y              = 0;
+        int           food           = 0;
+
+        std::wstring                               weapon;
+        std::wstring                               armor;
+        std::vector<std::pair<std::wstring, int>>  inventory;
     };
 
     static constexpr size_t  kVarsBytes = 0x80;
@@ -49,6 +55,7 @@ public:
 
 private:
     static bool       TryReadVars   (const std::vector<Byte> & sectors, std::vector<Byte> & outVars);
+    static void       AddCounts     (std::span<const Byte> vars, size_t at, std::span<const wchar_t * const> names, Character & ioCharacter);
     static int        ReadWord      (std::span<const Byte> bytes, size_t at);
     static Run        MakeLabel     (const std::wstring & text);
     static Run        MakeValue     (const std::wstring & text);

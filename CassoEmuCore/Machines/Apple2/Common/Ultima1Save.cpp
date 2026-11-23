@@ -7,6 +7,24 @@
 
 
 
+//  The inventory's counts, a byte each, by name: armor from $11, weapons
+//  from $17, magic from $27 and transport from $32. The readied weapon at
+//  $0D and armor at $0E are indexes into the same lists from 1. Each
+//  offset was found by changing the byte in the game's memory and reading
+//  its inventory screen.
+static constexpr const wchar_t * s_kArmor[]     = { L"Leather armor", L"Chain mail", L"Plate mail", L"Vacuum suit", L"Reflect suit" };
+static constexpr const wchar_t * s_kWeapons[]   = { L"Dagger", L"Mace", L"Axe", L"Rope and spikes", L"Sword", L"Great sword",
+                                                    L"Bow and arrows", L"Amulet", L"Wand", L"Staff", L"Triangle", L"Pistol",
+                                                    L"Light sword", L"Phazor", L"Blaster" };
+static constexpr const wchar_t * s_kSpells[]    = { L"Open", L"Unlock", L"Magic missile", L"Steal", L"Ladder down", L"Ladder up",
+                                                    L"Blink", L"Create", L"Destroy", L"Kill" };
+static constexpr const wchar_t * s_kTransport[] = { L"Horse", L"Cart", L"Raft", L"Frigate", L"Aircar", L"Shuttle", L"Phantom",
+                                                    L"Star cruiser", L"Battle base", L"Time machine" };
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Ultima1Save::ReadWord
@@ -20,6 +38,29 @@ int Ultima1Save::ReadWord (std::span<const Byte> bytes, size_t at)
 
 
     return bytes[at] | (bytes[at + 1] << kByteBits);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Ultima1Save::AddCounts
+//
+//  Each name whose count, a byte from `at` on, isn't zero.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Ultima1Save::AddCounts (std::span<const Byte> vars, size_t at, std::span<const wchar_t * const> names, Character & ioCharacter)
+{
+    for (size_t i = 0; i < names.size(); i++)
+    {
+        if (vars[at + i] != 0)
+        {
+            ioCharacter.inventory.emplace_back (names[i], vars[at + i]);
+        }
+    }
 }
 
 
@@ -64,8 +105,8 @@ Error:
 //  The position at $06, a byte each for column and row; the sex at $4A,
 //  1 for female; the name from $4B, up to 14 letters ending at a zero; then
 //  little-endian words from $59: hit points, Str, Agi, Sta, Cha, Wis, Int,
-//  gold, the race from 1 and the class from 1. False for a race or class
-//  out of range.
+//  gold, the race from 1 and the class from 1; and food, a word at $78.
+//  False for a race or class out of range.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,6 +121,13 @@ bool Ultima1Save::TryParse (std::span<const Byte> vars, Character & outCharacter
     constexpr size_t  kGoldAt     = 0x67;
     constexpr size_t  kRaceAt     = 0x69;
     constexpr size_t  kClassAt    = 0x6B;
+    constexpr size_t  kFoodAt     = 0x78;
+    constexpr size_t  kWeaponAt   = 0x0D;
+    constexpr size_t  kArmorAt    = 0x0E;
+    constexpr size_t  kArmorsAt   = 0x11;
+    constexpr size_t  kWeaponsAt  = 0x17;
+    constexpr size_t  kSpellsAt   = 0x27;
+    constexpr size_t  kVehiclesAt = 0x32;
     constexpr size_t  kWordBytes  = 2;
     constexpr int     kKinds      = 4;
     constexpr Byte    kFirstGlyph = 0x20;
@@ -121,6 +169,22 @@ bool Ultima1Save::TryParse (std::span<const Byte> vars, Character & outCharacter
     outCharacter.wisdom         = ReadWord (vars, kHitsAt + kWordBytes * 5);
     outCharacter.intelligence   = ReadWord (vars, kHitsAt + kWordBytes * 6);
     outCharacter.gold           = ReadWord (vars, kGoldAt);
+    outCharacter.food           = ReadWord (vars, kFoodAt);
+
+    if (vars[kWeaponAt] >= 1 && vars[kWeaponAt] <= std::size (s_kWeapons))
+    {
+        outCharacter.weapon = s_kWeapons[vars[kWeaponAt] - 1];
+    }
+
+    if (vars[kArmorAt] >= 1 && vars[kArmorAt] <= std::size (s_kArmor))
+    {
+        outCharacter.armor = s_kArmor[vars[kArmorAt] - 1];
+    }
+
+    AddCounts (vars, kArmorsAt,   s_kArmor,     outCharacter);
+    AddCounts (vars, kWeaponsAt,  s_kWeapons,   outCharacter);
+    AddCounts (vars, kSpellsAt,   s_kSpells,    outCharacter);
+    AddCounts (vars, kVehiclesAt, s_kTransport, outCharacter);
 
     return true;
 }
@@ -249,7 +313,8 @@ Run Ultima1Save::MakeValue (const std::wstring & text)
 //  Ultima1Save::Decode
 //
 //  The title and position, then the character: name, race, class and sex,
-//  hit points and gold, and the six stats.
+//  hit points, food and gold, the six stats, the readied weapon and armor,
+//  and the inventory.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -258,6 +323,7 @@ HRESULT Ultima1Save::Decode (const std::vector<Byte> & sectors, std::span<const 
     HRESULT            hr       = S_OK;
     std::vector<Byte>  vars;
     Character          c;
+    std::wstring       items;
     bool               isParsed = false;
 
 
@@ -277,13 +343,23 @@ HRESULT Ultima1Save::Decode (const std::vector<Byte> & sectors, std::span<const 
     outFile.paragraphs.push_back (MakeParagraph ({ Run { c.name, true },
                                                    Run { std::format (L"   {} {}, {}", GetRaceName (c.race), GetClassName (c.characterClass), c.isFemale ? L"female" : L"male"), false, true, false, RunColor::Muted } }));
     outFile.paragraphs.push_back (MakeParagraph ({ MakeLabel (L"HP "),      MakeValue (std::format (L"{}", c.hitPoints)),
-                                                   MakeLabel (L"   Gold "), MakeValue (std::format (L"{}", c.gold)) }));
+                                                   MakeLabel (L"   Food "), MakeValue (std::format (L"{}", c.food)),
+                                                   MakeLabel (L"   Coin "), MakeValue (std::format (L"{}", c.gold)) }));
     outFile.paragraphs.push_back (MakeParagraph ({ MakeLabel (L"Str "),     MakeValue (std::format (L"{}", c.strength)),
                                                    MakeLabel (L"   Agi "),  MakeValue (std::format (L"{}", c.agility)),
                                                    MakeLabel (L"   Sta "),  MakeValue (std::format (L"{}", c.stamina)) }));
     outFile.paragraphs.push_back (MakeParagraph ({ MakeLabel (L"Cha "),     MakeValue (std::format (L"{}", c.charisma)),
                                                    MakeLabel (L"   Wis "),  MakeValue (std::format (L"{}", c.wisdom)),
                                                    MakeLabel (L"   Int "),  MakeValue (std::format (L"{}", c.intelligence)) }));
+    outFile.paragraphs.push_back (MakeParagraph ({ MakeLabel (L"Weapon "),   MakeValue (c.weapon.empty() ? L"hands" : c.weapon),
+                                                   MakeLabel (L"   Armor "), MakeValue (c.armor.empty()  ? L"skin"  : c.armor) }));
+
+    for (const auto & [name, count] : c.inventory)
+    {
+        items += std::format (L"{}{} {}", items.empty() ? L"" : L", ", count, name);
+    }
+
+    outFile.paragraphs.push_back (MakeParagraph ({ MakeLabel (L"Inventory "), MakeValue (items.empty() ? L"none" : items) }));
 
 Error:
     return hr;

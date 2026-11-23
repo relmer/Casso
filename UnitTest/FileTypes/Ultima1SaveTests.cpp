@@ -40,6 +40,12 @@ public:
         vars[0x06] = 39;
         vars[0x07] = 33;
         vars[0x4A] = 1;
+        vars[0x0D] = 1;
+        vars[0x0E] = 1;
+        vars[0x11] = 1;
+        vars[0x17] = 2;
+        vars[0x32] = 1;
+        PutWord (vars, 0x78, 200);
 
         for (size_t i = 0; name[i] != 0; i++)
         {
@@ -88,6 +94,12 @@ public:
         Assert::AreEqual (100, c.gold);
         Assert::AreEqual (39,  c.x);
         Assert::AreEqual (33,  c.y);
+        Assert::AreEqual (200, c.food);
+        Assert::AreEqual (std::wstring (L"Dagger"),         c.weapon);
+        Assert::AreEqual (std::wstring (L"Leather armor"), c.armor);
+        Assert::AreEqual ((size_t) 3, c.inventory.size());
+        Assert::AreEqual (2,                              c.inventory[1].second);
+        Assert::AreEqual (std::wstring (L"Horse"),        c.inventory[2].first);
     }
 
 
