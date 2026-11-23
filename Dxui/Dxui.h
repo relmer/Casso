@@ -155,6 +155,7 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Widgets/DxuiReorderStack.h"
 #include "Widgets/DxuiTabDragVisual.h"
 #include "Widgets/DxuiZoomControl.h"
+#include "Widgets/DxuiZoomPopup.h"
 #include "Widgets/DxuiSegmentedControl.h"
 #include "Widgets/DxuiTabStrip.h"
 #include "Widgets/DxuiTextInput.h"
