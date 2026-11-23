@@ -99,10 +99,13 @@ Error:
 
 void BlockInspectorWindow::OnCreate()
 {
-    m_menus.Create  (*this, GetPopupHost(), GetTextRenderer(), m_commands);
-    m_status.Create (*this, [this] (double zoom) { SetZoom (zoom); }, false);
+    m_menus.Create (*this, GetPopupHost(), GetTextRenderer(), m_commands);
 
     m_panel = CreateChild<BlockInspectorPanel>();
+
+    //  The status bar's zoom is created after the panel, so its slider, which
+    //  opens over the panel, is drawn on top and has the pointer there.
+    m_status.Create (*this, [this] (double zoom) { SetZoom (zoom); }, false);
 
     CreateParts();
     m_menus.Rebuild (m_commands);
