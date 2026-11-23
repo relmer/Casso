@@ -17,6 +17,7 @@
 #include "Devices/BlockDevice/ScsiHardDisk.h"
 #include "Shell/StorageCardWiring.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/DiskBayTable.h"
 #include "Seams/Win32DiskFileIo.h"
 #include "Shell/DiskManager.h"
 #include "Devices/Floppy35/IFloppy35EventSink.h"
@@ -1116,7 +1117,7 @@ void MachineHost::PowerCycle()
     // The Disk II controller's power cycle selects its empty disks, so the
     // drives are pointed back at the store's mounts. Without this, a disk
     // mounted from memory, which has no file to remount, is disconnected.
-    for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+    for (drive = 0; drive < DiskBayTable::kDriveCount; drive++)
     {
         ConnectDiskToController (kDiskSlot, drive);
     }

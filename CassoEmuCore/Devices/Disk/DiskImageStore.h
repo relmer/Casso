@@ -12,6 +12,7 @@
 #include "IDiskFileIo.h"
 #include "MountDiagnosis.h"
 #include "BayChange.h"
+#include "Devices/Disk/Store/DiskBayTable.h"
 
 
 
@@ -97,11 +98,6 @@ public:
     //  it the staleness gate below would compare a recorded identity against a
     //  missing one and refuse every flush.
     using IdentityReader = std::function<ImageIdentity (const string &)>;
-
-    static constexpr int   kSlotCount  = 8;
-    static constexpr int   kDriveCount = 2;
-
-    DiskImageStore ();
 
     HRESULT       Mount             (int slot, int drive, const string & path);
     HRESULT       MountFromBytes    (int slot, int drive, const string & virtualPath,
@@ -358,41 +354,6 @@ public:
     static string   MakeRecoveryPath        (const string & imagePath, int attempt);
 
 private:
-    struct Entry
-    {
-        unique_ptr<DiskImage>  image;
-        string                 path;
-        DiskFormat             format  = DiskFormat::Dsk;
-        bool                   mounted = false;
-
-        //  Whether salvage applies to this image, decided once at mount.
-        //  Answering it needs a full decode for a damaged disk, which is far
-        //  too much work to repeat every time a menu is drawn.
-        bool                   salvageOffered = false;
-
-        //  What this bay knows about the file behind it. Set at mount, cleared
-        //  at eject, refreshed after every commit this store makes.
-        MountedImageState      sharedState;
-
-        //  Which bay this is.
-        //
-        //  KEPT ON THE ENTRY BECAUSE FlushEntry NEEDS IT AND HAS ONLY THIS.
-        //  Every message about a disk names the drive it is in, and threading
-        //  a pair of ints through five call sites to reach one function is a
-        //  worse answer than the entry knowing where it lives.
-        int                    slot    = 0;
-        int                    drive   = 0;
-
-        //  Which disk this is, for a viewer that must tell one disk from the
-        //  next: a new number at every bay change and every reload from the
-        //  file, never reused in a session, and 0 while nothing has mounted.
-        uint64_t               mediaId = 0;
-    };
-
-    // Every public accessor takes a caller-supplied slot/drive pair, so each
-    // one range-checks before GetEntry() indexes the fixed array.
-    static bool   IsValidBay        (int slot, int drive);
-
     //  Moves a mounted bay onto a different file without disturbing the disk
     //  in it. The image, and everything the guest can observe, is untouched;
     //  what changes is which file the bay reads and writes from here on.
@@ -430,27 +391,19 @@ private:
         ShuttingDown,
     };
 
-    Entry        & GetEntry      (int slot, int drive);
-    const Entry  & GetEntry      (int slot, int drive) const;
-    HRESULT        FlushEntry    (Entry & entry, FlushMoment moment);
+    HRESULT        FlushEntry    (DiskBay & entry, FlushMoment moment);
     HRESULT        FlushEveryBay (FlushMoment moment);
 
     //  Tells the user the guest's version could not be written beside the
     //  file that displaced it -- as a question where one can still be
     //  answered, and as a notice where it cannot.
-    void          ReportPreserveFailure (Entry & entry, FlushMoment moment,
+    void          ReportPreserveFailure (DiskBay & entry, FlushMoment moment,
                                          const string & attemptedPath, HRESULT hrKeep,
                                          const string & original);
 
     //  Asks the shell where to put a disk on the way out and writes it there,
     //  without returning until it is done. Only ever called at ShuttingDown.
-    bool          RescueOnTheWayOut (Entry & entry, const string & original);
-
-    //  Whether some other bay already reads and writes this file, and which
-    //  drive has it. The bay being mounted into is excluded, because putting
-    //  the same file back into the same drive is how a re-mount works.
-    bool          IsFileInAnotherBay (const string & path, int exceptSlot, int exceptDrive,
-                                      int & outDrive);
+    bool          RescueOnTheWayOut (DiskBay & entry, const string & original);
 
     // Routes through m_imageReader when a test has installed one, so the
     // read and write seams stay symmetric.
@@ -458,17 +411,17 @@ private:
 
     // Recover what can be recovered. Decode only -- this is all the counts
     // need, and it is the half AssessSalvage can afford to run.
-    HRESULT       DecodeForSalvage (Entry & entry, vector<Byte> & outSectors,
+    HRESULT       DecodeForSalvage (DiskBay & entry, vector<Byte> & outSectors,
                                     DenibblizeReport & report);
 
     // Decode, then rebuild the result as a WOZ. Only the write path needs the
     // rebuild, so only the write path pays for it.
-    HRESULT       BuildSalvagedImage (Entry & entry, vector<Byte> & outBytes,
+    HRESULT       BuildSalvagedImage (DiskBay & entry, vector<Byte> & outBytes,
                                       DenibblizeReport & report);
 
     // Preserves an image that could not be serialized to its own format,
     // beside the original and losslessly. Leaves the original untouched.
-    HRESULT        TryWriteRecoveryImage  (Entry & entry, string & outPath);
+    HRESULT        TryWriteRecoveryImage  (DiskBay & entry, string & outPath);
 
     // Enough room to step past collisions without ever spinning.
     static constexpr int  kMaxRecoveryNameAttempts = 64;
@@ -495,7 +448,7 @@ private:
     //
     //  SERIALIZED FROM THE MOUNTED IMAGE rather than copied from the file: the
     //  point of preserving it is that the file no longer holds this version.
-    HRESULT        SaveLoadedImage (Entry & entry, string & outPath);
+    HRESULT        SaveLoadedImage (DiskBay & entry, string & outPath);
 
     //  A preserved-copy path nothing is sitting at yet.
     //
@@ -547,7 +500,7 @@ private:
     //  be lit from a path that forgot to.
     void           EmitBayChange (int slot, int drive, BayChange change);
 
-    Entry                    m_entries[kSlotCount][kDriveCount];
+    DiskBayTable             m_bays;
     FlushSink                m_flushSink;
     ImageReader              m_imageReader;
     IdentityReader           m_identityReader;
@@ -563,13 +516,6 @@ private:
     RescueSink               m_rescueSink;
     BayChangeSink            m_bayChangeSink;
     DecisionSink             m_decisionSink;
-    uint64_t                 m_lastMediaId = 0;
     std::function<int64_t ()>  m_clock;
     std::function<time_t ()>   m_timestamp;
-
-    //  Guards the pending records alone. A watcher thread records a change
-    //  while the CPU thread reads it, and those two fields are the whole of
-    //  what crosses between them -- the image, the path and the identity are
-    //  touched only by the thread that owns disk writes.
-    mutable std::mutex       m_pendingMutex;
 };

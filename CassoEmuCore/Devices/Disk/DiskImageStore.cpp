@@ -21,56 +21,6 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskImageStore::DiskImageStore
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DiskImageStore::DiskImageStore()
-{
-    int  slot  = 0;
-    int  drive = 0;
-
-
-
-    //  Each entry learns where it lives, once, so anything holding one can
-    //  name the drive without being told.
-    for (slot = 0; slot < kSlotCount; slot++)
-    {
-        for (drive = 0; drive < kDriveCount; drive++)
-        {
-            m_entries[slot][drive].slot  = slot;
-            m_entries[slot][drive].drive = drive;
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  At
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DiskImageStore::Entry & DiskImageStore::GetEntry (int slot, int drive)
-{
-    return m_entries[slot][drive];
-}
-
-
-const DiskImageStore::Entry & DiskImageStore::GetEntry (int slot, int drive) const
-{
-    return m_entries[slot][drive];
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  MountFromBytes
 //
 //  Test-friendly mount path that bypasses the host filesystem. The
@@ -172,7 +122,7 @@ HRESULT DiskImageStore::LoadIntoBay (
     outDiagnosis.format       = fmt;
     outDiagnosis.fileByteSize = bytes.size();
 
-    CBRAEx (slot >= 0 && slot < kSlotCount && drive >= 0 && drive < kDriveCount, E_INVALIDARG);
+    CBRAEx (slot >= 0 && slot < DiskBayTable::kSlotCount && drive >= 0 && drive < DiskBayTable::kDriveCount, E_INVALIDARG);
 
     if (fmt == DiskFormat::Woz)
     {
@@ -185,7 +135,7 @@ HRESULT DiskImageStore::LoadIntoBay (
     CBRFEx (is525, HRESULT_FROM_WIN32 (ERROR_BAD_FORMAT), outDiagnosis.failure = MountFailure::WozNot525);
 
     {
-        Entry &   entry = GetEntry (slot, drive);
+        DiskBay &   entry = m_bays.GetBay (slot, drive);
 
         wasMounted = entry.mounted;
 
@@ -292,7 +242,7 @@ HRESULT DiskImageStore::Mount (int slot, int drive, const string & path)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskImageStore::ReportPreserveFailure (Entry & entry, FlushMoment moment,
+void DiskImageStore::ReportPreserveFailure (DiskBay & entry, FlushMoment moment,
                                             const string & attemptedPath, HRESULT hrKeep,
                                             const string & original)
 {
@@ -369,7 +319,7 @@ void DiskImageStore::ReportPreserveFailure (Entry & entry, FlushMoment moment,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DiskImageStore::RescueOnTheWayOut (Entry & entry, const string & original)
+bool DiskImageStore::RescueOnTheWayOut (DiskBay & entry, const string & original)
 {
     HRESULT       hr = S_OK;
     string        chosen;
@@ -411,64 +361,6 @@ bool DiskImageStore::RescueOnTheWayOut (Entry & entry, const string & original)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskImageStore::IsFileInAnotherBay
-//
-//  Whether some OTHER bay is already reading and writing this file.
-//
-//  EVERY SLOT, NOT JUST THIS ONE. Two controllers are as capable of holding one
-//  file between them as two drives on one controller are, and the damage is
-//  identical.
-//
-//  A BAY WITH NO PATH IS NOT A MATCH. An empty bay and a bay built from bytes
-//  that never came off disk both carry nothing to compare, and an empty string
-//  matches another empty string.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DiskImageStore::IsFileInAnotherBay (const string & path, int exceptSlot, int exceptDrive,
-                                         int & outDrive)
-{
-    int   slot  = 0;
-    int   drive = 0;
-    bool  found = false;
-
-
-
-    outDrive = -1;
-
-    if (path.empty())
-    {
-        return false;
-    }
-
-    for (slot = 0; slot < kSlotCount && !found; slot++)
-    {
-        for (drive = 0; drive < kDriveCount && !found; drive++)
-        {
-            const Entry &  other = m_entries[slot][drive];
-
-            if (slot == exceptSlot && drive == exceptDrive)
-            {
-                continue;
-            }
-
-            if (other.mounted && MountedImageState::IsSamePath (other.path, path))
-            {
-                outDrive = drive;
-                found    = true;
-            }
-        }
-    }
-
-    return found;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  Mount
 //
 //  The same mount, saying why it refused. The two failures BEFORE any loader
@@ -500,7 +392,7 @@ HRESULT DiskImageStore::Mount (int slot, int drive, const string & path,
     //  THE SAME FILE BACK INTO THE SAME DRIVE IS NOT THIS. Re-mounting is how
     //  a machine switch and a reload put the disk back, so the bay being
     //  mounted into is the one bay this does not look at.
-    elsewhere = IsFileInAnotherBay (path, slot, drive, outDiagnosis.occupiedDrive);
+    elsewhere = m_bays.IsFileInAnotherBay (path, slot, drive, outDiagnosis.occupiedDrive);
 
     CBRFEx (!elsewhere, E_INVALIDARG,
             outDiagnosis.failure = MountFailure::AlreadyMounted);
@@ -520,7 +412,7 @@ HRESULT DiskImageStore::Mount (int slot, int drive, const string & path,
     //  line's read-then-stamp order. A stamp taken before the read could
     //  describe a file the loaded bytes did not come from, and a stamp
     //  recorded for a mount that failed would sit on an empty bay.
-    GetEntry (slot, drive).sharedState.Mount (ReadIdentity (path));
+    m_bays.GetBay (slot, drive).sharedState.Mount (ReadIdentity (path));
 
     //  Mount registers the watch. It is orchestration rather than platform
     //  work, so it lives here and not in whatever built the watcher.
@@ -592,7 +484,7 @@ string DiskImageStore::MakeRecoveryPath (const string & imagePath, int attempt)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DiskImageStore::TryWriteRecoveryImage (Entry & entry, string & outPath)
+HRESULT DiskImageStore::TryWriteRecoveryImage (DiskBay & entry, string & outPath)
 {
     HRESULT       hr        = S_OK;
     string        candidate;
@@ -686,7 +578,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DiskImageStore::FlushEntry (Entry & entry, FlushMoment moment)
+HRESULT DiskImageStore::FlushEntry (DiskBay & entry, FlushMoment moment)
 {
     HRESULT        hr           = S_OK;
     HRESULT        hrRecovery   = S_OK;
@@ -893,9 +785,9 @@ HRESULT DiskImageStore::Flush (int slot, int drive)
 
 
 
-    CBRAEx (slot >= 0 && slot < kSlotCount && drive >= 0 && drive < kDriveCount, E_INVALIDARG);
+    CBRAEx (slot >= 0 && slot < DiskBayTable::kSlotCount && drive >= 0 && drive < DiskBayTable::kDriveCount, E_INVALIDARG);
 
-    hr = FlushEntry (GetEntry (slot, drive), FlushMoment::Running);
+    hr = FlushEntry (m_bays.GetBay (slot, drive), FlushMoment::Running);
 
 Error:
     return hr;
@@ -936,11 +828,11 @@ HRESULT DiskImageStore::SetImageWriteProtect (int slot, int drive, bool writePro
 
 
 
-    bayOk = IsValidBay (slot, drive);
+    bayOk = DiskBayTable::IsValidBay (slot, drive);
     CBRAEx (bayOk, E_INVALIDARG);
 
     {
-        Entry &  entry = GetEntry (slot, drive);
+        DiskBay &  entry = m_bays.GetBay (slot, drive);
 
         hasImage = (entry.mounted && entry.image != nullptr);
         CBREx (hasImage, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
@@ -1025,7 +917,7 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DiskImageStore::DecodeForSalvage (
-    Entry             &  entry,
+    DiskBay             &  entry,
     vector<Byte>      &  outSectors,
     DenibblizeReport  &  report)
 {
@@ -1055,7 +947,7 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DiskImageStore::BuildSalvagedImage (
-    Entry             &  entry,
+    DiskBay             &  entry,
     vector<Byte>      &  outBytes,
     DenibblizeReport  &  report)
 {
@@ -1098,12 +990,12 @@ Error:
 
 bool DiskImageStore::IsSalvageOffered (int slot, int drive) const
 {
-    if (!IsValidBay (slot, drive))
+    if (!DiskBayTable::IsValidBay (slot, drive))
     {
         return false;
     }
 
-    return GetEntry (slot, drive).salvageOffered;
+    return m_bays.GetBay (slot, drive).salvageOffered;
 }
 
 
@@ -1138,11 +1030,11 @@ HRESULT DiskImageStore::AssessSalvage (int slot, int drive, SalvageAssessment & 
 
     out = SalvageAssessment();
 
-    bayOk = IsValidBay (slot, drive);
+    bayOk = DiskBayTable::IsValidBay (slot, drive);
     CBRAEx (bayOk, E_INVALIDARG);
 
     {
-        Entry &  entry = GetEntry (slot, drive);
+        DiskBay &  entry = m_bays.GetBay (slot, drive);
 
         hasImage = (entry.mounted && entry.image != nullptr);
         CBREx (hasImage, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
@@ -1207,12 +1099,12 @@ HRESULT DiskImageStore::SalvageToFile (
 
 
 
-    bayOk = IsValidBay (slot, drive);
+    bayOk = DiskBayTable::IsValidBay (slot, drive);
     CBRAEx (bayOk, E_INVALIDARG);
     CBRAEx (hasPath, E_INVALIDARG);
 
     {
-        Entry &  entry = GetEntry (slot, drive);
+        DiskBay &  entry = m_bays.GetBay (slot, drive);
 
         hasImage = (entry.mounted && entry.image != nullptr);
         CBREx (hasImage, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
@@ -1323,11 +1215,11 @@ HRESULT DiskImageStore::FlushEveryBay (FlushMoment moment)
 
 
 
-    for (slot = 0; slot < kSlotCount; slot++)
+    for (slot = 0; slot < DiskBayTable::kSlotCount; slot++)
     {
-        for (drive = 0; drive < kDriveCount; drive++)
+        for (drive = 0; drive < DiskBayTable::kDriveCount; drive++)
         {
-            hr = FlushEntry (m_entries[slot][drive], moment);
+            hr = FlushEntry (m_bays.GetBay (slot, drive), moment);
 
             if (FAILED (hr) && SUCCEEDED (hrFirst))
             {
@@ -1358,9 +1250,9 @@ void DiskImageStore::Eject (int slot, int drive)
 
 
     // An out-of-range bay and an empty one are both nothing to eject.
-    if (IsValidBay (slot, drive) && GetEntry (slot, drive).mounted)
+    if (DiskBayTable::IsValidBay (slot, drive) && m_bays.GetBay (slot, drive).mounted)
     {
-        Entry &   entry = GetEntry (slot, drive);
+        DiskBay &   entry = m_bays.GetBay (slot, drive);
 
         // Flush failures are reported to the user by FlushEntry itself; the
         // eject proceeds either way, because refusing to unmount would leave
@@ -1434,32 +1326,13 @@ void DiskImageStore::PowerCycle()
 
 
 
-    for (slot = 0; slot < kSlotCount; slot++)
+    for (slot = 0; slot < DiskBayTable::kSlotCount; slot++)
     {
-        for (drive = 0; drive < kDriveCount; drive++)
+        for (drive = 0; drive < DiskBayTable::kDriveCount; drive++)
         {
             Eject (slot, drive);
         }
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IsValidBay
-//
-//  Whether (slot, drive) names a real bay. The one place the fixed array's
-//  bounds are stated, so an accessor cannot get the check subtly wrong.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DiskImageStore::IsValidBay (int slot, int drive)
-{
-    return slot  >= 0 && slot  < kSlotCount
-        && drive >= 0 && drive < kDriveCount;
 }
 
 
@@ -1475,7 +1348,7 @@ bool DiskImageStore::IsValidBay (int slot, int drive)
 DiskImage * DiskImageStore::GetImage (int slot, int drive)
 {
     // Null for a bad bay is the same answer as for an empty one: no image.
-    return IsValidBay (slot, drive) ? GetEntry (slot, drive).image.get() : nullptr;
+    return DiskBayTable::IsValidBay (slot, drive) ? m_bays.GetBay (slot, drive).image.get() : nullptr;
 }
 
 
@@ -1490,7 +1363,7 @@ DiskImage * DiskImageStore::GetImage (int slot, int drive)
 
 uint64_t DiskImageStore::GetMediaId (int slot, int drive) const
 {
-    return IsValidBay (slot, drive) ? GetEntry (slot, drive).mediaId : 0;
+    return DiskBayTable::IsValidBay (slot, drive) ? m_bays.GetBay (slot, drive).mediaId : 0;
 }
 
 
@@ -1505,9 +1378,9 @@ uint64_t DiskImageStore::GetMediaId (int slot, int drive) const
 
 void DiskImageStore::NoteStateRestored (int slot, int drive)
 {
-    if (IsValidBay (slot, drive) && GetEntry (slot, drive).image != nullptr)
+    if (DiskBayTable::IsValidBay (slot, drive) && m_bays.GetBay (slot, drive).image != nullptr)
     {
-        GetEntry (slot, drive).mediaId = ++m_lastMediaId;
+        m_bays.GetBay (slot, drive).mediaId = m_bays.TakeNextMediaId();
         EmitBayChange (slot, drive, BayChange::Restored);
     }
 }
@@ -1524,7 +1397,7 @@ void DiskImageStore::NoteStateRestored (int slot, int drive)
 
 bool DiskImageStore::IsMounted (int slot, int drive) const
 {
-    return IsValidBay (slot, drive) && GetEntry (slot, drive).mounted;
+    return DiskBayTable::IsValidBay (slot, drive) && m_bays.GetBay (slot, drive).mounted;
 }
 
 
@@ -1541,7 +1414,7 @@ const string & DiskImageStore::GetSourcePath (int slot, int drive) const
 {
     // Returns a reference, so a bad bay yields the member empty string rather
     // than a temporary.
-    return IsValidBay (slot, drive) ? GetEntry (slot, drive).path : m_emptyPath;
+    return DiskBayTable::IsValidBay (slot, drive) ? m_bays.GetBay (slot, drive).path : m_emptyPath;
 }
 
 
@@ -1566,11 +1439,11 @@ std::vector<DiskImageStore::MountedSource> DiskImageStore::GetMountedSourcePaths
 
 
 
-    for (slot = 0; slot < kSlotCount; slot++)
+    for (slot = 0; slot < DiskBayTable::kSlotCount; slot++)
     {
-        for (drive = 0; drive < kDriveCount; drive++)
+        for (drive = 0; drive < DiskBayTable::kDriveCount; drive++)
         {
-            const Entry &  entry = GetEntry (slot, drive);
+            const DiskBay &  entry = m_bays.GetBay (slot, drive);
 
             if (entry.mounted && !entry.path.empty())
             {
@@ -1637,9 +1510,9 @@ MountedImageState * DiskImageStore::GetSharedState (int slot, int drive)
 
 
 
-    if (IsValidBay (slot, drive))
+    if (DiskBayTable::IsValidBay (slot, drive))
     {
-        state = &GetEntry (slot, drive).sharedState;
+        state = &m_bays.GetBay (slot, drive).sharedState;
     }
 
     return state;
@@ -1663,9 +1536,9 @@ const MountedImageState * DiskImageStore::GetSharedState (int slot, int drive) c
 
 
 
-    if (IsValidBay (slot, drive))
+    if (DiskBayTable::IsValidBay (slot, drive))
     {
-        state = &GetEntry (slot, drive).sharedState;
+        state = &m_bays.GetBay (slot, drive).sharedState;
     }
 
     return state;
@@ -1724,9 +1597,9 @@ int64_t DiskImageStore::GetNowMs() const
 
 void DiskImageStore::EmitBayChange (int slot, int drive, BayChange change)
 {
-    if (slot >= 0 && slot < kSlotCount && drive >= 0 && drive < kDriveCount)
+    if (slot >= 0 && slot < DiskBayTable::kSlotCount && drive >= 0 && drive < DiskBayTable::kDriveCount)
     {
-        m_entries[slot][drive].mediaId = ++m_lastMediaId;
+        m_bays.GetBay (slot, drive).mediaId = m_bays.TakeNextMediaId();
     }
 
     if (m_bayChangeSink)
@@ -1760,18 +1633,18 @@ void DiskImageStore::EmitBayChange (int slot, int drive, BayChange change)
 
 void DiskImageStore::NoteExternalChange (const string & path, ExternalChangeIntent intent, bool fromCassoExplorer)
 {
-    std::lock_guard<std::mutex>  held (m_pendingMutex);
+    std::lock_guard<std::mutex>  held (m_bays.GetPendingMutex());
     int64_t  now   = GetNowMs();
     int      slot  = 0;
     int      drive = 0;
 
 
 
-    for (slot = 0; slot < kSlotCount; slot++)
+    for (slot = 0; slot < DiskBayTable::kSlotCount; slot++)
     {
-        for (drive = 0; drive < kDriveCount; drive++)
+        for (drive = 0; drive < DiskBayTable::kDriveCount; drive++)
         {
-            Entry &  entry = m_entries[slot][drive];
+            DiskBay &  entry = m_bays.GetBay (slot, drive);
 
             if (entry.mounted && MountedImageState::IsSamePath (entry.path, path))
             {
@@ -1801,8 +1674,8 @@ void DiskImageStore::NoteExternalChange (const string & path, ExternalChangeInte
 
 void DiskImageStore::ApplyPendingReload()
 {
-    int      readySlot[kSlotCount * kDriveCount]  = {};
-    int      readyDrive[kSlotCount * kDriveCount] = {};
+    int      readySlot[DiskBayTable::kSlotCount * DiskBayTable::kDriveCount]  = {};
+    int      readyDrive[DiskBayTable::kSlotCount * DiskBayTable::kDriveCount] = {};
     int      readyCount                           = 0;
     int      slot                                 = 0;
     int      drive                                = 0;
@@ -1817,13 +1690,13 @@ void DiskImageStore::ApplyPendingReload()
     //  measured, and about a hundred times what the work itself is worth. The
     //  snapshot below brings it back to the handful of comparisons it should be.
     {
-        std::lock_guard<std::mutex>  guard (m_pendingMutex);
+        std::lock_guard<std::mutex>  guard (m_bays.GetPendingMutex());
 
-        for (slot = 0; slot < kSlotCount; slot++)
+        for (slot = 0; slot < DiskBayTable::kSlotCount; slot++)
         {
-            for (drive = 0; drive < kDriveCount; drive++)
+            for (drive = 0; drive < DiskBayTable::kDriveCount; drive++)
             {
-                const Entry &  entry = m_entries[slot][drive];
+                const DiskBay &  entry = m_bays.GetBay (slot, drive);
 
                 if (entry.mounted
                  && entry.image != nullptr
@@ -1873,7 +1746,7 @@ void DiskImageStore::ApplyPendingReload()
 void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
 {
     HRESULT                            hr        = S_OK;
-    Entry                            & entry     = GetEntry (slot, drive);
+    DiskBay                          & entry     = m_bays.GetBay (slot, drive);
     bool                               settled   = false;
     bool                               held      = false;
     bool                               usable    = false;
@@ -1892,7 +1765,7 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
 
 
     {
-        std::lock_guard<std::mutex>  guard (m_pendingMutex);
+        std::lock_guard<std::mutex>  guard (m_bays.GetPendingMutex());
 
         settled = entry.mounted
                && entry.image != nullptr
@@ -1942,7 +1815,7 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
 
     if (unchanged)
     {
-        std::lock_guard<std::mutex>  guard (m_pendingMutex);
+        std::lock_guard<std::mutex>  guard (m_bays.GetPendingMutex());
 
         entry.sharedState.ClearPending();
 
@@ -2006,7 +1879,7 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
             //  second for as long as the folder stays full. The next change to
             //  the file, or the next flush, tries again.
             {
-                std::lock_guard<std::mutex>  guard (m_pendingMutex);
+                std::lock_guard<std::mutex>  guard (m_bays.GetPendingMutex());
 
                 entry.sharedState.ClearPending();
             }
@@ -2139,13 +2012,13 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
 
 
 
-    if (!IsValidBay (slot, drive))
+    if (!DiskBayTable::IsValidBay (slot, drive))
     {
         return;
     }
 
     {
-        Entry &  entry = GetEntry (slot, drive);
+        DiskBay &  entry = m_bays.GetBay (slot, drive);
 
         //  AN ANSWER TO A QUESTION NOBODY IS ASKING ANY MORE IS DROPPED. Mount
         //  and eject both clear this flag, so a disk that left the drive while
@@ -2218,7 +2091,7 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
             }
 
             {
-                std::lock_guard<std::mutex>  guard (m_pendingMutex);
+                std::lock_guard<std::mutex>  guard (m_bays.GetPendingMutex());
 
                 entry.sharedState.ClearPending();
             }
@@ -2354,13 +2227,13 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
 void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction action,
                                            const vector<Byte> & bytes, ChangeAuthor author)
 {
-    HRESULT  hr           = S_OK;
-    Entry &  entry        = GetEntry (slot, drive);
-    bool     restarted    = false;
-    bool     tookUp       = false;
-    bool     preserved    = false;
-    bool     preserveFail = false;
-    string   preservedPath;
+    HRESULT    hr            = S_OK;
+    DiskBay  & entry         = m_bays.GetBay (slot, drive);
+    bool       restarted     = false;
+    bool       tookUp        = false;
+    bool       preserved     = false;
+    bool       preserveFail  = false;
+    string     preservedPath;
     //  KEEPING MOVES THE BAY ONTO THE COPY, so entry.path is no longer the file
     //  any of these messages are about by the time they are composed. Captured
     //  before anything can move it.
@@ -2449,7 +2322,7 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
 
     if (!preserveFail)
     {
-        std::lock_guard<std::mutex>  guard (m_pendingMutex);
+        std::lock_guard<std::mutex>  guard (m_bays.GetPendingMutex());
 
         entry.sharedState.ClearPending();
     }
@@ -2569,7 +2442,7 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
 HRESULT DiskImageStore::MountExternallyModifiedDisk (int slot, int drive, const vector<Byte> & bytes)
 {
     HRESULT                  hr         = S_OK;
-    Entry                  & entry      = GetEntry (slot, drive);
+    DiskBay                & entry      = m_bays.GetBay (slot, drive);
     SalvageAssessment        assessment;
     HRESULT                  hrAssess   = S_OK;
     bool                     usable     = false;
@@ -2592,7 +2465,7 @@ HRESULT DiskImageStore::MountExternallyModifiedDisk (int slot, int drive, const 
     //  The identity is refreshed from the file the bytes came from, so the
     //  swap does not immediately look like another external change.
     entry.sharedState.SetIdentity (ReadIdentity (entry.path));
-    entry.mediaId = ++m_lastMediaId;
+    entry.mediaId = m_bays.TakeNextMediaId();
 
     hrAssess             = AssessSalvage (slot, drive, assessment);
     entry.salvageOffered = SUCCEEDED (hrAssess) && assessment.isOffered;
@@ -2629,14 +2502,14 @@ Error:
 HRESULT DiskImageStore::RepointBayToFile (int slot, int drive, const string & newPath)
 {
     HRESULT  hr     = S_OK;
-    bool     usable = IsValidBay (slot, drive) && !newPath.empty();
+    bool     usable = DiskBayTable::IsValidBay (slot, drive) && !newPath.empty();
 
 
 
     CBR (usable);
 
     {
-        Entry &  entry = GetEntry (slot, drive);
+        DiskBay &  entry = m_bays.GetBay (slot, drive);
 
         CBR (entry.mounted && entry.image != nullptr);
 
@@ -2676,9 +2549,9 @@ Error:
 
 void DiskImageStore::BeginWatching (int slot, int drive)
 {
-    Entry &  entry     = GetEntry (slot, drive);
-    string   directory = MountedImageState::GetDirectory (entry.path);
-    bool     watching  = false;
+    DiskBay  & entry     = m_bays.GetBay (slot, drive);
+    string     directory = MountedImageState::GetDirectory (entry.path);
+    bool       watching  = false;
 
 
 
@@ -2714,28 +2587,11 @@ void DiskImageStore::BeginWatching (int slot, int drive)
 
 void DiskImageStore::EndWatching (int slot, int drive)
 {
-    Entry   & entry      = GetEntry (slot, drive);
-    string    directory  = MountedImageState::GetDirectory (entry.path);
-    bool      stillUsed  = false;
-    int       otherSlot  = 0;
-    int       otherDrive = 0;
+    DiskBay  & entry     = m_bays.GetBay (slot, drive);
+    string     directory = MountedImageState::GetDirectory (entry.path);
+    bool       stillUsed = m_bays.IsDirectoryInAnotherBay (directory, slot, drive);
 
 
-
-    for (otherSlot = 0; otherSlot < kSlotCount; otherSlot++)
-    {
-        for (otherDrive = 0; otherDrive < kDriveCount; otherDrive++)
-        {
-            bool  isSelf = (otherSlot == slot && otherDrive == drive);
-
-            if (!isSelf && m_entries[otherSlot][otherDrive].mounted)
-            {
-                string  other = MountedImageState::GetDirectory (m_entries[otherSlot][otherDrive].path);
-
-                stillUsed = stillUsed || MountedImageState::IsSamePath (other, directory);
-            }
-        }
-    }
 
     if (m_watcher != nullptr && !directory.empty() && !stillUsed)
     {
@@ -2873,7 +2729,7 @@ HRESULT DiskImageStore::WritePreserved (const string & path, const vector<Byte> 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DiskImageStore::SaveLoadedImage (Entry & entry, string & outPath)
+HRESULT DiskImageStore::SaveLoadedImage (DiskBay & entry, string & outPath)
 {
     HRESULT       hr = S_OK;
     vector<Byte>  bytes;
@@ -2926,13 +2782,13 @@ Error:
 
 void DiskImageStore::EjectLostImage (int slot, int drive)
 {
-    if (!IsValidBay (slot, drive))
+    if (!DiskBayTable::IsValidBay (slot, drive))
     {
         return;
     }
 
     {
-        Entry &  entry = GetEntry (slot, drive);
+        DiskBay &  entry = m_bays.GetBay (slot, drive);
 
         EndWatching (slot, drive);
 

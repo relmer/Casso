@@ -8,6 +8,7 @@
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/DiskBayTable.h"
 #include "Devices/Disk/Store/DiskSourceFormat.h"
 #include "Devices/Disk/Win32ImageWatcher.h"
 #include "Devices/Disk/WriteProtectChange.h"
@@ -544,7 +545,7 @@ void DiskManager::OnBayChange (int slot, int drive, BayChange change)
 
 
     //  Slot 6 is the only bay with a drive on screen; the store has eight.
-    if (slot != 6 || drive < 0 || drive >= DiskImageStore::kDriveCount)
+    if (slot != 6 || drive < 0 || drive >= DiskBayTable::kDriveCount)
     {
         return;
     }
@@ -655,19 +656,19 @@ void DiskManager::OnBayChange (int slot, int drive, BayChange change)
 
 void DiskManager::RemountSlot6Disks()
 {
-    std::string  savedDisk[DiskImageStore::kDriveCount];
+    std::string  savedDisk[DiskBayTable::kDriveCount];
     HRESULT      hrMount = S_OK;
     int          drive   = 0;
 
 
 
-    for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+    for (drive = 0; drive < DiskBayTable::kDriveCount; drive++)
     {
         savedDisk[drive] = m_diskStore.GetSourcePath (6, drive);
     }
 
     m_programmaticRemount = true;
-    for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+    for (drive = 0; drive < DiskBayTable::kDriveCount; drive++)
     {
         if (!savedDisk[drive].empty())
         {
