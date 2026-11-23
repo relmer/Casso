@@ -3,7 +3,9 @@
 #include "../EhmTestHelper.h"
 #include "FakeDiskFileIo.h"
 #include "Devices/Disk/DiskCommandRunner.h"
+#include "Devices/Disk/FilePath.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
+#include "Machines/Apple2/Common/Dos33Volume.h"
 #include "DiskRunnerFixtures.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -43,6 +45,31 @@ public:
         return options;
     }
 
+    //  A DOS 3.3 disk with MAKE DUMP and MAKE DUMP.S on it, a file and a file
+    //  whose name contains it.
+    static void SeedDiskWithMakeDump (FakeDiskFileIo & io)
+    {
+        vector<Byte>  image = DiskRunnerFixtures::MakeBlankDos33Image();
+        vector<Byte>  next;
+        FilePayload   payload;
+
+        payload.type           = Dos33Volume::kTypeBinary;
+        payload.bytes          = DiskRunnerFixtures::MakePayload();
+        payload.loadAddress    = DiskRunnerFixtures::kLoadAddress;
+        payload.hasLoadAddress = true;
+
+        for (const char * name : { "MAKE DUMP", "MAKE DUMP.S" })
+        {
+            Dos33Volume  volume (image);
+
+            AssertSucceeded (volume.Write (FilePath::Parse (name), payload, next));
+
+            image = next;
+        }
+
+        DiskRunnerFixtures::SeedFile (io, DiskRunnerFixtures::kImage, image);
+    }
+
     //  Points the first entry's track/sector list at a track that is not on the
     //  volume, so a walk of its chain cannot reach the end.
     static void BreakFirstEntrysChain (vector<Byte> & buffer)
@@ -63,7 +90,7 @@ public:
         DiskCommandResult   result;
         DiskCommandResult   readBack;
 
-        DiskRunnerFixtures::SeedRealDisk (io);
+        SeedDiskWithMakeDump (io);
 
         // The trailing newline matters: this disk also carries MAKE DUMP.S, and
         // a substring search would go on finding the removed file inside its
@@ -94,9 +121,9 @@ public:
         FakeDiskFileIo      io;
         DiskCommandRunner   runner (io);
         DiskCommandResult   result;
-        vector<Byte>        original = DiskRunnerFixtures::OriginalImageBytes();
+        vector<Byte>        original = DiskRunnerFixtures::MakeBlankDos33Image();
 
-        DiskRunnerFixtures::SeedRealDisk (io);
+        DiskRunnerFixtures::SeedDos33Disk (io);
 
         result = runner.Run (MakeDeleteOptions (DiskRunnerFixtures::kImage, "NOSUCHFILE"));
 

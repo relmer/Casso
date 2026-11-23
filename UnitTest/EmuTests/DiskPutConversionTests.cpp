@@ -281,7 +281,7 @@ public:
         std::string         listing;
         std::string         returned;
 
-        DiskRunnerFixtures::SeedRealDisk (io, "Disks/Merlin-proProdos2.33-b.dsk", kProDosImage);
+        DiskRunnerFixtures::SeedProDosDisk (io, kProDosImage);
         DiskRunnerFixtures::SeedFile (io, DiskRunnerFixtures::kHostFile, BasicListingBytes());
 
         options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Basic;

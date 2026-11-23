@@ -41,7 +41,7 @@ public:
 
     void AssertImageIsUntouched (FakeDiskFileIo & io)
     {
-        vector<Byte>  original = DiskRunnerFixtures::OriginalImageBytes();
+        vector<Byte>  original = DiskRunnerFixtures::MakeBlankDos33Image();
         size_t        i        = 0;
 
         Assert::AreEqual (size_t (1), io.files.count (DiskRunnerFixtures::kImage), L"the image must still be there");
@@ -64,7 +64,7 @@ public:
     //  enough to prove a commit either landed or did not.
     vector<Byte> EditedImageBytes()
     {
-        vector<Byte>  bytes = DiskRunnerFixtures::OriginalImageBytes();
+        vector<Byte>  bytes = DiskRunnerFixtures::MakeBlankDos33Image();
 
         bytes[0] = (Byte) (bytes[0] ^ 0xFF);
 
@@ -97,7 +97,7 @@ public:
         DiskCommandResult              result;
         vector<Byte>                   edited;
 
-        DiskRunnerFixtures::SeedRealDisk (io);
+        DiskRunnerFixtures::SeedDos33Disk (io);
         AssertSucceeded (runner.GetSession().OpenImage (DiskRunnerFixtures::kImage, opened, result));
 
         edited = EditedImageBytes();
@@ -122,7 +122,7 @@ public:
         DiskImageSession::OpenedImage  opened;
         DiskCommandResult              result;
 
-        DiskRunnerFixtures::SeedRealDisk (io);
+        DiskRunnerFixtures::SeedDos33Disk (io);
         AssertSucceeded (runner.GetSession().OpenImage (DiskRunnerFixtures::kImage, opened, result));
         AssertSucceeded (runner.GetSession().CommitImage (opened, EditedImageBytes(), result));
 
@@ -147,7 +147,7 @@ public:
         DiskCommandResult              result;
         HRESULT                        hr     = S_OK;
 
-        DiskRunnerFixtures::SeedRealDisk (io);
+        DiskRunnerFixtures::SeedDos33Disk (io);
         AssertSucceeded (runner.GetSession().OpenImage (DiskRunnerFixtures::kImage, opened, result));
 
         io.failNextWrite = true;
@@ -175,7 +175,7 @@ public:
 
 
 
-        DiskRunnerFixtures::SeedRealDisk (io);
+        DiskRunnerFixtures::SeedDos33Disk (io);
         AssertSucceeded (runner.GetSession().OpenImage (DiskRunnerFixtures::kImage, opened, result));
 
         io.failNextWrite  = true;
@@ -232,7 +232,7 @@ public:
         DiskCommandResult              result;
         HRESULT                        hr     = S_OK;
 
-        DiskRunnerFixtures::SeedRealDisk (io);
+        DiskRunnerFixtures::SeedDos33Disk (io);
         AssertSucceeded (runner.GetSession().OpenImage (DiskRunnerFixtures::kImage, opened, result));
 
         io.failNextReplace = true;
@@ -257,7 +257,7 @@ public:
         DiskCommandResult              result;
         HRESULT                        hr     = S_OK;
 
-        DiskRunnerFixtures::SeedRealDisk (io);
+        DiskRunnerFixtures::SeedDos33Disk (io);
         AssertSucceeded (runner.GetSession().OpenImage (DiskRunnerFixtures::kImage, opened, result));
 
         io.mutateStampOnNextStat = true;
@@ -285,7 +285,7 @@ public:
         DiskCommandResult              result;
         HRESULT                        hr     = S_OK;
 
-        DiskRunnerFixtures::SeedRealDisk (io);
+        DiskRunnerFixtures::SeedDos33Disk (io);
         AssertSucceeded (runner.GetSession().OpenImage (DiskRunnerFixtures::kImage, opened, result));
 
         io.stamps[DiskRunnerFixtures::kImage].sizeBytes += 1;
@@ -306,7 +306,7 @@ public:
         DiskCommandResult              result;
         HRESULT                        hr     = S_OK;
 
-        DiskRunnerFixtures::SeedRealDisk (io);
+        DiskRunnerFixtures::SeedDos33Disk (io);
         AssertSucceeded (runner.GetSession().OpenImage (DiskRunnerFixtures::kImage, opened, result));
 
         io.reportHeldByOther = true;
@@ -334,7 +334,7 @@ public:
         DiskCommandResult              result;
         HRESULT                        hr     = S_OK;
 
-        DiskRunnerFixtures::SeedRealDisk (io);
+        DiskRunnerFixtures::SeedDos33Disk (io);
         io.stamps.erase (DiskRunnerFixtures::kImage);
 
         AssertSucceeded (runner.GetSession().OpenImage (DiskRunnerFixtures::kImage, opened, result),
@@ -364,7 +364,7 @@ public:
         vector<Byte>                   sentinel = { 'N', 'O', 'T', 'Y', 'O', 'U', 'R', 'S' };
 
         // Learn the name this runner reaches for, by watching it commit once.
-        DiskRunnerFixtures::SeedRealDisk (io);
+        DiskRunnerFixtures::SeedDos33Disk (io);
         AssertSucceeded (runner.GetSession().OpenImage (DiskRunnerFixtures::kImage, opened, result));
         AssertSucceeded (runner.GetSession().CommitImage (opened, EditedImageBytes(), result));
 
@@ -372,7 +372,7 @@ public:
 
         // Put the image back, park something at that name, and make the SAME
         // runner commit again -- same runner, so the same name comes up first.
-        DiskRunnerFixtures::SeedRealDisk (io);
+        DiskRunnerFixtures::SeedDos33Disk (io);
         io.files[taken]  = sentinel;
         io.stamps[taken] = FileStamp { sentinel.size(), 1 };
 
@@ -409,8 +409,8 @@ public:
         DiskCommandResult              resultA;
         DiskCommandResult              resultB;
 
-        DiskRunnerFixtures::SeedRealDisk (ioA);
-        DiskRunnerFixtures::SeedRealDisk (ioB);
+        DiskRunnerFixtures::SeedDos33Disk (ioA);
+        DiskRunnerFixtures::SeedDos33Disk (ioB);
 
         AssertSucceeded (runnerA.GetSession().OpenImage (DiskRunnerFixtures::kImage, openedA, resultA));
         AssertSucceeded (runnerB.GetSession().OpenImage (DiskRunnerFixtures::kImage, openedB, resultB));

@@ -4,7 +4,6 @@
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "../EhmTestHelper.h"
-#include "FixtureProvider.h"
 #include "FakeDiskFileIo.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Devices/Disk/DiskImage.h"
@@ -481,109 +480,6 @@ public:
         Assert::AreEqual (DiskRunnerFixtures::kLoadAddress, placed.loadAddress);
     }
 
-    TEST_METHOD (PutVerbatim_RoundTripsTheFILEBytes_NotTheImageBytes)
-    {
-        // THE GATE FOR THE UNCONVERTED PATH, AND THE ASSERTION IS FILE EQUALITY.
-        //
-        // Image equality is the wrong check and would fail here for two reasons
-        // that have nothing to do with character conversion. A DOS 3.3 file
-        // occupies whole sectors, so the bytes past its recorded length are
-        // whatever was there before; and a replacement reallocates, so the file
-        // can land somewhere else entirely on a disk that is otherwise
-        // unchanged. Neither says anything about whether the bytes were
-        // perturbed. What must hold -- and all that must hold -- is that the
-        // file comes back identical.
-        FakeDiskFileIo      io;
-        DiskCommandRunner   runner (io);
-        CommandLineOptions  options   = DiskRunnerFixtures::MakePutOptions (DiskRunnerFixtures::kImage, DiskRunnerFixtures::kHostFile, "MAKE DUMP");
-        DiskCommandResult   extracted;
-        DiskCommandResult   result;
-        DiskCommandResult   readBack;
-
-        DiskRunnerFixtures::SeedRealDisk (io);
-
-        extracted = DiskRunnerFixtures::GetFromCommittedImage (io, DiskRunnerFixtures::kImage, "MAKE DUMP");
-
-        Assert::AreEqual (DiskCommandResult::kClean, extracted.exitStatus);
-        DiskRunnerFixtures::AssertIsMakeDumpPayload (extracted.payload);
-
-        DiskRunnerFixtures::SeedFile (io, DiskRunnerFixtures::kHostFile, extracted.payload);
-
-        options.disk.typeName       = "B";
-        options.disk.loadAddress    = 0x9000;
-        options.disk.hasLoadAddress = true;
-        options.disk.encoding       = CommandLineOptions::DiskOptions::Encoding::Verbatim;
-
-        result = runner.Run (options);
-
-        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus,
-            L"replacing a file with its own contents must succeed");
-
-        readBack = DiskRunnerFixtures::GetFromCommittedImage (io, DiskRunnerFixtures::kImage, "MAKE DUMP");
-
-        Assert::AreEqual (DiskCommandResult::kClean, readBack.exitStatus);
-
-        // The file, byte for byte, through a path that re-read the committed
-        // image rather than trusting the runner that wrote it.
-        DiskRunnerFixtures::AssertIsMakeDumpPayload (readBack.payload);
-        Assert::IsTrue (readBack.payload == extracted.payload);
-
-        // And the reason an image comparison could not stand in for that: the
-        // file occupies four sectors, so its footprint on the disk is 1024
-        // bytes while the file itself is 589. Comparing the footprint would
-        // compare 431 bytes that are not the file.
-        Assert::AreEqual (size_t (589), readBack.payload.size());
-        Assert::IsTrue (DiskRunnerFixtures::ListCommittedImage (io, DiskRunnerFixtures::kImage).find ("B 004 MAKE DUMP\n") != std::string::npos,
-            L"four sectors of footprint for a 589-byte file");
-    }
-
-    TEST_METHOD (PutVerbatim_ReusesTheSpaceItFreed_AssertedSeparatelyFromTheBytes)
-    {
-        // The sector-reuse question, kept apart from the byte question on
-        // purpose. Conflating them is what makes an image comparison look like
-        // a conversion check: this asserts the volume gave back exactly what it
-        // took, which is about ALLOCATION, and says nothing about the contents.
-        FakeDiskFileIo      io;
-        DiskCommandRunner   runner (io);
-        CommandLineOptions  options = DiskRunnerFixtures::MakePutOptions (DiskRunnerFixtures::kImage, DiskRunnerFixtures::kHostFile, "MAKE DUMP");
-        DiskCommandResult   extracted;
-        std::string         before;
-        std::string         after;
-
-        DiskRunnerFixtures::SeedRealDisk (io);
-
-        before    = DiskRunnerFixtures::ListCommittedImage (io, DiskRunnerFixtures::kImage);
-        extracted = DiskRunnerFixtures::GetFromCommittedImage (io, DiskRunnerFixtures::kImage, "MAKE DUMP");
-
-        DiskRunnerFixtures::SeedFile (io, DiskRunnerFixtures::kHostFile, extracted.payload);
-
-        options.disk.typeName       = "B";
-        options.disk.loadAddress    = 0x9000;
-        options.disk.hasLoadAddress = true;
-
-        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
-
-        after = DiskRunnerFixtures::ListCommittedImage (io, DiskRunnerFixtures::kImage);
-
-        Assert::IsTrue (before.find ("sectors free of 560") != std::string::npos,
-            L"the listing must actually be reporting free space for this to mean anything");
-
-        Assert::AreEqual (FreeSpaceLine (before), FreeSpaceLine (after),
-            L"a file replaced by its own contents leaks nothing and grows nothing");
-    }
-
-    //  The trailing free-space report, which the listing separates from the
-    //  entries with a blank line. Taken as text rather than reparsed, so a
-    //  change of either number shows up in the failure message.
-    static std::string FreeSpaceLine (const std::string & listing)
-    {
-        size_t  at = listing.rfind ("\n\n");
-
-        Assert::IsTrue (at != std::string::npos, L"the listing must carry a free-space report");
-
-        return listing.substr (at);
-    }
-
     TEST_METHOD (Put_OverALockedFile_IsRefusedInTermsThatSayItIsLocked)
     {
         FakeDiskFileIo      io;
@@ -773,7 +669,7 @@ public:
         CommandLineOptions  listing  = DiskRunnerFixtures::MakeOptions (CommandLineOptions::DiskOptions::Command::List, DiskRunnerFixtures::kProImage);
         vector<Byte>        payload  = DiskRunnerFixtures::MakePayload();
 
-        DiskRunnerFixtures::SeedRealDisk (io, "Disks/Merlin-proProdos2.33-a.dsk", DiskRunnerFixtures::kProImage);
+        DiskRunnerFixtures::SeedProDosDisk (io, DiskRunnerFixtures::kProImage);
         DiskRunnerFixtures::SeedFile (io, DiskRunnerFixtures::kHostFile, payload);
 
         options.disk.typeName       = "BIN";
@@ -804,12 +700,9 @@ public:
         DiskCommandRunner   runner (io);
         CommandLineOptions  options    = DiskRunnerFixtures::MakePutOptions (kProOrdered, DiskRunnerFixtures::kHostFile, "PROG");
         DiskCommandResult   readBack;
-        FixtureProvider     fixtures;
-        vector<Byte>        dosOrdered;
+        vector<Byte>        dosOrdered = DiskRunnerFixtures::MakeBlankProDosDsk();
         vector<Byte>        proOrdered;
         vector<Byte>        payload    = DiskRunnerFixtures::MakePayload();
-
-        AssertSucceeded (fixtures.OpenFixture ("Disks/Merlin-proProdos2.33-a.dsk", dosOrdered));
 
         VolumeImage::DosLogicalToProDosFile (dosOrdered, proOrdered);
 

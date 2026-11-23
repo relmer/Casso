@@ -5,6 +5,8 @@
 #include "CommandLineOptions.h"
 #include "FakeDiskFileIo.h"
 
+struct DiskCommandResult;
+
 
 
 
@@ -38,6 +40,8 @@ public:
     static constexpr size_t    kPayloadBytes      = 512;
     static constexpr Word      kLoadAddress       = 0x6000;
 
+    static constexpr const char *  kProDosVolumeName = "MERLIN";
+
     //  Catalog geometry, restated here only for the two tests that reach into
     //  a catalog entry directly -- to lock a file, and to break its chain.
     static constexpr int       kVtocTrack          = 17;
@@ -47,18 +51,16 @@ public:
     static constexpr size_t    kEntOffType        = 0x02;
     static constexpr Byte      kLockedBit         = 0x80;
 
-    static void                SeedRealDisk                     (FakeDiskFileIo & io, const char * fixture = "Disks/Merlin-proDos2.23.dsk", const char * asPath = kImage);
     static CommandLineOptions  MakeOptions                      (CommandLineOptions::DiskOptions::Command command, const char * image = kImage);
     static void                AssertEveryLineFitsEightyColumns (const std::string & text);
-    static void                SeedProDosDisk                   (FakeDiskFileIo & io);
-    static vector<Byte>        ExpectedMakeDumpPayload          ();
-    static void                AssertIsMakeDumpPayload          (const vector<Byte> & actual);
+    static void                SeedProDosDisk                   (FakeDiskFileIo & io, const char * path = kImage);
+    static void                SeedDos33Disk                    (FakeDiskFileIo & io, const char * path = kImage);
     static void                SeedBlankImage                   (FakeDiskFileIo & io, const char * path);
     static CommandLineOptions  MakeSectorRead                   (const char * image, int track, int sector, int count, CommandLineOptions::DiskOptions::Numbering numbering);
     static CommandLineOptions  MakeDirectBoot                   (const char * image, const char * payload);
     static CommandLineOptions  MakeCreate                       (const char * path);
-    static vector<Byte>        OriginalImageBytes               ();
     static vector<Byte>        MakeBlankDos33Image              ();
+    static vector<Byte>        MakeBlankProDosDsk               ();
     static void                SeedFile                         (FakeDiskFileIo & io, const char * path, const vector<Byte> & bytes);
     static vector<Byte>        MakePayload                      (size_t count = kPayloadBytes);
     static CommandLineOptions  MakePutOptions                   (const char * image, const char * hostFile, const char * asName);

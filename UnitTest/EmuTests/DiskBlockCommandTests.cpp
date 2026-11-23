@@ -130,7 +130,7 @@ public:
         DiskCommandResult  result;
         std::string        text;
 
-        DiskRunnerFixtures::SeedRealDisk (io, "Disks/Merlin-proProdos2.33-a.dsk", DiskRunnerFixtures::kImage);
+        DiskRunnerFixtures::SeedProDosDisk (io);
 
         result = runner.Run (MakeBlockRead (DiskRunnerFixtures::kImage, 2, 1));
 

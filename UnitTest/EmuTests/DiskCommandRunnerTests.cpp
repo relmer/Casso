@@ -170,7 +170,7 @@ public:
         CommandLineOptions  options = DiskRunnerFixtures::MakeOptions (CommandLineOptions::DiskOptions::Command::List);
         DiskCommandResult   result;
 
-        DiskRunnerFixtures::SeedRealDisk (io);
+        DiskRunnerFixtures::SeedDos33Disk (io);
         options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
 
         result = runner.Run (options);
