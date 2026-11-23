@@ -215,7 +215,7 @@ void DiskSaveTable::AddInfocomPosition (const InfocomSave::Position & position, 
 //  DiskSaveTable::AddInfocomItems
 //
 //  A blank line, then the label in gray beside the first item, and the
-//  other items under it in bold, each indented under what it's in.
+//  other items under it, each indented under what it's in.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -236,7 +236,7 @@ void DiskSaveTable::AddInfocomItems (const wchar_t * heading, const std::vector<
     for (size_t i = 0; i < items.size(); i++)
     {
         line.runs = { Run { std::wstring ((i == 0) ? heading : L"") + L"\t", false, false, false, RunColor::Muted },
-                      Run { std::wstring ((size_t) items[i].depth * s_kItemIndent, L' ') + items[i].name, true } };
+                      Run { std::wstring ((size_t) items[i].depth * s_kItemIndent, L' ') + items[i].name } };
         ioParagraphs.push_back (line);
     }
 }
