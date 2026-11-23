@@ -108,6 +108,9 @@ protected:
 
     DxuiPanel  *  GetDialogContent   () const { return m_content; }
 
+    //  Centers the primary button group instead of aligning it right.
+    void          SetCenterButtons   (bool center) { m_centerButtons = center; }
+
     //
     //  Geometry: content fills the client (inset by pad, above the button
     //  row); the buttons sit in a fixed-height bottom strip, right-aligned.
@@ -154,8 +157,9 @@ private:
         DxuiButtonRow::Anchor  anchor    = DxuiButtonRow::Anchor::Right;
     };
 
-    DxuiPanel *                m_content = nullptr;
-    std::unique_ptr<DxuiPanel> m_contentOwned;
-    std::vector<ButtonEntry>   m_dialogButtons;
-    bool                       m_growing = false;
+    DxuiPanel                   * m_content       = nullptr;
+    std::unique_ptr<DxuiPanel>    m_contentOwned;
+    std::vector<ButtonEntry>      m_dialogButtons;
+    bool                          m_growing       = false;
+    bool                          m_centerButtons = false;
 };

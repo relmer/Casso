@@ -48,6 +48,10 @@ struct DeskExtraMetrics
     int             level  = 0;
     float           min[3] = {};
     float           max[3] = {};
+
+    // How far behind this drive's front whatever stands on it must sit, so
+    // its door opens.
+    float           doorClearMm = 0.0f;
 };
 
 

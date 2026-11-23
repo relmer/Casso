@@ -877,6 +877,7 @@ void ShellChrome::UpdateViewportLayout (int widthPx, int heightPx)
         // composition is solved into a center rect short by its height and
         // the labels hang in what is left.
         //
+        // A drive's label has two rows, its disk's name and its caption.
         // With no drive on the desk, there are no labels to make room for.
         //
         // With auto-hide on, the camera frames the monitor alone and the
@@ -887,7 +888,7 @@ void ShellChrome::UpdateViewportLayout (int widthPx, int heightPx)
         int               driveCount   = m_shell.m_scene->DeskSceneDriveCount();
         DeskSceneMetrics  metrics      = m_shell.m_scene->GetScene().Metrics();
         bool              deskDrives   = driveCount > 0 || metrics.extraCount > 0;
-        int               labelStripPx = (sliding || !deskDrives) ? 0 : m_shell.m_scaler.ToPx (s_kSceneDriveLabelStripDp + s_kSceneDriveLabelGapDp);
+        int               labelStripPx = (sliding || !deskDrives) ? 0 : m_shell.m_scaler.ToPx (s_kSceneDriveLabelStripDp * 2 + s_kSceneDriveLabelGapDp);
 
         for (int pass = 0; pass < s_kSceneScaleSettlePasses; pass++)
         {

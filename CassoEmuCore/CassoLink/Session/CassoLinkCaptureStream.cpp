@@ -798,8 +798,8 @@ bool CassoLinkCapture::IsSameStream (std::span<const Byte> a, std::span<const By
 //  more are set at 8, and none otherwise. Runs with no read at 12 and more
 //  set at 8 are runs of sync bytes, two. Any other byte is counted as 0,
 //  as is an FF among an address field's values, which a volume or checksum
-//  of $FF has: a byte the latch reads again before the next one starts is
-//  read twice.
+//  of $FF has, or in a data field's nibbles: a byte the latch reads again
+//  before the next one starts is read twice.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -901,7 +901,7 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const std::v
         bool    isData     = false;
         bool    dataLike   = false;
 
-        while (end < length && (bytes[end] | 0x80) == s_kSyncByte && !values[end] && !weak[end])
+        while (end < length && (bytes[end] | 0x80) == s_kSyncByte && !values[end] && !inData[end] && !weak[end])
         {
             for (int delay = 0; delay < 2; delay++)
             {
