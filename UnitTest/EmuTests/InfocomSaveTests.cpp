@@ -107,6 +107,35 @@ public:
     }
 
 
+    //  A later interpreter numbers positions from 1, in slots of 136 pages
+    //  for a version 4 story that fits them and 184 for a version 5 story.
+    //  Its status line isn't in the globals.
+    TEST_METHOD (FindPositions_ReadsALaterInterpretersSlots)
+    {
+        std::vector<Byte>                   memory = InfocomSaveBuilder::MakeMemory (0);
+        std::vector<InfocomSave::Position>  positions;
+
+
+
+        memory[0] = 4;
+        InfocomSave::FindPositions (InfocomSaveBuilder::MakeLateDisk (memory, 1, InfocomSave::kSmallSlotPages), positions);
+
+        Assert::AreEqual ((size_t) 1, positions.size());
+        Assert::AreEqual (2, positions[0].number, L"The second slot is position 2");
+        Assert::AreEqual (4, positions[0].version);
+        Assert::IsFalse  (positions[0].hasStatus);
+
+        memory[0] = 5;
+        InfocomSave::FindPositions (InfocomSaveBuilder::MakeLateDisk (memory, 2, InfocomSave::kLargeSlotPages), positions);
+
+        Assert::AreEqual ((size_t) 1, positions.size());
+        Assert::AreEqual (3, positions[0].number);
+
+        InfocomSave::FindPositions (InfocomSaveBuilder::MakeLateDisk (memory, 1, InfocomSave::kSmallSlotPages), positions);
+        Assert::IsTrue (positions.empty(), L"A version 5 story is never in the small slots");
+    }
+
+
     //  A version 3 story with the timed flag has the hours and minutes in
     //  the globals of the score and the moves.
     TEST_METHOD (Describe_ATimedStoryHasTheTime)

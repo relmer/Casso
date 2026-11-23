@@ -173,13 +173,14 @@ void DiskSaveTable::AddInfocomPosition (const InfocomSave::Position & position, 
     line.runs = { Run { L"Room\t", false, false, false, RunColor::Muted }, Run { position.room.empty() ? std::wstring (L"Unknown") : position.room, true } };
     ioParagraphs.push_back (line);
 
-    if (position.isTimed)
+    //  A later story's status line isn't in fixed globals, so its rows are left out.
+    if (position.hasStatus && position.isTimed)
     {
         line.runs = { Run { L"Time\t", false, false, false, RunColor::Muted },
                       Run { std::format (L"{}:{:02} {}", hours, position.moves, (position.score < 12) ? L"AM" : L"PM"), true, false, false, RunColor::Keyword } };
         ioParagraphs.push_back (line);
     }
-    else
+    else if (position.hasStatus)
     {
         std::string  title = story ? story->title : std::string();
 

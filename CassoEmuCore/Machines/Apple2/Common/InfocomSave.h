@@ -26,6 +26,14 @@
 //  whose header marks it as timed. So a save is summarized without the
 //  story disk.
 //
+//  A version 4 or 5 story's later interpreter saves positions numbered from
+//  1 in slots of 136 pages, or 184 for a version 5 story or a version 4
+//  story too big for the smaller slot, each five pages of state and then
+//  dynamic memory. Measured from Wishbringer, A Mind Forever Voyaging,
+//  Trinity, Nord and Bert, Sherlock, Beyond Zork and Border Zone saved in
+//  Casso. The story code of these games prints the status line, so the
+//  score and moves aren't in fixed globals.
+//
 //  The object tree is in dynamic memory too: what the player carries is the
 //  tree under the player, and what's in the room is the rest of the tree
 //  under the room. The player is an object somewhere in the room whose
@@ -49,16 +57,17 @@ public:
 
     struct Position
     {
-        int                number   = 0;
-        int                version  = 0;
-        int                release  = 0;
+        int                number    = 0;
+        int                version   = 0;
+        int                release   = 0;
         std::string        serial;
         std::wstring       room;
-        bool               isTimed  = false;
-        int                score    = 0;      // the hours, in a timed story
-        int                moves    = 0;      // the minutes, in a timed story
+        bool               isTimed   = false;
+        int                score     = 0;      // the hours, in a timed story
+        int                moves     = 0;      // the minutes, in a timed story
+        bool               hasStatus = true;   // the score and moves, or the time, are known
         std::vector<Item>  carried;
-        std::vector<Item>  here;              // in the room, but for the player
+        std::vector<Item>  here;               // in the room, but for the player
     };
 
     struct Story
@@ -75,12 +84,20 @@ public:
     static constexpr size_t  kPageBytes         = 256;
     static constexpr int     kSectorsPerTrack   = 16;
     static constexpr int     kEarlyFirstTrack   = 3;
+    static constexpr int     kLateStatePages    = 5;
+    static constexpr size_t  kSmallSlotPages    = 136;
+    static constexpr size_t  kLargeSlotPages    = 184;
+    static constexpr size_t  kDiskPages         = 560;
 
     //  The positions a disk in DOS sector order has saved, in order.
     static void  FindPositions   (const std::vector<Byte> & sectors, std::vector<Position> & outPositions);
 
     //  Position `number`, from `firstTrack` on, or false when it has no saved game.
     static bool  TryReadPosition (const std::vector<Byte> & sectors, int number, Position & outPosition, int firstTrack = 0);
+
+    //  A version 4 or 5 story's position in slot `index` of `slotPages`
+    //  pages, numbered index + 1, or false when it has no saved game.
+    static bool  TryReadLatePosition (const std::vector<Byte> & sectors, int index, size_t slotPages, Position & outPosition);
 
     //  One position as a line: the title and release, the room, and the
     //  score out of the maximum and the moves, or the time. The title and
@@ -107,16 +124,25 @@ private:
     static constexpr size_t  kDefaultsBytes     = 62;     // a version 1 to 3 story's 31 property defaults
     static constexpr size_t  kObjectBytes       = 9;      // a version 1 to 3 object: 4 bytes of attributes, 3 links, the properties' address
     static constexpr size_t  kParentAt          = 4;
+    static constexpr size_t  kLateDefaultsBytes = 126;    // a later story's 63 property defaults
+    static constexpr size_t  kLateObjectBytes   = 14;     // a later object: 6 bytes of attributes, 3 link words, the properties' address
+    static constexpr size_t  kLateParentAt      = 6;
+    static constexpr int     kMaxEarlyObjects   = 255;
+    static constexpr int     kMaxLateObjects    = 4000;
     static constexpr int     kGlobals           = 240;
     static constexpr int     kMaxDepth          = 6;
     static constexpr size_t  kMaxItems          = 200;
     static constexpr int     kNameScore         = 2;
 
     static Word  GetWord       (const std::vector<Byte> & memory, size_t at);
-    static int   CountObjects  (const std::vector<Byte> & memory, Word objects);
-    static int   GetObjectLink (const std::vector<Byte> & memory, Word objects, int count, int number, size_t which);
+    static void  ReadPages     (const std::vector<Byte> & sectors, size_t first, size_t count, std::vector<Byte> & outMemory);
+    static bool  ReadMemory    (std::vector<Byte> & memory, int number, bool isLate, Position & outPosition);
+    static int   CountObjects  (const std::vector<Byte> & memory, const ZMachineStory::Header & header);
+    static int   GetObjectLink (const std::vector<Byte> & memory, const ZMachineStory::Header & header, int count, int number, size_t which);
+    static int   FindLateRoom  (const std::vector<Byte> & memory, const ZMachineStory::Header & header, int count);
+    static bool  IsInGlobals   (const std::vector<Byte> & memory, const ZMachineStory::Header & header, int count, int number);
     static int   FindPlayer    (const std::vector<Byte> & memory, const ZMachineStory::Header & header, int count, int room);
-    static bool  IsInside      (const std::vector<Byte> & memory, Word objects, int count, int number, int room);
+    static bool  IsInside      (const std::vector<Byte> & memory, const ZMachineStory::Header & header, int count, int number, int room);
     static bool  IsPlayerName  (const std::wstring & name);
     static void  AddTree       (const std::vector<Byte> & memory, const ZMachineStory::Header & header, int count, int parent, int skip, int depth, std::vector<Item> & ioItems);
 };
