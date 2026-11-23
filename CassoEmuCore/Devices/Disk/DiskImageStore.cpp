@@ -1,19 +1,8 @@
 #include "Pch.h"
 
-#include "Devices/Disk/DiskImage.h"
-#include "DiskImageStore.h"
-#include "Devices/Disk/Store/DiskFileCommit.h"
-#include "Devices/Disk/Store/DiskStoreMessages.h"
+#include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk/Store/DiskSourceFormat.h"
-#include "Machines/Apple2/Common/Denibblizer.h"
-#include "Machines/Apple2/Common/NibbleFormat.h"
-#include "Machines/Apple2/Common/Nibblizer.h"
-#include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "Machines/Apple2/Common/WozLoader.h"
-#include "Core/TextEncoding.h"
-#include "ChangePrompt.h"
-#include "CommitPlan.h"
-#include "DiskCheck/ThumbnailStore.h"
 
 
 

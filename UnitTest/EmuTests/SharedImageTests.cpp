@@ -3,6 +3,7 @@
 #include "FakeImageWatcher.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/PreservedCopy.h"
 #include "Devices/Disk/Store/ExternalChangeMonitor.h"
 #include "Devices/Disk/Store/ExternalChangeActions.h"
 #include "Devices/Disk/Store/DiskFlusher.h"
