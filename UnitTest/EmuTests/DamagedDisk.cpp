@@ -239,6 +239,48 @@ int DamagedDisk::CountAddressFields (const DiskImage & image, int track)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DamagedDisk::RewriteAddressFields
+//
+//  The fields are found first and rewritten after, as a field with another
+//  prolog is no longer found.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DamagedDisk::RewriteAddressFields (DiskImage & inOutImage, int track, Byte prolog0, Byte sectorOffset)
+{
+    vector<Byte> &  bits     = inOutImage.GetTrackBitsForWrite (track);
+    size_t          bitCount = inOutImage.GetTrackBitCount (track);
+    size_t          at       = FindAddressFieldFrom (bits, bitCount, 0);
+    vector<size_t>  fields;
+
+
+
+    while (at != SIZE_MAX)
+    {
+        fields.push_back (at);
+        at = FindAddressFieldFrom (bits, bitCount, at + 1);
+    }
+
+    Assert::AreEqual (static_cast<size_t> (NibblizationLayer::kSectorsPerTrack), fields.size(), L"the track has sixteen address fields");
+
+    for (size_t field : fields)
+    {
+        Byte  volume = ReadOddEvenAtBit (bits, field + s_kVolumeNibble * s_kBitsPerNibble);
+        Byte  onDisk = ReadOddEvenAtBit (bits, field + s_kTrackNibble  * s_kBitsPerNibble);
+        Byte  sector = static_cast<Byte> (ReadOddEvenAtBit (bits, field + s_kSectorNibble * s_kBitsPerNibble) + sectorOffset);
+
+        WriteNibbleAtBit  (bits, field, prolog0);
+        WriteOddEvenAtBit (bits, field + s_kSectorNibble * s_kBitsPerNibble, sector);
+        WriteOddEvenAtBit (bits, field + s_kCheckNibble  * s_kBitsPerNibble, static_cast<Byte> (volume ^ onDisk ^ sector));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DamagedDisk::FindAddressFieldFrom
 //
 ////////////////////////////////////////////////////////////////////////////////

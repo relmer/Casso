@@ -100,6 +100,58 @@ public:
         AssertSucceeded (NibblizationLayer::Denibblize (image, DiskFormat::Dsk, decoded));
     }
 
+    //  A track whose address fields start D4 AA 96, as Ultima I's do, decodes
+    //  whole.
+    TEST_METHOD (ATrackWithD4AddressFields_DecodesEverySector)
+    {
+        DiskImage           image;
+        vector<Byte>        decoded;
+        SectorDecodeReport  report;
+
+        DamagedDisk::BuildGoodDos33 (image);
+        DamagedDisk::RewriteAddressFields (image, 20, 0xD4, 0);
+
+        AssertSucceeded (NibblizationLayer::Denibblize (image, DiskFormat::Dsk, decoded, report));
+
+        Assert::IsTrue (TrackDecodeOutcome::Complete == report.GetOutcome (20), L"every sector of the track");
+    }
+
+    //  A track whose sectors are numbered $11 to $20, as Ultima V's are from
+    //  track 17 on, decodes whole, each sector in its slot. The catalog track's sectors differ, so a sector in the wrong slot fails the comparison.
+    TEST_METHOD (ATrackNumberedFrom11_DecodesEverySector)
+    {
+        DiskImage           image;
+        vector<Byte>        decoded;
+        vector<Byte>        original;
+        SectorDecodeReport  report;
+
+        DamagedDisk::BuildGoodDos33 (image);
+        AssertSucceeded (NibblizationLayer::Denibblize (image, DiskFormat::Dsk, original, report));
+        DamagedDisk::RewriteAddressFields (image, 17, 0xD5, 0x11);
+
+        AssertSucceeded (NibblizationLayer::Denibblize (image, DiskFormat::Dsk, decoded, report));
+
+        Assert::IsTrue (TrackDecodeOutcome::Complete == report.GetOutcome (17), L"every sector of the track");
+        Assert::IsTrue (decoded == original, L"each sector in its slot");
+    }
+
+    //  A track with its data fields and no address field the decoder takes
+    //  was written, so its sectors are lost, not blank.
+    TEST_METHOD (ATrackWithDataFieldsAndNoAddressFields_IsDataLoss)
+    {
+        DiskImage           image;
+        vector<Byte>        decoded;
+        SectorDecodeReport  report;
+
+        DamagedDisk::BuildGoodDos33 (image);
+        DamagedDisk::RewriteAddressFields (image, 20, 0xD7, 0);
+
+        AssertSucceeded (NibblizationLayer::Denibblize (image, DiskFormat::Dsk, decoded, report));
+
+        Assert::IsTrue (TrackDecodeOutcome::Partial == report.GetOutcome (20), L"the track is damaged, not unformatted");
+        Assert::IsTrue (report.HasDataLoss(), L"and its sectors are lost");
+    }
+
     //  A sector whose header decodes cleanly into the WRONG slot. Distinct
     //  from BreakSector: nothing here fails its checksum, so the failure is
     //  about where the content landed rather than whether it could be read.

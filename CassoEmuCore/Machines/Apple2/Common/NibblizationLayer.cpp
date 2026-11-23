@@ -31,6 +31,7 @@ static constexpr int   kBitsPerNibble         = 8;
 static constexpr int   kAddrPrologueGap       = 20;
 static constexpr int   kDataPrologueGap       = 6;
 static constexpr Byte  kAddrProlog0           = 0xD5;
+static constexpr Byte  kAltAddrProlog0        = 0xD4;   // Ultima I's address fields
 static constexpr Byte  kAddrProlog1           = 0xAA;
 static constexpr Byte  kAddrProlog2           = 0x96;
 static constexpr Byte  kDataProlog2           = 0xAD;
@@ -1040,6 +1041,39 @@ static int PopCount (uint16_t mask)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HasDataField
+//
+//  Whether one revolution of the track has a data field's prolog, D5 AA AD.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static bool HasDataField (const NibblizationLayer::TrackBits & src)
+{
+    size_t  bitPos = 0;
+    Byte    n0     = 0;
+    Byte    n1     = 0;
+    Byte    n2     = 0;
+    bool    found  = false;
+
+
+
+    while (!found && src.bitCount != 0 && bitPos < src.bitCount)
+    {
+        n0    = n1;
+        n1    = n2;
+        n2    = NibblizationLayer::ReadNibbleAt (src, bitPos);
+        found = n0 == kAddrProlog0 && n1 == kAddrProlog1 && n2 == kDataProlog2;
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DecodeOneSector
 //
 //  Walks the bit stream until it locates the next address-field prologue,
@@ -1120,7 +1154,7 @@ static HRESULT DecodeOneSector (
         addrFieldStart = bitPos;
         n0             = NibblizationLayer::ReadNibbleAt (src, bitPos);
 
-        if (n0 != kAddrProlog0)
+        if (n0 != kAddrProlog0 && n0 != kAltAddrProlog0)
         {
             bitsConsumed = (bitPos - startBitPos);
             CBR (bitsConsumed <= trackBits + 8);
@@ -1179,7 +1213,7 @@ static HRESULT DecodeOneSector (
         posBeforeProlog = bitPos;
         n0              = NibblizationLayer::ReadNibbleAt (src, bitPos);
 
-        if (n0 != kAddrProlog0)
+        if (n0 != kAddrProlog0 && n0 != kAltAddrProlog0)
         {
             bitsConsumed = (bitPos - startBitPos);
             CBR (bitsConsumed <= trackBits + 8);
@@ -1189,7 +1223,7 @@ static HRESULT DecodeOneSector (
         n1 = NibblizationLayer::ReadNibbleAt (src, bitPos);
         n2 = NibblizationLayer::ReadNibbleAt (src, bitPos);
 
-        if (n1 == kAddrProlog1 && n2 == kDataProlog2)
+        if (n0 == kAddrProlog0 && n1 == kAddrProlog1 && n2 == kDataProlog2)
         {
             foundProlog = 1;
         }
@@ -1286,6 +1320,63 @@ static HRESULT DecodeOneSector (
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindSectorBase
+//
+//  The number a track's address fields count their sectors from: 0, or the
+//  lowest number when every sector of the track is numbered 16 or more and
+//  the track has sixteen of them in a row. Ultima V numbers its sectors
+//  $11 to $20 from track 17 on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static Byte FindSectorBase (const NibblizationLayer::TrackBits & src)
+{
+    size_t         bitPos                                     = 0;
+    size_t         field                                      = SIZE_MAX;
+    size_t         data                                       = SIZE_MAX;
+    Byte           sector                                     = 0;
+    Byte           lowest                                     = 0xFF;
+    Byte           highest                                    = 0;
+    Byte           base                                       = 0;
+    Byte           buffer[NibblizationLayer::kSectorByteSize] = {};
+    SectorOutcome  outcome                                    = SectorOutcome::Lost;
+    bool           low                                        = false;
+    bool           seen[256]                                  = {};
+    int            count                                      = 0;
+    bool           more                                       = src.bitCount != 0;
+
+
+
+    while (more && bitPos < src.bitCount)
+    {
+        HRESULT  hr = DecodeOneSector (src, bitPos, sector, buffer, outcome, field, data);
+
+        more = SUCCEEDED (hr) && field < src.bitCount;
+
+        if (more && outcome != SectorOutcome::Lost)
+        {
+            count        += seen[sector] ? 0 : 1;
+            seen[sector]  = true;
+            low           = low || sector < NibblizationLayer::kSectorsPerTrack;
+            lowest        = std::min (lowest, sector);
+            highest       = std::max (highest, sector);
+        }
+    }
+
+    if (!low && count == NibblizationLayer::kSectorsPerTrack && highest - lowest == NibblizationLayer::kSectorsPerTrack - 1)
+    {
+        base = lowest;
+    }
+
+    return base;
 }
 
 
@@ -1492,6 +1583,7 @@ HRESULT NibblizationLayer::DecodeTracks (
     uint16_t      seenAtRevStart        = 0;
     size_t        revolutionEnd         = 0;
     Byte          outSector             = 0;
+    Byte          sectorBase            = 0;
     Byte          data[kSectorByteSize] = {};
     size_t        bitPos                = 0;
     size_t        offset                = 0;
@@ -1538,6 +1630,7 @@ HRESULT NibblizationLayer::DecodeTracks (
         slotMask   = 0;
         src        = GetTrackBits (img, img.ResolveWholeTrack (track), fluxView);
         trackBits  = src.bitCount;
+        sectorBase = FindSectorBase (src);
 
         //  A revolution that turns up nothing new means there is nothing left
         //  to find, and the scan can stop. Without this an EMPTY track is the
@@ -1594,6 +1687,8 @@ HRESULT NibblizationLayer::DecodeTracks (
             {
                 continue;
             }
+
+            outSector = (outSector >= sectorBase) ? static_cast<Byte> (outSector - sectorBase) : outSector;
 
             if (outSector >= kSectorsPerTrack)
             {
@@ -1659,7 +1754,9 @@ HRESULT NibblizationLayer::DecodeTracks (
             //  destroyed yields nothing at all -- while a track that yielded
             //  something and then failed is damaged, which is a different thing
             //  and must not license writing zeros over it.
-            if (trackBits == 0 || (slotMask == 0 && recovered == 0 && lost == 0))
+            //  A track with data fields and no address field the decoder
+            //  accepts was written: its sectors are lost, not blank.
+            if (trackBits == 0 || (slotMask == 0 && recovered == 0 && lost == 0 && !HasDataField (src)))
             {
                 outcome = TrackDecodeOutcome::Unformatted;
             }
