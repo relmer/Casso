@@ -95,4 +95,44 @@ public:
         Assert::AreEqual       (1.0, control.GetZoom(), 1e-9);
         Assert::IsFalse        (control.IsSliderShown());
     }
+
+
+    TEST_METHOD (AHostRangeAndStepReplaceTheStandardOnes)
+    {
+        DxuiZoomControl  control;
+        DxuiDpiScaler    scaler;
+        DxuiMouseEvent   press   = {};
+        DxuiMouseEvent   release = {};
+        double           zoomed  = 0;
+        int              closed  = 0;
+
+
+
+        control.SetRange  (1.0, 64.0, true);
+        control.SetOnStep ([] (double zoom, int steps) { return zoom * (steps > 0 ? 4.0 : 0.25); });
+        control.SetOnZoom ([&zoomed] (double zoom) { zoomed = zoom; });
+        control.SetZoom   (0.5);
+        Assert::AreEqual  (1.0, control.GetZoom(), 1e-9, L"clamped to the host's least zoom");
+
+        control.SetZoom   (500.0);
+        Assert::AreEqual  (64.0, control.GetZoom(), 1e-9, L"and to its most");
+
+        control.SetZoom   (2.0);
+        control.Layout    ({ 0, 0, 270, 30 }, scaler);
+        closed = control.GetShownWidthPx (scaler);
+
+        Assert::IsTrue    (control.UpdateHover ({ 250, 15 }), L"the slider appears over the percentage");
+        Assert::IsFalse   (control.UpdateHover ({ 250, 15 }), L"and isn't reported again");
+        Assert::IsTrue    (control.GetShownWidthPx (scaler) > closed);
+
+        press.kind          = DxuiMouseEventKind::Down;
+        press.button        = DxuiMouseButton::Left;
+        press.positionDip   = { 200, 15 };
+        release             = press;
+        release.kind        = DxuiMouseEventKind::Up;
+
+        control.OnMouse  (press);
+        control.OnMouse  (release);
+        Assert::AreEqual (8.0, zoomed, 1e-9, L"the + button steps by the host's step");
+    }
 };

@@ -42,11 +42,11 @@ DxuiZoomControl::DxuiZoomControl()
     m_slider->SetTickInterval (s_kTickPercent);
     m_slider->SetShowValue (false);
     m_slider->SetValue     (100.0f);
-    m_slider->SetOnChange  ([this] (float value) { ChangeZoom (value / 100.0); });
+    m_slider->SetOnChange  ([this] (float value) { ChangeZoom (GetZoomAtSlider (value)); });
     m_slider->SetOnDragEnd ([this] () { if (m_onZoom) { m_onZoom (m_zoom); } });
 
-    m_zoomOut->SetOnClick ([this] () { ChangeZoom (StepZoom (m_zoom, -1)); });
-    m_zoomIn->SetOnClick  ([this] () { ChangeZoom (StepZoom (m_zoom,  1)); });
+    m_zoomOut->SetOnClick ([this] () { ChangeZoom (Step (-1)); });
+    m_zoomIn->SetOnClick  ([this] () { ChangeZoom (Step (1)); });
     m_percent->SetOnClick ([this] () { OnPercentClick (GetTickCount64()); });
 }
 
@@ -94,9 +94,104 @@ void DxuiZoomControl::OnPercentClick (uint64_t nowMs)
 
 void DxuiZoomControl::SetZoom (double zoom)
 {
-    m_zoom = std::clamp (zoom, kMinZoom, kMaxZoom);
-    m_slider->SetValue  (static_cast<float> (m_zoom * 100));
+    m_zoom = std::clamp (zoom, m_minZoom, m_maxZoom);
+    m_slider->SetValue  (GetSliderValue (m_zoom));
     m_percent->SetLabel (FormatZoom (m_zoom));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomControl::SetRange
+//
+//  A logarithmic slider runs over kLogTrack positions with no ticks; a
+//  linear one runs over the range in whole percents, as the default one
+//  does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiZoomControl::SetRange (double minZoom, double maxZoom, bool isLogarithmic)
+{
+    m_minZoom       = minZoom;
+    m_maxZoom       = std::max (minZoom, maxZoom);
+    m_isLogarithmic = isLogarithmic;
+
+    if (isLogarithmic)
+    {
+        m_slider->SetRange     (0.0f, kLogTrack);
+        m_slider->SetDragStep  (1.0f);
+        m_slider->SetShowTicks (false);
+    }
+    else
+    {
+        m_slider->SetRange (static_cast<float> (m_minZoom * 100), static_cast<float> (m_maxZoom * 100));
+    }
+
+    SetZoom (m_zoom);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomControl::GetSliderValue
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiZoomControl::GetSliderValue (double zoom) const
+{
+    double  span = std::log (m_maxZoom / m_minZoom);
+
+
+
+    if (!m_isLogarithmic)
+    {
+        return static_cast<float> (zoom * 100);
+    }
+
+    return span > 0 ? static_cast<float> (std::log (zoom / m_minZoom) / span * kLogTrack) : 0.0f;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomControl::GetZoomAtSlider
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double DxuiZoomControl::GetZoomAtSlider (float value) const
+{
+    if (!m_isLogarithmic)
+    {
+        return value / 100.0;
+    }
+
+    return m_minZoom * std::pow (m_maxZoom / m_minZoom, value / kLogTrack);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomControl::Step
+//
+//  The buttons' step: the host's, or the standard stops.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double DxuiZoomControl::Step (int steps) const
+{
+    return m_onStep ? m_onStep (m_zoom, steps) : StepZoom (m_zoom, steps);
 }
 
 
@@ -202,6 +297,45 @@ void DxuiZoomControl::Layout (const RECT & boundsPx, const DxuiDpiScaler & scale
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiZoomControl::GetShownWidthPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiZoomControl::GetShownWidthPx (const DxuiDpiScaler & scaler) const
+{
+    int  width = GetPercentWidthPx (scaler);
+
+
+
+    if (IsSliderShown())
+    {
+        width += 2 * scaler.ToPx (s_kButtonDip) + scaler.ToPx (s_kSliderDip);
+    }
+
+    return width;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomControl::GetPercentWidthPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiZoomControl::GetPercentWidthPx (const DxuiDpiScaler & scaler)
+{
+    return scaler.ToPx (s_kPercentDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiZoomControl::IsOverControls
 //
 //  Over the percentage or, while they are visible, the slider and buttons.
@@ -229,11 +363,12 @@ bool DxuiZoomControl::IsOverControls (POINT p) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiZoomControl::UpdateHover (POINT cursorPx)
+bool DxuiZoomControl::UpdateHover (POINT cursorPx)
 {
-    RECT  area   = m_percent->GetBounds();
-    int   margin = IsSliderShown() ? m_scaler.ToPx (s_kNearDip) : 0;
-    bool  isOver = false;
+    RECT  area      = m_percent->GetBounds();
+    int   margin    = IsSliderShown() ? m_scaler.ToPx (s_kNearDip) : 0;
+    bool  isOver    = false;
+    bool  isChanged = false;
 
 
 
@@ -242,11 +377,15 @@ void DxuiZoomControl::UpdateHover (POINT cursorPx)
 
     isOver = PtInRect (&area, cursorPx) != FALSE || IsDragging();
 
-    if (isOver != m_isHoverShown)
+    isChanged = isOver != m_isHoverShown;
+
+    if (isChanged)
     {
         m_isHoverShown = isOver;
         Layout (m_boundsDip, m_scaler);
     }
+
+    return isChanged;
 }
 
 

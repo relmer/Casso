@@ -26,6 +26,7 @@ class DxuiZoomControl : public DxuiPanel
 {
 public:
     using ZoomFn = std::function<void (double zoom)>;
+    using StepFn = std::function<double (double zoom, int steps)>;
 
     //  The control's width with the slider visible, from its right edge.
     static constexpr int     kWidthDip  = 270;
@@ -42,9 +43,22 @@ public:
     void    SetOnZoom     (ZoomFn fn) { m_onZoom = std::move (fn); }
     bool    IsSliderShown () const { return m_isSliderShown || m_isHoverShown; }
 
+    //  A zoom range other than kMinZoom to kMaxZoom, and the buttons' steps
+    //  through it in place of StepZoom. A logarithmic slider moves the zoom
+    //  by the same factor over each part of its track, for a range of many
+    //  doublings.
+    void    SetRange      (double minZoom, double maxZoom, bool isLogarithmic);
+    void    SetOnStep     (StepFn fn) { m_onStep = std::move (fn); }
+
+    //  The width of the parts visible now, from the control's right edge,
+    //  and of the percentage alone.
+    int         GetShownWidthPx   (const DxuiDpiScaler & scaler) const;
+    static int  GetPercentWidthPx (const DxuiDpiScaler & scaler);
+
     //  The slider appears while the pointer is over the percentage, and stays
     //  while the pointer is near the control or the thumb is being dragged.
-    void    UpdateHover   (POINT cursorPx);
+    //  True when the slider appeared or went away.
+    bool    UpdateHover   (POINT cursorPx);
 
     //  Whether the slider's thumb is being dragged. When the drag ends, the
     //  callback is called again with the zoom it ended on.
@@ -64,7 +78,12 @@ public:
     void  Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
 
 private:
-    void  ChangeZoom (double zoom);
+    static constexpr float  kLogTrack = 1000.0f;   // the logarithmic slider's positions
+
+    void    ChangeZoom      (double zoom);
+    double  Step            (int steps) const;
+    float   GetSliderValue  (double zoom) const;
+    double  GetZoomAtSlider (float value) const;
 
     DxuiButton     * m_zoomOut            = nullptr;
     DxuiSlider     * m_slider             = nullptr;
@@ -72,8 +91,12 @@ private:
     DxuiButton     * m_percent            = nullptr;
     DxuiDpiScaler    m_scaler;
     double           m_zoom               = 1.0;
+    double           m_minZoom            = kMinZoom;
+    double           m_maxZoom            = kMaxZoom;
+    bool             m_isLogarithmic      = false;
     bool             m_isSliderShown      = false;
     bool             m_isHoverShown       = false;
     uint64_t         m_lastPercentClickMs = 0;
     ZoomFn           m_onZoom;
+    StepFn           m_onStep;
 };
