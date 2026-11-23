@@ -312,6 +312,7 @@
     <ClCompile Include="EmuTests\ContainerIntegrityTests.cpp" />
     <ClCompile Include="EmuTests\NibbleImageCodecTests.cpp" />
     <ClCompile Include="EmuTests\DenibblizerTests.cpp" />
+    <ClCompile Include="EmuTests\NibbleFieldWriterTests.cpp" />
     <ClCompile Include="EmuTests\NibblizationTests.cpp" />
     <ClCompile Include="EmuTests\SectorInterleaveTests.cpp" />
     <ClCompile Include="EmuTests\TrackBitReaderTests.cpp" />
