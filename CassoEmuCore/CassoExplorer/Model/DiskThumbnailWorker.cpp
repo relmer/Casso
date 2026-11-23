@@ -3,6 +3,7 @@
 #include "CassoExplorer/Model/DiskThumbnailWorker.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/DiskFileCommit.h"
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
 #include "Devices/Disk/Inspector/DiskAnalyzer.h"
 #include "Devices/Disk/Inspector/InspectorImageLoader.h"
@@ -162,7 +163,7 @@ DiskThumbnailResult DiskThumbnailWorker::Build (const std::wstring & path)
 
     result.path = path;
 
-    hr = DiskImageStore::ReadFileBytes (TextEncoding::WideToUtf8 (path), bytes);
+    hr = DiskFileCommit::ReadFileBytes (TextEncoding::WideToUtf8 (path), bytes);
     CHR (hr);
 
     result = BuildFromBytes (bytes, path);

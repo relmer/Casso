@@ -2,6 +2,8 @@
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "TestMachine.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/ExternalChangeMonitor.h"
+#include "Devices/Disk/Store/DiskBayTable.h"
 #include "Machines/Apple2/Common/Disk2NibbleEngine.h"
 #include "FluxTestImages.h"
 
@@ -228,9 +230,9 @@ public:
         int                slot  = 0;
         int                drive = 0;
 
-        for (slot = 0; slot < DiskImageStore::kSlotCount; slot++)
+        for (slot = 0; slot < DiskBayTable::kSlotCount; slot++)
         {
-            for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+            for (drive = 0; drive < DiskBayTable::kDriveCount; drive++)
             {
                 HRESULT  hr = store.MountFromBytes (slot, drive, "perf.dsk",
                                                     DiskFormat::Dsk, image);
@@ -280,14 +282,14 @@ public:
         //  the first walk's page faults.
         for (i = 0; i < 1000; i++)
         {
-            store.ApplyPendingReload();
+            store.GetChangeMonitor().ApplyPendingReload();
         }
 
         QueryPerformanceCounter (&startQpc);
 
         for (i = 0; i < kIdleProbeCalls; i++)
         {
-            store.ApplyPendingReload();
+            store.GetChangeMonitor().ApplyPendingReload();
         }
 
         QueryPerformanceCounter (&endQpc);

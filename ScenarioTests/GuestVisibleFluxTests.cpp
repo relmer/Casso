@@ -11,6 +11,7 @@
 #include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/WozLoader.h"
+#include "Devices/Disk/Store/DiskFlusher.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -194,7 +195,7 @@ public:
         Assert::IsFalse (GuestSession::AnyRowContains (rows, "ERROR"),
             L"DOS must save to a flux disk without an error");
 
-        AssertSucceeded (machine.GetDiskStore().Flush (kSlot, kDrive), L"the flux disk must flush");
+        AssertSucceeded (machine.GetDiskStore().GetFlusher().Flush (kSlot, kDrive), L"the flux disk must flush");
 
         Assert::IsFalse (flushed.empty(), L"the save must have reached the file");
         AssertEveryTrackIsFlux (flushed);

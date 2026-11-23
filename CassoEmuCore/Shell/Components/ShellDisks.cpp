@@ -70,6 +70,9 @@
 #include "Config/Win32FileSystem.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DamagedMountReport.h"
+#include "Devices/Disk/Store/DiskStoreMessages.h"
+#include "Devices/Disk/Store/DiskSalvager.h"
+#include "Devices/Disk/Store/ExternalChangeActions.h"
 
 
 
@@ -443,7 +446,7 @@ void ShellDisks::HandleMountCompletion (const MountCompletion & completion)
         return;
     }
 
-    message = DiskImageStore::FormatMountFailureMessage (completion.path, completion.diagnosis);
+    message = DiskStoreMessages::FormatMountFailureMessage (completion.path, completion.diagnosis);
 
     //  A tool that asked is told why instead; the dialog would sit behind the
     //  window the user is looking at.
@@ -805,7 +808,7 @@ void ShellDisks::RunSalvageFlow (int drive)
 
 
 
-    hr =m_shell.m_machine.GetDiskStore().AssessSalvage (6, drive, assessment);
+    hr =m_shell.m_machine.GetDiskStore().GetSalvager().AssessSalvage (6, drive, assessment);
     if (FAILED (hr))
     {
         return;
@@ -832,7 +835,7 @@ void ShellDisks::RunSalvageFlow (int drive)
         return;
     }
 
-    hr = m_shell.m_machine.GetDiskStore().SalvageToFile (6, drive, assessment.suggestedPath, report);
+    hr = m_shell.m_machine.GetDiskStore().GetSalvager().SalvageToFile (6, drive, assessment.suggestedPath, report);
 
     if (FAILED (hr))
     {
@@ -932,7 +935,7 @@ void ShellDisks::ReportDamagedMount (int drive)
             fs::path (m_shell.m_machine.GetDiskStore().GetSourcePath (6, drive)).wstring()),
         false, std::wstring() });
 
-    hr = m_shell.m_machine.GetDiskStore().AssessSalvage (6, drive, assessment);
+    hr = m_shell.m_machine.GetDiskStore().GetSalvager().AssessSalvage (6, drive, assessment);
 
     if (SUCCEEDED (hr) && assessment.isOffered)
     {
@@ -1789,7 +1792,7 @@ HRESULT ShellDisks::ToggleImageWriteProtect (int drive)
 
 void ShellDisks::ResolvePendingChange (int slot, int drive, int action, const std::string & savePath)
 {
-    m_shell.m_machine.GetDiskStore().ResolvePendingChange (slot, drive, (ChangeAction) action, savePath);
+    m_shell.m_machine.GetDiskStore().GetChangeActions().ResolvePendingChange (slot, drive, (ChangeAction) action, savePath);
 }
 
 

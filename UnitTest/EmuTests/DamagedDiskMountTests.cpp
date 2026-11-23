@@ -2,6 +2,7 @@
 #include "Devices/Disk/DamagedMountReport.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/DiskSalvager.h"
 #include "Machines/Apple2/Common/Denibblizer.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/Nibblizer.h"
@@ -245,7 +246,7 @@ public:
         hr = store.MountFromBytes (6, 1, "mem:damaged.woz", DiskFormat::Woz, image);
         Assert::IsTrue (SUCCEEDED (hr));
 
-        hr = store.AssessSalvage (6, 1, assessment);
+        hr = store.GetSalvager().AssessSalvage (6, 1, assessment);
         Assert::IsTrue (SUCCEEDED (hr));
         Assert::IsTrue (assessment.isOffered, L"salvage must be offered for damaged tracks");
 

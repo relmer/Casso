@@ -2,7 +2,7 @@
 
 #include "DiskCreateCommand.h"
 #include "DiskImageSession.h"
-#include "DiskImageStore.h"
+#include "Devices/Disk/Store/DiskSourceFormat.h"
 #include "IDiskFileIo.h"
 #include "Devices/Disk/Containers/DiskCopy42Container.h"
 #include "Devices/Disk/Containers/ImageContainer.h"
@@ -16,7 +16,7 @@
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosStartup.h"
-#include "Machines/Apple2/Common/ProDosVolume.h"
+#include "Machines/Apple2/Common/ProDosVolumeWriter.h"
 #include "Machines/Apple2/Common/ThirteenSectorCodec.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
@@ -481,7 +481,8 @@ void DiskCreateCommand::BuildLargeProDos (const CommandLineOptions & options, Di
     bool                           isHfs      = IsHfsFormat (options);
     bool                           isProDos   = isHfs || options.disk.formatName.empty() || BlankDiskSpecResolver::IsProDosFamilyFormat (options.disk.formatName);
     std::string                    name       = options.disk.volumeName.empty() ? std::string (isHfs ? "Untitled" : "NEWDISK") : options.disk.volumeName;
-    bool                           nameOk     = isHfs ? HfsWriter::IsValidVolumeName (name) : ProDosVolume::IsValidName (name);
+    std::string                    stored;
+    bool                           nameOk     = isHfs ? HfsWriter::IsValidVolumeName (name) : ProDosVolumeWriter::TryEncodeDirectoryName (name, stored);
     bool                           hfsFits    = false;
     bool                           container  = false;
     bool                           fitsDc42   = false;
@@ -614,7 +615,8 @@ void DiskCreateCommand::ReformatLargeProDos (const CommandLineOptions & options,
     bool                           isHfs    = IsHfsFormat (options);
     bool                           isProDos = isHfs || options.disk.formatName.empty() || BlankDiskSpecResolver::IsProDosFamilyFormat (options.disk.formatName);
     std::string                    name     = options.disk.volumeName.empty() ? std::string (isHfs ? "Untitled" : "NEWDISK") : options.disk.volumeName;
-    bool                           nameOk   = isHfs ? HfsWriter::IsValidVolumeName (name) : ProDosVolume::IsValidName (name);
+    std::string                    stored;
+    bool                           nameOk   = isHfs ? HfsWriter::IsValidVolumeName (name) : ProDosVolumeWriter::TryEncodeDirectoryName (name, stored);
     vector<Byte>                   original;
     vector<Byte>                   sectors;
     vector<Byte>                   imageBytes;
@@ -908,7 +910,7 @@ void DiskCreateCommand::RunInit (const CommandLineOptions & options, DiskCommand
     }
 
     //  From the file's own name, because the file is what is being reformatted.
-    hr = DiskImageStore::GetSourceFormatByExtension (options.disk.imagePath, format);
+    hr = DiskSourceFormat::GetSourceFormatByExtension (options.disk.imagePath, format);
     CHRF (hr, result.Fail (options.disk.imagePath, "", "is not a kind of image this tool writes"));
 
     if (format == DiskFormat::Nib)

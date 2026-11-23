@@ -2,7 +2,7 @@
 
 #include "CassoExplorer/ExplorerInspectorHost.h"
 #include "Core/TextEncoding.h"
-#include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/DiskSourceFormat.h"
 #include "Devices/Disk/IDiskFileIo.h"
 #include "Devices/Disk/Inspector/InspectorImageLoader.h"
 #include "Devices/Disk/MountDiagnosis.h"
@@ -397,7 +397,7 @@ void ExplorerInspectorHost::Load()
         imageName = isGzip ? m_utf8Path.substr (0, m_utf8Path.size() - 3) : m_utf8Path;
     }
 
-    hr = DiskImageStore::GetSourceFormatByExtension (imageName, format);
+    hr = DiskSourceFormat::GetSourceFormatByExtension (imageName, format);
     CHRF (hr, m_openError = std::format (L"{} is not a disk image Casso opens.", name));
 
     hr = GetFileIo().ReadAllBytes (m_utf8Path, bytes);
@@ -421,7 +421,7 @@ void ExplorerInspectorHost::Load()
 
     if (!m_image->IsLoaded())
     {
-        diagnosis   = DiskImageStore::ClassifyLoadFailure (format, bytes);
+        diagnosis   = DiskSourceFormat::ClassifyLoadFailure (format, bytes);
         m_openError = diagnosis.FormatSentence (name);
     }
 

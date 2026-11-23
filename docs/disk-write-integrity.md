@@ -25,7 +25,7 @@ the next disk change cheaper.
 | Commit | What |
 |---|---|
 | `1a3beb1e` | `TRKS` chunk size spans the record table plus the block-aligned payload |
-| `37cd294f` | `DiskImageStore::FlushEntry` writes to a temp file and renames |
+| `37cd294f` | `DiskFlusher::FlushEntry` writes to a temp file and renames |
 | `a7baf4b6` | WOZ header CRC validated on load and reported |
 | `a25a3c67` | Release 1.16.2 |
 
@@ -67,7 +67,7 @@ A disk it edited keeps whoever imaged it.
 
 ### 2b. Write-protect is an edit, not a rewrite
 
-`DiskImageStore::SetImageWriteProtect` replaced `ForceFlush`: flush pending
+`DiskFlusher::SetImageWriteProtect` replaced `ForceFlush`: flush pending
 guest writes, patch INFO's flag byte, recompute the header CRC, write back
 atomically, then move the live image's flag to match. `WozLoader::SetWriteProtectFlag`
 does the byte-level part and touches nothing else.
@@ -193,7 +193,7 @@ are written by the WOZ serializer and never take the sector path.
 
 A damaged disk is held read-only, which protects the evidence and leaves the
 user stuck. Salvage is the way out: `Denibblizer::SalvageSectors` keeps
-every sector that decoded at all, `DiskImageStore::AssessSalvage` reports what
+every sector that decoded at all, `DiskSalvager::AssessSalvage` reports what
 that would cost without writing anything, and `SalvageToFile` writes
 `<disk>.salvaged.woz` beside the original.
 
@@ -366,7 +366,7 @@ succeeded, the guest never saw it, and the emulator's next flush destroyed it.
 
 | What | Where |
 |---|---|
-| Size and write time recorded at mount, re-checked before every commit | `ImageIdentity`, `DiskImageStore::FlushEntry` |
+| Size and write time recorded at mount, re-checked before every commit | `ImageIdentity`, `DiskFlusher::FlushEntry` |
 | A directory watcher, so a change is noticed rather than merely refused | `IImageWatcher` / `Win32ImageWatcher` |
 | Deciding what to do about one, as a pure table | `ExternalChangePolicy` |
 | Saying it, image and drive named | `ChangePrompt` |

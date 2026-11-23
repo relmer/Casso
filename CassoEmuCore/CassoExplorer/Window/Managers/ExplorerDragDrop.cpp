@@ -2,7 +2,7 @@
 
 #include "CassoExplorer/Window/Managers/ExplorerDragDrop.h"
 #include "CassoExplorer/Actions/ActionsCopy.h"
-#include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/DiskSourceFormat.h"
 #include "CassoExplorer/CassoExplorerDragOut.h"
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
@@ -834,7 +834,7 @@ bool ExplorerDragDrop::IsImageWriteDrop (const DropSource & source, const Locati
 {
     DiskFormat  format = DiskFormat::Dsk;
     bool        single = !source.fromImage && source.hostPaths.size() == 1 && drive.innerPath.empty();
-    HRESULT     known  = single ? DiskImageStore::GetSourceFormatByExtension (TextEncoding::WideToNarrow (source.hostPaths[0]), format) : E_FAIL;
+    HRESULT     known  = single ? DiskSourceFormat::GetSourceFormatByExtension (TextEncoding::WideToNarrow (source.hostPaths[0]), format) : E_FAIL;
 
 
 
