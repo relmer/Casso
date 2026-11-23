@@ -323,6 +323,8 @@ DeskSceneMetrics DeskScene::Metrics() const
         {
             m_extraModels[kind].BoundsMin (metrics.extras[i].min);
             m_extraModels[kind].BoundsMax (metrics.extras[i].max);
+
+            metrics.extras[i].doorClearMm = m_extraModels[kind].DoorFrontClearanceMm();
         }
     }
 
