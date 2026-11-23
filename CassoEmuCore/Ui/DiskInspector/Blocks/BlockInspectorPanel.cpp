@@ -1136,7 +1136,7 @@ void BlockInspectorPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
 {
     m_splitters.Paint (painter, theme);
 
-    m_hexPane.SetEditLook (m_isEditing, m_hexPane.GetHexView().HasFocus(), { theme.Accent(), theme.ContentBackground() });
+    m_hexPane.SetEditLook (m_isEditing, m_hexPane.GetHexView().HasFocus(), { theme.Accent(), theme.ContentBackground(), theme.Foreground() });
     m_hexPane.PaintFrame  (painter);
 
     DxuiPanel::Paint (painter, text, theme);

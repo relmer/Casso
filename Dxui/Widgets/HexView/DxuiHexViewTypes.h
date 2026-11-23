@@ -40,17 +40,19 @@ struct DxuiHexViewTypes
     //  A color for a marked byte, or false to leave it the ordinary one.
     using MarkColorFn = std::function<bool (uint8_t mark, uint32_t & outArgb)>;
 
-    //  A byte the host draws its way in both columns: the fill behind it and
-    //  its ink, 0 for the view's, and whether its ink is bold. The function
-    //  returns false to draw the byte as the view does.
+    //  A byte the host draws its way in a column: the fill behind it and its
+    //  ink, 0 for the view's, whether its ink is bold, and an outline around
+    //  the fill, 0 for none. The function returns false to draw the byte as
+    //  the view does.
     struct ByteStyle
     {
-        uint32_t  fill   = 0;
-        uint32_t  ink    = 0;
-        bool      isBold = false;
+        uint32_t  fill    = 0;
+        uint32_t  ink     = 0;
+        bool      isBold  = false;
+        uint32_t  outline = 0;
     };
 
-    using ByteStyleFn = std::function<bool (uint64_t offset, uint8_t mark, bool isSelected, ByteStyle & outStyle)>;
+    using ByteStyleFn = std::function<bool (uint64_t offset, uint8_t mark, bool isSelected, Column column, ByteStyle & outStyle)>;
 
     //  Asked for a context menu at a point in the same DIPs as the bounds.
     using ContextMenuFn = std::function<void (POINT atDip)>;

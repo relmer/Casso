@@ -30,13 +30,14 @@ void BlockHexPane::Create (DxuiPanel & parent)
 
         return mark != BlockHexSource::kMarkNone;
     });
-    m_hex->SetByteStyle    ([this] (uint64_t offset, uint8_t mark, bool isSelected, DxuiHexViewTypes::ByteStyle & outStyle)
+    m_hex->SetByteStyle    ([this] (uint64_t offset, uint8_t mark, bool isSelected, DxuiHexViewTypes::Column column, DxuiHexViewTypes::ByteStyle & outStyle)
     {
-        bool  isCaret = m_isEditing && m_hasFocus && offset == m_hex->GetCaret();
+        bool       isCaret = m_hasFocus && offset == m_hex->GetCaret();
+        ByteState  state   = { m_isEditing, isCaret, isCaret && m_isEditing && m_hex->IsTypingAt (offset), column == DxuiHexViewTypes::Column::Hex, isSelected, mark };
 
 
 
-        return PickByteStyle (m_colors, m_isEditing, isCaret, mark, isSelected, outStyle);
+        return PickByteStyle (m_colors, state, outStyle);
     });
 }
 
@@ -271,43 +272,51 @@ void BlockHexPane::PaintFrame (IDxuiPainter & painter) const
 //
 //  BlockHexPane::PickByteStyle
 //
-//  As the memory window draws the byte the keys act on: the accent behind
-//  the caret byte while editing, in both columns. An edited byte is drawn
-//  in the memory window's changed-byte red, made readable on whatever is
-//  behind it, the caret's accent included. While editing, every other byte
-//  has a light accent tint behind it.
+//  As the memory window draws its bytes. In the hex column, a byte being
+//  typed is in the foreground inside an accent box around the background.
+//  The caret byte otherwise has the accent behind it, in the ink that reads
+//  on the accent, whether or not it is edited. Selected bytes are the hex
+//  view's selection. An edited byte is drawn in the changed-byte red, and
+//  while editing, every other byte has a light accent tint behind it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool BlockHexPane::PickByteStyle (const EditColors & colors, bool isEditing, bool isCaret, uint8_t mark, bool isSelected, DxuiHexViewTypes::ByteStyle & outStyle)
+bool BlockHexPane::PickByteStyle (const EditColors & colors, const ByteState & state, DxuiHexViewTypes::ByteStyle & outStyle)
 {
-    bool      isEdited = mark == BlockHexSource::kMarkChanged;
+    bool      isEdited = state.mark == BlockHexSource::kMarkChanged;
     uint32_t  tint     = DxuiColor::Mix (colors.background, colors.accent, kTintShare);
-    uint32_t  changed  = GetChangedInk (colors.background);
 
 
 
     outStyle = DxuiHexViewTypes::ByteStyle();
 
-    if (colors.accent == 0 || (!isEditing && !isEdited))
+    if (colors.accent == 0)
     {
         return false;
     }
 
-    if (isCaret)
+    if (state.isTyping && state.isHexColumn)
     {
-        outStyle.fill = colors.accent;
-        outStyle.ink  = isEdited ? GetReadableInk (changed, colors.accent) : DxuiColor::GetContrastingInk (colors.accent);
+        outStyle.fill    = colors.background;
+        outStyle.outline = colors.accent;
+        outStyle.ink     = colors.foreground;
         return true;
     }
 
-    if (isSelected && !isEdited)
+    if (state.isCaret)
+    {
+        outStyle.fill = colors.accent;
+        outStyle.ink  = DxuiColor::GetContrastingInk (colors.accent);
+        return true;
+    }
+
+    if (state.isSelected || (!state.isEditing && !isEdited))
     {
         return false;
     }
 
-    outStyle.fill = isSelected ? DxuiColor::Mix (colors.background, colors.accent, 2 * kTintShare) : isEditing ? tint : 0;
-    outStyle.ink  = isEdited ? GetReadableInk (changed, outStyle.fill != 0 ? outStyle.fill : colors.background) : 0;
+    outStyle.fill = state.isEditing ? tint : 0;
+    outStyle.ink  = isEdited ? GetReadableInk (GetChangedInk (colors.background), state.isEditing ? tint : colors.background) : 0;
 
     return true;
 }

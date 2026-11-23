@@ -144,10 +144,11 @@ public:
 
         view.SetSource    (&source);
         LayOut (view);
-        view.SetByteStyle ([] (uint64_t offset, uint8_t mark, bool isSelected, DxuiHexViewTypes::ByteStyle & outStyle)
+        view.SetByteStyle ([] (uint64_t offset, uint8_t mark, bool isSelected, DxuiHexViewTypes::Column column, DxuiHexViewTypes::ByteStyle & outStyle)
         {
             (void) mark;
             (void) isSelected;
+            (void) column;
 
             outStyle.fill   = 0xFF102030;
             outStyle.ink    = 0xFFA0B0C0;

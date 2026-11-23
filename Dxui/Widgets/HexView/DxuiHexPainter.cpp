@@ -321,12 +321,9 @@ void DxuiHexPainter::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & them
             selected = selected || m_view.IsByteSelected (offset + (uint64_t) index);
         }
 
-        if (GetByteStyle (offset, m_rowMarks[(size_t) first], selected, style))
+        if (GetByteStyle (offset, m_rowMarks[(size_t) first], selected, DxuiHexViewTypes::Column::Hex, style))
         {
-            if (style.fill != 0)
-            {
-                FillCell (text, m_view.m_layout.GetValueSelectionRect (offset, cell), style.fill);
-            }
+            FillStyled (text, m_view.m_layout.GetValueSelectionRect (offset, cell), style);
 
             DrawCell (text, cell, FormatValue (value, present).c_str(), style.ink != 0 ? style.ink : argb, font, style.isBold ? DxuiFontWeight::Bold : DxuiFontWeight::Normal);
             continue;
@@ -351,12 +348,9 @@ void DxuiHexPainter::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & them
 
         //  A byte the host styles is drawn its way. Otherwise selected bytes
         //  are drawn in the full foreground, over the selection.
-        if (GetByteStyle (offset, m_rowMarks[(size_t) index], m_view.IsByteSelected (offset), style))
+        if (GetByteStyle (offset, m_rowMarks[(size_t) index], m_view.IsByteSelected (offset), DxuiHexViewTypes::Column::Text, style))
         {
-            if (style.fill != 0)
-            {
-                FillCell (text, m_view.m_layout.GetSelectionCellRect (offset, index, txtRect, false), style.fill);
-            }
+            FillStyled (text, m_view.m_layout.GetSelectionCellRect (offset, index, txtRect, false), style);
 
             DrawCell (text, txtRect, charOf.c_str(), style.ink != 0 ? style.ink : argb, font, style.isBold ? DxuiFontWeight::Bold : DxuiFontWeight::Normal);
             continue;
@@ -420,9 +414,42 @@ void DxuiHexPainter::DrawCell (IDxuiTextRenderer & text, const RECT & rect, cons
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiHexPainter::GetByteStyle (uint64_t offset, uint8_t mark, bool isSelected, DxuiHexViewTypes::ByteStyle & outStyle) const
+bool DxuiHexPainter::GetByteStyle (uint64_t offset, uint8_t mark, bool isSelected, DxuiHexViewTypes::Column column, DxuiHexViewTypes::ByteStyle & outStyle) const
 {
-    return m_byteStyle && m_byteStyle (offset, mark, isSelected, outStyle);
+    return m_byteStyle && m_byteStyle (offset, mark, isSelected, column, outStyle);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexPainter::FillStyled
+//
+//  A styled byte's fill, inside its outline when it has one. The outline is
+//  a twelfth of the cell's height, and at least a pixel.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexPainter::FillStyled (IDxuiTextRenderer & text, const RECT & rect, const DxuiHexViewTypes::ByteStyle & style)
+{
+    constexpr LONG  kEdgeShare = 12;
+    LONG            edge       = std::max<LONG> (1, (rect.bottom - rect.top) / kEdgeShare);
+
+
+
+    if (style.outline != 0)
+    {
+        FillCell (text, rect, style.outline);
+        FillCell (text, RECT { rect.left + edge, rect.top + edge, rect.right - edge, rect.bottom - edge }, style.fill);
+        return;
+    }
+
+    if (style.fill != 0)
+    {
+        FillCell (text, rect, style.fill);
+    }
 }
 
 

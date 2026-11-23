@@ -36,6 +36,9 @@ public:
     //  another block.
     void  ResetNibble () { m_isLowNibble = false; }
 
+    //  True when a byte's high nibble is typed and its low nibble isn't yet.
+    bool  IsTypingAt (uint64_t offset) const { return m_isLowNibble && m_nibbleAt == offset; }
+
     bool  OnChar  (wchar_t ch) override;
     bool  OnKey   (const DxuiKeyEvent & ev) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;

@@ -20,10 +20,11 @@ struct BlockField;
 //  The current block's hex view beside its fields list: the bytes with
 //  their marks, a byte's tip, a cut-off field row's tip, and the most bytes
 //  in a hex row that fit. While the block is edited, an accent frame is
-//  drawn around the hex view, the bytes have a light accent tint, and the
-//  caret byte has the accent behind it in both columns. Edited bytes are
-//  drawn in the debugger's changed-byte red. The views are children of the
-//  panel that creates the pane.
+//  drawn around the hex view and the bytes have a light accent tint. The
+//  bytes are drawn as the debugger's memory window draws them: the accent
+//  behind the caret byte while the hex view has the keys, an accent box
+//  around a byte being typed, and edited bytes in the changed-byte red. The
+//  views are children of the panel that creates the pane.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,6 +43,18 @@ public:
     {
         uint32_t  accent     = 0;
         uint32_t  background = 0;
+        uint32_t  foreground = 0;
+    };
+
+    //  What is drawn for a byte in one column.
+    struct ByteState
+    {
+        bool     isEditing   = false;   // the block is being edited
+        bool     isCaret     = false;   // the caret byte, with the hex view focused
+        bool     isTyping    = false;   // the byte's high nibble is typed and its low nibble isn't yet
+        bool     isHexColumn = false;
+        bool     isSelected  = false;
+        uint8_t  mark        = 0;
     };
 
     void  Create       (DxuiPanel & parent);
@@ -69,7 +82,7 @@ public:
     void  PaintFrame (IDxuiPainter & painter) const;
 
     //  How a byte is drawn in both columns: false for the hex view's look.
-    static bool  PickByteStyle (const EditColors & colors, bool isEditing, bool isCaret, uint8_t mark, bool isSelected, DxuiHexViewTypes::ByteStyle & outStyle);
+    static bool  PickByteStyle (const EditColors & colors, const ByteState & state, DxuiHexViewTypes::ByteStyle & outStyle);
 
     //  ink, moved toward black or white until it reads on ill.
     static uint32_t  GetReadableInk (uint32_t ink, uint32_t fill);
