@@ -415,6 +415,7 @@
     <ClCompile Include="Machines\Apple2\Common\Disk2NibbleEngine.cpp" />
     <ClCompile Include="Devices\Disk\MountDiagnosis.cpp" />
     <ClCompile Include="Machines\Apple2\Common\NibbleImageCodec.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\NibbleFieldWriter.cpp" />
     <ClCompile Include="Machines\Apple2\Common\NibblizationLayer.cpp" />
     <ClCompile Include="Machines\Apple2\Common\TrackLayoutWriter.cpp" />
     <ClCompile Include="Machines\Apple2\Common\SectorDecodeReport.cpp" />
@@ -1635,6 +1636,7 @@
     <ClInclude Include="Machines\Apple2\Common\Disk2NibbleEngine.h" />
     <ClInclude Include="Devices\Disk\MountDiagnosis.h" />
     <ClInclude Include="Machines\Apple2\Common\NibbleImageCodec.h" />
+    <ClInclude Include="Machines\Apple2\Common\NibbleFieldWriter.h" />
     <ClInclude Include="Machines\Apple2\Common\NibblizationLayer.h" />
     <ClInclude Include="Machines\Apple2\Common\TrackLayoutWriter.h" />
     <ClInclude Include="Machines\Apple2\Common\SectorDecodeReport.h" />
