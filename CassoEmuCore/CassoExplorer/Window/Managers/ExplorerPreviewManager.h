@@ -38,6 +38,10 @@ public:
     static constexpr int              kSummaryShare    = 2;       // a WOZ image's details above its catalog take at most 1/2 of the pane
     static constexpr int              kRuleBandDip     = 13;      // the band between those details and the catalog, with a rule across it
     static constexpr int              kRuleInsetDip    = 8;
+    static constexpr int              kSectionsBandDip = 40;      // the band with the switch between a disk's saved game and the disk
+    static constexpr int              kSectionsDip     = 28;
+    static constexpr int              kSectionsMaxDip  = 360;     // its widest; a wider pane centers it
+    static constexpr int              kSectionsPadDip  = 12;
 
     //  The longest record length that can be typed, and its digits.
     static constexpr size_t           kRecordLengthMax    = 65535;
@@ -103,6 +107,7 @@ public:
     PreviewShellView                & GetShell               ()            { return m_shell; }
     PreviewFindBar                  & GetFind                ()            { return m_find; }
     PreviewDiskThumbnail            & GetThumbnail           ()            { return m_thumbnail; }
+    const DxuiSegmentedControl      & GetSections            () const      { return *m_sections; }
 
     //  The preview over the whole tab, below the tab strip, and its steps to
     //  the previous and next file.
@@ -138,6 +143,7 @@ private:
     std::array<PreviewView *, 5>    m_views         { &m_listing, &m_picture, &m_hex, &m_text, &m_shell };   // in creation order, which is drawing order
     DxuiSelectableText            * m_message       = nullptr;
     DxuiTextView                  * m_summary       = nullptr;   // a WOZ image's details, above its catalog
+    DxuiSegmentedControl          * m_sections      = nullptr;   // a disk's saved game or the disk, for a disk with a saved game
     RECT                            m_ruleBand      = {};   // between them, empty without them
     DxuiToolbar                   * m_toolbar       = nullptr;
     int                             m_barMode       = CassoExplorerCommands::kPreviewBarNone;   // one of CassoExplorerCommands' preview bars

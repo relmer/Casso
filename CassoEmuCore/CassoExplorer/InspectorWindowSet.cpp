@@ -435,6 +435,36 @@ void InspectorWindowSet::CloseAll()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  InspectorWindowSet::ConfirmExit
+//
+//  Each open window prompts in turn, minimized or not, and a Cancel in any
+//  one of them stops the exit before any window closes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool InspectorWindowSet::ConfirmExit()
+{
+    bool  isConfirmed = true;
+
+
+
+    for (const std::unique_ptr<Entry> & entry : m_entries)
+    {
+        if (isConfirmed && !entry->isClosed)
+        {
+            isConfirmed = entry->window->ConfirmExit();
+        }
+    }
+
+    return isConfirmed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  InspectorWindowSet::GetCount
 //
 ////////////////////////////////////////////////////////////////////////////////

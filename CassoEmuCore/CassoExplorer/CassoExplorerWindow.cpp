@@ -112,6 +112,8 @@ HRESULT CassoExplorerWindow::RunModalPicker (HWND owner, PickerRequest request, 
 
 CassoExplorerWindow::~CassoExplorerWindow()
 {
+    EndFastClock();
+
     if (m_context.running != nullptr && m_context.watcher != nullptr)
     {
         m_context.watcher->Unwatch (m_context.running->GetFolder());
@@ -1052,7 +1054,8 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
     //  goes.
     barsMoved = ((int) m_parts->preview.TickScrollbars (GetNowMs())
                | (int) m_parts->listPane.Tick (GetNowMs())
-               | (int) m_parts->treePane.TickScrollbars (GetNowMs())) != 0;
+               | (int) m_parts->treePane.TickScrollbars (GetNowMs())
+               | (int) m_parts->statusBar.Tick (GetNowMs())) != 0;
 
     //  Tabs slide apart for a dragged tab and back together after it.
     barsMoved = barsMoved || m_parts->tabManager.IsSliding();
@@ -1084,6 +1087,7 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
     {
         KillTimer (GetHwnd(), (UINT_PTR) AppTimerId::ExplorerTooltip);
         m_tickArmed = false;
+        EndFastClock();
     }
 
     //  Not handled, so the host does not repaint after every tick: the work
@@ -1109,7 +1113,39 @@ void CassoExplorerWindow::ArmTick()
 {
     if (!m_tickArmed && GetHwnd() != nullptr)
     {
+        //  Windows times a timer to its clock's tick, 15.6 ms by default, so a
+        //  16 ms timer waits for the second tick and frames come every 31 ms,
+        //  unevenly. The clock runs at 1 ms while the tick runs.
+        if (!m_isClockFast)
+        {
+            m_isClockFast = timeBeginPeriod (kClockMs) == TIMERR_NOERROR;
+        }
+
         m_tickArmed = SetTimer (GetHwnd(), (UINT_PTR) AppTimerId::ExplorerTooltip, kTooltipTickMs, nullptr) != 0;
+
+        if (!m_tickArmed)
+        {
+            EndFastClock();
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::EndFastClock
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::EndFastClock()
+{
+    if (m_isClockFast)
+    {
+        timeEndPeriod (kClockMs);
+        m_isClockFast = false;
     }
 }
 
@@ -1129,7 +1165,7 @@ bool CassoExplorerWindow::IsTickWanted() const
         || m_parts->toolbars.IsMenuOpen() || m_parts->preview.GetToolbar().IsMenuOpen()
         || m_parts->toolbars.WantsTick() || m_parts->preview.GetToolbar().WantsTick()
         || GetPopupHost()->GetContextMenu().IsVisible() || GetPopupHost()->GetContextMenu().WantsTick()
-        || m_parts->input.HasCaretFocus();
+        || m_parts->input.HasCaretFocus() || m_parts->statusBar.IsZoomShown() || m_parts->preview.GetText().IsPinging();
 }
 
 

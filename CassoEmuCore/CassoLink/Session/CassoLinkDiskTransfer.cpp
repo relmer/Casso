@@ -2,17 +2,24 @@
 
 #include "CassoLink/Session/CassoLinkDiskTransfer.h"
 #include "CassoLink/Session/CassoLinkCapture.h"
+#include "CassoLink/Session/CassoLinkDiskStatus.h"
 #include "CassoLink/Session/CassoLinkThirteenSector.h"
 #include "CassoLink/Session/TrackMeasures.h"
 #include "CassoLink/Session/TrackVerifier.h"
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/CassoLinkSession.h"
+#include "CassoLink/FullSend/FullSendDisk.h"
+#include "CassoLink/FullSend/FullSendManifest.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk/DurableCommit.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Machines/Apple2/Common/ThirteenSectorCodec.h"
 
 
@@ -69,10 +76,23 @@ HRESULT CassoLinkDiskTransfer::CaptureWholeDisk (LinkOperation & operation)
     hr = m_session.m_host->BuildCaptureModule (module);
     CHR (hr);
 
-    hr = CassoLinkCapture::Capture (*m_session.m_host, (Byte) operation.drive, module, date,
-                                    [this, &operation] (const CassoLinkCapture::Progress & where) { ReportCapture (operation, where); }, result,
-                                    CassoLinkCapture::kTracks - 1, [this] () { return m_session.m_canceled.load(); });
+    BeginStatus (operation, true);
+
+    hr = CassoLinkCapture::Capture (*m_session.m_host, (Byte) operation.drive, module, date, [this, &operation] (const CassoLinkCapture::Progress & where)
+    {
+        ReportCapture (operation, where);
+
+        if (operation.status != nullptr)
+        {
+            CassoLinkDiskStatus::NoteCapture (*operation.status, operation.drive, where);
+        }
+    }, result, CassoLinkCapture::kTracks - 1, [this] () { return m_session.m_canceled.load(); });
     CHR (hr);
+
+    if (operation.status != nullptr)
+    {
+        CassoLinkDiskStatus::NoteCaptureResult (*operation.status, operation.drive, result);
+    }
 
     //  A capture with no track that repeats is an empty drive or a disk with
     //  nothing written on it, and no image is written for it.
@@ -92,6 +112,8 @@ HRESULT CassoLinkDiskTransfer::CaptureWholeDisk (LinkOperation & operation)
 
     m_session.m_sink.OnImageWritten (operation.imagePath, TextEncoding::WideToNarrow (m_session.GetModelName()));
 
+    EndStatus (operation, FullSendManifest::kStatusRawCapture, result.woz.size());
+
     if (!result.weak.empty())
     {
         operation.message = "Tracks with weak bits, which read differently every time: " + listTracks (result.weak) + ".";
@@ -103,6 +125,8 @@ HRESULT CassoLinkDiskTransfer::CaptureWholeDisk (LinkOperation & operation)
     }
 
     operation.message += (operation.message.empty() ? "" : " ") + FormatCaptureTimes (result);
+    operation.summary       = MakeCaptureSummary (result);
+    operation.weakPositions = result.weak;
 
 Error:
     return hr;
@@ -159,6 +183,45 @@ std::string CassoLinkDiskTransfer::FormatCaptureTimes (const CassoLinkCapture::R
     return std::format ("{} reads: {} stepping and reading, {} sending {} KB encoded from {} KB at {:.1f} KB/s. {} of {} positions between tracks read.",
                         result.reads, FormatDuration (result.diskMs / 1000.0), FormatDuration (result.lineMs / 1000.0),
                         result.sentBytes / 1024, result.storedBytes / 1024, pace / 1024.0, result.betweenRead, result.betweenTotal);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDiskTransfer::MakeCaptureSummary
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::pair<std::string, std::string>> CassoLinkDiskTransfer::MakeCaptureSummary (const CassoLinkCapture::Result & result)
+{
+    std::vector<std::pair<std::string, std::string>>  rows;
+    double                                            pace  = (result.lineMs > 0.0) ? (double) result.sentBytes / (result.lineMs / 1000.0) : 0.0;
+    auto                                              list  = [] (const std::vector<int> & positions)
+    {
+        std::string  text;
+
+        for (int position : positions)
+        {
+            text += (text.empty() ? "" : ", ") + FormatPosition (position);
+        }
+
+        return text.empty() ? std::string ("None") : text;
+    };
+
+
+
+    rows.push_back ({ "Tracks with weak bits",          list (result.weak) });
+    rows.push_back ({ "Tracks whose reads vary in length", list (result.unstable) });
+    rows.push_back ({ "Reads",                          std::to_string (result.reads) });
+    rows.push_back ({ "Stepping and reading",           FormatDuration (result.diskMs / 1000.0) });
+    rows.push_back ({ "Sending",                        std::format ("{}, {} KB compressed to {} KB, at {:.1f} KB/s", FormatDuration (result.lineMs / 1000.0),
+                                                                     result.storedBytes / 1024, result.sentBytes / 1024, pace / 1024.0) });
+    rows.push_back ({ "Positions between tracks read",  std::format ("{} of {}", result.betweenRead, result.betweenTotal) });
+
+    return rows;
 }
 
 
@@ -267,24 +330,30 @@ HRESULT CassoLinkDiskTransfer::ReadWholeDisk (LinkOperation & operation)
 {
     HRESULT                                   hr          = S_OK;
     DiskFormat                                format      = DiskFormat::Dsk;
-    std::vector<Byte>                         sectors (NibblizationLayer::kImageByteSize, 0);
+    std::vector<Byte>                         sectors (NibbleFormat::kImageByteSize, 0);
     std::vector<Byte>                         bytes;
     CommitPlan::Progress                      progress;
     bool                                      complete    = false;
     std::vector<CassoLinkHost::TrackMeasure>  measures;
     int                                       bitsPerTurn = 0;
+    bool                                      raw         = false;
+    size_t                                    before      = 0;
+    size_t                                    marked      = 0;
 
 
 
-    if (_stricmp (std::filesystem::path (operation.imagePath).extension().string().c_str(), ".d13") == 0)
+    if (!operation.automatic && _stricmp (std::filesystem::path (operation.imagePath).extension().string().c_str(), ".d13") == 0)
     {
         hr = ReadThirteenSectorDisk (operation);
         CHR (hr);
         BAIL_OUT_IF (true, S_OK);
     }
 
-    hr = DiskImageStore::GetSourceFormatByExtension (operation.imagePath, format);
-    CHR (hr);
+    if (!operation.automatic)
+    {
+        hr = DiskImageStore::GetSourceFormatByExtension (operation.imagePath, format);
+        CHR (hr);
+    }
 
     if (IsMeasured (format))
     {
@@ -292,10 +361,15 @@ HRESULT CassoLinkDiskTransfer::ReadWholeDisk (LinkOperation & operation)
         CHR (hr);
     }
 
-    for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+    BeginStatus (operation, false);
+
+    for (int track = 0; track < NibbleFormat::kTrackCount; track++)
     {
-        m_session.Report (operation, track * 100 / NibblizationLayer::kTrackCount);
-        m_session.m_host->SetProgress ((Byte) (track * 100 / NibblizationLayer::kTrackCount), (Byte) ((track + 1) * 100 / NibblizationLayer::kTrackCount));
+        before = operation.unreadable.size();
+        marked = operation.marks.size();
+
+        m_session.Report (operation, track * 100 / NibbleFormat::kTrackCount);
+        m_session.m_host->SetProgress ((Byte) (track * 100 / NibbleFormat::kTrackCount), (Byte) ((track + 1) * 100 / NibbleFormat::kTrackCount));
 
         if (IsMeasured (format))
         {
@@ -313,6 +387,26 @@ HRESULT CassoLinkDiskTransfer::ReadWholeDisk (LinkOperation & operation)
         }
 
         CHR (hr);
+
+        NoteTrack (operation, track, operation.unreadable.size() - before, operation.marks.size() - marked);
+    }
+
+    if (operation.status != nullptr)
+    {
+        operation.status->SetTitle (operation.drive, FullSendDisk::GetCatalogTitle (sectors), std::string());
+    }
+
+    if (operation.automatic)
+    {
+        hr = ChooseAutomatic (operation, sectors, format, measures, bitsPerTurn, raw);
+        CHR (hr);
+
+        if (raw)
+        {
+            hr = CaptureWholeDisk (operation);
+            CHR (hr);
+            BAIL_OUT_IF (true, S_OK);
+        }
     }
 
     complete = operation.unreadable.empty() || operation.blankUnreadable;
@@ -331,9 +425,229 @@ HRESULT CassoLinkDiskTransfer::ReadWholeDisk (LinkOperation & operation)
     hr = DurableCommit::Commit (m_session.m_fileIo, operation.imagePath, bytes, m_commitTag++, CommitMode::Replace, progress);
     CHR (hr);
 
+    EndStatus (operation, FullSendManifest::kStatusSent, bytes.size());
+
     hr = SaveUnreadableList (operation);
     CHRF (hr, operation.message = std::format ("The image was written, but the list of its unreadable sectors could not be saved as {}.",
                                                GetUnreadableListPath (operation.imagePath)));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDiskTransfer::BeginStatus
+//
+//  The job's status has its one drive, the other one left out, and a line
+//  for how the disk is read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkDiskTransfer::BeginStatus (LinkOperation & operation, bool isCapture)
+{
+    FullSendStatus  * status = operation.status.get();
+    int               drive  = operation.drive;
+
+
+
+    if (status == nullptr || (drive != 1 && drive != 2))
+    {
+        return;
+    }
+
+    status->Begin();
+    status->SetPresent (3 - drive, false);
+    status->SetActivity (isCapture ? FullSendActivity::Capturing : FullSendActivity::Sending, drive);
+
+    if (isCapture)
+    {
+        status->BeginCapture (drive);
+        status->AddLine (std::format ("Capturing the disk in drive {} raw, every track and the positions between them", drive), drive);
+        return;
+    }
+
+    status->BeginDisk (drive, operation.verifyReads, std::span<const int>());
+    status->AddLine (std::format ("Reading the disk in drive {}{}", drive, operation.verifyReads ? ", verifying every track"
+                                                                        : operation.autoVerify    ? ", verifying a track with read errors"
+                                                                                                  : std::string()), drive);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDiskTransfer::NoteTrack
+//
+//  A track's mark once its read ends, and a line for a track with sectors
+//  that couldn't be read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkDiskTransfer::NoteTrack (LinkOperation & operation, int track, size_t newUnreadable, size_t newMarks)
+{
+    FullSendStatus  * status = operation.status.get();
+
+
+
+    if (status == nullptr || (operation.drive != 1 && operation.drive != 2))
+    {
+        return;
+    }
+
+    status->MarkTrack (operation.drive, track, CassoLinkDiskStatus::GetTrackMark (newUnreadable, newMarks, operation.verifyReads));
+
+    if (newUnreadable > 0)
+    {
+        status->AddLine (std::format ("Track {}: {} sectors couldn't be read", track, newUnreadable), operation.drive);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDiskTransfer::EndStatus
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkDiskTransfer::EndStatus (LinkOperation & operation, const char * manifestStatus, size_t bytes)
+{
+    FullSendStatus  * status = operation.status.get();
+    FullSendRow       row;
+
+
+
+    if (status == nullptr || (operation.drive != 1 && operation.drive != 2))
+    {
+        return;
+    }
+
+    row.file       = std::filesystem::path (operation.imagePath).filename().string();
+    row.drive      = operation.drive;
+    row.status     = manifestStatus;
+    row.unreadable = (int) operation.unreadable.size();
+
+    status->EndDisk (operation.drive, row, bytes);
+    status->AddLine ("Saved as " + row.file, operation.drive);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDiskTransfer::IsAutomaticRaw
+//
+//  The same signs as Full Send's: unreadable sectors on a disk assessed as
+//  copy-protected, or a condition of the Copy-protected disks section.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkDiskTransfer::IsAutomaticRaw (const std::vector<Byte> & sectors, const std::vector<std::pair<int, int>> & unreadable, const FullSendProtectionChoices & choices)
+{
+    std::array<int, NibbleFormat::kTrackCount>  perTrack    = {};
+    int                                         emptyTracks = 0;
+    bool                                        readSign    = false;
+
+
+
+    for (const auto & [track, sector] : unreadable)
+    {
+        if (track >= 0 && track < NibbleFormat::kTrackCount)
+        {
+            perTrack[(size_t) track]++;
+        }
+    }
+
+    emptyTracks = (int) std::count (perTrack.begin(), perTrack.end(), NibbleFormat::kSectorsPerTrack);
+    readSign    = choices.readErrors && !unreadable.empty()
+               && std::string (FullSendDisk::AssessDamage (sectors, emptyTracks, (int) unreadable.size())) == FullSendManifest::kStatusProtected;
+
+    return perTrack[0] == NibbleFormat::kSectorsPerTrack || (choices.captureRaw && (readSign || choices.IsMet (FullSendProtection::Find (sectors))));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDiskTransfer::ChooseAutomatic
+//
+//  A disk with signs of copy protection is captured raw. A disk whose track
+//  0 has a volume other than the one a sector image is nibblized with is a
+//  WOZ built to every track's measured layout, when the choices preserve the
+//  volume. Any other is .po for ProDOS and Pascal, and .dsk otherwise.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkDiskTransfer::ChooseAutomatic (LinkOperation & operation, const std::vector<Byte> & sectors, DiskFormat & outFormat, std::vector<CassoLinkHost::TrackMeasure> & outMeasures,
+                                                int & outBitsPerTurn, bool & outRaw)
+{
+    HRESULT                                   hr        = S_OK;
+    const FullSendProtectionChoices         & choices   = *operation.automatic;
+    std::string                               extension = FullSendDisk::GetImageExtension (sectors, std::string());
+    std::vector<CassoLinkHost::TrackMeasure>  first;
+    HRESULT                                   measured  = S_OK;
+    Byte                                      volume    = 0;
+
+
+
+    outRaw = IsAutomaticRaw (sectors, operation.unreadable, choices);
+
+    if (outRaw)
+    {
+        extension = ".woz";
+
+        if (operation.status != nullptr)
+        {
+            operation.status->AddLine ("The disk shows signs of copy protection, so it's captured raw", operation.drive);
+        }
+    }
+    else if (choices.volumeWoz)
+    {
+        hr = TimeDriveForLayout (operation.drive, outBitsPerTurn);
+        CHR (hr);
+
+        //  A track 0 that can't be measured is left to the sector image.
+        measured = MeasureTrack (operation.drive, 0, first);
+        volume   = (SUCCEEDED (measured) && !first.empty()) ? first[0].volume : (Byte) 0;
+
+        if (volume != 0 && volume != Nibblizer::GetImageVolume (sectors))
+        {
+            extension = ".woz";
+            outFormat = DiskFormat::Woz;
+
+            if (operation.status != nullptr)
+            {
+                operation.status->AddLine (std::format ("The disk uses volume {}, which a sector image can't keep, so it's saved as a WOZ", volume), operation.drive);
+            }
+
+            for (int track = 0; track < NibbleFormat::kTrackCount; track++)
+            {
+                hr = MeasureTrack (operation.drive, track, outMeasures);
+                CHR (hr);
+            }
+        }
+    }
+
+    operation.imagePath += extension;
+
+    if (!outRaw && outFormat != DiskFormat::Woz)
+    {
+        hr = DiskImageStore::GetSourceFormatByExtension (operation.imagePath, outFormat);
+        CHR (hr);
+    }
 
 Error:
     return hr;
@@ -459,7 +773,7 @@ std::string CassoLinkDiskTransfer::FormatUnreadableList (const std::vector<std::
 HRESULT CassoLinkDiskTransfer::ReadBootSector (LinkOperation & operation)
 {
     HRESULT                           hr       = S_OK;
-    std::vector<Byte>                 sectors (NibblizationLayer::kImageByteSize, 0);
+    std::vector<Byte>                 sectors (NibbleFormat::kImageByteSize, 0);
     std::vector<Byte>                 boot;
     std::vector<Byte>                 universal;
     std::vector<std::pair<int, int>>  unreadable;
@@ -481,8 +795,8 @@ HRESULT CassoLinkDiskTransfer::ReadBootSector (LinkOperation & operation)
     hr = ReadTrack (operation.drive, 0, sectors, unreadable);
     CHR (hr);
 
-    matches = std::equal (boot.begin(),      boot.begin()      + NibblizationLayer::kSectorByteSize, sectors.begin())
-           || std::equal (universal.begin(), universal.begin() + NibblizationLayer::kSectorByteSize, sectors.begin());
+    matches = std::equal (boot.begin(),      boot.begin()      + NibbleFormat::kSectorByteSize, sectors.begin())
+           || std::equal (universal.begin(), universal.begin() + NibbleFormat::kSectorByteSize, sectors.begin());
     loader  = matches && std::none_of (unreadable.begin(), unreadable.end(), [] (const std::pair<int, int> & sector) { return sector.second == 0; });
 
     operation.linkDisk = loader;
@@ -517,7 +831,7 @@ HRESULT CassoLinkDiskTransfer::ReadTrack (int drive, int track, std::vector<Byte
 
 
 
-    for (int physical = 0; physical < NibblizationLayer::kSectorsPerTrack; physical++)
+    for (int physical = 0; physical < NibbleFormat::kSectorsPerTrack; physical++)
     {
         physicals.push_back ((Byte) physical);
     }
@@ -542,10 +856,10 @@ HRESULT CassoLinkDiskTransfer::ReadTrack (int drive, int track, std::vector<Byte
     disk = CassoLinkSession::FromStatusError (status.error);
     BAIL_OUT_IF (FAILED (disk) && !IsDamaged (status.error), disk);
 
-    for (int physical = 0; physical < NibblizationLayer::kSectorsPerTrack; physical++)
+    for (int physical = 0; physical < NibbleFormat::kSectorsPerTrack; physical++)
     {
         int     logical = CassoLinkSession::GetLogicalSector (physical);
-        size_t  to      = (size_t) (track * NibblizationLayer::kSectorsPerTrack + logical) * LinkedDisk::kSectorSize;
+        size_t  to      = (size_t) (track * NibbleFormat::kSectorsPerTrack + logical) * LinkedDisk::kSectorSize;
 
         if (!read[(size_t) physical])
         {
@@ -717,10 +1031,10 @@ HRESULT CassoLinkDiskTransfer::ReadVerifiedTrack (int drive, int track, std::vec
     hr = TrackVerifier::Verify (io, result);
     CHR (hr);
 
-    for (int physical = 0; physical < NibblizationLayer::kSectorsPerTrack; physical++)
+    for (int physical = 0; physical < NibbleFormat::kSectorsPerTrack; physical++)
     {
         int     logical = CassoLinkSession::GetLogicalSector (physical);
-        size_t  to      = (size_t) (track * NibblizationLayer::kSectorsPerTrack + logical) * LinkedDisk::kSectorSize;
+        size_t  to      = (size_t) (track * NibbleFormat::kSectorsPerTrack + logical) * LinkedDisk::kSectorSize;
 
         std::copy_n (result.data.begin() + (ptrdiff_t) ((size_t) physical * LinkedDisk::kSectorSize), LinkedDisk::kSectorSize, sectors.begin() + (ptrdiff_t) to);
 
@@ -779,9 +1093,16 @@ HRESULT CassoLinkDiskTransfer::ReadThirteenSectorDisk (LinkOperation & operation
     hr = m_session.m_host->EnsureModule (module);
     CHR (hr);
 
-    hr = CassoLinkThirteenSector::ReadDisk (*m_session.m_host, (Byte) operation.drive,
-                                            [this, &operation] (int track) { m_session.Report (operation, (track + 1) * 100 / ThirteenSectorCodec::kTrackCount); },
-                                            [this] () { return m_session.m_canceled.load(); }, sectors, report, status);
+    BeginStatus (operation, false);
+
+    hr = CassoLinkThirteenSector::ReadDisk (*m_session.m_host, (Byte) operation.drive, [this, &operation, &report] (int track)
+    {
+        Word    coverage = (Word) (report.GetCoverage (track) & (Word) ~ThirteenSectorCodec::kUnusedCoverage);
+        size_t  missing  = (size_t) ThirteenSectorCodec::kSectorsPerTrack - (size_t) std::popcount ((unsigned) coverage);
+
+        m_session.Report (operation, (track + 1) * 100 / ThirteenSectorCodec::kTrackCount);
+        NoteTrack (operation, track, missing, 0);
+    }, [this] () { return m_session.m_canceled.load(); }, sectors, report, status);
     CHR (hr);
 
     hr = CassoLinkSession::FromStatusError (status.error);
@@ -812,6 +1133,8 @@ HRESULT CassoLinkDiskTransfer::ReadThirteenSectorDisk (LinkOperation & operation
     CHR (hr);
 
     m_session.m_sink.OnImageWritten (operation.imagePath, TextEncoding::WideToNarrow (m_session.GetModelName()));
+
+    EndStatus (operation, FullSendManifest::kStatusSent, sectors.size());
 
 Error:
     return hr;
@@ -941,16 +1264,16 @@ HRESULT CassoLinkDiskTransfer::WriteWholeDisk (LinkOperation & operation)
     hr = TimeDriveForFormat (operation.drive, gap);
     CHR (hr);
 
-    for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+    for (int track = 0; track < NibbleFormat::kTrackCount; track++)
     {
-        m_session.Report (operation, track * 100 / NibblizationLayer::kTrackCount);
-        m_session.m_host->SetProgress ((Byte) (track * 100 / NibblizationLayer::kTrackCount), (Byte) ((track + 1) * 100 / NibblizationLayer::kTrackCount));
+        m_session.Report (operation, track * 100 / NibbleFormat::kTrackCount);
+        m_session.m_host->SetProgress ((Byte) (track * 100 / NibbleFormat::kTrackCount), (Byte) ((track + 1) * 100 / NibbleFormat::kTrackCount));
 
         data.clear();
 
-        for (int physical = 0; physical < NibblizationLayer::kSectorsPerTrack; physical++)
+        for (int physical = 0; physical < NibbleFormat::kSectorsPerTrack; physical++)
         {
-            auto  from = sectors.begin() + (ptrdiff_t) ((size_t) (track * NibblizationLayer::kSectorsPerTrack + CassoLinkSession::GetLogicalSector (physical)) * LinkedDisk::kSectorSize);
+            auto  from = sectors.begin() + (ptrdiff_t) ((size_t) (track * NibbleFormat::kSectorsPerTrack + CassoLinkSession::GetLogicalSector (physical)) * LinkedDisk::kSectorSize);
 
             data.insert (data.end(), from, from + (ptrdiff_t) LinkedDisk::kSectorSize);
         }
@@ -1014,24 +1337,24 @@ HRESULT CassoLinkDiskTransfer::CompareWrittenDisk (LinkOperation & operation, co
 
 
 
-    for (int physical = 0; physical < NibblizationLayer::kSectorsPerTrack; physical++)
+    for (int physical = 0; physical < NibbleFormat::kSectorsPerTrack; physical++)
     {
         physicals.push_back ((Byte) physical);
     }
 
-    for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+    for (int track = 0; track < NibbleFormat::kTrackCount; track++)
     {
         bool  same = true;
 
-        m_session.Report (operation, track * 100 / NibblizationLayer::kTrackCount);
-        m_session.m_host->SetProgress ((Byte) (track * 100 / NibblizationLayer::kTrackCount), (Byte) ((track + 1) * 100 / NibblizationLayer::kTrackCount));
+        m_session.Report (operation, track * 100 / NibbleFormat::kTrackCount);
+        m_session.m_host->SetProgress ((Byte) (track * 100 / NibbleFormat::kTrackCount), (Byte) ((track + 1) * 100 / NibbleFormat::kTrackCount));
 
         hr = m_session.m_host->ReadCrcs ((Byte) operation.drive, (Byte) track, physicals, crcs, read, status);
         CHR (hr);
 
-        for (int physical = 0; physical < NibblizationLayer::kSectorsPerTrack; physical++)
+        for (int physical = 0; physical < NibbleFormat::kSectorsPerTrack; physical++)
         {
-            size_t                 from = (size_t) (track * NibblizationLayer::kSectorsPerTrack + CassoLinkSession::GetLogicalSector (physical)) * LinkedDisk::kSectorSize;
+            size_t                 from = (size_t) (track * NibbleFormat::kSectorsPerTrack + CassoLinkSession::GetLogicalSector (physical)) * LinkedDisk::kSectorSize;
             std::span<const Byte>  data (sectors.data() + from, LinkedDisk::kSectorSize);
 
             same = same && read[(size_t) physical] && crcs[(size_t) physical] == CassoLinkCodec::ComputeCrc (data);

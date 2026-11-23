@@ -3,6 +3,7 @@
 #include "EhmTestHelper.h"
 #include "FixtureProvider.h"
 #include "GuestSession.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 #include "TestMachine.h"
 #include "TextScreenScraper.h"
 #include "CassoLink/CassoLinkHost.h"
@@ -10,7 +11,6 @@
 #include "CassoLink/Session/CassoLinkConnector.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImageStore.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Seams/InProcessByteStream.h"
 #include "CassoLink/InMemoryCassoLinkFolder.h"
 #include "CassoLink/SteppedByteStream.h"
@@ -240,7 +240,7 @@ public:
                 Assert::AreEqual<int> (CassoLinkHost::kErrorNone, status.error, std::format (L"drive {}'s catalog", drive).c_str());
             }
 
-            size_t  offset = (size_t) (kCatalogTrack * 16 + NibblizationLayer::GetDosFileIndexForPhysicalSector (0)) * 256;
+            size_t  offset = (size_t) (kCatalogTrack * 16 + SectorInterleave::GetDosFileIndexForPhysicalSector (0)) * 256;
 
             Assert::IsTrue (std::equal (data.begin(), data.end(), disk.begin() + (ptrdiff_t) offset), L"drive 2's catalog sector");
         }

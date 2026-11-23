@@ -457,6 +457,12 @@ void DxuiWindow::SetComposedOpacity (float opacity)
 //
 //  Invalidate
 //
+//  Each paint waits for the next vertical blank to present, so a mouse event
+//  whose controls invalidate three times would wait three frames. During one
+//  the window is only marked, and it is painted once, when the event
+//  returns. Windows sends WM_PAINT only once no input is queued, so a hover
+//  drawn on a move would trail the pointer while it moves.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiWindow::Invalidate()
@@ -468,7 +474,15 @@ void DxuiWindow::Invalidate()
     if (hwnd != nullptr)
     {
         InvalidateRect (hwnd, nullptr, FALSE);
-        UpdateWindow   (hwnd);
+
+        if (m_mouseDepth == 0)
+        {
+            UpdateWindow (hwnd);
+        }
+        else
+        {
+            m_paintAfterMouse = true;
+        }
     }
 }
 
@@ -1296,6 +1310,8 @@ DxuiMessageResult DxuiWindow::DispatchMouse (DxuiMouseEventKind kind,
     ev.ctrl        = m_wheelCtrl || (GetKeyState (VK_CONTROL) & 0x8000) != 0;
     ev.alt         = (GetKeyState (VK_MENU)    & 0x8000) != 0;
 
+    m_mouseDepth++;
+
     // A modal overlay captures all mouse input so the page beneath it stays
     // inert (clicks outside the overlay dialog are simply ignored).
     if (HasModalOverlay())
@@ -1355,6 +1371,18 @@ DxuiMessageResult DxuiWindow::DispatchMouse (DxuiMouseEventKind kind,
             HRESULT  hr = m_source->SetTimer (s_kMenuTimerId, s_kMenuTickMs);
 
             IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+    }
+
+    m_mouseDepth--;
+
+    if (m_mouseDepth == 0 && m_paintAfterMouse)
+    {
+        m_paintAfterMouse = false;
+
+        if (GetHwnd() != nullptr)
+        {
+            UpdateWindow (GetHwnd());
         }
     }
 

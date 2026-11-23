@@ -50,6 +50,8 @@ static constexpr LPCWSTR s_kpszGreenCheck    = L"\x2705";       // U+2705 WHITE 
 static constexpr LPCWSTR s_kpszRedCross      = L"\x274C";       // U+274C CROSS MARK (❌, red via color-emoji font)
 static constexpr LPCWSTR s_kpszGrayQuestion  = L"\x2754";       // U+2754 WHITE QUESTION MARK ORNAMENT (❔, gray via color-emoji font)
 static constexpr LPCWSTR s_kpszSkull         = L"\x2620";       // U+2620 SKULL AND CROSSBONES, a cursed Wizardry item
+static constexpr LPCWSTR s_kpszSwatchSquare  = L"\x25A0";       // U+25A0 BLACK SQUARE, a color sample in a document
+static constexpr LPCWSTR s_kpszHatchedSquare = L"\x25A9";       // U+25A9 SQUARE WITH DIAGONAL CROSSHATCH FILL, a sample of what couldn't be read
 
 // Segoe MDL2 Assets icon-font glyphs (private use area; render only with
 // the "Segoe MDL2 Assets" family).

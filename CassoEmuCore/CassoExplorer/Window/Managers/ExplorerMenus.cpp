@@ -665,7 +665,7 @@ void ExplorerMenus::AddOpenRows (std::vector<DxuiPopupMenuItem> & items, const L
 
     AddMenuCommand (items, L"Open in new &tab", [this, location]()
     {
-        m_context.browser.OpenInNewTab (location);
+        m_context.browser.GetNavigator().OpenInNewTab (location);
         m_context.listPane.FillList();
     });
     m_menuCommands.back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
@@ -1153,7 +1153,7 @@ bool ExplorerMenus::GetSelectionKind (std::vector<std::wstring> & outPaths, Win3
         folders += m_context.browser.GetRows()[(size_t) row].isDirectory ? 1 : 0;
     }
 
-    m_context.browser.GetSelectedHostPaths (outPaths);
+    m_context.browser.GetSelection().GetSelectedHostPaths (outPaths);
     outKind = (folders != 0) ? Win32PackagedCommands::ItemKind::Folder : Win32PackagedCommands::ItemKind::File;
 
     return !outPaths.empty() && (folders == 0 || folders == outPaths.size());

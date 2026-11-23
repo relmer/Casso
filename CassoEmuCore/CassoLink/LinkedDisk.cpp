@@ -4,6 +4,7 @@
 #include "Machines/Apple2/Common/CpmVolume.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 
@@ -105,9 +106,9 @@ std::vector<size_t> LinkedDisk::GetCatalogSectors (VolumeKind kind)
 
     if (kind == VolumeKind::Dos33)
     {
-        for (int sector = 0; sector < NibblizationLayer::kSectorsPerTrack; sector++)
+        for (int sector = 0; sector < NibbleFormat::kSectorsPerTrack; sector++)
         {
-            sectors.push_back ((size_t) (Dos33Skeleton::kVtocTrack * NibblizationLayer::kSectorsPerTrack + sector));
+            sectors.push_back ((size_t) (Dos33Skeleton::kVtocTrack * NibbleFormat::kSectorsPerTrack + sector));
         }
     }
     else if (kind == VolumeKind::ProDos || kind == VolumeKind::Pascal)

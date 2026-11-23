@@ -2,7 +2,9 @@
 #include "Devices/Disk/DamagedMountReport.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "FluxTestImages.h"
 
@@ -27,12 +29,12 @@ TEST_CLASS (DamagedDiskMountTests)
 {
 public:
 
-    static constexpr int     kTracks      = NibblizationLayer::kTrackCount;
-    static constexpr size_t  kSectorBytes = NibblizationLayer::kSectorByteSize;
+    static constexpr int     kTracks      = NibbleFormat::kTrackCount;
+    static constexpr size_t  kSectorBytes = NibbleFormat::kSectorByteSize;
 
     static vector<Byte> MakeSectors()
     {
-        vector<Byte>  sectors (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>  sectors (NibbleFormat::kImageByteSize, 0);
         size_t        i = 0;
 
         for (i = 0; i < sectors.size(); i++)
@@ -54,7 +56,7 @@ public:
         int                        t  = 0;
         HRESULT                    hr = S_OK;
 
-        hr = NibblizationLayer::NibblizeDsk (sectors, bitImage);
+        hr = Nibblizer::NibblizeDsk (sectors, bitImage);
         Assert::IsTrue (SUCCEEDED (hr));
 
         for (t = 0; t < kTracks; t++)
@@ -250,7 +252,7 @@ public:
         mounted = store.GetImage (6, 1);
         Assert::IsNotNull (mounted);
 
-        hr = NibblizationLayer::SalvageSectors (*mounted, DiskFormat::Dsk, salvaged, report);
+        hr = Denibblizer::SalvageSectors (*mounted, DiskFormat::Dsk, salvaged, report);
         Assert::IsTrue (SUCCEEDED (hr));
 
         Assert::IsTrue (memcmp (salvaged.data(), sectors.data(), 9 * 16 * kSectorBytes) == 0,

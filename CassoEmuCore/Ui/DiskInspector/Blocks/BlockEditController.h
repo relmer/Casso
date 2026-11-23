@@ -40,13 +40,16 @@ public:
 
     explicit BlockEditController (const Parts & parts);
 
-    void  ConnectEditBar ();
-    void  UpdateEditBar  ();
-    bool  HandleKey      (const DxuiKeyEvent & ev);
-    bool  ConfirmUnsaved ();
+    void  ConnectEditControls ();
+    void  UpdateEditControls  ();
+    void  UndoBlock           ();
+    bool  HandleKey           (const DxuiKeyEvent & ev);
+    bool  ConfirmUnsaved      ();
 
     void  Save           () override;
     void  SaveEditedCopy () override;
+    void  Undo           () override;
+    void  Redo           () override;
     void  UndoApplied    () override;
     void  RedoApplied    () override;
     void  Discard        () override;
@@ -63,6 +66,6 @@ private:
     void  PasteIntoBlock      ();
 
     Parts         m_parts;
-    std::wstring  m_note;                       // the edit bar's note: the last save's result, or why it failed
+    std::wstring  m_note;                       // the edit controls' note: the last save's result, or why it failed
     bool          m_isCloseAfterSave = false;
 };

@@ -25,6 +25,8 @@
 #include "CassoExplorer/A2retroNetDrivesDialog.h"
 #include "CassoExplorer/CassoExplorerElevationDialog.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
+#include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
 
 
 
@@ -116,17 +118,17 @@ void ExplorerOpen::OpenEachSelected()
     std::vector<std::wstring>  files;
     Location                   place;
     std::wstring               path;
-    bool                       written = m_context.browser.PrepareCassoLinkItems();
+    bool                       written = m_context.browser.GetLoader().PrepareCassoLinkItems();
 
 
 
     for (int row : m_context.browser.GetSelectedRows())
     {
-        if (m_context.browser.TryGetRowLocation (row, place))
+        if (BrowserRowPaths::TryGetRowLocation (m_context.browser.GetRowListing(), row, place))
         {
             places.push_back (place);
         }
-        else if (written && !m_context.browser.IsImageLocation() && m_context.browser.TryGetRowPath (row, path))
+        else if (written && !m_context.browser.IsImageLocation() && BrowserRowPaths::TryGetRowPath (m_context.browser.GetRowListing(), row, path))
         {
             files.push_back (path);
         }
@@ -140,7 +142,7 @@ void ExplorerOpen::OpenEachSelected()
 
     for (const Location & each : places)
     {
-        m_context.browser.OpenInNewTab (each);
+        m_context.browser.GetNavigator().OpenInNewTab (each);
     }
 
     if (!places.empty())
@@ -323,24 +325,6 @@ void ExplorerOpen::RunFileVerb (ActionsTypes::Verb verb)
     {
         m_context.verbs.ReportOutcome (m_context.actions.MakeTapeRecording (target), L"Convert to tape audio");
         m_context.folderSync.RefreshAfterHostChange();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerOpen::SetCardWriteConfirmed
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ExplorerOpen::SetCardWriteConfirmed (bool confirmed)
-{
-    if (m_context.app.cards != nullptr)
-    {
-        m_context.app.cards->SetConfirmed (confirmed);
     }
 }
 
@@ -552,7 +536,7 @@ void ExplorerOpen::HandleCardProgress()
     else if (m_navigatePending)
     {
         m_navigatePending = false;
-        m_context.browser.NavigateToLocation (card);
+        m_context.browser.GetNavigator().NavigateToLocation (card);
         m_context.listPane.FillList();
     }
     else if (m_context.browser.GetLocation() == card)
@@ -596,26 +580,6 @@ bool ExplorerOpen::ConfirmElevation (const std::wstring & card)
     }
 
     return confirmed;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerOpen::ConfirmCardWrite
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ExplorerOpen::ConfirmCardWrite (const std::wstring & question)
-{
-    int  choice = DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, question.c_str(), L"Write to card",
-                                  MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Write", L"Cancel" });
-
-
-
-    return choice == IDOK;
 }
 
 
@@ -710,16 +674,26 @@ void ExplorerOpen::FinishInitialize()
         }
     }
 
+    //  Every other tab on the card goes where the active one does: a FAT32
+    //  card's drive letter, or the card.
+    m_context.browser.GetBrowserModel().MoveTabsOffCard (m_initCard,
+                                                         (m_initLayout == RawDeviceProtocol::kLayoutFat32 && !root.empty()) ? Location::MakeHostFolder (root)
+                                                                                                                             : Location::MakeDiskImage (m_initCard));
+    m_context.tabManager.FillTabs();
+
     //  A FAT32 card is opened at its drive letter, and a CFFA card as a card.
+    //  The card's old node is removed from the tree, and its drive letter is
+    //  listed under This PC.
     if (m_initLayout == RawDeviceProtocol::kLayoutFat32 && !root.empty())
     {
-        m_context.browser.NavigateToLocation (Location::MakeHostFolder (root));
+        m_context.folderSync.CheckDrives();
+        m_context.browser.GetNavigator().NavigateToLocation (Location::MakeHostFolder (root));
     }
     else
     {
         //  Opening the card reads its new partitions, which the tree then
         //  lists under the card's node, opened.
-        m_context.browser.NavigateToLocation (Location::MakeDiskImage (m_initCard));
+        m_context.browser.GetNavigator().NavigateToLocation (Location::MakeDiskImage (m_initCard));
         m_context.folderSync.CheckDrives();
         m_context.treePane.ExpandNode (std::wstring (TreeModel::kStorageCardTag) + m_initCard);
         m_context.treePane.RevealLocationInTree();
@@ -804,7 +778,7 @@ void ExplorerOpen::InspectSelected()
     }
     else
     {
-        m_context.browser.GetSelectedHostPaths (paths);
+        m_context.browser.GetSelection().GetSelectedHostPaths (paths);
     }
 
     m_context.imageTools.InspectDiskImages (paths);

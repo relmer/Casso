@@ -1,6 +1,6 @@
 # Feature Specification: Casso Explorer
 
-**Feature Branch**: `033-cassque`
+**Feature Branch**: `033-casso-explorer`
 
 **Created**: 2026-09-10
 
@@ -614,7 +614,7 @@ hardware.
 - Q: What does the A2Pico do with the card's files that aren't set as drives? -> A: Nothing. ProDOS on the Apple reads only the eight drives' images, as volumes. The firmware's configuration utility on the Apple lists the card's folders and the .po, .hdv and .2mg files in them, for setting a drive, and hides every other file. With the A2retroNET-Link firmware the A2Pico is also a card reader for a PC or a phone over USB, which lists every file. So other files on the card are storage, such as images to switch to.
 - Q: What does an A2Pico card contain, and what are its size limits? -> A: Loose files on one FAT12, FAT16, FAT32 or exFAT volume: `A2retroNET.txt` in the root, and ProDOS block images of up to 32 MB each (65,535 blocks) in the root or in folders, with long file names. Up to eight are drives at one time, and the card can have any number more. The firmware's FatFs build has exFAT and 64-bit block addresses on (`ffconf.h` in FarLeftLane/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico, which its CMakeLists.txt fetches), so the card's size isn't limited by the firmware. It mounts the first volume on the card, so the card has one partition.
 - Q: Is Full Send's raw capture of a likely copy-protected disk a setting in Options? -> A: No. It always happens, and the setting first built for it is removed. A protected disk's sector image rarely runs, so a Full Send without the capture writes an image nobody can use, and a raw capture of a damaged disk assessed alike has more of it than a sector image. The capture's minutes are the cost. The Full Send page's intro is rewritten: many protections are detected and imaged, and Capture raw disk is for the rest.
-- Q: Is an image an A2Pico can't read converted as it is copied to the card? -> A: Yes, after a question (owner, 2026-11-13): "A2Pico doesn't support users.dsk. Would you like to convert it to users.po?" On a yes the copy on the card is replaced by the .po, and the file it was copied from isn't touched. The question follows a copy, paste or drop in Casso Explorer once Windows has finished writing the file. An image copied in File Explorer, or left after a no, has the Write as .po infobar, which writes the .po beside it.
+- Q: Is an image an A2Pico can't read converted as it is copied to the card? -> A: No (owner, 2026-11-21). A question after the copy came first (2026-11-13) and was dropped: the infobar is enough. An image with a ProDOS volume in a form A2retroNET doesn't read, copied in Casso Explorer or File Explorer, has the Convert to .po infobar, which replaces it with the .po.
 - Q: Why did the buttons in the infobars above the list take no clicks, and how is that prevented? -> A: Casso Explorer's window routes the mouse to each pane in ExplorerInput::HandleMouse, one line of code per pane, and a control with no line there was offered nothing. A control made with the window's CreateChild is now offered the mouse where it is, with nothing more written, and a pane that routes its controls makes them with CreatePaneRoutedChild (owner, 2026-11-13). Moving each pane's routing into its controls waits on DxuiListView, which takes its events relative to its origin where other controls take the window's coordinates. Changing that compiles on every branch with a list view and breaks its clicks without an error, so it isn't done on 033 (owner, 2026-11-13). It is a change for master, with the entry point renamed so a caller that translates the event fails to compile, and the panes are converted after it. Master took the change (`903227701`), and the panes' controls were converted after 033 merged it: a pane sets a mouse handler for each of its controls, which ExplorerInput calls in place of the control's OnMouse (owner, 2026-11-13). The window's bars followed in T718, with mouse capture: while a bar has a menu open, or the rename box a rename, ExplorerInput offers it every event first, and an event it doesn't take goes on to the control under the pointer, as Windows' capture does for a popup that closes on a click outside it (owner, 2026-11-13).
 - Q: Does Initialize card's adapter list have "I'm not sure"? -> A: No (owner, 2026-11-13). It listed every adapter's support at once, which wasn't useful. The list starts on the adapter chosen last, or CFFA3000 the first time.
 - Q: Where is a Full Send's progress on the PC? -> A: In a Full Send window, since one line in the status bar can't list both drives, the disks done and the time left. It opens without taking focus when a session starts, and closing it doesn't end the session. It has a state line with what the session is doing or what it waits for, a panel per drive with the disk's title, a track map, a progress bar, the time elapsed and the time left, the session's totals, a list of the disks done, and an activity list with each event's time. The status bar has a one-line summary, and a click on it opens the window.
@@ -2061,6 +2061,13 @@ interpreter's.
 4. **Given** an Infocom saved game, **When** it is selected, **Then** the
    story's release and serial number, the score, the moves and the room are
    listed.
+5. **Given** an Ultima III player disk or an Ultima IV Disk C, **When** its
+   saved game is selected, **Then** the roster is listed, and the world map
+   is drawn with the party's position marked.
+6. **Given** an Ultima V Britannia disk, or a player disk of Ultima I: The
+   Beginning, Ultima II or the 1981 Ultima, **When** its saved game is
+   selected, **Then** the characters are listed with their position, and
+   the Britannia disk's world map is drawn with the party marked.
 
 ---
 
@@ -2199,7 +2206,9 @@ The owner has no A2Pico, so nothing is checked on the hardware.
 1. **Given** a FAT volume with `A2retroNET.txt` in its root, **When** it is
    listed, **Then** it is labeled as an A2Pico card, and its drives are
    listed with their number, image and size, and write-protected for a
-   read-only file. A CFFA card is a raw card of ProDOS partitions and is
+   read-only file. The infobar at the card's root reads `This A2Pico card
+   is using N of its M drives.`, with each problem on a line of its own. A
+   CFFA card is a raw card of ProDOS partitions and is
    never listed this way. The card's kind is read from its content at each
    open and isn't saved on the PC.
 2. **Given** a drive whose image is missing or isn't a form the firmware
@@ -2207,12 +2216,16 @@ The owner has no A2Pico, so nothing is checked on the hardware.
    listed, **Then** the problem is listed with the drive, and Repair
    rewrites the file with LF line ends.
 3. **Given** a disk image copied to an A2Pico card, **When** a drive is
-   free, **Then** Casso Explorer offers to set it as that drive. **When** it
+   free, **Then** the infobar offers to set it as that drive, as it does for a
+   selected image the firmware reads that isn't a drive. **When** it
    has a block volume in a form the firmware doesn't read, as a ProDOS
    volume in a DOS-order `.dsk` or a `.2mg` with a longer header, **Then**
-   Casso Explorer offers to write it as a `.po`. An image with no block
-   volume, as a DOS 3.3 disk or a WOZ, is copied as it is and can't be set
-   as a drive.
+   the infobar offers to write it as a `.po`, with no question after the copy:
+   `Only .po images can be mounted as drives. Convert "zork.dsk" to .po?`,
+   or `Convert 3 images to .po?` for several, with Convert to .po.
+   The `.po` replaces the image, and a drive set to the image is set to the
+   `.po`. An image with no block volume, as a DOS 3.3 disk or a WOZ, is
+   copied as it is and can't be set as a drive.
 4. **Given** an image set as a drive, **When** it is renamed or moved on
    the card in Casso Explorer, **Then** the drive's path is updated.
    **When** it is deleted, **Then** the confirmation lists the drive, and
@@ -3911,8 +3924,7 @@ as they arrive.
   partition, or a card with no table, MUST appear as a storage card node.
   Administrator access MUST be requested only when the user first opens a
   storage card node, and once per Casso Explorer session. A tab restored at
-  launch MUST NOT request it. Each command that writes to a card MUST be
-  confirmed once, with the drive's model and size.
+  launch MUST NOT request it.
 - **FR-243**: Raw access MUST run in a separate elevated broker program that
   opens only storage cards: removable media on a USB, SD or MMC bus, with no
   Windows, boot, page file, hibernation or BitLocker volume. Hard disks,
@@ -4154,7 +4166,39 @@ as they arrive.
   allows: the story's release and serial number, the score, the moves and
   the room, read from the saved memory's header, globals and objects. The
   story's grammar, globals and Z-code MUST NOT be listed.
-- **FR-242**: Every format and protocol in FR-190 to FR-241 MUST be
+- **FR-304**: An Ultima IV saved game, the `ROST` and `PRTY` files on
+  Disk C, MUST be drawn as the roster: each character's name, class, sex,
+  status, hit points, level, experience, strength, dexterity,
+  intelligence, armor and weapon. The party's food, gold, virtues,
+  reagents, keys, stones and runes MUST also be listed. The world map MUST
+  be read from tracks 0 to 15 of Disk C and drawn with the party's
+  position from `PRTY` marked. A copy out MUST write one RTF file, with
+  the map as a picture in it.
+- **FR-305**: An Ultima III player disk MUST be recognized by its roster
+  sectors, since it has no catalog, and MUST be drawn as the roster: each
+  character's name, race, class, sex, status, stats, hit points, food,
+  gold, equipment and marks. The world map MUST be read from the player
+  disk itself and drawn with the party's position marked. A copy out MUST
+  write one RTF file, with the map as a picture in it.
+- **FR-306**: An Ultima V Britannia disk, a ProDOS disk with `ROSTER`
+  and `PRTY.DATA`, MUST be drawn as the party and the rest of the roster:
+  each character's name, class, sex, status, stats, hit points, magic
+  points, level and experience, then food, gold and the game's date. The
+  world map MUST be read from blocks 152 to 279 of the same disk and drawn
+  with the party's position marked.
+- **FR-307**: A player disk of Ultima I: The Beginning, a ProDOS disk with
+  `U1.VARS`, MUST be drawn as the character: name, race, class, sex, hit
+  points, the six stats, gold and position.
+- **FR-308**: An Ultima II player disk MUST be recognized by its character
+  at track 4 sector 8, since it has no readable catalog, and MUST be drawn
+  as the character: name, race, class, sex, hit points, food, gold, the
+  six stats and position.
+- **FR-309**: A player disk of the 1981 Ultima MUST be recognized by its
+  catalog file `NAME=<character>` and the Applesoft variables the game
+  saves to track 26, and MUST be drawn as the character: name, race,
+  class, hit points, food, gold, experience, the six stats and position.
+- **FR-242**: Every format and protocol in FR-190 to FR-241 and FR-304 to
+  FR-309 MUST be
   implemented by the rule FR-171 sets.
 
 ### Key Entities

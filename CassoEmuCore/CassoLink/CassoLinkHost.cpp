@@ -1053,7 +1053,7 @@ HRESULT CassoLinkHost::SendLog (int hour, int minute, const std::string & text)
 
     for (char ch : text)
     {
-        if (line.size() == 2 + CassoLinkCodec::kLogLength)
+        if (line.size() == 2 + GetLogLength())
         {
             break;
         }
@@ -1093,6 +1093,8 @@ HRESULT CassoLinkHost::SetColumns (bool wide)
     hr = SendPacket (CassoLinkCodec::kSetColumns, std::vector<Byte> { (Byte) (wide ? 1 : 0) });
     CHR (hr);
 
+    m_wide = wide;
+
 Error:
     return hr;
 }
@@ -1131,6 +1133,16 @@ HRESULT CassoLinkHost::SendSessionScreen (bool active, Byte tone, const std::vec
 
     hr = AwaitReady();
     CHR (hr);
+
+    //  The client sounds a screen's tone before its Ready and doesn't read
+    //  the line meanwhile, so the next request waits for that Ready. A spare
+    //  Ready received earlier, as the client sends while idle, is dropped,
+    //  or the next request arrives during the tone, when the line isn't read.
+    if (tone != 0)
+    {
+        hr = DiscardReceived();
+        CHR (hr);
+    }
 
     hr = SendPacket (CassoLinkCodec::kSessionScreen, screen);
     CHR (hr);
@@ -1179,7 +1191,8 @@ HRESULT CassoLinkHost::WaitForAnyKey (const std::vector<std::string> & lines, By
 //
 //  The program sends Key with no code once a second while no key is pressed,
 //  so an Apple that was reset or unplugged times out as in any operation. Each
-//  line of the prompt ends in a zero.
+//  line of the prompt ends in a zero. A key pressed on the PC ends the wait
+//  at one of those, with a Cancel that ends the Apple's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1196,9 +1209,13 @@ HRESULT CassoLinkHost::WaitForKeyOnce (const std::vector<std::string> & lines, B
 
     for (const std::string & line : lines)
     {
+        //  A character with its high bit set is drawn in inverse.
         for (size_t i = 0; i < line.size() && i < CassoLinkCodec::kSessionRowLength; i++)
         {
-            prompt.push_back (ToAppleChar (line[i], false));
+            Byte  ch      = (Byte) line[i];
+            Byte  inverse = ch & 0x80;
+
+            prompt.push_back ((Byte) (ToAppleChar ((char) (ch & 0x7F), inverse != 0) | inverse));
         }
 
         prompt.push_back (0);
@@ -1221,6 +1238,17 @@ HRESULT CassoLinkHost::WaitForKeyOnce (const std::vector<std::string> & lines, B
         CBREx (isKey, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
         outKey = packet.payload[0];
+
+        if (outKey == CassoLinkCodec::kKeyNone)
+        {
+            outKey = m_hostKey.exchange (CassoLinkCodec::kKeyNone);
+
+            if (outKey != CassoLinkCodec::kKeyNone)
+            {
+                hr = SendPacket (CassoLinkCodec::kCancel, {});
+                CHR (hr);
+            }
+        }
     }
 
 Error:
@@ -1267,7 +1295,8 @@ Error:
 //  CassoLinkHost::ReadClient
 //
 //  A Ready's versions and drives, and the program's ROM identification and
-//  CRC; the payload is 4, 9 or 11 bytes.
+//  CRC, then each slot's firmware bytes; the payload is 4, 9, 11 or 39
+//  bytes.
 //
 //  The program sent is the build for the chip the Ready indicates, whatever
 //  the link's transport: a link of the wrong kind at the Apple's address,
@@ -1296,7 +1325,8 @@ void CassoLinkHost::ReadClient (const CassoLinkPacket & packet)
     m_client.shimVersion    = (Byte) (packet.payload[2] & ~flags);
     m_client.driveMap       = packet.payload[3];
     m_client.hasRomId       = packet.payload.size() >= 9;
-    m_client.hasProgramCrc  = packet.payload.size() == 11;
+    m_client.hasProgramCrc  = packet.payload.size() >= 11;
+    m_client.hasSlotIds     = packet.payload.size() >= 11 + m_client.slotIds.size();
     m_client.programCrc     = m_client.hasProgramCrc ? (Word) (packet.payload[9] | (packet.payload[10] << 8)) : (Word) 0;
     m_client.isSos          = chip == LinkChip::Sos;
     m_hasClient             = true;
@@ -1304,6 +1334,11 @@ void CassoLinkHost::ReadClient (const CassoLinkPacket & packet)
     if (m_client.hasRomId)
     {
         std::copy_n (packet.payload.begin() + 4, m_client.romId.size(), m_client.romId.begin());
+    }
+
+    if (m_client.hasSlotIds)
+    {
+        std::copy_n (packet.payload.begin() + 11, m_client.slotIds.size(), m_client.slotIds.begin());
     }
 }
 
@@ -1528,8 +1563,9 @@ HRESULT CassoLinkHost::ReadStatus (const CassoLinkPacket & packet, CassoLinkStat
     CBREx (status, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     outStatus.operation      = packet.payload[0];
-    outStatus.drive          = (Byte) (packet.payload[1] & ~CassoLinkCodec::kStatusWriteProtected);
+    outStatus.drive          = (Byte) (packet.payload[1] & ~(CassoLinkCodec::kStatusWriteProtected | CassoLinkCodec::kStatusThirteenSector));
     outStatus.writeProtected = (packet.payload[1] & CassoLinkCodec::kStatusWriteProtected) != 0;
+    outStatus.thirteenSector = (packet.payload[1] & CassoLinkCodec::kStatusThirteenSector) != 0;
     outStatus.track          = packet.payload[2];
     outStatus.done           = packet.payload[3];
     outStatus.error          = packet.payload[4];

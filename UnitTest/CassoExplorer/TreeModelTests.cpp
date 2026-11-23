@@ -333,6 +333,39 @@ public:
 
 
 
+    TEST_METHOD (ReadImageNode_LeavesAStorageCardUnread)
+    {
+        InMemoryFileSystem     fs;
+        HostFolderReader       hostFolders;
+        TreeModel              model (fs, hostFolders);
+        FakeDiskFileIo         io;
+        DiskOperations         operations { io };
+        DiskImageCatalog       catalog    { operations };
+        std::vector<TreeNode>  nodes;
+        StorageCardTreeEntry   card { L"\\\\.\\PhysicalDrive5", L"Storage card (Test, 64 MB)" };
+        TreeNode               cardNode;
+
+        SeedHost (fs);
+        Configure (model);
+        model.GetImageNodes().SetCatalog (&catalog);
+        card.partitions = { { L"#1.po", L"Partition 1: CARD1 (32 MB)" } };
+        model.SetStorageCards ({ card });
+
+        AssertSucceeded (model.GetChildren (TreeModel::kThisPcRootId, nodes));
+        cardNode = nodes.back();
+
+        AssertSucceeded (model.ReadImageNode (cardNode));
+
+        Assert::IsTrue  (cardNode.loadError.empty(), cardNode.loadError.c_str());
+        Assert::IsFalse (cardNode.broken, L"a card that is not open is not a broken image");
+        Assert::IsTrue  (cardNode.canExpand);
+
+        AssertSucceeded (model.GetChildren (cardNode.id, nodes));
+        Assert::AreEqual ((size_t) 1, nodes.size());
+    }
+
+
+
     TEST_METHOD (Folder_ListsSubfoldersThenImagesAndNotPlainFiles)
     {
         InMemoryFileSystem     fs;
@@ -835,6 +868,19 @@ public:
         Assert::IsTrue   (drives[0].location == Location::MakeAppleDrive (L"link:Apple II (COM3)|6,1", std::string()));
         Assert::AreEqual (std::wstring (L"Slot 6, Drive 2 (no disk or unformatted)"), drives[1].label);
         Assert::IsFalse  (drives[1].missing, L"a drive with no readable disk can be formatted, so it is not dimmed");
+    }
+
+
+
+
+    TEST_METHOD (ADriveWithA13SectorDisk_IsLabeledSo)
+    {
+        LinkTreeEntry::Drive  drive;
+
+        drive.drive          = 2;
+        drive.thirteenSector = true;
+
+        Assert::AreEqual (std::wstring (L"Slot 6, Drive 2 (13-sector disk)"), TreeModel::GetLinkDriveLabel (drive));
     }
 
 

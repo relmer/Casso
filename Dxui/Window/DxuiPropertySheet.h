@@ -259,6 +259,7 @@ private:
     RECT                             m_lastBoundsPx = {};
     DxuiDpiScaler                    m_lastScaler;
     bool                             m_haveLayout   = false;
+    bool                             m_tabsMeasured = false;   // the last Layout measured the tab labels with a text renderer
 
     // Button-row customization (see SetApplyVisible / SetOkText /
     // SetOkWidthDip). Honored at OnCreate and by Layout's reflow.

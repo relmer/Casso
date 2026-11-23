@@ -70,7 +70,8 @@ static constexpr EmulatorMenuEntry  s_kMenuEntries[] =
     { IDM_VIEW_AUTOHIDE_DRIVES,     MainMenuId::View,    L"&Auto-hide drives",      nullptr,          true   },
     { IDM_VIEW_FLOPPIES_ON_DESK,    MainMenuId::View,    L"Show f&loppy drives on the desk", nullptr     },
     { IDM_VIEW_HARD_DISKS_ON_DESK,  MainMenuId::View,    L"Show &hard disks on the desk", nullptr        },
-    { IDM_VIEW_FLOPPY_PAIR_BESIDE,  MainMenuId::View,    L"&Two floppies beside the monitor", nullptr, true  },
+    { IDM_VIEW_RECORDER_ON_DESK,    MainMenuId::View,    L"Show the &cassette recorder on the desk", nullptr },
+    { IDM_VIEW_FLOPPY_PAIR_BESIDE,  MainMenuId::View,    L"Show floppy drives beside the &monitor", nullptr },
     { IDM_VIEW_DRIVE_STRIP,         MainMenuId::View,    L"Drive &strip",           L"F8"            },
     { IDM_VIEW_RESET_SIZE,          MainMenuId::View,    L"&Reset view",            L"Ctrl+0"        },
     { IDM_VIEW_FRAME_RATE,          MainMenuId::View,    L"Frame &rate",            nullptr,          true   },
@@ -354,6 +355,42 @@ std::wstring EmulatorCommands::GetDrive2Label (bool isExternal, bool isAttached)
     }
 
     return label;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorCommands::GetRecorderPlaceLabel
+//
+//  Where a click on the recorder's place row moves it: into the drive dock
+//  when it is on the desk, onto the desk when it is docked.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring EmulatorCommands::GetRecorderPlaceLabel (bool isOnDesk)
+{
+    return isOnDesk ? L"Show the &cassette recorder in the drive dock" : L"Show the &cassette recorder on the desk";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorCommands::GetFloppyPairPlaceLabel
+//
+//  Where a click on the floppy pair's row moves the two drives on the desk:
+//  under the monitor when they are beside it, beside it when they are under.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring EmulatorCommands::GetFloppyPairPlaceLabel (bool isBeside)
+{
+    return isBeside ? L"Show floppy drives below the &monitor" : L"Show floppy drives beside the &monitor";
 }
 
 

@@ -795,6 +795,7 @@ void DxuiPropertySheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
     m_lastBoundsPx = boundsPx;
     m_lastScaler   = scaler;
     m_haveLayout   = true;
+    m_tabsMeasured = GetTextRenderer() != nullptr;
 
     if (m_tabs != nullptr)
     {
@@ -1424,6 +1425,15 @@ void DxuiPropertySheet::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     size_t          i       = 0;
 
 
+
+    // A layout before the window had a text renderer sized every tab to its
+    // minimum, so the first frame drew the strip without its scroll arrows
+    // and the tabs moved on the next layout. It is laid out again, measured,
+    // before anything is drawn.
+    if (m_haveLayout && !m_tabsMeasured && GetTextRenderer() != nullptr)
+    {
+        Layout (m_lastBoundsPx, m_lastScaler);
+    }
 
     for (i = 0; i < GetChildCount(); ++i)
     {

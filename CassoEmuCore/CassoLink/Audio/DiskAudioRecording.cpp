@@ -8,7 +8,8 @@
 #include "CassoLink/LinkProgram.h"
 #include "CassoLink/Session/CassoLinkThirteenSector.h"
 #include "Devices/Disk/DiskImage.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/ThirteenSectorCodec.h"
 
 
@@ -32,7 +33,7 @@ HRESULT DiskAudioRecording::Build (const std::vector<Byte> & sectors, uint32_t s
     std::vector<Byte>    stream;
     DiskImage            image;
     bool                 thirteen  = sectors.size() == ThirteenSectorCodec::kImageByteSize;
-    bool                 sixteen   = sectors.size() == NibblizationLayer::kImageByteSize;
+    bool                 sixteen   = sectors.size() == NibbleFormat::kImageByteSize;
     const Byte           check[]   = { 0xFF, 0xFF };
 
 
@@ -41,7 +42,7 @@ HRESULT DiskAudioRecording::Build (const std::vector<Byte> & sectors, uint32_t s
     CBREx (thirteen || sixteen, HRESULT_FROM_WIN32 (ERROR_BAD_LENGTH));
 
     hr = thirteen ? ThirteenSectorCodec::Nibblize (sectors, CassoLinkThirteenSector::kVolume, image)
-                  : NibblizationLayer::Nibblize (sectors, DiskFormat::Dsk, image);
+                  : Nibblizer::Nibblize (sectors, DiskFormat::Dsk, image);
     CHR (hr);
 
     hr = LinkAudioBootstrap::BuildCassetteLinkRecord (record, outMonitorCommand);

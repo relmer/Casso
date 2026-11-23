@@ -24,11 +24,20 @@ void BlockHexPane::Create (DxuiPanel & parent)
 
     m_hex->SetBytesPerRow  (kBytesPerRow);
     m_hex->SetTextEncoding (DxuiHexView::TextEncoding::AppleHighBit);
-    m_hex->SetMarkColor    ([] (uint8_t mark, uint32_t & outArgb)
+    m_hex->SetMarkColor    ([this] (uint8_t mark, uint32_t & outArgb)
     {
         outArgb = GetMarkColor (mark);
 
         return mark != BlockHexSource::kMarkNone;
+    });
+    m_hex->SetByteStyle    ([this] (uint64_t offset, uint8_t mark, bool isSelected, DxuiHexViewTypes::Column column, DxuiHexViewTypes::ByteStyle & outStyle)
+    {
+        bool       isCaret = m_hasFocus && offset == m_hex->GetCaret();
+        ByteState  state   = { m_isEditing, isCaret, isCaret && m_isEditing && m_hex->IsTypingAt (offset), column == DxuiHexViewTypes::Column::Hex, isSelected, mark };
+
+
+
+        return PickByteStyle (m_colors, state, outStyle);
     });
 }
 
@@ -40,11 +49,13 @@ void BlockHexPane::Create (DxuiPanel & parent)
 //
 //  BlockHexPane::GetMarkColor
 //
+//  An edited byte is drawn in the theme's accent, once the pane has it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t BlockHexPane::GetMarkColor (uint8_t mark)
+uint32_t BlockHexPane::GetMarkColor (uint8_t mark) const
 {
-    return mark == BlockHexSource::kMarkChanged ? s_kChangedColor
+    return mark == BlockHexSource::kMarkChanged ? (m_colors.accent != 0 ? m_colors.accent : s_kChangedColor)
          : mark == BlockHexSource::kMarkDiffers ? s_kDiffersColor
          : mark == BlockHexSource::kMarkField   ? s_kFieldColor
          :                                        s_kLinkColor;
@@ -186,12 +197,189 @@ void BlockHexPane::MarkField (BlockInspectorModel & model, const BlockField * fi
 
 void BlockHexPane::Layout (const RECT & hexPx, const RECT & fieldsPx, const DxuiDpiScaler & scaler)
 {
+    int   frame = std::max (1, scaler.ToPx ((int) kFrameDip));
+    RECT  inner = { hexPx.left + frame, hexPx.top + frame, std::max (hexPx.left + frame, hexPx.right - frame), std::max (hexPx.top + frame, hexPx.bottom - frame) };
+
+
+
+    m_frameRect = hexPx;
+    m_framePx   = frame;
+
     m_hex->SetVisible    (true);
     m_fields->SetVisible (true);
 
-    m_hex->Layout    (hexPx, scaler);
+    m_hex->Layout    (inner, scaler);
     m_fields->Layout (fieldsPx, scaler);
-    FitRows ((int) (hexPx.right - hexPx.left), scaler);
+    FitRows ((int) (inner.right - inner.left), scaler);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockHexPane::SetEditLook
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockHexPane::SetEditLook (bool isEditing, bool hasFocus, const EditColors & colors)
+{
+    m_isEditing = isEditing;
+    m_hasFocus  = hasFocus;
+    m_colors    = colors;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockHexPane::PaintFrame
+//
+//  The frame's room is there whether or not it is drawn, so the hex view
+//  doesn't move when editing starts or stops.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockHexPane::PaintFrame (IDxuiPainter & painter) const
+{
+    float  left   = (float) m_frameRect.left;
+    float  top    = (float) m_frameRect.top;
+    float  width  = (float) (m_frameRect.right - m_frameRect.left);
+    float  height = (float) (m_frameRect.bottom - m_frameRect.top);
+    float  edge   = (float) m_framePx;
+
+
+
+    if (!m_isEditing || width <= 2 * edge || height <= 2 * edge)
+    {
+        return;
+    }
+
+    painter.FillRect (left, top, width, edge, m_colors.accent);
+    painter.FillRect (left, top + height - edge, width, edge, m_colors.accent);
+    painter.FillRect (left, top + edge, edge, height - 2 * edge, m_colors.accent);
+    painter.FillRect (left + width - edge, top + edge, edge, height - 2 * edge, m_colors.accent);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockHexPane::PickByteStyle
+//
+//  As the memory window draws its bytes. In the hex column, a byte being
+//  typed is in the foreground inside an accent box around the background.
+//  The caret byte otherwise has the accent behind it, in the ink that reads
+//  on the accent, whether or not it is edited. Selected bytes are the hex
+//  view's selection. An edited byte is drawn in the changed-byte red, and
+//  while editing, every other byte has a light accent tint behind it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BlockHexPane::PickByteStyle (const EditColors & colors, const ByteState & state, DxuiHexViewTypes::ByteStyle & outStyle)
+{
+    bool      isEdited = state.mark == BlockHexSource::kMarkChanged;
+    uint32_t  tint     = DxuiColor::Mix (colors.background, colors.accent, kTintShare);
+
+
+
+    outStyle = DxuiHexViewTypes::ByteStyle();
+
+    if (colors.accent == 0)
+    {
+        return false;
+    }
+
+    if (state.isTyping && state.isHexColumn)
+    {
+        outStyle.fill    = colors.background;
+        outStyle.outline = colors.accent;
+        outStyle.ink     = colors.foreground;
+        return true;
+    }
+
+    if (state.isCaret)
+    {
+        outStyle.fill = colors.accent;
+        outStyle.ink  = DxuiColor::GetContrastingInk (colors.accent);
+        return true;
+    }
+
+    if (state.isSelected || (!state.isEditing && !isEdited))
+    {
+        return false;
+    }
+
+    outStyle.fill = state.isEditing ? tint : 0;
+    outStyle.ink  = isEdited ? GetReadableInk (GetChangedInk (colors.background), state.isEditing ? tint : colors.background) : 0;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockHexPane::GetChangedInk
+//
+//  The debugger's memory window color for a changed byte: coral on a dark
+//  page and red on a light one, made readable on the page, or on a light
+//  page's row shade.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t BlockHexPane::GetChangedInk (uint32_t background)
+{
+    constexpr uint32_t  kDarkChanged  = 0xFFFF6B68;
+    constexpr uint32_t  kLightChanged = 0xFFD00000;
+    constexpr uint32_t  kBlack        = 0xFF000000;
+    constexpr float     kRowShade     = 0.15f;
+    constexpr float     kDarkLimit    = 0.5f;
+
+
+
+    bool  isDark = DxuiColor::ComputeRelativeLuminance (background) < kDarkLimit;
+
+
+
+    return GetReadableInk (isDark ? kDarkChanged : kLightChanged, isDark ? background : DxuiColor::Mix (background | kBlack, kBlack, kRowShade));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockHexPane::GetReadableInk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t BlockHexPane::GetReadableInk (uint32_t ink, uint32_t fill)
+{
+    constexpr int    kSteps = 10;
+    constexpr float  kStep  = 0.1f;
+
+
+
+    uint32_t  toward = DxuiColor::GetContrastingInk (fill);
+    uint32_t  result = ink;
+
+
+
+    for (int step = 1; step <= kSteps && DxuiColor::ComputeContrastRatio (result, fill) < kMinContrast; step++)
+    {
+        result = DxuiColor::Mix (ink, toward, step * kStep);
+    }
+
+    return result;
 }
 
 
@@ -274,6 +462,35 @@ int BlockHexPane::MeasureMinHexPx (const DxuiDpiScaler & scaler)
     m_hex->SetBytesPerRow (bytes);
 
     return width;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockHexPane::FitHexWidthPx
+//
+//  The frame is counted whether or not the block is edited, so entering
+//  and leaving edit mode doesn't move the views.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int BlockHexPane::FitHexWidthPx (int widthPx, const DxuiDpiScaler & scaler)
+{
+    int  frame = std::max (1, scaler.ToPx ((int) kFrameDip));
+
+
+
+    FitRows (widthPx - 2 * frame, scaler);
+
+    if (m_contentPx == 0)
+    {
+        return widthPx;
+    }
+
+    return std::min (widthPx, m_contentPx + scaler.ToPx ((int) kHexScrollDip) + 2 * frame);
 }
 
 

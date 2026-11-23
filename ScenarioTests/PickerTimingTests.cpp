@@ -90,7 +90,7 @@ public:
 
 
 
-        browser.NavigateToLocation (Location::MakeHostFolder (folder.wstring()));
+        browser.GetNavigator().NavigateToLocation (Location::MakeHostFolder (folder.wstring()));
         outListMs = std::chrono::duration<double, std::milli> (Clock::now() - start).count();
 
         Assert::AreEqual ((size_t) kImages, CountImages (browser));
@@ -134,7 +134,7 @@ public:
 
             List (browser, images, firstListMs, firstColumnsMs);
 
-            browser.NavigateToLocation (Location::MakeHostFolder (other.wstring()));
+            browser.GetNavigator().NavigateToLocation (Location::MakeHostFolder (other.wstring()));
 
             List (browser, images, returnListMs, returnColumnsMs);
         }

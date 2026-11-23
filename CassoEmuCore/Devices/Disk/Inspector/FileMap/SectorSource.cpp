@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "Devices/Disk/Inspector/FileMap/SectorSource.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 
 
 
@@ -145,7 +145,7 @@ int SectorSource::GetDos33Physical (int logical)
 
     for (int p = 0; p < kSectors; p++)
     {
-        physical = (NibblizationLayer::GetDosFileIndexForPhysicalSector (p) == logical) ? p : physical;
+        physical = (SectorInterleave::GetDosFileIndexForPhysicalSector (p) == logical) ? p : physical;
     }
 
     return physical;
@@ -172,9 +172,9 @@ int SectorSource::GetBlockPhysical (int block, int half)
 
     for (int p = 0; p < kSectors; p++)
     {
-        int  dos = NibblizationLayer::GetDosFileIndexForPhysicalSector (p);
+        int  dos = SectorInterleave::GetDosFileIndexForPhysicalSector (p);
 
-        physical = (NibblizationLayer::GetPoFileIndexForDosLogicalSector (dos) == wanted) ? p : physical;
+        physical = (SectorInterleave::GetPoFileIndexForDosLogicalSector (dos) == wanted) ? p : physical;
     }
 
     return physical;

@@ -27,6 +27,10 @@ public:
     void Reset    () override;
 
     const Byte * GetData () const { return m_data.data (); }
+    size_t       GetSize () const { return m_data.size(); }
+
+    //  Copies `data` over the ROM's bytes in place, for a ROM of the same size.
+    void         Patch   (const vector<Byte> & data);
 
     static unique_ptr<MemoryDevice> CreateFromFile (
         Word start, Word end, const string & filePath, string & outError);

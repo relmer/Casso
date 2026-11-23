@@ -30,6 +30,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerThemes.h"
 #include "CassoExplorer/Window/Managers/ExplorerTips.h"
 #include "CassoExplorer/Window/Managers/FullSendWindowManager.h"
+#include "CassoExplorer/Window/Managers/CassoLinkJobManager.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
@@ -109,6 +110,7 @@ struct ExplorerWindowParts
     CassoLinkManager                        cassoLinkManager { context };
     CassoLinkDriveManager                   linkDrives       { context };
     FullSendWindowManager                   fullSendWindows  { context };
+    CassoLinkJobManager                     linkJobs         { context };
     ExplorerDragDrop                        dragDrop         { context };
     ExplorerTabManager                      tabManager       { context };
     ExplorerPreviewManager                  preview          { context };

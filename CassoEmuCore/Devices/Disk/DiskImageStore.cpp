@@ -1,7 +1,10 @@
 #include "Pch.h"
 
+#include "Devices/Disk/DiskImage.h"
 #include "DiskImageStore.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Core/TextEncoding.h"
@@ -735,7 +738,7 @@ MountDiagnosis DiskImageStore::ClassifyLoadFailure (DiskFormat fmt, const vector
     size_t          size       = bytes.size();
     size_t          trackSize  = 0;
     bool            hasNibble  = false;
-    bool            isSized    = size == (size_t) NibblizationLayer::kImageByteSize;
+    bool            isSized    = size == (size_t) NibbleFormat::kImageByteSize;
 
 
 
@@ -1538,7 +1541,7 @@ HRESULT DiskImageStore::DecodeForSalvage (
     hasImage = (entry.mounted && entry.image != nullptr);
     CBRAEx (hasImage, E_INVALIDARG);
 
-    hr = NibblizationLayer::SalvageSectors (*entry.image, DiskFormat::Dsk, outSectors, report);
+    hr = Denibblizer::SalvageSectors (*entry.image, DiskFormat::Dsk, outSectors, report);
     CHR (hr);
 
 Error:
@@ -1570,7 +1573,7 @@ HRESULT DiskImageStore::BuildSalvagedImage (
     hr = DecodeForSalvage (entry, sectors, report);
     CHR (hr);
 
-    hr = NibblizationLayer::NibblizeDsk (sectors, rebuilt);
+    hr = Nibblizer::NibblizeDsk (sectors, rebuilt);
     CHR (hr);
 
     // META travels, INFO does not: the disk is still the same title, but the
@@ -1661,7 +1664,7 @@ HRESULT DiskImageStore::AssessSalvage (int slot, int drive, SalvageAssessment & 
         hr = DecodeForSalvage (entry, sectors, out.report);
         CHR (hr);
 
-        out.totalSectors = out.report.tracksPresent * NibblizationLayer::kSectorsPerTrack;
+        out.totalSectors = out.report.tracksPresent * NibbleFormat::kSectorsPerTrack;
 
         // A track with no standard structure at all is the signature of copy
         // protection, and rebuilding from sectors would destroy it.

@@ -2,14 +2,15 @@
 
 #include "Pch.h"
 
+#include "Devices/Disk/DiskImage.h"
 #include "DiskImage.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
 #include "MountedImageState.h"
 #include "ChangePrompt.h"
 #include "PreservedCopy.h"
 #include "IImageWatcher.h"
 #include "IDiskFileIo.h"
 #include "MountDiagnosis.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "BayChange.h"
 
 
@@ -22,9 +23,9 @@
 //
 //  Mount/Eject coordinator. Owns the DiskImage instances mounted across
 //  every (slot, drive) pair. Routes Mount() requests by file extension:
-//      .dsk → NibblizationLayer (DOS 3.3 sector order)
-//      .do  → NibblizationLayer (DOS 3.3 sector order)
-//      .po  → NibblizationLayer (ProDOS sector order)
+//      .dsk → Nibblizer (DOS 3.3 sector order)
+//      .do  → Nibblizer (DOS 3.3 sector order)
+//      .po  → Nibblizer (ProDOS sector order)
 //      .woz → WozLoader (native bit-stream)
 //
 //  Auto-flush invariants (FR-025):

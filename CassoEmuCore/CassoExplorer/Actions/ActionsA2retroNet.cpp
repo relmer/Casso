@@ -5,7 +5,7 @@
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/A2retroNetConfig.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 
 
@@ -368,21 +368,22 @@ std::wstring ActionsA2retroNet::Summarize (const Card & card)
 
     for (const Drive & drive : card.drives)
     {
-        set += drive.path.empty() ? 0 : 1;
+        set += drive.isPresent ? 1 : 0;
     }
 
-    text = std::format (L"A2Pico card. {} of its {} A2retroNET drives have an image.", set, card.drives.size());
+    text = std::format (L"This A2Pico card is using {} of its {} drives.", set, card.drives.size());
 
     if (card.config.hasCarriageReturns)
     {
-        return text + L" A2retroNET.txt has CR LF line ends, so the A2Pico doesn't open any image. Repair writes it with LF line ends.";
+        return text + L"\nA2retroNET.txt has CR LF line ends, so the A2Pico doesn't open any image. Repair writes it with LF line ends.";
     }
 
+    //  Each problem is on a line of its own.
     for (const Drive & drive : card.drives)
     {
         if (!drive.problem.empty())
         {
-            text += std::format (L" Drive {}: {}", drive.number, drive.problem);
+            text += std::format (L"\nDrive {}: {}", drive.number, drive.problem);
         }
     }
 
@@ -722,7 +723,7 @@ bool ActionsA2retroNet::TryGetConvertibleLayout (const std::wstring & path, Layo
         }
     }
 
-    if (!outLayout.isDosOrder || outLayout.length != (uint64_t) NibblizationLayer::kImageByteSize || outLayout.start + outLayout.length > stamp.sizeBytes)
+    if (!outLayout.isDosOrder || outLayout.length != (uint64_t) NibbleFormat::kImageByteSize || outLayout.start + outLayout.length > stamp.sizeBytes)
     {
         return false;
     }
@@ -916,35 +917,72 @@ void ActionsA2retroNet::ExpectArrivals (const std::vector<std::wstring> & target
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ActionsA2retroNet::TakeArrived (std::vector<std::wstring> & outConvertible)
+void ActionsA2retroNet::TakeArrived (std::vector<std::wstring> & outArrived)
 {
     IDiskFileIo  & io  = m_actions.m_browser.GetOperations().GetFileIo();
     ULONGLONG      now = GetTickCount64();
 
 
 
-    outConvertible.clear();
+    outArrived.clear();
 
-    std::erase_if (m_arrivals, [this, &io, &outConvertible, now] (const ExpectedMove & arrival)
+    std::erase_if (m_arrivals, [this, &io, &outArrived, now] (const ExpectedMove & arrival)
     {
-        Layout  layout;
-        bool    isThere  = m_actions.m_fs.Exists (arrival.to);
-        bool    isHeld   = isThere && io.IsHeldByAnotherProcess (TextEncoding::WideToNarrow (arrival.to));
-        bool    hasPo    = m_actions.m_fs.Exists (std::filesystem::path (arrival.to).replace_extension (L".po").wstring());
-        bool    isListed = std::find (outConvertible.begin(), outConvertible.end(), arrival.to) != outConvertible.end();
+        bool  isThere  = m_actions.m_fs.Exists (arrival.to);
+        bool  isHeld   = isThere && io.IsHeldByAnotherProcess (TextEncoding::WideToNarrow (arrival.to));
+        bool  isListed = std::find (outArrived.begin(), outArrived.end(), arrival.to) != outArrived.end();
 
         if (!isThere || isHeld)
         {
             return now >= arrival.untilMs;
         }
 
-        if (!hasPo && !isListed && TryGetConvertibleLayout (arrival.to, layout))
+        if (!isListed)
         {
-            outConvertible.push_back (arrival.to);
+            outArrived.push_back (arrival.to);
         }
 
         return true;
     });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsA2retroNet::TryGetFreeDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ActionsA2retroNet::TryGetFreeDrive (const std::wstring & imagePath, int & outDrive)
+{
+    A2retroNetConfig       config;
+    std::filesystem::path  root  = std::filesystem::path (imagePath).root_path();
+    std::string            path  = A2retroNetConfig::MakePath (root, imagePath);
+    int                    index = 0;
+    Drive                  drive;
+
+
+
+    outDrive = 0;
+
+    if (!TryReadConfigFor (imagePath, config) || !config.FindDrives (path).empty() || !config.TryFindFreeDrive (index))
+    {
+        return false;
+    }
+
+    drive = CheckDrive (root.wstring(), index + 1, path);
+
+    if (!drive.isPresent || !drive.problem.empty())
+    {
+        return false;
+    }
+
+    outDrive = index + 1;
+
+    return true;
 }
 
 

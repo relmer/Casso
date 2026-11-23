@@ -2,9 +2,9 @@
 
 #include "DiskImageSession.h"
 #include "Machines/Apple2/Common/InfocomSave.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/WozLoader.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DurableCommit.h"
 #include "Devices/Disk/Containers/TwoImgContainer.h"
@@ -592,9 +592,9 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened, bool 
     if (!bitStream)
     {
         snprintf (note, sizeof (note), "%d tracks, %d sectors, %d bytes per sector",
-                  NibblizationLayer::kTrackCount,
-                  NibblizationLayer::kSectorsPerTrack,
-                  NibblizationLayer::kSectorByteSize);
+                  NibbleFormat::kTrackCount,
+                  NibbleFormat::kSectorsPerTrack,
+                  NibbleFormat::kSectorByteSize);
 
         text += FormatDetailLine ("geometry", note);
     }
@@ -688,7 +688,7 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened, bool 
     }
     else if (bootSector)
     {
-        for (i = 0; i < (size_t) NibblizationLayer::kSectorByteSize && i < opened.sectors.size(); i++)
+        for (i = 0; i < (size_t) NibbleFormat::kSectorByteSize && i < opened.sectors.size(); i++)
         {
             if (opened.sectors[i] != 0)
             {

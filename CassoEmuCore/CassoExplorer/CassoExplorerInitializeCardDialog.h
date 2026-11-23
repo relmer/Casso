@@ -96,6 +96,7 @@ private:
     std::wstring                          m_questionText;
     std::wstring                          m_contentsText;
     CardLayoutModel::Adapter              m_adapter   = CardLayoutModel::kDefaultAdapter;
+    std::vector<CardLayoutModel::Adapter> m_adapterOrder;
     std::vector<int>                      m_positions;
     int                                   m_position  = 1;
     bool                                  m_confirmed = false;

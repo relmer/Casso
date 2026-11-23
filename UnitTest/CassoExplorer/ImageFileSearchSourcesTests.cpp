@@ -72,7 +72,7 @@ public:
 
         ImageFileSearchSources  hello (disk.operations, kImage, "HELLO", Find (disk, "HELLO"), disk.kind);
 
-        Assert::IsTrue  (hello.ContainsText (L"cassque"));
+        Assert::IsTrue  (hello.ContainsText (L"casso"));
         Assert::IsTrue  (hello.ContainsText (L"print"), L"A keyword is searched as BASIC lists it");
         Assert::IsFalse (hello.ContainsText (L"goodbye"));
     }

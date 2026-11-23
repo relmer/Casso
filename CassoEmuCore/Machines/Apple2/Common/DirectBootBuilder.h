@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 
 
 
@@ -77,7 +77,7 @@ public:
     static constexpr size_t  kLargestCapacity = (size_t) (kMemoryCeiling - kLowestLoadAddress);
 
     static constexpr size_t  kMostSectors     = kLargestCapacity
-                                              / (size_t) NibblizationLayer::kSectorByteSize;
+                                              / (size_t) NibbleFormat::kSectorByteSize;
 
     //  How many bytes a payload loading here may occupy, and how many sectors
     //  that many bytes take on the disk. Zero for an address the boot path

@@ -514,6 +514,7 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
 
     m_context.treePane.UpdateLabelTip (ev);
     m_context.preview.GetListing().UpdateValueTipAt (ev);
+    m_context.preview.GetText().UpdatePictureTipAt (ev);
 
     //  A five-button mouse's back and forward buttons move through the tab's
     //  history wherever the pointer is, as in Explorer.

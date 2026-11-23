@@ -5,8 +5,10 @@
 #include "CassoLink/LinkFault.h"
 #include "Devices/Disk/IDiskFileIo.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 #include "Seams/IByteStreamFactory.h"
 
 
@@ -378,7 +380,8 @@ std::shared_ptr<LinkOperation> CassoLinkSession::WriteBlockDevice (int drive, co
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::shared_ptr<LinkOperation> CassoLinkSession::ReadDisk (int drive, const std::string & imagePath, bool blankUnreadable, bool forceVerify)
+std::shared_ptr<LinkOperation> CassoLinkSession::ReadDisk (int drive, const std::string & imagePath, bool blankUnreadable, bool forceVerify,
+                                                          std::optional<FullSendProtectionChoices> automatic)
 {
     std::shared_ptr<LinkOperation>  operation = std::make_shared<LinkOperation>();
 
@@ -388,6 +391,8 @@ std::shared_ptr<LinkOperation> CassoLinkSession::ReadDisk (int drive, const std:
     operation->blankUnreadable = blankUnreadable;
     operation->verifyReads     = forceVerify || m_verifyReads;
     operation->autoVerify      = m_autoVerify;
+    operation->automatic       = automatic;
+    operation->status          = std::make_shared<FullSendStatus> (CassoLinkFullSend::GetSeconds, CassoLinkFullSend::GetClockTime);
 
     return Queue (LinkOperationKind::ReadDisk, drive, FilePath(), operation);
 }
@@ -409,6 +414,7 @@ std::shared_ptr<LinkOperation> CassoLinkSession::CaptureDisk (int drive, const s
 
 
     operation->imagePath = imagePath;
+    operation->status    = std::make_shared<FullSendStatus> (CassoLinkFullSend::GetSeconds, CassoLinkFullSend::GetClockTime);
 
     return Queue (LinkOperationKind::CaptureDisk, drive, FilePath(), operation);
 }
@@ -508,7 +514,7 @@ LinkChip CassoLinkSession::GetLinkChip (LinkTransport transport)
 
 int CassoLinkSession::GetLogicalSector (int physical)
 {
-    return NibblizationLayer::GetDosFileIndexForPhysicalSector (physical);
+    return SectorInterleave::GetDosFileIndexForPhysicalSector (physical);
 }
 
 
@@ -527,7 +533,7 @@ int CassoLinkSession::GetPhysicalSector (int logical)
 
 
 
-    for (int physical = 0; physical < NibblizationLayer::kSectorsPerTrack; physical++)
+    for (int physical = 0; physical < NibbleFormat::kSectorsPerTrack; physical++)
     {
         if (GetLogicalSector (physical) == logical)
         {
@@ -595,16 +601,16 @@ HRESULT CassoLinkSessionTypes::DriveSource::ReadSectors (std::span<const size_t>
 
     outData.assign (sectors.size() * LinkedDisk::kSectorSize, 0);
 
-    for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+    for (int track = 0; track < NibbleFormat::kTrackCount; track++)
     {
         physicals.clear();
         places.clear();
 
         for (size_t i = 0; i < sectors.size(); i++)
         {
-            if ((int) (sectors[i] / NibblizationLayer::kSectorsPerTrack) == track)
+            if ((int) (sectors[i] / NibbleFormat::kSectorsPerTrack) == track)
             {
-                physicals.push_back ((Byte) CassoLinkSession::GetPhysicalSector ((int) (sectors[i] % NibblizationLayer::kSectorsPerTrack)));
+                physicals.push_back ((Byte) CassoLinkSession::GetPhysicalSector ((int) (sectors[i] % NibbleFormat::kSectorsPerTrack)));
                 places.push_back (i);
             }
         }
@@ -616,6 +622,9 @@ HRESULT CassoLinkSessionTypes::DriveSource::ReadSectors (std::span<const size_t>
 
         hr = m_session.m_host->ReadSectors ((Byte) m_drive, (Byte) track, physicals, data, status);
         CHR (hr);
+
+        //  A 13-sector disk has no 16-sector address field to find.
+        CBREx (status.error != CassoLinkHost::kErrorNotFound || !status.thirteenSector, CassoLinkSession::kThirteenSectorDisk);
 
         hr = CassoLinkSession::FromStatusError (status.error);
         CHR (hr);
@@ -649,16 +658,16 @@ HRESULT CassoLinkSessionTypes::DriveSource::WriteSectors (std::span<const size_t
 
 
 
-    for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+    for (int track = 0; track < NibbleFormat::kTrackCount; track++)
     {
         physicals.clear();
         trackData.clear();
 
         for (size_t i = 0; i < sectors.size(); i++)
         {
-            if ((int) (sectors[i] / NibblizationLayer::kSectorsPerTrack) == track)
+            if ((int) (sectors[i] / NibbleFormat::kSectorsPerTrack) == track)
             {
-                physicals.push_back ((Byte) CassoLinkSession::GetPhysicalSector ((int) (sectors[i] % NibblizationLayer::kSectorsPerTrack)));
+                physicals.push_back ((Byte) CassoLinkSession::GetPhysicalSector ((int) (sectors[i] % NibbleFormat::kSectorsPerTrack)));
                 trackData.insert (trackData.end(), data.begin() + (ptrdiff_t) (i * LinkedDisk::kSectorSize), data.begin() + (ptrdiff_t) ((i + 1) * LinkedDisk::kSectorSize));
             }
         }
@@ -757,8 +766,11 @@ bool CassoLinkSession::IsFullSendRunning() const
 //  CassoLinkSession::Run
 //
 //  The session's thread. A failed connection fails what is queued, so a
-//  request made with no Apple on the line ends instead of waiting; the next
-//  request tries again.
+//  request made with no Apple on the line ends instead of waiting, and the
+//  next request connects again. The thread runs above normal priority, so work
+//  elsewhere on a busy machine doesn't delay its reads of the line. Between
+//  packets it waits in the driver, so it rarely runs. A cassette link
+//  decodes audio on this thread, so it stays at normal priority.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -771,8 +783,15 @@ void CassoLinkSession::Run (std::stop_token stop)
     const char                    * status  = nullptr;
     bool                            server  = m_settings.transport == LinkTransport::AdtProServer;
     std::shared_ptr<LinkOperation>  operation;
+    BOOL                            raised  = FALSE;
 
 
+
+    if (m_settings.transport != LinkTransport::Cassette)
+    {
+        raised = SetThreadPriority (GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL);
+        IGNORE_RETURN_VALUE (raised, TRUE);
+    }
 
     if (server)
     {
@@ -907,7 +926,7 @@ void CassoLinkSession::Run (std::stop_token stop)
             logged  = m_connector.LogOnApple (FitToApple (*operation,
                                                           summary ? DescribeOperation (*operation, std::nullopt, true)
                                                                   : std::format ("{} {}", status, DescribeOperation (*operation, std::nullopt, SUCCEEDED (hr) || operation->kind == LinkOperationKind::FullSend)),
-                                                          CassoLinkCodec::kLogLength));
+                                                          m_host->GetLogLength()));
             IGNORE_RETURN_VALUE (logged, S_OK);
         }
 
@@ -1368,7 +1387,7 @@ HRESULT CassoLinkSession::Revalidate (int drive)
         //  probed with: the VTOC and the volume directory's key block read
         //  again find a disk put in its place, such as a DOS 3.3 disk where
         //  the CassoLink disk was.
-        for (size_t mark : { (size_t) Dos33Skeleton::kVtocTrack * NibblizationLayer::kSectorsPerTrack,
+        for (size_t mark : { (size_t) Dos33Skeleton::kVtocTrack * NibbleFormat::kSectorsPerTrack,
                              ProDosSkeleton::GetBlockByteOffset (ProDosSkeleton::kDirKeyBlock, 0) / LinkedDisk::kSectorSize,
                              ProDosSkeleton::GetBlockByteOffset (ProDosSkeleton::kDirKeyBlock, LinkedDisk::kSectorSize) / LinkedDisk::kSectorSize })
         {
@@ -1382,7 +1401,7 @@ HRESULT CassoLinkSession::Revalidate (int drive)
     }
     else if (disk.GetKind() == VolumeKind::Dos33)
     {
-        marks.push_back ((size_t) Dos33Skeleton::kVtocTrack * NibblizationLayer::kSectorsPerTrack);
+        marks.push_back ((size_t) Dos33Skeleton::kVtocTrack * NibbleFormat::kSectorsPerTrack);
     }
     else if (disk.GetKind() != VolumeKind::ProDos)
     {

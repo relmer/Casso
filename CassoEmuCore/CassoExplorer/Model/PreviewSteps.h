@@ -26,7 +26,7 @@ class PreviewSteps
 {
 public:
     //  The row a step from `current` goes to, or -1 at either end. `keys` are
-    //  the rows' keys in row order, as CassoExplorerBrowser::GetRowKeys makes
+    //  the rows' keys in row order, as BrowserSelection::GetRowKeys makes
     //  them, and `set` the step set's keys, empty for every file. With no
     //  current row, a step forward goes to the first file and a step back to
     //  the last.

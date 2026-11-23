@@ -1,8 +1,8 @@
 # Implementation Plan: Casso Explorer
 
-**Branch**: `033-cassque` | **Date**: 2026-09-10 | **Spec**: [spec.md](spec.md)
+**Branch**: `033-casso-explorer` | **Date**: 2026-09-10 | **Spec**: [spec.md](spec.md)
 
-**Input**: Feature specification from `/specs/033-cassque/spec.md`
+**Input**: Feature specification from `/specs/033-casso-explorer/spec.md`
 
 ## Summary
 
@@ -97,7 +97,7 @@ stays in the core libraries. PASS.
 ### Documentation (this feature)
 
 ```text
-specs/033-cassque/
+specs/033-casso-explorer/
 ├── plan.md
 ├── research.md
 ├── data-model.md

@@ -2,7 +2,8 @@
 
 #include "CassoLink/Session/CassoLinkCapture.h"
 #include "CassoLink/Session/CaptureStream.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Devices/Disk/DiskFieldFormat.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 
 
 
@@ -586,8 +587,10 @@ size_t CassoLinkCapture::FindLength (std::span<const Byte> read)
 //  bytes again, marks ignored, between s_kShortestRevolution and
 //  s_kLongestRevolution later: a revolution, as an address field is once on
 //  its track. A shift-tolerant sample matches at almost any length on a
-//  track of one value repeated, which a protected disk's filler is. 0 for a
-//  read with no address field that repeats.
+//  track of one value repeated, which a protected disk's filler is. A field
+//  whose bytes come back sooner than a revolution is skipped: D5 AA B5 is
+//  some disks' data prolog, and the data fields of empty sectors match. 0
+//  for a read with no address field that repeats.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -605,25 +608,49 @@ size_t CassoLinkCapture::FindRepeat (std::span<const Byte> read)
         bool  disk   = first == s_kProlog0     && second == s_kProlog1 && (third == s_kAddress16 || third == s_kAddress13);
         bool  rdos   = first == s_kRdosProlog0 && second == s_kProlog1 && third == s_kRdosAddress;
 
-        if (!disk && !rdos)
+        if ((!disk && !rdos) || FindRepeatAt (read, at, 1, s_kShortestRevolution) != 0)
         {
             continue;
         }
 
-        for (size_t later = s_kShortestRevolution; length == 0 && later <= s_kLongestRevolution; later++)
-        {
-            size_t  same = 0;
-
-            while (same < s_kMarkerBytes && (read[at + same] | 0x80) == (read[at + later + same] | 0x80))
-            {
-                same++;
-            }
-
-            length = same == s_kMarkerBytes ? later : 0;
-        }
+        length = FindRepeatAt (read, at, s_kShortestRevolution, s_kLongestRevolution + 1);
     }
 
     return length;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::FindRepeatAt
+//
+//  The first distance from `from` up to, not including, `to` at which the
+//  s_kMarkerBytes bytes at `at` occur again, marks ignored, or 0.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t CassoLinkCapture::FindRepeatAt (std::span<const Byte> read, size_t at, size_t from, size_t to)
+{
+    size_t  found = 0;
+
+
+
+    for (size_t later = from; found == 0 && later < to && at + later + s_kMarkerBytes <= read.size(); later++)
+    {
+        size_t  same = 0;
+
+        while (same < s_kMarkerBytes && (read[at + same] | 0x80) == (read[at + later + same] | 0x80))
+        {
+            same++;
+        }
+
+        found = same == s_kMarkerBytes ? later : 0;
+    }
+
+    return found;
 }
 
 
@@ -772,8 +799,8 @@ bool CassoLinkCapture::IsSameStream (std::span<const Byte> a, std::span<const By
 //  more are set at 8, and none otherwise. Runs with no read at 12 and more
 //  set at 8 are runs of sync bytes, two. Any other byte is counted as 0,
 //  as is an FF among an address field's values, which a volume or checksum
-//  of $FF has: a byte the latch reads again before the next one starts is
-//  read twice.
+//  of $FF has, or in a data field's nibbles: a byte the latch reads again
+//  before the next one starts is read twice.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -814,7 +841,7 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const std::v
             std::fill (values.begin() + (ptrdiff_t) each + 3, values.begin() + (ptrdiff_t) std::min (length, each + 3 + s_kAddressValues), true);
         }
 
-        for (size_t nibble = 0; data != SIZE_MAX && nibble < NibblizationLayer::kDataNibbleCount && data + nibble < length; nibble++)
+        for (size_t nibble = 0; data != SIZE_MAX && nibble < NibbleFormat::kDataNibbleCount && data + nibble < length; nibble++)
         {
             inData[data + nibble] = true;
         }
@@ -875,7 +902,7 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const std::v
         bool    isData     = false;
         bool    dataLike   = false;
 
-        while (end < length && (bytes[end] | 0x80) == s_kSyncByte && !values[end] && !weak[end])
+        while (end < length && (bytes[end] | 0x80) == s_kSyncByte && !values[end] && !inData[end] && !weak[end])
         {
             for (int delay = 0; delay < 2; delay++)
             {
@@ -948,6 +975,44 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const std::v
 
         outUnsure     += unsure ? 1 : 0;
         outUnsureData += (unsure && inData[each]) ? 1 : 0;
+    }
+
+    CountEndingZeros (bytes, weak, marks, outZeros);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::CountEndingZeros
+//
+//  Two zero bits after a byte at an address field's ending
+//  (FindAddressEndings) that every read at 8 cycles marks, at least
+//  s_kEndingMarks of them. A //c marks a byte by chance too often for the
+//  zero bits after most bytes to be counted from a few reads, but a
+//  protection such as Ultima IV's times the data latch a few cells after
+//  its address fields' first ending byte, and its check passes with two.
+//  A read at 12 cycles marks a byte followed by two zero bits only about
+//  half the time, so one zero bit and two look alike in a track's few reads.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkCapture::CountEndingZeros (const std::vector<Byte> & bytes, const std::vector<bool> & weak, const Marks & marks, std::vector<uint8_t> & ioZeros)
+{
+    std::vector<bool>  endings = FindAddressEndings (bytes);
+
+
+
+    for (size_t each = 0; each < bytes.size(); each++)
+    {
+        bool  marked = marks.read[0][each] >= s_kEndingMarks && marks.set[0][each] == marks.read[0][each];
+
+        if (endings[each] && !weak[each] && ioZeros[each] == 0 && marked)
+        {
+            ioZeros[each] = s_kEndingZeros;
+        }
     }
 }
 
@@ -1064,12 +1129,18 @@ bool CassoLinkCapture::IsMarkedOften (int set, int read, double base)
 //  CassoLinkCapture::ToBits
 //
 //  Each byte's eight bits, two zero bits after a sync byte, and a weak byte
-//  as eight zero bits and its weakZeros. A controller reads a run of more than s_kMaxZeros
-//  zero bits as random bits. A byte read at a write splice, such as C0,
-//  ends in six: the zero bit of its eight after s_kMaxZeros in a row is
-//  written as a one, so the splice is as long as on the disk and every byte after
-//  it on the track is the same time from the bytes before it as on the
-//  disk. A sync byte's zero bits past s_kMaxSyncZeros are left out.
+//  as eight zero bits and its weakZeros. The first weak byte of a stretch
+//  starts with a one: on the disk, flux follows the zero bits after the
+//  byte before at once, and a protection that reads the data latch a few
+//  cells after that byte checks that a new byte has begun. The drive reads
+//  noise after the zeros that follow. A controller reads a run of more
+//  than s_kReadableZeros zero bits as random bits. A byte read at a write
+//  splice, such as C0, ends in six: the zero bit of its eight after
+//  s_kReadableZeros in a row is written as a one, so the splice is as long
+//  as on the disk and every byte after it on the track is the same time
+//  from the bytes before it as on the disk. A byte with three zeros in a
+//  row, such as E2, reads the same on every pass, and a protection checks
+//  for it, so it is written as read. A sync byte's zero bits past s_kMaxSyncZeros are left out.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1090,7 +1161,10 @@ void CassoLinkCapture::ToBits (const Stream & stream, std::vector<uint8_t> & out
 
         if (stream.weak[at])
         {
-            outBits.insert (outBits.end(), 8 + (at < stream.weakZeros.size() ? stream.weakZeros[at] : 0), (uint8_t) 0);
+            bool  starts = at == 0 || !stream.weak[at - 1];
+
+            outBits.push_back (starts ? 1 : 0);
+            outBits.insert (outBits.end(), 7 + (at < stream.weakZeros.size() ? stream.weakZeros[at] : 0), (uint8_t) 0);
             zeros = 0;
             continue;
         }
@@ -1102,7 +1176,7 @@ void CassoLinkCapture::ToBits (const Stream & stream, std::vector<uint8_t> & out
             bool     inByte = bit < 8;
 
             zeros = one != 0 ? 0 : zeros + 1;
-            one   = (inByte && zeros > s_kMaxZeros) ? 1 : one;
+            one   = (inByte && zeros > s_kReadableZeros) ? 1 : one;
             zeros = one != 0 ? 0 : zeros;
 
             if (zeros <= s_kMaxSyncZeros)
@@ -1138,7 +1212,7 @@ size_t CassoLinkCapture::FindDataField (std::span<const Byte> bytes, size_t at)
 
     for (size_t each = at + s_kMarkerBytes; address && data == SIZE_MAX && each < at + s_kMarkerBytes + s_kDataWithin; each++)
     {
-        bool  fits = each + 3 + NibblizationLayer::kDataNibbleCount <= bytes.size();
+        bool  fits = each + 3 + NibbleFormat::kDataNibbleCount <= bytes.size();
 
         Byte  second = fits ? (Byte) (bytes[each + 1] | 0x80) : 0;
         bool  prolog = fits && (bytes[each] | 0x80) == s_kProlog0 && (second == s_kProlog1 || second == s_kOtherProlog1);
@@ -1169,8 +1243,8 @@ size_t CassoLinkCapture::FindDataField (std::span<const Byte> bytes, size_t at)
 
 bool CassoLinkCapture::RepairFields (const Position & position, std::vector<Byte> & ioRevolution)
 {
-    std::vector<Byte>  sector;
-    std::vector<Byte>  nibbles (NibblizationLayer::kDataNibbleCount);
+    DataFieldDecode    sector;
+    std::vector<Byte>  nibbles (NibbleFormat::kDataNibbleCount);
     std::vector<Byte>  around  (ioRevolution);
     size_t             length   = ioRevolution.size();
     bool               repaired = false;
@@ -1181,7 +1255,9 @@ bool CassoLinkCapture::RepairFields (const Position & position, std::vector<Byte
     {
         std::transform (bytes.begin() + (ptrdiff_t) data, bytes.begin() + (ptrdiff_t) (data + nibbles.size()), nibbles.begin(), [] (Byte value) { return (Byte) (value | 0x80); });
 
-        return NibblizationLayer::DecodeDataNibbles (nibbles.data(), sector);
+        DiskFieldFormat::DecodeData (DiskFieldKind::Sixteen, std::span<const Byte> (nibbles).first (DiskFieldFormat::kBodyLength62), nibbles[DiskFieldFormat::kBodyLength62], sector);
+
+        return sector.isChecksumGood && sector.invalidNibbles.empty();
     };
 
     around.insert (around.end(), ioRevolution.begin(), ioRevolution.begin() + (ptrdiff_t) std::min (length, s_kMarkerBytes + s_kDataWithin + 3 + nibbles.size()));
@@ -1290,8 +1366,8 @@ bool CassoLinkCapture::RepairProlog (const Position & position, std::vector<Byte
 {
     using Prolog = std::array<Byte, s_kPrologBytes>;
 
-    std::vector<Byte>         sector;
-    std::vector<Byte>         nibbles    (NibblizationLayer::kDataNibbleCount);
+    DataFieldDecode           sector;
+    std::vector<Byte>         nibbles    (NibbleFormat::kDataNibbleCount);
     std::map<Prolog, size_t>  counts;
     Prolog                    usual      = {};
     size_t                    most       = 0;
@@ -1318,7 +1394,9 @@ bool CassoLinkCapture::RepairProlog (const Position & position, std::vector<Byte
     {
         std::transform (bytes.begin() + (ptrdiff_t) data, bytes.begin() + (ptrdiff_t) (data + nibbles.size()), nibbles.begin(), [] (Byte value) { return (Byte) (value | 0x80); });
 
-        return NibblizationLayer::DecodeDataNibbles (nibbles.data(), sector);
+        DiskFieldFormat::DecodeData (DiskFieldKind::Sixteen, std::span<const Byte> (nibbles).first (DiskFieldFormat::kBodyLength62), nibbles[DiskFieldFormat::kBodyLength62], sector);
+
+        return sector.isChecksumGood && sector.invalidNibbles.empty();
     };
 
     for (size_t at = 0; at < ioRevolution.size(); at++)

@@ -5,7 +5,7 @@
 #include "Devices/Disk/Archives/ContainerPath.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Update/ZipArchive.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -35,7 +35,7 @@ public:
     {
         static constexpr Byte  kEmptyZip[22] = { 0x50, 0x4B, 0x05, 0x06 };
 
-        std::vector<Byte>  image (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  image (NibbleFormat::kImageByteSize, 0);
         std::vector<Byte>  readme = { 'h', 'i' };
         std::vector<Byte>  one;
         std::vector<Byte>  two;
@@ -111,6 +111,27 @@ public:
     }
 
 
+    TEST_METHOD (CardPartition_IsReadAndWrittenInPlaceByTheInnerIo)
+    {
+        static constexpr const char *  kPartition = "\\\\.\\PhysicalDrive5|#1.po";
+
+        FakeDiskFileIo       fake;
+        ContainerDiskFileIo  io (fake);
+        std::vector<Byte>    read (1);
+        Byte                 one[] = { 9 };
+
+
+
+        fake.files[kPartition] = std::vector<Byte> (1024, 0);
+
+        AssertSucceeded (io.WriteAt (kPartition, 512, one));
+        AssertSucceeded (io.ReadAt  (kPartition, 512, read));
+
+        Assert::AreEqual ((int) 9, (int) fake.files[kPartition][512]);
+        Assert::AreEqual ((int) 9, (int) read[0]);
+    }
+
+
     TEST_METHOD (NestedFile_ExistsReadsAndStatsTheHost)
     {
         FakeDiskFileIo       fake;
@@ -125,7 +146,7 @@ public:
         Assert::IsTrue  (io.Exists (kNested));
         Assert::IsFalse (io.Exists ("C:\\Disks\\set.zip|disks/missing.dsk"));
         AssertSucceeded (io.ReadAllBytes (kNested, bytes));
-        Assert::AreEqual ((size_t) NibblizationLayer::kImageByteSize, bytes.size());
+        Assert::AreEqual ((size_t) NibbleFormat::kImageByteSize, bytes.size());
         AssertSucceeded (io.Stat (kNested, stamp));
         Assert::AreEqual ((int64_t) 100, stamp.modifiedUnix);
     }

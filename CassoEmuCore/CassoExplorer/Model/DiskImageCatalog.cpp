@@ -93,6 +93,21 @@ HRESULT DiskImageCatalog::Describe (const std::wstring & path, const std::string
 
 HRESULT DiskImageCatalog::ListPartitions (const std::wstring & path, PartitionLayoutKind & outLayout, std::vector<PartitionEntry> & outEntries)
 {
+    return ListFilePartitions (m_operations.GetFileIo(), path, outLayout, outEntries);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageCatalog::ListFilePartitions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageCatalog::ListFilePartitions (IDiskFileIo & fileIo, const std::wstring & path, PartitionLayoutKind & outLayout, std::vector<PartitionEntry> & outEntries)
+{
     HRESULT            hr     = S_OK;
     std::string        narrow = TextEncoding::WideToNarrow (path);
     std::vector<Byte>  bytes;
@@ -102,7 +117,7 @@ HRESULT DiskImageCatalog::ListPartitions (const std::wstring & path, PartitionLa
     outLayout = PartitionLayoutKind::None;
     outEntries.clear();
 
-    hr = m_operations.GetFileIo().ReadAllBytes (narrow, bytes);
+    hr = fileIo.ReadAllBytes (narrow, bytes);
     CHR (hr);
 
     hr = PartitionAccess::List (bytes, narrow, outLayout, outEntries);
@@ -176,6 +191,50 @@ std::wstring DiskImageCatalog::GetPartitionLabel (const std::wstring & imagePath
 {
     return PhysicalCards::IsOnCard (imagePath) ? TextEncoding::NarrowToWide (PartitionAccess::GetLabel (entry, withSize))
                                                : TextEncoding::NarrowToWide (PartitionAccess::GetPartitionLabel (entry.partition));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageCatalog::GetPartitionTitle
+//
+//  The label of the partition of an image file at `path`, such as
+//  "Partitioned.hdv|#2.po", or empty for any other path.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DiskImageCatalog::GetPartitionTitle (IDiskFileIo & fileIo, const std::wstring & path)
+{
+    HRESULT                      hr     = S_OK;
+    size_t                       bar    = path.rfind (L'|');
+    std::wstring                 parent = (bar == std::wstring::npos) ? std::wstring() : path.substr (0, bar);
+    std::string                  step   = (bar == std::wstring::npos) ? std::string() : TextEncoding::WideToNarrow (path.substr (bar + 1));
+    int                          index  = 0;
+    PartitionLayoutKind          layout = PartitionLayoutKind::None;
+    std::vector<PartitionEntry>  entries;
+    std::wstring                 title;
+
+
+
+    if (parent.empty() || PhysicalCards::IsOnCard (parent) || !PartitionAccess::TryParseStepName (step, index))
+    {
+        return title;
+    }
+
+    hr = ListFilePartitions (fileIo, parent, layout, entries);
+
+    for (const PartitionEntry & entry : SUCCEEDED (hr) ? entries : std::vector<PartitionEntry>())
+    {
+        if (title.empty() && entry.step == step)
+        {
+            title = GetPartitionLabel (parent, entry, false);
+        }
+    }
+
+    return title;
 }
 
 

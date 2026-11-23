@@ -79,6 +79,8 @@ void MessageDialog::OnCreate()
         SetDialogContentOwned (std::move (m_pendingContent));
     }
 
+    SetCenterButtons (true);
+
     for (i = 0; i < (int) m_buttons.size(); ++i)
     {
         AddDialogButton (m_buttons[(size_t) i].label, GetCommandId (m_buttons[(size_t) i], i));
@@ -144,7 +146,7 @@ int MessageDialog::ShowDefinition (
     const IDxuiTheme        * theme,
     const AppIconLoader     & loadIcon)
 {
-    constexpr int       s_kBaseWidthDip       = 440;
+    constexpr int       s_kBaseWidthDip       = 560;
     constexpr int       s_kMaxWidthDip        = 760;
     constexpr int       s_kMinContentWidthDip = 280;   // floor for a self-sizing body
     constexpr int       s_kBodyPadDip         = 56;   // content inset, both sides

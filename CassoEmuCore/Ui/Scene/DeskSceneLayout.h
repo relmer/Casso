@@ -48,6 +48,10 @@ struct DeskExtraMetrics
     int             level  = 0;
     float           min[3] = {};
     float           max[3] = {};
+
+    // How far behind this drive's front whatever stands on it must sit, so
+    // its door opens.
+    float           doorClearMm = 0.0f;
 };
 
 
@@ -401,7 +405,7 @@ public:
 
     // In fullscreen the fitted row is shrunk to this share of its size: at
     // the full screen width it covered too much of the picture.
-    static constexpr float  kFullscreenSlideScale  = 0.6f;
+    static constexpr float  kFullscreenSlideScale  = 0.175f;
 
     // In a window the fitted row is shrunk to half its size, so the drives
     // cover less of the monitor when they rise.
@@ -644,6 +648,10 @@ private:
                                       const DeskDockHover        & dock,
                                       float                        tanHalfX,
                                       const RECT                 & viewportPx);
+
+    // The scale of the first docked device at rest.
+    static float    GetDockRestScale (const DeskSceneComposition & comp,
+                                      int                          driveCount);
 
     // A docked device: its world matrix in the composition, its model's
     // bounds, and its span in world x at rest.

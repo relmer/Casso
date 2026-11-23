@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "CassoExplorer/Picker/FileMaskSet.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Picker/PickerRequest.h"
@@ -85,7 +86,7 @@ bool ExplorerPickerMode::TryGetRowFile (int row, std::wstring & outPath) const
     }
 
     outPath = !rows[(size_t) row].hostPath.empty() ? rows[(size_t) row].hostPath
-            : inFolder                             ? CassoExplorerBrowser::JoinPath (location.path, rows[(size_t) row].name)
+            : inFolder                             ? BrowserRowPaths::JoinPath (location.path, rows[(size_t) row].name)
                                                    : std::wstring();
 
     return !outPath.empty();
@@ -198,7 +199,7 @@ bool ExplorerPickerMode::TryMakeSavePath (const PickerRequest & request, size_t 
         name += L"." + extension;
     }
 
-    outPath = CassoExplorerBrowser::JoinPath (location.path, name);
+    outPath = BrowserRowPaths::JoinPath (location.path, name);
 
     return true;
 }
@@ -508,7 +509,7 @@ bool ExplorerPickerMode::HandleActivateRow (int row)
         return m_context.IsPicker() && m_context.browser.IsImageLocation();
     }
 
-    m_context.browser.SetSelectedRows ({ row });
+    m_context.browser.GetSelection().SetSelectedRows ({ row });
 
     //  In a save form the opened file's name is the name saved under.
     if (m_context.app.picker->IsSave())

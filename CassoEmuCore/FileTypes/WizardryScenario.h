@@ -137,6 +137,10 @@ private:
 
     static std::wstring  GetItemName    (std::span<const Byte> bytes, const Contents & contents, int item, bool identified);
     static void          ListRoster     (std::span<const Byte> bytes, const Contents & contents, std::vector<Paragraph> & ioParagraphs, std::vector<std::wstring> & ioNotes);
+    static void          AddItemStates  (bool equipped, bool cursed, bool identified, std::vector<Run> & ioRuns);
+    static RunColor      GetHpColor     (int left, int max);
     static void          DrawPartyLevel (std::span<const Byte> bytes, const Contents & contents, std::vector<Paragraph> & ioParagraphs, std::vector<std::wstring> & ioNotes);
+    static bool          IsPartyOut     (std::span<const Byte> bytes, const Contents & contents);
+    static void          AddSquareTips  (std::span<const Byte> level, int partyX, int partyY, Paragraph & ioMap);
     static Paragraph     MakeParagraph  (std::vector<Run> runs);
 };

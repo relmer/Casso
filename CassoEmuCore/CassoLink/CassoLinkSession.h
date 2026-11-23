@@ -82,6 +82,9 @@ public:
     //  Stops the running operation; queued ones remain.
     void       Cancel ();
 
+    //  A key for the Full Send's pause, pressed on the PC, as kKeyRawDrive1.
+    void       PressFullSendKey (Byte key) { if (m_host != nullptr) { m_host->PressKey (key); } }
+
     LinkState  GetState    () const { return m_connector.m_state; }
 
     //  Whether ADTPro's own client is on the line instead of Casso's. The
@@ -96,10 +99,18 @@ public:
 
     static constexpr const char *  kFullSendBusy = "Full Send is using the drives. Try again when you're finished.";
 
+    //  A read of a drive whose disk has 13-sector address fields, as DOS 3.2
+    //  and earlier wrote, and no 16-sector one.
+    static constexpr HRESULT       kThirteenSectorDisk = HRESULT_FROM_WIN32 (ERROR_UNRECOGNIZED_MEDIA);
+
     //  The Apple's model, as its program reported it on connecting; empty
     //  before then.
     std::wstring  GetModelName () const { std::lock_guard<std::mutex>  lock (m_connector.m_lock); return m_connector.m_modelName; }
     std::wstring  GetPort      () const { std::lock_guard<std::mutex>  lock (m_connector.m_lock); return m_connector.m_port; }
+
+    //  The Apple's Ready as it was last connected: its ROM's identification,
+    //  its program's version and CRC, and the drives it found.
+    CassoLinkClient  GetClient () const { std::lock_guard<std::mutex>  lock (m_connector.m_lock); return m_connector.m_client; }
 
     //  Why the line last failed to open, such as a TCP port another program
     //  listens on; empty once it opens.
@@ -124,7 +135,8 @@ public:
 
     //  Every track's standard sectors into an image file, in the format of
     //  its extension, replaced atomically and only when the read succeeds.
-    std::shared_ptr<LinkOperation>  ReadDisk      (int drive, const std::string & imagePath, bool blankUnreadable, bool forceVerify = false);
+    std::shared_ptr<LinkOperation>  ReadDisk      (int drive, const std::string & imagePath, bool blankUnreadable, bool forceVerify = false,
+                                                   std::optional<FullSendProtectionChoices> automatic = std::nullopt);
 
     //  A raw capture of the drive's disk into a WOZ 2 image, by the capture
     //  module; the message lists the tracks whose reads differ.

@@ -1702,12 +1702,14 @@ void DeskSceneLayout::PlaceStack (const DeskSceneMetrics & metrics,
         const float  * lo;
         const float  * hi;
         float          z;
+        float          doorClearMm;
     };
 
     std::vector<Item>  items;
     float              columnW = 0.0f;
     float              columnX = 0.0f;
     float              y       = 0.0f;
+    float              backMm  = 0.0f;
 
 
 
@@ -1715,13 +1717,13 @@ void DeskSceneLayout::PlaceStack (const DeskSceneMetrics & metrics,
     {
         if ((everyExtra || metrics.extras[i].spot == spot) && !(hardDisksOnly && IsDockedExtra (metrics.extras[i])))
         {
-            items.push_back ({ metrics.extras[i].level, out.extraWorld[i], metrics.extras[i].min, metrics.extras[i].max, frontZ });
+            items.push_back ({ metrics.extras[i].level, out.extraWorld[i], metrics.extras[i].min, metrics.extras[i].max, frontZ, metrics.extras[i].doorClearMm });
         }
     }
 
     for (int i = 0; i < driveCount && i < 2 && !everyExtra && metrics.driveSpot == spot; i++)
     {
-        items.push_back ({ metrics.driveLevel[i], out.driveWorld[i], metrics.driveMin, metrics.driveMax, driveZ });
+        items.push_back ({ metrics.driveLevel[i], out.driveWorld[i], metrics.driveMin, metrics.driveMax, driveZ, metrics.driveDoorClearMm });
     }
 
     if (items.empty())
@@ -1741,15 +1743,20 @@ void DeskSceneLayout::PlaceStack (const DeskSceneMetrics & metrics,
 
     for (const Item & item : items)
     {
+        float  z     = item.z - backMm;
         float  tx    = columnX - (item.lo[0] + item.hi[0]) * 0.5f;
         float  ty    = y - item.lo[2];
-        float  lo[3] = { item.lo[0] + tx, y, item.z - item.hi[1] };
-        float  hi[3] = { item.hi[0] + tx, y + (item.hi[2] - item.lo[2]), item.z - item.lo[1] };
+        float  lo[3] = { item.lo[0] + tx, y, z - item.hi[1] };
+        float  hi[3] = { item.hi[0] + tx, y + (item.hi[2] - item.lo[2]), z - item.lo[1] };
 
 
 
-        MakeDeviceWorld (tx, ty, item.z, 1.0f, item.world);
+        MakeDeviceWorld (tx, ty, z, 1.0f, item.world);
         y = hi[1];
+
+        // A drive whose door rises sets whatever stands on it back, so the
+        // door opens in front of it.
+        backMm += item.doorClearMm;
 
         for (int axis = 0; axis < 3; axis++)
         {
@@ -1888,6 +1895,45 @@ float DeskSceneLayout::SolvePictureStandoff (const DeskSceneMetrics & metrics,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskSceneLayout::GetDockRestScale
+//
+//  The scale of the first docked device at rest: a drive, else the recorder,
+//  else a docked hard disk. Zero when nothing is docked.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DeskSceneLayout::GetDockRestScale (const DeskSceneComposition & comp, int driveCount)
+{
+    float  scale = 0.0f;
+
+
+
+    if (driveCount > 0)
+    {
+        scale = comp.driveWorld[0][0];
+    }
+    else if (comp.hasRecorder != 0)
+    {
+        scale = comp.recorderWorld[0];
+    }
+
+    for (int i = 0; scale == 0.0f && i < comp.extraCount; i++)
+    {
+        if (comp.extraDocked[i] != 0 && comp.extraHidden[i] == 0)
+        {
+            scale = comp.extraWorld[i][0];
+        }
+    }
+
+    return scale;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskSceneLayout::ComputeGlassFill
 //
 //  The fullscreen camera. The monitor mounts exactly as in the windowed
@@ -2007,6 +2053,11 @@ HRESULT DeskSceneLayout::ComputeGlassFill (const RECT             & viewportPx,
         driveCount = SlideDevices (out, metrics, driveCount, eyeDistMm, tanY * aspect, tanY, viewportH,
                                    std::clamp (slideProgress, 0.0f, 1.0f), std::max (slideClearPx, 0),
                                    glassCx, kFullscreenSlideScale);
+
+        // The glass fills the screen, so a device's true size beside it is
+        // far too big to grow to. The dock grows from its resting size by
+        // the same share it grows by in a window instead.
+        out.dockFullScale = GetDockRestScale (out, driveCount) / kWindowedSlideScale;
 
         MagnifyDock (out, metrics, driveCount, dock, tanY * aspect, viewportPx);
 

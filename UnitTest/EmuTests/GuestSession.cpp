@@ -1,12 +1,17 @@
 #include "Pch.h"
 
 #include "Core/PathResolver.h"
+#include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "../EhmTestHelper.h"
 #include "GuestSession.h"
 #include "KeystrokeInjector.h"
 #include "MachineIdle.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "TextScreenScraper.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 
@@ -463,7 +468,7 @@ std::vector<Byte> GuestSession::DecodeThroughTheDrive (const std::vector<Byte> &
 
 
 
-    AssertSucceeded (NibblizationLayer::NibblizeDsk (bytes, image),
+    AssertSucceeded (Nibblizer::NibblizeDsk (bytes, image),
         L"the container must nibblize before the drive can report what it reads");
 
     return DecodeThroughTheDrive (image, report);
@@ -497,7 +502,7 @@ std::vector<Byte> GuestSession::DecodeThroughTheDrive (const DiskImage     & ima
     //  any data loss, and a copy-protected disk loses data by construction --
     //  which would turn "this WOZ cannot be pre-checked" into "this WOZ is
     //  broken" at every game gate on the branch.
-    AssertSucceeded (NibblizationLayer::Denibblize (image, DiskFormat::Dsk, sectors, outReport),
+    AssertSucceeded (Denibblizer::Denibblize (image, DiskFormat::Dsk, sectors, outReport),
         L"and the drive must be able to walk its tracks at all");
 
     return sectors;
@@ -542,8 +547,8 @@ void GuestSession::AssertTheDrivePresentsWhatWasMounted (const DiskImage        
         L"believe it, and jump into it",
         what,
         at,
-        at / ((size_t) NibblizationLayer::kSectorByteSize * NibblizationLayer::kSectorsPerTrack),
-        (at / (size_t) NibblizationLayer::kSectorByteSize) % NibblizationLayer::kSectorsPerTrack,
+        at / ((size_t) NibbleFormat::kSectorByteSize * NibbleFormat::kSectorsPerTrack),
+        (at / (size_t) NibbleFormat::kSectorByteSize) % NibbleFormat::kSectorsPerTrack,
         (unsigned) (at < mounted.size() ? mounted[at] : 0),
         (unsigned) (at < seen.size()    ? seen[at]    : 0)).c_str());
 }
@@ -574,7 +579,7 @@ void GuestSession::AssertTheDriveCanReadTheBootSector (const DiskImage  & image,
         L"into data and write a look-back per illegal opcode until something killed it",
         what).c_str());
 
-    for (i = 0; i < (size_t) NibblizationLayer::kSectorByteSize && blank; i++)
+    for (i = 0; i < (size_t) NibbleFormat::kSectorByteSize && blank; i++)
     {
         blank = sectors[i] == 0;
     }

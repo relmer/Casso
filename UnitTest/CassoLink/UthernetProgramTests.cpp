@@ -15,7 +15,7 @@
 #include "Devices/Network/VirtualSubnet.h"
 #include "Devices/RamDevice.h"
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 #include "Seams/IByteStream.h"
 #include "InMemoryCassoLinkFolder.h"
 #include "MachineSocketStream.h"
@@ -215,7 +215,7 @@ public:
 
             for (int p = 0; p < 16; p++)
             {
-                size_t  offset = (size_t) (track * 16 + NibblizationLayer::GetDosFileIndexForPhysicalSector (p)) * 256;
+                size_t  offset = (size_t) (track * 16 + SectorInterleave::GetDosFileIndexForPhysicalSector (p)) * 256;
 
                 data.insert (data.end(), dos.begin() + (ptrdiff_t) offset, dos.begin() + (ptrdiff_t) offset + 256);
             }
@@ -385,7 +385,7 @@ public:
     //  shim, which loads the current program over the same connection.
     TEST_METHOD (AnOlderProgram_IsLoadedAgain_OverTheSameConnection)
     {
-        static constexpr Byte  kHeader[]  = { 0xC1, 0x0B, 0x00, CassoLinkCodec::kReady };
+        static constexpr Byte  kHeader[]  = { 0xC1, 0x27, 0x00, CassoLinkCodec::kReady };
         static constexpr int   kVersionAt = 5;
         static constexpr int   kCheckAt   = 16;
 

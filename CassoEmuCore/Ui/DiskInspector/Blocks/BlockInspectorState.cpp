@@ -2,6 +2,7 @@
 
 #include "Core/NumberFormat.h"
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
+#include "Ui/DiskInspector/Blocks/BlockHeaderView.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorState.h"
 #include "Ui/DiskInspector/InspectorText.h"
 
@@ -36,32 +37,30 @@ std::wstring BlockInspectorState::BuildTitle (const std::wstring & fileName, con
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BlockInspectorState::BuildEditBarState
+//  BlockInspectorState::BuildEditState
 //
-//  The edit bar from the pending edits. A block image has no checksums, and
-//  a storage card's partition has no file to copy for Save as.
+//  The block pane's edit controls from the current block's pending edits.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-EditBarState BlockInspectorState::BuildEditBarState (const BlockInspectorModel & model, bool isBusy, bool isEditing, bool isOnCard, const std::wstring & note)
+BlockEditState BlockInspectorState::BuildEditState (const BlockInspectorModel & model, bool isBusy, bool isEditing, const std::wstring & note)
 {
-    bool          isOpen = model.IsOpen() && !isBusy;
-    EditBarState  state;
+    bool            isOpen = model.IsOpen() && !isBusy;
+    uint32_t        block  = model.IsOpen() ? model.GetBlock() : 0;
+    BlockEditState  state;
 
 
 
-    state.canEdit        = isOpen;
-    state.isEditing      = isEditing;
-    state.hasSectorEdit  = isOpen && model.GetEdits().HasChanges (model.GetBlock());
-    state.hasChecksum    = false;
-    state.bytes          = model.IsOpen() ? model.GetEdits().CountChangedBytes() : 0;
-    state.sectors        = model.IsOpen() ? (int) model.GetEdits().GetChangedBlocks().size() : 0;
-    state.canApply       = isOpen;
-    state.canSaveCopy    = !isOnCard;
-    state.canUndoApplied = isOpen && model.CanUndoApplied();
-    state.canRedoApplied = isOpen && model.CanRedoApplied();
-    state.canUseB        = isOpen && model.IsComparing() && model.IsDifferent (model.GetBlock());
-    state.note           = note;
+    for (int offset = 0; model.IsOpen() && offset < (int) BlockEditBuffer::kBlockBytes; offset++)
+    {
+        state.blockBytes += model.GetEdits().IsChanged (block, offset) ? 1 : 0;
+    }
+
+    state.canEdit     = isOpen;
+    state.isEditing   = isEditing;
+    state.canUndo     = isOpen && state.blockBytes > 0;
+    state.canUseOther = isOpen && model.IsComparing() && model.IsDifferent (block);
+    state.note        = note;
 
     return state;
 }
@@ -100,7 +99,7 @@ vector<InspectorStatusBar::LeadItem> BlockInspectorState::BuildLead (const Block
 
     if (unsaved > 0)
     {
-        items.push_back ({ InspectorText::FormatCount ((int) unsaved, L"unsaved block", L"unsaved blocks"), LeadKind::Result });
+        items.push_back ({ InspectorText::FormatCount ((int) unsaved, L"unsaved block", L"unsaved blocks"), LeadKind::Unsaved });
     }
 
     if (isBusy)

@@ -5,6 +5,7 @@
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/Inspector/Blocks/BlockImageFile.h"
 #include "Devices/Disk/MemoryBlockStore.h"
+#include "Devices/Disk/Partitions/CardVolumeEdit.h"
 #include "Devices/Disk/Partitions/PhysicalCardFileIo.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
 #include "Seams/RawDevice/RawDeviceProtocol.h"
@@ -190,33 +191,16 @@ public:
     }
 
 
-    TEST_METHOD (WritePartition_IsCanceledWhenTheConfirmationDeclines)
-    {
-        FakeCardHost       host;
-        PhysicalCards      cards (host);
-        std::vector<Byte>  bytes (PartitionCard::kSecondBytes, 0x77);
-
-        cards.SetConfirmWrite ([] (const PhysicalDrive &) { return false; });
-        AssertSucceeded (cards.Open (2, nullptr));
-
-        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_CANCELLED), cards.WritePartition (2, 2, bytes));
-        Assert::IsTrue (host.store->GetBytes() == host.card);
-    }
-
-
-    TEST_METHOD (WritePartition_ChangesTheCardWhenConfirmed)
+    TEST_METHOD (WritePartition_ChangesTheCard)
     {
         FakeCardHost       host;
         PhysicalCards      cards (host);
         std::vector<Byte>  bytes (PartitionCard::kSecondBytes, 0x77);
         std::vector<Byte>  readBack;
-        std::string        model;
 
-        cards.SetConfirmWrite ([&model] (const PhysicalDrive & drive) { model = drive.model; return true; });
         AssertSucceeded (cards.Open (2, nullptr));
         AssertSucceeded (cards.WritePartition (2, 2, bytes));
 
-        Assert::AreEqual (std::string ("Test Card"), model);
         Assert::IsTrue (PartitionCard::GetSecond (host.store->GetBytes()) == bytes);
 
         AssertSucceeded (cards.ReadPartition (2, 2, readBack));
@@ -224,37 +208,71 @@ public:
     }
 
 
-    //  A command that writes from another thread, as block mode does, is
-    //  confirmed for that thread until the file is flushed.
-    TEST_METHOD (WritePartition_AConfirmedThreadWritesWithoutAPromptUntilItsFlush)
+    //  A file copied onto a volume of a card partition is written by the
+    //  block, with no prompt, and the changed blocks are on the card after the
+    //  commit.
+    TEST_METHOD (CardVolumeEdit_CopiesAFileOntoAPartitionOfACard)
     {
-        static constexpr const char *  kPath = "\\\\.\\PhysicalDrive2|#2.po";
+        static constexpr const char *  kPath       = "\\\\.\\PhysicalDrive2|#1.po";
+        static constexpr uint32_t  kCardBlocks  = 4096;
+        static constexpr size_t    kFileBytes   = 40000;
+        static constexpr Byte      kBinType     = 0x06;
+        static constexpr Word      kLoadAddress = 0x2000;
 
 
 
         FakeCardHost        host;
         PhysicalCards       cards (host);
         FakeDiskFileIo      unused;
-        std::vector<Byte>   block (IBlockStore::kBlockBytes, 0x5A);
-        int                 prompts = 0;
+        CardVolumeEdit      card;
+        BlockBuffer         edited;
+        FilePayload         payload;
+        FilePayload         readBack;
+        std::string         refusal;
+        std::vector<Byte>   onCard;
 
-        cards.SetConfirmWrite ([&prompts] (const PhysicalDrive &) { prompts++; return false; });
+        host.card = PartitionCard::MakeProDos (kCardBlocks, "CARD1");
+        payload.bytes.assign (kFileBytes, 0x5A);
+        payload.type           = kBinType;
+        payload.loadAddress    = kLoadAddress;
+        payload.hasLoadAddress = true;
+
         AssertSucceeded (cards.Open (2, nullptr));
 
         {
             PhysicalCardFileIo  io (unused, cards);
 
-            cards.SetConfirmedThread (GetCurrentThreadId());
+            Assert::IsTrue  (card.TryOpen (io, kPath), L"the partition opens by the block");
+            Assert::AreEqual (std::string ("Partition 1: CARD1"), card.GetLabel());
+            AssertSucceeded (card.GetVolume().Write (FilePath::Parse ("FILE"), payload, edited));
 
-            AssertSucceeded (io.WriteAt (kPath, 0, block));
-            Assert::AreEqual (0, prompts, L"no prompt for the confirmed thread");
+            HRESULT  hr = card.Commit (edited, refusal);
 
-            AssertSucceeded (io.FlushToStorage (kPath));
-
-            block.assign (IBlockStore::kBlockBytes, 0x6B);
-            Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_CANCELLED), io.WriteAt (kPath, 0, block));
-            Assert::AreEqual (1, prompts, L"a prompt again after the flush");
+            Assert::AreEqual (S_OK, hr, TextEncoding::NarrowToWide (refusal).c_str());
+            AssertSucceeded  (io.FlushToStorage (kPath));
         }
+
+        onCard = host.store->GetBytes();
+
+        {
+            ProDosVolume  volume (onCard);
+
+            AssertSucceeded (volume.Read (FilePath::Parse ("FILE"), readBack));
+            Assert::IsTrue  (readBack.bytes == payload.bytes, L"the file is on the card");
+        }
+    }
+
+
+    //  The sentence for a failed card write includes the reason when one is known.
+    TEST_METHOD (CardVolumeEdit_DescribeWriteFailure_IncludesTheReason)
+    {
+        std::string  denied  = CardVolumeEdit::DescribeWriteFailure (E_ACCESSDENIED);
+        std::string  gone    = CardVolumeEdit::DescribeWriteFailure (HRESULT_FROM_WIN32 (ERROR_DEVICE_NOT_CONNECTED));
+        std::string  other   = CardVolumeEdit::DescribeWriteFailure (E_FAIL);
+
+        Assert::IsTrue   (denied.starts_with ("could not be written. The storage card broker"));
+        Assert::IsTrue   (gone.starts_with ("could not be written. The card is no longer open"));
+        Assert::AreEqual (std::string ("could not be written"), other);
     }
 
 
@@ -313,7 +331,6 @@ public:
         std::vector<Byte>                block (IBlockStore::kBlockBytes, 0);
         std::vector<Byte>                second;
 
-        cards.SetConfirmWrite ([] (const PhysicalDrive &) { return true; });
         AssertSucceeded (cards.Open (2, nullptr));
 
         {

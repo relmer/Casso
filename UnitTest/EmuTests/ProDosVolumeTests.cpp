@@ -1,8 +1,10 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 #include "FixtureProvider.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
 #include "Devices/Disk/BlockImage.h"
 #include "Devices/Disk/MemoryBlockStore.h"
 
@@ -68,7 +70,7 @@ public:
 
     static vector<Byte> MakeVolume (const std::string & name = "NEWDISK")
     {
-        vector<Byte>  buffer (NibblizationLayer::kImageByteSize, 0xEE);
+        vector<Byte>  buffer (NibbleFormat::kImageByteSize, 0xEE);
 
         AssertSucceeded (ProDosSkeleton::Write (buffer, name));
 
@@ -89,7 +91,7 @@ public:
     TEST_METHOD (SkeletonConstants_MatchGeometry)
     {
         // 280 blocks x 512 bytes == the 143,360-byte 5.25" sector image.
-        Assert::AreEqual (NibblizationLayer::kImageByteSize,
+        Assert::AreEqual (NibbleFormat::kImageByteSize,
                           ProDosSkeleton::kTotalBlocks * 512);
     }
 
@@ -98,7 +100,7 @@ public:
     {
         // Every (block, offset) must land on a distinct buffer byte and the
         // union must tile the full image — the interleave map is a bijection.
-        std::vector<char>  seen (NibblizationLayer::kImageByteSize, 0);
+        std::vector<char>  seen (NibbleFormat::kImageByteSize, 0);
         int                block  = 0;
         size_t             offset = 0;
 
@@ -108,7 +110,7 @@ public:
             {
                 size_t  at = ProDosSkeleton::GetBlockByteOffset (block, offset);
 
-                Assert::IsTrue (at < (size_t) NibblizationLayer::kImageByteSize);
+                Assert::IsTrue (at < (size_t) NibbleFormat::kImageByteSize);
                 Assert::AreEqual ((char) 0, seen[at]);
                 seen[at] = 1;
             }
@@ -133,7 +135,7 @@ public:
     {
         UnitTestHelpers::ExpectedEhmAssert  expect;
 
-        vector<Byte>  buffer (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>  buffer (NibbleFormat::kImageByteSize, 0);
 
 
 
@@ -653,6 +655,44 @@ public:
         Assert::AreEqual (size_t (0), report.GetAllocatedButUnclaimed().size(),
             L"and nothing allocated may be unaccounted for");
         Assert::IsTrue (report.IsClean(), L"a freshly written volume is consistent");
+    }
+
+
+    //  A 140K image written over the start of a larger partition, past which
+    //  the old volume's blocks remain. The volume is the header's 280 blocks.
+    TEST_METHOD (Volume_SmallerThanItsBuffer_IsTheHeadersBlocks)
+    {
+        constexpr size_t  kPartitionBlocks = 800;
+
+        vector<Byte>           fresh     = MakeVolume ("FRESH");
+        vector<Byte>           freshBlocks;
+        vector<Byte>           partition (kPartitionBlocks * kBlockBytes, 0x00);
+        vector<Byte>           payload   (600, 0x33);
+        VolumeListing          listing;
+        VolumeIntegrityReport  report;
+        uint32_t               freeFresh = 0;
+
+        AssertSucceeded (ProDosSkeleton::Write (partition, "OLD"));
+        AssertSucceeded (ProDosFileWriter::WriteFile (fresh, "PROG", 0x06, 0x2000, payload));
+        freeFresh = FreeBlocks (fresh);
+
+        VolumeImage::DosLogicalToProDosFile (fresh, freshBlocks);
+        std::copy (freshBlocks.begin(), freshBlocks.end(), partition.begin());
+
+        {
+            ProDosVolume  volume (partition);
+
+            Assert::AreEqual (280, volume.GetBlockCount());
+            AssertSucceeded (volume.Enumerate (listing));
+            AssertSucceeded (volume.BuildIntegrityReport (report));
+        }
+
+        Assert::AreEqual (string ("FRESH"), listing.volumeName);
+        Assert::AreEqual (uint32_t (280), listing.totalUnits);
+        Assert::AreEqual (freeFresh, listing.freeUnits);
+        Assert::AreEqual (size_t (0), report.GetCrossLinked().size());
+        Assert::AreEqual (size_t (0), report.GetClaimedButFree().size());
+        Assert::AreEqual (size_t (0), report.GetAllocatedButUnclaimed().size());
     }
 
 
@@ -1748,6 +1788,45 @@ public:
     }
 
 
+    //  ProDOS counts a directory block's header as entry 1, so the first file
+    //  record of the key block is entry 2 and the first record of a later
+    //  block is entry 1.
+    TEST_METHOD (Volume_CreateDirectory_PointsItsHeaderAtItsEntry)
+    {
+        vector<Byte>   disk    = MakeVolume();
+        vector<Byte>   next;
+        FilePayload    payload = MakeBinaryPayload (10, 0x6000);
+        size_t         record  = kKeyBlockEntry + 2 * 0x27;
+        int            key     = 0;
+        int            i       = 0;
+
+        AssertSucceeded (ProDosVolume (disk).Write (FilePath::Parse ("F0"), payload, next));
+        disk = next;
+
+        AssertSucceeded (ProDosVolume (disk).CreateDirectory (FilePath::Parse ("NEAR"), next));
+        disk = next;
+
+        key = WordAt (disk, kDirKeyBlock, record + 0x11);
+        Assert::AreEqual ((Byte) 0xD4,          At (disk, kDirKeyBlock, record),                   L"NEAR is the second file record");
+        Assert::AreEqual ((Word) kDirKeyBlock,  WordAt (disk, key, kKeyBlockEntry + 0x23),         L"parent pointer of NEAR");
+        Assert::AreEqual ((Byte) 3,             At (disk, key, kKeyBlockEntry + 0x25),             L"parent entry number of NEAR");
+
+        for (i = 1; i < 13; i++)
+        {
+            AssertSucceeded (ProDosVolume (disk).Write (FilePath::Parse (std::format ("F{}", i)), payload, next));
+            disk = next;
+        }
+
+        AssertSucceeded (ProDosVolume (disk).CreateDirectory (FilePath::Parse ("FAR"), next));
+        disk = next;
+
+        key = WordAt (disk, 3, record + 0x11);
+        Assert::AreEqual ((Byte) 0xD3,  At (disk, 3, record),                       L"FAR is the third record of the second block");
+        Assert::AreEqual ((Word) 3,     WordAt (disk, key, kKeyBlockEntry + 0x23), L"parent pointer of FAR");
+        Assert::AreEqual ((Byte) 3,     At (disk, key, kKeyBlockEntry + 0x25),     L"parent entry number of FAR");
+    }
+
+
     //  Builds the same tree the removal test uses: UTIL, UTIL/DEEP, and a file
     //  inside the deeper one.
     static vector<Byte> MakeTreeVolume()
@@ -2503,7 +2582,7 @@ public:
         vector<Byte>       after;
         VolumeListing      listedBefore;
         VolumeListing      listedAfter;
-        std::vector<char>  allowed (NibblizationLayer::kImageByteSize, 0);
+        std::vector<char>  allowed (NibbleFormat::kImageByteSize, 0);
         size_t             differing = 0;
         size_t             i         = 0;
 

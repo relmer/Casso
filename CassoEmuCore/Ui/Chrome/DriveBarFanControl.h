@@ -52,6 +52,9 @@ public:
     //  The label column's width, the same as the Disk II widgets' on the bar.
     void  SetCaptionWidthDip (int widthDip)                              { m_captionWidthDip = widthDip; }
 
+    //  A box with no drives in it, around the docked recorder; empty for none.
+    void  SetRecorderPanel (const RECT & panel)                          { m_recorderPanel = panel; }
+
     //  Cuts a name longer than `maxChars` and ends it with an ellipsis.
     static std::wstring  CutName (const std::wstring & name, size_t maxChars);
 
@@ -86,4 +89,5 @@ private:
     int                                           m_hoverClass      = -1;
     int                                           m_hoverEntry      = -1;
     int                                           m_captionWidthDip = 44;
+    RECT                                          m_recorderPanel   = {};
 };

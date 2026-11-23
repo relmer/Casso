@@ -10,43 +10,16 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  DxuiZoomControlTests
 //
-//  The zoom control: steps move between the standard stops, a step
-//  from between two stops lands on the nearer one in its direction, the
-//  steps stop at the ends, and the percentage is a whole number.
+//  The zoom control: steps move between the standard stops, a step from
+//  between two stops lands on the nearer one in its direction, the steps
+//  stop at the ends, the button sits at the right end of its row, and the
+//  bounds take in the panel while it is open.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (DxuiZoomControlTests)
 {
 public:
-
-    TEST_METHOD (TheSliderShowsOverThePercentageAndStaysNearTheControl)
-    {
-        DxuiZoomControl  control;
-        DxuiDpiScaler    scaler;
-
-
-
-        control.Layout ({ 0, 0, 270, 30 }, scaler);
-        Assert::IsFalse (control.IsSliderShown());
-
-        control.UpdateHover ({ 100, 15 });
-        Assert::IsFalse (control.IsSliderShown(), L"not yet, off the percentage");
-
-        control.UpdateHover ({ 250, 15 });
-        Assert::IsTrue (control.IsSliderShown(), L"over the percentage");
-
-        control.UpdateHover ({ 100, 15 });
-        Assert::IsTrue (control.IsSliderShown(), L"over the slider");
-
-        control.UpdateHover ({ 100, 40 });
-        Assert::IsTrue (control.IsSliderShown(), L"just below it");
-
-        control.UpdateHover ({ 100, 200 });
-        Assert::IsFalse (control.IsSliderShown(), L"away from it");
-    }
-
-
 
     TEST_METHOD (StepsMoveBetweenTheStops)
     {
@@ -73,26 +46,103 @@ public:
 
 
 
-    TEST_METHOD (TheZoomReadsAsAWholePercentage)
-    {
-        Assert::AreEqual (std::wstring (L"100%"), DxuiZoomControl::FormatZoom (1.0));
-        Assert::AreEqual (std::wstring (L"67%"),  DxuiZoomControl::FormatZoom (2.0 / 3.0));
-    }
-
-
-    TEST_METHOD (DoubleClickingThePercentageReturnsTo100AndLeavesTheSlider)
+    TEST_METHOD (TheButtonSitsAtTheRowsRightEndCenteredOnIt)
     {
         DxuiZoomControl  control;
+        DxuiDpiScaler    scaler;
+        RECT             button = {};
+        RECT             bounds = {};
 
 
 
-        control.SetZoom        (1.25);
-        control.OnPercentClick (1000);
-        Assert::AreEqual       (1.25, control.GetZoom(), 1e-9);
-        Assert::IsTrue         (control.IsSliderShown());
+        control.PlaceInRow ({ 0, 100, 300, 130 }, RECT {}, scaler);
+        button = control.GetButtonRect();
 
-        control.OnPercentClick (1001);
-        Assert::AreEqual       (1.0, control.GetZoom(), 1e-9);
-        Assert::IsFalse        (control.IsSliderShown());
+        Assert::AreEqual (300L, button.right);
+        Assert::AreEqual (115L, (button.top + button.bottom) / 2);
+        bounds = control.GetBounds();
+        Assert::IsTrue   (EqualRect (&button, &bounds) != FALSE, L"at rest the bounds are the button");
     }
+
+
+
+    TEST_METHOD (TheBoundsTakeInThePanelWhileItIsOpen)
+    {
+        DxuiZoomControl  control;
+        DxuiDpiScaler    scaler;
+        RECT             button = {};
+        RECT             bounds = {};
+
+
+
+        control.PlaceInRow ({ 0, 100, 300, 130 }, RECT {}, scaler);
+        button = control.GetButtonRect();
+
+        Assert::IsTrue   (control.UpdateHover ({ button.left + 1, button.top + 1 }, 0), L"opened over the button");
+        bounds = control.GetBounds();
+
+        Assert::IsTrue   (control.IsSliderShown());
+        Assert::IsTrue   (bounds.top < button.top);
+        Assert::AreEqual (button.right, bounds.right);
+
+        control.Layout   (control.GetBounds(), scaler);
+        bounds = control.GetButtonRect();
+        Assert::IsTrue   (EqualRect (&button, &bounds) != FALSE, L"the button doesn't move on a layout pass");
+    }
+
+
+
+    TEST_METHOD (TheSliderOverAnEarlierControlTakesThePointer)
+    {
+        DxuiPanel          host;
+        DxuiDpiScaler      scaler;
+        RECT               button  = {};
+        RECT               bounds  = {};
+        double             zoomed  = 0.0;
+        DxuiMouseEvent     ev;
+        ConsumingControl * content = host.CreateChild<ConsumingControl>();
+        DxuiZoomControl  * control = host.CreateChild<DxuiZoomControl>();
+
+
+
+        content->SetBounds  ({ 0, 0, 300, 100 });
+        control->SetOnZoom  ([&zoomed] (double zoom) { zoomed = zoom; });
+        control->PlaceInRow ({ 0, 100, 300, 130 }, RECT {}, scaler);
+        button = control->GetButtonRect();
+
+        Assert::IsTrue (control->UpdateHover ({ button.left + 1, button.top + 1 }, 0));
+        bounds = control->GetBounds();
+
+        //  The slider's row, over the content control.
+        ev.kind        = DxuiMouseEventKind::Move;
+        ev.positionDip = { (bounds.left + bounds.right) / 2, bounds.top + (DxuiZoomPopup::kPadDip + DxuiZoomPopup::kRowDip) / 2 };
+        Assert::IsTrue  (ev.positionDip.y < 100, L"the slider is over the content");
+        Assert::IsTrue  (host.OnMouse (ev), L"a move over the slider is taken");
+        Assert::IsTrue  (control->IsSliderShown(), L"the slider stays open over it");
+
+        ev.kind   = DxuiMouseEventKind::Down;
+        ev.button = DxuiMouseButton::Left;
+        Assert::IsTrue  (host.OnMouse (ev));
+        Assert::IsTrue  (zoomed > 0.0, L"a press on the track zooms");
+
+        ev.kind = DxuiMouseEventKind::Up;
+        Assert::IsTrue  (host.OnMouse (ev));
+
+        ev.kind        = DxuiMouseEventKind::Move;
+        ev.button      = DxuiMouseButton::None;
+        ev.positionDip = { 10, 10 };
+        Assert::IsTrue  (host.OnMouse (ev), L"the content takes a move away from the slider");
+        Assert::IsFalse (control->IsSliderShown(), L"the slider closes far from it");
+    }
+
+
+
+private:
+
+    //  A control under the slider that takes every mouse event.
+    class ConsumingControl : public DxuiPanel
+    {
+    public:
+        bool  OnMouse (const DxuiMouseEvent & ev) override { (void) ev; return true; }
+    };
 };

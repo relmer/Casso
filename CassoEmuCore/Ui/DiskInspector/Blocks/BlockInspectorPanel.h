@@ -13,11 +13,10 @@ class BlockFieldsView;
 class BlockHexView;
 class BlockInspectorModel;
 class BlockMapView;
-class EditBar;
 class FloatingGroup;
 class OverlayChip;
 struct BlockField;
-struct EditBarState;
+struct BlockEditState;
 struct InspectorCommands;
 
 
@@ -36,8 +35,8 @@ struct InspectorCommands;
 //  previous and next block buttons and its capsules, the field line, Copy
 //  block, a row with the pending edits or a long job's progress, and the
 //  block's hex view over its fields; and the map of the whole volume, with
-//  the platter's corner groups: the overlays at the bottom left, and zoom -
-//  and + at the bottom right. Splitters part
+//  the platter's corner groups: the overlays at the bottom left, and the
+//  zoom at the bottom right. Splitters part
 //  the three. A click on the map selects the row that covers the block,
 //  and a double-click opens the block.
 //
@@ -82,6 +81,10 @@ public:
     //  worker's jobs. The window calls it on each frame.
     void  UpdateBusy ();
 
+    //  The map's zoom control from the map's zoom and the cursor, on each
+    //  frame. True when the control grew or shrank.
+    bool  UpdateZoom (HWND owner);
+
     IBlockJobs  & GetJobs   ()       { return m_jobs; }
     bool          IsBusy    () const { return m_jobs.IsBusy(); }
     bool          IsLongJob () const { return m_jobs.IsLongJob(); }
@@ -97,15 +100,15 @@ public:
     void  GoToBlock   (uint32_t block) override;
 
     //  Editing, as Edit block turns on and off: typing in the hex view
-    //  changes the block only while it is on. The edit bar's state is the
-    //  window's.
-    void       SetEditing   (bool isEditing) override;
-    bool       IsEditing    () const override { return m_isEditing; }
-    void       SetEditState (const EditBarState & state) override;
-    EditBar  & GetEditBar   () const override { return m_header.GetEditBar(); }
-    void       Step         (int64_t delta) override;
-    void       GoBack       () override;
-    void       GoForward    () override;
+    //  changes the block only while it is on. The edit controls' state is
+    //  the window's.
+    void               SetEditing   (bool isEditing) override;
+    bool               IsEditing    () const override { return m_isEditing; }
+    void               SetEditState (const BlockEditState & state) override;
+    BlockHeaderView  & GetHeader    () override       { return m_header; }
+    void               Step         (int64_t delta) override;
+    void               GoBack       () override;
+    void               GoForward    () override;
 
     //  The overlays, as the corner chips and the View menu turn them.
     bool  IsFilesOn      () const override { return m_isFilesOn; }
@@ -164,11 +167,9 @@ private:
     DxuiToolbar           * m_tools           = nullptr;
     BlockMapView          * m_map             = nullptr;
     FloatingGroup         * m_chipsGroup      = nullptr;
-    FloatingGroup         * m_zoomGroup       = nullptr;
+    DxuiZoomControl       * m_zoomControl     = nullptr;
     OverlayChip           * m_filesChip       = nullptr;
     OverlayChip           * m_diffsChip       = nullptr;
-    DxuiIconButton        * m_zoomOut         = nullptr;
-    DxuiIconButton        * m_zoomIn          = nullptr;
     BlockNavigator          m_nav;
     BlockPanelSplitters     m_splitters;
     BlockJobQueue           m_jobs;

@@ -2,7 +2,7 @@
 
 #include "Ui/DiskInspector/Blocks/BlockHeaderView.h"
 #include "Ui/DiskInspector/Blocks/BlockJobQueue.h"
-#include "Ui/DiskInspector/EditBar.h"
+#include "Ui/DiskInspector/InspectorText.h"
 #include "Core/NumberFormat.h"
 
 
@@ -19,8 +19,10 @@ void BlockHeaderView::Create (DxuiPanel & parent, StepFn step, ActionFn copy, Ac
 {
     m_previous = parent.CreateChild<DxuiIconButton>();
     m_next     = parent.CreateChild<DxuiIconButton>();
+    m_edit     = parent.CreateChild<DxuiButton> (L"Edit");
     m_copy     = parent.CreateChild<DxuiButton> (L"Copy block");
-    m_editBar  = parent.CreateChild<EditBar>();
+    m_undo     = parent.CreateChild<DxuiButton> (L"Undo block changes");
+    m_useOther = parent.CreateChild<DxuiButton> (L"Use B's bytes");
     m_cancel   = parent.CreateChild<DxuiButton> (L"Cancel");
 
     m_previous->SetGlyph          (s_kpszGlyphPrev);
@@ -30,11 +32,15 @@ void BlockHeaderView::Create (DxuiPanel & parent, StepFn step, ActionFn copy, Ac
     m_next->SetAccessibleName     (L"Next block");
     m_next->SetOnClick            ([step] () { step (1); });
 
-    m_copy->SetOnClick   (std::move (copy));
-    m_cancel->SetOnClick (std::move (cancel));
-    m_editBar->SetUnit   (L"block", L"blocks");
+    m_edit->SetOnClick     ([this] () { if (m_onEdit) { m_onEdit(); } });
+    m_undo->SetOnClick     ([this] () { if (m_onUndo) { m_onUndo(); } });
+    m_useOther->SetOnClick ([this] () { if (m_onUseOther) { m_onUseOther(); } });
+    m_copy->SetOnClick     (std::move (copy));
+    m_cancel->SetOnClick   (std::move (cancel));
 
-    m_cancel->SetVisible (false);
+    m_undo->SetVisible     (false);
+    m_useOther->SetVisible (false);
+    m_cancel->SetVisible   (false);
 }
 
 
@@ -45,8 +51,9 @@ void BlockHeaderView::Create (DxuiPanel & parent, StepFn step, ActionFn copy, Ac
 //
 //  BlockHeaderView::Layout
 //
-//  The title row with Copy block at its right end, the field line, then the
-//  edit bar or a long job's progress row.
+//  The title row with Edit and Copy block at its right end, then the second
+//  row: Undo block changes and Use B's bytes while editing, then the count,
+//  the field line and the note; or a long job's progress and Cancel.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,36 +61,46 @@ int BlockHeaderView::Layout (const RECT & column, int top, bool isLongJob, const
 {
     int   pad    = scaler.ToPx ((int) kPadDip);
     int   row    = scaler.ToPx ((int) kRowDip);
-    int   line   = scaler.ToPx ((int) kLineDip);
     int   button = scaler.ToPx ((int) kButtonDip);
+    int   edit   = scaler.ToPx ((int) kEditDip);
+    int   undo   = scaler.ToPx ((int) kUndoDip);
     int   y      = top;
-    int   barH   = isLongJob ? row : m_editBar->GetHeightPx ((int) (column.right - column.left), scaler);
-    bool  isRow  = barH > 0;
+    int   x      = column.left;
+    bool  isUndo = !isLongJob && m_state.isEditing;
+    bool  isUseB = !isLongJob && m_state.canUseOther;
 
 
 
-    for (IDxuiControl * control : { (IDxuiControl *) m_previous, (IDxuiControl *) m_next, (IDxuiControl *) m_copy })
-    {
-        control->SetVisible (true);
-    }
-
-    m_editBar->SetVisible (!isLongJob && barH > 0);
+    m_isLongJob = isLongJob;
 
     m_previous->Layout ({ column.left, y, column.left + row, y + row }, scaler);
     m_next->Layout     ({ column.left + row, y, column.left + 2 * row, y + row }, scaler);
-    m_titleRect = { column.left + 2 * row + pad, y, column.right - button - pad, y + row };
+    m_titleRect = { column.left + 2 * row + pad, y, column.right - button - edit - 2 * pad, y + row };
+    m_edit->Layout ({ column.right - button - pad - edit, y, column.right - button - pad, y + row }, scaler);
     m_copy->Layout ({ column.right - button, y, column.right, y + row }, scaler);
     y += row + pad;
 
-    m_fieldRect = { column.left, y, column.right, y + line };
-    y += line + pad;
+    m_rowRect = { column.left, y, column.right, y + row };
 
-    m_rowRect = { column.left, y, column.right, y + barH };
+    m_undo->SetVisible     (isUndo);
+    m_useOther->SetVisible (isUseB);
 
-    m_editBar->Layout ({ column.left, y, column.right, y + barH }, scaler);
-    m_cancel->Layout  ({ column.right - button, y, column.right, y + row }, scaler);
+    if (isUndo)
+    {
+        m_undo->Layout ({ x, y, x + undo, y + row }, scaler);
+        x += undo + pad;
+    }
 
-    return m_rowRect.bottom + (isRow ? pad : 0);
+    if (isUseB)
+    {
+        m_useOther->Layout ({ x, y, x + button, y + row }, scaler);
+        x += button + pad;
+    }
+
+    m_infoRect = { x, y, isLongJob ? x : (int) column.right, y + row };
+    m_cancel->Layout ({ column.right - button, y, column.right, y + row }, scaler);
+
+    return m_rowRect.bottom + pad;
 }
 
 
@@ -130,9 +147,10 @@ void BlockHeaderView::SetSteps (bool hasPrevious, bool hasNext)
 
 void BlockHeaderView::SetBusy (bool isLongJob, bool canCancel)
 {
-    m_cancel->SetVisible  (isLongJob && canCancel);
-    m_copy->SetEnabled    (!isLongJob);
-    m_editBar->SetEnabled (!isLongJob);
+    m_cancel->SetVisible (isLongJob && canCancel);
+    m_copy->SetEnabled   (!isLongJob);
+    m_edit->SetEnabled   (!isLongJob && m_state.canEdit);
+    m_undo->SetEnabled   (!isLongJob && m_state.canUndo);
 }
 
 
@@ -143,18 +161,45 @@ void BlockHeaderView::SetBusy (bool isLongJob, bool canCancel)
 //
 //  BlockHeaderView::SetEditState
 //
+//  Edit reads Done, and is drawn as the primary button, while editing.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-bool BlockHeaderView::SetEditState (const EditBarState & state, const DxuiDpiScaler & scaler)
+bool BlockHeaderView::SetEditState (const BlockEditState & state)
 {
-    int  width  = m_rowRect.right - m_rowRect.left;
-    int  before = width > 0 ? m_editBar->GetHeightPx (width, scaler) : 0;
+    bool  isMoved = state.isEditing != m_state.isEditing || state.canUseOther != m_state.canUseOther;
 
 
 
-    m_editBar->SetState (state);
+    if (state == m_state)
+    {
+        return false;
+    }
 
-    return width > 0 && scaler.GetDpi() != 0 && m_editBar->GetHeightPx (width, scaler) != before;
+    m_state = state;
+
+    m_edit->SetLabel       (state.isEditing ? L"Done" : L"Edit");
+    m_edit->SetVariant     (state.isEditing ? DxuiButton::Variant::Primary : DxuiButton::Variant::Default);
+    m_edit->SetEnabled     (!m_isLongJob && (state.canEdit || state.isEditing));
+    m_undo->SetEnabled     (!m_isLongJob && state.canUndo);
+    m_useOther->SetEnabled (!m_isLongJob && state.canUseOther);
+
+    return isMoved;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockHeaderView::FormatBlockCount
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring BlockHeaderView::FormatBlockCount (int bytes)
+{
+    return bytes > 0 ? InspectorText::FormatCount (bytes, L"byte", L"bytes") + L" changed in this block" : std::wstring();
 }
 
 
@@ -178,6 +223,10 @@ void BlockHeaderView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
     {
         PaintProgress (painter, text, theme, scaler, jobs);
     }
+    else if (isOpen)
+    {
+        PaintInfo (text, theme, scaler);
+    }
 }
 
 
@@ -190,7 +239,7 @@ void BlockHeaderView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
 //
 //  "Block 2" and its capsules after it, in the status band's chip style:
 //  Free or Used, the role, and the files. Capsules that don't fit are left
-//  out. Then the field line.
+//  out.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -245,9 +294,35 @@ void BlockHeaderView::PaintTitle (IDxuiPainter & painter, IDxuiTextRenderer & te
 
         x += w + gap / 2;
     }
+}
 
-    hr = text.DrawString (m_fieldLine.c_str(), (float) m_fieldRect.left, (float) m_fieldRect.top, (float) (m_fieldRect.right - m_fieldRect.left),
-                          (float) (m_fieldRect.bottom - m_fieldRect.top), theme.Foreground(), font, DxuiTheme::kBodyFace, DxuiTextHAlign::Left,
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockHeaderView::PaintInfo
+//
+//  The second row's text after its buttons: the bytes changed in the block
+//  while editing, the field line, and the last save's result, muted.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockHeaderView::PaintInfo (IDxuiTextRenderer & text, const IDxuiTheme & theme, const DxuiDpiScaler & scaler) const
+{
+    std::wstring  line;
+    HRESULT       hr   = S_OK;
+
+
+
+    for (const std::wstring & part : { m_state.isEditing ? FormatBlockCount (m_state.blockBytes) : std::wstring(), m_fieldLine, m_state.note })
+    {
+        line += (line.empty() || part.empty()) ? part : L"    " + part;
+    }
+
+    hr = text.DrawString (line.c_str(), (float) m_infoRect.left, (float) m_infoRect.top, (float) (m_infoRect.right - m_infoRect.left),
+                          (float) (m_infoRect.bottom - m_infoRect.top), theme.Foreground(), scaler.ToPxf (kFontDip), DxuiTheme::kBodyFace, DxuiTextHAlign::Left,
                           DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
@@ -260,8 +335,8 @@ void BlockHeaderView::PaintTitle (IDxuiPainter & painter, IDxuiTextRenderer & te
 //
 //  BlockHeaderView::PaintProgress
 //
-//  A long job's bar and label in the row above the hex view. A job with no
-//  count yet has an empty bar.
+//  A long job's bar and label in the second row. A job with no count yet
+//  has an empty bar.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

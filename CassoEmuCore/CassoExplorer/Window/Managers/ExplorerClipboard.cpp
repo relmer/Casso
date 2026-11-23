@@ -16,6 +16,7 @@
 #include "Core/AppMessages.h"
 #include "Core/TextEncoding.h"
 #include "Seams/IShellItemVerbs.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 
 
@@ -51,7 +52,7 @@ std::wstring ExplorerClipboard::GetPasteFolder() const
 
 
     if (m_context.browser.GetSelectedRows().size() == 1
-     && m_context.browser.TryGetRowLocation (m_context.browser.GetSelectedRows()[0], location)
+     && BrowserRowPaths::TryGetRowLocation (m_context.browser.GetRowListing(), m_context.browser.GetSelectedRows()[0], location)
      && location.kind == Location::Kind::HostFolder)
     {
         return location.path;
@@ -125,11 +126,11 @@ void ExplorerClipboard::CutEntriesToClipboard (HostFileNaming::Style style)
     else
     {
         cut.image = TextEncoding::WideToNarrow (m_context.browser.GetLocation().path);
-        m_context.browser.GetSelectedEntries (entries);
+        m_context.browser.GetSelection().GetSelectedEntries (entries);
 
         for (const FileEntry & entry : entries)
         {
-            cut.catalogPaths.push_back (m_context.browser.GetEntryPath (entry));
+            cut.catalogPaths.push_back (BrowserRowPaths::GetEntryPath (m_context.browser.GetLocation(), entry));
         }
     }
 
@@ -205,7 +206,7 @@ void ExplorerClipboard::CopySelectedPaths()
 
     for (int row : m_context.browser.GetSelectedRows())
     {
-        if (!m_context.browser.TryGetRowPath (row, path))
+        if (!BrowserRowPaths::TryGetRowPath (m_context.browser.GetRowListing(), row, path))
         {
             continue;
         }

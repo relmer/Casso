@@ -1,7 +1,11 @@
 #include "Pch.h"
 
+#include "Devices/Disk/DiskImage.h"
 #include "EhmTestHelper.h"
 #include "FixtureProvider.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 #include "TestMachine.h"
 #include "TextScreenScraper.h"
 #include "CassoLink/EmulatedCassetteAudio.h"
@@ -24,7 +28,6 @@
 #include "Devices/Tape/TapeImageLoader.h"
 #include "Devices/Tape/WavCodec.h"
 #include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Seams/IByteStreamFactory.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -266,7 +269,7 @@ public:
 
             for (int p = 0; p < kSectors; p++)
             {
-                size_t  offset = (size_t) (track * kSectors + NibblizationLayer::GetDosFileIndexForPhysicalSector (p)) * 256;
+                size_t  offset = (size_t) (track * kSectors + SectorInterleave::GetDosFileIndexForPhysicalSector (p)) * 256;
 
                 data.insert (data.end(), disk.begin() + (ptrdiff_t) offset, disk.begin() + (ptrdiff_t) offset + 256);
             }
@@ -408,7 +411,7 @@ public:
         static constexpr uint32_t  kRate = 44100;
 
         Rig                 rig ("Apple2e", EmulatedCassetteAudio::Faults(), kRate, Start::AtPrompt);
-        std::vector<Byte>   sectors (NibblizationLayer::kImageByteSize);
+        std::vector<Byte>   sectors (NibbleFormat::kImageByteSize);
         std::vector<float>  samples;
         std::vector<float>  heard;
         std::vector<Byte>   written;
@@ -435,7 +438,7 @@ public:
             AssertSucceeded (rig.audio->Capture (1000, heard));
         }
 
-        AssertSucceeded (NibblizationLayer::Denibblize (*rig.machine.GetDiskStore().GetImage (kDiskSlot, 0), DiskFormat::Dsk, written));
+        AssertSucceeded (Denibblizer::Denibblize (*rig.machine.GetDiskStore().GetImage (kDiskSlot, 0), DiskFormat::Dsk, written));
         Assert::IsTrue (written == sectors, TextEncoding::NarrowToWide (rig.Screen()).c_str());
     }
 
@@ -592,7 +595,7 @@ public:
 
             for (int p = 0; p < kSectors; p++)
             {
-                size_t  offset = (size_t) (track * kSectors + NibblizationLayer::GetDosFileIndexForPhysicalSector (p)) * 256;
+                size_t  offset = (size_t) (track * kSectors + SectorInterleave::GetDosFileIndexForPhysicalSector (p)) * 256;
 
                 std::copy_n (data.begin() + (ptrdiff_t) p * 256, 256, expected.begin() + (ptrdiff_t) offset);
             }
@@ -601,7 +604,7 @@ public:
             Assert::AreEqual<int> (CassoLinkHost::kErrorNone, status.error, std::format (L"track {}", track).c_str());
         }
 
-        AssertSucceeded (NibblizationLayer::Denibblize (*rig.machine.GetDiskStore().GetImage (kDiskSlot, 0), DiskFormat::Dsk, image));
+        AssertSucceeded (Denibblizer::Denibblize (*rig.machine.GetDiskStore().GetImage (kDiskSlot, 0), DiskFormat::Dsk, image));
         Assert::IsTrue (image == expected, L"the drive's disk has every sector written over the cassette ports");
     }
 

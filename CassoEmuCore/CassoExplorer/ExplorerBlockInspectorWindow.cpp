@@ -124,6 +124,41 @@ void ExplorerBlockInspectorWindow::GetPrefs (DiskInspectorPrefs & inOut) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerBlockInspectorWindow::ConfirmExit
+//
+//  A minimized window with unsaved edits is restored first, so its prompt
+//  opens over it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerBlockInspectorWindow::ConfirmExit()
+{
+    BOOL  isShown = FALSE;
+
+
+
+    if (!m_window->HasUnsavedEdits())
+    {
+        return true;
+    }
+
+    if (IsIconic (m_window->GetHwnd()))
+    {
+        isShown = ShowWindow (m_window->GetHwnd(), SW_RESTORE);
+        IGNORE_RETURN_VALUE (isShown, TRUE);
+    }
+
+    Front();
+
+    return m_window->ConfirmClose();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerBlockInspectorWindow::Front
 //
 ////////////////////////////////////////////////////////////////////////////////

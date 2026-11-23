@@ -2,7 +2,7 @@
 
 #include "../EmuTests/FakeDiskFileIo.h"
 #include "CassoExplorer/InspectorWindowSet.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Ui/DiskInspector/IDiskInspectorHost.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -40,6 +40,8 @@ struct FakeInspectorWindowLog
     int                   frames       = 0;
     int                   reloads      = 0;
     int                   goneNotes    = 0;
+    int                   exitPrompts  = 0;
+    bool                  isExitOk     = true;
     vector<std::wstring>  compared;
     const DxuiTheme     * theme        = nullptr;
     IDiskInspectorHost  * host         = nullptr;
@@ -64,6 +66,7 @@ public:
     void     CompareWith (const std::wstring & pathB) override { m_log.compared.push_back (pathB); }
     void     ChangeTheme (const DxuiTheme * theme) override { m_log.theme = theme; }
     HWND     GetHwnd() const override { return nullptr; }
+    bool     ConfirmExit() override { m_log.exitPrompts++; return m_log.isExitOk; }
 
     static constexpr int  kSavedX = 321;
 
@@ -297,8 +300,8 @@ public:
 
 
 
-        rig.fileIo.files[path]  = vector<Byte> (NibblizationLayer::kImageByteSize, 0x11);
-        rig.fileIo.stamps[path] = FileStamp { NibblizationLayer::kImageByteSize, 1 };
+        rig.fileIo.files[path]  = vector<Byte> (NibbleFormat::kImageByteSize, 0x11);
+        rig.fileIo.stamps[path] = FileStamp { NibbleFormat::kImageByteSize, 1 };
 
         Assert::AreEqual (S_OK, rig.Open (kMist));
         (void) rig.logs[0]->host->PostInspectorRequest ({ InspectorRequestKind::CopyDisk, 0, 0, {}, -1 });
@@ -392,6 +395,44 @@ public:
         Assert::AreEqual ((size_t) 0, rig.set->GetCount());
         Assert::AreEqual (FakeInspectorWindow::kSavedX, rig.prefs.x);
         Assert::AreEqual ((size_t) 2, rig.watcher.unwatched.size());
+    }
+
+
+
+    TEST_METHOD (ExitPromptsInEveryWindowAndStopsOnCancel)
+    {
+        Rig  rig;
+
+
+
+        Assert::AreEqual (S_OK, rig.Open (kMist));
+        Assert::AreEqual (S_OK, rig.Open (kBandits));
+        Assert::AreEqual (S_OK, rig.Open (kGame));
+
+        Assert::IsTrue (rig.set->ConfirmExit());
+        Assert::AreEqual (1, rig.logs[2]->exitPrompts, L"the last window prompts too, not only the first");
+
+        rig.logs[1]->isExitOk = false;
+
+        Assert::IsFalse (rig.set->ConfirmExit());
+        Assert::AreEqual (2, rig.logs[1]->exitPrompts);
+        Assert::AreEqual (1, rig.logs[2]->exitPrompts, L"a Cancel stops the prompts that follow it");
+        Assert::AreEqual ((size_t) 3, rig.set->GetCount(), L"a canceled exit closes no window");
+    }
+
+
+
+    TEST_METHOD (ExitPassesOverAClosedWindow)
+    {
+        Rig  rig;
+
+
+
+        Assert::AreEqual (S_OK, rig.Open (kMist));
+        rig.logs[0]->host->OnInspectorClosed();
+
+        Assert::IsTrue (rig.set->ConfirmExit());
+        Assert::AreEqual (0, rig.logs[0]->exitPrompts);
     }
 
 

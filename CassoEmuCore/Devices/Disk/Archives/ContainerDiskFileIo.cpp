@@ -3,6 +3,27 @@
 #include "Devices/Disk/Archives/ContainerDiskFileIo.h"
 #include "Devices/Disk/Archives/ContainerPath.h"
 #include "Devices/Disk/DurableCommit.h"
+#include "Devices/Disk/Partitions/PhysicalCards.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ContainerDiskFileIo::IsNested
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ContainerDiskFileIo::IsNested (const std::string & path)
+{
+    int  drive     = 0;
+    int  partition = 0;
+
+
+
+    return ContainerPath::IsNested (path) && PhysicalCards::ParsePath (path, drive, partition) != PhysicalCards::PathKind::Partition;
+}
 
 
 
@@ -16,7 +37,7 @@
 
 HRESULT ContainerDiskFileIo::ReadAllBytes (const std::string & path, std::vector<Byte> & outBytes)
 {
-    return ContainerPath::IsNested (path) ? ReadNested (path, outBytes) : m_inner.ReadAllBytes (path, outBytes);
+    return IsNested (path) ? ReadNested (path, outBytes) : m_inner.ReadAllBytes (path, outBytes);
 }
 
 
@@ -38,7 +59,7 @@ HRESULT ContainerDiskFileIo::WriteAllBytes (const std::string & path, const std:
 
 
 
-    if (!ContainerPath::IsNested (path))
+    if (!IsNested (path))
     {
         return m_inner.WriteAllBytes (path, bytes);
     }
@@ -71,7 +92,7 @@ HRESULT ContainerDiskFileIo::WriteAllBytes (const std::string & path, const std:
 
 HRESULT ContainerDiskFileIo::WriteAt (const std::string & path, uint64_t offset, std::span<const Byte> bytes)
 {
-    return ContainerPath::IsNested (path) ? HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED) : m_inner.WriteAt (path, offset, bytes);
+    return IsNested (path) ? HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED) : m_inner.WriteAt (path, offset, bytes);
 }
 
 
@@ -92,7 +113,7 @@ HRESULT ContainerDiskFileIo::ReadAt (const std::string & path, uint64_t offset, 
 
 
 
-    if (!ContainerPath::IsNested (path))
+    if (!IsNested (path))
     {
         return m_inner.ReadAt (path, offset, outBytes);
     }
@@ -121,7 +142,7 @@ Error:
 
 HRESULT ContainerDiskFileIo::Stat (const std::string & path, FileStamp & outStamp)
 {
-    return m_inner.Stat (ContainerPath::IsNested (path) ? ContainerPath::Parse (path).GetHost() : path, outStamp);
+    return m_inner.Stat (IsNested (path) ? ContainerPath::Parse (path).GetHost() : path, outStamp);
 }
 
 
@@ -143,7 +164,7 @@ bool ContainerDiskFileIo::Exists (const std::string & path)
 
 
 
-    if (!ContainerPath::IsNested (path))
+    if (!IsNested (path))
     {
         return m_inner.Exists (path);
     }
@@ -173,7 +194,7 @@ HRESULT ContainerDiskFileIo::Remove (const std::string & path)
 
 
 
-    if (!ContainerPath::IsNested (path))
+    if (!IsNested (path))
     {
         return m_inner.Remove (path);
     }
@@ -216,7 +237,7 @@ HRESULT ContainerDiskFileIo::ReplaceAtomically (const std::string & tempPath, co
 
 
 
-    if (!ContainerPath::IsNested (targetPath))
+    if (!IsNested (targetPath))
     {
         return m_inner.ReplaceAtomically (tempPath, targetPath);
     }
@@ -245,7 +266,7 @@ Error:
 
 HRESULT ContainerDiskFileIo::FlushToStorage (const std::string & path)
 {
-    return ContainerPath::IsNested (path) ? S_OK : m_inner.FlushToStorage (path);
+    return IsNested (path) ? S_OK : m_inner.FlushToStorage (path);
 }
 
 
@@ -260,7 +281,7 @@ HRESULT ContainerDiskFileIo::FlushToStorage (const std::string & path)
 
 HRESULT ContainerDiskFileIo::CopyFileMetadata (const std::string & fromPath, const std::string & toPath)
 {
-    bool  nested = ContainerPath::IsNested (fromPath) || ContainerPath::IsNested (toPath);
+    bool  nested = IsNested (fromPath) || IsNested (toPath);
 
 
 
@@ -286,7 +307,7 @@ HRESULT ContainerDiskFileIo::RenameWithoutReplacing (const std::string & tempPat
 
 
 
-    if (!ContainerPath::IsNested (targetPath))
+    if (!IsNested (targetPath))
     {
         return m_inner.RenameWithoutReplacing (tempPath, targetPath);
     }
@@ -316,7 +337,7 @@ Error:
 
 bool ContainerDiskFileIo::IsHeldByAnotherProcess (const std::string & path)
 {
-    return m_inner.IsHeldByAnotherProcess (ContainerPath::IsNested (path) ? ContainerPath::Parse (path).GetHost() : path);
+    return m_inner.IsHeldByAnotherProcess (IsNested (path) ? ContainerPath::Parse (path).GetHost() : path);
 }
 
 

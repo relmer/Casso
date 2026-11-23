@@ -1,7 +1,7 @@
 #include "Pch.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "TestMachine.h"
 #include "Devices/Disk/DiskImageStore.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/Disk2NibbleEngine.h"
 #include "FluxTestImages.h"
 
@@ -224,7 +224,7 @@ public:
     //  it can ever have.
     static void  FillEveryBay (DiskImageStore & store)
     {
-        std::vector<Byte>  image (NibblizationLayer::kImageByteSize, 0x00);
+        std::vector<Byte>  image (NibbleFormat::kImageByteSize, 0x00);
         int                slot  = 0;
         int                drive = 0;
 

@@ -1,6 +1,6 @@
 # Data Model: Casso Explorer
 
-**Feature**: 033-cassque | **Date**: 2026-09-10
+**Feature**: 033-casso-explorer | **Date**: 2026-09-10
 
 Persisted state is two small JSON files beside `UserPrefs.json` (research
 R3). Everything else is in memory per window.
