@@ -416,7 +416,7 @@ label("power",        "POWER",         9.2, 386.2, 31.1)
 label("power_off",    "O",             1.9, 377.4, 28.4)
 m.add("label_power_on", rear_box(393.95, 27.45, 394.25, 29.35, YS, YS + 0.12), INK)
 label("rating",       "220 VAC, 50-60 Hz, 0.5 AMP", 36.8, 341.1, 6.1)
-label("maker",        "apple computer inc.", 32.0, 388.1, 7.1)
+label("maker",        "Casso Computer", 27.0, 385.6, 7.1)
 
 # Casso's silhouette in place of the logo, ahead of the maker's line. The
 # badge is built facing the front, so it is turned round to face the back.

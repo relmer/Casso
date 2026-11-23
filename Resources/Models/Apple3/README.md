@@ -55,7 +55,8 @@ with their pages in `photo-sources.md` there.
     flange, and the OFF/ON rocker switch.
 - **The panel's lettering** matches the photograph word for word, each line
   set to its measured width in Century Gothic, with the brackets over each
-  connector. Casso's silhouette replaces the logo ahead of the maker's line.
+  connector. The maker line reads "Casso Computer". Casso's silhouette
+  replaces the logo ahead of it.
 - **The feet, the inset panel and the side fins' pitch** are by eye.
 
 Casso's silhouette replaces the logo on the first logo plate.
