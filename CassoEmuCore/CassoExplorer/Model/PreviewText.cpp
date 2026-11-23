@@ -163,7 +163,8 @@ void PreviewText::AddLegendRows (const std::vector<Run> & entries, const SourceS
 //
 //  A row for each paragraph, aligned as it is, a span for each styled or
 //  colored run, and a paragraph with a picture a row of the picture. A tab
-//  in a run starts the row's next cell, so the cells line up in columns.
+//  in a run starts the row's next cell, so the cells line up in columns,
+//  and a paragraph with a rule has a line under its row.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -206,6 +207,7 @@ std::vector<DxuiTextView::Row> PreviewText::BuildDocumentRows (const std::vector
         row.alignment = (paragraph.alignment == Alignment::Center) ? DxuiTextHAlign::Center
                       : (paragraph.alignment == Alignment::Right)  ? DxuiTextHAlign::Right
                                                                    : DxuiTextHAlign::Left;
+        row.rule      = paragraph.hasRule;
 
         if (!paragraph.picture.empty())
         {

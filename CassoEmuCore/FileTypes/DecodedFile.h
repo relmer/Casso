@@ -201,6 +201,7 @@ struct Paragraph
     int                                 pingY      = -1;
     bool                                canZoom    = false;   // the wheel zooms the picture and a drag pans it
     bool                                isLegend   = false;   // each run is an entry, laid out in columns as many as fit
+    bool                                hasRule    = false;   // a horizontal line under the paragraph
     std::shared_ptr<const RecordTable>  table;
 
     bool  operator== (const Paragraph &) const = default;

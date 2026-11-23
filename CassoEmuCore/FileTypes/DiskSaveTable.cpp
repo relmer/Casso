@@ -101,9 +101,18 @@ HRESULT DiskSaveTable::DecodeInfocomSave (const std::vector<Byte> & sectors, std
                      Run { std::format (L", release {}, serial {}", positions[0].release, TextEncoding::NarrowToWide (positions[0].serial)) } };
     outFile.paragraphs.push_back (heading);
 
-    for (const InfocomSave::Position & position : positions)
+    for (size_t i = 0; i < positions.size(); i++)
     {
-        AddInfocomPosition (position, outFile.paragraphs);
+        //  A line between one position and the next.
+        if (i > 0)
+        {
+            Paragraph  rule;
+
+            rule.hasRule = true;
+            outFile.paragraphs.push_back (rule);
+        }
+
+        AddInfocomPosition (positions[i], outFile.paragraphs);
     }
 
 Error:

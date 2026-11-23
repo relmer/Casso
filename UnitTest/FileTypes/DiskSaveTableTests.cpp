@@ -76,6 +76,32 @@ public:
     }
 
 
+    //  A line separates one saved position from the next.
+    TEST_METHOD (InfocomSaveDisk_HasARuleBetweenPositions)
+    {
+        std::vector<Byte>  disk   = InfocomSaveBuilder::MakeDisk (InfocomSaveBuilder::MakeMemory (0), 0);
+        std::vector<Byte>  second = InfocomSaveBuilder::MakeDisk (InfocomSaveBuilder::MakeMemory (0), 1);
+        DecodedFile        file;
+        size_t             rules  = 0;
+
+
+
+        for (size_t i = 0; i < disk.size(); i++)
+        {
+            disk[i] |= second[i];
+        }
+
+        AssertSucceeded (DiskSaveTable::Find (disk)->decode (disk, {}, file));
+
+        for (const Paragraph & paragraph : file.paragraphs)
+        {
+            rules += paragraph.hasRule ? 1 : 0;
+        }
+
+        Assert::AreEqual ((size_t) 1, rules, L"One line, between the two positions");
+    }
+
+
     TEST_METHOD (BlankDisk_IsNotASave)
     {
         std::vector<Byte>  blank (InfocomSaveBuilder::kDiskBytes, 0);
