@@ -371,7 +371,18 @@ void ExplorerPreviewManager::FillPreview()
         m_context.layout.RecomputeLayout();
     }
 
-    m_sections->SetSelected (preview.savedGameShown ? 0 : 1);
+    //  A disk decoded as a whole that isn't a saved game, such as a game
+    //  disk with its map, is labeled on the switch by its view name.
+    {
+        std::wstring  savedGameName = preview.savedGameName.empty() ? L"Saved game" : preview.savedGameName;
+
+        if (m_sections->GetSegments().front() != savedGameName)
+        {
+            m_sections->SetSegments ({ savedGameName, L"Disk" });
+        }
+
+        m_sections->SetSelected (preview.savedGameShown ? 0 : 1);
+    }
 
     //  The thumbnail of an image or a card's partition selected alone, in a
     //  format the inspector reads; none for one that fails to open (FR-072).

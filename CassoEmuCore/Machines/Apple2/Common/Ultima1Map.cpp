@@ -305,8 +305,9 @@ HRESULT Ultima1Map::DecodeGameDisk (const std::vector<Byte> & sectors, DecodedFi
     CBREx (isRead, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     outFile        = DecodedFile();
-    outFile.format = FileFormat::UltimaSave;
-    outFile.kind   = DecodedFile::Kind::Document;
+    outFile.format   = FileFormat::UltimaSave;
+    outFile.kind     = DecodedFile::Kind::Document;
+    outFile.viewName = L"Map";
 
     outFile.paragraphs.push_back (MakeLine (L"Ultima I: The Beginning", true));
     outFile.paragraphs.push_back (MakeLine (L"Game disk, the world's four continents", false));

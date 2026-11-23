@@ -533,6 +533,7 @@ void BrowserPreviewer::PreviewImageCatalog (const std::wstring & imagePath)
             PreviewDecoder::FromDecoded (diskSave, m_preview);
             m_preview.hasSavedGame   = true;
             m_preview.savedGameShown = true;
+            m_preview.savedGameName  = diskSave.viewName;
             return;
         }
 
@@ -544,7 +545,8 @@ void BrowserPreviewer::PreviewImageCatalog (const std::wstring & imagePath)
         if (!contents.result.Succeeded() && PreviewDecoder::ParseDetails (contents.result.message, m_preview.details))
         {
             m_preview.kind         = PreviewContent::Kind::Details;
-            m_preview.hasSavedGame = hasSave;
+            m_preview.hasSavedGame  = hasSave;
+            m_preview.savedGameName = diskSave.viewName;
             AddWozDetails (imagePath);
             return;
         }
@@ -576,13 +578,15 @@ void BrowserPreviewer::PreviewImageCatalog (const std::wstring & imagePath)
         PreviewDecoder::FromDecoded (diskSave, m_preview);
         m_preview.hasSavedGame   = true;
         m_preview.savedGameShown = true;
+        m_preview.savedGameName  = diskSave.viewName;
         return;
     }
 
     PreviewDecoder::RenderCatalog (listing, kind, m_preview);
     AddWozDetails (imagePath);
 
-    m_preview.hasSavedGame = hasSave || FindSavedGame (listing, kind) != nullptr;
+    m_preview.hasSavedGame  = hasSave || FindSavedGame (listing, kind) != nullptr;
+    m_preview.savedGameName = diskSave.viewName;
 }
 
 
