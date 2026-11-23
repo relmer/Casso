@@ -4,6 +4,7 @@
 #include "GuestSession.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/TrackBitReader.h"
 #include "TestMachine.h"
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/CassoLinkHost.h"
@@ -933,7 +934,7 @@ public:
         while (at < length * 2 && length > 0)
         {
             size_t  start  = at;
-            Byte    nibble = NibblizationLayer::ReadNibbleAt (image, track, at);
+            Byte    nibble = TrackBitReader::ReadNibbleAt (image, track, at);
 
             if (nibble == 0)
             {

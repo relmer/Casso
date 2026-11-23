@@ -2,7 +2,7 @@
 
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/TrackBitReader.h"
 
 
 
@@ -221,7 +221,7 @@ HRESULT NibbleImageCodec::DeriveTrack (const DiskImage & img, int track, vector<
 
     while (bitPos < trackBits)
     {
-        nibble = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
+        nibble = TrackBitReader::ReadNibbleAt (img, track, bitPos);
 
         if (nibble == 0)
         {

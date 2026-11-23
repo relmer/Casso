@@ -6,6 +6,7 @@
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/NibbleFieldWriter.h"
 #include "Machines/Apple2/Common/SectorInterleave.h"
+#include "Machines/Apple2/Common/TrackBitReader.h"
 
 
 
@@ -344,182 +345,6 @@ HRESULT NibblizationLayer::Nibblize (const vector<Byte> & raw, DiskFormat fmt, D
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Read/Find helpers for Denibblize
-//
-//  Reading nibbles and locating address / data marks in a track's raw
-//  bitstream.
-//
-//  A nibble is not a byte at a known offset. The Disk II shifts bits in until
-//  the MSB sets -- that is the state machine's own nibble-complete rule, and
-//  it is what makes self-synchronizing sync bytes work -- so a nibble read
-//  starts wherever the last one ended and takes however many bits it takes.
-//
-//  Every read is bounded by ONE REVOLUTION. A track carrying no sync bytes
-//  never sets the MSB, and without the bound the search would spin forever on
-//  a blank or corrupt track; 0 is the caller's "no nibble".
-//
-//  The overrun test deliberately sits AFTER the read and outranks a completed
-//  nibble. A value whose MSB set on the very read that crossed the revolution
-//  boundary is discarded, because its high bits came from before the wrap and
-//  the nibble is a splice of two places on the track.
-//
-//  The bit position is taken by REFERENCE and advanced, so a caller scanning
-//  for a mark walks the track continuously instead of restarting each time.
-//
-//  IT IS PUBLIC BECAUSE THE NIBBLE-IMAGE CODEC NEEDS THE SAME RULE. That codec
-//  derives whole bytes from a track to write a .nib back, which is this walk
-//  without the sector structure around it. A second implementation of "where
-//  does a nibble end" is a second answer waiting to disagree with this one.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-Byte NibblizationLayer::ReadNibbleAt (const DiskImage & img, int track, size_t & bitPos)
-{
-    FluxBitView  fluxView;
-    TrackBits    src = GetTrackBits (img, track, fluxView);
-
-
-
-    return ReadNibbleAt (src, bitPos);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  NibblizationLayer::GetTrackBits
-//
-//  The bits a sector reader walks for one slot: a bit track's own buffer, or
-//  a flux track decoded into the caller's view at the controller's cell. The
-//  view is the caller's so a whole track decode can reuse it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-NibblizationLayer::TrackBits NibblizationLayer::GetTrackBits (
-    const DiskImage  &  img,
-    int                 track,
-    FluxBitView      &  fluxView)
-{
-    TrackBits  src;
-
-
-
-    if (img.GetTrackKind (track) == TrackKind::Flux)
-    {
-        fluxView.Build (img.GetFluxTrack (track));
-        src.bits     = &fluxView.GetBits();
-        src.bitCount = fluxView.GetBitCount();
-    }
-    else if (track >= 0 && track < img.GetTrackCount())
-    {
-        src.bits     = &img.GetTrackBits (track);
-        src.bitCount = img.GetTrackBitCount (track);
-    }
-
-    return src;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  NibblizationLayer::ReadNibbleAt
-//
-////////////////////////////////////////////////////////////////////////////////
-
-Byte NibblizationLayer::ReadNibbleAt (const TrackBits & src, size_t & bitPos)
-{
-    static const vector<Byte>  kNoBits;
-
-
-
-    const vector<Byte>  &  bits         = (src.bits != nullptr) ? *src.bits : kNoBits;
-    size_t                 trackBits    = (src.bits != nullptr) ? src.bitCount : 0;
-    size_t                 capacityBits = bits.size() * 8;
-    size_t                 start        = bitPos;
-    size_t                 pos          = 0;
-    Byte                   value        = 0;
-    Byte                   bit          = 0;
-    bool                   overran      = false;
-    bool                   addressable  = trackBits != 0 && trackBits <= capacityBits;
-
-
-
-    // Shift in bits until the MSB sets (the LSS's own nibble-complete rule).
-    // A full revolution with no MSB means the track carries no sync bytes, so
-    // give up rather than spin forever -- 0 is the caller's "no nibble".
-    //
-    // The overrun test stays AFTER the read and outranks a completed nibble:
-    // a value whose MSB set on the very read that crossed the revolution
-    // boundary is discarded, because its high bits came from before the wrap.
-    //
-    // THE WRAP IS A COMPARE, NOT A MODULO, and that is most of what this
-    // function costs. Every caller walks the track in order, so the position
-    // only ever needs to fall back to zero at the end -- but the general bit
-    // accessor cannot know that and divides by the track length on every read,
-    // twice over once the caller has taken its own remainder. A division is
-    // twenty-odd cycles against the two or three the rest of the loop spends,
-    // so a whole disk's decode was paying for arithmetic it had already done.
-    if (addressable)
-    {
-        pos = bitPos % trackBits;
-
-        while ((value & 0x80) == 0 && !overran)
-        {
-            bit = static_cast<Byte> ((bits[pos >> 3] >> (7 - (pos & 7))) & 1);
-
-            bitPos++;
-            pos++;
-
-            if (pos == trackBits)
-            {
-                pos = 0;
-            }
-
-            value   = static_cast<Byte> ((value << 1) | bit);
-            overran = (bitPos - start > trackBits);
-        }
-
-        if (overran)
-        {
-            value = 0;
-        }
-    }
-    else if (trackBits != 0)
-    {
-        // A bit count larger than the buffer behind it should not happen --
-        // ResizeTrack sizes the two together -- but SetTrackBitCount can set
-        // one without the other, and reading past the end to save a division
-        // is not a trade worth making. The general accessor range-checks.
-        while ((value & 0x80) == 0 && !overran)
-        {
-            pos = bitPos % trackBits;
-            bit = (pos >> 3 < bits.size()) ? static_cast<Byte> ((bits[pos >> 3] >> (7 - (pos & 7))) & 1) : 0;
-
-            bitPos++;
-            value   = static_cast<Byte> ((value << 1) | (bit & 1));
-            overran = (bitPos - start > trackBits);
-        }
-
-        if (overran)
-        {
-            value = 0;
-        }
-    }
-
-    return value;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  PopCount
 //
 //  Set bits in a 16-sector mask.
@@ -556,7 +381,7 @@ static int PopCount (uint16_t mask)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool HasDataField (const NibblizationLayer::TrackBits & src)
+static bool HasDataField (const TrackBitReader::TrackBits & src)
 {
     size_t  bitPos = 0;
     Byte    n0     = 0;
@@ -570,7 +395,7 @@ static bool HasDataField (const NibblizationLayer::TrackBits & src)
     {
         n0    = n1;
         n1    = n2;
-        n2    = NibblizationLayer::ReadNibbleAt (src, bitPos);
+        n2    = TrackBitReader::ReadNibbleAt (src, bitPos);
         found = n0 == kAddrProlog0 && n1 == kAddrProlog1 && n2 == kDataProlog2;
     }
 
@@ -608,7 +433,7 @@ static bool HasDataField (const NibblizationLayer::TrackBits & src)
 ////////////////////////////////////////////////////////////////////////////////
 
 static HRESULT DecodeOneSector (
-    const NibblizationLayer::TrackBits  &  src,
+    const TrackBitReader::TrackBits  &  src,
     size_t                              &  bitPos,
     Byte                                &  outSector,
     Byte                                *  outData,
@@ -656,7 +481,7 @@ static HRESULT DecodeOneSector (
     while (foundProlog == 0)
     {
         addrFieldStart = bitPos;
-        n0             = NibblizationLayer::ReadNibbleAt (src, bitPos);
+        n0             = TrackBitReader::ReadNibbleAt (src, bitPos);
 
         if (n0 != kAddrProlog0 && n0 != kAltAddrProlog0)
         {
@@ -665,8 +490,8 @@ static HRESULT DecodeOneSector (
             continue;
         }
 
-        n1 = NibblizationLayer::ReadNibbleAt (src, bitPos);
-        n2 = NibblizationLayer::ReadNibbleAt (src, bitPos);
+        n1 = TrackBitReader::ReadNibbleAt (src, bitPos);
+        n2 = TrackBitReader::ReadNibbleAt (src, bitPos);
 
         if (n1 == kAddrProlog1 && n2 == kAddrProlog2)
         {
@@ -681,14 +506,14 @@ static HRESULT DecodeOneSector (
     //  read and report it as a duplicate the disk does not have.
     outFieldStart = addrFieldStart;
 
-    vOdd  = NibblizationLayer::ReadNibbleAt (src, bitPos);
-    vEven = NibblizationLayer::ReadNibbleAt (src, bitPos);
-    tOdd  = NibblizationLayer::ReadNibbleAt (src, bitPos);
-    tEven = NibblizationLayer::ReadNibbleAt (src, bitPos);
-    sOdd  = NibblizationLayer::ReadNibbleAt (src, bitPos);
-    sEven = NibblizationLayer::ReadNibbleAt (src, bitPos);
-    cOdd  = NibblizationLayer::ReadNibbleAt (src, bitPos);
-    cEven = NibblizationLayer::ReadNibbleAt (src, bitPos);
+    vOdd  = TrackBitReader::ReadNibbleAt (src, bitPos);
+    vEven = TrackBitReader::ReadNibbleAt (src, bitPos);
+    tOdd  = TrackBitReader::ReadNibbleAt (src, bitPos);
+    tEven = TrackBitReader::ReadNibbleAt (src, bitPos);
+    sOdd  = TrackBitReader::ReadNibbleAt (src, bitPos);
+    sEven = TrackBitReader::ReadNibbleAt (src, bitPos);
+    cOdd  = TrackBitReader::ReadNibbleAt (src, bitPos);
+    cEven = TrackBitReader::ReadNibbleAt (src, bitPos);
 
     outSector    = DiskFieldFormat::Decode44 (sOdd, sEven);
     addrVolume   = DiskFieldFormat::Decode44 (vOdd, vEven);
@@ -715,7 +540,7 @@ static HRESULT DecodeOneSector (
     while (foundProlog == 0)
     {
         posBeforeProlog = bitPos;
-        n0              = NibblizationLayer::ReadNibbleAt (src, bitPos);
+        n0              = TrackBitReader::ReadNibbleAt (src, bitPos);
 
         if (n0 != kAddrProlog0 && n0 != kAltAddrProlog0)
         {
@@ -724,8 +549,8 @@ static HRESULT DecodeOneSector (
             continue;
         }
 
-        n1 = NibblizationLayer::ReadNibbleAt (src, bitPos);
-        n2 = NibblizationLayer::ReadNibbleAt (src, bitPos);
+        n1 = TrackBitReader::ReadNibbleAt (src, bitPos);
+        n2 = TrackBitReader::ReadNibbleAt (src, bitPos);
 
         if (n0 == kAddrProlog0 && n1 == kAddrProlog1 && n2 == kDataProlog2)
         {
@@ -756,7 +581,7 @@ static HRESULT DecodeOneSector (
 
     for (i = 0; i < NibbleFormat::kDataNibbleCount; i++)
     {
-        field[i] = NibblizationLayer::ReadNibbleAt (src, bitPos);
+        field[i] = TrackBitReader::ReadNibbleAt (src, bitPos);
     }
 
     // An illegal nibble makes the sector untrustworthy, but decoding goes on:
@@ -791,7 +616,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static Byte FindSectorBase (const NibblizationLayer::TrackBits & src)
+static Byte FindSectorBase (const TrackBitReader::TrackBits & src)
 {
     size_t         bitPos                                = 0;
     size_t         field                                 = SIZE_MAX;
@@ -1024,27 +849,27 @@ HRESULT NibblizationLayer::DecodeTracks (
 
 
 
-    HRESULT        hr                                  = S_OK;
-    const int    * interleave                          = nullptr;
-    int            track                               = 0;
-    int            attempt                             = 0;
-    int            decoded                             = 0;
-    uint16_t       mask                                = 0;
-    uint16_t       recovered                           = 0;
-    uint16_t       lost                                = 0;
-    uint16_t       duplicated                          = 0;
-    uint16_t       slotMask                            = 0;
-    uint16_t       seenAtRevStart                      = 0;
-    size_t         revolutionEnd                       = 0;
-    Byte           outSector                           = 0;
-    Byte           sectorBase                          = 0;
-    Byte           data[NibbleFormat::kSectorByteSize] = {};
-    size_t         bitPos                              = 0;
-    size_t         offset                              = 0;
-    size_t         trackBits                           = 0;
-    int            trackLimit                          = img.GetTrackCount();
-    FluxBitView    fluxView;
-    TrackBits      src;
+    HRESULT                      hr                                  = S_OK;
+    const int                  * interleave                          = nullptr;
+    int                          track                               = 0;
+    int                          attempt                             = 0;
+    int                          decoded                             = 0;
+    uint16_t                     mask                                = 0;
+    uint16_t                     recovered                           = 0;
+    uint16_t                     lost                                = 0;
+    uint16_t                     duplicated                          = 0;
+    uint16_t                     slotMask                            = 0;
+    uint16_t                     seenAtRevStart                      = 0;
+    size_t                       revolutionEnd                       = 0;
+    Byte                         outSector                           = 0;
+    Byte                         sectorBase                          = 0;
+    Byte                         data[NibbleFormat::kSectorByteSize] = {};
+    size_t                       bitPos                              = 0;
+    size_t                       offset                              = 0;
+    size_t                       trackBits                           = 0;
+    int                          trackLimit                          = img.GetTrackCount();
+    FluxBitView                  fluxView;
+    TrackBitReader::TrackBits    src;
 
 
 
@@ -1082,7 +907,7 @@ HRESULT NibblizationLayer::DecodeTracks (
         lost       = 0;
         duplicated = 0;
         slotMask   = 0;
-        src        = GetTrackBits (img, img.ResolveWholeTrack (track), fluxView);
+        src        = TrackBitReader::GetTrackBits (img, img.ResolveWholeTrack (track), fluxView);
         trackBits  = src.bitCount;
         sectorBase = FindSectorBase (src);
 
@@ -1259,34 +1084,6 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NibblizationLayer::UnpackBits
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void NibblizationLayer::UnpackBits (
-    const vector<Byte>  &  packed,
-    size_t                 from,
-    size_t                 to,
-    vector<uint8_t>     &  outBits)
-{
-    size_t  i = 0;
-
-
-
-    outBits.clear();
-
-    for (i = from; i < to; i++)
-    {
-        outBits.push_back (static_cast<uint8_t> ((packed[i >> 3] >> (7 - (i & 7))) & 1));
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  NibblizationLayer::WriteFluxTrackSectors
 //
 //  A bit track takes a sector write by being regenerated, which costs it any
@@ -1319,22 +1116,22 @@ HRESULT NibblizationLayer::WriteFluxTrackSectors (
 
 
 
-    HRESULT      hr                                  = S_OK;
-    FluxBitView  view;
-    TrackBits    src                                 = GetTrackBits (inOutImage, track, view);
-    size_t       bitPos                              = 0;
-    size_t       start                               = 0;
-    size_t       fieldBits                           = 0;
-    size_t       offset                              = 0;
-    size_t       lead                                = 0;
-    int          attempt                             = 0;
-    int          physical                            = 0;
-    uint16_t     found                               = 0;
-    uint16_t     writeMask                           = 0;
-    Byte         outSector                           = 0;
-    Byte         data[NibbleFormat::kSectorByteSize] = {};
-    bool         changed                             = false;
-    bool         located                             = false;
+    HRESULT                    hr                                  = S_OK;
+    FluxBitView                view;
+    TrackBitReader::TrackBits  src                                 = TrackBitReader::GetTrackBits (inOutImage, track, view);
+    size_t                     bitPos                              = 0;
+    size_t                     start                               = 0;
+    size_t                     fieldBits                           = 0;
+    size_t                     offset                              = 0;
+    size_t                     lead                                = 0;
+    int                        attempt                             = 0;
+    int                        physical                            = 0;
+    uint16_t                   found                               = 0;
+    uint16_t                   writeMask                           = 0;
+    Byte                       outSector                           = 0;
+    Byte                       data[NibbleFormat::kSectorByteSize] = {};
+    bool                       changed                             = false;
+    bool                       located                             = false;
     vector<size_t>   dataStart (NibbleFormat::kSectorsPerTrack, SIZE_MAX);
     vector<Byte>     priorData (static_cast<size_t> (NibbleFormat::kSectorsPerTrack) * NibbleFormat::kSectorByteSize, 0);
     vector<Byte>     field;
@@ -1394,13 +1191,13 @@ HRESULT NibblizationLayer::WriteFluxTrackSectors (
         field.assign (NibbleFormat::kTrackBitCapacity / 8, 0);
         fieldBits = 0;
         NibbleFieldWriter::AppendDataField (field, fieldBits, &sectors[offset]);
-        UnpackBits (field, NibbleFieldWriter::kDataPrologueGap * kSyncNibbleBits, fieldBits, bits);
+        TrackBitReader::UnpackBits (field, NibbleFieldWriter::kDataPrologueGap * kSyncNibbleBits, fieldBits, bits);
 
         // The decoder's position can sit in the zero tail of the sync byte
         // before the prologue; the field itself starts at its first 1 bit.
         start = dataStart[physical];
 
-        for (lead = 0; lead < kMaxLeadZeros && GetBit (src, start) == 0; lead++)
+        for (lead = 0; lead < kMaxLeadZeros && TrackBitReader::GetBit (src, start) == 0; lead++)
         {
             start++;
         }
@@ -1410,25 +1207,6 @@ HRESULT NibblizationLayer::WriteFluxTrackSectors (
 
 Error:
     return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  NibblizationLayer::GetBit
-//
-////////////////////////////////////////////////////////////////////////////////
-
-Byte NibblizationLayer::GetBit (const TrackBits & src, size_t bitIndex)
-{
-    size_t  at = (src.bitCount > 0) ? bitIndex % src.bitCount : 0;
-
-
-
-    return (src.bitCount > 0) ? static_cast<Byte> (((*src.bits)[at >> 3] >> (7 - (at & 7))) & 1) : 0;
 }
 
 
@@ -1466,6 +1244,6 @@ void NibblizationLayer::WriteBlankFluxTrack (
         NibbleFieldWriter::AppendDataField    (field, fieldBits, &sectors[offset]);
     }
 
-    UnpackBits (field, 0, fieldBits, bits);
+    TrackBitReader::UnpackBits (field, 0, fieldBits, bits);
     inOutImage.SpliceFluxBulk (track, 0, bits);
 }

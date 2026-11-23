@@ -6,6 +6,7 @@
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
+#include "Machines/Apple2/Common/TrackBitReader.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -427,7 +428,7 @@ public:
 
         while (bitPos < bits)
         {
-            nib = NibblizationLayer::ReadNibbleAt (img, 9, bitPos);
+            nib = TrackBitReader::ReadNibbleAt (img, 9, bitPos);
 
             if (nib == 0)
             {
@@ -493,7 +494,7 @@ public:
 
             while (bitPos < bits)
             {
-                nib = NibblizationLayer::ReadNibbleAt (img, 5, bitPos);
+                nib = TrackBitReader::ReadNibbleAt (img, 5, bitPos);
 
                 if (nib == 0)
                 {
