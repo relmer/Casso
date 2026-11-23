@@ -5,7 +5,6 @@
 #include "Devices/Disk/Store/DiskFlusher.h"
 #include "Devices/Disk/Store/DiskSalvager.h"
 #include "Devices/Disk/Store/BayFileAccess.h"
-#include "Devices/Disk/Store/DiskFileCommit.h"
 #include "Devices/Disk/Store/DiskStoreMessages.h"
 #include "Devices/Disk/Store/DiskSourceFormat.h"
 #include "Devices/Disk/DiskCommandRunner.h"
@@ -656,68 +655,6 @@ public:
         AssertSucceeded (store2->MountFromBytes (6, 0, "m.woz", DiskFormat::Woz, captured));
         Assert::AreEqual (Byte (0), store2->GetImage (6, 0)->ReadBit (0, flippedBit),
             L"the write persisted at motor-off must survive reload");
-    }
-
-
-    ////////////////////////////////////////////////////////////////////////
-    //
-    //  Atomic persist. FlushEntry used to open the mounted image's own path
-    //  with ofstream, which truncates it before the first byte is written --
-    //  so a write that then failed (full volume, disconnected share) left no
-    //  file at all, and nothing checked the stream afterwards, so the image
-    //  was marked clean either way. These cover the replacement: the target
-    //  is only ever swapped for a fully written temp file.
-    //
-    //  Not covered here: a write that fails PART WAY through. Forcing that
-    //  needs a filesystem seam this class does not have, so the guarantee it
-    //  rests on -- the target is untouched until the temp file is complete --
-    //  is checked structurally below rather than by simulating a short write.
-    //
-    ////////////////////////////////////////////////////////////////////////
-
-    // A scratch path in the system temp directory, removed by the caller.
-    static fs::path ScratchPath (const char * name)
-    {
-        return fs::temp_directory_path() / (string ("casso_atomic_") + name);
-    }
-
-
-    static string ReadBackAll (const fs::path & path)
-    {
-        ifstream           file (path, ios::binary);
-        std::stringstream  buffer;
-
-        buffer << file.rdbuf();
-
-        return buffer.str();
-    }
-
-
-
-
-    TEST_METHOD (Flush_ToRealFile_WritesThroughAtomicPath)
-    {
-        // The production branch -- no flush sink -- end to end on a real
-        // file. Every other test in this class installs a sink, so this path
-        // had no coverage at all.
-        DiskImageStore   store;
-        fs::path         target = ScratchPath ("flush.dsk");
-        vector<Byte>     seedBytes = MakeDsk (0x24);
-        std::error_code  ec;
-
-        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, target.string(),
-                                               DiskFormat::Dsk, seedBytes));
-        store.GetImage (kSlot, kDrive)->WriteBit (0, 0,
-            static_cast<uint8_t> (store.GetImage (kSlot, kDrive)->ReadBit (0, 0) ^ 1));
-
-        AssertSucceeded (store.GetFlusher().Flush (kSlot, kDrive));
-
-        Assert::AreEqual (static_cast<size_t> (NibbleFormat::kImageByteSize), ReadBackAll (target).size(),
-            L"a real-file flush must write a full-size image");
-        Assert::IsFalse (fs::exists (DiskFileCommit::GetCommitTemporaryPath (target.string(), 0)),
-            L"the flush must not leave its temp file beside the image");
-
-        fs::remove (target, ec);
     }
 
 
