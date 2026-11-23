@@ -173,13 +173,18 @@ void CassoExplorerShell::StartBootWorker()
         }
 
         //  An image no machine could be built for waits for the ROMs, which
-        //  a window offers when it is posted the message.
-        if (!result.hasReport && !result.missing.empty())
+        //  a window offers when it is posted the message. So does a 13-sector
+        //  disk's image that didn't boot with the 13-sector ROM missing.
+        bool  wants13 = result.hasReport && result.verdict != BootVerdict::Booted
+                        && std::find (result.missing.begin(), result.missing.end(), BootCheck::kRom13) != result.missing.end();
+
+        if ((!result.hasReport && !result.missing.empty()) || wants13)
         {
             std::lock_guard  lock (m_unbootedLock);
 
             m_unbooted.push_back ({ result.path, result.source });
-            m_romsWanted = true;
+            m_romsWanted   = m_romsWanted || !result.hasReport;
+            m_rom13Wanted  = m_rom13Wanted || wants13;
         }
 
         if (result.hasReport || !result.missing.empty())
@@ -264,33 +269,46 @@ void CassoExplorerShell::PlayBootSound (const ExplorerBootWorker::Result & resul
 //
 //  CassoExplorerShell::OfferBootRoms
 //
-//  The ROMs of the enhanced //e and the ][+, in one dialog, once in a run.
-//  With them installed, each image that waited is booted again.
+//  The ROMs of the enhanced //e and the ][+, in one dialog, once in a run,
+//  and the 13-sector Disk II ROM in a second dialog, once. With them installed,
+//  each image that waited is booted again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassoExplorerShell::OfferBootRoms (HWND hwnd, const DxuiTheme * theme)
 {
-    HRESULT                hr         = S_OK;
-    bool                   downloaded = false;
+    HRESULT                hr           = S_OK;
+    bool                   downloaded   = false;
+    bool                   downloaded13 = false;
     std::string            error;
     std::vector<Unbooted>  waiting;
 
 
 
-    if (!m_romsWanted || m_romsOffered)
+    if (m_romsWanted && !m_romsOffered)
     {
-        return;
+        m_romsOffered = true;
+
+        hr = AssetBootstrap::OfferMachineRoms (hwnd, theme, { TextEncoding::NarrowToWide (BootCheck::kEnhanced), TextEncoding::NarrowToWide (BootCheck::kPlus) },
+                                               L"Machine ROM download",
+                                               L"Casso Explorer boots each disk image on an emulated Apple to check that it runs and to capture a screenshot for its thumbnail. "
+                                               L"The ROMs of these machines aren't installed. Download them?",
+                                               downloaded, error);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
-    m_romsOffered = true;
+    if (m_rom13Wanted && !m_rom13Offered)
+    {
+        m_rom13Offered = true;
 
-    hr = AssetBootstrap::OfferMachineRoms (hwnd, theme, { TextEncoding::NarrowToWide (BootCheck::kEnhanced), TextEncoding::NarrowToWide (BootCheck::kPlus) },
-                                           L"Machine ROM download",
-                                           L"Casso Explorer boots each disk image on an emulated Apple to check that it runs and to capture a screenshot for its thumbnail. "
-                                           L"The ROMs of these machines aren't installed. Download them?",
-                                           downloaded, error);
-    IGNORE_RETURN_VALUE (hr, S_OK);
+        hr = AssetBootstrap::OfferOptionalRomDownload (hwnd, theme, BootCheck::kRom13, L"Disk II ROM download",
+                                                       L"A 13-sector disk boots only from a Disk II with the 13-sector boot ROM, which isn't installed. "
+                                                       L"Casso Explorer boots such a disk on an emulated Apple ][ plus with it. Download it?",
+                                                       downloaded13, error);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        downloaded = downloaded || downloaded13;
+    }
 
     if (downloaded)
     {

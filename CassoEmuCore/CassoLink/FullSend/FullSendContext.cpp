@@ -58,10 +58,10 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void FullSendContext::Report (const std::string & text)
+void FullSendContext::Report (const std::string & text, int drive)
 {
     link.Report (text);
-    status.AddLine (text);
+    status.AddLine (text, drive);
 }
 
 

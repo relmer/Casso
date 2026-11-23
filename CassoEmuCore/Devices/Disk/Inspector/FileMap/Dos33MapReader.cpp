@@ -595,7 +595,8 @@ void Dos33MapReader::WalkLists (FileMapWriter & writer, const SectorSource & sou
 //  The count of sectors in the chain against the catalog's, one either way
 //  allowed; a count of zero isn't compared, and a file over 255 sectors is
 //  compared modulo 256, since DOS's count wraps. A count that differs is
-//  damage, which Repair sets right.
+//  worth a look, not damage, since DOS uses it only to list the catalog,
+//  and Repair sets it right.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -617,7 +618,7 @@ void Dos33MapReader::CheckCount (FileMapWriter & writer, int file, const Entry &
 
     if (!mapped.isDeleted && mapped.chainReason == ChainReason::None && recorded > 0 && apart > s_kCountTolerance)
     {
-        writer.AddFinding (FindingKind::FileCountDiffers, entry.cell, std::format (L"{}: expected a catalog sector count of {}, but found {}", mapped.path, used, recorded));
+        writer.AddFinding (FindingKind::Dos33EntryCountDiffers, entry.cell, std::format (L"{}: the catalog lists {} sectors, but the file has {}", mapped.path, recorded, used));
         writer.AddCount ({ entry.cell, entry.offset + s_kEntryCount, recorded, used, std::format (L"the catalog sector count of {}", mapped.path) });
     }
 }

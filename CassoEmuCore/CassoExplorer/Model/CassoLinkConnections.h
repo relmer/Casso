@@ -209,8 +209,10 @@ public:
     //  thread; their messages are returned.
     std::vector<std::wstring>  RunCompletions ();
 
-    //  Operations submitted and not yet finished, in the order they run.
-    std::vector<std::shared_ptr<LinkOperation>>  GetPendingJobs () const;
+    //  Operations submitted and not yet finished, in the order they run, and
+    //  the same with each one's connection.
+    std::vector<std::shared_ptr<LinkOperation>>                          GetPendingJobs       () const;
+    std::vector<std::pair<std::string, std::shared_ptr<LinkOperation>>>  GetPendingJobsByLink () const;
 
     //  The activity log: each connection's connects and drops, its finished
     //  operations, and ADTPro's requests, oldest first, the latest kLogLength.

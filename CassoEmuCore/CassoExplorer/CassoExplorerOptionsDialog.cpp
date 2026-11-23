@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/CassoExplorerOptionsDialog.h"
 #include "Config/CrtPresets.h"
+#include "Core/TextEncoding.h"
 #include "Config/CrtResolver.h"
 #include "Ui/Settings/DisplayPage.h"
 #include "CassoExplorer/Window/ExplorerTextStyles.h"
@@ -29,6 +30,8 @@ struct FullSendFormat
 //  The common types first, then the rest under a heading. The first
 //  CassoExplorerFullSendPage::kCommonFormatCount entries are the common ones.
 //  Each type's second line is the car it would be.
+static constexpr const wchar_t *  s_kEsotericaHeading = L"Esoterica, for the disk image format enthusiast";
+
 static constexpr FullSendFormat  s_kFullSendFormats[] =
 {
     { L"Automatic: .po for ProDOS and Pascal disks, .dsk for everything else",
@@ -41,11 +44,45 @@ static constexpr FullSendFormat  s_kFullSendFormats[] =
       L"That same Civic, with aftermarket faux Acura badges. Same engine, better standing at the car show.",                                                    ".do"  },
     { L".po: ProDOS-order sectors, even for a DOS 3.3 disk, if that's your thing",
       L"A right-hand-drive import in Ohio. Everything works, but the drive-through window is on the wrong side. Passing mailmen give you a nod of respect.",    ".po"  },
-    { L".nib: Nibbles, 6,656 bytes a track, padded past a real track's length",
+    { L".nib: Nibbles, padded past a real track's length",
       L"A Saab 900 Turbo. The key goes in the floor between the seats, and its driver will explain why, whether you want him to or not.",                       ".nib" },
-    { L".nb2: Nibbles, 6,384 bytes a track, closer to a real track. For when .nib is too mainstream",
+    { L".nb2: Nibbles, closer to a real track. For when .nib is too mainstream",
       L"A Pontiac Aztek. A beak only a mother could love, and a tent in the back for when family and friends abandon you due to your automotive proclivities.", ".nb2" },
 };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerFullSendPage::GetFormatFilters
+//
+//  The format list as a save picker's types, grouped as on the page, with
+//  each type's car as its note. Automatic lists the types it can save.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<FileDialogFilter> CassoExplorerFullSendPage::GetFormatFilters()
+{
+    std::vector<FileDialogFilter>  filters;
+
+
+
+    for (size_t i = 0; i < std::size (s_kFullSendFormats); i++)
+    {
+        FileDialogFilter  filter;
+
+        filter.name    = s_kFullSendFormats[i].label;
+        filter.note    = s_kFullSendFormats[i].car;
+        filter.pattern = (*s_kFullSendFormats[i].extension == '\0') ? std::wstring (L"*.dsk;*.po;*.woz") : L"*" + TextEncoding::NarrowToWide (s_kFullSendFormats[i].extension);
+        filter.heading = (i == kCommonFormatCount) ? std::wstring (s_kEsotericaHeading) : std::wstring();
+
+        filters.push_back (filter);
+    }
+
+    return filters;
+}
 
 
 
@@ -709,7 +746,6 @@ void CassoExplorerOptionsDialog::WireFullSend()
     std::vector<std::wstring>  rows;
     std::vector<bool>          enabled;
     std::vector<bool>          headings;
-    std::vector<std::wstring>  cars;
     int                        selected = 0;
 
 
@@ -718,16 +754,14 @@ void CassoExplorerOptionsDialog::WireFullSend()
     {
         if (i == CassoExplorerFullSendPage::kCommonFormatCount)
         {
-            rows.push_back (L"Esoterica, for the disk image format enthusiast");
+            rows.push_back (s_kEsotericaHeading);
             enabled.push_back (false);
             headings.push_back (true);
-            cars.push_back (std::wstring());
         }
 
         rows.push_back (s_kFullSendFormats[i].label);
         enabled.push_back (true);
         headings.push_back (false);
-        cars.push_back (s_kFullSendFormats[i].car);
 
         selected = m_choices.fullSendExtension == s_kFullSendFormats[i].extension ? (int) i : selected;
     }
@@ -735,7 +769,6 @@ void CassoExplorerOptionsDialog::WireFullSend()
     m_fullSendFormat.list.SetItems            (rows);
     m_fullSendFormat.list.SetItemsEnabled     (enabled);
     m_fullSendFormat.list.SetItemHeadings     (headings);
-    m_fullSendFormat.list.SetItemDescriptions (cars);
     m_fullSendFormat.list.SetSelected         (GetFormatRow (selected));
     m_fullSendFormat.list.SetSelect           ([this] (int row) { m_fullSendFormat.note.SetText (s_kFullSendFormats[(size_t) GetFormatIndex (row)].car); });
 
@@ -755,8 +788,8 @@ void CassoExplorerOptionsDialog::WireFullSend()
 
     m_fullSendNote.SetText      (L"Full Send quickly archives a stack of floppies. Just keep feeding the drives on the Apple after each disk is completed "
                                  L"and find your disk images in the Full Send folder. Full Send detects duplicates, and can detect and image many "
-                                 L"copy-protection schemes. If a particular copy-protection scheme isn't auto-detected, capture the disk with "
-                                 L"Capture raw disk on its drive's menu instead.");
+                                 L"copy-protection schemes. If a particular copy-protection scheme isn't auto-detected, choose Create image on "
+                                 L"its drive's menu and save it as a WOZ, which captures the disk raw.");
     ExplorerTextStyles::Apply (m_fullSendNote, ExplorerTextStyles::kFormNote);
     m_fullSendNote.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
 
@@ -921,7 +954,7 @@ void CassoExplorerOptionsDialog::WireVerify()
 
     m_verifyOverrideHead.SetText (L"Verify for specific connections, or for a single transfer");
     ExplorerTextStyles::Apply (m_verifyOverrideHead, ExplorerTextStyles::kFormLabel);
-    m_verifyOverrideNote.SetText (L"A connection's settings can override these options. A drive's menu has Create verified image and Write image and verify for that transfer. "
+    m_verifyOverrideNote.SetText (L"A connection's settings can override these options. "
                                   L"In Full Send on the Apple, press V at any time to turn verification on or off. Tracks already read aren't read again. "
                                   L"The Apple's screen always indicates whether verification is on.");
 

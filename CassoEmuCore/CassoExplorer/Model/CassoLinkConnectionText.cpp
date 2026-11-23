@@ -96,6 +96,12 @@ std::wstring CassoLinkConnectionText::DescribeFailure (const LinkOperation & ope
 
 
 
+    //  The user canceled it, so there's nothing to report.
+    if (operation.state == LinkOperationState::Canceled || operation.result == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
+    {
+        return std::wstring();
+    }
+
     if (!operation.message.empty())
     {
         return TextEncoding::NarrowToWide (operation.message);
@@ -113,7 +119,6 @@ std::wstring CassoLinkConnectionText::DescribeFailure (const LinkOperation & ope
         case HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS):
         case HRESULT_FROM_WIN32 (ERROR_ALREADY_EXISTS):   why = L"an entry with that name is already there.";                                break;
         case HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND):   why = L"it is not on the disk.";                                                   break;
-        case HRESULT_FROM_WIN32 (ERROR_CANCELLED):        why = L"it was canceled.";                                                         break;
         case HRESULT_FROM_WIN32 (ERROR_BROKEN_PIPE):      why = L"the connection to the Apple closed.";                                      break;
         case HRESULT_FROM_WIN32 (ERROR_TIMEOUT):          why = L"the Apple stopped answering.";                                             break;
         case HRESULT_FROM_WIN32 (ERROR_INVALID_DATA):     why = L"replies from the Apple arrived damaged on every attempt. Check the cable and the port's speed."; break;

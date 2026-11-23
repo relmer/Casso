@@ -415,6 +415,31 @@ int FullSendDisk::FindLoneProgramTrack (const std::vector<Byte> & image)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullSendDisk::IsTrackZero
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FullSendDisk::IsTrackZero (const std::vector<Byte> & image, int track)
+{
+    size_t  size  = (size_t) NibblizationLayer::kSectorsPerTrack * NibblizationLayer::kSectorByteSize;
+    size_t  start = (size_t) track * size;
+
+
+
+    if (track < 0 || start + size > image.size())
+    {
+        return false;
+    }
+
+    return std::all_of (image.begin() + (ptrdiff_t) start, image.begin() + (ptrdiff_t) (start + size), [] (Byte b) { return b == 0; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullSendDisk::IsBlank
 //
 ////////////////////////////////////////////////////////////////////////////////

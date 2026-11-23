@@ -34,6 +34,8 @@ public:
     void  HandleRenameKey   (const DxuiKeyEvent & ev);
 
 private:
+    bool  ResolveTakenName (const std::wstring & path, std::wstring & ioNewName);
+
     ExplorerContext  & m_context;
 
     //  The box over the name, and the list row being renamed, or -1, or the

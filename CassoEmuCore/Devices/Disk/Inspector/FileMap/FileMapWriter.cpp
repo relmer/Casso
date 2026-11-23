@@ -863,7 +863,9 @@ int FileMapWriter::CountBad (const MappedFile & file) const
 //  Damage makes a volume Bad: a link off the volume, a loop, a sector two
 //  files use or a file uses that the bitmap marks free, a count that
 //  disagrees, a header or directory that can't be read, or an image almost
-//  blank. A file of one repeated byte is worth a look. A finding that is only
+//  blank. A DOS 3.3 catalog entry's sector count is worth a look instead:
+//  DOS uses it only to list the catalog, and commercial disks often have
+//  one that differs from the file. A file of one repeated byte is worth a look. A finding that is only
 //  worth a look makes it Suspect, and a note doesn't change the verdict.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -904,6 +906,7 @@ FindingWeight FileMapWriter::GetWeight (FindingKind kind)
         case FindingKind::Dos33EntryNameMixed:
         case FindingKind::Dos33EntryTypeUnknown:
         case FindingKind::Dos33EntryCountTooLarge:
+        case FindingKind::Dos33EntryCountDiffers:
         case FindingKind::Dos33CatalogNonstandard:
         case FindingKind::ProDosDirectoryPointer:
         case FindingKind::ProDosParentPointer:

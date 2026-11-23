@@ -293,8 +293,11 @@ std::vector<size_t> CassoLinkCapture::FindAnchors (std::span<const Byte> revolut
 //  differently, one more or one fewer each cost one. The map has each byte's
 //  place in the read, -1 for one the read doesn't have. A byte in a stretch
 //  of differences longer than s_kSpliceBytes, with no more than
-//  s_kSpliceBytes alike between them, is marked in outStretch. False when
-//  more than one byte in s_kAlignShare differs.
+//  s_kSpliceBytes alike between them, is marked in outStretch. So is a
+//  shorter stretch that starts in the first s_kEndingBytes of an address
+//  field's ending, its bytes the read has otherwise. A write starts after DOS has read those bytes, so no
+//  splice falls there, and a short stretch there is weak bits: a protection
+//  reads a nibble there twice and checks that the values differ. False when more than one byte in s_kAlignShare differs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -308,6 +311,8 @@ bool CassoLinkCapture::Align (std::span<const Byte> revolution, std::span<const 
     std::vector<int>       costs  (2 * (size_t) width, INT_MAX / 2);   // the row before and this row, each offset by the band
     std::vector<Byte>      steps  ((n + 1) * (size_t) width, 0);
     std::vector<size_t>    marked;
+    std::vector<bool>      endings;
+    std::vector<bool>      misread;
     const Byte           * mine   = revolution.data();
     const Byte           * theirs = read.data() + from;
     Byte                 * step   = steps.data();
@@ -322,6 +327,7 @@ bool CassoLinkCapture::Align (std::span<const Byte> revolution, std::span<const 
 
     outMap.assign (n, -1);
     outStretch.assign (n, false);
+    misread.assign (n, false);
     outDiffer = 0;
 
     //  The table is indexed by offset, a column's place in its row's band: the
@@ -403,6 +409,7 @@ bool CassoLinkCapture::Align (std::span<const Byte> revolution, std::span<const 
             if ((revolution[i - 1] | 0x80) != (read[from + (size_t) j - 1] | 0x80))
             {
                 marked.push_back (i - 1);
+                misread[i - 1] = true;
             }
 
             i--;
@@ -422,6 +429,11 @@ bool CassoLinkCapture::Align (std::span<const Byte> revolution, std::span<const 
 
     std::sort (marked.begin(), marked.end());
 
+    if (!marked.empty())
+    {
+        endings = FindAddressEndings (revolution);
+    }
+
     for (size_t first = 0; first < marked.size(); )
     {
         size_t  last = first;
@@ -435,9 +447,81 @@ bool CassoLinkCapture::Align (std::span<const Byte> revolution, std::span<const 
         {
             std::fill (outStretch.begin() + (ptrdiff_t) marked[first], outStretch.begin() + (ptrdiff_t) marked[last] + 1, true);
         }
+        else if (endings[marked[first]])
+        {
+            //  Only the bytes read otherwise: a byte the read has one more or
+            //  one fewer of beside them is framing, and the bytes between
+            //  them read the same.
+            for (size_t at = first; at <= last; at++)
+            {
+                outStretch[marked[at]] = misread[marked[at]];
+            }
+        }
 
         first = last + 1;
     }
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::FindAddressEndings
+//
+//  For each byte of a revolution, whether it is one of the s_kEndingBytes
+//  after an address field's checksum. An address field is a byte with
+//  $D5's bits set, other than a sync byte, and two more bytes, then
+//  s_kAddressNibbles 4-and-4 nibbles, not all sync bytes. A protected disk
+//  changes the prolog, as Ultima IV's D7 AA 96 does, and its RWTS masks the
+//  first byte with $D5, so the other two aren't checked. The
+//  revolution wraps, so a field at its end has its ending at its start.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<bool> CassoLinkCapture::FindAddressEndings (std::span<const Byte> revolution)
+{
+    size_t             n        = revolution.size();
+    size_t             field    = 3 + s_kAddressNibbles;
+    std::vector<bool>  endings  (n, false);
+
+
+
+    for (size_t at = 0; n > field + s_kEndingBytes && at < n; at++)
+    {
+        Byte  first   = (Byte) (revolution[at] | 0x80);
+        bool  isField = (first & 0xD5) == 0xD5 && first != s_kSyncByte;
+        bool  isSync  = true;
+
+        for (size_t k = 3; isField && k < field; k++)
+        {
+            Byte  nibble = (Byte) (revolution[(at + k) % n] | 0x80);
+
+            isField = (nibble & 0xAA) == 0xAA;
+            isSync  = isSync && nibble == s_kSyncByte;
+        }
+
+        isField = isField && !isSync;
+
+        for (size_t k = 0; isField && k < s_kEndingBytes; k++)
+        {
+            endings[(at + field + k) % n] = true;
+        }
+
+        //  An ending other than DE AA isn't one DOS wrote, so a write splice
+        //  doesn't follow it: the bytes up to the next sync byte are the
+        //  protection's.
+        if (isField && ((revolution[(at + field) % n] | 0x80) != s_kEpilog0 || (revolution[(at + field + 1) % n] | 0x80) != s_kEpilog1))
+        {
+            for (size_t k = s_kEndingBytes; k < s_kSpliceBytes && (revolution[(at + field + k) % n] | 0x80) != s_kSyncByte; k++)
+            {
+                endings[(at + field + k) % n] = true;
+            }
+        }
+    }
+
+    return endings;
 }

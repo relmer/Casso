@@ -385,7 +385,7 @@ public:
     //  shim, which loads the current program over the same connection.
     TEST_METHOD (AnOlderProgram_IsLoadedAgain_OverTheSameConnection)
     {
-        static constexpr Byte  kHeader[]  = { 0xC1, 0x0B, 0x00, CassoLinkCodec::kReady };
+        static constexpr Byte  kHeader[]  = { 0xC1, 0x27, 0x00, CassoLinkCodec::kReady };
         static constexpr int   kVersionAt = 5;
         static constexpr int   kCheckAt   = 16;
 

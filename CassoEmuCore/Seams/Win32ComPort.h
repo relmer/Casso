@@ -34,12 +34,15 @@ public:
     size_t   GetReadableCount () override;
     bool     IsClosed         () const override { return m_handle == INVALID_HANDLE_VALUE; }
     bool     TryGetPeerReady  (bool & outReady) override;
+    HRESULT  ResetLine        (std::string & outErrors) override;
     void     Close            () override;
 
 private:
     HRESULT  SetReadTimeout (DWORD timeoutMs);
 
     static constexpr DWORD  s_kWriteTimeoutMs = 2000;
+    static constexpr DWORD  s_kInQueueBytes   = 256 * 1024;   // about 20 seconds at 115,200 baud
+    static constexpr DWORD  s_kOutQueueBytes  = 16 * 1024;
 
     //  The longest timeout of one ReadFile. The handle is synchronous, so
     //  Windows runs its reads and writes one at a time: a write from another
@@ -50,4 +53,5 @@ private:
     HANDLE  m_handle      = INVALID_HANDLE_VALUE;
     DWORD   m_readTimeout = MAXDWORD;
     bool    m_handshake   = false;
+    DWORD   m_lineErrors  = 0;       // the CE_ flags ClearCommError reported since ResetLine
 };

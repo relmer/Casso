@@ -74,6 +74,7 @@ public:
     // owns the CxxxRomRouter device that is registered on the bus.
     void               AttachInternalCxxxRom (vector<Byte> data);
     void               AttachSlotRom         (int slot, vector<Byte> data);
+    void               PatchSlotRom          (int slot, const vector<Byte> & data) { m_cxxxRouter.PatchSlotRom (slot, data); }
     CxxxRomRouter *    GetCxxxRouter         () { return &m_cxxxRouter; }
 
     //  Points the read-page table at the router's internal ROM pages again,
