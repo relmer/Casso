@@ -39,7 +39,7 @@
 #define IDM_DISK_WP2                40029
 
 // Build a salvaged copy of a damaged image. Offered only for a disk that is
-// both damaged and ordinarily formatted -- see DiskImageStore::AssessSalvage.
+// both damaged and ordinarily formatted -- see DiskSalvager::AssessSalvage.
 #define IDM_DISK_SALVAGE1           40070
 #define IDM_DISK_SALVAGE2           40071
 

@@ -14,6 +14,7 @@
 #include "BayChange.h"
 #include "Devices/Disk/Store/BayFileAccess.h"
 #include "Devices/Disk/Store/DiskBayTable.h"
+#include "Devices/Disk/Store/DiskSalvager.h"
 #include "Devices/Disk/Store/DiskStoreHooks.h"
 
 
@@ -60,33 +61,6 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-//
-//  What salvaging a bay would produce, and whether it is worth offering.
-//  Read-only: producing one writes nothing and touches nothing.
-//
-//      isOffered      the disk is damaged AND has ordinary 16-sector
-//                     structure. Both halves matter. A disk that is not
-//                     damaged is not write-protected, so there is nothing to
-//                     escape and a lossy copy would only lose data; a
-//                     copy-protected disk has no standard sectors to salvage,
-//                     and rebuilding it from sectors would destroy the very
-//                     tracks that make it work.
-//      totalSectors   sectors on the tracks this disk actually has -- 320 on a
-//                     20-track disk, not a flat 560, or the count is a lie.
-//      suggestedPath  "<name>.salvaged.woz" beside the original.
-//
-struct SalvageAssessment
-{
-    bool              isOffered     = false;
-    int               totalSectors  = 0;
-    DenibblizeReport  report;
-    string            suggestedPath;
-};
-
-
-
-
-
 class DiskImageStore
 {
 public:
@@ -130,26 +104,14 @@ public:
     //  already holds them. That ordering used to be the caller's to get right.
     HRESULT       SetImageWriteProtect (int slot, int drive, bool writeProtected);
 
-    //  Whether salvage is worth offering for a bay, and what it would cost.
-    //  Writes nothing -- this exists so the user sees the counts BEFORE
-    //  committing to a lossy copy, rather than learning them afterwards.
-    HRESULT       AssessSalvage (int slot, int drive, SalvageAssessment & out);
-
     //  The verdict reached at mount. Free to call: no decoding, no allocation.
     //  Use this to decide whether to OFFER salvage; use AssessSalvage when the
     //  user has asked for it and the counts have to be current.
     bool          IsSalvageOffered (int slot, int drive) const;
 
-    //  Writes the salvaged copy to `path`. The ORIGINAL IS NEVER TOUCHED --
-    //  that is the whole shape of this feature: the damaged file keeps its
-    //  damage, detectably, and the user gets a separate disk they can work on.
-    //
-    //  The copy keeps the source's META (what the disk *is* -- title,
-    //  publisher, provenance) but is stamped with Casso as creator, because
-    //  Casso did write this particular file and claiming otherwise would put
-    //  a preservation tool's name on a lossy reconstruction.
-    HRESULT       SalvageToFile (int slot, int drive, const string & path,
-                                 DenibblizeReport & report);
+    //  Assessing and writing a salvaged copy of a damaged disk.
+    DiskSalvager & GetSalvager      () { return m_salvager; }
+
     void          SoftReset         ();
     void          PowerCycle        ();
 
@@ -379,16 +341,6 @@ private:
     //  without returning until it is done. Only ever called at ShuttingDown.
     bool          RescueOnTheWayOut (DiskBay & entry, const string & original);
 
-    // Recover what can be recovered. Decode only -- this is all the counts
-    // need, and it is the half AssessSalvage can afford to run.
-    HRESULT       DecodeForSalvage (DiskBay & entry, vector<Byte> & outSectors,
-                                    DenibblizeReport & report);
-
-    // Decode, then rebuild the result as a WOZ. Only the write path needs the
-    // rebuild, so only the write path pays for it.
-    HRESULT       BuildSalvagedImage (DiskBay & entry, vector<Byte> & outBytes,
-                                      DenibblizeReport & report);
-
     //  Everything one bay's settled change leads to.
     void           ApplyPendingReloadToBay (int slot, int drive);
 
@@ -437,8 +389,9 @@ private:
     //  be lit from a path that forgot to.
     void           EmitBayChange (int slot, int drive, BayChange change);
 
-    DiskStoreHooks           m_hooks;
-    DiskBayTable             m_bays;
-    BayFileAccess            m_files { m_hooks };
-    string                   m_emptyPath;
+    DiskStoreHooks  m_hooks;
+    DiskBayTable    m_bays;
+    BayFileAccess   m_files     { m_hooks };
+    DiskSalvager    m_salvager  { m_bays, m_hooks };
+    string          m_emptyPath;
 };

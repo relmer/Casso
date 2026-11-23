@@ -71,6 +71,7 @@
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DamagedMountReport.h"
 #include "Devices/Disk/Store/DiskStoreMessages.h"
+#include "Devices/Disk/Store/DiskSalvager.h"
 
 
 
@@ -806,7 +807,7 @@ void ShellDisks::RunSalvageFlow (int drive)
 
 
 
-    hr =m_shell.m_machine.GetDiskStore().AssessSalvage (6, drive, assessment);
+    hr =m_shell.m_machine.GetDiskStore().GetSalvager().AssessSalvage (6, drive, assessment);
     if (FAILED (hr))
     {
         return;
@@ -833,7 +834,7 @@ void ShellDisks::RunSalvageFlow (int drive)
         return;
     }
 
-    hr = m_shell.m_machine.GetDiskStore().SalvageToFile (6, drive, assessment.suggestedPath, report);
+    hr = m_shell.m_machine.GetDiskStore().GetSalvager().SalvageToFile (6, drive, assessment.suggestedPath, report);
 
     if (FAILED (hr))
     {
@@ -933,7 +934,7 @@ void ShellDisks::ReportDamagedMount (int drive)
             fs::path (m_shell.m_machine.GetDiskStore().GetSourcePath (6, drive)).wstring()),
         false, std::wstring() });
 
-    hr = m_shell.m_machine.GetDiskStore().AssessSalvage (6, drive, assessment);
+    hr = m_shell.m_machine.GetDiskStore().GetSalvager().AssessSalvage (6, drive, assessment);
 
     if (SUCCEEDED (hr) && assessment.isOffered)
     {

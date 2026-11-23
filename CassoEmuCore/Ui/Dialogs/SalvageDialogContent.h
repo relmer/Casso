@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-#include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/DiskSalvager.h"
 
 
 

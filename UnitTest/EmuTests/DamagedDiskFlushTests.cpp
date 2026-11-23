@@ -5,6 +5,7 @@
 #include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/DiskSalvager.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
@@ -281,7 +282,7 @@ public:
 
         DamagedDisk::BreakSector (*mounted, 20, 5);
 
-        hr = store.AssessSalvage (6, 1, assessment);
+        hr = store.GetSalvager().AssessSalvage (6, 1, assessment);
 
         Assert::IsTrue (SUCCEEDED (hr), L"assessing an intact FILE succeeds; it just finds nothing");
         Assert::IsFalse (assessment.isOffered,
