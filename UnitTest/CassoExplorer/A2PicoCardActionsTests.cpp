@@ -135,7 +135,7 @@ public:
         Assert::IsTrue   (card.drives[4].problem.empty(), L"a drive with no image is like an empty drive");
         Assert::IsTrue   (card.drives[5].isWriteProtected);
 
-        Assert::AreEqual (std::wstring (L"A2Pico card. 3 of its 6 A2retroNET drives have an image. Drive 2: missing.po isn't on the card. Drive 3: A2retroNET reads only .po, .hdv and .2mg images. Drive 4: usb:/floppy.po isn't on this card. It may be on the other storage device."),
+        Assert::AreEqual (std::wstring (L"This A2Pico card is using 3 of its 6 drives.\nDrive 2: missing.po isn't on the card.\nDrive 3: A2retroNET reads only .po, .hdv and .2mg images.\nDrive 4: usb:/floppy.po isn't on this card. It may be on the other storage device."),
                           ActionsA2retroNet::Summarize (card));
     }
 
@@ -155,7 +155,7 @@ public:
 
         AssertSucceeded (host.actions.ReadA2PicoCard (L"E:\\", card));
         Assert::IsTrue   (card.config.hasCarriageReturns);
-        Assert::AreEqual (std::wstring (L"A2Pico card. 0 of its 2 A2retroNET drives have an image. A2retroNET.txt has CR LF line ends, so the A2Pico doesn't open any image. Repair writes it with LF line ends."),
+        Assert::AreEqual (std::wstring (L"This A2Pico card is using 0 of its 2 drives.\nA2retroNET.txt has CR LF line ends, so the A2Pico doesn't open any image. Repair writes it with LF line ends."),
                           ActionsA2retroNet::Summarize (card));
 
         outcome = host.actions.RepairA2retroNetConfig (L"E:\\");

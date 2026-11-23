@@ -371,18 +371,19 @@ std::wstring ActionsA2retroNet::Summarize (const Card & card)
         set += drive.isPresent ? 1 : 0;
     }
 
-    text = std::format (L"A2Pico card. {} of its {} A2retroNET drives have an image.", set, card.drives.size());
+    text = std::format (L"This A2Pico card is using {} of its {} drives.", set, card.drives.size());
 
     if (card.config.hasCarriageReturns)
     {
-        return text + L" A2retroNET.txt has CR LF line ends, so the A2Pico doesn't open any image. Repair writes it with LF line ends.";
+        return text + L"\nA2retroNET.txt has CR LF line ends, so the A2Pico doesn't open any image. Repair writes it with LF line ends.";
     }
 
+    //  Each problem is on a line of its own.
     for (const Drive & drive : card.drives)
     {
         if (!drive.problem.empty())
         {
-            text += std::format (L" Drive {}: {}", drive.number, drive.problem);
+            text += std::format (L"\nDrive {}: {}", drive.number, drive.problem);
         }
     }
 

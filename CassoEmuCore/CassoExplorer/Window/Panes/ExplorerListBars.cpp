@@ -152,7 +152,7 @@ bool ExplorerListBars::FillSearchBar()
 //
 //  At an A2Pico card's root, its drives in a sentence. In any folder on the
 //  card, where a copy to the card lands, its images with a ProDOS volume in
-//  a form A2retroNET doesn't read, with Write as .po, which replaces each
+//  a form A2retroNET doesn't read, with Convert to .po, which replaces each
 //  with a .po. A warning when a drive has a problem, the settings file has
 //  CR LF line ends, or an image is offered.
 //  And a selected, copied or written image the firmware reads that isn't a
@@ -219,11 +219,13 @@ bool ExplorerListBars::FillCardBar()
         }
     }
 
+    //  Each offer is on a line of its own.
     if (!m_convertible.empty())
     {
         isOne   = m_convertible.size() == 1;
-        text   += std::format (L"{}{} {} a ProDOS volume in a form A2retroNET doesn't read. Write as .po replaces {} with {} it reads.", text.empty() ? L"" : L" ", DescribeFiles (m_convertible),
-                               isOne ? L"has" : L"have", isOne ? L"it" : L"them", isOne ? L"a .po" : L".po images");
+        text   += std::format (L"{}Only .po images can be mounted as drives. Convert {} to .po?", text.empty() ? L"" : L"\n",
+                               isOne ? std::format (L"\"{}\"", std::filesystem::path (m_convertible[0]).filename().wstring())
+                                     : std::format (L"{} images", m_convertible.size()));
         problem = true;
 
         m_cardActions.push_back (CardAction::WritePo);
@@ -231,7 +233,7 @@ bool ExplorerListBars::FillCardBar()
 
     if (m_setDrive != 0)
     {
-        text += std::format (L"{}{} isn't set as a drive. Drive {} is free.", text.empty() ? L"" : L" ", std::filesystem::path (m_setPath).filename().wstring(), m_setDrive);
+        text += std::format (L"{}Drive {} is free. Set \"{}\" as drive {}?", text.empty() ? L"" : L"\n", m_setDrive, std::filesystem::path (m_setPath).filename().wstring(), m_setDrive);
 
         m_cardActions.push_back (CardAction::SetDrive);
     }
@@ -243,7 +245,7 @@ bool ExplorerListBars::FillCardBar()
         labels.push_back (action == CardAction::Drives   ? std::wstring (L"Drives...")
                         : action == CardAction::Repair   ? std::wstring (L"Repair")
                         : action == CardAction::SetDrive ? std::format (L"Set as drive {}", m_setDrive)
-                        :                                  std::wstring (L"Write as .po"));
+                        :                                  std::wstring (L"Convert to .po"));
     }
 
     //  New buttons have no place until the bar is laid out, so they are
@@ -371,7 +373,7 @@ void ExplorerListBars::RunCardAction (size_t index)
         for (const std::wstring & path : m_convertible)
         {
             outcome = m_context.actions.GetA2retroNet().ReplaceWithPo (path, written);
-            m_context.verbs.ReportOutcome (outcome, L"Write as .po");
+            m_context.verbs.ReportOutcome (outcome, L"Convert to .po");
 
             //  The .po is offered as a drive.
             if (outcome.Succeeded())

@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "ExplorerWindowPartsRig.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -1221,7 +1222,7 @@ public:
 
         Assert::IsTrue   (bar.IsVisible(), rig.browser.GetLocation().path.c_str());
         Assert::IsTrue   (bar.GetSeverity() == DxuiInfoBanner::Severity::Warning, bar.GetText().c_str());
-        Assert::IsTrue   (bar.GetText().starts_with (L"A2Pico card. 1 of its 2 A2retroNET drives have an image."), bar.GetText().c_str());
+        Assert::IsTrue   (bar.GetText().starts_with (L"This A2Pico card is using 1 of its 2 drives.\n"), bar.GetText().c_str());
         Assert::AreEqual ((size_t) 2, bar.GetActionCount(), L"A2retroNET drives and Repair");
 
         //  After a second fill the buttons are laid out. New buttons were
@@ -1247,7 +1248,7 @@ public:
 
 
     //  In a folder on an A2Pico card, where a copy lands, an image with a
-    //  ProDOS volume in DOS order is offered as a .po, which Write as .po
+    //  ProDOS volume in DOS order is offered as a .po, which Convert to .po
     //  writes in its place. The .po is then offered as a free drive, which Set
     //  as drive sets.
     TEST_METHOD (CardBar_OffersAPoForAnImageA2retroNetDoesntRead)
@@ -1280,7 +1281,7 @@ public:
         DxuiInfoBanner &  bar = rig.parts->listPane.GetBars().GetCardBar();
 
         Assert::IsTrue   (bar.IsVisible());
-        Assert::AreEqual (std::wstring (L"zork.dsk has a ProDOS volume in a form A2retroNET doesn't read. Write as .po replaces it with a .po it reads."), bar.GetText());
+        Assert::AreEqual (std::wstring (L"Only .po images can be mounted as drives. Convert \"zork.dsk\" to .po?"), bar.GetText());
         Assert::AreEqual ((size_t) 1, bar.GetActionCount());
 
         rig.Click (bar.GetAction (0)->GetBounds());
@@ -1294,7 +1295,7 @@ public:
         rig.io.stamps["E:\\games\\zork.po"] = FileStamp { po.size(), 100 };
         rig.parts->listPane.FillList();
 
-        Assert::AreEqual (std::wstring (L"zork.po isn't set as a drive. Drive 1 is free."), bar.GetText());
+        Assert::AreEqual (std::wstring (L"Drive 1 is free. Set \"zork.po\" as drive 1?"), bar.GetText());
         Assert::AreEqual ((size_t) 1, bar.GetActionCount());
 
         rig.parts->listPane.FillList();
@@ -1302,6 +1303,46 @@ public:
 
         Assert::AreEqual (std::string ("[drives]\n1=games/zork.po\n"), std::string (rig.io.files["E:\\A2retroNET.txt"].begin(), rig.io.files["E:\\A2retroNET.txt"].end()));
         Assert::IsFalse  (bar.IsVisible(), L"the .po is a drive");
+    }
+
+
+    //  Several images to convert are counted, rather than listed.
+    TEST_METHOD (CardBar_CountsSeveralImagesToConvert)
+    {
+        Rig                rig;
+        FixtureProvider    fixtures;
+        std::vector<Byte>  po;
+        std::vector<Byte>  dsk (NibblizationLayer::kImageByteSize, 0);
+        std::string        text = "[drives]\n";
+
+
+
+        AssertSucceeded (fixtures.OpenFixture ("CassoExplorer/prodos.po", po));
+
+        for (size_t at = 0; at < po.size(); at++)
+        {
+            dsk[ProDosSkeleton::GetBlockByteOffset ((int) (at / 512), at % 512)] = po[at];
+        }
+
+        AssertSucceeded (rig.fs.WriteAllText (L"E:\\A2retroNET.txt", text));
+        rig.io.files["E:\\A2retroNET.txt"].assign (text.begin(), text.end());
+
+        for (const wchar_t * path : { L"E:\\games\\zork.dsk", L"E:\\games\\karateka.dsk", L"E:\\games\\choplifter.dsk" })
+        {
+            AssertSucceeded (rig.fs.WriteAllText (path, std::string (dsk.begin(), dsk.end())));
+            rig.io.files[TextEncoding::WideToNarrow (path)]  = dsk;
+            rig.io.stamps[TextEncoding::WideToNarrow (path)] = FileStamp { dsk.size(), 100 };
+        }
+
+        rig.Open();
+        Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (L"E:\\games"));
+        rig.parts->listPane.FillList();
+
+        DxuiInfoBanner &  bar = rig.parts->listPane.GetBars().GetCardBar();
+
+        Assert::IsTrue   (bar.IsVisible());
+        Assert::AreEqual (std::wstring (L"Only .po images can be mounted as drives. Convert 3 images to .po?"), bar.GetText());
+        Assert::AreEqual ((size_t) 1, bar.GetActionCount());
     }
 
 

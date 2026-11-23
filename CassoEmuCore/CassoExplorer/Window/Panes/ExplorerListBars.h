@@ -62,7 +62,7 @@ private:
     ActionsA2retroNet::Card      m_card;
     std::vector<CardAction>      m_cardActions;       // the card infobar's buttons, in order
     std::vector<std::wstring>    m_cardLabels;        // the labels the buttons were made with
-    std::vector<std::wstring>    m_convertible;       // the images Write as .po writes
+    std::vector<std::wstring>    m_convertible;       // the images to convert to .po
     std::vector<std::wstring>    m_settable;          // images copied or written to a card, offered as a drive
     std::wstring                 m_setPath;           // the image Set as drive sets
     int                          m_setDrive  = 0;     // its drive, from 1, or 0 for no offer
