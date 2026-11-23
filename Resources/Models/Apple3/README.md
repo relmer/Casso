@@ -43,7 +43,7 @@ with their pages in `photo-sources.md` there.
   313 mm from the left. The drive's latch, recess and lamp follow the Disk
   ///'s, which has the same mechanism.
 - **The back panel's connectors** were placed from close-ups of the rear
-  photograph at 0.083 mm per pixel; the standards set their shapes:
+  photograph at 0.083 mm per pixel; their dimensions come from the standards:
   - the floppy disk connector, the 26-position shrouded header modeled on
     the Disk ///;
   - Ports A and B, DE-9 female sockets in molded black housings; color
