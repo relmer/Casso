@@ -2,6 +2,7 @@
 
 #include "Machines/Apple2/Common/Ultima1Save.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
+#include "Machines/Apple2/Common/Ultima1Map.h"
 
 
 
@@ -122,6 +123,8 @@ bool Ultima1Save::TryParse (std::span<const Byte> vars, Character & outCharacter
     constexpr size_t  kRaceAt     = 0x69;
     constexpr size_t  kClassAt    = 0x6B;
     constexpr size_t  kFoodAt     = 0x78;
+    constexpr size_t  kLandAt     = 0x02;
+    constexpr Byte    kLandMask   = 0x03;
     constexpr size_t  kWeaponAt   = 0x0D;
     constexpr size_t  kArmorAt    = 0x0E;
     constexpr size_t  kArmorsAt   = 0x11;
@@ -170,6 +173,7 @@ bool Ultima1Save::TryParse (std::span<const Byte> vars, Character & outCharacter
     outCharacter.intelligence   = ReadWord (vars, kHitsAt + kWordBytes * 6);
     outCharacter.gold           = ReadWord (vars, kGoldAt);
     outCharacter.food           = ReadWord (vars, kFoodAt);
+    outCharacter.continent      = vars[kLandAt] & kLandMask;
 
     if (vars[kWeaponAt] >= 1 && vars[kWeaponAt] <= std::size (s_kWeapons))
     {
@@ -312,23 +316,42 @@ Run Ultima1Save::MakeValue (const std::wstring & text)
 //
 //  Ultima1Save::Decode
 //
-//  The title and position, then the character: name, race, class and sex,
-//  hit points, food and gold, the six stats, the readied weapon and armor,
-//  and the inventory.
+//  The saved game without its map, which is on the game disk.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Ultima1Save::Decode (const std::vector<Byte> & sectors, std::span<const bool> unreadable, DecodedFile & outFile, std::wstring & outError)
 {
-    HRESULT            hr       = S_OK;
-    std::vector<Byte>  vars;
-    Character          c;
-    std::wstring       items;
-    bool               isParsed = false;
-
-
-
     UNREFERENCED_PARAMETER (unreadable);
+
+    return DecodeWithMap (sectors, nullptr, outFile, outError);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Ultima1Save::DecodeWithMap
+//
+//  The title and position, the player's continent with the player marked
+//  when the game disk is given, then the character: name, race, class and
+//  sex, hit points, food and gold, the six stats, the readied weapon and
+//  armor, and the inventory.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Ultima1Save::DecodeWithMap (const std::vector<Byte> & sectors, const std::vector<Byte> * gameSectors, DecodedFile & outFile, std::wstring & outError)
+{
+    HRESULT                                                     hr       = S_OK;
+    std::vector<Byte>                                           vars;
+    Character                                                   c;
+    std::wstring                                                items;
+    bool                                                        isParsed = false;
+    std::array<Ultima1Map::Continent, Ultima1Map::kContinents>  continents;
+
+
 
     outFile        = DecodedFile();
     outFile.format = FileFormat::UltimaSave;
@@ -338,7 +361,17 @@ HRESULT Ultima1Save::Decode (const std::vector<Byte> & sectors, std::span<const 
     CBRFEx (isParsed, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outError = L"The disk doesn't have an Ultima I saved game.");
 
     outFile.paragraphs.push_back (MakeParagraph ({ Run { L"Ultima I: The Beginning", true } }));
-    outFile.paragraphs.push_back (MakeParagraph ({ Run { std::format (L"Saved game, the player at column {}, row {}", c.x, c.y), false, false, false, RunColor::Muted } }));
+    outFile.paragraphs.push_back (MakeParagraph ({ Run { std::format (L"Saved game, the player in {} at column {}, row {}", Ultima1Map::GetContinentName (c.continent), c.x, c.y), false, false, false, RunColor::Muted } }));
+
+    if (gameSectors != nullptr && Ultima1Map::TryReadGameDisk (*gameSectors, continents))
+    {
+        Paragraph  map;
+
+        Ultima1Map::RenderMap (continents[(size_t) c.continent], c.x, c.y, map);
+        outFile.paragraphs.push_back (std::move (map));
+        Ultima1Map::AddLegend (outFile.paragraphs, true);
+    }
+
     outFile.paragraphs.push_back (Paragraph());
     outFile.paragraphs.push_back (MakeParagraph ({ Run { c.name, true },
                                                    Run { std::format (L"   {} {}, {}", GetRaceName (c.race), GetClassName (c.characterClass), c.isFemale ? L"female" : L"male"), false, true, false, RunColor::Muted } }));

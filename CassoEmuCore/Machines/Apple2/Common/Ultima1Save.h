@@ -15,7 +15,8 @@
 //  An Ultima I: The Beginning player disk, a ProDOS disk with the file
 //  U1.VARS, as the saved game: the character's race, class, sex, hit
 //  points, stats, gold, food, position, readied weapon and armor, and
-//  inventory.
+//  inventory. The world map is on the game disk, so it is drawn only when
+//  the game disk is given.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,6 +40,7 @@ public:
         int           x              = 0;
         int           y              = 0;
         int           food           = 0;
+        int           continent      = 0;
 
         std::wstring                               weapon;
         std::wstring                               armor;
@@ -49,6 +51,7 @@ public:
 
     static bool          IsFound       (const std::vector<Byte> & sectors);
     static HRESULT       Decode        (const std::vector<Byte> & sectors, std::span<const bool> unreadable, DecodedFile & outFile, std::wstring & outError);
+    static HRESULT       DecodeWithMap (const std::vector<Byte> & sectors, const std::vector<Byte> * gameSectors, DecodedFile & outFile, std::wstring & outError);
     static bool          TryParse      (std::span<const Byte> vars, Character & outCharacter);
     static std::wstring  GetRaceName   (int race);
     static std::wstring  GetClassName  (int characterClass);

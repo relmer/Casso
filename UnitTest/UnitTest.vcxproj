@@ -400,6 +400,7 @@
     <ClCompile Include="FileTypes\Ultima5SaveTests.cpp" />
     <ClCompile Include="FileTypes\Ultima1SaveTests.cpp" />
     <ClCompile Include="FileTypes\Ultima2SaveTests.cpp" />
+    <ClCompile Include="FileTypes\Ultima1MapTests.cpp" />
     <ClCompile Include="FileTypes\Ultima1981SaveTests.cpp" />
     <ClCompile Include="FileTypes\DiskSaveTableTests.cpp" />
     <ClCompile Include="CassoExplorer\SavedGamePreviewTests.cpp" />

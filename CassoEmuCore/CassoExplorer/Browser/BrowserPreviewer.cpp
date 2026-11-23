@@ -593,8 +593,9 @@ void BrowserPreviewer::PreviewImageCatalog (const std::wstring & imagePath)
 //
 //  BrowserPreviewer::TryDecodeDiskSave
 //
-//  The image decoded by DiskSaveTable::DecodeImage. False for an image that
-//  can't be read or that no entry accepts.
+//  The image decoded by DiskSaveTable::DecodeImage, with a companion disk
+//  looked for in the same folder. False for an image that can't be read or
+//  that no entry accepts.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -609,7 +610,10 @@ bool BrowserPreviewer::TryDecodeDiskSave (const std::wstring & imagePath, Decode
     hr = m_parts.operations.GetFileIo().ReadAllBytes (narrow, bytes);
     CHR (hr);
 
-    hr = DiskSaveTable::DecodeImage (bytes, narrow, outFile);
+    hr = DiskSaveTable::DecodeImage (bytes, narrow, [this, &narrow] (DiskSaveTable::IsFoundFn isCompanion, std::vector<Byte> & outSectors)
+                                     {
+                                         return DiskSaveTable::FindBeside (m_parts.operations.GetFileIo(), narrow, isCompanion, outSectors);
+                                     }, outFile);
     CHR (hr);
 
 Error:
