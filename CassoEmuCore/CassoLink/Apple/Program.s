@@ -5333,10 +5333,15 @@ dbput:  jsr putch
         bne dbcell
         lda barover
         beq dbtext
-dbover: lda bartop
-        sta barcells
+dbover: ldx barx
         jsr barlen              ; the text centered over the bar
         sta barlength
+        cmp barlast,x
+        sta barlast,x
+        bcs dbkeep              ; a shorter text leaves the old one's ends,
+        jmp dbcells             ; so the cells are drawn again first
+dbkeep: lda bartop
+        sta barcells
         lda barwidth
         sec
         sbc barlength
@@ -5426,6 +5431,7 @@ barrowhi: .byte >ROWB1, >ROWB2
 barpct:  .byte 0, 0             ; each drive's percentage
 barover: .byte 0
 barlength: .byte 0              ; the length of the text over the bar
+barlast: .byte 0, 0             ; each drive's text length when last drawn
 barx:    .byte 0
 bartop:  .byte 0
 barcells: .byte 0               ; putch inverts left of this column
