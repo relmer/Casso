@@ -226,6 +226,36 @@ public:
 
 
 
+    TEST_METHOD (WithStepsADragSnapsToTheNearestStep)
+    {
+        DxuiZoomPopup  popup  = MakePopup();
+        double         zoomed = 0.0;
+        RECT           track  = {};
+        LONG           width  = 0;
+
+
+
+        popup.SetRange  (0.5, 2.0, false);
+        popup.SetSteps  (DxuiZoomControl::GetStandardSteps());
+        popup.SetOnZoom ([&zoomed] (double zoom) { zoomed = zoom; });
+        OpenFully (popup);
+
+        track = popup.GetTrackRect();
+        width = track.right - track.left;
+
+        popup.OnMouse    (MakeEvent (DxuiMouseEventKind::Down, { track.left + width / 2 + 2, track.top + 1 }));
+        Assert::AreEqual (1.3, zoomed, 1e-6, L"just past the middle, 1.25, snaps to 130%");
+
+        popup.OnMouse    (MakeEvent (DxuiMouseEventKind::Move, { track.left + width / 3, track.top + 1 }));
+        Assert::AreEqual (1.0, zoomed, 1e-6, L"a third of the way, 1.0, is a step");
+
+        popup.OnMouse    (MakeEvent (DxuiMouseEventKind::Move, { track.left + 1, track.top + 1 }));
+        Assert::AreEqual (0.5, zoomed, 1e-6);
+        popup.OnMouse    (MakeEvent (DxuiMouseEventKind::Up, { track.left + 1, track.top + 1 }));
+    }
+
+
+
     TEST_METHOD (TheWheelOverTheButtonStepsByTheHostsStep)
     {
         DxuiZoomPopup   popup  = MakePopup();

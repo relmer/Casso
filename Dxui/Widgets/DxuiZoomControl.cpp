@@ -230,6 +230,30 @@ double DxuiZoomControl::StepZoom (double zoom, int steps)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiZoomControl::GetStandardSteps
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<double> DxuiZoomControl::GetStandardSteps()
+{
+    std::vector<double>  steps;
+
+
+
+    for (int percent : s_kStops)
+    {
+        steps.push_back (percent / 100.0);
+    }
+
+    return steps;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiZoomControl::Layout
 //
 //  A containing panel's layout pass passes in the bounds FitBounds set,

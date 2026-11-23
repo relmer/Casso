@@ -558,11 +558,26 @@ DxuiZoomPopup::Hit DxuiZoomPopup::HitTest (POINT point) const
 //
 //  DxuiZoomPopup::GetZoomAt
 //
+//  With steps set, the step nearest the point along the slider.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 double DxuiZoomPopup::GetZoomAt (POINT point) const
 {
-    return GetZoomAtPosition (GetPositionAt (point));
+    float   position = GetPositionAt (point);
+    double  zoom     = m_steps.empty() ? GetZoomAtPosition (position) : m_steps.front();
+
+
+
+    for (double step : m_steps)
+    {
+        if (std::fabs (GetPosition (step) - position) < std::fabs (GetPosition (zoom) - position))
+        {
+            zoom = step;
+        }
+    }
+
+    return zoom;
 }
 
 

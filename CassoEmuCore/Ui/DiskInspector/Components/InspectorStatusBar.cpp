@@ -30,7 +30,9 @@ void InspectorStatusBar::Create (DxuiPanel & parent, ZoomFn onZoom, bool hasHelp
     m_hasHelp     = hasHelp;
     m_zoomControl = parent.CreateChild<DxuiZoomControl>();
     m_zoomControl->SetShowBox (false);
-    m_zoomControl->SetOnZoom (std::move (onZoom));
+    m_zoomControl->SetSteps   (DxuiZoomControl::GetStandardSteps());
+    m_zoomControl->SetOnStep  (DxuiZoomControl::StepZoom);
+    m_zoomControl->SetOnZoom  (std::move (onZoom));
 }
 
 

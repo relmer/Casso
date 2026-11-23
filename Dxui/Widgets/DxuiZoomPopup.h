@@ -80,6 +80,10 @@ public:
     void    SetRange     (double minZoom, double maxZoom, bool isLogarithmic);
     void    SetResetZoom (double zoom)  { m_resetZoom = zoom; }
 
+    //  The zooms a press or a drag on the slider snaps to, in ascending
+    //  order; empty for any zoom in the range.
+    void    SetSteps     (std::vector<double> steps) { m_steps = std::move (steps); }
+
     //  False draws the closed percentage with no box around it, as a status
     //  bar's fields are drawn.
     void    SetShowBox   (bool show)    { m_showBox = show; }
@@ -131,8 +135,8 @@ public:
     Hit   HitTest     (POINT point) const;
     bool  IsNear      (POINT point) const;
 
-    //  The zoom at the point along the track, the ends taken past
-    //  either end.
+    //  The zoom at the point along the track, the ends taken past either
+    //  end, and snapped to the nearest step when steps are set.
     double  GetZoomAt     (POINT point) const;
     float   GetPositionAt (POINT point) const;
 
@@ -153,25 +157,26 @@ private:
     void         PaintLabel       (IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label) const;
     void         ChangeZoom       (double zoom);
 
-    DxuiDpiScaler  m_scaler;
-    RECT           m_button        = {};
-    RECT           m_bounds        = {};
-    bool           m_isOpen        = false;
-    bool           m_isDragging    = false;
-    bool           m_isOwnButton   = true;
-    bool           m_showBox       = true;
-    bool           m_isHoverHeld   = false;   // a press closed the panel with the pointer on the button
-    float          m_labelInset    = 0.0f;    // another control's label: its inset, in DIPs
-    float          m_labelFont     = 0.0f;    // and its font size, in DIPs
-    float          m_openness      = 0.0f;    // 0 closed to 1 open, as drawn
-    float          m_animFrom      = 0.0f;    // the openness the animation started from
-    int64_t        m_animStartMs   = -1;      // when it started, -1 for none
-    bool           m_isAnimPending = false;   // started by SetOpen, timed from the next Tick
-    double         m_zoom          = 1.0;
-    double         m_minZoom       = 1.0;
-    double         m_maxZoom       = 1.0;
-    double         m_resetZoom     = 1.0;
-    bool           m_isLogarithmic = true;
-    ZoomFn         m_onZoom;
-    StepFn         m_onStep;
+    DxuiDpiScaler        m_scaler;
+    RECT                 m_button        = {};
+    RECT                 m_bounds        = {};
+    bool                 m_isOpen        = false;
+    bool                 m_isDragging    = false;
+    bool                 m_isOwnButton   = true;
+    bool                 m_showBox       = true;
+    bool                 m_isHoverHeld   = false;   // a press closed the panel with the pointer on the button
+    float                m_labelInset    = 0.0f;    // another control's label: its inset, in DIPs
+    float                m_labelFont     = 0.0f;    // and its font size, in DIPs
+    float                m_openness      = 0.0f;    // 0 closed to 1 open, as drawn
+    float                m_animFrom      = 0.0f;    // the openness the animation started from
+    int64_t              m_animStartMs   = -1;      // when it started, -1 for none
+    bool                 m_isAnimPending = false;   // started by SetOpen, timed from the next Tick
+    double               m_zoom          = 1.0;
+    double               m_minZoom       = 1.0;
+    double               m_maxZoom       = 1.0;
+    double               m_resetZoom     = 1.0;
+    bool                 m_isLogarithmic = true;
+    std::vector<double>  m_steps;
+    ZoomFn               m_onZoom;
+    StepFn               m_onStep;
 };

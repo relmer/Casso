@@ -44,6 +44,7 @@ public:
     void    SetOnStep      (StepFn fn)          { m_popup.SetOnStep (std::move (fn)); }
     void    SetResetZoom   (double zoom)        { m_popup.SetResetZoom (zoom); }
     void    SetShowBox     (bool show)          { m_popup.SetShowBox (show); }
+    void    SetSteps       (std::vector<double> steps) { m_popup.SetSteps (std::move (steps)); }
     void    SetRange       (double minZoom, double maxZoom, bool isLogarithmic);
     void    SetPanelBounds (const RECT & bounds) { m_panelBounds = bounds; }
 
@@ -71,6 +72,9 @@ public:
     //  The zoom a number of steps from `zoom` through the standard stops, as
     //  a browser zooms: -1 for the next stop down, 1 for the next one up.
     static double  StepZoom (double zoom, int steps);
+
+    //  The standard stops StepZoom moves through, as zooms, for SetSteps.
+    static std::vector<double>  GetStandardSteps ();
 
     void  Layout  (const RECT & boundsPx, const DxuiDpiScaler & scaler)                  override;
     void  Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
