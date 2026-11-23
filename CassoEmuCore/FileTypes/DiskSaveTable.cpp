@@ -3,7 +3,7 @@
 #include "FileTypes/DiskSaveTable.h"
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/InfocomSave.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/Ultima3Save.h"
 #include "Machines/Apple2/Common/Ultima4Save.h"
 #include "Machines/Apple2/Common/Ultima5Save.h"
@@ -83,14 +83,14 @@ HRESULT DiskSaveTable::DecodeImage (const std::vector<Byte> & bytes, const std::
 
     if (report.HasDataLoss())
     {
-        count = (size_t) report.GetTrackCount() * NibblizationLayer::kSectorsPerTrack;
+        count = (size_t) report.GetTrackCount() * NibbleFormat::kSectorsPerTrack;
         lost  = std::make_unique<bool[]> (count);
 
         for (size_t i = 0; i < count; i++)
         {
-            int  track = (int) (i / NibblizationLayer::kSectorsPerTrack);
+            int  track = (int) (i / NibbleFormat::kSectorsPerTrack);
 
-            lost[i] = report.GetOutcome (track) == TrackDecodeOutcome::Partial && !report.IsSectorRecovered (track, (int) (i % NibblizationLayer::kSectorsPerTrack));
+            lost[i] = report.GetOutcome (track) == TrackDecodeOutcome::Partial && !report.IsSectorRecovered (track, (int) (i % NibbleFormat::kSectorsPerTrack));
         }
     }
 
