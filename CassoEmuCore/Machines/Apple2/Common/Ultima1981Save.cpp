@@ -7,6 +7,19 @@
 
 
 
+//  The names of the counts in arrays PW, AR and SP, from 0. The first of
+//  each, hands, skin and prayer, isn't an item and isn't listed.
+static constexpr const wchar_t * s_kWeapons[] = { L"Hands", L"Dagger", L"Mace", L"Axe", L"Rope and spikes", L"Sword", L"Great sword",
+                                                  L"Bow and arrows", L"Amulet", L"Wand", L"Staff", L"Triangle", L"Pistol",
+                                                  L"Light sword", L"Phazor", L"Blaster" };
+static constexpr const wchar_t * s_kArmor[]   = { L"Skin", L"Leather armor", L"Chain mail", L"Plate mail", L"Vacuum suit", L"Reflect suit" };
+static constexpr const wchar_t * s_kSpells[]  = { L"Prayer", L"Open", L"Unlock", L"Magic missile", L"Steal", L"Ladder down", L"Ladder up",
+                                                  L"Blink", L"Create", L"Destroy", L"Kill" };
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Ultima1981Save::GetImage
@@ -169,6 +182,66 @@ bool Ultima1981Save::TryFindVariable (std::span<const Byte> image, size_t tableA
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Ultima1981Save::AddInventory
+//
+//  Walks the array table from array C, each array its two name bytes, its
+//  size in bytes, its dimension count and bounds, then its values, and
+//  adds each item in arrays PW, AR and SP whose count is more than zero.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Ultima1981Save::AddInventory (std::span<const Byte> image, size_t statsAt, Character & ioCharacter)
+{
+    constexpr size_t  kHeaderBytes = 7;
+    constexpr size_t  kFloatBytes  = 5;
+    constexpr int     kByteBits    = 8;
+    size_t            at           = statsAt;
+
+
+
+    while (at + kHeaderBytes <= image.size() && IsVariableName (image[at], image[at + 1]))
+    {
+        size_t                            size  = image[at + 2] | ((size_t) image[at + 3] << kByteBits);
+        std::span<const wchar_t * const>  names;
+
+        if (size < kHeaderBytes || at + size > image.size())
+        {
+            break;
+        }
+
+        if (image[at] == 'P' && image[at + 1] == 'W')
+        {
+            names = s_kWeapons;
+        }
+        else if (image[at] == 'A' && image[at + 1] == 'R')
+        {
+            names = s_kArmor;
+        }
+        else if (image[at] == 'S' && image[at + 1] == 'P')
+        {
+            names = s_kSpells;
+        }
+
+        for (size_t i = 1; i < names.size() && kHeaderBytes + (i + 1) * kFloatBytes <= size; i++)
+        {
+            int  count = (int) ReadFloat (image, at + kHeaderBytes + i * kFloatBytes);
+
+            if (count > 0)
+            {
+                ioCharacter.inventory.emplace_back (names[i], count);
+            }
+        }
+
+        at += size;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Ultima1981Save::TryReadName
 //
 //  The character's name, from the catalog's file NAME=<name>.
@@ -277,6 +350,8 @@ bool Ultima1981Save::TryParse (const std::vector<Byte> & sectors, Character & ou
     c.experience     = (int) experience;
     c.x              = (int) x;
     c.y              = (int) y;
+
+    AddInventory (image, statsAt, c);
 
     outCharacter = std::move (c);
 
@@ -406,15 +481,16 @@ Run Ultima1981Save::MakeValue (const std::wstring & text)
 //  Ultima1981Save::Decode
 //
 //  The title and position, then the character: name, race and class, hit
-//  points, food, gold and experience, and the six stats.
+//  points, food, gold and experience, the six stats, and the inventory.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Ultima1981Save::Decode (const std::vector<Byte> & sectors, std::span<const bool> unreadable, DecodedFile & outFile, std::wstring & outError)
 {
-    HRESULT    hr       = S_OK;
-    Character  c;
-    bool       isParsed = TryParse (sectors, c);
+    HRESULT       hr       = S_OK;
+    Character     c;
+    std::wstring  items;
+    bool          isParsed = TryParse (sectors, c);
 
 
 
@@ -441,6 +517,13 @@ HRESULT Ultima1981Save::Decode (const std::vector<Byte> & sectors, std::span<con
     outFile.paragraphs.push_back (MakeParagraph ({ MakeLabel (L"Cha "),     MakeValue (std::format (L"{}", c.charisma)),
                                                    MakeLabel (L"   Wis "),  MakeValue (std::format (L"{}", c.wisdom)),
                                                    MakeLabel (L"   Int "),  MakeValue (std::format (L"{}", c.intelligence)) }));
+
+    for (const auto & [name, count] : c.inventory)
+    {
+        items += std::format (L"{}{} {}", items.empty() ? L"" : L", ", count, name);
+    }
+
+    outFile.paragraphs.push_back (MakeParagraph ({ MakeLabel (L"Inventory "), MakeValue (items.empty() ? L"none" : items) }));
 
 Error:
     return hr;

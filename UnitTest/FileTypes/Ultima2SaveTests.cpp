@@ -58,6 +58,27 @@ public:
     }
 
 
+    TEST_METHOD (TheInventoryIsListed)
+    {
+        std::vector<Byte>       disk   = MakeDisk();
+        size_t                  at     = Ultima2Save::kRecordAt;
+        Ultima2Save::Character  c;
+
+        disk[at + 0x32] = 0x12;
+        disk[at + 0x45] = 0x01;
+        disk[at + 0x66] = 0x01;
+        disk[at + 0xAD] = 0x02;
+
+        Assert::IsTrue   (Ultima2Save::TryParse (std::span<const Byte> (disk).subspan (at, Ultima2Save::kRecordBytes), c));
+        Assert::AreEqual (12, c.torches);
+        Assert::AreEqual ((size_t) 3, c.inventory.size());
+        Assert::AreEqual (std::wstring (L"Dagger"),    c.inventory[0].first);
+        Assert::AreEqual (std::wstring (L"Leather"),   c.inventory[1].first);
+        Assert::AreEqual (std::wstring (L"Skull key"), c.inventory[2].first);
+        Assert::AreEqual (2,                           c.inventory[2].second);
+    }
+
+
     TEST_METHOD (ABlankDiskIsNotFound)
     {
         Assert::IsFalse (Ultima2Save::IsFound (std::vector<Byte> (Ultima2Save::kImageBytes, 0)));

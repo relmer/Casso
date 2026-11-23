@@ -16,7 +16,8 @@
 //  NAME=<character>, as the saved game. The game saves its Applesoft
 //  variables to track 26, sectors 11 down to 0: array C has the hit points,
 //  the six stats, gold, race and class, and the simple variables FO, EP, TX
-//  and TY have food, experience and position.
+//  and TY have food, experience and position. The arrays after C, PW, AR
+//  and SP, have the counts of each weapon, armor and spell.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,6 +41,8 @@ public:
         int           experience     = 0;
         int           x              = 0;
         int           y              = 0;
+
+        std::vector<std::pair<std::wstring, int>>  inventory;
     };
 
     static bool          IsFound      (const std::vector<Byte> & sectors);
@@ -61,6 +64,7 @@ private:
     static bool               TryFindStats    (std::span<const Byte> image, size_t & outAt);
     static bool               IsVariableName  (Byte first, Byte second);
     static bool               TryFindVariable (std::span<const Byte> image, size_t tableAt, size_t tableEnd, char first, char second, double & outValue);
+    static void               AddInventory    (std::span<const Byte> image, size_t statsAt, Character & ioCharacter);
     static bool               TryReadName     (const std::vector<Byte> & sectors, std::wstring & outName);
     static Run                MakeLabel       (const std::wstring & text);
     static Run                MakeValue       (const std::wstring & text);

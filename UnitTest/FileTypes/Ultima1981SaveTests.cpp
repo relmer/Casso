@@ -38,6 +38,8 @@ public:
     static constexpr Byte  k1[]    = { 0x81, 0x00, 0, 0, 0 };
     static constexpr Byte  k40[]   = { 0x86, 0x20, 0, 0, 0 };
     static constexpr Byte  k34[]   = { 0x86, 0x08, 0, 0, 0 };
+    static constexpr Byte  k0[]    = { 0x00, 0x00, 0, 0, 0 };
+    static constexpr Byte  k2[]    = { 0x82, 0x00, 0, 0, 0 };
 
 
     static void Append (std::vector<Byte> & image, std::initializer_list<Byte> bytes)
@@ -79,10 +81,16 @@ public:
         AppendVariable (image, 'T', 'Y', k34);
         Append (image, { 'C', 0x00, 0x39, 0x00, 0x01, 0x00, 0x0A });
 
-        for (const auto * value : { &k100, &k25, &k25, &k18, &k12, &k10, &k15, &k100, &k3, &k4, &k1 })
+        for (const auto * value : { &k100, &k25, &k25, &k18, &k12, &k10, &k15, &k100, &k3, &k4 })
         {
             AppendFloat (image, *value);
         }
+
+        //  PW: hands, then two daggers.
+        Append (image, { 'P', 'W', 0x16, 0x00, 0x01, 0x00, 0x02 });
+        AppendFloat (image, k0);
+        AppendFloat (image, k2);
+        AppendFloat (image, k0);
 
         for (size_t i = 0; i < image.size(); i++)
         {
@@ -118,6 +126,9 @@ public:
         Assert::AreEqual (96,  c.food);
         Assert::AreEqual (40,  c.x);
         Assert::AreEqual (34,  c.y);
+        Assert::AreEqual ((size_t) 1, c.inventory.size());
+        Assert::AreEqual (std::wstring (L"Dagger"), c.inventory[0].first);
+        Assert::AreEqual (2, c.inventory[0].second);
     }
 
 

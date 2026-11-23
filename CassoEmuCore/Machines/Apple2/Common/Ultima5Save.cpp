@@ -9,30 +9,45 @@
 
 
 //  The world's tiles by number, each with its color on the map and its name
-//  in a tip; the first range that matches wins. Water, grass, forest and
-//  towns were checked in the game against the party's surroundings. The
-//  rest are identified by where they lie on the map: eight shrines, roads
-//  that link the towns, and castles at Lord British's and Blackthorn's
-//  coordinates. A number not in the table is drawn in s_kOtherTile.
+//  in a tip; the first range that matches is used. The terrain is identified
+//  from the tile bitmaps in the program disk's file `SHAPES`. The places are
+//  identified by where they lie: the towns on Minoc, Yew, Britain and Skara
+//  Brae, the keeps on Empath Abbey, the Lycaeum and Serpent's Hold, the
+//  dungeon entrances on Deceit, Despise, Destard, Wrong, Covetous, Shame and
+//  Hythloth, and the castles at Lord British's and Blackthorn's coordinates.
+//  A number not in the table is drawn in s_kOtherTile.
 static constexpr struct { Byte first; Byte last; uint32_t argb; const wchar_t * pszName; } s_kTiles[] =
 {
-    { 0x01, 0x01, 0xFF141E78, L"Deep water"    },
-    { 0x02, 0x02, 0xFF2846AA, L"Water"         },
-    { 0x03, 0x03, 0xFF5078D2, L"Shallow water" },
-    { 0x04, 0x04, 0xFF50643C, L"Swamp"         },
-    { 0x05, 0x05, 0xFF5AAA46, L"Grass"         },
-    { 0x06, 0x06, 0xFF96AA50, L"Brush"         },
-    { 0x07, 0x07, 0xFF145A28, L"Deep forest"   },
-    { 0x08, 0x08, 0xFF1E692D, L"Forest"        },
-    { 0x09, 0x09, 0xFF96825A, L"Hills"         },
-    { 0x0A, 0x0F, 0xFF7D7369, L"Mountains"     },
-    { 0x14, 0x14, 0xFFB48CDC, L"Shrine"        },
-    { 0x19, 0x19, 0xFFDCBE3C, L"Town"          },
-    { 0x10, 0x1C, 0xFFE6D282, L"Other place"   },
-    { 0x30, 0x37, 0xFF6E8C6E, L"Shore"         },
-    { 0x39, 0x3F, 0xFFA8A8B4, L"Castle"        },
-    { 0x47, 0x47, 0xFF8C5A32, L"Bridge"        },
-    { 0x60, 0x6F, 0xFFB49664, L"Road"          },
+    { 0x01, 0x01, 0xFF141E78, L"Deep water"       },
+    { 0x02, 0x02, 0xFF2846AA, L"Water"            },
+    { 0x03, 0x03, 0xFF5078D2, L"Shallow water"    },
+    { 0x04, 0x04, 0xFF50643C, L"Swamp"            },
+    { 0x05, 0x05, 0xFF5AAA46, L"Grass"            },
+    { 0x06, 0x06, 0xFF96AA50, L"Brush"            },
+    { 0x07, 0x07, 0xFFD2BE82, L"Desert"           },
+    { 0x08, 0x08, 0xFF3C8C3C, L"Light forest"     },
+    { 0x09, 0x09, 0xFF1E692D, L"Forest"           },
+    { 0x0A, 0x0A, 0xFF145028, L"Dense forest"     },
+    { 0x0B, 0x0B, 0xFF96825A, L"Hills"            },
+    { 0x0C, 0x0C, 0xFF7D7369, L"Mountains"        },
+    { 0x0D, 0x0D, 0xFFB4AFAA, L"Peaks"            },
+    { 0x0E, 0x0F, 0xFF96825A, L"Hills"            },
+    { 0x10, 0x10, 0xFFE6D282, L"Village"          },
+    { 0x12, 0x12, 0xFFC8AA78, L"Hut"              },
+    { 0x13, 0x13, 0xFFE6D282, L"Village"          },
+    { 0x14, 0x14, 0xFFDCBE3C, L"Town"             },
+    { 0x15, 0x15, 0xFFC8C8D2, L"Keep"             },
+    { 0x16, 0x18, 0xFF8C3C3C, L"Dungeon entrance" },
+    { 0x19, 0x19, 0xFFB48CDC, L"Shrine"           },
+    { 0x1B, 0x1B, 0xFFF0F0DC, L"Lighthouse"       },
+    { 0x11, 0x1C, 0xFFC8AA78, L"Building"         },
+    { 0x1E, 0x1F, 0xFFDCC88C, L"Dunes"            },
+    { 0x20, 0x25, 0xFF5AAA46, L"Grass"            },
+    { 0x2F, 0x2F, 0xFF78A050, L"Cactus"           },
+    { 0x30, 0x37, 0xFF6E8C6E, L"Shore"            },
+    { 0x39, 0x3F, 0xFFA8A8B4, L"Castle"           },
+    { 0x6A, 0x6B, 0xFF8C5A32, L"Bridge"           },
+    { 0x60, 0x6F, 0xFFB49664, L"Road"             },
 };
 
 static constexpr uint32_t        s_kOtherTile   = 0xFFC850C8;
@@ -429,7 +444,12 @@ void Ultima5Save::AddLegend (std::vector<Paragraph> & ioParagraphs)
 
     for (const auto & known : s_kTiles)
     {
-        runs.push_back (Run { known.pszName, false, false, false, RunColor::Muted, known.argb });
+        bool  isListed = std::ranges::any_of (runs, [&] (const Run & run) { return run.text == known.pszName; });
+
+        if (!isListed)
+        {
+            runs.push_back (Run { known.pszName, false, false, false, RunColor::Muted, known.argb });
+        }
     }
 
     runs.push_back (Run { L"Other",            false, false, false, RunColor::Muted, s_kOtherTile });
