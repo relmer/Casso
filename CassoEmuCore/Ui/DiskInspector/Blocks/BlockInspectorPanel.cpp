@@ -1048,7 +1048,8 @@ void BlockInspectorPanel::LayoutGrid (const RECT & column, const DxuiDpiScaler &
 //  The list at the top, then a splitter, then the current block: its title
 //  row with Copy block at its right end, the field line, the edit bar or
 //  a long job's progress row, then the hex view beside the fields, with a
-//  splitter between them.
+//  splitter between them. The hex view is as wide as its columns, and the
+//  fields list has the rest.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1071,6 +1072,7 @@ void BlockInspectorPanel::LayoutMiddle (const RECT & column, const DxuiDpiScaler
 
     y      = m_header.Layout (column, listEnd + pad / 2 + splitter + pad / 2, m_jobs.IsLongJob(), scaler);
     hexEnd = m_splitters.PlaceHexEnd (column);
+    hexEnd = (int) column.left + m_hexPane.FitHexWidthPx (hexEnd - (int) column.left, scaler);
 
     m_splitters.SetBarRect (BlockPanelSplitters::Bar::Hex, { hexEnd + pad / 2 - splitter / 2, y, hexEnd + pad / 2 + splitter / 2 + 1, std::max (y, (int) column.bottom) });
 
@@ -1151,6 +1153,8 @@ void BlockInspectorPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
 
     if (m_hexPane.RefitRows (m_scaler))
     {
+        Layout (GetBounds(), m_scaler);
+
         if (m_onChanged)
         {
             m_onChanged();

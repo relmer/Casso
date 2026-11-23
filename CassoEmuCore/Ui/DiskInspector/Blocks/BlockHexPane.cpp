@@ -470,6 +470,35 @@ int BlockHexPane::MeasureMinHexPx (const DxuiDpiScaler & scaler)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BlockHexPane::FitHexWidthPx
+//
+//  The frame is counted whether or not the block is edited, so entering
+//  and leaving edit mode doesn't move the views.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int BlockHexPane::FitHexWidthPx (int widthPx, const DxuiDpiScaler & scaler)
+{
+    int  frame = std::max (1, scaler.ToPx ((int) kFrameDip));
+
+
+
+    FitRows (widthPx - 2 * frame, scaler);
+
+    if (m_contentPx == 0)
+    {
+        return widthPx;
+    }
+
+    return std::min (widthPx, m_contentPx + scaler.ToPx ((int) kHexScrollDip) + 2 * frame);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BlockHexPane::GetTooltip
 //
 //  A split pointer's high byte lies outside its field, at pairOffset.

@@ -98,6 +98,11 @@ public:
     //  or 0 before the view has measured its text.
     int  MeasureMinHexPx (const DxuiDpiScaler & scaler);
 
+    //  The hex view's width within `widthPx`: its columns for the most bytes
+    //  in a row that fit, its scroll bar and the edit frame, or `widthPx`
+    //  before the view has measured its text.
+    int  FitHexWidthPx (int widthPx, const DxuiDpiScaler & scaler);
+
     //  The tip for a byte under a point: its field, and what its color
     //  marks. False where there is no byte.
     bool  GetTooltip (POINT pointPx, const BlockInspectorModel & model, std::wstring & outText, RECT & outAnchorPx, vector<DxuiTooltipSwatch> & outSwatches) const;

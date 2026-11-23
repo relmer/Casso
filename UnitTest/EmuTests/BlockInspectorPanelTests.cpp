@@ -830,6 +830,46 @@ public:
     }
 
 
+    TEST_METHOD (Panel_TheHexViewIsAsWideAsItsColumns)
+    {
+        FakeDiskFileIo        io;
+        BlockInspectorModel   model;
+        BlockInspectorPanel   panel;
+        DxuiDarkTheme         theme;
+        DxuiDpiScaler         scaler;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        BlockEditState        state;
+        RECT                  before = {};
+        RECT                  after  = {};
+
+
+
+        OpenModel (io, model);
+
+        panel.Init   (&model, nullptr, &theme, nullptr, &text);
+        panel.Layout (RECT { 0, 0, 1600, 700 }, scaler);
+        panel.SelectBlock (2);
+        panel.Paint  (painter, text, theme);
+        panel.Paint  (painter, text, theme);
+
+        before = panel.GetHexView()->GetBounds();
+
+        Assert::IsTrue   (panel.GetHexView()->GetContentWidthPx() > 0);
+        Assert::AreEqual (panel.GetHexView()->GetContentWidthPx() + scaler.ToPx ((int) BlockHexPane::kHexScrollDip), (int) (before.right - before.left),
+                          L"no blank width is left right of the ASCII column");
+
+        state.canEdit   = true;
+        state.isEditing = true;
+        panel.SetEditState (state);
+        panel.Paint (painter, text, theme);
+
+        after = panel.GetHexView()->GetBounds();
+        Assert::AreEqual (before.left,  after.left,  L"edit mode doesn't move the hex view");
+        Assert::AreEqual (before.right, after.right, L"edit mode doesn't resize the hex view");
+    }
+
+
     TEST_METHOD (HexPane_BytesAreDrawnAsTheMemoryWindowDrawsThem)
     {
         BlockHexPane::EditColors     colors      = { 0xFF0078D4, 0xFF1E1E1E, 0xFFD4D4D4 };
