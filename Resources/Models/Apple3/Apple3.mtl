@@ -1,0 +1,290 @@
+newmtl base
+Ka 0 0 0 
+Kd 0.19 0.145 0.11
+d 1
+
+newmtl foot_30_20
+Ka 0 0 0 
+Kd 0.12 0.11 0.1
+d 1
+
+newmtl foot_30_232
+Ka 0 0 0 
+Kd 0.12 0.11 0.1
+d 1
+
+newmtl foot_384_20
+Ka 0 0 0 
+Kd 0.12 0.11 0.1
+d 1
+
+newmtl foot_384_232
+Ka 0 0 0 
+Kd 0.12 0.11 0.1
+d 1
+
+newmtl case
+Ka 0 0 0 
+Kd 0.905 0.84 0.7
+d 1
+
+newmtl slot
+Ka 0 0 0 
+Kd 0.055 0.055 0.062
+d 1
+
+newmtl recess
+Ka 0 0 0 
+Kd 0.19 0.145 0.11
+d 1
+
+newmtl lever
+Ka 0 0 0 
+Kd 0.905 0.86 0.755
+d 1
+
+newmtl lamp_frame
+Ka 0 0 0 
+Kd 0.07 0.07 0.075
+d 1
+
+newmtl lamp
+Ka 0 0 0 
+Kd 0.9 0.12 0.1
+d 1
+
+newmtl logo_plate
+Ka 0 0 0 
+Kd 0.19 0.145 0.11
+d 1
+
+newmtl model_plate
+Ka 0 0 0 
+Kd 0.19 0.145 0.11
+d 1
+
+newmtl badge0
+Ka 0 0 0 
+Kd 0.380392 0.733333 0.27451
+d 1
+
+newmtl badge1
+Ka 0 0 0 
+Kd 0.992157 0.721569 0.152941
+d 1
+
+newmtl badge2
+Ka 0 0 0 
+Kd 0.960784 0.509804 0.121569
+d 1
+
+newmtl badge3
+Ka 0 0 0 
+Kd 0.878431 0.227451 0.243137
+d 1
+
+newmtl badge4
+Ka 0 0 0 
+Kd 0.588235 0.239216 0.592157
+d 1
+
+newmtl badge5
+Ka 0 0 0 
+Kd 0 0.615686 0.862745
+d 1
+
+newmtl model_mark
+Ka 0 0 0 
+Kd 0.92 0.92 0.9
+d 1
+
+newmtl fins
+Ka 0 0 0 
+Kd 0.19 0.145 0.11
+d 1
+
+newmtl opening_rib_0
+Ka 0 0 0 
+Kd 0.19 0.145 0.11
+d 1
+
+newmtl opening_rib_1
+Ka 0 0 0 
+Kd 0.19 0.145 0.11
+d 1
+
+newmtl opening_rib_2
+Ka 0 0 0 
+Kd 0.19 0.145 0.11
+d 1
+
+newmtl opening_back
+Ka 0 0 0 
+Kd 0.07 0.07 0.075
+d 1
+
+newmtl fin_tab_0
+Ka 0 0 0 
+Kd 0.8 0.78 0.72
+d 1
+
+newmtl fin_tab_1
+Ka 0 0 0 
+Kd 0.8 0.78 0.72
+d 1
+
+newmtl fin_tab_2
+Ka 0 0 0 
+Kd 0.8 0.78 0.72
+d 1
+
+newmtl fin_tab_3
+Ka 0 0 0 
+Kd 0.8 0.78 0.72
+d 1
+
+newmtl connector_plate
+Ka 0 0 0 
+Kd 0.8 0.78 0.72
+d 1
+
+newmtl power_plate
+Ka 0 0 0 
+Kd 0.8 0.78 0.72
+d 1
+
+newmtl floppy_disks
+Ka 0 0 0 
+Kd 0.2 0.42 0.76
+d 1
+
+newmtl floppy_disks_pins
+Ka 0 0 0 
+Kd 0.78 0.64 0.3
+d 1
+
+newmtl port_a
+Ka 0 0 0 
+Kd 0.62 0.625 0.635
+d 1
+
+newmtl port_a_insert
+Ka 0 0 0 
+Kd 0.07 0.07 0.075
+d 1
+
+newmtl port_b
+Ka 0 0 0 
+Kd 0.62 0.625 0.635
+d 1
+
+newmtl port_b_insert
+Ka 0 0 0 
+Kd 0.07 0.07 0.075
+d 1
+
+newmtl color_video
+Ka 0 0 0 
+Kd 0.62 0.625 0.635
+d 1
+
+newmtl color_video_insert
+Ka 0 0 0 
+Kd 0.07 0.07 0.075
+d 1
+
+newmtl port_c
+Ka 0 0 0 
+Kd 0.62 0.625 0.635
+d 1
+
+newmtl port_c_insert
+Ka 0 0 0 
+Kd 0.07 0.07 0.075
+d 1
+
+newmtl bw_video
+Ka 0 0 0 
+Kd 0.75 0.15 0.15
+d 1
+
+newmtl bw_video_pin
+Ka 0 0 0 
+Kd 0.62 0.625 0.635
+d 1
+
+newmtl audio
+Ka 0 0 0 
+Kd 0.07 0.07 0.075
+d 1
+
+newmtl power_inlet
+Ka 0 0 0 
+Kd 0.07 0.07 0.075
+d 1
+
+newmtl power_switch
+Ka 0 0 0 
+Kd 0.07 0.07 0.075
+d 1
+
+newmtl label_FLOPPY_DISKS
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
+d 1
+
+newmtl label_PORT_A
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
+d 1
+
+newmtl label_PORT_B
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
+d 1
+
+newmtl label_OUTPUT
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
+d 1
+
+newmtl label_COLOR_VIDEO
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
+d 1
+
+newmtl label_B_W_VIDEO
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
+d 1
+
+newmtl label_AUDIO
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
+d 1
+
+newmtl label_PORT_C
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
+d 1
+
+newmtl label_RS-232-C
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
+d 1
+
+newmtl label_POWER
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
+d 1
+
+newmtl label_OFF
+Ka 0 0 0 
+Kd 0.92 0.92 0.9
+d 1
+
+newmtl label_ON
+Ka 0 0 0 
+Kd 0.92 0.92 0.9
+d 1
+
