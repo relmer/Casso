@@ -110,13 +110,13 @@ Clients format them.
 | `disassembly` | `lines`: `[{"address":int,"bytes":[int],"mnemonic":str,"operand":str,"operandAddress":int|null,"operandSymbol":str|null,"target":int|null,"label":str|null,"documented":bool}]`. `operand` is always numeric; `operandSymbol` names `operandAddress` when a symbol is loaded, and `label` names `address` (or the data block the line starts). |
 | `breakpointSet`, `breakpointList` | `breakpoint` / `breakpoints`: `{"id","kind","address","last","opcode","condition","access","mode","enabled","hits","disk","resolved"}` (absent fields omitted). `mode` is `after` or `before` on a memory watchpoint. Kind `disk` (`BPDISK`) has a `disk` object, the breakpoint's definition (below), and, for an RWTS or driver call, `resolved`: the routine it stops at now, absent while its vector has no target |
 | `watchList`, `zeroPageList`, `bookmarkList` | `entries`: `[{"id","address","enabled","value"}]` |
-| `searchHits` | `addresses`: `[int]` |
+| `searchHits` | `addresses`: `[int]`, `regions`: `[string]`, the region each hit was read from |
 | `stack` | `sp`, `entries`: `[{"address":int,"value":int}]` |
 | `softSwitches` | `switches`: `[{"name":str,"value":bool}]` |
 | `symbols` | `symbols`: `[{"name","address","table","constant"}]`, where `constant` is true for an equate, a value that is not an address |
 | `cycles` | `count` |
 | `mode` | `mode` |
-| `fileIo` | `path`, `requested`, `transferred`, `address`, `isLoad`: bool, `mismatch`: bool, and `companion` when a file beside it was loaded too |
+| `fileIo` | `path`, `requested`, `transferred`, `address`, `isLoad`: bool, `mismatch`: bool, and `companion` when a file beside it was loaded too. A save adds `regions`: `[{first, last, region}]` |
 | `profile` | `on`: bool, `instructions`, `cycles` (penalties included), `opcodes`: `[{"mnemonic","mode","count","cycles"}]` with base cycles only, `penalties`: `{"pageCross","branchTaken","branchCross"}` in cycles, `addresses`: `[{"address","symbol","cycles"}]` with `symbol` null where none holds the address (filled by `PROFILE LIST ADDR`, the hottest twenty) |
 | `callStack` | `mechanism`: `"RECORDED"`, `"WALK"` or `"HYBRID"`; `rows`, innermost first, each a frame `{"callSite","target","type":"JSR"|"BRK"|"IRQ"|"NMI","provenance":"recorded"|"guessed","stackLevel","verified":bool,"symbol":str|null,"note":str|null}` or a break `{"break":"txs"|"pulledReturn"|"endedByJump"|"returnMismatch"|"stackWrap"|"reset"|"trackingBegan"|"powerOn"|"historyBegan"|"trackingRestarted","pc","opcode","text"}`, where the `text` of a `historyBegan` break is `Calls before history starts at $xxxx are not available.` and that of a `trackingRestarted` break, where recording began again after a move through history that no rebuild replaced, is `Calls before $xxxx are not available.`; `lastReturn`: the last frame that returned with a note (past inline parameters), or `null` (`CALLS`) |
 | `callStackMode` | `mechanism` (`CALLS MODE`) |

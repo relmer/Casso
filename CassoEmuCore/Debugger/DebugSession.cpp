@@ -1607,6 +1607,7 @@ void DebugSession::TakeView (DebugSessionView & out)
     out.assemblyAddress  = m_interpreter.GetAssemblyAddress();
     out.cycleMarker      = m_cycleMarker;
     out.searchResults    = m_searchResults;
+    out.searchRegions    = m_searchRegions;
     out.searchSerial     = m_searchSerial;
     out.compareResults   = m_compareResults;
     out.compareSerial    = m_compareSerial;
@@ -1667,6 +1668,7 @@ void DebugSession::InstallView (const DebugSessionView & view)
     m_mode             = view.mode;
     m_cycleMarker      = view.cycleMarker;
     m_searchResults    = view.searchResults;
+    m_searchRegions    = view.searchRegions;
     m_searchSerial     = view.searchSerial;
     m_compareResults   = view.compareResults;
     m_compareSerial    = view.compareSerial;

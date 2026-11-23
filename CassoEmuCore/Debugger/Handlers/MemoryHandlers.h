@@ -84,12 +84,13 @@ private:
     static void  ShowMap           (DebugSession & session, Reply & reply);
     static void  Patch             (DebugSession & session, const DebugCommand & command, Reply & reply);
 
-    static bool  TryPokeRange (IDebugTarget & target, Word first, std::span<const Byte> bytes, Reply & reply);
-    static bool  IsWritable   (const IDebugTarget & target, Word first, size_t count, Reply & reply);
-    static bool  TryPeekByte  (IDebugTarget & target, Word address, Byte & value, Reply & reply);
-    static bool  TryGetFiles  (DebugSession & session, Reply & reply, IFileSystem *& files);
-    static Word  GetLast      (const DebugCommand & command);
-    static Byte  Peek         (IDebugTarget & target, Word address);
+    static bool  TryPokeRange  (IDebugTarget & target, Word first, std::span<const Byte> bytes, Reply & reply);
+    static bool  IsWritable    (const IDebugTarget & target, Word first, size_t count, Reply & reply);
+    static bool  TryPeekByte   (IDebugTarget & target, Word address, Byte & value, Reply & reply);
+    static void  AddRegionSpan (std::vector<RegionSpan> & spans, Word address, MemoryRegion region);
+    static bool  TryGetFiles   (DebugSession & session, Reply & reply, IFileSystem *& files);
+    static Word  GetLast       (const DebugCommand & command);
+    static Byte  Peek          (IDebugTarget & target, Word address);
 
     static std::string  Unquote (const std::string & text);
 

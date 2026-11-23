@@ -274,9 +274,11 @@ public:
     IMachineControl     * GetMachineControl    () const                           { return m_machineControl; }
 
     // The last S or SH results, reachable as @1, @2 and so on.
-    const std::vector<Word>  & GetSearchResults () const                          { return m_searchResults; }
-    void                       SetSearchResults (std::vector<Word> results)        { m_searchResults = std::move (results); m_searchSerial++; }
-    uint64_t                   GetSearchSerial  () const                           { return m_searchSerial; }
+    const std::vector<Word>          & GetSearchResults () const  { return m_searchResults; }
+    const std::vector<MemoryRegion>  & GetSearchRegions () const  { return m_searchRegions; }
+    void                               SetSearchResults (std::vector<Word> results, std::vector<MemoryRegion> regions = {})
+                                                                  { m_searchResults = std::move (results); m_searchRegions = std::move (regions); m_searchSerial++; }
+    uint64_t                           GetSearchSerial  () const  { return m_searchSerial; }
 
     //  The last MC's differences, numbered as the searches are, for a Memory
     //  pane's comparison.
@@ -437,6 +439,7 @@ private:
     StepFilter                            m_stepFilter;
     CallRecordKeeper                      m_callRecords   { m_target, m_watchpoints };
     std::vector<Word>                     m_searchResults;
+    std::vector<MemoryRegion>             m_searchRegions;
     uint64_t                              m_searchSerial  = 0;
     std::vector<CompareDifference>        m_compareResults;
     uint64_t                              m_compareSerial = 0;

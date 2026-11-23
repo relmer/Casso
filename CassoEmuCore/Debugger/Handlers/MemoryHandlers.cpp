@@ -391,10 +391,11 @@ void MemoryHandlers::Search (DebugSession & session, const DebugCommand & comman
         if (isMatch)
         {
             data.addresses.push_back ((Word) address);
+            data.regions.push_back   (target.GetRegion ((Word) address));
         }
     }
 
-    session.SetSearchResults (data.addresses);
+    session.SetSearchResults (data.addresses, data.regions);
     reply.data = data;
 }
 
@@ -410,7 +411,7 @@ void MemoryHandlers::Search (DebugSession & session, const DebugCommand & comman
 
 void MemoryHandlers::ShowResults (DebugSession & session, Reply & reply)
 {
-    reply.data = SearchHitsData { session.GetSearchResults() };
+    reply.data = SearchHitsData { session.GetSearchResults(), session.GetSearchRegions() };
 }
 
 
@@ -697,6 +698,7 @@ void MemoryHandlers::SaveBinary (DebugSession & session, const DebugCommand & co
         }
 
         content.push_back ((char) value);
+        AddRegionSpan (data.regions, (Word) address, session.GetTarget().GetRegion ((Word) address));
     }
 
     hr = files->WriteAllText (session.GetHostFiles().ResolvePath (command.text), content);
@@ -713,6 +715,31 @@ void MemoryHandlers::SaveBinary (DebugSession & session, const DebugCommand & co
     data.requested   = (uint32_t) content.size();
     data.transferred = (uint32_t) content.size();
     reply.data       = data;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryHandlers::AddRegionSpan
+//
+//  Extends the last span when the address continues it in the same region,
+//  and starts a new span otherwise.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryHandlers::AddRegionSpan (std::vector<RegionSpan> & spans, Word address, MemoryRegion region)
+{
+    if (!spans.empty() && spans.back().region == region && spans.back().last + 1 == address)
+    {
+        spans.back().last = address;
+    }
+    else
+    {
+        spans.push_back (RegionSpan { address, address, region });
+    }
 }
 
 

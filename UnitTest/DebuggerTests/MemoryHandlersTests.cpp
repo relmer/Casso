@@ -214,6 +214,47 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("Found 1: $C100"), rig.RunOk ("S C0FE:C101 ? 00").text.at (0), L"nor does a wildcard");
         }
 
+        //  Each hit reports the region it was read from, so a hit in aux RAM
+        //  is not mistaken for one in main memory.
+        TEST_METHOD (Search_ShowsTheBankOfEachHit)
+        {
+            Rig    rig;
+            Reply  reply;
+
+
+
+            rig.target.auxFirst = 0x5000;
+            rig.target.auxLast  = 0x5FFF;
+            Store (rig, 0x0300, { 0x41, 0x01, 0x55 });
+            Store (rig, 0x5E1A, { 0x41, 0x01, 0x55 });
+
+            reply = rig.RunOk ("S 300:5FFF 41 01 55");
+            Assert::AreEqual (std::string ("Found 2: $0300 AUX:$5E1A"), reply.text.at (0));
+            Assert::IsTrue   (std::get<SearchHitsData> (reply.data).regions == std::vector<MemoryRegion> ({ MemoryRegion::MainRam, MemoryRegion::AuxRam }));
+            Assert::AreEqual (std::string ("Found 2: $0300 AUX:$5E1A"), rig.RunOk ("@").text.at (0), L"@ reports the banks of the last search");
+        }
+
+        //  A save that read part of its range from aux RAM lists the regions.
+        TEST_METHOD (BSAVE_ListsTheRegionsOfAnAuxRead)
+        {
+            Rig    rig;
+            Reply  reply;
+
+
+
+            rig.target.auxFirst = 0x0301;
+            rig.target.auxLast  = 0x0301;
+
+            reply = rig.RunOk ("BSAVE out.bin 300:302");
+            Assert::AreEqual ((size_t) 4, reply.text.size());
+            Assert::AreEqual (std::string ("  $0300-$0300 from main memory"), reply.text[1]);
+            Assert::AreEqual (std::string ("  $0301-$0301 from aux RAM"),     reply.text[2]);
+            Assert::AreEqual (std::string ("  $0302-$0302 from main memory"), reply.text[3]);
+
+            rig.target.auxLast = 0;
+            Assert::AreEqual ((size_t) 1, rig.RunOk ("BSAVE out.bin 300:302").text.size(), L"an all-main save doesn't list regions");
+        }
+
         TEST_METHOD (Search_WildcardsAndResults)
         {
             Rig    rig;

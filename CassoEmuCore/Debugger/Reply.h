@@ -238,9 +238,11 @@ struct WatchListData
     std::vector<WatchEntry>  entries;
 };
 
+// regions[i] is the memory addresses[i] was read from.
 struct SearchHitsData
 {
-    std::vector<Word>  addresses;
+    std::vector<Word>          addresses;
+    std::vector<MemoryRegion>  regions;
 };
 
 struct StackEntry
@@ -290,19 +292,28 @@ struct ModeData
     CommandMode  mode = CommandMode::AppleWin;
 };
 
+// The span of addresses a save read from one memory region.
+struct RegionSpan
+{
+    Word          first  = 0;
+    Word          last   = 0;
+    MemoryRegion  region = MemoryRegion::MainRam;
+};
+
 // BLOAD, BSAVE, R and W. `echo` is DebugSession::GetPathEcho's text: the
 // absolute path a relative one resolved to, or empty. `companion` is the
 // line from the debug or symbol file BLOAD found beside the binary.
 struct FileIoData
 {
-    std::string  path;
-    std::string  echo;
-    std::string  companion;
-    uint32_t     requested   = 0;
-    uint32_t     transferred = 0;
-    Word         address     = 0;
-    bool         isLoad      = false;
-    bool         mismatch    = false;
+    std::string              path;
+    std::string              echo;
+    std::string              companion;
+    uint32_t                 requested   = 0;
+    uint32_t                 transferred = 0;
+    Word                     address     = 0;
+    bool                     isLoad      = false;
+    bool                     mismatch    = false;
+    std::vector<RegionSpan>  regions;    // BSAVE: the memory each part of the range was read from
 };
 
 // MC: each byte that differs between the source range and the destination.

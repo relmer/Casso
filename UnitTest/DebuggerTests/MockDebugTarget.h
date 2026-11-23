@@ -29,6 +29,8 @@ public:
     std::vector<Byte>        memory           = std::vector<Byte> (0x10000, 0);
     std::vector<SoftSwitch>  softSwitches;
     int                      expansionRomSlot = -1;
+    Word                     auxFirst         = 1;   // the span GetRegion reports as aux RAM; empty by default
+    Word                     auxLast          = 0;
     const Microcode        * instructionSet   = nullptr;
     DebugCpuKind             cpuKind          = DebugCpuKind::M65C02;
     DebugMachineInfo         machineInfo      = { "Apple //e Enhanced", "", {} };
@@ -107,6 +109,11 @@ public:
         if (address >= kRomFirst)
         {
             return MemoryRegion::Rom;
+        }
+
+        if (address >= auxFirst && address <= auxLast)
+        {
+            return MemoryRegion::AuxRam;
         }
 
         return (address >= kIoFirst && address <= kIoLast) ? MemoryRegion::Io : MemoryRegion::MainRam;

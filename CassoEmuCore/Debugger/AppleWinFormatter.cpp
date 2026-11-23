@@ -643,6 +643,30 @@ void AppleWinFormatter::FormatWatchList (const WatchListData & data, Lines & lin
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AppleWinFormatter::GetBankPrefix
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AppleWinFormatter::GetBankPrefix (MemoryRegion region, char separator)
+{
+    std::string  prefix;
+
+
+
+    if (region == MemoryRegion::AuxRam)
+    {
+        prefix = std::format ("AUX{}", separator);
+    }
+
+    return prefix;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AppleWinFormatter::FormatSearchHits
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -659,9 +683,13 @@ void AppleWinFormatter::FormatSearchHits (const SearchHitsData & data, Lines & l
         return;
     }
 
-    for (Word address : data.addresses)
+    for (size_t i = 0; i < data.addresses.size(); ++i)
     {
-        text += std::format (" ${:04X}", address);
+        MemoryRegion  region = (i < data.regions.size()) ? data.regions[i] : MemoryRegion::MainRam;
+
+
+
+        text += std::format (" {}${:04X}", GetBankPrefix (region, ':'), data.addresses[i]);
     }
 
     lines.push_back (text);
@@ -760,6 +788,16 @@ void AppleWinFormatter::FormatFileIo (const FileIoData & data, Lines & lines)
     if (!data.companion.empty())
     {
         lines.push_back (data.companion);
+    }
+
+    //  Only a save that read aux RAM lists its regions; an all-main save
+    //  matches what a typed address reads.
+    if (std::ranges::any_of (data.regions, [] (const RegionSpan & span) { return span.region == MemoryRegion::AuxRam; }))
+    {
+        for (const RegionSpan & span : data.regions)
+        {
+            lines.push_back (std::format ("  ${:04X}-${:04X} from {}", span.first, span.last, span.region == MemoryRegion::AuxRam ? "aux RAM" : "main memory"));
+        }
     }
 }
 
