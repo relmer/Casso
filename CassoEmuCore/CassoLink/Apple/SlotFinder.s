@@ -13,9 +13,10 @@
 ; code, which has then run.
 ;
 ; Built with SERIALLOAD, it is typed in alone, at $3950, and reads the shim
-; from the 6551 as raw bytes rather than as typed lines. It sends $A5 when it
-; is ready, then takes a page count, that many pages for $3A00 up, and the
-; XOR of every byte. With the right XOR it writes the slot and starts the
+; from the 6551 as raw bytes rather than as typed lines. It sets the 6551
+; to 9,600 baud with one stop bit, as a //c's port 1 starts with two, and
+; turns its transmitter on. It sends $A5 when it is ready, then takes a
+; page count, that many pages for $3A00 up, and the XOR of every byte. With the right XOR it writes the slot and starts the
 ; shim; otherwise it jumps to Applesoft's prompt, where the bootstrap was
 ; typed, and the PC's wait for Ready ends in an error. The warm start doesn't
 ; reset the input hook that IN# set, and the PC's prompt probe is a BASIC
@@ -96,6 +97,10 @@ found:  bit $CFFF               ; no card's expansion ROM left selected
         tax
         php
         sei
+        lda #$0B                ; the transmitter on, after a Ctrl+Reset cleared it
+        sta $C08A,x
+        lda #$1E                ; 9,600 baud, 8 data bits, one stop bit
+        sta $C08B,x
         lda $C088,x             ; a byte left in the 6551 is dropped
 txwait: lda $C089,x
         and #$10
