@@ -3,6 +3,7 @@
 #include "DiskImage.h"
 #include "DamagedMountReport.h"
 #include "DiskImageStore.h"
+#include "Devices/Disk/Store/DiskFileCommit.h"
 #include "Machines/Apple2/Common/Denibblizer.h"
 #include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
@@ -1086,7 +1087,7 @@ HRESULT DiskImage::Flush()
         hr = Serialize (bytes);
         CHR (hr);
 
-        hr = DiskImageStore::WriteFileAtomically (m_filePath, bytes);
+        hr = DiskFileCommit::WriteFileAtomically (m_filePath, bytes);
         CHR (hr);
     }
 

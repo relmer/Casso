@@ -18,7 +18,7 @@
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Machines/Apple2/Common/SectorInterleave.h"
 #include "Machines/Apple2/Common/ThirteenSectorCodec.h"
-#include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/DiskSourceFormat.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Machines/Apple2/Common/TrackWritability.h"
 #include "Devices/Disk/SectorFieldWriter.h"
@@ -174,7 +174,7 @@ HRESULT VolumeImage::Load (
     bool                hasData  = size != 0;
     bool                thirteen = IsThirteenSectorFile (path);
     ImageContainerKind  kind     = ImageContainer::GetKind (path, size);
-    HRESULT             hrFormat = DiskImageStore::GetSourceFormatByExtension (path, format);
+    HRESULT             hrFormat = DiskSourceFormat::GetSourceFormatByExtension (path, format);
     DiskImage           image;
 
 
@@ -214,7 +214,7 @@ HRESULT VolumeImage::Load (
         BAIL_OUT_IF (true, S_OK);
     }
 
-    hr = DiskImageStore::GetSourceFormatByExtension (path, format);
+    hr = DiskSourceFormat::GetSourceFormatByExtension (path, format);
     CHRF (hr, outDiagnosis.failure = MountFailure::UnknownExtension);
 
     outDiagnosis.format = format;
@@ -225,7 +225,7 @@ HRESULT VolumeImage::Load (
     if (format == DiskFormat::Woz || format == DiskFormat::Nib)
     {
         hr = LoadBitStream (format, fileBytes, image);
-        CHRF (hr, outDiagnosis = DiskImageStore::ClassifyLoadFailure (format, fileBytes));
+        CHRF (hr, outDiagnosis = DiskSourceFormat::ClassifyLoadFailure (format, fileBytes));
 
         //  The sector decode DOES happen here, unlike on the emulator's flush
         //  path: these callers address files and sectors, so a track that will
@@ -432,7 +432,7 @@ HRESULT VolumeImage::Save (
         BAIL_OUT_IF (true, S_OK);
     }
 
-    hr = DiskImageStore::GetSourceFormatByExtension (path, format);
+    hr = DiskSourceFormat::GetSourceFormatByExtension (path, format);
     CHR (hr);
 
     if (format == DiskFormat::Woz || format == DiskFormat::Nib)

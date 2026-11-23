@@ -136,7 +136,7 @@ public:
     // i.e. right after a disk operation completes and ~1 second after the
     // last access, a naturally debounced, race-free point to persist dirty
     // images (this thread owns the writes). The shell wires it to
-    // DiskImageStore::FlushAll so guest writes survive a crash / kill before
+    // DiskFlusher::FlushAll so guest writes survive a crash / kill before
     // the next eject / exit. Caller-owned; null = no-op (tests, headless).
     void          SetMotorOffFlushCallback (std::function<void ()> cb) { m_motorOffFlushCallback = std::move (cb); }
     // Idle hook. Invoked on the CPU thread when no disk operation is in
