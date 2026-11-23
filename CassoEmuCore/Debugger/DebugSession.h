@@ -396,6 +396,12 @@ public:
 
 private:
     bool     TryExecuteEngineCommand (const DebugCommand & command, Reply & reply);
+    Reply    ExecuteInSpace          (const DebugCommand & command, Reply & reply);
+
+    static bool         IsMemoryVerb  (DebugVerb verb);
+    static bool         IsInSpace     (const std::vector<DebugMemorySpace> & spaces, const std::string & word, Word address);
+    static std::string  DescribeSpace (const std::vector<DebugMemorySpace> & spaces, const std::string & word);
+
     void     ExecuteRun              (const DebugCommand & command, Reply & reply);
     bool     TryPrepareRun           (const DebugCommand & command, RunRequest & request, bool & outIsStep, Reply & reply);
     void     SetRunStart             (const DebugCommand & command, const RunRequest & request, bool isStep, MonitorRun::Pushed & outReturn);

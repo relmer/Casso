@@ -41,6 +41,11 @@ public:
     std::optional<Word>      lastBranchTo;
     bool                     keyPending       = false;
 
+    std::vector<Byte>              auxMemory     = std::vector<Byte> (0xC000, 0);   // what an AUX prefix reads
+    std::vector<DebugMemorySpace>  spaces;                                      // MAIN and AUX where a test lists them
+    bool                           isAuxSelected = false;
+    std::vector<std::string>       spaceSelections;
+
     IRunObserver           * observer         = nullptr;
     DebugHook              * stopConditions   = nullptr;
     bool                     hookInstalled    = false;
@@ -76,7 +81,7 @@ public:
             return false;
         }
 
-        value = memory[address];
+        value = IsAux (address) ? auxMemory[address] : memory[address];
         return true;
     }
 
@@ -87,7 +92,7 @@ public:
             return false;
         }
 
-        memory[address] = value;
+        (IsAux (address) ? auxMemory[address] : memory[address]) = value;
         return true;
     }
 
@@ -111,12 +116,23 @@ public:
             return MemoryRegion::Rom;
         }
 
-        if (address >= auxFirst && address <= auxLast)
+        if (IsAux (address) || (address >= auxFirst && address <= auxLast))
         {
             return MemoryRegion::AuxRam;
         }
 
         return (address >= kIoFirst && address <= kIoLast) ? MemoryRegion::Io : MemoryRegion::MainRam;
+    }
+
+    bool IsAux (Word address) const { return isAuxSelected && address < kIoFirst; }
+
+    void GetMemorySpaces (std::vector<DebugMemorySpace> & out) const override { out = spaces; }
+
+    bool TrySelectMemorySpace (const std::string & word) override
+    {
+        spaceSelections.push_back (word);
+        isAuxSelected = (word == "AUX");
+        return word.empty() || std::ranges::any_of (spaces, [&] (const DebugMemorySpace & space) { return space.word == word; });
     }
 
     Byte ReadIo  (Word address) override             { ioReads.push_back (address); return 0; }

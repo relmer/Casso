@@ -9,6 +9,8 @@
 #include "Machines/Apple2/Common/LanguageCard.h"
 #include "Shell/MachineHost.h"
 #include "Debugger/DebugMemoryImage.h"
+#include "Debugger/IDebugTarget.h"
+#include "Devices/RamDevice.h"
 
 
 
@@ -49,6 +51,12 @@ bool DebugMemoryView::TryPeek (Word address, Byte & value) const
 
 
     value = 0;
+
+    if (IsInSpace (address))
+    {
+        value = m_spaceBase[address - m_spaceFirst];
+        return true;
+    }
 
     if (address >= kIoFirst && address <= kIoLast)
     {
@@ -170,6 +178,12 @@ bool DebugMemoryView::TryPoke (Word address, Byte value)
 
 
 
+    if (IsInSpace (address))
+    {
+        WriteSpace (address, value);
+        return true;
+    }
+
     if (address < kIoFirst)
     {
         page = bus.GetShadowWritePage (address);
@@ -210,6 +224,12 @@ bool DebugMemoryView::TryPatch (Word address, Byte value)
     bool          patched = false;
 
 
+
+    if (IsInSpace (address))
+    {
+        WriteSpace (address, value);
+        return true;
+    }
 
     switch (region)
     {
@@ -330,6 +350,11 @@ MemoryRegion DebugMemoryView::GetRegion (Word address) const
     LanguageCard  * lc  = m_host.GetRefs().languageCard;
 
 
+
+    if (IsInSpace (address))
+    {
+        return m_spaceRegion;
+    }
 
     if (address >= kIoFirst && address <= kIoLast)
     {
@@ -467,4 +492,109 @@ bool DebugMemoryView::IsAuxPage (const Byte * page) const
 
     first = (uintptr_t) mmu->GetAuxBuffer();
     return where >= first && where < first + kAuxRamSize;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugMemoryView::GetSpaces
+//
+//  MAIN and AUX cover $0000-$BFFF on a machine with an MMU.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugMemoryView::GetSpaces (std::vector<DebugMemorySpace> & spaces) const
+{
+    spaces.clear();
+
+    if (m_host.GetMmu() != nullptr && m_host.GetRefs().mainRamDev != nullptr)
+    {
+        spaces.push_back (DebugMemorySpace { "MAIN", 0x0000, kLowRamLast });
+        spaces.push_back (DebugMemorySpace { "AUX",  0x0000, kLowRamLast });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugMemoryView::TrySelectSpace
+//
+//  An empty word returns to the current view. A word GetSpaces doesn't list
+//  selects nothing and returns false.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugMemoryView::TrySelectSpace (const std::string & word)
+{
+    Apple2eMmu  * mmu     = m_host.GetMmu();
+    RamDevice   * mainRam = m_host.GetRefs().mainRamDev;
+    bool          isKnown = word.empty();
+
+
+
+    m_spaceBase = nullptr;
+
+    if (word == "MAIN" && mmu != nullptr && mainRam != nullptr)
+    {
+        m_spaceBase   = mainRam->GetData();
+        m_spaceFirst  = mainRam->GetStart();
+        m_spaceLast   = std::min<Word> (mainRam->GetEnd(), kLowRamLast);
+        m_spaceRegion = MemoryRegion::MainRam;
+        isKnown       = true;
+    }
+    else if (word == "AUX" && mmu != nullptr)
+    {
+        m_spaceBase   = mmu->GetAuxBuffer();
+        m_spaceFirst  = 0x0000;
+        m_spaceLast   = kLowRamLast;
+        m_spaceRegion = MemoryRegion::AuxRam;
+        isKnown       = true;
+    }
+
+    return isKnown;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugMemoryView::IsInSpace
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugMemoryView::IsInSpace (Word address) const
+{
+    return m_spaceBase != nullptr && address >= m_spaceFirst && address <= m_spaceLast;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugMemoryView::WriteSpace
+//
+//  A write into the selected space marks the byte written and the video
+//  dirty, as a write through the bus does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugMemoryView::WriteSpace (Word address, Byte value)
+{
+    MemoryBus  & bus  = m_host.GetMemoryBus();
+    Byte       * cell = &m_spaceBase[address - m_spaceFirst];
+
+
+
+    *cell = value;
+    bus.MarkPointerWritten (cell);
+    bus.MarkVideoDirty();
 }

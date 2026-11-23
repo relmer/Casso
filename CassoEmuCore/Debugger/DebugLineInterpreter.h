@@ -54,11 +54,14 @@ private:
     bool                         TryResolveIdOrAddress (DebugCommand & command, Reply & reply);
     void                         ExecuteAssemblyLine   (const std::string & line, Reply & reply);
     void                         MergeReply            (Reply & merged, Reply & one, CommandMode mode) const;
+    Reply                        ExecuteCommand        (const DebugCommand & command);
 
     static std::string           Trim                  (const std::string & text);
+    static bool                  TryTakeBankPrefix     (std::string & text, char separator, std::string & outWord, std::string & outError);
 
     DebugSession                  & m_session;
     std::optional<CommandMode>      m_lineMode;
+    std::string                     m_lineSpace;   // the line's bank prefix word, or empty
     std::optional<Word>             m_assemblyAddress;
     std::unique_ptr<OpcodeTable>    m_assemblyOpcodes;
     MonitorState                    m_monitorState;

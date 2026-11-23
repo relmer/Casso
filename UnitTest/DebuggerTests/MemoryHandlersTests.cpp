@@ -2,6 +2,7 @@
 
 #include "ApplesoftTokenizer.h"
 #include "Debugger/Handlers/MemoryHandlers.h"
+#include "Debugger/Handlers/MonitorHandlers.h"
 #include "Debugger/Handlers/SymbolHandlers.h"
 #include "HandlerTestRig.h"
 #include "Core/TextEncoding.h"
@@ -253,6 +254,80 @@ namespace DebuggerTests
 
             rig.target.auxLast = 0;
             Assert::AreEqual ((size_t) 1, rig.RunOk ("BSAVE out.bin 300:302").text.size(), L"an all-main save doesn't list regions");
+        }
+
+        static void ListMainAndAux (Rig & rig)
+        {
+            rig.target.spaces = { { "MAIN", 0x0000, 0xBFFF }, { "AUX", 0x0000, 0xBFFF } };
+        }
+
+
+
+        //  With a bank prefix, S and D read the chosen memory, whatever the CPU has
+        //  switched in, and the target returns to the current view after.
+        TEST_METHOD (BankPrefix_SearchesAndDumpsTheChosenMemory)
+        {
+            Rig  rig;
+
+
+
+            ListMainAndAux (rig);
+            Store (rig, 0x5AF2, { 0x41, 0x01, 0x55 });
+            rig.target.auxMemory[0x5E1A] = 0x41;
+            rig.target.auxMemory[0x5E1B] = 0x01;
+            rig.target.auxMemory[0x5E1C] = 0x55;
+
+            Assert::AreEqual (std::string ("Found 1: AUX:$5E1A"), rig.RunOk ("S aux:0800:BFFF 41 01 55").text.at (0), L"the word is case-insensitive");
+            Assert::AreEqual (std::string ("Found 1: $5AF2"),     rig.RunOk ("S MAIN:0800:BFFF 41 01 55").text.at (0));
+            Assert::AreEqual (std::string ("Found 1: $5AF2"),     rig.RunOk ("S 0800:BFFF 41 01 55").text.at (0), L"with no prefix, the current view");
+            Assert::IsTrue   (rig.RunOk ("D AUX:5E1A").text.at (0).starts_with ("5E1A: 41 01 55"));
+            Assert::IsTrue   (rig.target.spaceSelections.back().empty(), L"the target is back in the current view");
+        }
+
+        TEST_METHOD (BankPrefix_WritesTheChosenMemory)
+        {
+            Rig  rig;
+
+
+
+            ListMainAndAux (rig);
+            rig.RunOk ("MEB AUX:0300 AA BB");
+            Assert::AreEqual ((Byte) 0xAA, rig.target.auxMemory[0x0300]);
+            Assert::AreEqual ((Byte) 0xBB, rig.target.auxMemory[0x0301]);
+            Assert::AreEqual ((Byte) 0x00, rig.target.memory[0x0300], L"main memory isn't written");
+        }
+
+        //  The Monitor and GSSquared modes separate the word with a slash.
+        TEST_METHOD (BankPrefix_MonitorUsesASlash)
+        {
+            Rig              rig;
+            MonitorHandlers  monitor;
+            Reply            reply;
+
+
+
+            rig.session.AddHandler (&monitor);
+            ListMainAndAux (rig);
+            rig.target.auxMemory[0x0300] = 0x5A;
+
+            reply = rig.session.ExecuteLine ("AUX/300", CommandMode::Monitor);
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, std::wstring (reply.error.detail.begin(), reply.error.detail.end()).c_str());
+            Assert::IsTrue   (std::get<MemoryData> (reply.data).rows.at (0).bytes.at (0) == std::optional<Byte> (0x5A));
+        }
+
+        TEST_METHOD (BankPrefix_IllegalAddresses)
+        {
+            Rig  rig;
+
+
+
+            rig.RunFails ("D AUX:300", "illegal address");     // no spaces on this machine
+
+            ListMainAndAux (rig);
+            rig.RunFails ("D AUX:D000",              "illegal address");
+            rig.RunFails ("BP AUX:300",              "illegal address");
+            rig.RunFails ("S AUX:300:3FF MAIN:41",   "illegal address");
+            rig.RunFails ("D BANK2:3000",            "illegal address");
         }
 
         TEST_METHOD (Search_WildcardsAndResults)
@@ -571,11 +646,11 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("Saved 3 bytes from $0300 to C:\\Work\\out.bin"),         rig.RunOk ("BSAVE \"out.bin\" 300:302").text.at (0));
 
             reply = rig.session.ExecuteLine ("save \"out.bin\" 300.302", CommandMode::GSSquared);
-            Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status);
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, std::wstring (reply.error.detail.begin(), reply.error.detail.end()).c_str());
             Assert::AreEqual (std::string ("out.bin"), std::get<FileIoData> (reply.data).path);
 
             reply = rig.session.ExecuteLine ("load \"prog.bin\" 300", CommandMode::GSSquared);
-            Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status);
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, std::wstring (reply.error.detail.begin(), reply.error.detail.end()).c_str());
             Assert::AreEqual (std::string ("prog.bin (raw)"), std::get<FileIoData> (reply.data).path);
         }
 

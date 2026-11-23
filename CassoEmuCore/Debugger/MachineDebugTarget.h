@@ -42,6 +42,8 @@ public:
     bool          TryPoke                (Word address, Byte value) override;
     bool          TryPatch               (Word address, Byte value) override;
     MemoryRegion  GetRegion              (Word address) const override;
+    void          GetMemorySpaces        (std::vector<DebugMemorySpace> & spaces) const override { m_view.GetSpaces (spaces); }
+    bool          TrySelectMemorySpace   (const std::string & word) override                   { return m_view.TrySelectSpace (word); }
     void          TakeMemoryImage        (DebugMemoryImage & image) const override;
     Byte          ReadIo                 (Word address) override;
     void          WriteIo                (Word address, Byte value) override;

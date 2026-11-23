@@ -218,6 +218,11 @@ Reply DebugSession::Execute (const DebugCommand & command)
         return reply;
     }
 
+    if (!command.space.empty())
+    {
+        return ExecuteInSpace (command, reply);
+    }
+
     //  A step moves a stopped machine from where it stands, so a running one
     //  has nothing to step from. During a debugger run the run's own refusal
     //  applies, which says how to stop it.
@@ -1802,4 +1807,135 @@ void DebugSession::SetError (
     reply.status       = status;
     reply.error.label  = label;
     reply.error.detail = detail;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::ExecuteInSpace
+//
+//  A memory command with a bank prefix runs with the target reading and
+//  writing that space, then the target returns to the current view. The
+//  prefix is an illegal address on a command that doesn't read or write
+//  memory, on a machine without the space, and outside the space's ranges.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Reply DebugSession::ExecuteInSpace (const DebugCommand & command, Reply & reply)
+{
+    std::vector<DebugMemorySpace>  spaces;
+    DebugCommand                   inner   = command;
+    bool                           isKnown = false;
+
+
+
+    m_target.GetMemorySpaces (spaces);
+    isKnown = std::ranges::any_of (spaces, [&] (const DebugMemorySpace & space) { return space.word == command.space; });
+
+    if (!IsMemoryVerb (command.verb))
+    {
+        SetError (reply, CommandStatus::Error, "illegal address", std::format ("A bank prefix works only in memory commands, not {}.", command.sourceName));
+    }
+    else if (!isKnown)
+    {
+        SetError (reply, CommandStatus::Error, "illegal address", std::format ("This machine doesn't have {} memory.", command.space));
+    }
+    else if ((command.hasA1 && !IsInSpace (spaces, command.space, command.a1)) || (command.hasA2 && !IsInSpace (spaces, command.space, command.a2)))
+    {
+        SetError (reply, CommandStatus::Error, "illegal address", std::format ("{} covers {}.", command.space, DescribeSpace (spaces, command.space)));
+    }
+    else
+    {
+        inner.space = std::string();
+        (void) m_target.TrySelectMemorySpace (command.space);
+        reply = Execute (inner);
+        (void) m_target.TrySelectMemorySpace (std::string());
+    }
+
+    return reply;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::IsMemoryVerb
+//
+//  The commands a bank prefix applies to: they read or write memory at the
+//  addresses typed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugSession::IsMemoryVerb (DebugVerb verb)
+{
+    switch (verb)
+    {
+    case DebugVerb::DumpMemory:
+    case DebugVerb::EnterBytes:
+    case DebugVerb::EnterWords:
+    case DebugVerb::MoveMemory:
+    case DebugVerb::CompareMemory:
+    case DebugVerb::FillMemory:
+    case DebugVerb::SearchMemory:
+    case DebugVerb::SearchHex:
+    case DebugVerb::LoadBinary:
+    case DebugVerb::SaveBinary:
+    case DebugVerb::Examine:
+    case DebugVerb::Deposit:
+    case DebugVerb::Verify:
+    case DebugVerb::ReadFile:
+    case DebugVerb::WriteFile:
+        return true;
+
+    default:
+        return false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::IsInSpace
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugSession::IsInSpace (const std::vector<DebugMemorySpace> & spaces, const std::string & word, Word address)
+{
+    return std::ranges::any_of (spaces, [&] (const DebugMemorySpace & space) { return space.word == word && address >= space.first && address <= space.last; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::DescribeSpace
+//
+//  The space's ranges, as "$0000-$BFFF" or "$0000-$1FFF and $A000-$FFFF".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DebugSession::DescribeSpace (const std::vector<DebugMemorySpace> & spaces, const std::string & word)
+{
+    std::string  text;
+
+
+
+    for (const DebugMemorySpace & space : spaces)
+    {
+        if (space.word == word)
+        {
+            text += std::format ("{}${:04X}-${:04X}", text.empty() ? "" : " and ", space.first, space.last);
+        }
+    }
+
+    return text;
 }

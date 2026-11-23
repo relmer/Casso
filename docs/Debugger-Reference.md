@@ -41,6 +41,7 @@ do is documented here, with links there for the syntax.
    [the Symbols pane](#the-symbols-pane)
 7. [Memory, watches and heat](#memory-watches-and-heat):
    [memory windows](#memory-windows),
+   [bank prefixes](#bank-prefixes),
    [loading and saving binaries](#loading-and-saving-binaries),
    [watches](#watches), [the heat map](#the-heat-map)
 8. [Devices and logs](#devices-and-logs): [device panels](#device-panels),
@@ -1292,6 +1293,32 @@ Right-click a byte for **Show last writer**, **Show last reader**, **Rewind to l
 write time** and **Rewind to last read time**; see
 [last writer and last reader](#last-writer-and-last-reader).
 **Add as pointer watch** over a byte in zero page runs `ZP`.
+
+### Bank prefixes
+
+A memory command reads and writes the memory the CPU has switched in at that
+moment. On a //e or //c, a program that switches aux RAM in for reading, as
+Apple Pascal does, makes a search or a save read aux RAM. Put `MAIN:` or `AUX:`
+ahead of an address to choose the memory instead:
+
+```
+S AUX:0800:BFFF 41 01 00 00
+D MAIN:5AF2
+BSAVE main.bin MAIN:0000:BFFF
+```
+
+The word can be in any case. The Monitor and GSSquared modes separate it with
+a slash: `AUX/300.3FF`. A prefix works in the memory commands: dump, enter,
+move, compare, fill, search, `BLOAD`, `BSAVE` and the Monitor's examine,
+deposit, verify, `R` and `W`. `MAIN` and `AUX` cover `$0000-$BFFF`. A prefix
+outside that range, on another command, or on a machine without aux RAM is an
+illegal address.
+
+A search hit read from aux RAM prints as `AUX:$5E1A`. A `BSAVE` that read part
+of its range from aux RAM lists each part and where it came from. On the debug
+channel, `searchHits` has a `regions` list beside `addresses`, and a save's
+`fileIo` reply has `regions`. The MCP `read_memory` and `write_memory` tools
+take a `bank` argument of `MAIN` or `AUX`.
 
 ### Loading and saving binaries
 

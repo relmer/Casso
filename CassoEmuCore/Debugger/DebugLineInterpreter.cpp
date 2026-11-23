@@ -88,8 +88,11 @@ Reply DebugLineInterpreter::ExecuteLine (const std::string & line, CommandMode m
 Reply DebugLineInterpreter::ExecutePaneLine (const std::string & line, CommandMode mode)
 {
     Reply                       reply;
-    std::string                 text          = Trim (line);
-    std::optional<CommandMode>  outerLineMode = m_lineMode;
+    std::string                 text           = Trim (line);
+    std::optional<CommandMode>  outerLineMode  = m_lineMode;
+    std::string                 outerLineSpace = m_lineSpace;
+    std::string                 error;
+    char                        separator      = (mode == CommandMode::Monitor || mode == CommandMode::GSSquared) ? '/' : ':';
 
 
 
@@ -97,18 +100,98 @@ Reply DebugLineInterpreter::ExecutePaneLine (const std::string & line, CommandMo
     //  here; a script line run from inside this one sets its own.
     m_lineMode = mode;
 
-    switch (mode)
+    if (!TryTakeBankPrefix (text, separator, m_lineSpace, error))
     {
-    case CommandMode::Monitor:    reply = ExecuteMonitorLine   (text, mode); break;
-    case CommandMode::GSSquared:  reply = ExecuteGSSquaredLine (text, mode); break;
-    case CommandMode::WinDbg:     reply = ExecuteWinDbgLine    (text); break;
-    default:                      reply = ExecuteAppleWinLine  (text); break;
+        reply.SetError (CommandStatus::Error, "illegal address", error);
+    }
+    else
+    {
+        switch (mode)
+        {
+        case CommandMode::Monitor:    reply = ExecuteMonitorLine   (text, mode); break;
+        case CommandMode::GSSquared:  reply = ExecuteGSSquaredLine (text, mode); break;
+        case CommandMode::WinDbg:     reply = ExecuteWinDbgLine    (text); break;
+        default:                      reply = ExecuteAppleWinLine  (text); break;
+        }
     }
 
+    m_lineSpace   = outerLineSpace;
     m_lineMode    = outerLineMode;
     reply.command = line;
     reply.mode    = mode;
     return reply;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugLineInterpreter::ExecuteCommand
+//
+//  A parsed command runs with the line's bank prefix, so every command a
+//  Monitor or GSSquared line expands to reads the same space.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Reply DebugLineInterpreter::ExecuteCommand (const DebugCommand & command)
+{
+    DebugCommand  withSpace = command;
+
+
+
+    withSpace.space = m_lineSpace;
+    return m_session.Execute (withSpace);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugLineInterpreter::TryTakeBankPrefix
+//
+//  Removes each bank prefix from the line: a space word (MAIN, AUX, SYSTEM,
+//  ROM or BANK0-BANKE, in any case) and the mode's separator, ahead of a hex
+//  address. The word is returned in capitals. A line may repeat one word,
+//  as AUX:3000:AUX:3FFF does, but two different words are an error.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugLineInterpreter::TryTakeBankPrefix (std::string & text, char separator, std::string & outWord, std::string & outError)
+{
+    std::string   pattern = std::format ("(^|[^A-Za-z0-9_$])(MAIN|AUX|SYSTEM|ROM|BANK[0-9A-E])\\{}(?=[$#]?[0-9A-F])", separator);
+    std::regex    prefix (pattern, std::regex::icase);
+    std::string   result;
+    std::string   word;
+    bool          isOk    = true;
+    auto          start   = text.cbegin();
+
+
+
+    outWord.clear();
+
+    for (std::sregex_iterator it (text.cbegin(), text.cend(), prefix), end; it != end; ++it)
+    {
+        word = (*it)[2].str();
+        std::ranges::transform (word, word.begin(), [] (char c) { return (char) std::toupper ((unsigned char) c); });
+
+        if (!outWord.empty() && word != outWord)
+        {
+            outError = std::format ("A command reads one bank, not both {} and {}.", outWord, word);
+            isOk     = false;
+        }
+
+        outWord = word;
+        result.append (start, (*it)[2].first);
+        start   = (*it)[0].second;
+    }
+
+    result.append (start, text.cend());
+    text = result;
+    return isOk;
 }
 
 
@@ -131,7 +214,7 @@ Reply DebugLineInterpreter::ExecuteAppleWinLine (const std::string & text)
     switch (parsed.status)
     {
     case ParseStatus::Ok:
-        reply = m_session.Execute (parsed.command);
+        reply = ExecuteCommand (parsed.command);
         break;
 
     case ParseStatus::Unknown:
@@ -179,7 +262,7 @@ Reply DebugLineInterpreter::ExecuteWinDbgLine (const std::string & text)
     switch (parsed.status)
     {
     case ParseStatus::Ok:
-        reply = m_session.Execute (parsed.command);
+        reply = ExecuteCommand (parsed.command);
         break;
 
     case ParseStatus::Unknown:
@@ -255,7 +338,7 @@ Reply DebugLineInterpreter::ExecuteMonitorLine (const std::string & text, Comman
     if (parsed.commands.size() == 1)
     {
         rejected = DebugSession::IsMachineWrite (parsed.commands.front().verb) && isRunning;
-        merged   = m_session.Execute (parsed.commands.front());
+        merged   = ExecuteCommand (parsed.commands.front());
 
         KeepRegisterEditArmed (parsed.commands.front(), merged);
 
@@ -278,7 +361,7 @@ Reply DebugLineInterpreter::ExecuteMonitorLine (const std::string & text, Comman
             rejected = true;
         }
 
-        one = m_session.Execute (command);
+        one = ExecuteCommand (command);
 
         KeepRegisterEditArmed (command, one);
         MergeReply (merged, one, mode);
@@ -394,12 +477,12 @@ Reply DebugLineInterpreter::ExecuteGSSquaredLine (const std::string & text, Comm
 
     if (parsed.commands.size() == 1)
     {
-        return m_session.Execute (parsed.commands.front());
+        return ExecuteCommand (parsed.commands.front());
     }
 
     for (const DebugCommand & command : parsed.commands)
     {
-        Reply  one = m_session.Execute (command);
+        Reply  one = ExecuteCommand (command);
 
         MergeReply (merged, one, mode);
     }

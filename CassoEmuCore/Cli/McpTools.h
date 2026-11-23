@@ -114,8 +114,9 @@ private:
     void  ToResult         (const McpChannelResult & channel, McpToolResult & result);
     void  AddMachineState  (McpToolResult & result);
 
-    static std::string  GetString (const JsonValue & arguments, const char * key, const std::string & fallback = std::string());
-    static int          GetInt    (const JsonValue & arguments, const char * key, int fallback);
+    static std::string  GetString     (const JsonValue & arguments, const char * key, const std::string & fallback = std::string());
+    static int          GetInt        (const JsonValue & arguments, const char * key, int fallback);
+    static std::string  GetBankPrefix (const JsonValue & arguments);
 
     void  ListInstances      (const JsonValue & arguments, McpToolResult & result);
     void  Launch             (const JsonValue & arguments, McpToolResult & result);

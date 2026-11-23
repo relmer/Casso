@@ -36,6 +36,16 @@ enum class DebugCpuKind
     M65C02,
 };
 
+//  One range a bank prefix's word selects. A machine lists a row for each
+//  range, so a space that appears at two places, as the Apple ///'s system
+//  bank does, has two rows with the same word.
+struct DebugMemorySpace
+{
+    std::string  word;
+    Word         first = 0;
+    Word         last  = 0;
+};
+
 struct VideoPosition
 {
     uint32_t  scanline    = 0;
@@ -113,6 +123,13 @@ public:
     //  map there now; false where no ROM covers it.
     virtual bool                TryPeekRom        (Word address, Byte & value) const { (void) address; value = 0; return false; }
     virtual bool                TryPoke           (Word address, Byte value) = 0;
+
+    //  The spaces a bank prefix can select on this machine, and the
+    //  selection: TryPeek, TryPoke, TryPatch and GetRegion then use the
+    //  space's memory inside its ranges. An empty word returns them to the
+    //  current view.
+    virtual void                GetMemorySpaces      (std::vector<DebugMemorySpace> & spaces) const { spaces.clear(); }
+    virtual bool                TrySelectMemorySpace (const std::string & word) { return word.empty(); }
 
     //  Everything TryPeek, TryPeekIo for I/O, and GetRegion would answer, all
     //  at once. A target that can copy whole pages overrides this; the
