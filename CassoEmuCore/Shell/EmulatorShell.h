@@ -720,6 +720,8 @@ private:
     // or -1 on close-gesture.
     int     ShowModalDialog      (const DialogDefinition & def);
 
+public:
+
     // The EHM user-notification sink, installed with SetNotifyFunction so
     // every CHRN / CBRN in the tree reports through Casso's own themed
     // dialog. Nothing had ever installed one, so they all fell through to
@@ -732,6 +734,8 @@ private:
     // Holds a report raised before there is a window to show it in. Public
     // and static because wCassoMain installs the sink before the shell exists.
     static void  QueueNotification (const std::wstring & message);
+
+private:
 
     // Shows one notification, marshaling as needed. Callable from any
     // thread: a flush that fails on the CPU thread reports through here.
