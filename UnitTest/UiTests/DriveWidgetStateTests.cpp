@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/DriveWidgetState.h"
+#include "Devices/Disk/Store/DiskSourceFormat.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -349,7 +350,7 @@ public:
         {
             std::wstring  wide   = candidate;
             std::string   narrow = std::filesystem::path (wide).string();
-            HRESULT       hr     = DiskImageStore::GetSourceFormatByExtension (narrow, fmt);
+            HRESULT       hr     = DiskSourceFormat::GetSourceFormatByExtension (narrow, fmt);
 
             routed  = SUCCEEDED (hr);
             offered = IsSupportedDiskImageExtension (wide);

@@ -12,7 +12,7 @@
 #include "CassoLink/FullSend/FullSendManifest.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImage.h"
-#include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/DiskSourceFormat.h"
 #include "Devices/Disk/DurableCommit.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
@@ -351,7 +351,7 @@ HRESULT CassoLinkDiskTransfer::ReadWholeDisk (LinkOperation & operation)
 
     if (!operation.automatic)
     {
-        hr = DiskImageStore::GetSourceFormatByExtension (operation.imagePath, format);
+        hr = DiskSourceFormat::GetSourceFormatByExtension (operation.imagePath, format);
         CHR (hr);
     }
 
@@ -645,7 +645,7 @@ HRESULT CassoLinkDiskTransfer::ChooseAutomatic (LinkOperation & operation, const
 
     if (!outRaw && outFormat != DiskFormat::Woz)
     {
-        hr = DiskImageStore::GetSourceFormatByExtension (operation.imagePath, outFormat);
+        hr = DiskSourceFormat::GetSourceFormatByExtension (operation.imagePath, outFormat);
         CHR (hr);
     }
 

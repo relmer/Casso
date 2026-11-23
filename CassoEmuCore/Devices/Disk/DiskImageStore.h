@@ -351,21 +351,6 @@ public:
     MountedImageState        * GetSharedState (int slot, int drive);
     const MountedImageState  * GetSharedState (int slot, int drive) const;
 
-    static HRESULT  GetSourceFormatByExtension (const string & path, DiskFormat & outFmt);
-
-    //  Whether `path`'s extension names a container this build can actually
-    //  mount. Answered BY GetSourceFormatByExtension rather than by a second list
-    //  of extensions, which is the point: the interface offering a file and
-    //  the loader accepting it must not be able to disagree. They did, over
-    //  `.nib` -- the drop filter said yes, the loader said no, and the mount
-    //  failed silently.
-    //
-    //  The wide overload exists because the drag-and-drop and picker filters
-    //  work in wchar_t, and narrowing at each call site is how the two answers
-    //  drift apart again.
-    static bool     IsMountableImageExtension (const string  & path);
-    static bool     IsMountableImageExtension (const wstring & path);
-
     //  Where a recovery image goes for the Nth attempt, when an image cannot be
     //  written back to its own format without loss. Public because the naming
     //  and never-overwrite policy are part of the observable contract, not an
@@ -408,10 +393,6 @@ public:
     static wstring  FormatMountFailureMessage (const string & path,
                                                const MountDiagnosis & diagnosis);
 
-    //  Why a load of these bytes was refused, from what the bytes and the
-    //  format alone can settle. Static and pure, so a test can ask it about a
-    //  buffer without mounting anything.
-    static MountDiagnosis  ClassifyLoadFailure (DiskFormat fmt, const vector<Byte> & bytes);
 private:
     struct Entry
     {

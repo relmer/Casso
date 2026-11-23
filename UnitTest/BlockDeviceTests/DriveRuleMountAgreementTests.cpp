@@ -5,6 +5,7 @@
 #include "Devices/Disk/Containers/DiskCopy42Container.h"
 #include "Devices/Disk/Containers/TwoImgContainer.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/DiskSourceFormat.h"
 #include "Devices/Disk/DriveImageRule.h"
 #include "Devices/Disk/ImageClassifier.h"
 #include "Devices/Floppy35/Gcr35Track.h"
@@ -133,7 +134,7 @@ public:
     {
         DiskImageStore  store;
         DiskFormat      format  = DiskFormat::Dsk;
-        HRESULT         hr      = DiskImageStore::GetSourceFormatByExtension (fixture.path, format);
+        HRESULT         hr      = DiskSourceFormat::GetSourceFormatByExtension (fixture.path, format);
 
 
 

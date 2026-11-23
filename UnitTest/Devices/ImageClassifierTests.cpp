@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/DiskSourceFormat.h"
 #include "Devices/Disk/ImageClassifier.h"
 #include "Devices/Disk/Inspector/Blocks/BlockImageFile.h"
 #include "Devices/Tape/TapeImageLoader.h"
@@ -282,7 +282,7 @@ public:
         {
             std::wstring  name     = std::wstring (L"x") + extension;
             std::string   narrow   = std::string ("x") + std::filesystem::path (extension).string();
-            bool          expected = DiskImageStore::IsMountableImageExtension (name)
+            bool          expected = DiskSourceFormat::IsMountableImageExtension (name)
                                   || BlockImageFile::IsBlockExtension (narrow)
                                   || TapeImageLoader::IsTapeFileExtension (name);
 

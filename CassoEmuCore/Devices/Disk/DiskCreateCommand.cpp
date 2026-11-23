@@ -2,7 +2,7 @@
 
 #include "DiskCreateCommand.h"
 #include "DiskImageSession.h"
-#include "DiskImageStore.h"
+#include "Devices/Disk/Store/DiskSourceFormat.h"
 #include "IDiskFileIo.h"
 #include "Devices/Disk/Containers/DiskCopy42Container.h"
 #include "Devices/Disk/Containers/ImageContainer.h"
@@ -898,7 +898,7 @@ void DiskCreateCommand::RunInit (const CommandLineOptions & options, DiskCommand
     }
 
     //  From the file's own name, because the file is what is being reformatted.
-    hr = DiskImageStore::GetSourceFormatByExtension (options.disk.imagePath, format);
+    hr = DiskSourceFormat::GetSourceFormatByExtension (options.disk.imagePath, format);
     CHRF (hr, result.Fail (options.disk.imagePath, "", "is not a kind of image this tool writes"));
 
     if (format == DiskFormat::Nib)

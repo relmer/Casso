@@ -8,6 +8,7 @@
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/DiskSourceFormat.h"
 #include "Devices/Disk/Win32ImageWatcher.h"
 #include "Devices/Disk/WriteProtectChange.h"
 #include "Seams/Win32DiskFileIo.h"
@@ -227,7 +228,7 @@ HRESULT DiskManager::ToggleImageWriteProtect (int drive)
 
     CBREx (image != nullptr, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
 
-    hr = DiskImageStore::GetSourceFormatByExtension (path, fmt);
+    hr = DiskSourceFormat::GetSourceFormatByExtension (path, fmt);
     CHR (hr);
 
     wide = fs::path (path).wstring();
