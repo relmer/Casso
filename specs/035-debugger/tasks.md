@@ -2472,3 +2472,11 @@ The 033 copy-protection session used the casso MCP server to debug the //c's ser
 - [ ] T1537 Make `launch` wait on while Casso has a dialog open, such as the ROM downloads, and report the open dialog when it times out, instead of reporting only that the debug channel didn't open within 30 s.
 - [ ] T1538 Add a `set_registers` tool (A, X, Y, S, P and PC). Setting the PC took `r pc=3a00` in the WinDbg command mode, found by trial.
 - [ ] T1539 Fix `help` returning an empty message in the AppleWin and Casso command modes. Test it in every mode.
+
+## Phase 76: HISTORY feedback from the Wizardry session, 2026-11-23
+
+- [ ] T1540 Fix the paused state after HISTORY SAVE and HISTORY ON or OFF: `press_keys` and `wait` report a pause while the machine runs, and `resume` fails with "A run is in progress". Tests first.
+- [ ] T1541 Make HISTORY ON leave history on when it's already on, instead of turning it off without a message. Tests first.
+- [ ] T1542 Make HISTORY SAVE wait for a rebuild to finish, or fail with a message, instead of writing "(being rebuilt from history)" lines. Tests first.
+- [ ] T1543 Add a setting for the instruction trace length, which is fixed at `TraceController::kCapacity` and too short for one step of a UCSD Pascal game. Tests first.
+- [ ] T1544 Start or stop the instruction trace on a breakpoint, for example a write to $8F40, from the AppleWin and Casso modes and from MCP. Tests first.
