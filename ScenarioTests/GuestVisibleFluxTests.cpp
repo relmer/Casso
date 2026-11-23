@@ -1,12 +1,14 @@
 #include "Pch.h"
+#include "Devices/Disk/DiskImage.h"
 #include "EhmTestHelper.h"
 #include "FakeDiskFileIo.h"
 #include "FluxTestImages.h"
 #include "GuestSession.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "TestMachine.h"
 #include "Devices/Disk/DiskCommandRunner.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 
@@ -59,7 +61,7 @@ public:
         std::vector<Byte>               woz;
         int                             t = 0;
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (master, bitImage),
+        AssertSucceeded (Nibblizer::NibblizeDsk (master, bitImage),
             L"the master must nibblize");
 
         for (t = 0; t < kTracks; t++)

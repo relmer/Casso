@@ -2,9 +2,8 @@
 
 #include "Pch.h"
 
-#include "Devices/Disk/DiskImage.h"
-#include "Devices/Disk/FluxBitView.h"
-#include "Machines/Apple2/Common/SectorDecodeReport.h"
+class DiskImage;
+enum class DiskFormat;
 
 
 
@@ -12,11 +11,10 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NibblizationLayer
+//  Nibblizer
 //
-//  Static helpers that convert between flat sector images (.dsk / .do /
-//  .po — 143360 bytes) and packed nibble bit streams suitable for the
-//  Disk II nibble engine.
+//  Static helpers that convert flat sector images (.dsk / .do / .po --
+//  143360 bytes) to packed nibble bit streams for the Disk II nibble engine.
 //
 //  Encoding: standard Apple DOS 3.3 6+2 GCR per Sather UTAIIe Ch. 9.
 //      Address field: $D5 $AA $96 ... $DE $AA $EB
@@ -30,7 +28,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class NibblizationLayer
+class Nibblizer
 {
 public:
     static HRESULT  Nibblize    (const vector<Byte> & raw, DiskFormat fmt, DiskImage & out);
@@ -50,4 +48,8 @@ public:
                                       DiskImage             & inOutImage);
 
 private:
+    static Byte     GetAddressVolume (const vector<Byte> & raw, const int * interleave);
+    static HRESULT  NibblizeWithMap  (const vector<Byte>  &  raw,
+                                      const int           *  interleave,
+                                      DiskImage           &  out);
 };

@@ -1,11 +1,12 @@
 #include "Pch.h"
 
 #include "../EhmTestHelper.h"
+#include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/Inspector/DiskAnalyzer.h"
 #include "Devices/Disk/Inspector/FindingFormatter.h"
 #include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Ui/DiskInspector/FindBar.h"
 #include "Ui/DiskInspector/FindSession.h"
 #include "Ui/DiskInspector/InspectorTables.h"
@@ -48,7 +49,7 @@ public:
 
         if (isWholeDisk)
         {
-            AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, image));
+            AssertSucceeded (Nibblizer::NibblizeDsk (sectors, image));
         }
 
         odd.AppendSync (48);

@@ -21,7 +21,7 @@
 //  a failed create can never leave a partial image behind.
 //
 //  Formats:
-//      Woz — skeleton sector buffer nibblized (NibblizationLayer) into a
+//      Woz — skeleton sector buffer nibblized (Nibblizer) into a
 //            DiskImage, serialized by WozLoader::Serialize (WOZ v2).
 //      Dsk — the 143,360-byte sector buffer itself, DOS 3.3 order.
 //      Do  — the same bytes as Dsk, under the other extension a

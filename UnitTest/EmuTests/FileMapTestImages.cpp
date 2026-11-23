@@ -1,9 +1,10 @@
 #include "Pch.h"
 
+#include "Devices/Disk/DiskImage.h"
 #include "FileMapTestImages.h"
 #include "../EhmTestHelper.h"
 #include "Devices/Disk/Inspector/DiskAnalyzer.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/SectorInterleave.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -585,7 +586,7 @@ void FileMapTestImages::Analyze (const vector<Byte> & image, bool isProDosOrder,
 
 
 
-    AssertSucceeded (isProDosOrder ? NibblizationLayer::NibblizePo (image, disk) : NibblizationLayer::NibblizeDsk (image, disk));
+    AssertSucceeded (isProDosOrder ? Nibblizer::NibblizePo (image, disk) : Nibblizer::NibblizeDsk (image, disk));
     DiskAnalyzer::Analyze (DiskCopy::MakeFromImage (disk, 1, "test", 0, false), DecodeSettings::MakeStandard(), out);
 }
 

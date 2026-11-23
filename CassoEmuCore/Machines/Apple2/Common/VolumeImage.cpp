@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/VolumeImage.h"
+#include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/Denibblizer.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
@@ -14,6 +15,7 @@
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/RdosVolume.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Machines/Apple2/Common/SectorInterleave.h"
 #include "Machines/Apple2/Common/ThirteenSectorCodec.h"
 #include "Devices/Disk/DiskImageStore.h"

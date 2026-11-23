@@ -1,14 +1,12 @@
 #include "Pch.h"
 
-#include "Machines/Apple2/Common/NibblizationLayer.h"
-#include "Machines/Apple2/Common/NibbleFormat.h"
-#include "Devices/Disk/DiskFieldFormat.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
+#include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/FluxSectorWriter.h"
 #include "Machines/Apple2/Common/NibbleFieldWriter.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/SectorInterleave.h"
-#include "Machines/Apple2/Common/TrackBitReader.h"
-#include "Machines/Apple2/Common/TrackSectorDecoder.h"
 
 
 
@@ -16,7 +14,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetAddressVolume
+//  Nibblizer::GetAddressVolume
 //
 //  The volume a disk's address fields have: a DOS 3.3 VTOC's, as INIT writes
 //  it, or 254 for any other disk. The VTOC is DOS sector 0 of track 17, which
@@ -24,7 +22,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static Byte GetAddressVolume (const vector<Byte> & raw, const int * interleave)
+Byte Nibblizer::GetAddressVolume (const vector<Byte> & raw, const int * interleave)
 {
     size_t  vtoc   = static_cast<size_t> (Dos33Skeleton::kVtocTrack * NibbleFormat::kSectorsPerTrack + interleave[0]) * NibbleFormat::kSectorByteSize;
     Byte    volume = raw[vtoc + Dos33Skeleton::kVtocOffVolumeNumber];
@@ -44,7 +42,7 @@ static Byte GetAddressVolume (const vector<Byte> & raw, const int * interleave)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NibblizeWithMap
+//  Nibblizer::NibblizeWithMap
 //
 //  Common nibblization driver. The address fields go down in sequential
 //  order, so the loop variable is the physical sector; `interleave` names the
@@ -52,7 +50,7 @@ static Byte GetAddressVolume (const vector<Byte> & raw, const int * interleave)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static HRESULT NibblizeWithMap (
+HRESULT Nibblizer::NibblizeWithMap (
     const vector<Byte>  &  raw,
     const int           *  interleave,
     DiskImage           &  out)
@@ -119,7 +117,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NibblizationLayer::RenibblizeTracks
+//  Nibblizer::RenibblizeTracks
 //
 //  Re-encodes only the named tracks, leaving every other track's packed bits
 //  exactly as they are.
@@ -136,7 +134,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT NibblizationLayer::RenibblizeTracks (
+HRESULT Nibblizer::RenibblizeTracks (
     const vector<Byte>    &  sectors,
     DiskFormat               fmt,
     std::span<const int>     tracks,
@@ -219,11 +217,11 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NibblizationLayer::GetImageVolume
+//  Nibblizer::GetImageVolume
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte NibblizationLayer::GetImageVolume (const vector<Byte> & sectors)
+Byte Nibblizer::GetImageVolume (const vector<Byte> & sectors)
 {
     bool  isWhole = sectors.size() >= (size_t) NibbleFormat::kImageByteSize;
 
@@ -238,11 +236,11 @@ Byte NibblizationLayer::GetImageVolume (const vector<Byte> & sectors)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NibblizationLayer::NibblizeDsk / NibblizeDo / NibblizePo
+//  Nibblizer::NibblizeDsk
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT NibblizationLayer::NibblizeDsk (const vector<Byte> & raw, DiskImage & out)
+HRESULT Nibblizer::NibblizeDsk (const vector<Byte> & raw, DiskImage & out)
 {
     HRESULT   hr = NibblizeWithMap (raw, SectorInterleave::kDsk_PhysicalToFile, out);
 
@@ -262,11 +260,11 @@ HRESULT NibblizationLayer::NibblizeDsk (const vector<Byte> & raw, DiskImage & ou
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NibblizeDo
+//  Nibblizer::NibblizeDo
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT NibblizationLayer::NibblizeDo (const vector<Byte> & raw, DiskImage & out)
+HRESULT Nibblizer::NibblizeDo (const vector<Byte> & raw, DiskImage & out)
 {
     HRESULT   hr = NibblizeWithMap (raw, SectorInterleave::kDsk_PhysicalToFile, out);
 
@@ -286,11 +284,11 @@ HRESULT NibblizationLayer::NibblizeDo (const vector<Byte> & raw, DiskImage & out
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NibblizePo
+//  Nibblizer::NibblizePo
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT NibblizationLayer::NibblizePo (const vector<Byte> & raw, DiskImage & out)
+HRESULT Nibblizer::NibblizePo (const vector<Byte> & raw, DiskImage & out)
 {
     HRESULT   hr = NibblizeWithMap (raw, SectorInterleave::kPo_PhysicalToFile, out);
 
@@ -310,11 +308,11 @@ HRESULT NibblizationLayer::NibblizePo (const vector<Byte> & raw, DiskImage & out
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Nibblize
+//  Nibblizer::Nibblize
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT NibblizationLayer::Nibblize (const vector<Byte> & raw, DiskFormat fmt, DiskImage & out)
+HRESULT Nibblizer::Nibblize (const vector<Byte> & raw, DiskFormat fmt, DiskImage & out)
 {
     HRESULT  hr = S_OK;
 

@@ -1,10 +1,11 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
+#include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Devices/Disk/MountDiagnosis.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Machines/Apple2/Common/TrackBitReader.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
@@ -422,7 +423,7 @@ public:
             sectors[i] = Alternating (i);
         }
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, img));
+        AssertSucceeded (Nibblizer::NibblizeDsk (sectors, img));
 
         bits = img.GetTrackBitCount (9);
 
@@ -488,7 +489,7 @@ public:
                 sectors[i] = pattern (i);
             }
 
-            AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, img));
+            AssertSucceeded (Nibblizer::NibblizeDsk (sectors, img));
 
             bits = img.GetTrackBitCount (5);
 

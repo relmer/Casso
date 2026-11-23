@@ -3,6 +3,7 @@
 #include "Devices/Disk/Archives/NuFxArchive.h"
 #include "Machines/Apple2/Common/Denibblizer.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Machines/Apple2/Common/SectorInterleave.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "../EhmTestHelper.h"
@@ -14,7 +15,7 @@
 #include "Machines/Apple2/Common/HfsVolume.h"
 #include "Machines/Apple2/Common/HfsWriter.h"
 #include "Devices/Disk/BlockImage.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/Dos33Geometry.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/ThirteenSectorCodec.h"
@@ -3689,7 +3690,7 @@ public:
         Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus,
             L"the placement must succeed before there is anything to decode");
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (io.files[kBlankImage], image));
+        AssertSucceeded (Nibblizer::NibblizeDsk (io.files[kBlankImage], image));
         AssertSucceeded (Denibblizer::Denibblize (image, DiskFormat::Dsk, decoded, report));
 
         Assert::IsTrue (decoded == io.files[kBlankImage],

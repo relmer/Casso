@@ -3,7 +3,7 @@
 #include "EhmTestHelper.h"
 #include "GuestSession.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/TrackBitReader.h"
 #include "TestMachine.h"
 #include "CassoLink/CassoLinkCodec.h"
@@ -1003,7 +1003,7 @@ public:
         }
 
         AssertSucceeded (TrackLayoutWriter::BuildWoz (sectors, layouts, built));
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, laidOut));
+        AssertSucceeded (Nibblizer::NibblizeDsk (sectors, laidOut));
         AssertSucceeded (WozLoader::Serialize (laidOut, plain));
 
         Assert::IsTrue  (PassesBoot (built, kBootCycles), L"The WOZ built to the measured layouts");

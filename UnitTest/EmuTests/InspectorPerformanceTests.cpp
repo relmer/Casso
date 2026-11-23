@@ -1,10 +1,11 @@
 #include "Pch.h"
 
 #include "../EhmTestHelper.h"
+#include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/Inspector/DiskAnalyzer.h"
 #include "Devices/Disk/Inspector/DiskComparer.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Ui/DiskInspector/PlatterView.h"
 #include "Ui/DiskInspector/TrackStripView.h"
@@ -73,7 +74,7 @@ public:
 
 
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, bits));
+        AssertSucceeded (Nibblizer::NibblizeDsk (sectors, bits));
 
         for (int qt = 0; qt < kTrackQuarterTracks; qt++)
         {

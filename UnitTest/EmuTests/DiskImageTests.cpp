@@ -183,7 +183,7 @@ public:
         Assert::IsFalse (img.IsLoaded());
     }
 
-    TEST_METHOD (SerializeReturnsBytesAfterPhase10NibblizationLayer)
+    TEST_METHOD (SerializeReturnsBytesAfterPhase10Denibblize)
     {
         DiskImage         img;
         vector<Byte>      bytes;

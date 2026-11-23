@@ -4,7 +4,7 @@
 #include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Common/Denibblizer.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "FluxTestImages.h"
 
@@ -56,7 +56,7 @@ public:
         int                        t  = 0;
         HRESULT                    hr = S_OK;
 
-        hr = NibblizationLayer::NibblizeDsk (sectors, bitImage);
+        hr = Nibblizer::NibblizeDsk (sectors, bitImage);
         Assert::IsTrue (SUCCEEDED (hr));
 
         for (t = 0; t < kTracks; t++)

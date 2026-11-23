@@ -15,7 +15,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  End-to-end spec-conformance tests for the disk pipeline. Builds a
 //  synthetic .dsk image whose track 0 sectors carry known data patterns,
-//  nibblizes it through NibblizationLayer, mounts it on a //e + Disk II
+//  nibblizes it through Nibblizer, mounts it on a //e + Disk II
 //  harness, then runs the *actual* Disk2.rom boot firmware on the
 //  emulated 6502 until it has loaded sector 0 into RAM. Asserts that the
 //  bytes the real boot ROM decoded into RAM match the original raw

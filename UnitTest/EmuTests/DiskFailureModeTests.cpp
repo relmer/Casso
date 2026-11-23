@@ -6,7 +6,7 @@
 #include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/WozLoader.h"
@@ -392,7 +392,7 @@ public:
         DiskImage     image;
         vector<Byte>  woz;
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, image));
+        AssertSucceeded (Nibblizer::NibblizeDsk (sectors, image));
         AssertSucceeded (WozLoader::Serialize (image, woz));
 
         return woz;
@@ -407,7 +407,7 @@ public:
         size_t        from  = 0;
         size_t        i     = 0;
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, image));
+        AssertSucceeded (Nibblizer::NibblizeDsk (sectors, image));
 
         {
             vector<Byte> &  bits = image.GetTrackBitsForWrite (track);

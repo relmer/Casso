@@ -1,8 +1,9 @@
 #include "Pch.h"
 
 #include "../EhmTestHelper.h"
+#include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Ui/DiskInspector/AnalysisScheduler.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -36,7 +37,7 @@ public:
 
 
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, image));
+        AssertSucceeded (Nibblizer::NibblizeDsk (sectors, image));
 
         return DiskCopy::MakeFromImage (image, mediaId, "test", 0, false);
     }
@@ -109,7 +110,7 @@ public:
 
 
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, image));
+        AssertSucceeded (Nibblizer::NibblizeDsk (sectors, image));
         scheduler.Restart (DiskCopy::MakeFromImage (image, 1, "test", 0, false), DecodeSettings::MakeStandard());
         Drain (scheduler, results);
         Assert::IsTrue (results.size() > 1, L"the whole disk on insert");

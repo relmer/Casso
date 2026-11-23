@@ -1,13 +1,15 @@
 #include "Pch.h"
+#include "Devices/Disk/DiskImage.h"
 #include "EhmTestHelper.h"
 #include "FakeDiskFileIo.h"
 #include "GuestSession.h"
 #include "Machines/Apple2/Common/Denibblizer.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "TestMachine.h"
 #include "ApplesoftTokenizer.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -236,7 +238,7 @@ public:
         Assert::IsFalse (written == before,
             L"and it must actually have changed the image, or nothing was placed");
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (written, image));
+        AssertSucceeded (Nibblizer::NibblizeDsk (written, image));
         AssertSucceeded (Denibblizer::Denibblize (image, DiskFormat::Dsk, sectors, report));
 
         {
@@ -340,7 +342,7 @@ public:
 
 
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (master, image));
+        AssertSucceeded (Nibblizer::NibblizeDsk (master, image));
         AssertSucceeded (Denibblizer::Denibblize (image, DiskFormat::Dsk, sectors, report));
 
         {

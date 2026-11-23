@@ -1,8 +1,9 @@
 #include "Pch.h"
 
 #include "../EhmTestHelper.h"
+#include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Shell/InspectorRequestQueue.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -50,7 +51,7 @@ public:
 
 
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, source.image));
+        AssertSucceeded (Nibblizer::NibblizeDsk (sectors, source.image));
     }
 
 

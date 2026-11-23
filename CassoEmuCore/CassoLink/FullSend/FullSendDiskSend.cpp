@@ -8,7 +8,7 @@
 #include "CassoLink/FullSend/FullSendLink.h"
 #include "CassoLink/FullSend/FullSendStatus.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 
 
 
@@ -450,7 +450,7 @@ HRESULT FullSendDiskSend::CheckVolume (Sending & disk)
     HRESULT                   hr          = S_OK;
     FullSendImage           & image       = disk.image;
     std::vector<TrackLayout>  layouts;
-    Byte                      imageVolume = NibblizationLayer::GetImageVolume (image.sectors);
+    Byte                      imageVolume = Nibblizer::GetImageVolume (image.sectors);
     bool                      measured    = !image.raw.empty() || !image.report.layouts.empty();
     bool                      differs     = false;
 

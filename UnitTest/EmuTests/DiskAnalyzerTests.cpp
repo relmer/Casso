@@ -1,10 +1,11 @@
 #include "Pch.h"
 
 #include "../EhmTestHelper.h"
+#include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/Inspector/DiskAnalyzer.h"
 #include "Devices/Disk/Inspector/FindingFormatter.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "InspectorTrackBuilder.h"
 
@@ -92,7 +93,7 @@ public:
             sectors[i] = static_cast<Byte> (i * 7);
         }
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, image));
+        AssertSucceeded (Nibblizer::NibblizeDsk (sectors, image));
         AnalyzeImage (image, analysis);
 
         AssertStandardSixteenSector (analysis, NibbleFormat::kDefaultVolume);
@@ -149,7 +150,7 @@ public:
 
 
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, image));
+        AssertSucceeded (Nibblizer::NibblizeDsk (sectors, image));
 
         {
             InspectorTrackBuilder  odd;
@@ -179,7 +180,7 @@ public:
 
 
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, image));
+        AssertSucceeded (Nibblizer::NibblizeDsk (sectors, image));
         AnalyzeImage (image, analysis);
 
         slot      = analysis.entries[4 * 3].slot;
@@ -219,7 +220,7 @@ public:
 
 
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, image));
+        AssertSucceeded (Nibblizer::NibblizeDsk (sectors, image));
         copy = DiskCopy::MakeFromImage (image, 1, "test", 0, false);
 
         QueryPerformanceFrequency (&frequency);

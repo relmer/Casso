@@ -44,7 +44,7 @@ namespace fs = std::filesystem;
 //      PAGE2 off, HIRES on),
 //    - leaves the cassowary on screen.
 //
-//  Exercises: HgrPreprocess.py output -> Assembler -> NibblizationLayer
+//  Exercises: HgrPreprocess.py output -> Assembler -> Nibblizer
 //  -> DiskImageStore -> Disk2Controller -> Disk2NibbleEngine ->
 //  Disk2.rom slot 6 boot -> 6502 CPU executing our RWTS -> MMU HGR
 //  page-1 writes -> Apple2eSoftSwitchBank graphics-mode latching.

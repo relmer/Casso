@@ -4,7 +4,7 @@
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Devices/Disk/DiskFieldFormat.h"
 #include "Devices/Disk/DiskImage.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/SectorInterleave.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 
@@ -107,7 +107,7 @@ HRESULT TrackLayoutWriter::BuildWoz (const std::vector<Byte> & sectors, const st
 
     CBREx (isEvery, E_INVALIDARG);
 
-    hr = NibblizationLayer::NibblizeDsk (sectors, image);
+    hr = Nibblizer::NibblizeDsk (sectors, image);
     CHR (hr);
 
     for (int track = 0; track < NibbleFormat::kTrackCount; track++)

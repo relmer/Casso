@@ -4,7 +4,7 @@
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Devices/Disk/CommitPlan.h"
 
@@ -324,7 +324,7 @@ public:
         vector<Byte>  sectors (NibbleFormat::kImageByteSize, 0);
         vector<Byte>  woz;
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, src));
+        AssertSucceeded (Nibblizer::NibblizeDsk (sectors, src));
         src.SetSourceFormat (DiskFormat::Woz);
         AssertSucceeded (WozLoader::Serialize (src, woz));
 

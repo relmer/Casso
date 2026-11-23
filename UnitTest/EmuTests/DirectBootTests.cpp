@@ -1,10 +1,12 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
+#include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/Denibblizer.h"
 #include "Machines/Apple2/Common/DirectBootBuilder.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Machines/Apple2/Common/SectorInterleave.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
@@ -603,7 +605,7 @@ public:
 
         AssertSucceeded (DirectBootBuilder::Build (payload, spec, built, refusal));
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (built, image));
+        AssertSucceeded (Nibblizer::NibblizeDsk (built, image));
         AssertSucceeded (Denibblizer::Denibblize (image, DiskFormat::Dsk, decoded, report));
 
         Assert::IsTrue (built == decoded,

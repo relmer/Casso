@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Devices/Disk/DiskImage.h"
 #include "EhmTestHelper.h"
 #include "FixtureProvider.h"
 #include "Machines/Apple2/Common/Denibblizer.h"

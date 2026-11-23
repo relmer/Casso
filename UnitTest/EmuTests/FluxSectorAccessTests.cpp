@@ -3,7 +3,8 @@
 #include "Devices/Disk/FluxBitView.h"
 #include "Machines/Apple2/Common/Denibblizer.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Machines/Apple2/Common/SectorInterleave.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/WozLoader.h"
@@ -59,7 +60,7 @@ public:
         int                        t  = 0;
         HRESULT                    hr = S_OK;
 
-        hr = NibblizationLayer::NibblizeDsk (sectors, bitImage);
+        hr = Nibblizer::NibblizeDsk (sectors, bitImage);
         Assert::IsTrue (SUCCEEDED (hr));
 
         for (t = 0; t < kTracks; t++)
@@ -170,7 +171,7 @@ public:
 
         vector<WozSyntheticTrack>  tracks;
 
-        hr = NibblizationLayer::NibblizeDsk (sectors, bitImage);
+        hr = Nibblizer::NibblizeDsk (sectors, bitImage);
         Assert::IsTrue (SUCCEEDED (hr));
 
         for (t = 0; t < kTracks; t++)
@@ -222,7 +223,7 @@ public:
         // One sector on track 5.
         memset (&edited[(5 * 16 + 9) * kSectorBytes], 0xA5, kSectorBytes);
 
-        hr = NibblizationLayer::RenibblizeTracks (edited, DiskFormat::Dsk, changed, disk);
+        hr = Nibblizer::RenibblizeTracks (edited, DiskFormat::Dsk, changed, disk);
         Assert::IsTrue (SUCCEEDED (hr));
 
         Assert::IsTrue   (disk.GetTrackKind (5) == TrackKind::Flux, L"a sector write must keep the track flux");
@@ -267,7 +268,7 @@ public:
 
         memset (&edited[(3 * 16 + SectorInterleave::GetDosFileIndexForPhysicalSector (14)) * kSectorBytes], 0x5A, kSectorBytes);
 
-        hr = NibblizationLayer::RenibblizeTracks (edited, DiskFormat::Dsk, changed, disk);
+        hr = Nibblizer::RenibblizeTracks (edited, DiskFormat::Dsk, changed, disk);
 
         Assert::AreEqual (static_cast<long> (HRESULT_FROM_WIN32 (ERROR_SECTOR_NOT_FOUND)), static_cast<long> (hr));
         Assert::IsTrue (disk.GetFluxTrack (3).GetBytes() == before);

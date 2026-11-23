@@ -11,13 +11,15 @@
 #include "CassoLink/FullSend/FullSendDisk.h"
 #include "CassoLink/FullSend/FullSendManifest.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk/DurableCommit.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Machines/Apple2/Common/ThirteenSectorCodec.h"
 
 
@@ -621,7 +623,7 @@ HRESULT CassoLinkDiskTransfer::ChooseAutomatic (LinkOperation & operation, const
         measured = MeasureTrack (operation.drive, 0, first);
         volume   = (SUCCEEDED (measured) && !first.empty()) ? first[0].volume : (Byte) 0;
 
-        if (volume != 0 && volume != NibblizationLayer::GetImageVolume (sectors))
+        if (volume != 0 && volume != Nibblizer::GetImageVolume (sectors))
         {
             extension = ".woz";
             outFormat = DiskFormat::Woz;

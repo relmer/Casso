@@ -2,10 +2,11 @@
 
 #include "DamagedDisk.h"
 
+#include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -191,7 +192,7 @@ public:
 
         //  The same disk in nibble form, so the two cases differ only in the
         //  format the flush has to produce.
-        hr = NibblizationLayer::NibblizeDsk (dsk, staging);
+        hr = Nibblizer::NibblizeDsk (dsk, staging);
         Assert::IsTrue (SUCCEEDED (hr), L"the sector image must nibblize");
 
         DamagedDisk::BreakSector (staging, 20, 5);

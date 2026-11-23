@@ -1,13 +1,14 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
+#include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/FluxTrack.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 
 #include "Machines/Apple2/Common/CpmVolume.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/WozLoader.h"
@@ -502,7 +503,7 @@ HRESULT BlankDiskBuilder::WrapInContainer (
             }
             else
             {
-                hr = NibblizationLayer::NibblizeDsk (sectors, img);
+                hr = Nibblizer::NibblizeDsk (sectors, img);
                 CHR (hr);
             }
 
@@ -531,7 +532,7 @@ HRESULT BlankDiskBuilder::WrapInContainer (
             }
             else
             {
-                hr = NibblizationLayer::NibblizeDsk (sectors, img);
+                hr = Nibblizer::NibblizeDsk (sectors, img);
                 CHR (hr);
             }
 

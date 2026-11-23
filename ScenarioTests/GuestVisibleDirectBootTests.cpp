@@ -1,15 +1,17 @@
 #include "Pch.h"
+#include "Devices/Disk/DiskImage.h"
 #include "EhmTestHelper.h"
 #include "FakeDiskFileIo.h"
 #include "GuestSession.h"
 #include "Machines/Apple2/Common/Denibblizer.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Machines/Apple2/Common/SectorInterleave.h"
 #include "TestMachine.h"
 #include "Machines/Apple2/Common/DirectBootBuilder.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -324,7 +326,7 @@ public:
         size_t              span = 0;
         size_t              i    = 0;
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (image, decoded));
+        AssertSucceeded (Nibblizer::NibblizeDsk (image, decoded));
         AssertSucceeded (Denibblizer::Denibblize (decoded, DiskFormat::Dsk,
                                                         sectors, report));
 

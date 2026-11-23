@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Core/PathResolver.h"
+#include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "../EhmTestHelper.h"
@@ -9,7 +10,8 @@
 #include "MachineIdle.h"
 #include "Machines/Apple2/Common/Denibblizer.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "TextScreenScraper.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 
@@ -466,7 +468,7 @@ std::vector<Byte> GuestSession::DecodeThroughTheDrive (const std::vector<Byte> &
 
 
 
-    AssertSucceeded (NibblizationLayer::NibblizeDsk (bytes, image),
+    AssertSucceeded (Nibblizer::NibblizeDsk (bytes, image),
         L"the container must nibblize before the drive can report what it reads");
 
     return DecodeThroughTheDrive (image, report);

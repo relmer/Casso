@@ -7,7 +7,7 @@
 #include "Machines/Apple2/Common/Denibblizer.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 
@@ -432,7 +432,7 @@ public:
         vector<Byte>              file;
         HRESULT                   hr = S_OK;
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, built));
+        AssertSucceeded (Nibblizer::NibblizeDsk (sectors, built));
         AssertSucceeded (NibbleImageCodec::Serialize (built, vector<Byte>(), file));
 
         store.SetFlushSink ([] (const string &, const vector<Byte> &) { return E_FAIL; });
@@ -1012,7 +1012,7 @@ public:
             sectors[i] = static_cast<Byte> ((seed >> 16) & 0xFF);
         }
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, src));
+        AssertSucceeded (Nibblizer::NibblizeDsk (sectors, src));
         src.SetSourceFormat (DiskFormat::Woz);
         AssertSucceeded (WozLoader::Serialize (src, woz));
 
@@ -1506,7 +1506,7 @@ public:
         DiskImage       * img = nullptr;
         WriteProtectInfo  info;
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, built));
+        AssertSucceeded (Nibblizer::NibblizeDsk (sectors, built));
         AssertSucceeded (NibbleImageCodec::Serialize (built, vector<Byte>(), file));
         AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "plain.nib", DiskFormat::Nib, file));
 

@@ -1,9 +1,10 @@
 #include "Pch.h"
 
+#include "Devices/Disk/DiskImage.h"
 #include "DiskImageStore.h"
 #include "Machines/Apple2/Common/Denibblizer.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Core/TextEncoding.h"
@@ -1572,7 +1573,7 @@ HRESULT DiskImageStore::BuildSalvagedImage (
     hr = DecodeForSalvage (entry, sectors, report);
     CHR (hr);
 
-    hr = NibblizationLayer::NibblizeDsk (sectors, rebuilt);
+    hr = Nibblizer::NibblizeDsk (sectors, rebuilt);
     CHR (hr);
 
     // META travels, INFO does not: the disk is still the same title, but the

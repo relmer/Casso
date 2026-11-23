@@ -2,6 +2,7 @@
 
 #include "DamagedDisk.h"
 
+#include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/Denibblizer.h"

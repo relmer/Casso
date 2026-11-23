@@ -13,9 +13,9 @@
 //  NibbleImageCodec
 //
 //  Nibble bytes to and from packed bit streams, for headerless nibble disk
-//  images (.nib / .nb2). A peer of WozLoader, not a part of
-//  NibblizationLayer: that layer converts SECTORS, and this converts the
-//  raw byte stream a drive would read.
+//  images (.nib / .nb2). A peer of WozLoader, not of Nibblizer and
+//  Denibblizer: those convert SECTORS, and this converts the raw byte stream
+//  a drive would read.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

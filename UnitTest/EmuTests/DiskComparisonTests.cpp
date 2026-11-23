@@ -1,11 +1,12 @@
 #include "Pch.h"
 
+#include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/Inspector/DiskComparer.h"
 #include "ComparisonTestImages.h"
 #include "FileMapTestImages.h"
 #include "InspectorTrackBuilder.h"
 #include "Devices/Disk/Inspector/DiskAnalyzer.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/SectorInterleave.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -400,7 +401,7 @@ public:
             }
         }
 
-        hr = NibblizationLayer::NibblizeDsk (dsk, image);
+        hr = Nibblizer::NibblizeDsk (dsk, image);
         Assert::IsTrue (SUCCEEDED (hr));
         DiskAnalyzer::Analyze (DiskCopy::MakeFromImage (image, 1, "disk.dsk", dsk.size(), false), DecodeSettings::MakeStandard(), a);
         Pairs::AnalyzeDisk (-1, {}, b);
