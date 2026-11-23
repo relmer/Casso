@@ -357,31 +357,6 @@ public:
     //  implementation detail -- and pure, so both are testable without a disk.
     static string   MakeRecoveryPath        (const string & imagePath, int attempt);
 
-    //  Replaces `path` with `bytes` without ever leaving the target in a
-    //  partially written state: the bytes land in a sibling temporary file
-    //  that is verified in full, then renamed over the target. A failure at
-    //  any step leaves the ORIGINAL file exactly as it was and reports it,
-    //  which is what a flush needs -- opening the target directly truncates
-    //  it before the first byte is written, so a write that then fails
-    //  (a full volume, a disconnected share) destroys the only copy.
-    //
-    //  Public because it is the unit of behavior worth testing on its own:
-    //  the failure paths are filesystem states, not emulator states.
-    static HRESULT  WriteFileAtomically (const string & path, const vector<Byte> & bytes);
-
-    //  The temporary a commit of `path` would write through, for a test that
-    //  needs to know a commit left nothing behind -- or that two of them chose
-    //  different names.
-    //
-    //  PUBLIC BECAUSE THE NAME IS PART OF THE CONTRACT NOW. It used to be a
-    //  fixed suffix three tests could spell for themselves; it cannot be, so
-    //  asking is the only way to stay right about it.
-    static string   GetCommitTemporaryPath (const string & path, unsigned attempt);
-
-    //  Reads a whole file into `bytes`. The read counterpart of the write
-    //  above, and public for the same reason.
-    static HRESULT  ReadFileBytes (const string & path, vector<Byte> & bytes);
-
 private:
     struct Entry
     {

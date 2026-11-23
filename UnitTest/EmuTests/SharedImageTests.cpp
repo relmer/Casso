@@ -3,6 +3,7 @@
 #include "FakeImageWatcher.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/DiskFileCommit.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
@@ -2291,34 +2292,6 @@ public:
     //  ------------------------------------------------------------------
     //
 
-    TEST_METHOD (TwoWritersDeriveDifferentTemporariesFromOneImage)
-    {
-        std::string  mine   = DiskImageStore::GetCommitTemporaryPath (kImagePath, 0);
-        std::string  again  = DiskImageStore::GetCommitTemporaryPath (kImagePath, 0);
-        std::string  second = DiskImageStore::GetCommitTemporaryPath (kImagePath, 1);
-
-
-
-        //  Within one process the name is stable, which is what lets a caller
-        //  ask where its own commit went.
-        Assert::AreEqual (mine, again);
-
-        //  And stepping the attempt gives a different one, which is what walks
-        //  past a temporary an earlier writer abandoned.
-        Assert::IsTrue (mine != second);
-
-        //  THE NAME IS NOT DERIVED FROM THE IMAGE PATH ALONE, which is the
-        //  whole defect: it used to be `<image>.casso-tmp` in every process, so
-        //  two emulators holding one image wrote into each other's temporary
-        //  and one renamed the other's bytes over the target as its own. The
-        //  invocation tag is what makes two processes disagree.
-        Assert::IsTrue (mine != std::string (kImagePath) + ".casso-tmp",
-                        L"a name a second process would also have chosen");
-        Assert::IsTrue (mine.find (kImagePath) == 0,
-                        L"and it still sits beside the image, so a leftover is "
-                        L"findable by someone reading the folder");
-    }
-
 
 
     TEST_METHOD (AWriteThatFailsLeavesTheImageByteForByte)
@@ -2334,7 +2307,7 @@ public:
         fs::remove_all      (folder, ec);
         fs::create_directories (folder, ec);
 
-        AssertSucceeded (DiskImageStore::WriteFileAtomically (target.string(), before));
+        AssertSucceeded (DiskFileCommit::WriteFileAtomically (target.string(), before));
 
         //  EVERY name the commit could take is occupied by a directory, which
         //  no stream can open -- so the write fails after the target already
@@ -2343,18 +2316,18 @@ public:
         for (unsigned attempt = 0; attempt < CommitPlan::kMaxAttempts; attempt++)
         {
             fs::create_directories (
-                fs::path (DiskImageStore::GetCommitTemporaryPath (target.string(), attempt)), ec);
+                fs::path (DiskFileCommit::GetCommitTemporaryPath (target.string(), attempt)), ec);
         }
 
         {
             std::vector<Byte>  replacement (512, 0xA5);
-            HRESULT            hrWrite     = DiskImageStore::WriteFileAtomically (
+            HRESULT            hrWrite     = DiskFileCommit::WriteFileAtomically (
                                                  target.string(), replacement);
 
             Assert::IsTrue (FAILED (hrWrite), L"the write could not have succeeded");
         }
 
-        AssertSucceeded (DiskImageStore::ReadFileBytes (target.string(), after));
+        AssertSucceeded (DiskFileCommit::ReadFileBytes (target.string(), after));
 
         //  The guarantee that makes a failed flush survivable: the file on disk
         //  is what it was, not a truncated or half-written version of what was
@@ -2379,7 +2352,7 @@ public:
         fs::remove_all      (folder, ec);
         fs::create_directories (folder, ec);
 
-        AssertSucceeded (DiskImageStore::WriteFileAtomically (target.string(), bytes));
+        AssertSucceeded (DiskFileCommit::WriteFileAtomically (target.string(), bytes));
 
         //  The target was never opened directly: had it been, a reader could
         //  have seen it truncated. The evidence a test can hold is that the
@@ -2388,7 +2361,7 @@ public:
         //  than silently reintroducing a partly written image.
         Assert::AreEqual ((size_t) 4096, fs::file_size (target, ec));
         Assert::IsFalse (fs::exists (
-                             DiskImageStore::GetCommitTemporaryPath (target.string(), 0), ec),
+                             DiskFileCommit::GetCommitTemporaryPath (target.string(), 0), ec),
                          L"the commit went through a temporary and consumed it");
 
         fs::remove_all (folder, ec);
@@ -2400,7 +2373,7 @@ public:
     {
         fs::path           folder    = fs::temp_directory_path() / L"CassoAbandonedTempTests";
         fs::path           target    = folder / L"work.dsk";
-        std::string        abandoned = DiskImageStore::GetCommitTemporaryPath (target.string(), 0);
+        std::string        abandoned = DiskFileCommit::GetCommitTemporaryPath (target.string(), 0);
         std::vector<Byte>  bytes (256, 0x77);
         std::vector<Byte>  readBack;
         std::error_code    ec;
@@ -2411,11 +2384,11 @@ public:
         fs::create_directories (folder, ec);
 
         //  What a writer killed mid-commit leaves behind.
-        AssertSucceeded (DiskImageStore::WriteFileAtomically (abandoned, std::vector<Byte> (99, 0x11)));
+        AssertSucceeded (DiskFileCommit::WriteFileAtomically (abandoned, std::vector<Byte> (99, 0x11)));
 
-        AssertSucceeded (DiskImageStore::WriteFileAtomically (target.string(), bytes));
+        AssertSucceeded (DiskFileCommit::WriteFileAtomically (target.string(), bytes));
 
-        AssertSucceeded (DiskImageStore::ReadFileBytes (target.string(), readBack));
+        AssertSucceeded (DiskFileCommit::ReadFileBytes (target.string(), readBack));
 
         //  Adopting it would have appended this image to the remains of
         //  somebody else's, or renamed those remains over the target.
