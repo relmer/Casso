@@ -364,8 +364,12 @@ public:
 
     //  A line for the program's history, newest at the top: the PC's time,
     //  as the Apple may have no clock, then the text, as SendLabel cuts it,
-    //  to CassoLinkCodec::kLogLength.
+    //  to GetLogLength.
     HRESULT  SendLog      (int hour, int minute, const std::string & text);
+
+    //  The longest history text after the time: CassoLinkCodec::kWideLogLength
+    //  after SetColumns sets 80 columns, else CassoLinkCodec::kLogLength.
+    size_t   GetLogLength () const { return m_wide ? CassoLinkCodec::kWideLogLength : CassoLinkCodec::kLogLength; }
 
     //  Idle, sent unprompted. A shim or program whose Ready went out before
     //  the host connected is in its receive loop; Idle ends that loop, and
@@ -589,6 +593,7 @@ private:
     bool                            m_fullSendRequest = false;
     bool                            m_verifyToggle    = false;
     bool                            m_awaitingKey     = false;
+    bool                            m_wide            = false;
     std::atomic<Byte>               m_hostKey         { CassoLinkCodec::kKeyNone };
     std::atomic<uint64_t>           m_lastHeardMs     { 0 };
     std::atomic<uint64_t>           m_lastPacketMs    { 0 };   // the last packet sent or decoded

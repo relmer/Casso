@@ -236,6 +236,9 @@ public:
     //  The longest Log text the program draws, after the time.
     static constexpr size_t  kLogLength   = 34;
 
+    //  The same in 80 columns.
+    static constexpr size_t  kWideLogLength = 74;
+
     // Acknowledgement kinds.
     static constexpr Byte  kAck          = 0x06;
     static constexpr Byte  kNak          = 0x15;

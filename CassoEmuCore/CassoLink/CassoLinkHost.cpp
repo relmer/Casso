@@ -1053,7 +1053,7 @@ HRESULT CassoLinkHost::SendLog (int hour, int minute, const std::string & text)
 
     for (char ch : text)
     {
-        if (line.size() == 2 + CassoLinkCodec::kLogLength)
+        if (line.size() == 2 + GetLogLength())
         {
             break;
         }
@@ -1092,6 +1092,8 @@ HRESULT CassoLinkHost::SetColumns (bool wide)
 
     hr = SendPacket (CassoLinkCodec::kSetColumns, std::vector<Byte> { (Byte) (wide ? 1 : 0) });
     CHR (hr);
+
+    m_wide = wide;
 
 Error:
     return hr;
