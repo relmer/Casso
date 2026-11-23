@@ -12,7 +12,9 @@
 #include "IDiskFileIo.h"
 #include "MountDiagnosis.h"
 #include "BayChange.h"
+#include "Devices/Disk/Store/BayFileAccess.h"
 #include "Devices/Disk/Store/DiskBayTable.h"
+#include "Devices/Disk/Store/DiskStoreHooks.h"
 
 
 
@@ -88,17 +90,6 @@ struct SalvageAssessment
 class DiskImageStore
 {
 public:
-    using FlushSink      = std::function<HRESULT (const string &, const vector<Byte> &)>;
-    using ImageReader    = std::function<HRESULT (const string &, vector<Byte> &)>;
-
-    //  How the store learns what a file looks like right now.
-    //
-    //  A THIRD SEAM BESIDE THE OTHER TWO, and for their reason: a test that has
-    //  redirected reads and writes into memory has no file to stat, so without
-    //  it the staleness gate below would compare a recorded identity against a
-    //  missing one and refuse every flush.
-    using IdentityReader = std::function<ImageIdentity (const string &)>;
-
     HRESULT       Mount             (int slot, int drive, const string & path);
     HRESULT       MountFromBytes    (int slot, int drive, const string & virtualPath,
                                      DiskFormat fmt, const vector<Byte> & bytes);
@@ -186,41 +177,41 @@ public:
 
     std::vector<MountedSource>  GetMountedSourcePaths() const;
 
-    void          SetFlushSink      (FlushSink sink) { m_flushSink = std::move (sink); }
+    void          SetFlushSink      (DiskStoreHooks::FlushSink sink) { m_hooks.flushSink = std::move (sink); }
 
     //  Read counterpart to SetFlushSink: redirects every backing-file read
     //  (Mount, and the write-protect patch's read-modify-write) to the
     //  caller's buffer, so a test can pair the two and exercise a genuine
     //  read-modify-write cycle without a real file.
-    void          SetImageReader    (ImageReader reader) { m_imageReader = std::move (reader); }
+    void          SetImageReader    (DiskStoreHooks::ImageReader reader) { m_hooks.imageReader = std::move (reader); }
 
     //  Replaces the filesystem stat behind the mount-time record and the
     //  pre-commit re-check.
-    void          SetIdentityReader (IdentityReader reader) { m_identityReader = std::move (reader); }
+    void          SetIdentityReader (DiskStoreHooks::IdentityReader reader) { m_hooks.identityReader = std::move (reader); }
 
     //  Where notification comes from. The shell builds the platform watcher and
     //  hands it over; REGISTERING AND DROPPING WATCHES IS THIS CLASS'S JOB,
     //  because mount-registers-a-watch is orchestration and orchestration is
     //  testable. Caller-owned and may be null, which is a session with no
     //  notification -- the check before every write still holds.
-    void          SetImageWatcher (IImageWatcher * watcher) { m_watcher = watcher; }
+    void          SetImageWatcher (IImageWatcher * watcher) { m_hooks.watcher = watcher; }
 
     //  Where "is somebody else writing this right now" is answered. Optional:
     //  without it a pick-up cannot be deferred for a third-party writer, and
     //  the quiet period is the only debounce.
-    void          SetFileIo (IDiskFileIo * fileIo) { m_fileIo = fileIo; }
+    void          SetFileIo (IDiskFileIo * fileIo) { m_hooks.fileIo = fileIo; }
 
     //  The machine as the user knows it, for the notices that mention it.
     //  "Apple //e" rather than "the Apple", which is not what is in front of
     //  them. Empty is allowed and the notices fall back to "the machine".
-    void          SetMachineName (const string & name) { m_machineName = name; }
+    void          SetMachineName (const string & name) { m_hooks.machineName = name; }
 
     //  Restarting the machine.
     //
     //  A CALLBACK RATHER THAN A CALL. A device-layer image store reaching
     //  machine lifecycle directly is a layering inversion; the decision stays
     //  here and the action belongs to the shell.
-    void          SetMachineRestartCallback (std::function<void ()> cb) { m_restartCallback = std::move (cb); }
+    void          SetMachineRestartCallback (std::function<void ()> cb) { m_hooks.restartCallback = std::move (cb); }
 
     //  Showing a report that does not block the machine. Given the bay it is
     //  about and everything to draw.
@@ -231,9 +222,7 @@ public:
     //  one notice at the cost of it going stale: measured, a `reload` followed
     //  by a `reboot` left the bar still advising a reboot that had already
     //  happened.
-    using ReportSink = std::function<void (int slot, int drive, const ChangePrompt &)>;
-
-    void          SetChangeReportSink (ReportSink sink) { m_reportSink = std::move (sink); }
+    void          SetChangeReportSink (DiskStoreHooks::ReportSink sink) { m_hooks.reportSink = std::move (sink); }
 
     //  Putting a question to the user.
     //
@@ -251,9 +240,7 @@ public:
     //
     //  Null means nothing can answer, and a change that needs an answer stays
     //  pending rather than resolving itself by default.
-    using AskSink = std::function<bool (int slot, int drive, const ChangePrompt &)>;
-
-    void          SetAskSink (AskSink sink) { m_askSink = std::move (sink); }
+    void          SetAskSink (DiskStoreHooks::AskSink sink) { m_hooks.askSink = std::move (sink); }
 
     //  Asking where to put a disk, and not returning until it is answered.
     //
@@ -265,9 +252,7 @@ public:
     //  which is why the store never calls this anywhere but ShuttingDown.
     //
     //  Returns false when the user declined or nothing could ask.
-    using RescueSink = std::function<bool (const string & imagePath, string & outPath)>;
-
-    void          SetRescueSink (RescueSink sink) { m_rescueSink = std::move (sink); }
+    void          SetRescueSink (DiskStoreHooks::RescueSink sink) { m_hooks.rescueSink = std::move (sink); }
 
     //  A bay's disk changed, and the shell should react: re-point the
     //  controller, re-apply write protection, log the debug event, and drive
@@ -282,9 +267,7 @@ public:
     //  FIRES ON THE THREAD THAT OWNS DISK WRITES, where every path that can
     //  change a bay already runs. The handler does its controller and audio
     //  work there, exactly as the mount path did before this was central.
-    using BayChangeSink = std::function<void (int slot, int drive, BayChange change)>;
-
-    void          SetBayChangeSink (BayChangeSink sink) { m_bayChangeSink = std::move (sink); }
+    void          SetBayChangeSink (DiskStoreHooks::BayChangeSink sink) { m_hooks.bayChangeSink = std::move (sink); }
 
     //  What a settled change to a mounted image was decided to be, reported
     //  once per decision so a tool that stated the intent can be told.
@@ -295,10 +278,7 @@ public:
     //  nothing has been decided yet.
     //
     //  FIRES ON THE THREAD THAT OWNS DISK WRITES, where the decision is taken.
-    using DecisionSink = std::function<void (const string & path, ChangeAction action,
-                                             bool guestCopyPreserved, const string & preservedPath)>;
-
-    void          SetDecisionSink (DecisionSink sink) { m_decisionSink = std::move (sink); }
+    void          SetDecisionSink (DiskStoreHooks::DecisionSink sink) { m_hooks.decisionSink = std::move (sink); }
 
     //  The user answered a question this store asked.
     //
@@ -315,7 +295,7 @@ public:
 
     //  Where "now" comes from, in milliseconds, so the quiet period can be
     //  swept in a test without waiting for one.
-    void          SetClock (std::function<int64_t ()> clock) { m_clock = std::move (clock); }
+    void          SetClock (std::function<int64_t ()> clock) { m_hooks.clock = std::move (clock); }
 
     //  Where the wall-clock time in a preserved copy's NAME comes from.
     //
@@ -323,7 +303,7 @@ public:
     //  needs a monotonic count of milliseconds and a filename needs a calendar
     //  date; deriving one from the other would tie a timer to the user's clock
     //  changing under it.
-    void          SetTimestampSource (std::function<time_t ()> source) { m_timestamp = std::move (source); }
+    void          SetTimestampSource (std::function<time_t ()> source) { m_hooks.timestamp = std::move (source); }
 
     //  A change was noticed, from a watcher or stated by a writer.
     //
@@ -346,12 +326,6 @@ public:
     //  behind two names.
     MountedImageState        * GetSharedState (int slot, int drive);
     const MountedImageState  * GetSharedState (int slot, int drive) const;
-
-    //  Where a recovery image goes for the Nth attempt, when an image cannot be
-    //  written back to its own format without loss. Public because the naming
-    //  and never-overwrite policy are part of the observable contract, not an
-    //  implementation detail -- and pure, so both are testable without a disk.
-    static string   MakeRecoveryPath        (const string & imagePath, int attempt);
 
 private:
     //  Moves a mounted bay onto a different file without disturbing the disk
@@ -405,10 +379,6 @@ private:
     //  without returning until it is done. Only ever called at ShuttingDown.
     bool          RescueOnTheWayOut (DiskBay & entry, const string & original);
 
-    // Routes through m_imageReader when a test has installed one, so the
-    // read and write seams stay symmetric.
-    HRESULT       ReadImageFile     (const string & path, vector<Byte> & bytes) const;
-
     // Recover what can be recovered. Decode only -- this is all the counts
     // need, and it is the half AssessSalvage can afford to run.
     HRESULT       DecodeForSalvage (DiskBay & entry, vector<Byte> & outSectors,
@@ -418,17 +388,6 @@ private:
     // rebuild, so only the write path pays for it.
     HRESULT       BuildSalvagedImage (DiskBay & entry, vector<Byte> & outBytes,
                                       DenibblizeReport & report);
-
-    // Preserves an image that could not be serialized to its own format,
-    // beside the original and losslessly. Leaves the original untouched.
-    HRESULT        TryWriteRecoveryImage  (DiskBay & entry, string & outPath);
-
-    // Enough room to step past collisions without ever spinning.
-    static constexpr int  kMaxRecoveryNameAttempts = 64;
-
-    //  The identity `path` has right now: through the seam when one is
-    //  installed, and from the filesystem when none is.
-    ImageIdentity  ReadIdentity (const string & path) const;
 
     //  Everything one bay's settled change leads to.
     void           ApplyPendingReloadToBay (int slot, int drive);
@@ -442,28 +401,6 @@ private:
     //  being acted on. Reading it here named whoever wrote last.
     void           CarryOutChangeAction (int slot, int drive, ChangeAction action,
                                          const vector<Byte> & bytes, ChangeAuthor author);
-
-    //  Writes what the bay currently holds to a preserved copy beside the
-    //  original, and reports where it went.
-    //
-    //  SERIALIZED FROM THE MOUNTED IMAGE rather than copied from the file: the
-    //  point of preserving it is that the file no longer holds this version.
-    HRESULT        SaveLoadedImage (DiskBay & entry, string & outPath);
-
-    //  A preserved-copy path nothing is sitting at yet.
-    //
-    //  THE COLLISION LOOP IS NOT OPTIONAL. Two conflicts on one image inside a
-    //  second is exactly what a build loop produces, and a one-second stamp
-    //  cannot keep the accumulate-rather-than-overwrite promise on its own.
-    HRESULT        FindFreePreservedPath (const string & imagePath, string & outPath) const;
-
-    //  Whether something is already at `path`, through the file seam when one
-    //  is installed and through the filesystem when none is.
-    bool           DoesPathExist (const string & path) const;
-
-    //  Writes bytes to a path, through the flush sink when one is installed so
-    //  a test captures preserved copies the same way it captures flushes.
-    HRESULT        WritePreserved (const string & path, const vector<Byte> & bytes);
 
     //  Empties a bay whose file is gone, WITHOUT trying to flush it. The
     //  ordinary eject flushes first, which here would either fail or write the
@@ -500,22 +437,8 @@ private:
     //  be lit from a path that forgot to.
     void           EmitBayChange (int slot, int drive, BayChange change);
 
+    DiskStoreHooks           m_hooks;
     DiskBayTable             m_bays;
-    FlushSink                m_flushSink;
-    ImageReader              m_imageReader;
-    IdentityReader           m_identityReader;
+    BayFileAccess            m_files { m_hooks };
     string                   m_emptyPath;
-
-    IImageWatcher *          m_watcher  = nullptr;
-    IDiskFileIo *            m_fileIo   = nullptr;
-
-    std::function<void ()>   m_restartCallback;
-    string                   m_machineName;
-    ReportSink               m_reportSink;
-    AskSink                  m_askSink;
-    RescueSink               m_rescueSink;
-    BayChangeSink            m_bayChangeSink;
-    DecisionSink             m_decisionSink;
-    std::function<int64_t ()>  m_clock;
-    std::function<time_t ()>   m_timestamp;
 };

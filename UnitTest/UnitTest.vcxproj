@@ -464,6 +464,7 @@
     <ClCompile Include="EmuTests\FluxSectorWriterTests.cpp" />
     <ClCompile Include="EmuTests\DamagedDiskMountTests.cpp" />
     <ClCompile Include="EmuTests\DiskImageStoreTests.cpp" />
+    <ClCompile Include="EmuTests\BayFileAccessTests.cpp" />
     <ClCompile Include="EmuTests\DiskBayTableTests.cpp" />
     <ClCompile Include="EmuTests\DiskFileCommitTests.cpp" />
     <ClCompile Include="EmuTests\DiskStoreMessagesTests.cpp" />

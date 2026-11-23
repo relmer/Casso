@@ -266,7 +266,7 @@ void DiskImageStore::ReportPreserveFailure (DiskBay & entry, FlushMoment moment,
         return;
     }
 
-    if (!m_askSink || entry.sharedState.IsAskOutstanding())
+    if (!m_hooks.askSink || entry.sharedState.IsAskOutstanding())
     {
         //  Nothing can ask. An eject still empties the bay, so it gets the
         //  sentence that says the writes are going rather than the one that
@@ -287,7 +287,7 @@ void DiskImageStore::ReportPreserveFailure (DiskBay & entry, FlushMoment moment,
     entry.sharedState.SetAskedAction (ChangeAction::Conflict);
 
     entry.sharedState.SetAskOutstanding (
-        m_askSink (entry.slot, entry.drive,
+        m_hooks.askSink (entry.slot, entry.drive,
                    ChangePrompt::ComposeSaveFailure (original, entry.drive, attemptedPath,
                                                      hrKeep, cause)));
 
@@ -327,12 +327,12 @@ bool DiskImageStore::RescueOnTheWayOut (DiskBay & entry, const string & original
 
 
 
-    if (!m_rescueSink)
+    if (!m_hooks.rescueSink)
     {
         return false;
     }
 
-    if (!m_rescueSink (original, chosen) || chosen.empty())
+    if (!m_hooks.rescueSink (original, chosen) || chosen.empty())
     {
         return false;
     }
@@ -341,7 +341,7 @@ bool DiskImageStore::RescueOnTheWayOut (DiskBay & entry, const string & original
 
     if (SUCCEEDED (hr))
     {
-        hr = WritePreserved (chosen, held);
+        hr = m_files.WritePreserved (chosen, held);
     }
 
     if (FAILED (hr))
@@ -402,7 +402,7 @@ HRESULT DiskImageStore::Mount (int slot, int drive, const string & path,
 
     outDiagnosis.format = fmt;
 
-    hr = ReadImageFile (path, bytes);
+    hr = m_files.ReadImageFile (path, bytes);
     CHRF (hr, outDiagnosis.failure = MountFailure::FileUnreadable);
 
     hr = LoadIntoBay (slot, drive, path, fmt, bytes, outDiagnosis);
@@ -412,7 +412,7 @@ HRESULT DiskImageStore::Mount (int slot, int drive, const string & path,
     //  line's read-then-stamp order. A stamp taken before the read could
     //  describe a file the loaded bytes did not come from, and a stamp
     //  recorded for a mount that failed would sit on an empty bay.
-    m_bays.GetBay (slot, drive).sharedState.Mount (ReadIdentity (path));
+    m_bays.GetBay (slot, drive).sharedState.Mount (m_files.ReadIdentity (path));
 
     //  Mount registers the watch. It is orchestration rather than platform
     //  work, so it lives here and not in whatever built the watcher.
@@ -422,141 +422,6 @@ HRESULT DiskImageStore::Mount (int slot, int drive, const string & path,
     //  here rather than from the path that called Mount, so a command-line
     //  mount and a picker mount and a machine-switch remount all react alike.
     EmitBayChange (slot, drive, BayChange::Inserted);
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskImageStore::MakeRecoveryPath
-//
-//  Recovery images sit beside the original under its own name, so the pairing
-//  is obvious in a folder listing. WOZ because it is the only format that can
-//  hold what the sector formats could not -- including the very track whose
-//  content caused the refusal.
-//
-//  The attempt index exists so an earlier recovery is never overwritten; losing
-//  a previous rescue to a later one would repeat the mistake being fixed.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-string DiskImageStore::MakeRecoveryPath (const string & imagePath, int attempt)
-{
-    fs::path  base = fs::path (imagePath);
-    string    stem;
-
-
-
-    base.replace_extension();
-    stem = base.string();
-
-    if (attempt <= 0)
-    {
-        return stem + ".recovered.woz";
-    }
-
-    return stem + ".recovered." + std::to_string (attempt) + ".woz";
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskImageStore::TryWriteRecoveryImage
-//
-//  Serializes the live image to WOZ and lands it beside the original. WOZ is
-//  chosen deliberately over the denibblized sector buffer: that buffer holds
-//  zeros exactly where the unreadable track should be, so writing it would
-//  discard the one thing the refusal was protecting. WozLoader::Serialize takes
-//  the per-track bit streams verbatim and is format-agnostic, so a .dsk-sourced
-//  mount round-trips whole.
-//
-//  Never overwrites an existing file, and never touches the original or what is
-//  currently mounted -- preserving the work and adopting it are different
-//  operations, and only the first belongs here.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT DiskImageStore::TryWriteRecoveryImage (DiskBay & entry, string & outPath)
-{
-    HRESULT       hr        = S_OK;
-    string        candidate;
-    int           attempt   = 0;
-    bool          haveImage = entry.image != nullptr;
-    bool          havePath  = !entry.path.empty();
-    bool          haveName  = false;
-    vector<Byte>  wozBytes;
-
-
-
-    outPath.clear();
-
-    CBR (haveImage);
-    CBR (havePath);
-
-    hr = WozLoader::Serialize (*entry.image, wozBytes);
-    CHR (hr);
-
-    for (attempt = 0; !haveName && attempt < kMaxRecoveryNameAttempts; attempt++)
-    {
-        candidate = MakeRecoveryPath (entry.path, attempt);
-
-        // With a sink installed there is no host file to collide with -- the
-        // sink is the filesystem, and it decides what to do with the name.
-        if (m_flushSink)
-        {
-            haveName = true;
-        }
-        else
-        {
-            bool  taken = fs::exists (fs::path (candidate));
-
-            haveName = !taken;
-        }
-    }
-
-    CBREx (haveName, HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS));
-
-    if (m_flushSink)
-    {
-        hr = m_flushSink (candidate, wozBytes);
-        CHR (hr);
-    }
-    else
-    {
-        //  Same rule as WriteFileAtomically: the filesystem's own code for a
-        //  refusal travels out, not E_FAIL. The name was just verified free,
-        //  so CREATE_NEW is faithful and refuses a race for it rather than
-        //  overwriting whoever won.
-        std::wstring  wide     = fs::path (candidate).wstring();
-        HANDLE        file     = INVALID_HANDLE_VALUE;
-        DWORD         written  = 0;
-        DWORD         lastErr  = ERROR_SUCCESS;
-        DWORD         expected = static_cast<DWORD> (wozBytes.size());
-        BOOL          ok       = FALSE;
-
-        file = CreateFileW (wide.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr,
-                            CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
-        CWR (file != INVALID_HANDLE_VALUE);
-
-        ok      = WriteFile (file, wozBytes.data(), static_cast<DWORD> (wozBytes.size()),
-                             &written, nullptr);
-        lastErr = ok ? ERROR_SUCCESS : GetLastError();
-
-        CloseHandle (file);
-
-        CBREx (ok, HRESULT_FROM_WIN32 (lastErr));
-        CBREx (written == expected, HRESULT_FROM_WIN32 (ERROR_WRITE_FAULT));
-    }
-
-    outPath = candidate;
 
 Error:
     return hr;
@@ -639,7 +504,7 @@ HRESULT DiskImageStore::FlushEntry (DiskBay & entry, FlushMoment moment)
     //  nothing has endangered.
     if (entry.sharedState.GetIdentity().recorded)
     {
-        current   = ReadIdentity (entry.path);
+        current   = m_files.ReadIdentity (entry.path);
         unchanged = entry.sharedState.GetIdentity().Matches (current);
 
         //  THE SAME CONFLICT THE WATCHER FINDS, discovered at the other end.
@@ -663,7 +528,7 @@ HRESULT DiskImageStore::FlushEntry (DiskBay & entry, FlushMoment moment)
             //  question. Reserving happens once, wherever it happens first.
             preservedPath = entry.sharedState.GetPreservedPath();
 
-            hrKeep = SaveLoadedImage (entry, preservedPath);
+            hrKeep = m_files.SaveLoadedImage (entry, preservedPath);
 
             //  A preserve that did not happen stops the write. The image KEEPS
             //  ITS DIRTY BIT, which is the difference between refusing and
@@ -703,9 +568,9 @@ HRESULT DiskImageStore::FlushEntry (DiskBay & entry, FlushMoment moment)
 
             //  Composed from the path the bay HAD, since that is the file the
             //  message is about and the repoint above has already moved it.
-            if (m_reportSink)
+            if (m_hooks.reportSink)
             {
-                m_reportSink (entry.slot, entry.drive,
+                m_hooks.reportSink (entry.slot, entry.drive,
                               ChangePrompt::ComposeConflictReport (original, entry.drive,
                                                                   preservedPath));
             }
@@ -720,15 +585,15 @@ HRESULT DiskImageStore::FlushEntry (DiskBay & entry, FlushMoment moment)
 
     if (FAILED (hr))
     {
-        hrRecovery = TryWriteRecoveryImage (entry, recoveryPath);
+        hrRecovery = m_files.TryWriteRecoveryImage (entry, recoveryPath);
         IGNORE_RETURN_VALUE (hrRecovery, S_OK);
     }
 
     CHRN (hr, DiskStoreMessages::FormatFlushLossMessage (entry.path, hr, recoveryPath).c_str());
 
-    if (m_flushSink)
+    if (m_hooks.flushSink)
     {
-        hr = m_flushSink (entry.path, bytes);
+        hr = m_hooks.flushSink (entry.path, bytes);
         CHRN (hr, DiskStoreMessages::FormatFlushLossMessage (entry.path, hr, recoveryPath).c_str());
     }
     else if (!entry.path.empty())
@@ -762,7 +627,7 @@ HRESULT DiskImageStore::FlushEntry (DiskBay & entry, FlushMoment moment)
     //  does not acquire one by being flushed.
     if (entry.sharedState.GetIdentity().recorded)
     {
-        entry.sharedState.SetIdentity (ReadIdentity (entry.path));
+        entry.sharedState.SetIdentity (m_files.ReadIdentity (entry.path));
     }
 
 Error:
@@ -857,15 +722,15 @@ HRESULT DiskImageStore::SetImageWriteProtect (int slot, int drive, bool writePro
         hr = FlushEntry (entry, FlushMoment::Running);
         CHR (hr);
 
-        hr = ReadImageFile (entry.path, bytes);
+        hr = m_files.ReadImageFile (entry.path, bytes);
         CHRN (hr, DiskStoreMessages::FormatFlushLossMessage (entry.path, hr).c_str());
 
         hr = WozLoader::SetWriteProtectFlag (bytes, writeProtected);
         CHRN (hr, DiskStoreMessages::FormatFlushLossMessage (entry.path, hr).c_str());
 
-        if (m_flushSink)
+        if (m_hooks.flushSink)
         {
-            hr = m_flushSink (entry.path, bytes);
+            hr = m_hooks.flushSink (entry.path, bytes);
         }
         else
         {
@@ -888,7 +753,7 @@ HRESULT DiskImageStore::SetImageWriteProtect (int slot, int drive, bool writePro
         //  acquire an identity by being write-protected.
         if (entry.sharedState.GetIdentity().recorded)
         {
-            entry.sharedState.SetIdentity (ReadIdentity (entry.path));
+            entry.sharedState.SetIdentity (m_files.ReadIdentity (entry.path));
         }
     }
 
@@ -1118,9 +983,9 @@ HRESULT DiskImageStore::SalvageToFile (
         hr = BuildSalvagedImage (entry, bytes, report);
         CHRN (hr, DiskStoreMessages::FormatSalvageFailedMessage (path).c_str());
 
-        if (m_flushSink)
+        if (m_hooks.flushSink)
         {
-            hr = m_flushSink (path, bytes);
+            hr = m_hooks.flushSink (path, bytes);
         }
         else
         {
@@ -1129,39 +994,6 @@ HRESULT DiskImageStore::SalvageToFile (
 
         CHRN (hr, DiskStoreMessages::FormatSalvageFailedMessage (path).c_str());
     }
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ReadImageFile
-//
-//  Whole-file read for a mounted image's backing file, through the test
-//  reader hook when one is installed.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT DiskImageStore::ReadImageFile (const string & path, vector<Byte> & bytes) const
-{
-    HRESULT   hr = S_OK;
-
-
-
-    if (m_imageReader)
-    {
-        hr = m_imageReader (path, bytes);
-        CHR (hr);
-        BAIL_OUT_IF (true, S_OK);
-    }
-
-    hr = DiskFileCommit::ReadFileBytes (path, bytes);
-    CHR (hr);
 
 Error:
     return hr;
@@ -1461,40 +1293,6 @@ std::vector<DiskImageStore::MountedSource> DiskImageStore::GetMountedSourcePaths
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskImageStore::ReadIdentity
-//
-//  What the file at `path` looks like right now.
-//
-//  THROUGH THE SEAM WHEN ONE IS INSTALLED. A test that has redirected reads and
-//  writes into memory has no file to stat, and reaching past the seam to the
-//  filesystem here would have the store checking one world and writing another.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-ImageIdentity DiskImageStore::ReadIdentity (const string & path) const
-{
-    ImageIdentity  identity;
-
-
-
-    if (m_identityReader)
-    {
-        identity = m_identityReader (path);
-    }
-    else
-    {
-        identity = ImageIdentity::ReadFromFileSystem (path);
-    }
-
-    return identity;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DiskImageStore::GetSharedState
 //
 //  What a bay knows about its image beyond the bytes.
@@ -1565,9 +1363,9 @@ int64_t DiskImageStore::GetNowMs() const
 
 
 
-    if (m_clock)
+    if (m_hooks.clock)
     {
-        now = m_clock();
+        now = m_hooks.clock();
     }
     else
     {
@@ -1602,9 +1400,9 @@ void DiskImageStore::EmitBayChange (int slot, int drive, BayChange change)
         m_bays.GetBay (slot, drive).mediaId = m_bays.TakeNextMediaId();
     }
 
-    if (m_bayChangeSink)
+    if (m_hooks.bayChangeSink)
     {
-        m_bayChangeSink (slot, drive, change);
+        m_hooks.bayChangeSink (slot, drive, change);
     }
 
     return;
@@ -1805,12 +1603,12 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
     //  simply happens once the hold is released. Both writers in this system
     //  commit atomically, but a text editor or a copy tool need not, and the
     //  quiet period alone does not cover one that takes its time.
-    if (m_fileIo != nullptr && m_fileIo->IsHeldByAnotherProcess (entry.path))
+    if (m_hooks.fileIo != nullptr && m_hooks.fileIo->IsHeldByAnotherProcess (entry.path))
     {
         return;
     }
 
-    current   = ReadIdentity (entry.path);
+    current   = m_files.ReadIdentity (entry.path);
     unchanged = entry.sharedState.GetIdentity().Matches (current);
 
     if (unchanged)
@@ -1825,7 +1623,7 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
     //  Read, and decide whether these bytes can be this disk. A trial load into
     //  a throwaway image is the only honest answer -- the extension and the
     //  length agree with plenty of files that will not load.
-    hr = ReadImageFile (entry.path, bytes);
+    hr = m_files.ReadImageFile (entry.path, bytes);
 
     if (SUCCEEDED (hr))
     {
@@ -1867,7 +1665,7 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
     {
         savePath = entry.sharedState.GetPreservedPath();
 
-        hr = SaveLoadedImage (entry, savePath);
+        hr = m_files.SaveLoadedImage (entry, savePath);
 
         entry.sharedState.SetPreservedPath (savePath);
 
@@ -1884,21 +1682,21 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
                 entry.sharedState.ClearPending();
             }
 
-            if (m_decisionSink)
+            if (m_hooks.decisionSink)
             {
-                m_decisionSink (entry.path, ChangeAction::Conflict, false, savePath);
+                m_hooks.decisionSink (entry.path, ChangeAction::Conflict, false, savePath);
             }
 
             //  ASKED RATHER THAN REPORTED, because "Save as..." is an answer
             //  and a notice has nowhere to put one. The bay is left with the
             //  question outstanding so a second failure does not stack a
             //  second dialog on the first.
-            if (m_askSink && !entry.sharedState.IsAskOutstanding())
+            if (m_hooks.askSink && !entry.sharedState.IsAskOutstanding())
             {
                 entry.sharedState.SetAskedAction (ChangeAction::Conflict);
 
                 entry.sharedState.SetAskOutstanding (
-                    m_askSink (slot, drive,
+                    m_hooks.askSink (slot, drive,
                                ChangePrompt::ComposeSaveFailure (entry.path, drive,
                                                                  savePath, hr,
                                                                  SaveFailureCause::ExternalChange)));
@@ -1920,7 +1718,7 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
 
     //  A file that is simply gone gets its own sentence rather than sharing
     //  one with a file that is present and unreadable.
-    if (action == ChangeAction::Unusable && !DoesPathExist (entry.path))
+    if (action == ChangeAction::Unusable && !m_files.DoesPathExist (entry.path))
     {
         action = ChangeAction::Deleted;
     }
@@ -1935,7 +1733,7 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
     //  second while reading the first one.
     if (ExternalChangePolicy::NeedsAnAnswer (action))
     {
-        if (m_askSink && !entry.sharedState.IsAskOutstanding())
+        if (m_hooks.askSink && !entry.sharedState.IsAskOutstanding())
         {
             entry.sharedState.SetAskedAction (action);
 
@@ -1952,14 +1750,14 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
 
                 if (reserved.empty())
                 {
-                    hrName = FindFreePreservedPath (entry.path, reserved);
+                    hrName = m_files.FindFreePreservedPath (entry.path, reserved);
                     IGNORE_RETURN_VALUE (hrName, S_OK);
 
                     entry.sharedState.SetPreservedPath (reserved);
                 }
 
                 entry.sharedState.SetAskOutstanding (
-                    m_askSink (slot, drive,
+                    m_hooks.askSink (slot, drive,
                                ChangePrompt::Compose (entry.path, drive, action,
                                                       reserved,
                                                       entry.sharedState.IsPreservedWritten())));
@@ -1969,9 +1767,9 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
         return;
     }
 
-    if (m_decisionSink)
+    if (m_hooks.decisionSink)
     {
-        m_decisionSink (entry.path, action, preserved, savePath);
+        m_hooks.decisionSink (entry.path, action, preserved, savePath);
     }
 
     //  THE INTENT THAT DECIDED IS THE INTENT THAT ATTRIBUTES. `intent` was read
@@ -2056,17 +1854,17 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
 
                 if (SUCCEEDED (hr))
                 {
-                    hr = WritePreserved (savePath, held);
+                    hr = m_files.WritePreserved (savePath, held);
                 }
 
                 if (FAILED (hr))
                 {
                     //  Still nowhere to put it. The disk is untouched and the
                     //  question stands rather than being quietly dropped.
-                    if (m_askSink)
+                    if (m_hooks.askSink)
                     {
                         entry.sharedState.SetAskOutstanding (
-                            m_askSink (slot, drive,
+                            m_hooks.askSink (slot, drive,
                                        ChangePrompt::ComposeSaveFailure (
                                            entry.path, drive, savePath, hr,
                                            SaveFailureCause::ExternalChange)));
@@ -2132,17 +1930,17 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
 
                 if (SUCCEEDED (hr))
                 {
-                    hr = WritePreserved (savePath, held);
+                    hr = m_files.WritePreserved (savePath, held);
                 }
 
                 //  A save the user asked for and did not get must not be
                 //  followed by throwing the only copy away.
                 if (FAILED (hr))
                 {
-                    if (m_askSink)
+                    if (m_hooks.askSink)
                     {
                         entry.sharedState.SetAskOutstanding (
-                            m_askSink (slot, drive,
+                            m_hooks.askSink (slot, drive,
                                        ChangePrompt::ComposeSaveFailure (entry.path, drive,
                                                                          savePath, hr,
                                                                          SaveFailureCause::FileLost)));
@@ -2183,7 +1981,7 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
             return;
         }
 
-        hr = ReadImageFile (entry.path, bytes);
+        hr = m_files.ReadImageFile (entry.path, bytes);
 
         //  Answering "take it up" about a file that has since gone is not the
         //  same question any more.
@@ -2279,7 +2077,7 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
 
         if (!entry.sharedState.IsPreservedWritten())
         {
-            hr = SaveLoadedImage (entry, preservedPath);
+            hr = m_files.SaveLoadedImage (entry, preservedPath);
 
             entry.sharedState.SetPreservedPath (preservedPath);
 
@@ -2342,9 +2140,9 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
         entry.sharedState.ClearPreserved();
     }
 
-    if (restarted && m_restartCallback)
+    if (restarted && m_hooks.restartCallback)
     {
-        m_restartCallback();
+        m_hooks.restartCallback();
     }
 
     //  A COPY THAT COULD NOT BE WRITTEN IS A QUESTION, not a notice: it offers
@@ -2352,12 +2150,12 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
     //  answer. It leaves the drive exactly as it was either way.
     if (preserveFail)
     {
-        if (m_askSink && !entry.sharedState.IsAskOutstanding())
+        if (m_hooks.askSink && !entry.sharedState.IsAskOutstanding())
         {
             entry.sharedState.SetAskOutstanding (true);
             entry.sharedState.SetAskedAction (ChangeAction::Conflict);
 
-            m_askSink (slot, drive,
+            m_hooks.askSink (slot, drive,
                        ChangePrompt::ComposeSaveFailure (original, drive, preservedPath, hr,
                                                          SaveFailureCause::ExternalChange));
         }
@@ -2374,12 +2172,12 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
     //
     //  THE PENDING RECORD IS ALREADY CLEARED ABOVE, so nothing re-asks behind
     //  this.
-    if (ExternalChangePolicy::IsFileLost (action) && m_askSink)
+    if (ExternalChangePolicy::IsFileLost (action) && m_hooks.askSink)
     {
         entry.sharedState.SetAskedAction (action);
 
         entry.sharedState.SetAskOutstanding (
-            m_askSink (slot, drive, ChangePrompt::Compose (original, drive, action)));
+            m_hooks.askSink (slot, drive, ChangePrompt::Compose (original, drive, action)));
 
         return;
     }
@@ -2388,7 +2186,7 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
     //  for this bay rather than raising a second, so absorbing further changes
     //  costs nothing -- and reporting only the first left the bar saying
     //  something that had stopped being true.
-    if (m_reportSink)
+    if (m_hooks.reportSink)
     {
         ChangePrompt  report;
 
@@ -2398,7 +2196,7 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
         if (tookUp)
         {
             report = ChangePrompt::ComposeReloadReport (original, drive, restarted,
-                                                        m_machineName, author,
+                                                        m_hooks.machineName, author,
                                                         preservedPath, preserved);
         }
         else if (preserved)
@@ -2412,7 +2210,7 @@ void DiskImageStore::CarryOutChangeAction (int slot, int drive, ChangeAction act
 
         if (!report.title.empty())
         {
-            m_reportSink (slot, drive, report);
+            m_hooks.reportSink (slot, drive, report);
         }
     }
 
@@ -2464,7 +2262,7 @@ HRESULT DiskImageStore::MountExternallyModifiedDisk (int slot, int drive, const 
 
     //  The identity is refreshed from the file the bytes came from, so the
     //  swap does not immediately look like another external change.
-    entry.sharedState.SetIdentity (ReadIdentity (entry.path));
+    entry.sharedState.SetIdentity (m_files.ReadIdentity (entry.path));
     entry.mediaId = m_bays.TakeNextMediaId();
 
     hrAssess             = AssessSalvage (slot, drive, assessment);
@@ -2521,7 +2319,7 @@ HRESULT DiskImageStore::RepointBayToFile (int slot, int drive, const string & ne
 
         //  A fresh identity for the new file, and nothing pending against the
         //  old one. Mount is what records both.
-        entry.sharedState.Mount (ReadIdentity (newPath));
+        entry.sharedState.Mount (m_files.ReadIdentity (newPath));
 
         BeginWatching (slot, drive);
     }
@@ -2555,9 +2353,9 @@ void DiskImageStore::BeginWatching (int slot, int drive)
 
 
 
-    if (m_watcher != nullptr && !directory.empty())
+    if (m_hooks.watcher != nullptr && !directory.empty())
     {
-        watching = m_watcher->Watch (directory,
+        watching = m_hooks.watcher->Watch (directory,
                                      [this] (const string & path)
                                      {
                                          NoteExternalChange (path, ExternalChangeIntent::Unstated);
@@ -2593,170 +2391,14 @@ void DiskImageStore::EndWatching (int slot, int drive)
 
 
 
-    if (m_watcher != nullptr && !directory.empty() && !stillUsed)
+    if (m_hooks.watcher != nullptr && !directory.empty() && !stillUsed)
     {
-        m_watcher->Unwatch (directory);
+        m_hooks.watcher->Unwatch (directory);
     }
 
     entry.sharedState.SetWatching (false);
 
     return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskImageStore::DoesPathExist
-//
-//  Whether something is already sitting at a path.
-//
-//  THROUGH THE FILE SEAM WHEN ONE IS INSTALLED, so a test that keeps its files
-//  in memory is asked about the world it actually has. Reaching past it to the
-//  filesystem would let the collision loop below hand out a name a test already
-//  used.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DiskImageStore::DoesPathExist (const string & path) const
-{
-    std::error_code  ec;
-
-
-
-    if (m_fileIo != nullptr)
-    {
-        return m_fileIo->Exists (path);
-    }
-
-    return fs::exists (fs::path (path), ec);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskImageStore::FindFreePreservedPath
-//
-//  A preserved-copy name nothing is sitting at yet.
-//
-//  THE LOOP IS THE POINT. A one-second timestamp cannot keep the promise that
-//  repeated conflicts accumulate rather than overwrite each other, and two
-//  conflicts on one image inside a second is exactly what a build loop makes.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT DiskImageStore::FindFreePreservedPath (const string & imagePath, string & outPath) const
-{
-    HRESULT  hr      = S_OK;
-    string   stamp   = PreservedCopy::MakeStamp (m_timestamp ? m_timestamp() : time (nullptr));
-    bool     isFree  = false;
-    int      attempt = 0;
-
-
-
-    for (attempt = 0; attempt < PreservedCopy::kMaxAttempts; attempt++)
-    {
-        string  candidate = PreservedCopy::MakePath (imagePath, stamp, attempt);
-
-        if (!DoesPathExist (candidate))
-        {
-            outPath = candidate;
-            isFree  = true;
-            break;
-        }
-    }
-
-    //  Ninety-nine names taken in one second is not a collision any more, it is
-    //  something else going wrong, and inventing a hundredth would not help.
-    CBR (isFree);
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskImageStore::WritePreserved
-//
-//  Writes a preserved copy.
-//
-//  THROUGH THE SAME SINK AS A FLUSH, so a test captures preserved copies the
-//  way it captures everything else this class writes, and so the atomic
-//  temp-then-rename applies to them too. A preserved copy that could be found
-//  half-written would be worth nothing at the moment it is needed.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT DiskImageStore::WritePreserved (const string & path, const vector<Byte> & bytes)
-{
-    HRESULT  hr = S_OK;
-
-
-
-    if (m_flushSink)
-    {
-        hr = m_flushSink (path, bytes);
-    }
-    else
-    {
-        hr = DiskFileCommit::WriteFileAtomically (path, bytes);
-    }
-
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskImageStore::SaveLoadedImage
-//
-//  Writes what the bay is holding to a file of its own.
-//
-//  SERIALIZED FROM THE MOUNTED IMAGE, NOT COPIED FROM THE FILE. The entire
-//  reason this version needs preserving is that the file no longer holds it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT DiskImageStore::SaveLoadedImage (DiskBay & entry, string & outPath)
-{
-    HRESULT       hr = S_OK;
-    vector<Byte>  bytes;
-
-
-
-    CBR (entry.image != nullptr);
-
-    hr = entry.image->Serialize (bytes);
-    CHR (hr);
-
-    //  A name already reserved is used as it is. Choosing a fresh one here is
-    //  what let a question and a flush disagree about where the copy went.
-    if (outPath.empty())
-    {
-        hr = FindFreePreservedPath (entry.path, outPath);
-        CHR (hr);
-    }
-
-    hr = WritePreserved (outPath, bytes);
-    CHR (hr);
-
-Error:
-    //  outPath IS LEFT AS THE PATH THAT WAS TRIED, even on failure. The notice
-    //  raised for a failed copy prints where it tried to write, and clearing it
-    //  here left that notice with nothing to show but an error code.
-    return hr;
 }
 
 

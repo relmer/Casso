@@ -2,6 +2,7 @@
 #include "../EhmTestHelper.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/BayFileAccess.h"
 #include "Devices/Disk/Store/DiskFileCommit.h"
 #include "Devices/Disk/Store/DiskStoreMessages.h"
 #include "Devices/Disk/Store/DiskSourceFormat.h"
@@ -1415,19 +1416,6 @@ public:
                           MountDiagnosis::FormatByteCount (1048576));
     }
 
-
-    TEST_METHOD (MakeRecoveryPath_NeverCollidesWithAnEarlierRescue)
-    {
-        // Overwriting a previous recovery would repeat the mistake being fixed:
-        // one rescue must never cost another.
-        string  first  = DiskImageStore::MakeRecoveryPath ("C:\\disks\\Work.dsk", 0);
-        string  second = DiskImageStore::MakeRecoveryPath ("C:\\disks\\Work.dsk", 1);
-
-
-
-        Assert::AreEqual (string ("C:\\disks\\Work.recovered.woz"), first);
-        Assert::AreNotEqual (first, second, L"a second rescue must take a different name");
-    }
 
 
 };
