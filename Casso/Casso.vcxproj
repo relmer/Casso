@@ -245,6 +245,7 @@
     <BakedMesh Include="Apple35Drive" />
     <BakedMesh Include="Apple35Plus" />
     <BakedMesh Include="Disk3" />
+    <BakedMesh Include="Apple3" />
     <BakedMesh Include="ImageWriterII" />
   </ItemGroup>
   <PropertyGroup>

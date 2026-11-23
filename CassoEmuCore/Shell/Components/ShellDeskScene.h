@@ -393,6 +393,11 @@ public:
     static constexpr int     s_kSceneHoverCell     = 6;   // on the face of the drive under the pointer
     static constexpr int     kSceneInfoIconCell    = 7;   // drive 0's info icon; drive 1's is the next cell
 
+    // The Apple ///'s built-in drive slot, from the left of the machine's
+    // front, in model millimeters.
+    static constexpr float   s_kApple3DriveMinXMm  = 244.1f;
+    static constexpr float   s_kApple3DriveMaxXMm  = 381.9f;
+
     // The drive under the pointer whose name is on its face: a desk extra
     // drive, or a Disk II in a stack, which have no name strip. A change
     // syncs the labels again.

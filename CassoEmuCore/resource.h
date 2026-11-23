@@ -330,6 +330,7 @@
 #define IDR_MODEL_APPLE35_MESH               420
 #define IDR_MODEL_APPLE35PLUS_MESH           422
 #define IDR_MODEL_DISK3_MESH                 424
+#define IDR_MODEL_APPLE3_MESH                426
 
 // Embedded ImageWriter II mechanical sound set (extracted to
 // %LOCALAPPDATA%\Casso\ImageWriter II Sounds\ by EnsureImageWriterSounds).

@@ -47,6 +47,7 @@ ReceivingDriveKind DeskDrivePlan::GetReceivingKind (DeskDriveModel model)
         case DeskDriveModel::HardDisk20SC:  return ReceivingDriveKind::HardDisk;
         case DeskDriveModel::ProFile:       return ReceivingDriveKind::HardDisk;
         case DeskDriveModel::Disk3:         return ReceivingDriveKind::Floppy525;
+        case DeskDriveModel::Apple3Body:    return ReceivingDriveKind::Floppy525;
     }
 
     return ReceivingDriveKind::Floppy525;
@@ -80,6 +81,7 @@ float DeskDrivePlan::GetCaseWidthMm (DeskDriveModel model)
         case DeskDriveModel::HardDisk20SC: width = 245.0f; break;
         case DeskDriveModel::ProFile:      width = 439.0f; break;
         case DeskDriveModel::Disk3:        width = 159.9f; break;
+        case DeskDriveModel::Apple3Body:   width = 444.5f; break;
     }
 
     return width;
@@ -127,17 +129,25 @@ std::vector<DeskDrivePlacement> DeskDrivePlan::Place (const std::vector<DeskDriv
     bool                             hardOnDesk   = false;
     bool                             wideHardDisk = false;
     bool                             diskIiPair   = false;
+    bool                             hasBody      = false;
 
 
 
     for (const DeskDrive & drive : drives)
     {
+        if (drive.model == DeskDriveModel::Apple3Body)
+        {
+            out.push_back ({ drive, DeskDriveSpot::UnderMonitor, 0 });
+            hasBody = true;
+            continue;
+        }
+
         (GetClass (drive.model) == DeskDriveClass::Floppy ? floppy : hard).push_back (drive);
     }
 
     floppyOnDesk = !floppy.empty() && IsOnDesk (floppies,  floppy.size());
     hardOnDesk   = !hard.empty()   && IsOnDesk (hardDisks, hard.size());
-    wideHardDisk = hardOnDesk && hard.size() == 1 && GetCaseWidthMm (hard[0].model) >= monitorWidthMm - kUnderMonitorSlackMm;
+    wideHardDisk = !hasBody && hardOnDesk && hard.size() == 1 && GetCaseWidthMm (hard[0].model) >= monitorWidthMm - kUnderMonitorSlackMm;
 
     if (wideHardDisk)
     {
@@ -161,7 +171,7 @@ std::vector<DeskDrivePlacement> DeskDrivePlan::Place (const std::vector<DeskDriv
     {
         Stack (out, floppy, DeskDriveSpot::DriveBar);
     }
-    else if (wideHardDisk || !diskIiPair || floppyPairBeside)
+    else if (hasBody || wideHardDisk || !diskIiPair || floppyPairBeside)
     {
         Stack (out, floppy, DeskDriveSpot::RightStack);
     }
@@ -328,6 +338,12 @@ std::vector<DeskDrive> DeskDrivePlan::Collect (const MachineConfig & config, int
     for (int i = 0; i < diskIiCount; i++)
     {
         out.push_back ({ floppyModel, 6, i, hasBuiltIn && i == 0, hasInner35 });
+    }
+
+    // The Apple /// itself is the desk model of its built-in drive.
+    if (floppyModel == DeskDriveModel::Disk3 && diskIiCount > 0)
+    {
+        out.push_back ({ DeskDriveModel::Apple3Body, 6, 0, true });
     }
 
     if (hasInner35)

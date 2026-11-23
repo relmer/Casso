@@ -1661,7 +1661,7 @@ void DeskSceneLayout::PlaceRecorder (const DeskSceneMetrics & metrics,
 
 bool DeskSceneLayout::IsDockedExtra (const DeskExtraMetrics & extra)
 {
-    return DeskDrivePlan::GetClass (extra.model) == DeskDriveClass::Floppy;
+    return extra.model != DeskDriveModel::Apple3Body && DeskDrivePlan::GetClass (extra.model) == DeskDriveClass::Floppy;
 }
 
 

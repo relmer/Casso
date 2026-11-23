@@ -20,6 +20,7 @@ enum class DeskDriveModel
     HardDisk20SC,
     ProFile,
     Disk3,           // the Apple ///'s drives: its built-in drive and the Disk /// drives
+    Apple3Body,      // the Apple /// itself, drawn for its built-in drive
 
     //  Not a model. It bounds a sweep over the models, so the test of each
     //  model's images fails to compile when a model is added. Keep it last.
@@ -112,6 +113,8 @@ struct DeskDrivePlacement
 //    - Otherwise two floppies sit side by side under the monitor, or stack
 //      on the right with `floppyPairBeside`, and the hard disks stack on the
 //      left.
+//    - The Apple /// goes under the monitor, and its floppies stack on
+//      the right.
 //    - A single floppy, or more than two, stacks on the right, the hard
 //      disks on the left, and nothing is under the monitor.
 //

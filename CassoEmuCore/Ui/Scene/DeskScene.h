@@ -691,7 +691,7 @@ private:
         std::vector<Dxui3DRenderer::Vertex>  labelVerts;
     };
 
-    static constexpr int  kModelKinds = (int) DeskDriveModel::ProFile + 1;
+    static constexpr int  kModelKinds = (int) DeskDriveModel::Count;
 
     std::vector<ExtraDrive>                  m_extras;
     DeskDriveSpot                            m_driveSpot     = DeskDriveSpot::UnderMonitor;

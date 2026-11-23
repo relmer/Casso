@@ -2501,6 +2501,14 @@ bool ShellDeskScene::TryMakeHoverLabelQuad (const DeskSceneComposition & comp, c
     if (comp.IsExtraShown (m_hoverExtra) && m_deskScene.GetExtraModelBounds (m_hoverExtra, boundsMin, boundsMax))
     {
         world = comp.extraWorld[m_hoverExtra];
+
+        // The Apple /// is drawn for its built-in drive, so the name goes
+        // under that drive's slot rather than across the whole machine.
+        if (m_deskScene.GetExtraDrive (m_hoverExtra).model == DeskDriveModel::Apple3Body)
+        {
+            boundsMin[0] = s_kApple3DriveMinXMm;
+            boundsMax[0] = s_kApple3DriveMaxXMm;
+        }
     }
     else if (m_hoverDiskIi >= 0 && m_hoverDiskIi < comp.driveCount)
     {
@@ -5481,6 +5489,7 @@ void ShellDeskScene::PlanDrives()
             case DeskDriveModel::UniDisk35:    meshId = IDR_MODEL_UNIDISK35_MESH;    break;
             case DeskDriveModel::Apple35Drive: meshId = IDR_MODEL_APPLE35_MESH;      break;
             case DeskDriveModel::Apple35Plus:  meshId = IDR_MODEL_APPLE35PLUS_MESH;  break;
+            case DeskDriveModel::Apple3Body:   meshId = IDR_MODEL_APPLE3_MESH;       break;
             default:                           break;
         }
 
@@ -5844,6 +5853,7 @@ std::wstring ShellDeskScene::GetDriveTitle (const DeskDrive & drive)
         case DeskDriveModel::Apple35Plus:   title = L"Built-in 3.5 drive";                                break;
         case DeskDriveModel::HardDisk20SC:  title = std::format (L"Hard Disk 20SC, SCSI ID {}", drive.drive); break;
         case DeskDriveModel::ProFile:       title = L"ProFile";                                           break;
+        case DeskDriveModel::Apple3Body:    title = L"Built-in drive"; break;
         case DeskDriveModel::Disk3:         title = drive.builtIn ? L"Built-in drive" : std::format (L"Disk ///, drive {}", drive.drive + 1); break;
     }
 

@@ -251,7 +251,8 @@ public:
 
 
     //  The Apple ///'s drive 1 is its built-in drive and the rest are Disk
-    //  /// drives, and a pair of them goes under the monitor.
+    //  /// drives. The Apple /// itself goes under the monitor, and the
+    //  drives stack on the right.
     TEST_METHOD (Collect_Apple3_Drive1IsBuiltIn)
     {
         MachineConfig  config;
@@ -260,12 +261,16 @@ public:
 
 
 
-        Assert::AreEqual ((size_t) 2, drives.size());
+        Assert::AreEqual ((size_t) 3, drives.size());
         Assert::IsTrue  (drives[0].model == M::Disk3);
         Assert::IsTrue  (drives[0].builtIn);
         Assert::IsFalse (drives[1].builtIn);
         Assert::IsFalse (drives[1].onPort);
-        Assert::IsTrue  (DeskDrivePlan::HasDiskIiPairUnderMonitor (plan));
+        Assert::IsTrue  (drives[2].model == M::Apple3Body);
+        Assert::IsFalse (DeskDrivePlan::HasDiskIiPairUnderMonitor (plan));
+        Assert::IsTrue  (plan[0].drive.model == M::Apple3Body);
+        Assert::IsTrue  (plan[0].spot == DeskDriveSpot::UnderMonitor);
+        Assert::IsTrue  (plan[1].spot == DeskDriveSpot::RightStack);
     }
 
 
