@@ -4,7 +4,7 @@
 
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 
 
 
@@ -490,7 +490,7 @@ void DirectBootBuilder::WriteLoader (
 
     at = Dos33Skeleton::GetSectorOffset (
              kLoaderTrack,
-             NibblizationLayer::GetDosFileIndexForPhysicalSector (kLoaderSector));
+             SectorInterleave::GetDosFileIndexForPhysicalSector (kLoaderSector));
 
     std::copy (std::begin (s_kBootLoader), std::end (s_kBootLoader),
                inOutSectors.begin() + at);
@@ -555,7 +555,7 @@ void DirectBootBuilder::PlacePayload (const vector<Byte> & onDisk, vector<Byte> 
         int     physical = (int) order[index % kPerTrack];
         size_t  at       = Dos33Skeleton::GetSectorOffset (
                                track,
-                               NibblizationLayer::GetDosFileIndexForPhysicalSector (physical));
+                               SectorInterleave::GetDosFileIndexForPhysicalSector (physical));
         size_t  from     = index * kSectorBytes;
         size_t  span     = (std::min) (kSectorBytes, onDisk.size() - from);
 

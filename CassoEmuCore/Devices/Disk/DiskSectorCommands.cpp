@@ -3,8 +3,8 @@
 #include "DiskSectorCommands.h"
 #include "DiskImageSession.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 #include "Utils.h"
 
 
@@ -367,7 +367,7 @@ size_t DiskSectorCommands::GetSectorRecordOffset (
     if (physical)
     {
         record = track * (size_t) NibbleFormat::kSectorsPerTrack
-               + (size_t) NibblizationLayer::GetDosFileIndexForPhysicalSector ((int) position);
+               + (size_t) SectorInterleave::GetDosFileIndexForPhysicalSector ((int) position);
     }
 
     return record * (size_t) NibbleFormat::kSectorByteSize;

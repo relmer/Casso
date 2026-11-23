@@ -5,6 +5,7 @@
 #include "Devices/Disk/DiskFieldFormat.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/NibbleFieldWriter.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 
 
 
@@ -15,54 +16,6 @@ static constexpr Byte  kAltAddrProlog0        = 0xD4;   // Ultima I's address fi
 static constexpr Byte  kAddrProlog1           = 0xAA;
 static constexpr Byte  kAddrProlog2           = 0x96;
 static constexpr Byte  kDataProlog2           = 0xAD;
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DOS 3.3 physical-to-file interleave (used when nibblizing .dsk/.do)
-//
-//  INDEXED BY PHYSICAL SECTOR. The sixteen address fields go down in
-//  sequential order, so the address-field number IS the physical position,
-//  and the 256 data bytes emitted under address mark P come from file offset
-//  (track * 16 + kDsk_PhysicalToFile[P]) * 256.
-//
-//  A .dsk stores its sectors in DOS LOGICAL order, so the file index here is
-//  also the DOS logical sector number: this table is physical-to-logical, the
-//  exact inverse of the logical-to-physical skew DOS itself boots through at
-//  $084D -- which DirectBootTests asserts against a persisted copy of that
-//  table. This constant wore the name kDsk_LtoP for a long time, and half
-//  the code reading it believed the name; the belief was measurably backwards.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static constexpr int kDsk_PhysicalToFile[16] =
-{
-    0, 7, 14, 6, 13, 5, 12, 4, 11, 3, 10, 2, 9, 1, 8, 15
-};
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ProDOS physical-to-file interleave for .po
-//
-//  INDEXED BY PHYSICAL SECTOR, exactly like its DOS neighbor above. A .po
-//  arranges its 16 sectors per track in ProDOS-block order rather than DOS
-//  logical order, so the same physical positions map to different file
-//  offsets: the 256 data bytes emitted under address mark P come from file
-//  offset (track * 16 + kPo_PhysicalToFile[P]) * 256.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static constexpr int kPo_PhysicalToFile[16] =
-{
-    0, 8, 1, 9, 2, 10, 3, 11, 4, 12, 5, 13, 6, 14, 7, 15
-};
 
 
 
@@ -211,10 +164,10 @@ HRESULT NibblizationLayer::RenibblizeTracks (
 
     switch (fmt)
     {
-        case DiskFormat::Dsk: interleave = kDsk_PhysicalToFile;  break;
-        case DiskFormat::Do:  interleave = kDsk_PhysicalToFile;  break;
-        case DiskFormat::Po:  interleave = kPo_PhysicalToFile;   break;
-        case DiskFormat::Woz: interleave = kDsk_PhysicalToFile;  break;
+        case DiskFormat::Dsk: interleave = SectorInterleave::kDsk_PhysicalToFile;  break;
+        case DiskFormat::Do:  interleave = SectorInterleave::kDsk_PhysicalToFile;  break;
+        case DiskFormat::Po:  interleave = SectorInterleave::kPo_PhysicalToFile;   break;
+        case DiskFormat::Woz: interleave = SectorInterleave::kDsk_PhysicalToFile;  break;
         default:              hr         = E_INVALIDARG;         break;
     }
 
@@ -273,86 +226,6 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NibblizationLayer::GetPoFileIndexForDosLogicalSector
-//
-//  Both interleave tables answer the same question -- which file offset holds
-//  the sector the drive will see at physical position P -- so the mapping
-//  between the two FILE layouts is their composition, and is derived here
-//  rather than written down a third time.
-//
-//  Writing it down again is the specific hazard. A reorder table restated by
-//  hand can be wrong in a way nothing notices: the file is written through it
-//  and read back through it, so every round trip agrees with itself and the
-//  image is unreadable only on a real machine.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int NibblizationLayer::GetPoFileIndexForDosLogicalSector (int logicalSector)
-{
-    HRESULT  hr       = S_OK;
-    int      physical = 0;
-    int      found    = 0;
-    bool     inRange  = logicalSector >= 0 && logicalSector < NibbleFormat::kSectorsPerTrack;
-
-
-
-    CBRAEx (inRange, E_INVALIDARG);
-
-    for (physical = 0; physical < NibbleFormat::kSectorsPerTrack; physical++)
-    {
-        if (kDsk_PhysicalToFile[physical] == logicalSector)
-        {
-            found = kPo_PhysicalToFile[physical];
-        }
-    }
-
-Error:
-    return found;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  NibblizationLayer::GetDosFileIndexForPhysicalSector
-//
-//  The same table the nibblizer reads when it decides which of a buffer's
-//  sixteen sectors to encode under each address-field number, answered for
-//  callers that have to lay bytes down in the order a drive will hand them
-//  back rather than in the order a filesystem stores them.
-//
-//  This is the table itself rather than a composition of it, because the
-//  table IS indexed by physical sector. It used to have a twin named for a
-//  logical-sector argument, reading the same table with the same index; the
-//  two answers were byte-identical because they were the same lookup, and
-//  the twin's name was the half that lied.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int NibblizationLayer::GetDosFileIndexForPhysicalSector (int physicalSector)
-{
-    HRESULT  hr      = S_OK;
-    int      found   = 0;
-    bool     inRange = physicalSector >= 0 && physicalSector < NibbleFormat::kSectorsPerTrack;
-
-
-
-    CBRAEx (inRange, E_INVALIDARG);
-
-    found = kDsk_PhysicalToFile[physicalSector];
-
-Error:
-    return found;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  NibblizationLayer::GetImageVolume
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -363,7 +236,7 @@ Byte NibblizationLayer::GetImageVolume (const vector<Byte> & sectors)
 
 
 
-    return isWhole ? GetAddressVolume (sectors, kDsk_PhysicalToFile) : NibbleFormat::kDefaultVolume;
+    return isWhole ? GetAddressVolume (sectors, SectorInterleave::kDsk_PhysicalToFile) : NibbleFormat::kDefaultVolume;
 }
 
 
@@ -378,7 +251,7 @@ Byte NibblizationLayer::GetImageVolume (const vector<Byte> & sectors)
 
 HRESULT NibblizationLayer::NibblizeDsk (const vector<Byte> & raw, DiskImage & out)
 {
-    HRESULT   hr = NibblizeWithMap (raw, kDsk_PhysicalToFile, out);
+    HRESULT   hr = NibblizeWithMap (raw, SectorInterleave::kDsk_PhysicalToFile, out);
 
 
 
@@ -402,7 +275,7 @@ HRESULT NibblizationLayer::NibblizeDsk (const vector<Byte> & raw, DiskImage & ou
 
 HRESULT NibblizationLayer::NibblizeDo (const vector<Byte> & raw, DiskImage & out)
 {
-    HRESULT   hr = NibblizeWithMap (raw, kDsk_PhysicalToFile, out);
+    HRESULT   hr = NibblizeWithMap (raw, SectorInterleave::kDsk_PhysicalToFile, out);
 
 
 
@@ -426,7 +299,7 @@ HRESULT NibblizationLayer::NibblizeDo (const vector<Byte> & raw, DiskImage & out
 
 HRESULT NibblizationLayer::NibblizePo (const vector<Byte> & raw, DiskImage & out)
 {
-    HRESULT   hr = NibblizeWithMap (raw, kPo_PhysicalToFile, out);
+    HRESULT   hr = NibblizeWithMap (raw, SectorInterleave::kPo_PhysicalToFile, out);
 
 
 
@@ -1181,9 +1054,9 @@ HRESULT NibblizationLayer::DecodeTracks (
 
     switch (fmt)
     {
-        case DiskFormat::Dsk: interleave = kDsk_PhysicalToFile;  break;
-        case DiskFormat::Do:  interleave = kDsk_PhysicalToFile;  break;
-        case DiskFormat::Po:  interleave = kPo_PhysicalToFile;   break;
+        case DiskFormat::Dsk: interleave = SectorInterleave::kDsk_PhysicalToFile;  break;
+        case DiskFormat::Do:  interleave = SectorInterleave::kDsk_PhysicalToFile;  break;
+        case DiskFormat::Po:  interleave = SectorInterleave::kPo_PhysicalToFile;   break;
         default:              hr         = E_INVALIDARG;         break;
     }
 

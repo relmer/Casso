@@ -3,6 +3,7 @@
 #include "Devices/Disk/FluxBitView.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "FluxTestImages.h"
@@ -263,7 +264,7 @@ public:
         LoadWoz (MakeFluxWoz (sectors, 1.0, false, 20000), disk);
         before = disk.GetFluxTrack (3).GetBytes();
 
-        memset (&edited[(3 * 16 + NibblizationLayer::GetDosFileIndexForPhysicalSector (14)) * kSectorBytes], 0x5A, kSectorBytes);
+        memset (&edited[(3 * 16 + SectorInterleave::GetDosFileIndexForPhysicalSector (14)) * kSectorBytes], 0x5A, kSectorBytes);
 
         hr = NibblizationLayer::RenibblizeTracks (edited, DiskFormat::Dsk, changed, disk);
 

@@ -4,7 +4,7 @@
 #include "../EmuTests/FixtureProvider.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 #include "ProgramRig.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -65,7 +65,7 @@ public:
     //  A physical sector's 256 bytes in a DOS-ordered image.
     static std::span<const Byte>  ImageSector (const std::vector<Byte> & image, int track, int physical)
     {
-        size_t  offset = (size_t) (track * 16 + NibblizationLayer::GetDosFileIndexForPhysicalSector (physical)) * 256;
+        size_t  offset = (size_t) (track * 16 + SectorInterleave::GetDosFileIndexForPhysicalSector (physical)) * 256;
 
 
 

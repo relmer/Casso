@@ -2,7 +2,7 @@
 
 #include "Machines/Apple2/Common/CpmVolume.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 
 
 
@@ -66,7 +66,7 @@ size_t CpmVolume::GetSectorOffset (int block, int sector)
 
 
 
-    return ((size_t) track * NibbleFormat::kSectorsPerTrack + (size_t) NibblizationLayer::GetDosFileIndexForPhysicalSector (physical)) * NibbleFormat::kSectorByteSize;
+    return ((size_t) track * NibbleFormat::kSectorsPerTrack + (size_t) SectorInterleave::GetDosFileIndexForPhysicalSector (physical)) * NibbleFormat::kSectorByteSize;
 }
 
 

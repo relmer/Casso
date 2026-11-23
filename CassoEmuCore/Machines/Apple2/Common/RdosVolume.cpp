@@ -2,7 +2,7 @@
 
 #include "Machines/Apple2/Common/RdosVolume.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 #include "Machines/Apple2/Common/ThirteenSectorCodec.h"
 
 
@@ -127,13 +127,13 @@ uint32_t RdosVolume::GetUnit (Layout layout, uint32_t index)
 
     if (layout == Layout::Rdos3)
     {
-        logical = NibblizationLayer::GetDosFileIndexForPhysicalSector (position);
+        logical = SectorInterleave::GetDosFileIndexForPhysicalSector (position);
     }
     else
     {
         for (int candidate = 0; candidate < kBufferSectorsPerTrack; candidate++)
         {
-            if (NibblizationLayer::GetPoFileIndexForDosLogicalSector (candidate) == position)
+            if (SectorInterleave::GetPoFileIndexForDosLogicalSector (candidate) == position)
             {
                 logical = candidate;
             }

@@ -6,7 +6,7 @@
 #include "Devices/Disk/Inspector/FileMap/FileMap.h"
 #include "Devices/Disk/Inspector/FileMap/SectorSource.h"
 #include "Devices/Disk/Inspector/Repair/FileSystemCheck.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 
 
 
@@ -966,7 +966,7 @@ Byte * DiskRepair::GetBlockByte (Work & work, int block, int offset, int & outTr
 
 
     outTrack  = block / SectorSource::kBlocksPerTrack;
-    outSector = NibblizationLayer::GetDosFileIndexForPhysicalSector (physical);
+    outSector = SectorInterleave::GetDosFileIndexForPhysicalSector (physical);
 
     return GetDos33 (work, outTrack, outSector) + offset % s_kBytes;
 }

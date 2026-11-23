@@ -4,7 +4,7 @@
 #include "Devices/Disk/Inspector/StandardTrackDecoder.h"
 #include "Devices/Disk/FluxTrack.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 
 
 
@@ -321,8 +321,8 @@ void TrackAnalyzer::MapLogical (int physicalTrack, AnalyzedSector & inOut)
         return;
     }
 
-    inOut.dosOrderIndex = NibblizationLayer::GetDosFileIndexForPhysicalSector (inOut.sector);
-    po                 = NibblizationLayer::GetPoFileIndexForDosLogicalSector (inOut.dosOrderIndex);
+    inOut.dosOrderIndex = SectorInterleave::GetDosFileIndexForPhysicalSector (inOut.sector);
+    po                 = SectorInterleave::GetPoFileIndexForDosLogicalSector (inOut.dosOrderIndex);
     inOut.prodosBlock  = physicalTrack * kBlocksPerTrack + po / kHalvesPerBlock;
     inOut.prodosHalf   = po % kHalvesPerBlock;
 }

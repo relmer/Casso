@@ -5,6 +5,7 @@
 #include "Devices/Disk/DiskFieldFormat.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 
 
@@ -201,7 +202,7 @@ void TrackLayoutWriter::PutSector (std::vector<uint8_t> & ioBits, const std::vec
     Byte               trackByte    = (Byte) track;
     Byte               sectorByte   = (Byte) physical;
     Byte               checksum     = (Byte) (volume ^ trackByte ^ sectorByte);
-    size_t             offset       = ((size_t) track * NibbleFormat::kSectorsPerTrack + (size_t) NibblizationLayer::GetDosFileIndexForPhysicalSector (physical)) * NibbleFormat::kSectorByteSize;
+    size_t             offset       = ((size_t) track * NibbleFormat::kSectorsPerTrack + (size_t) SectorInterleave::GetDosFileIndexForPhysicalSector (physical)) * NibbleFormat::kSectorByteSize;
     Byte               dataChecksum = 0;
     std::vector<Byte>  data;
 

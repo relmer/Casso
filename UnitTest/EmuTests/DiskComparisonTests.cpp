@@ -6,6 +6,7 @@
 #include "InspectorTrackBuilder.h"
 #include "Devices/Disk/Inspector/DiskAnalyzer.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 using Pairs = ComparisonTestImages;
@@ -395,7 +396,7 @@ public:
                 std::array<Byte, DiskFieldFormat::kSectorBytes>  bytes = {};
 
                 InspectorTrackBuilder::FillPattern (p, bytes);
-                memcpy (FileMapTestImages::GetDosSector (dsk, t, NibblizationLayer::GetDosFileIndexForPhysicalSector (p)), bytes.data(), bytes.size());
+                memcpy (FileMapTestImages::GetDosSector (dsk, t, SectorInterleave::GetDosFileIndexForPhysicalSector (p)), bytes.data(), bytes.size());
             }
         }
 

@@ -4,6 +4,7 @@
 #include "../EhmTestHelper.h"
 #include "Devices/Disk/Inspector/DiskAnalyzer.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -504,7 +505,7 @@ Byte * FileMapTestImages::GetBlock (vector<Byte> & image, int block)
 
 Byte * FileMapTestImages::GetCpmSector (vector<Byte> & dosOrder, int track, int cpmSector)
 {
-    return GetDosSector (dosOrder, track, NibblizationLayer::GetDosFileIndexForPhysicalSector ((3 * cpmSector) % kSectors));
+    return GetDosSector (dosOrder, track, SectorInterleave::GetDosFileIndexForPhysicalSector ((3 * cpmSector) % kSectors));
 }
 
 
@@ -530,7 +531,7 @@ vector<Byte> FileMapTestImages::ToDosOrder (const vector<Byte> & proDosOrder)
     {
         for (int dos = 0; dos < kSectors; dos++)
         {
-            int  po = NibblizationLayer::GetPoFileIndexForDosLogicalSector (dos);
+            int  po = SectorInterleave::GetPoFileIndexForDosLogicalSector (dos);
 
             memcpy (out.data() + (t * kSectors + dos) * kSectorBytes, proDosOrder.data() + (t * kSectors + po) * kSectorBytes, kSectorBytes);
         }
@@ -559,7 +560,7 @@ vector<Byte> FileMapTestImages::ToProDosOrder (const vector<Byte> & dosOrder)
     {
         for (int dos = 0; dos < kSectors; dos++)
         {
-            int  po = NibblizationLayer::GetPoFileIndexForDosLogicalSector (dos);
+            int  po = SectorInterleave::GetPoFileIndexForDosLogicalSector (dos);
 
             memcpy (out.data() + (t * kSectors + po) * kSectorBytes, dosOrder.data() + (t * kSectors + dos) * kSectorBytes, kSectorBytes);
         }

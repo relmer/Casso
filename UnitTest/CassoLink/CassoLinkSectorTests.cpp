@@ -11,7 +11,7 @@
 #include "CassoLink/LinkProgram.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 #include "Machines/Apple2/Common/ThirteenSectorCodec.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Seams/InProcessByteStream.h"
@@ -185,14 +185,14 @@ public:
     //  ProDOS-ordered file.
     static size_t  DosOffset (int track, int physical)
     {
-        return (size_t) (track * 16 + NibblizationLayer::GetDosFileIndexForPhysicalSector (physical)) * 256;
+        return (size_t) (track * 16 + SectorInterleave::GetDosFileIndexForPhysicalSector (physical)) * 256;
     }
 
     static size_t  ProDosOffset (int track, int physical)
     {
-        int  logical = NibblizationLayer::GetDosFileIndexForPhysicalSector (physical);
+        int  logical = SectorInterleave::GetDosFileIndexForPhysicalSector (physical);
 
-        return (size_t) (track * 16 + NibblizationLayer::GetPoFileIndexForDosLogicalSector (logical)) * 256;
+        return (size_t) (track * 16 + SectorInterleave::GetPoFileIndexForDosLogicalSector (logical)) * 256;
     }
 
     static bool  SameSector (const std::vector<Byte> & data, size_t index, const std::vector<Byte> & image, size_t offset)

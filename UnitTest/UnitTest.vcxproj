@@ -312,6 +312,7 @@
     <ClCompile Include="EmuTests\ContainerIntegrityTests.cpp" />
     <ClCompile Include="EmuTests\NibbleImageCodecTests.cpp" />
     <ClCompile Include="EmuTests\NibblizationTests.cpp" />
+    <ClCompile Include="EmuTests\SectorInterleaveTests.cpp" />
     <ClCompile Include="EmuTests\TrackLayoutWriterTests.cpp" />
     <ClCompile Include="AppleTextCodecTests.cpp" />
     <ClCompile Include="ApplesoftTokenizerTests.cpp" />

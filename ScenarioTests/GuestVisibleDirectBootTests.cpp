@@ -3,6 +3,7 @@
 #include "FakeDiskFileIo.h"
 #include "GuestSession.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 #include "TestMachine.h"
 #include "Machines/Apple2/Common/DirectBootBuilder.h"
 #include "Devices/Disk/DiskCommandRunner.h"
@@ -332,7 +333,7 @@ public:
 
         at   = Dos33Skeleton::GetSectorOffset (
                    DirectBootBuilder::kFirstPayloadTrack,
-                   NibblizationLayer::GetDosFileIndexForPhysicalSector (0));
+                   SectorInterleave::GetDosFileIndexForPhysicalSector (0));
 
         span = (std::min) (payload.size(), (size_t) NibbleFormat::kSectorByteSize);
 

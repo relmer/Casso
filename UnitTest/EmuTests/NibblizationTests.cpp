@@ -5,6 +5,7 @@
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 #include "Machines/Apple2/Common/TrackWritability.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -1121,7 +1122,7 @@ public:
                 int     logical  = (int) (offset / kHalfBytes);
                 int     expected = block * kHalvesPerBlock + half;
 
-                Assert::AreEqual (expected, NibblizationLayer::GetPoFileIndexForDosLogicalSector (logical),
+                Assert::AreEqual (expected, SectorInterleave::GetPoFileIndexForDosLogicalSector (logical),
                     L"a ProDOS-ordered file must hold this sector where block order puts it");
 
                 Assert::IsFalse (claimed[(size_t) logical], L"and no logical sector twice");

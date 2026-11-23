@@ -14,6 +14,7 @@
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/RdosVolume.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 #include "Machines/Apple2/Common/ThirteenSectorCodec.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Common/WozLoader.h"
@@ -58,7 +59,7 @@ void VolumeImage::ProDosFileToDosLogical (const vector<Byte> & fileBytes, vector
         for (logical = 0; logical < NibbleFormat::kSectorsPerTrack; logical++)
         {
             size_t  from = ((size_t) track * NibbleFormat::kSectorsPerTrack
-                         + (size_t) NibblizationLayer::GetPoFileIndexForDosLogicalSector (logical)) * kSectorBytes;
+                         + (size_t) SectorInterleave::GetPoFileIndexForDosLogicalSector (logical)) * kSectorBytes;
             size_t  to   = ((size_t) track * NibbleFormat::kSectorsPerTrack
                          + (size_t) logical) * kSectorBytes;
 
@@ -96,7 +97,7 @@ void VolumeImage::DosLogicalToProDosFile (const vector<Byte> & sectors, vector<B
             size_t  from = ((size_t) track * NibbleFormat::kSectorsPerTrack
                          + (size_t) logical) * kSectorBytes;
             size_t  to   = ((size_t) track * NibbleFormat::kSectorsPerTrack
-                         + (size_t) NibblizationLayer::GetPoFileIndexForDosLogicalSector (logical)) * kSectorBytes;
+                         + (size_t) SectorInterleave::GetPoFileIndexForDosLogicalSector (logical)) * kSectorBytes;
 
             std::copy (sectors.begin() + (ptrdiff_t) from,
                        sectors.begin() + (ptrdiff_t) (from + kSectorBytes),
@@ -340,7 +341,7 @@ void VolumeImage::CollectSectorWrites (
         for (physical = 0; physical < NibbleFormat::kSectorsPerTrack; physical++)
         {
             base = (static_cast<size_t> (track) * NibbleFormat::kSectorsPerTrack
-                 + static_cast<size_t> (NibblizationLayer::GetDosFileIndexForPhysicalSector (physical)))
+                 + static_cast<size_t> (SectorInterleave::GetDosFileIndexForPhysicalSector (physical)))
                  * NibbleFormat::kSectorByteSize;
 
             if (std::equal (priorSectors.begin() + base, priorSectors.begin() + base + NibbleFormat::kSectorByteSize, editedSectors.begin() + base))

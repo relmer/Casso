@@ -2,6 +2,7 @@
 #include "Devices/Disk/Containers/DiskCopy42Container.h"
 #include "Devices/Disk/Archives/NuFxArchive.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "../EhmTestHelper.h"
 #include "FixtureProvider.h"
@@ -1168,7 +1169,7 @@ public:
         AssertSucceeded (io.ReadAllBytes ("raw.dsk", written));
 
         skewedAt = (size_t) ((3 * NibbleFormat::kSectorsPerTrack
-                            + NibblizationLayer::GetDosFileIndexForPhysicalSector (1))
+                            + SectorInterleave::GetDosFileIndexForPhysicalSector (1))
                            * NibbleFormat::kSectorByteSize);
 
         Assert::AreEqual ((Byte) 0xA5, written[logicalAt],
@@ -1611,7 +1612,7 @@ public:
         AssertSucceeded (io.ReadAllBytes ("raw.dsk", written));
 
         mappedAt = (size_t) ((3 * NibbleFormat::kSectorsPerTrack
-                            + NibblizationLayer::GetDosFileIndexForPhysicalSector (1))
+                            + SectorInterleave::GetDosFileIndexForPhysicalSector (1))
                            * NibbleFormat::kSectorByteSize);
 
         Assert::AreNotEqual (literalAt, mappedAt,
@@ -1644,7 +1645,7 @@ public:
 
         asPhysical = runner.Run (MakeSectorRead ("raw.dsk", 3, 1, 1, kPhysical));
         asLogical  = runner.Run (MakeSectorRead ("raw.dsk", 3,
-                                                 NibblizationLayer::GetDosFileIndexForPhysicalSector (1),
+                                                 SectorInterleave::GetDosFileIndexForPhysicalSector (1),
                                                  1, kLogical));
 
         Assert::AreEqual (DiskCommandResult::kClean, asPhysical.exitStatus);
@@ -1688,7 +1689,7 @@ public:
         for (page = 0; page < 16; page++)
         {
             size_t  at = (size_t) ((3 * NibbleFormat::kSectorsPerTrack
-                                  + NibblizationLayer::GetDosFileIndexForPhysicalSector ((int) page))
+                                  + SectorInterleave::GetDosFileIndexForPhysicalSector ((int) page))
                                  * NibbleFormat::kSectorByteSize);
 
             Assert::AreEqual ((int) page, (int) written[at],

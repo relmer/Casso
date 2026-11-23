@@ -3,6 +3,7 @@
 #include "EhmTestHelper.h"
 #include "FixtureProvider.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 #include "TestMachine.h"
 #include "TextScreenScraper.h"
 #include "CassoLink/EmulatedCassetteAudio.h"
@@ -267,7 +268,7 @@ public:
 
             for (int p = 0; p < kSectors; p++)
             {
-                size_t  offset = (size_t) (track * kSectors + NibblizationLayer::GetDosFileIndexForPhysicalSector (p)) * 256;
+                size_t  offset = (size_t) (track * kSectors + SectorInterleave::GetDosFileIndexForPhysicalSector (p)) * 256;
 
                 data.insert (data.end(), disk.begin() + (ptrdiff_t) offset, disk.begin() + (ptrdiff_t) offset + 256);
             }
@@ -593,7 +594,7 @@ public:
 
             for (int p = 0; p < kSectors; p++)
             {
-                size_t  offset = (size_t) (track * kSectors + NibblizationLayer::GetDosFileIndexForPhysicalSector (p)) * 256;
+                size_t  offset = (size_t) (track * kSectors + SectorInterleave::GetDosFileIndexForPhysicalSector (p)) * 256;
 
                 std::copy_n (data.begin() + (ptrdiff_t) p * 256, 256, expected.begin() + (ptrdiff_t) offset);
             }
