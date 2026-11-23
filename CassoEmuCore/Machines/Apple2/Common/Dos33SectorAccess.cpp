@@ -28,6 +28,24 @@ Dos33SectorAccess::Dos33SectorAccess (const vector<Byte> & sectors)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Dos33SectorAccess::Dos33SectorAccess
+//
+//  For a buffer that is empty until later, where detection has nothing to read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Dos33SectorAccess::Dos33SectorAccess (const vector<Byte> & sectors, const Dos33Geometry & geometry)
+    : m_sectors  (sectors),
+      m_geometry (geometry)
+{
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Dos33SectorAccess::WriteByteAt
 //
 //  Out-of-range writes do nothing, mirroring ReadByte. Nothing here addresses a

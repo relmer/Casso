@@ -164,7 +164,7 @@ HRESULT Dos33VolumeWriter::Write (
     vector<Dos33CatalogEntry>  entries;
     vector<std::string>        damage;
     DeleteOutcome              removal;
-    Dos33SectorAccess          stagedAccess (staged);
+    Dos33SectorAccess          stagedAccess (staged, m_access.GetGeometry());
 
 
 

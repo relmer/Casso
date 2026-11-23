@@ -26,6 +26,9 @@ public:
     //  Stores a reference to the buffer and never modifies it.
     explicit Dos33SectorAccess (const vector<Byte> & sectors);
 
+    //  The same, with the geometry given rather than detected from the buffer.
+    Dos33SectorAccess          (const vector<Byte> & sectors, const Dos33Geometry & geometry);
+
     void                    SetReadObserver (ISectorReadObserver * observer) { m_readObserver = observer; }
 
     const Dos33Geometry  & GetGeometry () const { return m_geometry; }
