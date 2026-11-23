@@ -102,6 +102,5 @@ private:
     bool                       m_isSliderOut      = false;
     bool                       m_isAlignment      = false;
     bool                       m_isFilesDefaulted = false;
-    bool                       m_isFilesSaved     = false;
     double                     m_lastTilt         = InspectorViewModel::kMaxTilt * 0.6;
 };

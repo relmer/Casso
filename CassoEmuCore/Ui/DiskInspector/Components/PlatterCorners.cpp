@@ -337,8 +337,8 @@ void PlatterCorners::Update()
     m_alignChip->SetOn (m_isAlignment);
     m_diffsChip->SetOn (m_session.context.isDiffsOverlay);
 
-    //  A disk with a volume the map reads opens on the Files overlay, the
-    //  most telling view of it; after that, Files is on or off as the user sets it.
+    //  A disk with a recognized file system opens on the Files overlay. After
+    //  that, Files is on or off as the user sets it until the next disk.
     if (!m_isFilesDefaulted && m_session.GetFileMap() != nullptr && m_session.GetFileMap()->notMapped == NotMappedReason::None)
     {
         m_isFilesDefaulted = true;
@@ -714,7 +714,7 @@ void PlatterCorners::TrackLegendHover (POINT pointPx)
 //
 //  PlatterCorners::OnDiskStarted
 //
-//  A saved Files choice applies to every disk (FR-080).
+//  Each new disk turns Files on again once its file system is recognized.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -722,7 +722,7 @@ void PlatterCorners::OnDiskStarted (const DiskChange & change)
 {
     if (change.hasDisk)
     {
-        m_isFilesDefaulted = m_isFilesSaved;
+        m_isFilesDefaulted = false;
     }
 }
 
@@ -753,15 +753,14 @@ void PlatterCorners::GetPrefs (DiskInspectorPrefs & inOut) const
 //
 //  PlatterCorners::ApplyPrefs
 //
-//  Saved prefs mean the user has chosen Files or not, so a new disk does not
-//  turn it on.
+//  A disk with a recognized file system turns Files on regardless of the
+//  saved choice.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void PlatterCorners::ApplyPrefs (const DiskInspectorPrefs & prefs)
 {
-    m_isFilesDefaulted = prefs.w > 0;
-    m_isFilesSaved     = prefs.w > 0;
+    m_isFilesDefaulted = false;
 
     SetOverlay (PlatterOverlay::Files,     prefs.isFiles);
     SetOverlay (PlatterOverlay::Reads,     prefs.isReads);
