@@ -4193,15 +4193,19 @@ as they arrive.
   the four continents, is in the same host folder, the player's continent
   MUST be drawn with the player marked.
 - **FR-310**: The game disk of Ultima I: The Beginning MUST be drawn as its
-  four continents, each by name, with a legend of the tiles.
+  four continents, each by name, with a legend of the tiles. The preview's
+  switch MUST label this view "Map", not "Saved game".
 - **FR-308**: An Ultima II player disk MUST be recognized by its character
   at track 4 sector 8, since it has no readable catalog, and MUST be drawn
   as the character: name, race, class, sex, hit points, food, gold, the
   six stats and position.
 - **FR-309**: A player disk of the 1981 Ultima MUST be recognized by its
   catalog file `NAME=<character>` and the Applesoft variables the game
-  saves to track 26, and MUST be drawn as the character: name, race,
-  class, hit points, food, gold, experience, the six stats and position.
+  saves as the file `BEVERY`, and MUST be drawn as the character: name,
+  race, class, hit points, food, gold, experience, the six stats and
+  position. The player's continent MUST be drawn from the file
+  `BTERRA<n>`, n being the variable `FA`, with the player marked. Those
+  files are in a second catalog the game keeps outside the VTOC's chain.
 - **FR-242**: Every format and protocol in FR-190 to FR-241 and FR-304 to
   FR-310 MUST be
   implemented by the rule FR-171 sets.

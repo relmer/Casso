@@ -12,12 +12,14 @@
 //
 //  Ultima1981Save
 //
-//  A player disk of the 1981 Ultima, a DOS 3.3 disk whose catalog has a file
-//  NAME=<character>, as the saved game. The game saves its Applesoft
-//  variables to track 26, sectors 11 down to 0: array C has the hit points,
-//  the six stats, gold, race and class, and the simple variables FO, EP, TX
-//  and TY have food, experience and position. The arrays after C, PW, AR
-//  and SP, have the counts of each weapon, armor and spell.
+//  A player disk of the 1981 Ultima, a 13-sector DOS 3.2 disk whose catalog
+//  has a file NAME=<character>, as the saved game. The game saves its
+//  Applesoft variables as the file BEVERY, in sectors 427 down to 416 of the
+//  disk: array C has the hit points, the six stats, gold, race and class,
+//  and the simple variables FO, EP, TX, TY and FA have food, experience,
+//  position and continent. The arrays after C, PW, AR and SP, have the
+//  counts of each weapon, armor and magic. Each continent's map is the file
+//  BTERRA0 to BTERRA3 on the same disk.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,6 +43,7 @@ public:
         int           experience     = 0;
         int           x              = 0;
         int           y              = 0;
+        int           continent      = 0;
 
         std::vector<std::pair<std::wstring, int>>  inventory;
     };
@@ -66,6 +69,8 @@ private:
     static bool               TryFindVariable (std::span<const Byte> image, size_t tableAt, size_t tableEnd, char first, char second, double & outValue);
     static void               AddInventory    (std::span<const Byte> image, size_t statsAt, Character & ioCharacter);
     static bool               TryReadName     (const std::vector<Byte> & sectors, std::wstring & outName);
+    static bool               TryReadFile     (const std::vector<Byte> & sectors, const std::string & name, std::vector<Byte> & outBytes);
+    static bool               TryReadTerrain  (const std::vector<Byte> & sectors, int continent, std::vector<Byte> & outTiles);
     static Run                MakeLabel       (const std::wstring & text);
     static Run                MakeValue       (const std::wstring & text);
     static Paragraph          MakeParagraph   (std::vector<Run> runs);
