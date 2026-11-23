@@ -493,7 +493,7 @@ public:
 
     TEST_METHOD (ProDosSkeleton_InstallNoSystemLoader_LeavesALoaderInPlace)
     {
-        vector<Byte>  volume ((size_t) NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>  volume ((size_t) NibbleFormat::kImageByteSize, 0);
         vector<Byte>  before;
 
 
