@@ -1351,23 +1351,23 @@ static Byte FindSectorBase (const NibblizationLayer::TrackBits & src)
     bool           low                                        = false;
     bool           seen[256]                                  = {};
     int            count                                      = 0;
+    bool           more                                       = src.bitCount != 0;
 
 
 
-    while (src.bitCount != 0 && bitPos < src.bitCount)
+    while (more && bitPos < src.bitCount)
     {
-        if (FAILED (DecodeOneSector (src, bitPos, sector, buffer, outcome, field, data)) || field >= src.bitCount)
-        {
-            break;
-        }
+        HRESULT  hr = DecodeOneSector (src, bitPos, sector, buffer, outcome, field, data);
 
-        if (outcome != SectorOutcome::Lost)
+        more = SUCCEEDED (hr) && field < src.bitCount;
+
+        if (more && outcome != SectorOutcome::Lost)
         {
             count        += seen[sector] ? 0 : 1;
             seen[sector]  = true;
-            low     = low || sector < NibblizationLayer::kSectorsPerTrack;
-            lowest  = std::min (lowest, sector);
-            highest = std::max (highest, sector);
+            low           = low || sector < NibblizationLayer::kSectorsPerTrack;
+            lowest        = std::min (lowest, sector);
+            highest       = std::max (highest, sector);
         }
     }
 
@@ -1378,6 +1378,7 @@ static Byte FindSectorBase (const NibblizationLayer::TrackBits & src)
 
     return base;
 }
+
 
 
 
