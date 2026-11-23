@@ -14,6 +14,7 @@ class BlockHexView;
 class BlockInspectorModel;
 class BlockMapView;
 class FloatingGroup;
+class FloatingZoom;
 class OverlayChip;
 struct BlockField;
 struct BlockEditState;
@@ -35,8 +36,8 @@ struct InspectorCommands;
 //  previous and next block buttons and its capsules, the field line, Copy
 //  block, a row with the pending edits or a long job's progress, and the
 //  block's hex view over its fields; and the map of the whole volume, with
-//  the platter's corner groups: the overlays at the bottom left, and zoom -
-//  and + at the bottom right. Splitters part
+//  the platter's corner groups: the overlays at the bottom left, and the
+//  zoom at the bottom right. Splitters part
 //  the three. A click on the map selects the row that covers the block,
 //  and a double-click opens the block.
 //
@@ -80,6 +81,10 @@ public:
     //  The controls enabled or disabled, and the progress read, from the
     //  worker's jobs. The window calls it on each frame.
     void  UpdateBusy ();
+
+    //  The map's zoom control from the map's zoom and the cursor, on each
+    //  frame. True when the control grew or shrank.
+    bool  UpdateZoom (HWND owner);
 
     IBlockJobs  & GetJobs   ()       { return m_jobs; }
     bool          IsBusy    () const { return m_jobs.IsBusy(); }
@@ -163,11 +168,9 @@ private:
     DxuiToolbar           * m_tools           = nullptr;
     BlockMapView          * m_map             = nullptr;
     FloatingGroup         * m_chipsGroup      = nullptr;
-    FloatingGroup         * m_zoomGroup       = nullptr;
+    FloatingZoom          * m_zoomGroup       = nullptr;
     OverlayChip           * m_filesChip       = nullptr;
     OverlayChip           * m_diffsChip       = nullptr;
-    DxuiIconButton        * m_zoomOut         = nullptr;
-    DxuiIconButton        * m_zoomIn          = nullptr;
     BlockNavigator          m_nav;
     BlockPanelSplitters     m_splitters;
     BlockJobQueue           m_jobs;

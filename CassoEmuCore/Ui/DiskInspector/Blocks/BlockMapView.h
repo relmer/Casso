@@ -61,14 +61,17 @@ public:
 
     //  The zoom, from 1 for the whole volume, in even steps up to a cell of
     //  kMostCellDip with one block in it. StepZoom steps about
-    //  the map's center, StepZoomAt about a point, and Fit returns to the
-    //  whole volume.
-    void    StepZoom   (int steps);
-    void    StepZoomAt (int steps, POINT anchorPx);
-    void    Fit        ();
-    bool    IsAtFit    () const { return m_zoom <= 1.0 && !m_isFlying; }
-    bool    IsAtMost   () const { return m_stops.empty() || m_zoom >= m_stops.back(); }
-    double  GetZoom    () const { return m_zoom; }
+    //  the map's center, StepZoomAt about a point, ZoomTo goes to a zoom
+    //  about the center, and Fit returns to the whole volume.
+    void                     StepZoom     (int steps);
+    void                     StepZoomAt   (int steps, POINT anchorPx);
+    void                     ZoomTo       (double zoom);
+    void                     Fit          ();
+    bool                     IsAtFit      () const { return m_zoom <= 1.0 && !m_isFlying; }
+    bool                     IsAtMost     () const { return m_stops.empty() || m_zoom >= m_stops.back(); }
+    double                   GetZoom      () const { return m_zoom; }
+    double                   GetMostZoom  () const { return m_stops.empty() ? 1.0 : m_stops.back(); }
+    const vector<double>   & GetZoomStops () const { return m_stops; }
 
     //  Reads each cell's role and highlight from the model again.
     void  Refresh ();

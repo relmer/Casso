@@ -11,8 +11,10 @@
 #include "Ui/DiskInspector/Blocks/BlockMapView.h"
 #include "Ui/DiskInspector/Components/InspectorCommands.h"
 #include "Ui/DiskInspector/FloatingGroup.h"
+#include "Ui/DiskInspector/FloatingZoom.h"
 #include "Ui/DiskInspector/InspectorMarquee.h"
 #include "Ui/DiskInspector/OverlayChip.h"
+#include "Ui/DiskInspector/ZoomStops.h"
 #include "Core/NumberFormat.h"
 
 
@@ -22,10 +24,7 @@
 static constexpr int      s_kGroupDip       = 36;
 static constexpr int      s_kGroupPadDip    = 4;
 static constexpr int      s_kGroupGapDip    = 6;
-static constexpr int      s_kIconDip        = 28;
 static constexpr int      s_kInsetDip       = 4;
-static constexpr LPCWSTR  s_kpszGlyphMinus  = L"\xE738";
-static constexpr LPCWSTR  s_kpszGlyphPlus   = L"\xE710";
 
 
 
@@ -111,11 +110,9 @@ void BlockInspectorPanel::Init (BlockInspectorModel * model, BlockInspectorWorke
 void BlockInspectorPanel::InitCorners()
 {
     m_chipsGroup = CreateChild<FloatingGroup>();
-    m_zoomGroup  = CreateChild<FloatingGroup>();
+    m_zoomGroup  = CreateChild<FloatingZoom>();
     m_filesChip  = m_chipsGroup->CreateChild<OverlayChip> (L"Files");
     m_diffsChip  = m_chipsGroup->CreateChild<OverlayChip> (L"Differences");
-    m_zoomOut    = m_zoomGroup->CreateChild<DxuiIconButton>();
-    m_zoomIn     = m_zoomGroup->CreateChild<DxuiIconButton>();
 
     m_diffsChip->SetVisible (false);
 
@@ -123,14 +120,23 @@ void BlockInspectorPanel::InitCorners()
     m_map->SetFilesColored   (m_isFilesOn);
     m_diffsChip->SetOnChange ([this] (bool isOn) { SetDiffsOn (isOn); });
 
-    m_zoomOut->SetGlyph          (s_kpszGlyphMinus);
-    m_zoomOut->SetRound          (true);
-    m_zoomOut->SetAccessibleName (L"Zoom out");
-    m_zoomOut->SetOnClick        ([this] () { m_map->StepZoom (-1); });
-    m_zoomIn->SetGlyph           (s_kpszGlyphPlus);
-    m_zoomIn->SetRound           (true);
-    m_zoomIn->SetAccessibleName  (L"Zoom in");
-    m_zoomIn->SetOnClick         ([this] () { m_map->StepZoom (1); });
+    m_zoomGroup->SetOnZoom ([this] (double zoom) { m_map->ZoomTo (zoom); });
+    m_zoomGroup->SetOnStep ([this] (double zoom, int steps) { return ZoomStops::Step (m_map->GetZoomStops(), zoom, steps); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorPanel::UpdateZoom
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BlockInspectorPanel::UpdateZoom (HWND owner)
+{
+    return m_zoomGroup != nullptr && m_zoomGroup->Update (owner, m_map->GetZoom(), m_map->GetMostZoom());
 }
 
 
@@ -994,12 +1000,10 @@ void BlockInspectorPanel::LayoutGrid (const RECT & column, const DxuiDpiScaler &
     int                  group  = scaler.ToPx (s_kGroupDip);
     int                  pad    = scaler.ToPx (s_kGroupPadDip);
     int                  gap    = scaler.ToPx (s_kGroupGapDip);
-    int                  icon   = scaler.ToPx (s_kIconDip);
     int                  band   = group + 2 * inset;
     int                  left   = column.left + inset;
     int                  right  = column.right - inset;
     int                  bottom = column.bottom - inset;
-    int                  zoomW  = 3 * pad + 2 * icon;
     int                  chipsW = 2 * pad;
     int                  x      = 0;
     int                  w      = 0;
@@ -1024,10 +1028,7 @@ void BlockInspectorPanel::LayoutGrid (const RECT & column, const DxuiDpiScaler &
         x += (w > 0) ? w + gap : 0;
     }
 
-    x = right - zoomW;
-    m_zoomGroup->Layout ({ x, bottom - group, right, bottom }, scaler);
-    m_zoomOut->Layout   ({ x + pad, bottom - group + pad, x + pad + icon, bottom - pad }, scaler);
-    m_zoomIn->Layout    ({ right - pad - icon, bottom - group + pad, right - pad, bottom - pad }, scaler);
+    m_zoomGroup->Place (POINT { right, bottom }, group, pad, scaler);
 }
 
 

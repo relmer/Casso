@@ -189,6 +189,12 @@ void BlockInspectorWindow::RenderIfChanged()
     DxuiPanel::Tick ((int64_t) GetTickCount64());
     m_menus.Tick ((int64_t) GetTickCount64());
     m_status.Tick (GetHwnd());
+
+    if (m_panel->UpdateZoom (GetHwnd()))
+    {
+        m_isDirty = true;
+    }
+
     m_tips->Tick ((int64_t) GetTickCount64());
 
     //  The window's context menus open with an animation each frame

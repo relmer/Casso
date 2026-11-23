@@ -431,6 +431,7 @@
     <ClCompile Include="EmuTests\InspectorMarqueeTests.cpp" />
     <ClCompile Include="EmuTests\InspectorTextTests.cpp" />
     <ClCompile Include="EmuTests\ZoomStopsTests.cpp" />
+    <ClCompile Include="EmuTests\FloatingZoomTests.cpp" />
     <ClCompile Include="EmuTests\InspectorTipTests.cpp" />
     <ClCompile Include="EmuTests\InspectorViewModelTests.cpp" />
     <ClCompile Include="EmuTests\PlatterCellsTests.cpp" />
