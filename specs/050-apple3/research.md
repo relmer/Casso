@@ -90,8 +90,8 @@ drawings, which are the source for the body's and back panel's dimensions.
   zero page, and with the highest bank the upper half is undefined.
 - Apple's notation for a bank-switched address is `b:nnnn`, and for an
   extended address `8x:nnnn` (SOS Reference Manual 2.1.1 and 2.1.2). The
-  debugger uses Apple's `b:nnnn`, with `/` in the two command modes where
-  `:` is the deposit command (R15).
+  debugger writes the space as a word, `BANK2:3000`, with `/` in the two command
+  modes where `:` is the deposit command (R15).
 - The Plus's text interlace is a switch on the left side of the case, not a
   software control. It is a case switch in Casso, as the //c's switches are.
 - The Apple II 40-column mode has flashing text as well as inverse.
@@ -406,10 +406,11 @@ then the panes. A `Word` converts implicitly to a current-view
 `DebugAddress`, so each stage compiles and Apple II behavior is the same
 after each one.
 
-**Syntax** (owner decision, 2026-11-17): Apple's `b:nnnn`, for example
-`2:3000`, everywhere it does not conflict; `b/nnnn` in the Apple II Monitor
-and GSSquared modes, where `addr:` starts a deposit; `S:` for the system
-bank where it has to be distinguished. See `contracts/debugger-addresses.md`.
+**Syntax** (owner decisions, 2026-11-17 and 2026-11-23): the space written
+as a word, for example `BANK2:3000`, `SYSTEM:A000` and `ROM:F000`, to
+match the //e's `MAIN:` and `AUX:`; `/` in place of `:` in the Apple II
+Monitor and GSSquared modes, where `addr:` starts a deposit. See
+`contracts/debugger-addresses.md`.
 
 **Alternative not taken**: A flat 24-bit address with the bank in the high byte, as a IIgs
 debugger would use. The Apple ///'s banks overlap one 32K window, the system

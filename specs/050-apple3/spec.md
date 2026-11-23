@@ -67,9 +67,9 @@ documents.
 
 - Q: Is the Apple II emulation mode in scope? → A: Yes (User Story 12, FR-031 to FR-031d).
 - Q: Is the Apple /// Plus a second machine in this spec? → A: Yes, a separate machine entry with the Plus keyboard, interlaced video, 256K and the clock chip (User Story 13).
-- Q: What does "remove the keyboard" mean for the chassis model? → A: The model is cut at the front of the upper body. The sloped keyboard section is not modeled.
+- Q: What does "remove the keyboard" mean for the chassis model? → A: The model is cut at the front of the upper body. (Revised 2026-11-22: the keyboard section is modeled after all.) The sloped keyboard section is not modeled.
 - Q: How does 048's ProFile get to this branch? → A: 033 merges into master regularly; master merges into 035, and 035 merges into this branch. The ProFile work stays in this spec.
-- Q: How is a bank-qualified address written in the debugger? → A: Apple's `b:nnnn`, for example `2:3000`, in the panes, dialogs and the Casso and WinDbg modes; `b/nnnn` wherever `:` already has a meaning: the Apple II Monitor and GSSquared modes (`addr:` is the deposit command), the assembler prompt and range fields.
+- Q: How is a bank-qualified address written in the debugger? → A: (Revised 2026-11-23: the space is a word on every machine, `BANK2:3000`, `SYSTEM:A000`, `ROM:F000`, matching the //e's `MAIN:` and `AUX:`; see `contracts/debugger-addresses.md`.) Originally: Apple's `b:nnnn`, for example `2:3000`, in the panes, dialogs and the Casso and WinDbg modes; `b/nnnn` wherever `:` already has a meaning: the Apple II Monitor and GSSquared modes (`addr:` is the deposit command), the assembler prompt and range fields.
 - Q: Is Business BASIC source-level debugging in scope? → A: Yes (User Story 14).
 - Q: Can the user choose color or a monochrome style on the Monitor ///? → A: Yes, as on the other monitors. Green is the default (FR-021).
 - Q: Is memory beyond 256K offered? → A: No. The Apple /// has 128K or 256K and the Apple /// Plus has 256K.
@@ -740,7 +740,8 @@ and check that the mark moves.
 **Debugger: addresses and banks**
 
 - **FR-036**: The debugger MUST accept and print a bank-qualified address,
-  written `b:nnnn` as Apple's manuals write it, or `b/nnnn` wherever `:`
+  written with its space as a word, for example `BANK2:3000` or
+  `SYSTEM:A000`, or with `/` in place of `:` wherever `:`
   already has a meaning (the full list is in `contracts/debugger-addresses.md`),
   wherever it accepts or prints an address: commands
   in every mode, the Go to boxes, breakpoints, watches, bookmarks, symbols,
