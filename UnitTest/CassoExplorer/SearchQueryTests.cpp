@@ -119,6 +119,19 @@ public:
         Assert::IsFalse (SearchQuery::MatchesName (L"disk10.dsk",    SearchQuery::GetNameWords (L"disk?.dsk")));
     }
 
+    TEST_METHOD (FindNameMatches_MarksTheRunsOfAWildcard)
+    {
+        std::vector<std::pair<int, int>>  ranges = SearchQuery::FindNameMatches (L"Wizardry III (Scenario).po", SearchQuery::GetNameWords (L"wiz*scenario"));
+        std::vector<std::pair<int, int>>  none   = SearchQuery::FindNameMatches (L"Wizardry III (Scenario).po", SearchQuery::GetNameWords (L"wiz*lode"));
+
+        Assert::AreEqual ((size_t) 2, ranges.size());
+        Assert::AreEqual (0,  ranges[0].first);
+        Assert::AreEqual (3,  ranges[0].second);
+        Assert::AreEqual (14, ranges[1].first);
+        Assert::AreEqual (22, ranges[1].second);
+        Assert::IsTrue   (none.empty(), L"nothing for a name it doesn't match");
+    }
+
     //  The parts of a name a search marks, as File Explorer highlights them.
     TEST_METHOD (FindNameMatches_MarksWords_AndNothingForAWildcard)
     {

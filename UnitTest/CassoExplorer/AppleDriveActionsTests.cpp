@@ -17,6 +17,7 @@
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -78,7 +79,7 @@ public:
         //  Opens a drive and waits for its catalog.
         void  Open (int drive)
         {
-            browser->NavigateToLocation (Location::MakeAppleDrive (TreeModel::MakeLinkDriveId (L"Test", 6, drive), std::string()));
+            browser->GetNavigator().NavigateToLocation (Location::MakeAppleDrive (TreeModel::MakeLinkDriveId (L"Test", 6, drive), std::string()));
             Reload();
         }
 
@@ -141,7 +142,7 @@ public:
             {
                 if (rows[i].name == name)
                 {
-                    browser->SetSelectedRows ({ (int) i });
+                    browser->GetSelection().SetSelectedRows ({ (int) i });
                     return;
                 }
             }
@@ -244,7 +245,7 @@ public:
         AssertSucceeded (rig.browser->Refresh());
         Assert::AreEqual (reads, (int) rig.apple.catalogReads, L"no catalog read for a drive read moments ago");
 
-        rig.browser->ForgetLinkVisit();
+        rig.browser->GetLoader().ForgetLinkVisit();
         AssertSucceeded (rig.browser->Refresh());
 
         while (rig.apple.catalogReads == reads && std::chrono::steady_clock::now() < until)
@@ -268,13 +269,13 @@ public:
 
 
         rig.Open (1);
-        rig.browser->OpenInNewTab (Location::MakeAppleDrive (TreeModel::MakeLinkDriveId (L"Test", 6, 2), std::string()));
+        rig.browser->GetNavigator().OpenInNewTab (Location::MakeAppleDrive (TreeModel::MakeLinkDriveId (L"Test", 6, 2), std::string()));
         rig.Reload();
-        rig.browser->ForgetLinkVisit();
+        rig.browser->GetLoader().ForgetLinkVisit();
         rig.Settle();
         reads = rig.apple.catalogReads;
 
-        Assert::IsTrue (rig.browser->SwitchTab (0));
+        Assert::IsTrue (rig.browser->GetNavigator().SwitchTab (0));
         rig.Settle();
         AssertSucceeded (rig.browser->Refresh());
 
@@ -294,7 +295,7 @@ public:
 
         rig.Open (1);
         rig.Select (L"HELLO");
-        rig.browser->GetSelectedEntries (entries);
+        rig.browser->GetSelection().GetSelectedEntries (entries);
 
         AssertSucceeded (rig.actions->GetSelected (L"C:\\Out", HostFileNaming::Style::Descriptive).hr);
         Assert::IsTrue (rig.Finish().empty());
@@ -353,14 +354,14 @@ public:
         Rig           rig;
         std::wstring  path;
 
-        rig.browser->NavigateToLocation (Location::MakeRoot (TreeModel::kCassoLinkRootId));
+        rig.browser->GetNavigator().NavigateToLocation (Location::MakeRoot (TreeModel::kCassoLinkRootId));
         rig.Open (1);
 
         for (int row = 0; row < (int) rig.browser->GetRows().size(); row++)
         {
             if (rig.browser->GetRows()[(size_t) row].name == L"HELLO")
             {
-                Assert::IsTrue (rig.browser->TryGetRowPath (row, path));
+                Assert::IsTrue (BrowserRowPaths::TryGetRowPath (rig.browser->GetRowListing(), row, path));
                 Assert::IsTrue (path.ends_with (L"HELLO"), path.c_str());
                 return;
             }
@@ -697,7 +698,7 @@ public:
             std::fill (rig.apple.drives[0].begin(), rig.apple.drives[0].end(), (Byte) 0);
         }
 
-        rig.browser->NavigateToLocation (Location::MakeAppleDrive (TreeModel::MakeLinkDriveId (L"Test", 6, 1), std::string()));
+        rig.browser->GetNavigator().NavigateToLocation (Location::MakeAppleDrive (TreeModel::MakeLinkDriveId (L"Test", 6, 1), std::string()));
 
         do
         {

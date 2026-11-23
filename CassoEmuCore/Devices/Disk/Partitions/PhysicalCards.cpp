@@ -747,13 +747,8 @@ Error:
 //
 //  PhysicalCards::WritePartition
 //
-//  The write is staged first to find whether any block differs, and a write
-//  that changes nothing succeeds without a question. The staged blocks are
-//  dropped while the question is up, so a read on another thread returns
-//  the card's blocks, and staged again after the user confirms.
-//
-//  A write made while a question is up fails with ERROR_BUSY. After a write
-//  that fails partway the card is closed, as its blocks are then unknown.
+//  A write that changes no block sends nothing. After a write that fails
+//  partway the card is closed, as its blocks are then unknown.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -774,35 +769,16 @@ HRESULT PhysicalCards::WritePartition (int number, int partition, std::span<cons
 
 HRESULT PhysicalCards::WritePartitionAt (int number, int partition, uint64_t offset, std::span<const Byte> bytes)
 {
-    HRESULT                       hr        = S_OK;
-    std::unique_lock<std::mutex>  lock (m_mutex);
-    Session                     * session   = nullptr;
-    bool                          confirmed = false;
-    PhysicalDrive                 drive;
+    HRESULT                      hr      = S_OK;
+    std::lock_guard<std::mutex>  lock (m_mutex);
+    Session                    * session = nullptr;
 
 
-
-    CBREx (!m_confirming, HRESULT_FROM_WIN32 (ERROR_BUSY));
 
     hr = StageWrite (number, partition, offset, bytes, session);
     CHR (hr);
 
     BAIL_OUT_IF (session->cache->GetChangedBlockCount() == 0, S_OK);
-
-    session->cache->Discard();
-    drive        = session->drive;
-    m_confirming = true;
-
-    lock.unlock();
-    confirmed = m_confirmed || m_confirmedThread == GetCurrentThreadId() || (m_confirmWrite && m_confirmWrite (drive));
-    lock.lock();
-
-    m_confirming = false;
-
-    CBREx (confirmed, HRESULT_FROM_WIN32 (ERROR_CANCELLED));
-
-    hr = StageWrite (number, partition, offset, bytes, session);
-    CHR (hr);
 
     hr = session->cache->Commit();
 
@@ -819,7 +795,6 @@ HRESULT PhysicalCards::WritePartitionAt (int number, int partition, uint64_t off
 Error:
     return hr;
 }
-
 
 
 
@@ -864,27 +839,6 @@ std::wstring PhysicalCards::DescribePartition (const std::wstring & path)
     }
 
     return text;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PhysicalCards::EndThreadConfirmation
-//
-//  Only the confirmed thread ends its confirmation.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void PhysicalCards::EndThreadConfirmation()
-{
-    DWORD  current = GetCurrentThreadId();
-
-
-
-    m_confirmedThread.compare_exchange_strong (current, 0);
 }
 
 

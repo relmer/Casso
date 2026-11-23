@@ -378,7 +378,8 @@ std::shared_ptr<LinkOperation> CassoLinkSession::WriteBlockDevice (int drive, co
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::shared_ptr<LinkOperation> CassoLinkSession::ReadDisk (int drive, const std::string & imagePath, bool blankUnreadable, bool forceVerify)
+std::shared_ptr<LinkOperation> CassoLinkSession::ReadDisk (int drive, const std::string & imagePath, bool blankUnreadable, bool forceVerify,
+                                                          std::optional<FullSendProtectionChoices> automatic)
 {
     std::shared_ptr<LinkOperation>  operation = std::make_shared<LinkOperation>();
 
@@ -388,6 +389,8 @@ std::shared_ptr<LinkOperation> CassoLinkSession::ReadDisk (int drive, const std:
     operation->blankUnreadable = blankUnreadable;
     operation->verifyReads     = forceVerify || m_verifyReads;
     operation->autoVerify      = m_autoVerify;
+    operation->automatic       = automatic;
+    operation->status          = std::make_shared<FullSendStatus> (CassoLinkFullSend::GetSeconds, CassoLinkFullSend::GetClockTime);
 
     return Queue (LinkOperationKind::ReadDisk, drive, FilePath(), operation);
 }
@@ -409,6 +412,7 @@ std::shared_ptr<LinkOperation> CassoLinkSession::CaptureDisk (int drive, const s
 
 
     operation->imagePath = imagePath;
+    operation->status    = std::make_shared<FullSendStatus> (CassoLinkFullSend::GetSeconds, CassoLinkFullSend::GetClockTime);
 
     return Queue (LinkOperationKind::CaptureDisk, drive, FilePath(), operation);
 }
@@ -617,6 +621,9 @@ HRESULT CassoLinkSessionTypes::DriveSource::ReadSectors (std::span<const size_t>
         hr = m_session.m_host->ReadSectors ((Byte) m_drive, (Byte) track, physicals, data, status);
         CHR (hr);
 
+        //  A 13-sector disk has no 16-sector address field to find.
+        CBREx (status.error != CassoLinkHost::kErrorNotFound || !status.thirteenSector, CassoLinkSession::kThirteenSectorDisk);
+
         hr = CassoLinkSession::FromStatusError (status.error);
         CHR (hr);
 
@@ -757,8 +764,11 @@ bool CassoLinkSession::IsFullSendRunning() const
 //  CassoLinkSession::Run
 //
 //  The session's thread. A failed connection fails what is queued, so a
-//  request made with no Apple on the line ends instead of waiting; the next
-//  request tries again.
+//  request made with no Apple on the line ends instead of waiting, and the
+//  next request connects again. The thread runs above normal priority, so work
+//  elsewhere on a busy machine doesn't delay its reads of the line. Between
+//  packets it waits in the driver, so it rarely runs. A cassette link
+//  decodes audio on this thread, so it stays at normal priority.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -771,8 +781,15 @@ void CassoLinkSession::Run (std::stop_token stop)
     const char                    * status  = nullptr;
     bool                            server  = m_settings.transport == LinkTransport::AdtProServer;
     std::shared_ptr<LinkOperation>  operation;
+    BOOL                            raised  = FALSE;
 
 
+
+    if (m_settings.transport != LinkTransport::Cassette)
+    {
+        raised = SetThreadPriority (GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL);
+        IGNORE_RETURN_VALUE (raised, TRUE);
+    }
 
     if (server)
     {
@@ -907,7 +924,7 @@ void CassoLinkSession::Run (std::stop_token stop)
             logged  = m_connector.LogOnApple (FitToApple (*operation,
                                                           summary ? DescribeOperation (*operation, std::nullopt, true)
                                                                   : std::format ("{} {}", status, DescribeOperation (*operation, std::nullopt, SUCCEEDED (hr) || operation->kind == LinkOperationKind::FullSend)),
-                                                          CassoLinkCodec::kLogLength));
+                                                          m_host->GetLogLength()));
             IGNORE_RETURN_VALUE (logged, S_OK);
         }
 

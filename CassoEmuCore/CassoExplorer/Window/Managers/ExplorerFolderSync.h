@@ -74,13 +74,16 @@ public:
     void  HandleSettleTimer   ();
 
 private:
-    bool  UpdateStorageCards ();
+    bool          UpdateStorageCards     ();
+    void          LeaveDriveWithoutMedia (DWORD media);
+    static DWORD  GetRemovableMediaMask  (DWORD driveMask);
 
     ExplorerContext               & m_context;
     std::unique_ptr<FolderWatch>    m_folderWatch;
     Win32DeviceChangeWatch          m_deviceWatch;
     ULONGLONG                       m_firstChangeMs    = 0;   // 0: no change waiting
     DWORD                           m_driveMask        = 0;   // GetLogicalDrives at the last look
+    DWORD                           m_mediaMask        = 0;   // the removable drives with media in them at the last look
     std::wstring                    m_quickAccessDir;   // where File Explorer keeps Quick access
     int64_t                         m_quickAccessStamp = 0;   // its file's last write at the last look
     int64_t                         m_recentStamp      = 0;

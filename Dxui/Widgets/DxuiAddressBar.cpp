@@ -345,7 +345,12 @@ void DxuiAddressBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     //  Editing, the field takes Windows' focused text box look: a darker fill,
     //  a hairline edge and the accent along its bottom. With focus but no edit,
     //  the focus ring marks it as it marks the window's other controls.
-    painter.FillRoundedRect (x, y, w, h, radius, m_editing ? theme.ContentBackground() : theme.ControlBackground());
+    painter.FillRoundedRect (x, y, w, h, radius, m_editing ? theme.ContentBackground() : (m_restFill != 0) ? m_restFill : theme.ControlBackground());
+
+    if (!m_editing && m_restEdge != 0)
+    {
+        painter.OutlineRoundedRect (x, y, w, h, radius, 1.0f, m_restEdge);
+    }
 
     if (m_editing)
     {

@@ -93,6 +93,15 @@ void DriveBarFanControl::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text
     hr = text.PushClipRect ((float) bounds.left, (float) bounds.top, (float) (bounds.right - bounds.left), (float) (bounds.bottom - bounds.top));
     IGNORE_RETURN_VALUE (hr, S_OK);
 
+    if (!IsRectEmpty (&m_recorderPanel))
+    {
+        float  w = (float) (m_recorderPanel.right  - m_recorderPanel.left);
+        float  h = (float) (m_recorderPanel.bottom - m_recorderPanel.top);
+
+        painter.FillRoundedRect    ((float) m_recorderPanel.left, (float) m_recorderPanel.top, w, h, radius, theme.dropdownBg);
+        painter.OutlineRoundedRect ((float) m_recorderPanel.left, (float) m_recorderPanel.top, w, h, radius, 1.0f, theme.dropdownBorder);
+    }
+
     for (int c = 0; c < m_fan.GetClassCount() && c < (int) m_views.size(); c++)
     {
         RECT   panel   = m_fan.GetPanelRect (c);

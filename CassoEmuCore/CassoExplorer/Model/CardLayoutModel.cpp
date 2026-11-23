@@ -248,6 +248,35 @@ std::wstring CardLayoutModel::GetAdapterLabel (Adapter adapter)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CardLayoutModel::GetAdapterOrder
+//
+//  Sorted alphabetically by label. The enum's values are saved in the
+//  preferences, so the order is not the enum's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<CardLayoutModel::Adapter> CardLayoutModel::GetAdapterOrder()
+{
+    std::vector<Adapter>  order;
+
+
+
+    for (int index = (int) Adapter::First; index < (int) Adapter::Count; index++)
+    {
+        order.push_back ((Adapter) index);
+    }
+
+    std::ranges::sort (order, [] (Adapter a, Adapter b) { return _wcsicmp (GetAdapterLabel (a).c_str(), GetAdapterLabel (b).c_str()) < 0; });
+
+    return order;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CardLayoutModel::GetRecommendedPosition
 //
 ////////////////////////////////////////////////////////////////////////////////

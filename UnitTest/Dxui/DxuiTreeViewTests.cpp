@@ -772,6 +772,27 @@ public:
     }
 
 
+    TEST_METHOD (ReplaceChildren_ReadsANodeThatGainedChildren)
+    {
+        DxuiTreeView               tv;
+        std::vector<DxuiTreeNode>  roots;
+        DxuiTreeNode               card = MakeFolder (L"card");
+
+
+
+        card.childrenLoaded = true;
+        roots.push_back (MakeFolder (L"pc:", { card }, true));
+
+        tv.SetRect      (RECT { 0, 0, 200, 400 });
+        tv.SetRowHeight (20);
+        tv.SetNodes     (std::move (roots));
+
+        tv.ReplaceChildren (L"pc:", { MakeUnread (L"card") });
+
+        Assert::IsFalse (tv.GetNodeAt (tv.FindRowById (L"card"))->childrenLoaded, L"a node with nothing under it that now has children is read again");
+    }
+
+
     TEST_METHOD (ReplaceRoots_KeepsOpenRootsOpen)
     {
         DxuiTreeView               tv;

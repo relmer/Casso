@@ -67,7 +67,6 @@ DiskPage::DiskPage (std::wstring title)
 
 
     m_diskHeading.SetText        (L"Disk drives");
-    m_wpLabel.SetText            (L"Write protect:");
     m_writeModeLabel.SetText     (L"Write mode:");
     m_audioLabel.SetText         (L"Drive audio:");
     m_mechLabel.SetText          (L"Mechanism:");
@@ -83,7 +82,6 @@ DiskPage::DiskPage (std::wstring title)
     m_tapeIdleStopLabel.SetText  (L"Stop when loading ends:");
     m_tapeWavFormatLabel.SetText (L"New tape WAV format:");
 
-    Adopt (m_wpLabel);
     Adopt (m_writeModeLabel);
     Adopt (m_audioLabel);
     Adopt (m_mechLabel);
@@ -116,10 +114,6 @@ DiskPage::DiskPage (std::wstring title)
     Adopt (m_tapeIdleStopLabel);
     Adopt (m_tapeWavFormatLabel);
     Adopt (m_tapeWavFormatInfo);
-    for (DxuiCheckbox & checkbox : m_writeProtect)
-    {
-        Adopt (checkbox);
-    }
 
     Adopt (m_motorVol);
     Adopt (m_headVol);
@@ -206,13 +200,6 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
 
     m_diskHeading.SetRect (MakeRect (x, y, right - x, rowHeight));
-    y += rowHeight + sectionGap;
-
-    m_wpLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
-    m_writeProtect[0].SetRect (MakeRect (controlsX,                y, checkWidth, rowHeight));
-    m_writeProtect[0].SetLabel (L"Drive 1");
-    m_writeProtect[1].SetRect (MakeRect (controlsX + checkWidth,   y, checkWidth, rowHeight));
-    m_writeProtect[1].SetLabel (L"Drive 2");
     y += rowHeight + sectionGap;
 
     m_writeModeLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
@@ -310,7 +297,6 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_reset.SetLabel (L"Restore defaults");
     m_reset.Layout   (MakeRect (controlsX, y, resetW, rowHeight));
 
-    m_wpLabel.SetDpi         (dpi);
     m_writeModeLabel.SetDpi  (dpi);
     m_audioLabel.SetDpi      (dpi);
     m_mechLabel.SetDpi       (dpi);
@@ -331,8 +317,6 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_diskHeading.SetDpi     (dpi);
     m_tapeHeading.SetDpi     (dpi);
     m_tapeDivider.SetDpi     (dpi);
-    m_writeProtect[0].SetDpi (dpi);
-    m_writeProtect[1].SetDpi (dpi);
     m_motorLabel.SetDpi      (dpi);
     m_headLabel.SetDpi       (dpi);
     m_doorLabel.SetDpi       (dpi);
@@ -399,7 +383,7 @@ int DiskPage::GetLabelColumnPx (const DxuiDpiScaler & scaler) const
 
 
 
-    const DxuiLabel  * topLevel[] = { &m_wpLabel, &m_writeModeLabel, &m_audioLabel, &m_tapeLabel,
+    const DxuiLabel  * topLevel[] = { &m_writeModeLabel, &m_audioLabel, &m_tapeLabel,
                                       &m_tapeVolumeLabel, &m_tapeAutoStopLabel, &m_tapeIdleStopLabel };
     const DxuiLabel    * nested[] = { &m_mechLabel, &m_motorLabel, &m_headLabel, &m_doorLabel, &m_panOneLabel, &m_panTwoLabel };
     const DxuiLabel    * tipped[] = { &m_tapeWavFormatLabel };
@@ -460,8 +444,6 @@ void DiskPage::Rebuild()
     m_tapeIdleStop.SetChecked (state->GetPrefs().tapeIdleStop);
     m_tapeWavFormat.SetSelected (state->GetPrefs().tapeEightBit ? 1 : 0);
     m_tapeVolume.SetValue   (state->GetPrefs().tapeVolume * 100.0f);
-    m_writeProtect[0].SetChecked (state->GetPrefs().writeProtect[0]);
-    m_writeProtect[1].SetChecked (state->GetPrefs().writeProtect[1]);
     m_motorVol.SetValue     (state->GetPrefs().driveMotorVolume * 100.0f);
     m_headVol.SetValue      (state->GetPrefs().driveHeadVolume  * 100.0f);
     m_doorVol.SetValue      (state->GetPrefs().driveDoorVolume  * 100.0f);
@@ -481,8 +463,6 @@ void DiskPage::Rebuild()
     m_tapeIdleStop.SetOnChange ([state] (bool checked) { state->SetTapeIdleStop (checked); });
     m_tapeWavFormat.SetSelect   ([state] (int idx) { state->SetTapeEightBit (idx == 1); });
     m_tapeVolume.SetOnChange ([state] (float v) { state->SetTapeVolume (v / 100.0f); });
-    m_writeProtect[0].SetOnChange ([state] (bool checked) { state->SetWriteProtect (0, checked); });
-    m_writeProtect[1].SetOnChange ([state] (bool checked) { state->SetWriteProtect (1, checked); });
 
     m_motorVol.SetOnChange ([state] (float v) { state->SetDriveMotorVolume (v / 100.0f); });
     m_headVol.SetOnChange  ([state] (float v) { state->SetDriveHeadVolume  (v / 100.0f); });
@@ -661,8 +641,6 @@ void DiskPage::ResetPageToDefaults()
 
     CBRA (m_state != nullptr);
 
-    m_state->SetWriteProtect     (0, defaults.writeProtect[0]);
-    m_state->SetWriteProtect     (1, defaults.writeProtect[1]);
     m_state->SetWriteMode        (defaults.writeMode);
     m_state->SetFloppySound      (defaults.floppySoundEnabled);
     m_state->SetMechanism        (defaults.floppyMechanism);

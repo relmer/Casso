@@ -135,8 +135,20 @@ void ProDosBlockLayout::Walk (const BlockImage & image, BlockFileSystem fileSyst
     uint32_t  bitmap  = 0;
     uint32_t  count   = 0;
     uint32_t  i       = 0;
+    uint32_t  total   = 0;
 
 
+
+    ReadBlock (image, kKeyBlock, key);
+
+    //  A volume smaller than its image, such as a 140K image in a larger
+    //  partition, is mapped to the header's total blocks.
+    total = GetWord (&key[kTotalBlocks]);
+
+    if (total > kKeyBlock && total < blocks)
+    {
+        blocks = total;
+    }
 
     outMap            = BlockMap();
     outMap.fileSystem = fileSystem;
@@ -145,8 +157,6 @@ void ProDosBlockLayout::Walk (const BlockImage & image, BlockFileSystem fileSyst
 
     MarkBlock (walker, 0, SectorRole::BootArea, BlockStructure::BootLoader, -1);
     MarkBlock (walker, 1, SectorRole::BootArea, BlockStructure::BootLoader, -1, 1);
-
-    ReadBlock (image, kKeyBlock, key);
 
     outMap.volumeName = ReadName (&key[kFirstEntry]);
 

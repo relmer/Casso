@@ -151,6 +151,9 @@
     <ResourceCompile Include="EmuTests\DemoAssets.rc" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="CassoExplorer\DiskImageCatalogTests.cpp" />
+    <ClCompile Include="CassoExplorer\DiskMessageTextTests.cpp" />
+    <ClCompile Include="CassoExplorer\HostFolderReaderTests.cpp" />
     <ClCompile Include="EmuTests\DiskCommandTextTests.cpp" />
     <ClCompile Include="EmuTests\DiskFilePayloadTests.cpp" />
     <ClCompile Include="Pch.cpp">
@@ -302,6 +305,7 @@
     <ClCompile Include="EmuTests\MachineConfigUpgradeTests.cpp" />
     <ClCompile Include="EmuTests\MachineScannerTests.cpp" />
     <ClCompile Include="EmuTests\VideoModeTests.cpp" />
+    <ClCompile Include="EmuTests\Disk2RomSwapTests.cpp" />
     <ClCompile Include="EmuTests\Disk2Tests.cpp" />
     <ClCompile Include="EmuTests\Disk2NibbleEngineTests.cpp" />
     <ClCompile Include="EmuTests\DiskImageTests.cpp" />
@@ -386,8 +390,10 @@
     <ClCompile Include="FileTypes\VisiCalcSheetTests.cpp" />
     <ClCompile Include="FileTypes\ZMachineStoryTests.cpp" />
     <ClCompile Include="FileTypes\WizardryScenarioTests.cpp" />
+    <ClCompile Include="CassoExplorer\SavedGamePreviewTests.cpp" />
     <ClCompile Include="FileTypes\VisiCalcEvaluatorTests.cpp" />
     <ClCompile Include="FileTypes\PascalCodefileTests.cpp" />
+    <ClCompile Include="FileTypes\SaveSummaryTests.cpp" />
     <ClCompile Include="EmuTests\NuFxArchiveTests.cpp" />
     <ClCompile Include="EmuTests\ArchiveWrapperTests.cpp" />
     <ClCompile Include="EmuTests\ArchiveVolumeTests.cpp" />
@@ -479,6 +485,7 @@
     <ClCompile Include="CassoLink\CassoLinkCodecTests.cpp" />
     <ClCompile Include="CassoLink\CassoLinkHostTests.cpp" />
     <ClCompile Include="CassoLink\ByteStreamSettingsTests.cpp" />
+    <ClCompile Include="CassoLink\DiskProblemReportTests.cpp" />
     <ClCompile Include="CassoLink\LinkProgramTests.cpp" />
     <ClCompile Include="CassoLink\ShimSccTests.cpp" />
     <ClCompile Include="CassoLink\UniversalSccTests.cpp" />
@@ -492,6 +499,7 @@
     <ClCompile Include="CassoLink\FullSendFolderTests.cpp" />
     <ClCompile Include="CassoLink\FullSendScreenTests.cpp" />
     <ClCompile Include="CassoLink\FullSendTests.cpp" />
+    <ClCompile Include="CassoLink\FullSendManifestTests.cpp" />
     <ClCompile Include="DiskCheck\ThumbnailStoreTests.cpp" />
     <ClCompile Include="DiskCheck\GivenNamesTests.cpp" />
     <ClCompile Include="DiskCheck\DiskThumbnailCommandTests.cpp" />
@@ -545,6 +553,13 @@
     <ClCompile Include="CassoExplorer\CassoExplorerShellIconsTests.cpp" />
     <ClCompile Include="CassoExplorer\FocusRingTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerBrowserTests.cpp" />
+    <ClCompile Include="CassoExplorer\BrowserCellsStatusTests.cpp" />
+    <ClCompile Include="CassoExplorer\BrowserColumnFiltersTests.cpp" />
+    <ClCompile Include="CassoExplorer\BrowserRowOrderTests.cpp" />
+    <ClCompile Include="CassoExplorer\BrowserRowPathsTests.cpp" />
+    <ClCompile Include="CassoExplorer\BrowserSelectionTests.cpp" />
+    <ClCompile Include="CassoExplorer\BrowserNameFilterTests.cpp" />
+    <ClCompile Include="CassoExplorer\BrowserNavigatorTests.cpp" />
     <ClCompile Include="CassoExplorer\BrowserFormattingTests.cpp" />
     <ClCompile Include="CassoExplorer\ChooseDetailsModelTests.cpp" />
     <ClCompile Include="CassoExplorer\IconSizeStepsTests.cpp" />
@@ -604,6 +619,7 @@
     <ClCompile Include="CassoExplorer\CopyOptionRowsTests.cpp" />
     <ClCompile Include="CassoExplorer\HostAppleFileTests.cpp" />
     <ClCompile Include="CassoExplorer\SearchExpressionTests.cpp" />
+    <ClCompile Include="CassoExplorer\CassoLinkJobViewTests.cpp" />
     <ClCompile Include="CassoExplorer\FullSendDialogTests.cpp" />
     <ClCompile Include="CassoExplorer\KrunchMapTests.cpp" />
     <ClCompile Include="CassoExplorer\SearchQueryTests.cpp" />
@@ -907,6 +923,7 @@
     <ClCompile Include="Dxui\DxuiScrollbarTests.cpp" />
     <ClCompile Include="Dxui\DxuiScrollPanelTests.cpp" />
     <ClCompile Include="Dxui\DxuiZoomControlTests.cpp" />
+    <ClCompile Include="Dxui\DxuiZoomPopupTests.cpp" />
     <ClCompile Include="Dxui\DxuiStackLayoutTests.cpp" />
     <ClCompile Include="Dxui\DxuiViewportTests.cpp" />
     <ClCompile Include="Dxui\DxuiWidgetIDxuiControlTests.cpp" />
@@ -1000,6 +1017,7 @@
     <ClInclude Include="MerlinCorpus\MerlinFixture.h" />
     <ClInclude Include="TestCpu65C02.h" />
     <ClInclude Include="EhmTestHelper.h" />
+    <ClInclude Include="FileTypes\WizardryScenarioBuilder.h" />
     <ClInclude Include="HarteTestRunner.h" />
     <ClInclude Include="EmuTests\IFixtureProvider.h" />
     <ClInclude Include="EmuTests\EmbeddedMachineJson.h" />
@@ -1013,6 +1031,7 @@
     <ClInclude Include="CassoLink\FakeNetworkCards.h" />
     <ClInclude Include="CassoLink\FakeScc8530.h" />
     <ClInclude Include="CassoLink\IigsTestCpu.h" />
+    <ClInclude Include="CassoLink\FullSendRig.h" />
     <ClInclude Include="CassoLink\FullSendTestDisks.h" />
     <ClInclude Include="CassoLink\ProgramRig.h" />
     <ClInclude Include="CassoLink\EmulatedCassetteAudio.h" />

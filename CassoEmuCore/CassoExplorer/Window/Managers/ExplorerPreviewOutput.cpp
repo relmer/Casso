@@ -9,9 +9,11 @@
 #include "CassoExplorer/Model/DragPayload.h"
 #include "CassoExplorer/Model/PicturePreview.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerVerbs.h"
 #include "Core/AppleSingleCodec.h"
 #include "Core/TextEncoding.h"
 #include "Seams/IHostDialogs.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 
 
@@ -36,7 +38,7 @@ bool ExplorerPreviewOutput::TryGetSource (ExplorerContext & context, Source & ou
         return false;
     }
 
-    context.browser.GetSelectedEntries (entries);
+    context.browser.GetSelection().GetSelectedEntries (entries);
 
     if (entries.size() != 1 || entries[0].isDirectory)
     {
@@ -44,11 +46,11 @@ bool ExplorerPreviewOutput::TryGetSource (ExplorerContext & context, Source & ou
     }
 
     outSource.image       = TextEncoding::WideToNarrow (context.browser.GetLocation().path);
-    outSource.catalogPath = context.browser.GetEntryPath (entries[0]);
+    outSource.catalogPath = BrowserRowPaths::GetEntryPath (context.browser.GetLocation(), entries[0]);
     outSource.entry       = entries[0];
     outSource.kind        = context.browser.GetVolumeKind();
     outSource.format      = CopyOutConversion::Find (context.browser.GetOperations(), outSource.image, outSource.catalogPath, outSource.entry, outSource.kind,
-                                                     context.browser.GetDecodeOptions (context.browser.GetLocation().path, outSource.catalogPath));
+                                                     context.browser.GetPreviewer().GetDecodeOptions (context.browser.GetLocation().path, outSource.catalogPath));
 
     return true;
 }
@@ -65,14 +67,14 @@ bool ExplorerPreviewOutput::TryGetSource (ExplorerContext & context, Source & ou
 
 bool ExplorerPreviewOutput::CanSaveAs (const ExplorerContext & context)
 {
-    const PreviewContent &  preview  = context.browser.GetPreview();
+    const PreviewContent &  preview  = context.browser.GetPreviewer().GetPreview();
     std::vector<FileEntry>  entries;
     bool                    viewable = (preview.kind == PreviewContent::Kind::Picture && !preview.bgra.empty())
                                     || !PreviewSaveChoices::GetViewText (preview).empty();
 
 
 
-    context.browser.GetSelectedEntries (entries);
+    context.browser.GetSelection().GetSelectedEntries (entries);
 
     return context.app.fs != nullptr && (viewable || (entries.size() == 1 && !entries[0].isDirectory));
 }
@@ -107,7 +109,7 @@ void ExplorerPreviewOutput::SaveAs (ExplorerContext & context)
 
     if (inImage)
     {
-        converted = DragPayload::GetHostName (source.entry, source.kind, context.commandManager.GetNamingStyle(), altered, source.format);
+        converted = DragPayload::GetHostName (source.entry, source.kind, context.verbs.GetNamingStyle(), altered, source.format);
         stem      = std::filesystem::path (converted).stem().wstring();
     }
     else if (selected.size() == 1 && selected[0] >= 0 && (size_t) selected[0] < context.browser.GetRows().size())
@@ -115,7 +117,7 @@ void ExplorerPreviewOutput::SaveAs (ExplorerContext & context)
         stem = std::filesystem::path (context.browser.GetRows()[(size_t) selected[0]].name).stem().wstring();
     }
 
-    PreviewSaveChoices::Build (context.browser.GetPreview(), converted, choices);
+    PreviewSaveChoices::Build (context.browser.GetPreviewer().GetPreview(), converted, choices);
 
     //  A file not in an image has the view's types only.
     if (!inImage)
@@ -168,7 +170,7 @@ Error:
 HRESULT ExplorerPreviewOutput::WriteChoice (ExplorerContext & context, PreviewSaveChoices::Kind kind, const Source & source, const std::filesystem::path & path)
 {
     HRESULT                   hr      = S_OK;
-    const PreviewContent    & preview = context.browser.GetPreview();
+    const PreviewContent    & preview = context.browser.GetPreviewer().GetPreview();
     std::vector<Byte>         bytes;
     std::string               text;
     DiskOperations::Result    result;
@@ -192,7 +194,7 @@ HRESULT ExplorerPreviewOutput::WriteChoice (ExplorerContext & context, PreviewSa
 
         case PreviewSaveChoices::Kind::Converted:
             result = CopyOutConversion::GetToFile (context.browser.GetOperations(), *context.app.fs,
-                                                   context.browser.GetDecodeOptions (TextEncoding::NarrowToWide (source.image), source.catalogPath),
+                                                   context.browser.GetPreviewer().GetDecodeOptions (TextEncoding::NarrowToWide (source.image), source.catalogPath),
                                                    source.image, source.catalogPath, source.entry, source.kind, source.format,
                                                    CassoExplorerActions::GetEncoding (source.entry, source.kind), path.wstring());
             read    = result.Succeeded();
@@ -242,7 +244,7 @@ Error:
 
 bool ExplorerPreviewOutput::CanCopy (const ExplorerContext & context)
 {
-    const PreviewContent &  preview = context.browser.GetPreview();
+    const PreviewContent &  preview = context.browser.GetPreviewer().GetPreview();
 
 
 
@@ -264,7 +266,7 @@ bool ExplorerPreviewOutput::CanCopy (const ExplorerContext & context)
 void ExplorerPreviewOutput::Copy (ExplorerContext & context)
 {
     HRESULT                   hr      = S_OK;
-    const PreviewContent    & preview = context.browser.GetPreview();
+    const PreviewContent    & preview = context.browser.GetPreviewer().GetPreview();
     Source                    source;
     std::vector<Byte>         rtf;
     std::wstring              failure;
@@ -275,7 +277,7 @@ void ExplorerPreviewOutput::Copy (ExplorerContext & context)
     if (preview.kind == PreviewContent::Kind::Document && TryGetSource (context, source) && source.format != FileFormat::None)
     {
         result = CopyOutConversion::Get (context.browser.GetOperations(),
-                                         context.browser.GetDecodeOptions (TextEncoding::NarrowToWide (source.image), source.catalogPath),
+                                         context.browser.GetPreviewer().GetDecodeOptions (TextEncoding::NarrowToWide (source.image), source.catalogPath),
                                          source.image, source.catalogPath, source.entry, source.kind, source.format,
                                          CassoExplorerActions::GetEncoding (source.entry, source.kind), failure);
 

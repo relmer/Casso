@@ -42,6 +42,10 @@ public:
     //  separator does nothing.
     void  SetPopupHost (DxuiHwndSource * host) { m_popupHost = host; }
 
+    //  The text for the tree's root and the address bar's first segment;
+    //  with none, the file's name.
+    void  SetRootLabel (const std::wstring & label) { m_rootLabel = label; }
+
     //  Casso Explorer's address bar menu at a point: Copy Address, Copy
     //  Address as Text and Edit Address. `focus` moves the keyboard focus to
     //  the address bar for the edit.
@@ -70,10 +74,11 @@ public:
     //  selected, or the block's file is selected in its directory.
     void  SelectForBlock (uint32_t block);
 
-    const BlockPlace     & GetPlace     () const { return m_browser.GetPlace(); }
-    const BlockBrowser   & GetBrowser   () const { return m_browser; }
-    const BlockListing   & GetListing   () const { return m_listing; }
-    bool                   IsBlockPlace () const { return GetPlace().kind == BlockPlace::Kind::Block; }
+    const BlockPlace    & GetPlace     () const { return m_browser.GetPlace(); }
+    const BlockBrowser  & GetBrowser   () const { return m_browser; }
+    BlockBrowser        & GetBrowser   ()       { return m_browser; }
+    const BlockListing  & GetListing   () const { return m_listing; }
+    bool                  IsBlockPlace () const { return GetPlace().kind == BlockPlace::Kind::Block; }
 
     //  The selected row's name or path, or the place's, for the status line.
     std::wstring  GetSelectionLine () const;
@@ -117,6 +122,7 @@ private:
     IShellIcons                           * m_icons        = nullptr;
     DxuiHwndSource                        * m_popupHost    = nullptr;
     HWND                                    m_hwnd         = nullptr;
+    std::wstring                            m_rootLabel;
     vector<std::shared_ptr<DxuiCommand>>    m_menuCommands;
     BlockBrowser                            m_browser;
     BlockListing                            m_listing;

@@ -91,6 +91,7 @@ enum class FindingKind
     Dos33EntryNameMixed,
     Dos33EntryTypeUnknown,
     Dos33EntryCountTooLarge,
+    Dos33EntryCountDiffers,
     Dos33CatalogNonstandard,
     Dos33StoredLengthDiffers,
     Dos33ListOffsetDiffers,

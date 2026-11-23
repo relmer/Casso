@@ -44,6 +44,11 @@ public:
     //  Boot blocks + PRODOS + BASIC.SYSTEM from the master image.
     static HRESULT  InstallBoot (vector<Byte> & buffer, const vector<Byte> & usersDisk);
 
+    //  A loader in an empty block 0 that prints "*** UNABLE TO LOAD PRODOS ***"
+    //  and stops, as a ProDOS disk with no PRODOS file does. A block 0 with
+    //  any loader already in it is left alone.
+    static void     InstallNoSystemLoader (vector<Byte> & buffer);
+
     //  The volume directory header's name, or false when the buffer has no
     //  ProDOS volume directory.
     static bool     TryGetVolumeName (const vector<Byte> & buffer, std::string & outName);
@@ -57,6 +62,8 @@ public:
     static bool     IsValidVolumeSize     (size_t bufferBytes);
     static bool     IsBlockOrder          (size_t bufferBytes);
     static int      GetReservedBlockCount (size_t bufferBytes);
+    static int      GetReservedBlocks     (int volumeBlocks);
+    static int      GetVolumeBlockCount   (const BlockImage & volume);
     static size_t   GetBitmapByteOffset   (const BlockImage & buffer, uint32_t block);
 
     //  A directory's entries a block, from its header: 13 as ProDOS writes,

@@ -1,10 +1,13 @@
 #include "Pch.h"
+#include "CassoExplorer/Picker/FileMaskSet.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Picker/PickerRequest.h"
 #include "CassoExplorer/Window/ExplorerContext.h"
 #include "CassoExplorer/Window/IExplorerWindow.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerImageTools.h"
 #include "CassoExplorer/Window/Managers/ExplorerPickerMode.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
@@ -83,7 +86,7 @@ bool ExplorerPickerMode::TryGetRowFile (int row, std::wstring & outPath) const
     }
 
     outPath = !rows[(size_t) row].hostPath.empty() ? rows[(size_t) row].hostPath
-            : inFolder                             ? CassoExplorerBrowser::JoinPath (location.path, rows[(size_t) row].name)
+            : inFolder                             ? BrowserRowPaths::JoinPath (location.path, rows[(size_t) row].name)
                                                    : std::wstring();
 
     return !outPath.empty();
@@ -196,7 +199,7 @@ bool ExplorerPickerMode::TryMakeSavePath (const PickerRequest & request, size_t 
         name += L"." + extension;
     }
 
-    outPath = CassoExplorerBrowser::JoinPath (location.path, name);
+    outPath = BrowserRowPaths::JoinPath (location.path, name);
 
     return true;
 }
@@ -418,7 +421,7 @@ void ExplorerPickerMode::CreateNew()
         return;
     }
 
-    isCreated = request->onCreateNew ? request->onCreateNew (path) : m_context.commandManager.CreateDiskForPicker (path);
+    isCreated = request->onCreateNew ? request->onCreateNew (path) : m_context.imageTools.CreateDiskForPicker (path);
 
     if (isCreated && !path.empty())
     {
@@ -506,7 +509,7 @@ bool ExplorerPickerMode::HandleActivateRow (int row)
         return m_context.IsPicker() && m_context.browser.IsImageLocation();
     }
 
-    m_context.browser.SetSelectedRows ({ row });
+    m_context.browser.GetSelection().SetSelectedRows ({ row });
 
     //  In a save form the opened file's name is the name saved under.
     if (m_context.app.picker->IsSave())
@@ -567,6 +570,21 @@ void ExplorerPickerMode::SetActiveFilter (size_t index)
     }
 
     m_scope.SetActiveFilter (index);
+
+    //  A save form's name takes the new type's extension.
+    if (m_context.app.picker->IsSave() && m_context.pickerBar.HasNameBox())
+    {
+        std::vector<FileMaskSet>  all;
+
+
+
+        for (const FileDialogFilter & filter : m_context.app.picker->filters)
+        {
+            all.emplace_back (filter.pattern);
+        }
+
+        m_context.pickerBar.SetNameText (FileMaskSet::ApplyToName (m_context.pickerBar.GetNameText(), all[index], all));
+    }
 
     hr = m_context.browser.Refresh();
     IGNORE_RETURN_VALUE (hr, S_OK);

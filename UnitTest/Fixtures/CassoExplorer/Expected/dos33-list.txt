@@ -1,3 +1,5 @@
+DOS 3.3 disk
+
 DISK VOLUME 77
 
  A 002 HELLO
@@ -9,4 +11,6 @@ DISK VOLUME 77
  I 002 INTPROG
 
 379 sectors free of 560
+
+Not bootable: no DOS on tracks 0 to 2
 

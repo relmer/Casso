@@ -4,6 +4,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerPickerMode.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerSearch.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/CassoExplorerNamedControl.h"
@@ -23,6 +24,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerToolbars.h"
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerVerbs.h"
 #include "CassoExplorer/Window/Managers/ExplorerClipboard.h"
 #include "CassoExplorer/Window/Managers/ExplorerDeletion.h"
 #include "CassoExplorer/Window/Managers/ExplorerRename.h"
@@ -188,7 +190,7 @@ void ExplorerListPane::Configure()
 
     m_list->SetOnSortColumn ([this] (int column)
     {
-        m_context.browser.SortByColumn (column);
+        m_context.browser.GetRowOrder().SortByColumn (column);
         m_columns.RememberFolderSort();
         FillList();
     });
@@ -239,7 +241,7 @@ void ExplorerListPane::Configure()
 
             if (item.isDirectory && !item.hostPath.empty())
             {
-                m_context.browser.NavigateToLocation (Location::MakeHostFolder (item.hostPath));
+                m_context.browser.GetNavigator().NavigateToLocation (Location::MakeHostFolder (item.hostPath));
                 FillList();
             }
             else
@@ -256,7 +258,7 @@ void ExplorerListPane::Configure()
         //  A deleted item opens its properties, as Explorer's does.
         if (m_context.browser.GetLocation().kind == Location::Kind::RecycleBin)
         {
-            m_context.commandManager.RunRecycleBinVerb (CassoExplorerActions::Verb::Open);
+            m_context.verbs.RunRecycleBinVerb (CassoExplorerActions::Verb::Open);
         }
         else if (row >= 0 && (size_t) row < m_context.browser.GetRows().size() && m_context.browser.GetRows()[(size_t) row].cassoLinkItem == CatalogRow::CassoLinkItem::AddMachine)
         {
@@ -293,7 +295,7 @@ void ExplorerListPane::Configure()
             std::wstring  path;
             HRESULT       hr = S_OK;
 
-            if (m_context.browser.PrepareCassoLinkItems() && m_context.browser.TryGetRowPath (row, path))
+            if (m_context.browser.GetLoader().PrepareCassoLinkItems() && BrowserRowPaths::TryGetRowPath (m_context.browser.GetRowListing(), row, path))
             {
                 hr = m_context.shellVerbs.Open (m_context.window.GetHwnd(), path);
                 IGNORE_RETURN_VALUE (hr, S_OK);
@@ -460,7 +462,7 @@ void ExplorerListPane::PressRight (POINT local, POINT point)
 
     //  A group's header selects its rows and adds the group's commands to
     //  the menu for them, as Explorer's does.
-    if (group >= 0 && m_context.browser.IsHomeSectioned())
+    if (group >= 0 && m_context.browser.GetRowOrder().IsHomeSectioned())
     {
         return;
     }
@@ -659,7 +661,7 @@ bool ExplorerListPane::HandleShortcutKey (const DxuiKeyEvent & ev)
     if (m_context.input.GetFocusPane() == ExplorerPane::List && ev.ctrl && !ev.alt && ev.vk == 'C'
         && m_context.browser.IsVolumeLocation() && !m_context.browser.GetSelectedRows().empty())
     {
-        m_context.clipboard.CopyEntriesToClipboard (m_context.commandManager.GetNamingStyle());
+        m_context.clipboard.CopyEntriesToClipboard (m_context.verbs.GetNamingStyle());
         return true;
     }
 
@@ -682,11 +684,11 @@ bool ExplorerListPane::HandleShortcutKey (const DxuiKeyEvent & ev)
     {
         if (ev.vk == 'V')
         {
-            m_context.commandManager.RunVerb (CassoExplorerActions::Verb::Paste);
+            m_context.verbs.RunVerb (CassoExplorerActions::Verb::Paste);
         }
         else if (!m_context.browser.GetSelectedRows().empty())
         {
-            m_context.commandManager.RunVerb (ev.vk == 'X' ? CassoExplorerActions::Verb::Cut : CassoExplorerActions::Verb::Copy);
+            m_context.verbs.RunVerb (ev.vk == 'X' ? CassoExplorerActions::Verb::Cut : CassoExplorerActions::Verb::Copy);
         }
 
         return true;
@@ -694,7 +696,7 @@ bool ExplorerListPane::HandleShortcutKey (const DxuiKeyEvent & ev)
 
     if (ev.vk == VK_F2 && m_context.input.GetFocusPane() == ExplorerPane::List && m_menus.IsListVerbOffered (CassoExplorerActions::Verb::Rename))
     {
-        m_context.commandManager.RunVerb (CassoExplorerActions::Verb::Rename);
+        m_context.verbs.RunVerb (CassoExplorerActions::Verb::Rename);
         return true;
     }
 
@@ -704,13 +706,13 @@ bool ExplorerListPane::HandleShortcutKey (const DxuiKeyEvent & ev)
         //  inside a disk image or an Apple's drive every deletion is for good
         //  and confirmed first, and CassoLink's items are temp copies.
         if (ev.shift && (m_context.browser.GetLocation().kind == Location::Kind::HostFolder || m_context.browser.GetLocation().kind == Location::Kind::ShellFolder)
-            && !m_context.browser.TryGetSelectedCassoLinkPaths (linkPaths))
+            && !m_context.browser.GetLoader().TryGetSelectedCassoLinkPaths (linkPaths))
         {
             m_context.deletion.DeleteSelectionPermanently();
         }
         else
         {
-            m_context.commandManager.RunVerb (CassoExplorerActions::Verb::Delete);
+            m_context.verbs.RunVerb (CassoExplorerActions::Verb::Delete);
         }
 
         return true;
@@ -891,7 +893,7 @@ void ExplorerListPane::RefreshTip()
             //  A broken image's tip says why it is broken.
             details = m_rowProblems[(size_t) row];
         }
-        else if ((m_context.browser.GetLocation().kind == Location::Kind::HostFolder && m_context.browser.TryGetRowPath (row, path))
+        else if ((m_context.browser.GetLocation().kind == Location::Kind::HostFolder && BrowserRowPaths::TryGetRowPath (m_context.browser.GetRowListing(), row, path))
                  || IsHostFileRow (row0, path))
         {
             //  Not yet read: the tip comes when it is, by a posted message.
@@ -986,7 +988,7 @@ bool ExplorerListPane::IsSelectionOpenable() const
 void ExplorerListPane::OnSelectionChanged()
 {
     m_context.preview.HandleSelectionChanged();
-    m_context.browser.SetSelectedRows (m_list->GetSelectedRows());
+    m_context.browser.GetSelection().SetSelectedRows (m_list->GetSelectedRows());
 
     //  A closed pane that may open for a folder, disk image or archive is
     //  filled after the double-click time, so the first press of a double-click
@@ -998,6 +1000,12 @@ void ExplorerListPane::OnSelectionChanged()
     else
     {
         m_context.preview.FillPreview();
+    }
+
+    //  An image selected on an A2Pico card may be offered as a drive.
+    if (m_bars.Fill())
+    {
+        Layout (m_paneRect);
     }
 
     m_context.statusBar.Fill();
@@ -1110,7 +1118,7 @@ void ExplorerListPane::FillList()
     {
         return (row >= 0 && (size_t) row < m_context.browser.GetRows().size()) ? m_context.browser.GetRows()[(size_t) row].name : std::wstring();
     });
-    m_list->SetGroups    (m_context.browser.GetListGroups());
+    m_list->SetGroups    (m_context.browser.GetRowOrder().GetListGroups());
 
     //  A new tab's location is the list's first, so nothing below names Home
     //  in the search box.
@@ -1123,16 +1131,16 @@ void ExplorerListPane::FillList()
 
     m_context.folderSync.CheckOpenedCard();
 
-    if (m_context.browser.IsHomeSectioned())
+    if (m_context.browser.GetRowOrder().IsHomeSectioned())
     {
         static constexpr int  s_kSharedTab = 2;
 
         DxuiListViewTypes::HomeHeader  header;
-        bool                           shared = m_context.browser.GetHomeTab() == s_kSharedTab;
+        bool                           shared = m_context.browser.GetRowOrder().GetHomeTab() == s_kSharedTab;
 
         header.tabs     = { L"Recent", L"Favorites", L"Shared" };
         header.glyphs   = { L"\xE823", L"\xE734", L"\xE716" };
-        header.active   = m_context.browser.GetHomeTab();
+        header.active   = m_context.browser.GetRowOrder().GetHomeTab();
         header.columns  = shared ? std::vector<std::wstring> { L"Date shared", L"Shared by", L"Activity" } : std::vector<std::wstring> { L"Date accessed", L"Activity" };
         header.columnAt = shared ? std::vector<float> { 0.41f, 0.60f, 0.80f } : std::vector<float> { 0.495f, 0.755f };
         header.onTab    = [this] (int tab)
@@ -1332,24 +1340,24 @@ const std::vector<DxuiListView::Cell> & ExplorerListPane::GetListRowCells (int r
         cells[0].argb = BrowserCells::GetNameArgb (rows[(size_t) row], m_context.browser.GetFolderOptions(), m_rowDark);
 
         //  A picker's search marks the words typed in each name.
-        if (!m_context.browser.GetNameFilter().empty())
+        if (!m_context.browser.GetNameFilter().GetText().empty())
         {
-            cells[0].matches = SearchQuery::FindNameMatches (cells[0].text, CassoExplorerBrowser::SplitFilterWords (m_context.browser.GetNameFilter()));
+            cells[0].matches = SearchQuery::FindNameMatches (cells[0].text, BrowserNameFilter::SplitFilterWords (m_context.browser.GetNameFilter().GetText()));
         }
 
         ApplyPropertyCells (row, cells);
 
         //  Cut and not yet pasted, it draws dimmed, as Explorer's does.
-        if (!m_cutPaths.empty() && m_context.browser.TryGetRowPath (row, path) &&
+        if (!m_cutPaths.empty() && BrowserRowPaths::TryGetRowPath (m_context.browser.GetRowListing(), row, path) &&
             std::any_of (m_cutPaths.begin(), m_cutPaths.end(), [&] (const std::wstring & cut) { return ExplorerFolderSync::IsSameFolder (cut, path); }))
         {
             cells[0].iconGhosted = true;
         }
 
         //  A disk image that is not one says so on its icon.
-        if (rows[(size_t) row].isDiskImage && m_rowLocation.kind == Location::Kind::HostFolder && m_context.browser.TryGetRowPath (row, path))
+        if (rows[(size_t) row].isDiskImage && m_rowLocation.kind == Location::Kind::HostFolder && BrowserRowPaths::TryGetRowPath (m_context.browser.GetRowListing(), row, path))
         {
-            m_rowProblems[(size_t) row] = m_context.browser.GetImageProblem (path);
+            m_rowProblems[(size_t) row] = m_context.browser.GetLoader().GetImageProblem (path);
             cells[0].iconBroken                  = !m_rowProblems[(size_t) row].empty();
         }
 
@@ -1402,7 +1410,7 @@ bool ExplorerListPane::TryApplyContentDetails (int row, DxuiListView::Cell & nam
     host = rows[(size_t) row].folderPath.empty() && !rows[(size_t) row].isDrive
         && (m_rowLocation.kind == Location::Kind::HostFolder || !rows[(size_t) row].hostPath.empty());
 
-    if (!host || !m_context.browser.TryGetRowPath (row, path) || !m_contentDetails.TryGet (path, slots))
+    if (!host || !BrowserRowPaths::TryGetRowPath (m_context.browser.GetRowListing(), row, path) || !m_contentDetails.TryGet (path, slots))
     {
         return false;
     }
@@ -1615,9 +1623,9 @@ void ExplorerListPane::HandleHomeRowAction (int row, int action)
 
     if (action == s_kOpenLocation && !item.hostPath.empty())
     {
-        std::wstring  folder = CassoExplorerBrowser::GetParentFolder (item.hostPath);
+        std::wstring  folder = BrowserRowPaths::GetParentFolder (item.hostPath);
 
-        m_context.browser.NavigateToLocation (Location::MakeHostFolder (folder));
+        m_context.browser.GetNavigator().NavigateToLocation (Location::MakeHostFolder (folder));
         FillList();
         SelectWhenListed (folder, { item.name });
     }
@@ -1646,7 +1654,7 @@ void ExplorerListPane::HandleHomeRowAction (int row, int action)
         IGNORE_RETURN_VALUE (got, TRUE);
 
         m_list->SetSelectedRow (row);
-        m_context.browser.SetSelectedRows (m_list->GetSelectedRows());
+        m_context.browser.GetSelection().SetSelectedRows (m_list->GetSelectedRows());
         m_context.preview.FillPreview();
         m_menus.ShowListContextMenu (screen.x, screen.y, -1);
     }
@@ -1752,7 +1760,7 @@ void ExplorerListPane::SelectArrivals()
 
     m_arrivalNames.clear();
 
-    m_context.browser.SetSelectedRows (found);
+    m_context.browser.GetSelection().SetSelectedRows (found);
     m_list->SetSelectedRows (found, found[0]);
     m_list->EnsureVisible (found[0]);
 
@@ -1783,7 +1791,7 @@ bool ExplorerListPane::SelectRowNamed (const std::wstring & name)
     {
         if (_wcsicmp (rows[i].name.c_str(), name.c_str()) == 0)
         {
-            m_context.browser.SetSelectedRows ({ (int) i });
+            m_context.browser.GetSelection().SetSelectedRows ({ (int) i });
             m_list->SetSelectedRows ({ (int) i }, (int) i);
             m_list->EnsureVisible ((int) i);
 
@@ -1847,11 +1855,11 @@ void ExplorerListPane::HandleShellListed (const std::wstring & key)
     {
         //  An archive's contents, read on a network, for the preview of the
         //  archive selected, if it is the selection.
-        m_context.browser.GetSelectedHostPaths (paths);
+        m_context.browser.GetSelection().GetSelectedHostPaths (paths);
 
         if (paths.size() == 1 && paths[0] == key.substr (wcslen (CassoExplorerBrowser::s_kPreviewKey)))
         {
-            m_context.browser.RefreshPreview();
+            m_context.browser.GetPreviewer().UpdatePreview();
             m_context.preview.FillPreview();
         }
     }
@@ -2176,7 +2184,7 @@ void ExplorerListPane::HandleContentDetailsArrived()
         static constexpr ULONGLONG  s_kRearrangeMs = 1000;
 
         ULONGLONG  now      = GetTickCount64();
-        bool       property = model.HasTabs() && (RowGrouping::IsPropertyField (model.GetActiveTab().groupBy) || m_context.browser.IsPropertyColumn ((int) model.GetActiveTab().sortColumn));
+        bool       property = model.HasTabs() && (RowGrouping::IsPropertyField (model.GetActiveTab().groupBy) || m_context.browser.GetRowOrder().IsPropertyColumn ((int) model.GetActiveTab().sortColumn));
 
         //  Rows sorted or grouped by a property move as its values arrive: at
         //  most once a second, so a large folder stays usable, and when the
@@ -2184,7 +2192,7 @@ void ExplorerListPane::HandleContentDetailsArrived()
         if (property && (m_propertyValues.IsQueueEmpty() || now - m_lastRearrangeMs >= s_kRearrangeMs))
         {
             m_lastRearrangeMs = now;
-            m_context.browser.SetGroupBy (model.GetActiveTab().groupBy, model.GetActiveTab().groupDescending);
+            m_context.browser.GetRowOrder().SetGroupBy (model.GetActiveTab().groupBy, model.GetActiveTab().groupDescending);
             FillList();
         }
 
@@ -2228,7 +2236,7 @@ void ExplorerListPane::FitColumnOnceRead (size_t column)
 
 bool ExplorerListPane::GetPropertyPath (int row, std::wstring & outPath) const
 {
-    if (m_context.browser.TryGetRowPath (row, outPath))
+    if (BrowserRowPaths::TryGetRowPath (m_context.browser.GetRowListing(), row, outPath))
     {
         return true;
     }

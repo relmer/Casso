@@ -15,12 +15,14 @@
 #include "CassoExplorer/Window/Managers/ExplorerDeletion.h"
 #include "CassoExplorer/Window/Managers/ExplorerUndo.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerVerbs.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "Seams/Win32ShellItemVerbs.h"
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 #include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
 #include "Core/AppMessages.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 
 
@@ -207,7 +209,7 @@ bool ExplorerDragDrop::TryGetAppleDropDrive (int tag, POINT screen, Location & o
 
     row = m_context.listPane.IsVisible() ? m_context.listPane.HitTestRow (client) : -1;
 
-    if (row >= 0 && m_context.browser.TryGetRowLocation (row, location) && location.kind == Location::Kind::AppleDrive)
+    if (row >= 0 && BrowserRowPaths::TryGetRowLocation (m_context.browser.GetRowListing(), row, location) && location.kind == Location::Kind::AppleDrive)
     {
         outDrive = location;
         return true;
@@ -266,7 +268,7 @@ bool ExplorerDragDrop::TryGetDropLocation (int tag, POINT screen, Location & out
 
         //  A disk image row in a folder, or a directory row in an image, takes
         //  the drop itself; anywhere else in the list, the location shown does.
-        if (row < 0 || !m_context.browser.TryGetRowLocation (row, outLocation) ||
+        if (row < 0 || !BrowserRowPaths::TryGetRowLocation (m_context.browser.GetRowListing(), row, outLocation) ||
             (outLocation.kind != Location::Kind::DiskDirectory && outLocation.kind != Location::Kind::DiskImage))
         {
             outLocation = m_context.browser.GetLocation();
@@ -327,7 +329,7 @@ bool ExplorerDragDrop::TryGetHostDropFolder (int tag, POINT screen, std::wstring
 
         //  A disk image's row takes the drop itself, so its folder is not the
         //  target; a drop on a file row that takes none goes to the listed folder.
-        if (row >= 0 && m_context.browser.TryGetRowLocation (row, location) && location.kind != Location::Kind::HostFolder && location.kind != Location::Kind::RecycleBin)
+        if (row >= 0 && BrowserRowPaths::TryGetRowLocation (m_context.browser.GetRowListing(), row, location) && location.kind != Location::Kind::HostFolder && location.kind != Location::Kind::RecycleBin)
         {
             return false;
         }
@@ -383,7 +385,7 @@ bool ExplorerDragDrop::IsShellDropFile (int row, std::wstring & outPath) const
 
     const CatalogRow &  item = m_context.browser.GetRows()[(size_t) row];
 
-    if (item.isDirectory || item.isDiskImage || !m_context.browser.TryGetRowPath (row, outPath))
+    if (item.isDirectory || item.isDiskImage || !BrowserRowPaths::TryGetRowPath (m_context.browser.GetRowListing(), row, outPath))
     {
         return false;
     }
@@ -598,7 +600,7 @@ bool ExplorerDragDrop::IsDraggedFromFolder (IDataObject * data, const std::wstri
 
     return !paths.empty() && std::all_of (paths.begin(), paths.end(), [&folder] (const std::wstring & path)
     {
-        return ExplorerFolderSync::IsSameFolder (CassoExplorerBrowser::GetParentFolder (path), folder);
+        return ExplorerFolderSync::IsSameFolder (BrowserRowPaths::GetParentFolder (path), folder);
     });
 }
 
@@ -1142,7 +1144,7 @@ void ExplorerDragDrop::ShowDropTarget (int tag, POINT screen, bool accepted)
 
         std::wstring  target;
 
-        if (row >= 0 && ((m_context.browser.TryGetRowLocation (row, location) &&
+        if (row >= 0 && ((BrowserRowPaths::TryGetRowLocation (m_context.browser.GetRowListing(), row, location) &&
                           (location.kind == Location::Kind::DiskDirectory || location.kind == Location::Kind::DiskImage
                            || location.kind == Location::Kind::HostFolder || location.kind == Location::Kind::AppleDrive))
                          || IsShellDropFile (row, target)))
@@ -1393,7 +1395,7 @@ void ExplorerDragDrop::HandleDrop (IDataObject * data, int tag, POINT screen)
         outcome = source.fromImage ? m_context.actions.CopyEntriesToAppleDrive (source.image, source.kind, source.catalogPaths)
                                    : m_context.actions.PutFiles (source.hostPaths, m_context.prompts.MakeAddressPrompt());
 
-        m_context.commandManager.ReportOutcome (outcome, L"Put");
+        m_context.verbs.ReportOutcome (outcome, L"Put");
         RemoveVirtualFiles();
         return;
     }
@@ -1493,7 +1495,7 @@ void ExplorerDragDrop::HandleDrop (IDataObject * data, int tag, POINT screen)
         m_context.undo.PushPut (outcome, location.path, inner);
     }
 
-    m_context.commandManager.ReportOutcome (outcome, (effect == DROPEFFECT_MOVE) ? L"Move" : L"Put");
+    m_context.verbs.ReportOutcome (outcome, (effect == DROPEFFECT_MOVE) ? L"Move" : L"Put");
     m_context.folderSync.RefreshAfterHostChange();
 
     RemoveVirtualFiles();
@@ -1519,7 +1521,7 @@ void ExplorerDragDrop::BeginDragOut()
     DWORD                                    effect   = DROPEFFECT_NONE;
     DWORD                                    logical  = DROPEFFECT_NONE;
     bool                                     moved    = false;
-    HostFileNaming::Style                    style    = m_context.commandManager.GetNamingStyle();
+    HostFileNaming::Style                    style    = m_context.verbs.GetNamingStyle();
     auto                                     log      = std::make_shared<CassoExplorerDragOut::RenderLog>();
     std::vector<DxuiDragDropSource::Format>  formats  = CassoExplorerDragOut::BuildFormats (m_context.browser, style, log, false, m_context.prefs.rawCopyMenu);
     POINT                                    start    = {};
@@ -1545,7 +1547,7 @@ void ExplorerDragDrop::BeginDragOut()
     //  image is dragged out.
     if (m_context.IsPicker())
     {
-        if (m_context.browser.TryGetSelectedShellIds (shellIds))
+        if (m_context.browser.GetSelection().TryGetSelectedShellIds (shellIds))
         {
             hr = m_context.shellVerbs.DragItems (shellIds, DROPEFFECT_COPY, icon.get());
             IGNORE_RETURN_VALUE (hr, S_OK);
@@ -1572,7 +1574,7 @@ void ExplorerDragDrop::BeginDragOut()
         return;
     }
 
-    if (!m_context.browser.PrepareCassoLinkItems())
+    if (!m_context.browser.GetLoader().PrepareCassoLinkItems())
     {
         return;
     }
@@ -1581,7 +1583,7 @@ void ExplorerDragDrop::BeginDragOut()
     //  do: the shell's own data object, with its thumbnails, its drop words,
     //  and what each target does with it. Only an image's entries need the
     //  formats built here.
-    if (m_context.browser.TryGetSelectedShellIds (shellIds))
+    if (m_context.browser.GetSelection().TryGetSelectedShellIds (shellIds))
     {
         hr = m_context.shellVerbs.DragItems (shellIds, DROPEFFECT_COPY | DROPEFFECT_MOVE | DROPEFFECT_LINK, images ? icon.get() : nullptr);
         IGNORE_RETURN_VALUE (hr, S_OK);
@@ -1599,11 +1601,11 @@ void ExplorerDragDrop::BeginDragOut()
     //  What a move would take away, read now: the drag may change the list.
     if (inImage || onDrive)
     {
-        m_context.browser.GetSelectedEntries (entries);
+        m_context.browser.GetSelection().GetSelectedEntries (entries);
 
         for (const FileEntry & entry : entries)
         {
-            paths.push_back (m_context.browser.GetEntryPath (entry));
+            paths.push_back (BrowserRowPaths::GetEntryPath (m_context.browser.GetLocation(), entry));
         }
     }
 
@@ -1628,7 +1630,7 @@ void ExplorerDragDrop::BeginDragOut()
     //  as Get does.
     if (!rawFolder.empty())
     {
-        m_context.commandManager.ReportOutcome (m_context.actions.GetSelected (rawFolder, style, m_context.prompts.MakeCollisionPrompt(), true), L"Copy");
+        m_context.verbs.ReportOutcome (m_context.actions.GetSelected (rawFolder, style, m_context.prompts.MakeCollisionPrompt(), true), L"Copy");
         m_context.window.Invalidate();
         return;
     }
@@ -1654,12 +1656,12 @@ void ExplorerDragDrop::BeginDragOut()
     {
         //  Deleted over the link, after the reads the drop made.
         outcome = m_context.actions.DeleteDriveEntries (entries);
-        m_context.commandManager.ReportOutcome (outcome, L"Move");
+        m_context.verbs.ReportOutcome (outcome, L"Move");
     }
     else if (moved && inImage && !paths.empty())
     {
         outcome = m_context.actions.DeleteEntries (image, paths);
-        m_context.commandManager.ReportOutcome (outcome, L"Move");
+        m_context.verbs.ReportOutcome (outcome, L"Move");
         m_context.folderSync.RefreshAfterHostChange();
     }
 
@@ -1773,7 +1775,7 @@ void ExplorerDragDrop::RunDrop (CassoExplorerActions::Conversion conversion)
     }
 
     m_context.undo.PushPut    (outcome, drop.location.path, drop.inner);
-    m_context.commandManager.ReportOutcome  (outcome, L"Put");
+    m_context.verbs.ReportOutcome  (outcome, L"Put");
     m_context.folderSync.RefreshAfterHostChange();
 
     RemoveVirtualFiles();
@@ -1796,6 +1798,6 @@ void ExplorerDragDrop::HandleDropFile (const std::wstring & path)
 
 
     m_context.undo.PushPut   (outcome, m_context.browser.GetLocation().path, m_context.browser.GetLocation().innerPath);
-    m_context.commandManager.ReportOutcome (outcome, L"Put");
+    m_context.verbs.ReportOutcome (outcome, L"Put");
     m_context.listPane.FillList();
 }

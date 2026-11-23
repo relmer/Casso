@@ -84,11 +84,14 @@ public:
     //  card is listed as an arrival, for a while.
     void  ExpectArrivals (const std::vector<std::wstring> & targets);
 
-    //  The arrivals that are written and are images ReplaceWithPo converts.
-    //  Those, and each arrival written in any other form, are removed from
-    //  the list. One that Windows is writing is checked again on the next
-    //  call.
-    void  TakeArrived    (std::vector<std::wstring> & outConvertible);
+    //  The arrivals that are written, which are removed from the list. One
+    //  that Windows is writing is checked again on the next call.
+    void  TakeArrived    (std::vector<std::wstring> & outArrived);
+
+    //  The drive, from 1, that Add sets the image as. False for an image
+    //  the firmware doesn't read, one that is a drive already, or a card
+    //  with each drive set.
+    bool  TryGetFreeDrive (const std::wstring & imagePath, int & outDrive);
 
     //  A file deleted in Casso Explorer: each drive with it is emptied.
     void  NoteDelete (const std::wstring & path);

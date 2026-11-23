@@ -168,6 +168,7 @@
     <ClCompile Include="Core\IDxuiControl.cpp" />
     <ClCompile Include="Render\Dxui3DRenderer.cpp" />
     <ClCompile Include="Render\DxuiPainter.cpp" />
+    <ClCompile Include="Render\DxuiRoundedOutline.cpp" />
     <ClCompile Include="Render\DxuiShadow.cpp" />
     <ClCompile Include="Render\DxuiSvgPath.cpp" />
     <ClCompile Include="Render\DxuiGdiText.cpp" />
@@ -225,6 +226,7 @@
     <ClCompile Include="Widgets\DxuiReorderStack.cpp" />
     <ClCompile Include="Widgets\DxuiTabDragVisual.cpp" />
     <ClCompile Include="Widgets\DxuiZoomControl.cpp" />
+    <ClCompile Include="Widgets\DxuiZoomPopup.cpp" />
     <ClCompile Include="Widgets\DxuiShimmer.cpp" />
     <ClCompile Include="Widgets\DxuiTabSlides.cpp" />
     <ClCompile Include="Widgets\DxuiTabStrip.cpp" />
@@ -299,6 +301,7 @@
     <ClInclude Include="Core\IDxuiViewportInputSink.h" />
     <ClInclude Include="Render\Dxui3DRenderer.h" />
     <ClInclude Include="Render\DxuiPainter.h" />
+    <ClInclude Include="Render\DxuiRoundedOutline.h" />
     <ClInclude Include="Render\DxuiShadow.h" />
     <ClInclude Include="Render\DxuiSvgPath.h" />
     <ClInclude Include="Render\DxuiGdiText.h" />
@@ -360,6 +363,7 @@
     <ClInclude Include="Widgets\DxuiSearchBox.h" />
     <ClInclude Include="Widgets\DxuiSlider.h" />
     <ClInclude Include="Widgets\DxuiZoomControl.h" />
+    <ClInclude Include="Widgets\DxuiZoomPopup.h" />
     <ClInclude Include="Widgets\DxuiCustomVisual.h" />
     <ClInclude Include="Widgets\DxuiSurface.h" />
     <ClInclude Include="Widgets\DxuiAddressBar.h" />

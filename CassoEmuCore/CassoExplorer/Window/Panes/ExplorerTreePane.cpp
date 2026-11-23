@@ -20,6 +20,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerProperties.h"
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 #include "CassoExplorer/CassoExplorerActions.h"
+#include "CassoExplorer/Actions/ActionsPartition.h"
 #include "CassoExplorer/Model/FilesystemChoices.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
@@ -27,6 +28,8 @@
 #include "Seams/Win32ShellItemVerbs.h"
 #include "CassoExplorer/Window/Managers/ExplorerTips.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerVerbs.h"
+#include "CassoExplorer/Window/Managers/ExplorerImageTools.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/WozPropertiesDialog.h"
 #include "CassoExplorer/Window/Managers/ExplorerOpen.h"
@@ -130,6 +133,7 @@ void ExplorerTreePane::Configure()
 
         hr = m_context.browser.SelectTreeNode (id);
         IGNORE_RETURN_VALUE (hr, S_OK);
+        UpdateReadNode (id);
         m_context.listPane.FillList();
     });
 
@@ -549,6 +553,7 @@ void ExplorerTreePane::RevealLocationInTree()
     std::wstring          link;
     int                   slot     = 0;
     int                   drive    = 0;
+    Location              highlighted;
 
 
 
@@ -588,6 +593,14 @@ void ExplorerTreePane::RevealLocationInTree()
             ScrollTreeToRow (row);
         }
 
+        return;
+    }
+
+    //  A node the user clicked that is at the location, a directory inside an
+    //  image among them, stays highlighted.
+    if (m_context.browser.TryGetNodeLocation (current, highlighted) && highlighted == location)
+    {
+        ScrollTreeToRow (m_tree->GetHighlight());
         return;
     }
 
@@ -714,6 +727,39 @@ void ExplorerTreePane::RevealLocationInTree()
     //  The open folder's row is highlighted, and only its parents expand.
     m_tree->HighlightRow (row);
     ScrollTreeToRow (row);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerTreePane::UpdateReadNode
+//
+//  An image is read when it is selected. Its node is marked when the image
+//  doesn't open, and its expander is removed when it has no children.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerTreePane::UpdateReadNode (const std::wstring & id)
+{
+    DxuiTreeNode    fresh;
+    DxuiTreeNode  * node = m_tree->GetNodeAtMutable (m_tree->FindRowById (id));
+
+
+
+    if (node == nullptr || !m_context.browser.TryGetTreeNode (id, fresh))
+    {
+        return;
+    }
+
+    node->iconBroken = fresh.iconBroken;
+
+    if (fresh.childrenLoaded && !node->childrenLoaded)
+    {
+        m_tree->ReplaceChildren (id, {});
+    }
 }
 
 
@@ -1010,27 +1056,35 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
 
         if (InspectorWindowSet::CanInspect (image))
         {
-            m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::InspectDiskImage), [this, image]() { m_context.commandManager.InspectDiskImages ({ image }); });
+            m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::InspectDiskImage), [this, image]() { m_context.imageTools.InspectDiskImages ({ image }); });
         }
 
-        m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::ExtractFiles),   [this, image]() { m_context.commandManager.ExtractImageFiles (image); });
+        m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::ExtractFiles),   [this, image]() { m_context.imageTools.ExtractImageFiles (image); });
         m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.compressedfile.extract");
 
         //  Format and Krunch act on the image the list shows, so the image is
-        //  opened first.
-        m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::Format), [this, location]()
+        //  opened first. A partition has the partition commands instead of
+        //  Format, as its row in the list has.
+        if (ActionsPartition::IsPartitionPath (image))
         {
-            m_context.addressBar.GoToLocation (location);
-            m_context.commandManager.RunVerb (CassoExplorerActions::Verb::Format);
-        }, L"", ExplorerMenus::GetVerbMenuGlyph (CassoExplorerActions::Verb::Format));
-        m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::Format));
+            AddPartitionRows (items, image);
+        }
+        else
+        {
+            m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::Format), [this, location]()
+            {
+                m_context.addressBar.GoToLocation (location);
+                m_context.verbs.RunVerb (CassoExplorerActions::Verb::Format);
+            }, L"", ExplorerMenus::GetVerbMenuGlyph (CassoExplorerActions::Verb::Format));
+            m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::Format));
+        }
 
         if (m_context.actions.IsImagePascal (image))
         {
             m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::Krunch), [this, location]()
             {
                 m_context.addressBar.GoToLocation (location);
-                m_context.commandManager.RunVerb (CassoExplorerActions::Verb::Krunch);
+                m_context.verbs.RunVerb (CassoExplorerActions::Verb::Krunch);
             }, L"", ExplorerMenus::GetVerbMenuGlyph (CassoExplorerActions::Verb::Krunch));
         }
 
@@ -1060,6 +1114,13 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
                 IGNORE_RETURN_VALUE (removed, S_OK);
             });
         }
+    }
+
+    //  A partition with no volume to open has the partition commands too.
+    if (hasLocation && location.kind == Location::Kind::Partition && ActionsPartition::IsPartitionPath (location.path))
+    {
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
+        AddPartitionRows (items, location.path);
     }
 
     if (hasFolder && m_context.browser.CanRemoveFromCasso (id))
@@ -1125,10 +1186,10 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
 
             newFolder->label    = ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::NewFolder);
             newFolder->menuSvg  = m_context.menus.GetMenuSvg (L"newfolder");
-            newFolder->dispatch = [this, location]() { m_context.addressBar.GoToLocation (location); m_context.commandManager.RunVerb (CassoExplorerActions::Verb::NewFolder); };
+            newFolder->dispatch = [this, location]() { m_context.addressBar.GoToLocation (location); m_context.verbs.RunVerb (CassoExplorerActions::Verb::NewFolder); };
             newDisk->label      = ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::NewDisk);
             newDisk->menuSvg    = m_context.menus.GetMenuSvg (L"casso.floppy525");
-            newDisk->dispatch   = [this, location]() { m_context.addressBar.GoToLocation (location); m_context.commandManager.RunVerb (CassoExplorerActions::Verb::NewDisk); };
+            newDisk->dispatch   = [this, location]() { m_context.addressBar.GoToLocation (location); m_context.verbs.RunVerb (CassoExplorerActions::Verb::NewDisk); };
 
             m_context.menus.AddNewChoices (choices, location, newFolder, newDisk);
 
@@ -1171,6 +1232,44 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
     if (!items.empty())
     {
         DxuiContextMenu::Show (*m_context.window.GetPopupHost(), x, y, std::move (items));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerTreePane::AddPartitionRows
+//
+//  The list's partition verbs, run on the node's partition rather than on
+//  the list's location.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerTreePane::AddPartitionRows (std::vector<DxuiPopupMenuItem> & items, const std::wstring & partition)
+{
+    std::vector<CassoExplorerActions::Verb>  verbs;
+
+
+
+    ActionsPartition::AddVerbs (true, verbs);
+
+    for (CassoExplorerActions::Verb verb : verbs)
+    {
+        m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (verb), [this, verb, partition]()
+        {
+            if (verb == CassoExplorerActions::Verb::CopyPartitionToImage)
+            {
+                m_context.imageTools.CopyPartitionToImage (partition);
+            }
+            else
+            {
+                m_context.imageTools.ReplacePartition (partition);
+            }
+        }, L"", ExplorerMenus::GetVerbMenuGlyph (verb));
+        m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (verb));
     }
 }
 
@@ -1553,7 +1652,7 @@ void ExplorerTreePane::UpdateTip (const DxuiMouseEvent & ev, POINT point)
     if (broken && node->id != m_treeTipId)
     {
         m_treeTipId   = node->id;
-        m_treeTipText = m_context.browser.TryGetNodeLocation (node->id, location) ? m_context.browser.GetImageProblem (location.path) : std::wstring();
+        m_treeTipText = m_context.browser.TryGetNodeLocation (node->id, location) ? m_context.browser.GetLoader().GetImageProblem (location.path) : std::wstring();
     }
 
     //  A connection the firewall blocks has the cause as its tip.

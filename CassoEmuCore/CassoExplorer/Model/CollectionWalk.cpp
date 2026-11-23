@@ -467,7 +467,7 @@ void CollectionWalk::WalkDirectory (const IVolume & volume, VolumeKind kind, con
 
 bool CollectionWalk::IsContainerName (const std::string & name)
 {
-    return HasExtension (name, ".zip") || HasExtension (name, ".gz") || TreeModel::IsSupportedImage (TextEncoding::NarrowToWide (name));
+    return HasExtension (name, ".zip") || HasExtension (name, ".gz") || HostFolderReader::IsSupportedImage (TextEncoding::NarrowToWide (name));
 }
 
 

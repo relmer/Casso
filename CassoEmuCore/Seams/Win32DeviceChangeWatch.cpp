@@ -57,7 +57,10 @@ HRESULT Win32DeviceChangeWatch::Start (ChangeFn onChange)
     wc.lpszClassName = kpszClass;
     RegisterClassW (&wc);   // a second instance re-registering is harmless
 
-    m_window = CreateWindowExW (0, kpszClass, L"", 0, 0, 0, 0, 0, HWND_MESSAGE, nullptr, wc.hInstance, nullptr);
+    //  A hidden top-level window rather than a message-only one: Windows
+    //  broadcasts a card put in a reader or taken out, the volume's media
+    //  change, to top-level windows only.
+    m_window = CreateWindowExW (WS_EX_TOOLWINDOW, kpszClass, L"", WS_POPUP, 0, 0, 0, 0, nullptr, nullptr, wc.hInstance, nullptr);
     CWRA (m_window);
 
     SetWindowLongPtrW (m_window, GWLP_USERDATA, (LONG_PTR) this);

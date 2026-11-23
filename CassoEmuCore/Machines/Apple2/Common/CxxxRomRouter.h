@@ -48,6 +48,9 @@ public:
 
     void SetInternalRom (vector<Byte> data);
     void SetSlotRom     (int slot, vector<Byte> data);
+
+    //  Copies `data` over a slot's ROM page in place, for a page of that size.
+    void PatchSlotRom   (int slot, const vector<Byte> & data);
     bool HasSlotRom     (int slot) const;
 
     // Page-table read pointer for a $C100-$CFFF page ($C1-$CF), or null if the

@@ -6,6 +6,7 @@
 #include "Config/CrtTypes.h"
 #include "Ui/Settings/ColorPickerOverlay.h"
 #include "Ui/ThemeLoader.h"
+#include "Seams/IHostDialogs.h"
 
 
 class DisplayPage;
@@ -108,8 +109,10 @@ public:
     explicit CassoExplorerFullSendPage (std::wstring title) : DxuiPropertyPage (std::move (title)) {}
 
     void  Init    (DxuiLabel & note, DxuiLabel & folderLabel, DxuiLabel & folder, DxuiButton & browse, DxuiLabel & soundsLabel, DxuiSegmentedControl & sounds, FormatParts & format);
-    void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
-    bool  OnMouse (const DxuiMouseEvent & ev) override;
+
+    static std::vector<FileDialogFilter>  GetFormatFilters ();
+    void                                  Layout           (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    bool                                  OnMouse          (const DxuiMouseEvent & ev) override;
 
     static constexpr int  kNoteHeightDip        = 60;
     static constexpr int  kBrowseWidthDip       = 100;
@@ -318,6 +321,7 @@ protected:
     bool     OnOverlayChar     (wchar_t ch) override;
     bool     OnOverlayKey      (WPARAM vk) override;
     LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
+    void     OnDialogTick      () override;
 
 private:
     CrtOverrides &  GetOverrides    ();
@@ -325,6 +329,7 @@ private:
     void            WireDisplay     ();
     void            WireColorPicker ();
     void            WireFullSend    ();
+    void            UpdateTickRate  ();
     void            WireProtection  ();
     void            WireVerify      ();
     void            SetCustomColor  (uint32_t argb);

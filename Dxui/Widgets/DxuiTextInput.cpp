@@ -545,7 +545,12 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
         float  radius = m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip);
         float  accent = (float) m_scaler.ToPx (2);
 
-        painter.FillRoundedRect (x, y, w, h, radius, m_focused ? m_theme->ContentBackground() : m_theme->ControlBackground());
+        painter.FillRoundedRect (x, y, w, h, radius, m_focused ? m_theme->ContentBackground() : (m_restFill != 0) ? m_restFill : m_theme->ControlBackground());
+
+        if (!m_focused && m_restEdge != 0)
+        {
+            painter.OutlineRoundedRect (x, y, w, h, radius, 1.0f, m_restEdge);
+        }
 
         if (m_focused)
         {

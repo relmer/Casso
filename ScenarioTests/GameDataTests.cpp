@@ -107,6 +107,14 @@ public:
     }
 
 
+    static bool HasLine (const DecodedFile & file, const std::wstring & text)
+    {
+        std::vector<std::wstring>  texts = GetTexts (file);
+
+        return std::find (texts.begin(), texts.end(), text) != texts.end();
+    }
+
+
     static bool HasPicture (const DecodedFile & file)
     {
         return std::any_of (file.paragraphs.begin(), file.paragraphs.end(), [] (const Paragraph & paragraph) { return !paragraph.picture.empty(); });
@@ -164,8 +172,8 @@ public:
         Assert::AreEqual (std::wstring (L"Saved game: 4 characters"), GetTexts (file)[1]);
         Assert::IsTrue   (HasLineStarting (file, L"THUG   Level 38 Human Fighter, Neutral"));
         Assert::IsTrue   (HasLineStarting (file, L"Status: OK   Hit points: 338/338   Gold: 121,657   Experience: 7,811,260"));
-        Assert::IsTrue   (HasLineStarting (file, std::wstring (L"      ") + s_kpszCheckMark + L" KOD'S GAUNTLETS"));
-        Assert::IsTrue   (HasLineStarting (file, L"           DAMIEN STONE"), L"in the inventory, not equipped");
+        Assert::IsTrue   (HasLineStarting (file, std::wstring (L"      KOD'S GAUNTLETS (") + s_kpszCheckMark + L" equipped)"));
+        Assert::IsTrue   (HasLine (file, L"      DAMIEN STONE"), L"in the inventory, not equipped");
     }
 
 
@@ -200,8 +208,8 @@ public:
 
         Assert::AreEqual (std::wstring (L"Saved game: 5 characters"), GetTexts (file)[1]);
         Assert::IsTrue   (HasLineStarting (file, L"BART   Level 2 Human Samurai, Good"));
-        Assert::IsTrue   (HasLineStarting (file, std::wstring (L"      ") + s_kpszCheckMark + L" MURASAMA BLADE"));
-        Assert::IsTrue   (HasLineStarting (file, L"           BLADE CUSINART'"), L"in the inventory, not equipped");
+        Assert::IsTrue   (HasLineStarting (file, std::wstring (L"      MURASAMA BLADE (") + s_kpszCheckMark + L" equipped)"));
+        Assert::IsTrue   (HasLine (file, L"      BLADE CUSINART'"), L"in the inventory, not equipped");
         Assert::IsTrue   (HasLineStarting (file, L"DIRTY DAN   Level 2 Gnome Samurai, Neutral"));
         Assert::IsFalse  (HasLineStarting (file, L"CHUNKY"), L"a deleted character");
         Assert::IsFalse  (HasPicture (file));

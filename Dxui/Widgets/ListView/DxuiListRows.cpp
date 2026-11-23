@@ -583,9 +583,13 @@ DxuiListViewTypes::ScrollLayout DxuiListRows::MeasureForPaint (IDxuiTextRenderer
 
 
 
+    //  The columns are measured by GDI's advances, as the rows draw with them.
     if (m_list.m_theme != nullptr && !m_list.m_columns.empty())
     {
+        bool  wasGdi = text.SetGdiClassicText (true);
+
         m_list.m_columnSizing.EnsureMeasured (text);
+        text.SetGdiClassicText (wasGdi);
     }
 
     layout = m_list.m_scrollbars.ComputeScrollLayout();
@@ -769,9 +773,10 @@ void DxuiListRows::Paint (
         const std::vector<DxuiListViewTypes::Cell>  & cells = m_list.GetRowCells (r);
         float                                         thisH = (float) GetRowHeightPx (r);
         bool                                          isHov = (r == m_list.m_hovered);
-        bool                       isSel = ((m_list.m_listFocused || m_list.m_alwaysShowSelection) &&
-                                            (m_list.m_multiSelect ? m_list.IsRowSelected (r) : r == m_list.m_selectedRow));
-        DxuiRowLook                look  = DxuiRowLook::Resolve (*m_list.m_theme, isSel, r == m_list.m_selectedRow && m_list.m_focusGroup < 0, isHov, m_list.m_listFocused);
+        bool                       isSel = m_list.m_selectionPainted && (m_list.m_listFocused || m_list.m_alwaysShowSelection) &&
+                                           (m_list.m_multiSelect ? m_list.IsRowSelected (r) : r == m_list.m_selectedRow);
+        bool                       isKey = m_list.m_selectionPainted && r == m_list.m_selectedRow && m_list.m_focusGroup < 0;
+        DxuiRowLook                look  = DxuiRowLook::Resolve (*m_list.m_theme, isSel, isKey, isHov, m_list.m_listFocused);
 
         //  A text-like list (a hex dump) selects as text does: the text
         //  selection color, no outline.
@@ -793,12 +798,27 @@ void DxuiListRows::Paint (
 
         if (look.fill != 0)
         {
-            painter.FillRect (x + boxL, ry + boxInsetY, boxW - boxL, thisH - boxInsetY * 2.0f, look.fill);
+            if (m_list.m_rowCornerDip > 0.0f)
+            {
+                painter.FillRoundedRect (x + boxL, ry + boxInsetY, boxW - boxL, thisH - boxInsetY * 2.0f, m_list.m_scaler.ToPxf (m_list.m_rowCornerDip), look.fill);
+            }
+            else
+            {
+                painter.FillRect (x + boxL, ry + boxInsetY, boxW - boxL, thisH - boxInsetY * 2.0f, look.fill);
+            }
         }
 
         if (look.edge != 0)
         {
-            painter.OutlineRect (x + boxL, ry + boxInsetY, boxW - boxL, thisH - boxInsetY * 2.0f, DxuiRowLook::GetOutlinePx (m_list.m_scaler.ToPxf (1.0f)), look.edge);
+            if (m_list.m_rowCornerDip > 0.0f)
+            {
+                painter.OutlineRoundedRect (x + boxL, ry + boxInsetY, boxW - boxL, thisH - boxInsetY * 2.0f, m_list.m_scaler.ToPxf (m_list.m_rowCornerDip),
+                                            DxuiRowLook::GetOutlinePx (m_list.m_scaler.ToPxf (1.0f)), look.edge);
+            }
+            else
+            {
+                painter.OutlineRect (x + boxL, ry + boxInsetY, boxW - boxL, thisH - boxInsetY * 2.0f, DxuiRowLook::GetOutlinePx (m_list.m_scaler.ToPxf (1.0f)), look.edge);
+            }
         }
 
         for (size_t c = 0; c < m_list.m_columns.size() && c < cells.size(); ++c)

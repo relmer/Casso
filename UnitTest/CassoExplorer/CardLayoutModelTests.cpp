@@ -192,4 +192,19 @@ public:
         tiny.GetChoices (CardLayoutModel::Adapter::A2Pico, positions);
         Assert::IsTrue (positions.empty());
     }
+
+
+    TEST_METHOD (AdapterOrder_IsAlphabeticalWithEveryAdapter)
+    {
+        std::vector<CardLayoutModel::Adapter>  order = CardLayoutModel::GetAdapterOrder();
+
+        Assert::AreEqual ((size_t) CardLayoutModel::Adapter::Count - (size_t) CardLayoutModel::Adapter::First, order.size());
+        Assert::IsTrue   (order.front() == CardLayoutModel::Adapter::A2Pico);
+        Assert::IsTrue   (order.back()  == CardLayoutModel::Adapter::Cffa3000);
+
+        for (size_t i = 1; i < order.size(); i++)
+        {
+            Assert::IsTrue (_wcsicmp (CardLayoutModel::GetAdapterLabel (order[i - 1]).c_str(), CardLayoutModel::GetAdapterLabel (order[i]).c_str()) < 0);
+        }
+    }
 };

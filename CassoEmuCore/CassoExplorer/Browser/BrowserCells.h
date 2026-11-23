@@ -2,12 +2,14 @@
 
 #include "Pch.h"
 
+#include "CassoExplorer/Browser/BrowserParts.h"
 #include "CassoExplorer/Browser/BrowserTypes.h"
+#include "CassoExplorer/Model/BrowserModel.h"
 
 #include "CassoExplorer/Model/TreeModel.h"
 #include "Seams/IShellIcons.h"
 
-class CassoExplorerBrowser;
+class IBrowserCellsHost;
 struct CatalogRow;
 
 
@@ -27,7 +29,7 @@ struct CatalogRow;
 class BrowserCells
 {
 public:
-    explicit BrowserCells (CassoExplorerBrowser & browser);
+    BrowserCells (const BrowserParts & parts, IBrowserCellsHost & host);
 
     std::wstring  GetTabLabel (size_t index) const;
 
@@ -75,16 +77,6 @@ public:
     //  then two spaces and the files' total size when any file is selected.
     static std::wstring  FormatSelected  (size_t selected, uint64_t bytes, bool anyFile);
 
-    //  An image's refusal as the list shows it: the file's name, then why.
-    static std::wstring  FormatImageError (const std::wstring & imagePath, const std::string & message);
-
-    //  The list's and the preview's text for a linked Apple's drive whose
-    //  listing failed: the operation's message when there is one.
-    static std::wstring  FormatLinkError (HRESULT result, const std::string & message);
-
-    //  A message with each full path in it cut to the name at its end.
-    static std::wstring  ShortenPaths     (const std::wstring & message);
-
     static std::wstring  FormatSize      (uint64_t bytes);
 
     //  A Content view line: the property's name, drawn muted, then its value.
@@ -101,7 +93,8 @@ public:
     static std::shared_ptr<const DxuiIconImage>  GetNodeIcon (const TreeNode & node, IShellIcons & icons);
 
 private:
-    friend class CassoExplorerBrowser;
+    Location  GetLocation () const { return m_parts.model.HasTabs() ? m_parts.model.GetActiveTab().location : Location(); }
 
-    CassoExplorerBrowser  & m_browser;
+    BrowserParts         m_parts;
+    IBrowserCellsHost  & m_host;
 };

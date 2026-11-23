@@ -774,7 +774,7 @@ void Win32ShellSearch::WalkForImages (const std::wstring & scope, std::vector<st
                     pending.push_back (folder + L"\\" + name);
                 }
             }
-            else if (!isFolder && TreeModel::IsSupportedImage (name))
+            else if (!isFolder && HostFolderReader::IsSupportedImage (name))
             {
                 outImages.push_back (folder + L"\\" + name);
             }
@@ -1438,7 +1438,7 @@ void Win32ShellSearch::WalkForNames (const std::wstring & scope, const SearchExp
                 ioPaths.push_back (path);
             }
 
-            if (reporter.images != nullptr && !isFolder && reporter.images->size() < s_kMaxImages && TreeModel::IsSupportedImage (name))
+            if (reporter.images != nullptr && !isFolder && reporter.images->size() < s_kMaxImages && HostFolderReader::IsSupportedImage (name))
             {
                 reporter.images->push_back (path);
             }

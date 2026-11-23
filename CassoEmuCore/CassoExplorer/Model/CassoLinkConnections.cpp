@@ -1036,7 +1036,8 @@ std::vector<LinkTreeEntry> CassoLinkConnections::BuildTreeEntries() const
             }
             else if (catalog->second->state == LinkOperationState::Failed)
             {
-                row.empty = catalog->second->result == HRESULT_FROM_WIN32 (ERROR_SECTOR_NOT_FOUND);
+                row.empty          = catalog->second->result == HRESULT_FROM_WIN32 (ERROR_SECTOR_NOT_FOUND);
+                row.thirteenSector = catalog->second->result == CassoLinkSession::kThirteenSectorDisk;
             }
 
             entry.drives.push_back (row);
@@ -1256,6 +1257,36 @@ std::vector<std::shared_ptr<LinkOperation>> CassoLinkConnections::GetPendingJobs
         if (state == LinkOperationState::Queued || state == LinkOperationState::Running)
         {
             pending.push_back (job.operation);
+        }
+    }
+
+    return pending;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::GetPendingJobsByLink
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::pair<std::string, std::shared_ptr<LinkOperation>>> CassoLinkConnections::GetPendingJobsByLink() const
+{
+    std::vector<std::pair<std::string, std::shared_ptr<LinkOperation>>>  pending;
+    std::lock_guard<std::mutex>                                          lock (m_lock);
+
+
+
+    for (const Job & job : m_jobs)
+    {
+        LinkOperationState  state = job.operation->state;
+
+        if (state == LinkOperationState::Queued || state == LinkOperationState::Running)
+        {
+            pending.push_back ({ job.link, job.operation });
         }
     }
 

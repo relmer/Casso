@@ -7,6 +7,7 @@
 #include "CassoExplorer/CassoExplorerDragOut.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerVerbs.h"
 #include "CassoExplorer/Window/Managers/ExplorerDragDrop.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Window/Managers/ExplorerTransferPrompts.h"
@@ -15,6 +16,7 @@
 #include "Core/AppMessages.h"
 #include "Core/TextEncoding.h"
 #include "Seams/IShellItemVerbs.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 
 
@@ -50,7 +52,7 @@ std::wstring ExplorerClipboard::GetPasteFolder() const
 
 
     if (m_context.browser.GetSelectedRows().size() == 1
-     && m_context.browser.TryGetRowLocation (m_context.browser.GetSelectedRows()[0], location)
+     && BrowserRowPaths::TryGetRowLocation (m_context.browser.GetRowListing(), m_context.browser.GetSelectedRows()[0], location)
      && location.kind == Location::Kind::HostFolder)
     {
         return location.path;
@@ -124,11 +126,11 @@ void ExplorerClipboard::CutEntriesToClipboard (HostFileNaming::Style style)
     else
     {
         cut.image = TextEncoding::WideToNarrow (m_context.browser.GetLocation().path);
-        m_context.browser.GetSelectedEntries (entries);
+        m_context.browser.GetSelection().GetSelectedEntries (entries);
 
         for (const FileEntry & entry : entries)
         {
-            cut.catalogPaths.push_back (m_context.browser.GetEntryPath (entry));
+            cut.catalogPaths.push_back (BrowserRowPaths::GetEntryPath (m_context.browser.GetLocation(), entry));
         }
     }
 
@@ -179,7 +181,7 @@ void ExplorerClipboard::FinishCut()
     outcome = cut.onDrive ? m_context.actions.RunDriveDeletion (cut.drive)
                           : m_context.actions.DeleteEntries (cut.image, cut.catalogPaths);
 
-    m_context.commandManager.ReportOutcome (outcome, L"Move");
+    m_context.verbs.ReportOutcome (outcome, L"Move");
     m_context.folderSync.RefreshAfterHostChange();
 }
 
@@ -204,7 +206,7 @@ void ExplorerClipboard::CopySelectedPaths()
 
     for (int row : m_context.browser.GetSelectedRows())
     {
-        if (!m_context.browser.TryGetRowPath (row, path))
+        if (!BrowserRowPaths::TryGetRowPath (m_context.browser.GetRowListing(), row, path))
         {
             continue;
         }
@@ -251,7 +253,7 @@ void ExplorerClipboard::PasteHere (const std::wstring & folder)
     {
         CassoExplorerActions::Outcome  outcome = m_context.actions.PasteVirtualFiles (data.Get(), folder, m_context.prompts.MakeCollisionPrompt(), pasted.created);
 
-        m_context.commandManager.ReportOutcome (outcome, L"Copy");
+        m_context.verbs.ReportOutcome (outcome, L"Copy");
         pasted.sources.assign (pasted.created.size(), std::wstring());
 
         //  A cut's files are deleted where they were, now they are here.
@@ -354,7 +356,7 @@ void ExplorerClipboard::PasteIntoVolume()
         outcome = source.fromImage ? m_context.actions.CopyEntriesToAppleDrive (source.image, source.kind, source.catalogPaths)
                                    : m_context.actions.PutFiles (source.hostPaths, m_context.prompts.MakeAddressPrompt());
 
-        m_context.commandManager.ReportOutcome (outcome, L"Put");
+        m_context.verbs.ReportOutcome (outcome, L"Put");
         ReportPasted (data.Get(), outcome);
         m_context.dragDrop.RemoveVirtualFiles();
         return;
@@ -373,7 +375,7 @@ void ExplorerClipboard::PasteIntoVolume()
                                : m_context.actions.PutInto (location.path, targetKind, inner, source.hostPaths, m_context.prompts.MakeAddressPrompt());
 
     m_context.undo.PushPut (outcome, location.path, inner);
-    m_context.commandManager.ReportOutcome (outcome, L"Put");
+    m_context.verbs.ReportOutcome (outcome, L"Put");
 
     //  Pasted back where it was cut from, nothing moved.
     if (!(source.fromImage && _wcsicmp (TextEncoding::NarrowToWide (source.image).c_str(), location.path.c_str()) == 0 && IsCutFrom (inner)))

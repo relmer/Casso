@@ -457,6 +457,7 @@ WindowCommandRoute WindowCommandManager::GetCommandRoute (int id)
     else if (id == IDM_VIEW_DRIVE_STRIP)                                   { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_AUTOHIDE_DRIVES)                               { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_FLOPPIES_ON_DESK || id == IDM_VIEW_HARD_DISKS_ON_DESK) { route = WindowCommandRoute::View; }
+    else if (id == IDM_VIEW_RECORDER_ON_DESK)                              { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_FLOPPY_PAIR_BESIDE)                            { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_FRAME_RATE)                                    { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_SCENE_VIEW)                                    { route = WindowCommandRoute::View; }
@@ -950,14 +951,24 @@ void WindowCommandManager::OnViewCommand (int id)
         case IDM_VIEW_FLOPPIES_ON_DESK:
         case IDM_VIEW_HARD_DISKS_ON_DESK:
         {
+            // A move changes what the scene has to fit, so the view and the
+            // window are reset as Ctrl+0 resets them.
             m_shell.m_scene->ToggleClassOnDesk ((id == IDM_VIEW_FLOPPIES_ON_DESK) ? DeskDriveClass::Floppy : DeskDriveClass::HardDisk);
-            m_shell.m_scene->ResetSceneView();
+            OnViewCommand (IDM_VIEW_RESET_SIZE);
+            break;
+        }
+
+        case IDM_VIEW_RECORDER_ON_DESK:
+        {
+            m_shell.m_scene->ToggleRecorderOnDesk();
+            OnViewCommand (IDM_VIEW_RESET_SIZE);
             break;
         }
 
         case IDM_VIEW_FLOPPY_PAIR_BESIDE:
         {
             m_shell.m_scene->ToggleFloppyPairBeside();
+            OnViewCommand (IDM_VIEW_RESET_SIZE);
             break;
         }
 

@@ -127,6 +127,10 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="CassoExplorer\Model\DiskImageCatalog.cpp" />
+    <ClCompile Include="CassoExplorer\Model\DiskMessageText.cpp" />
+    <ClCompile Include="CassoExplorer\Model\HostFolderReader.cpp" />
+    <ClCompile Include="CassoExplorer\Model\TreeImageNodes.cpp" />
     <ClCompile Include="Devices\Disk\BlankDiskSpecResolver.cpp" />
     <ClCompile Include="Devices\Disk\DiskCommandText.cpp" />
     <ClCompile Include="Devices\Disk\DiskCreateCommand.cpp" />
@@ -290,6 +294,8 @@
     <ClCompile Include="CassoLink\CassoLinkProDosDisk.cpp" />
     <ClCompile Include="CassoLink\CassoLinkSosDisk.cpp" />
     <ClCompile Include="CassoLink\LinkProgram.cpp" />
+    <ClCompile Include="CassoLink\FullSend\DiskProblemReport.cpp" />
+    <ClCompile Include="CassoExplorer\Window\Managers\DiskReportSender.cpp" />
     <ClCompile Include="CassoLink\LinkedDisk.cpp" />
     <ClCompile Include="CassoLink\CassoLinkSession.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkConnector.cpp" />
@@ -446,8 +452,14 @@
     <ClCompile Include="CassoExplorer\Actions\ActionsGoTo.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerBrowser.cpp" />
     <ClCompile Include="CassoExplorer\Browser\BrowserCells.cpp" />
+    <ClCompile Include="CassoExplorer\Browser\BrowserColumnFilters.cpp" />
+    <ClCompile Include="CassoExplorer\Browser\BrowserNameFilter.cpp" />
+    <ClCompile Include="CassoExplorer\Browser\BrowserNavigator.cpp" />
     <ClCompile Include="CassoExplorer\Browser\BrowserLoader.cpp" />
     <ClCompile Include="CassoExplorer\Browser\BrowserPreviewer.cpp" />
+    <ClCompile Include="CassoExplorer\Browser\BrowserRowOrder.cpp" />
+    <ClCompile Include="CassoExplorer\Browser\BrowserRowPaths.cpp" />
+    <ClCompile Include="CassoExplorer\Browser\BrowserSelection.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerCommands.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerDragOut.cpp" />
     <ClCompile Include="CassoExplorer\RawCopyDropHandler.cpp" />
@@ -463,13 +475,17 @@
     <ClCompile Include="CassoExplorer\CassoExplorerElevationDialog.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerPromptDialog.cpp" />
     <ClCompile Include="CassoExplorer\CassoLinkActivityDialog.cpp" />
+    <ClCompile Include="CassoExplorer\CassoLinkJobDialog.cpp" />
+    <ClCompile Include="CassoLink\Session\CassoLinkDiskStatus.cpp" />
+    <ClCompile Include="CassoExplorer\Window\Managers\CassoLinkJobManager.cpp" />
     <ClCompile Include="CassoExplorer\FullSendDialog.cpp" />
     <ClCompile Include="CassoExplorer\KrunchMapDialog.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerOptionsDialog.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerWindow.cpp" />
     <ClCompile Include="CassoExplorer\Window\Panes\ExplorerAddressBar.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerCommandManager.cpp" />
-    <ClCompile Include="CassoExplorer\Window\Managers\ExplorerCommandManagerDisks.cpp" />
+    <ClCompile Include="CassoExplorer\Window\Managers\ExplorerImageTools.cpp" />
+    <ClCompile Include="CassoExplorer\Window\Managers\ExplorerVerbs.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerDragDrop.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerClipboard.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerTransferPrompts.cpp" />
@@ -576,6 +592,7 @@
     <ClCompile Include="Seams\ShellVerbs\Win32ShareSheet.cpp" />
     <ClCompile Include="Seams\ShellVerbs\Win32ShellTransfers.cpp" />
     <ClCompile Include="Seams\Win32PackagedCommands.cpp" />
+    <ClCompile Include="Seams\Win32PackageWatcher.cpp" />
     <ClCompile Include="Seams\Win32PreviewHelper.cpp" />
     <ClCompile Include="Seams\Win32ShellPreview.cpp" />
     <ClCompile Include="CassoExplorer\Model\ArchiveProbe.cpp" />
@@ -585,7 +602,6 @@
     <ClCompile Include="CassoExplorer\Model\PreviewText.cpp" />
     <ClCompile Include="CassoExplorer\Model\ApplesoftVariables.cpp" />
     <ClCompile Include="CassoExplorer\Model\TreeModel.cpp" />
-    <ClCompile Include="CassoExplorer\Model\TreeModelImages.cpp" />
     <ClCompile Include="CassoExplorer\Model\CassoLinkConnections.cpp" />
     <ClCompile Include="CassoExplorer\Model\CassoLinkConnectionsProbe.cpp" />
     <ClCompile Include="CassoExplorer\Model\CassoLinkConnectionText.cpp" />
@@ -630,6 +646,7 @@
     <ClCompile Include="FileTypes\OmfFile.cpp" />
     <ClCompile Include="FileTypes\VisiCalcSheet.cpp" />
     <ClCompile Include="FileTypes\ZMachineStory.cpp" />
+    <ClCompile Include="FileTypes\SaveSummary.cpp" />
     <ClCompile Include="FileTypes\WizardryScenario.cpp" />
     <ClCompile Include="FileTypes\VisiCalcEvaluator.cpp" />
     <ClCompile Include="FileTypes\GutenbergDocument.cpp" />
@@ -1136,6 +1153,7 @@
     <ClCompile Include="Ui\Settings\GeneralPage.cpp" />
     <ClCompile Include="Ui\Settings\GeneralPageModel.cpp" />
     <ClCompile Include="Ui\Settings\HardwarePage.cpp" />
+    <ClCompile Include="Ui\Settings\SlotsPage.cpp" />
     <ClCompile Include="Ui\Settings\DiskPage.cpp" />
     <ClCompile Include="Ui\Settings\SettingsApplyAdapter.cpp" />
     <ClCompile Include="Ui\Settings\ControllerReadoutViews.cpp" />
@@ -1413,6 +1431,10 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="CassoExplorer\Model\DiskImageCatalog.h" />
+    <ClInclude Include="CassoExplorer\Model\DiskMessageText.h" />
+    <ClInclude Include="CassoExplorer\Model\HostFolderReader.h" />
+    <ClInclude Include="CassoExplorer\Model\TreeImageNodes.h" />
     <ClInclude Include="Devices\Disk\BlankDiskSpecResolver.h" />
     <ClInclude Include="Devices\Disk\DiskCommandText.h" />
     <ClInclude Include="Devices\Disk\DiskCreateCommand.h" />
@@ -1645,9 +1667,19 @@
     <ClInclude Include="CassoExplorer\Actions\ActionsTypes.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerBrowser.h" />
     <ClInclude Include="CassoExplorer\Browser\BrowserCells.h" />
+    <ClInclude Include="CassoExplorer\Browser\BrowserHostInterfaces.h" />
+    <ClInclude Include="CassoExplorer\Browser\BrowserParts.h" />
+    <ClInclude Include="CassoExplorer\Browser\BrowserColumnFilters.h" />
+    <ClInclude Include="CassoExplorer\Browser\BrowserNameFilter.h" />
+    <ClInclude Include="CassoExplorer\Browser\BrowserNavigator.h" />
+    <ClInclude Include="CassoExplorer\Browser\IBrowserListing.h" />
     <ClInclude Include="CassoExplorer\Browser\BrowserTypes.h" />
     <ClInclude Include="CassoExplorer\Browser\BrowserLoader.h" />
     <ClInclude Include="CassoExplorer\Browser\BrowserPreviewer.h" />
+    <ClInclude Include="CassoExplorer\Browser\BrowserRowOrder.h" />
+    <ClInclude Include="CassoExplorer\Browser\BrowserRowPaths.h" />
+    <ClInclude Include="CassoExplorer\Browser\BrowserSelection.h" />
+    <ClInclude Include="CassoExplorer\Browser\IBrowserSelectionSource.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerCommands.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerDragOut.h" />
     <ClInclude Include="CassoExplorer\RawCopyDropHandler.h" />
@@ -1665,12 +1697,17 @@
     <ClInclude Include="CassoExplorer\CassoExplorerElevationDialog.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerPromptDialog.h" />
     <ClInclude Include="CassoExplorer\CassoLinkActivityDialog.h" />
+    <ClInclude Include="CassoExplorer\CassoLinkJobDialog.h" />
+    <ClInclude Include="CassoLink\Session\CassoLinkDiskStatus.h" />
+    <ClInclude Include="CassoExplorer\Window\Managers\CassoLinkJobManager.h" />
     <ClInclude Include="CassoExplorer\FullSendDialog.h" />
     <ClInclude Include="CassoExplorer\KrunchMapDialog.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerOptionsDialog.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerWindow.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\ExplorerAddressBar.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerCommandManager.h" />
+    <ClInclude Include="CassoExplorer\Window\Managers\ExplorerImageTools.h" />
+    <ClInclude Include="CassoExplorer\Window\Managers\ExplorerVerbs.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerDragDrop.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerClipboard.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerTransferPrompts.h" />
@@ -1792,6 +1829,7 @@
     <ClInclude Include="Seams\ShellVerbs\Win32ShellTransfers.h" />
     <ClInclude Include="Seams\ShellVerbs\Win32ShellVerbsTypes.h" />
     <ClInclude Include="Seams\Win32PackagedCommands.h" />
+    <ClInclude Include="Seams\Win32PackageWatcher.h" />
     <ClInclude Include="Seams\Win32PreviewHelper.h" />
     <ClInclude Include="Seams\ShellItemId.h" />
     <ClInclude Include="Seams\Win32ShellPreview.h" />
@@ -1848,6 +1886,7 @@
     <ClInclude Include="FileTypes\OmfFile.h" />
     <ClInclude Include="FileTypes\VisiCalcSheet.h" />
     <ClInclude Include="FileTypes\ZMachineStory.h" />
+    <ClInclude Include="FileTypes\SaveSummary.h" />
     <ClInclude Include="FileTypes\WizardryScenario.h" />
     <ClInclude Include="FileTypes\VisiCalcEvaluator.h" />
     <ClInclude Include="FileTypes\GutenbergDocument.h" />
@@ -2014,6 +2053,8 @@
     <ClInclude Include="CassoLink\CassoLinkSosDisk.h" />
     <ClInclude Include="CassoLink\Host\CassoLinkHostTypes.h" />
     <ClInclude Include="CassoLink\LinkProgram.h" />
+    <ClInclude Include="CassoLink\FullSend\DiskProblemReport.h" />
+    <ClInclude Include="CassoExplorer\Window\Managers\DiskReportSender.h" />
     <ClInclude Include="CassoLink\LinkedDisk.h" />
     <ClInclude Include="CassoLink\CassoLinkSession.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkConnector.h" />
@@ -2213,6 +2254,7 @@
     <ClInclude Include="Ui\Settings\GeneralPage.h" />
     <ClInclude Include="Ui\Settings\GeneralPageModel.h" />
     <ClInclude Include="Ui\Settings\HardwarePage.h" />
+    <ClInclude Include="Ui\Settings\SlotsPage.h" />
     <ClInclude Include="Ui\Settings\DiskPage.h" />
     <ClInclude Include="Ui\Settings\SettingsApplyAdapter.h" />
     <ClInclude Include="Ui\Settings\ControllerReadoutViews.h" />

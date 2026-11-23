@@ -536,6 +536,30 @@ void BlockMapView::StepZoom (int steps)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BlockMapView::ZoomTo
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockMapView::ZoomTo (double zoom)
+{
+    RECT  grid = GetGridRect();
+
+
+
+    if (m_stops.empty())
+    {
+        return;
+    }
+
+    ZoomAbout (std::clamp (zoom, 1.0, m_stops.back()), POINT { (grid.left + grid.right) / 2, (grid.top + grid.bottom) / 2 });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BlockMapView::StepZoomAt
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1056,57 +1080,64 @@ void BlockMapView::PaintLabelGaps (IDxuiPainter & painter, const DiskInspectorPa
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BlockMapView::PaintLabels
+//  BlockMapView::LabelSpot
 //
-//  Each file or structure in view has its name once, centered on the run of
-//  its cells in a row that is nearest the middle of the view and wide
-//  enough for the name. A run is the cells in a row with the same name.
+//  A run of cells with the same name in a row, or the same run in rows one
+//  after another, as a rectangle of the view.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BlockMapView::PaintLabels (IDxuiTextRenderer & text, const DiskInspectorPalette & palette, const RECT & grid, float left, float top) const
+struct BlockMapView::LabelSpot
 {
-    struct Spot
-    {
-        float     x0       = 0.0f;
-        float     x1       = 0.0f;
-        float     y        = 0.0f;
-        float     height   = 0.0f;
-        uint32_t  cell     = 0;
-        double    distance = 0.0;
-    };
-
-    float                                   pad     = m_scaler.ToPxf (kLabelPadDip);
-    float                                   textPx  = std::min (m_scaler.ToPxf (kFontDip), m_grid.GetCellPx() / 1.6f);
-    float                                   midX    = (grid.left + grid.right) / 2.0f;
-    float                                   midY    = (grid.top + grid.bottom) / 2.0f;
-    int                                     columns = m_grid.GetColumns();
-    int                                     c0      = 0;
-    int                                     c1      = 0;
-    int                                     r0      = 0;
-    int                                     r1      = 0;
-    int                                     first   = 0;
-    int                                     last    = 0;
-    uint32_t                                cell    = 0;
-    RECT                                    from    = {};
-    RECT                                    to      = {};
-    float                                   width   = 0.0f;
-    float                                   height  = 0.0f;
-    std::unordered_map<std::wstring, Spot>  best;
-    Spot                                    spot;
-    HRESULT                                 hr      = S_OK;
+    float     x0      = 0.0f;
+    float     x1      = 0.0f;
+    float     y       = 0.0f;
+    float     height  = 0.0f;
+    uint32_t  cell    = 0;
+    int       lastRow = 0;
+};
 
 
 
-    if (m_labels.empty())
-    {
-        return;
-    }
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockMapView::FindLabelSpots
+//
+//  The runs of labeled cells in view. A run directly below one with the same
+//  name, start and end is added to that one's rectangle, so a tall block of
+//  a file is one spot and its name is centered in the whole block.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockMapView::FindLabelSpots (const RECT & grid, float left, float top, vector<LabelSpot> & outSpots) const
+{
+    int             columns  = m_grid.GetColumns();
+    int             c0       = 0;
+    int             c1       = 0;
+    int             r0       = 0;
+    int             r1       = 0;
+    int             first    = 0;
+    int             last     = 0;
+    uint32_t        cell     = 0;
+    RECT            from     = {};
+    RECT            to       = {};
+    LabelSpot       spot;
+    bool            isJoined = false;
+    vector<size_t>  above;
+    vector<size_t>  here;
+
+
+
+    outSpots.clear();
     GetCellsInView (grid, c0, c1, r0, r1);
 
     for (int row = r0; row <= r1; row++)
     {
+        above.swap (here);
+        here.clear();
+
         for (first = c0; first <= c1; first = last + 1)
         {
             cell = (uint32_t) (row * columns + first);
@@ -1122,45 +1153,119 @@ void BlockMapView::PaintLabels (IDxuiTextRenderer & text, const DiskInspectorPal
                 last++;
             }
 
-            from          = m_grid.GetCellRect (cell);
-            to            = m_grid.GetCellRect (cell + (uint32_t) (last - first));
-            spot.x0       = std::max (left + from.left, (float) grid.left);
-            spot.x1       = std::min (left + to.right, (float) grid.right);
-            spot.y        = top + from.top;
-            spot.height   = (float) (from.bottom - from.top);
-            spot.cell     = cell;
-            spot.distance = std::hypot ((spot.x0 + spot.x1) / 2.0f - midX, spot.y + spot.height / 2.0f - midY);
+            from         = m_grid.GetCellRect (cell);
+            to           = m_grid.GetCellRect (cell + (uint32_t) (last - first));
+            spot.x0      = std::max (left + from.left, (float) grid.left);
+            spot.x1      = std::min (left + to.right, (float) grid.right);
+            spot.y       = top + from.top;
+            spot.height  = (float) (from.bottom - from.top);
+            spot.cell    = cell;
+            spot.lastRow = row;
+            isJoined     = false;
 
-            if (spot.y + spot.height < grid.top || spot.y > grid.bottom || spot.x1 <= spot.x0)
+            for (size_t index : above)
             {
-                continue;
+                LabelSpot  & prior = outSpots[index];
+
+                if (!isJoined && prior.lastRow == row - 1 && prior.x0 == spot.x0 && prior.x1 == spot.x1 && m_labels[prior.cell] == m_labels[cell])
+                {
+                    prior.height  = spot.y + spot.height - prior.y;
+                    prior.lastRow = row;
+                    isJoined      = true;
+                    here.push_back (index);
+                }
             }
 
-            hr = text.MeasureString (m_labels[cell].c_str(), textPx, DxuiTheme::kBodyFace, width, height);
-
-            if (FAILED (hr) || width + 2 * pad > spot.x1 - spot.x0)
+            if (!isJoined)
             {
-                continue;
-            }
-
-            auto  found = best.find (m_labels[cell]);
-
-            if (found == best.end() || spot.distance < found->second.distance)
-            {
-                best[m_labels[cell]] = spot;
+                here.push_back (outSpots.size());
+                outSpots.push_back (spot);
             }
         }
     }
+}
 
-    for (const auto & [label, place] : best)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockMapView::PaintLabels
+//
+//  Each file or structure in view has its name once, centered in the spot
+//  of its cells nearest the middle of the view that is wide enough for the
+//  name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockMapView::PaintLabels (IDxuiTextRenderer & text, const DiskInspectorPalette & palette, const RECT & grid, float left, float top) const
+{
+    float                                     pad      = m_scaler.ToPxf (kLabelPadDip);
+    float                                     textPx   = std::min (m_scaler.ToPxf (kFontDip), m_grid.GetCellPx() / 1.6f);
+    float                                     midX     = (grid.left + grid.right) / 2.0f;
+    float                                     midY     = (grid.top + grid.bottom) / 2.0f;
+    float                                     width    = 0.0f;
+    float                                     height   = 0.0f;
+    float                                     y0       = 0.0f;
+    float                                     y1       = 0.0f;
+    double                                    distance = 0.0;
+    vector<LabelSpot>                         spots;
+    std::unordered_map<std::wstring, size_t>  best;
+    std::unordered_map<std::wstring, double>  nearest;
+    HRESULT                                   hr       = S_OK;
+
+
+
+    if (m_labels.empty())
     {
+        return;
+    }
+
+    FindLabelSpots (grid, left, top, spots);
+
+    for (size_t i = 0; i < spots.size(); i++)
+    {
+        LabelSpot             & spot  = spots[i];
+        const std::wstring    & label = m_labels[spot.cell];
+
+        //  The part of the spot in view, so a name stays on screen.
+        y0          = std::max (spot.y, (float) grid.top);
+        y1          = std::min (spot.y + spot.height, (float) grid.bottom);
+        spot.y      = y0;
+        spot.height = y1 - y0;
+
+        if (spot.height <= 0.0f || spot.x1 <= spot.x0)
+        {
+            continue;
+        }
+
+        hr = text.MeasureString (label.c_str(), textPx, DxuiTheme::kBodyFace, width, height);
+
+        if (FAILED (hr) || width + 2 * pad > spot.x1 - spot.x0)
+        {
+            continue;
+        }
+
+        distance = std::hypot ((spot.x0 + spot.x1) / 2.0f - midX, spot.y + spot.height / 2.0f - midY);
+
+        if (!nearest.contains (label) || distance < nearest[label])
+        {
+            nearest[label] = distance;
+            best[label]    = i;
+        }
+    }
+
+    for (const auto & [label, index] : best)
+    {
+        const LabelSpot  & place = spots[index];
+
         hr = text.DrawString (label.c_str(), place.x0, place.y, place.x1 - place.x0, place.height,
                               DiskInspectorPalette::GetTextColorOn (GetCellColor (palette, place.cell)), textPx, DxuiTheme::kBodyFace,
                               DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
-
 
 
 

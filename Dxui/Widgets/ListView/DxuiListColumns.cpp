@@ -798,6 +798,7 @@ void DxuiListColumns::FitAllColumnsToContent()
 //  ApplyPendingFit
 //
 //  Takes the width a fit asked for, once the paint pass has measured it.
+//  The content is measured by GDI's advances, as the rows draw with them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -814,6 +815,7 @@ void DxuiListColumns::ApplyPendingFit (IDxuiTextRenderer & text)
     int                                    minPx     = m_list.m_scaler.ToPx (DxuiListView::s_kMinColWidthDip);
     int                                    contentPx = 0;
     int                                    topRow    = m_list.GetTopRow();
+    bool                                   wasGdi    = false;
     std::vector<Fit>                       pending;
 
 
@@ -849,6 +851,8 @@ void DxuiListColumns::ApplyPendingFit (IDxuiTextRenderer & text)
     m_pendingVisibleGrows.clear();
     m_pendingGrows.clear();
 
+    wasGdi = text.SetGdiClassicText (true);
+
     for (const auto & [idx, visibleRows, growOnly, report] : pending)
     {
         contentPx = visibleRows ? GetColumnContentWidthPx (text, idx, topRow, topRow + m_list.GetVisibleRowCapacity() + 1)
@@ -868,6 +872,8 @@ void DxuiListColumns::ApplyPendingFit (IDxuiTextRenderer & text)
             m_list.m_onColumnResized ((int) idx, GetColumnOverrideWidthPx (idx));
         }
     }
+
+    text.SetGdiClassicText (wasGdi);
 }
 
 

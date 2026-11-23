@@ -7,14 +7,18 @@
 #include "CassoExplorer/Model/FolderWatch.h"
 #include "Core/AppTimerIds.h"
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
+#include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/Managers/ExplorerRename.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
 #include "Core/AppMessages.h"
 #include "Core/TextEncoding.h"
+#include "CassoExplorer/Model/DiskImageCatalog.h"
 #include "CassoExplorer/Model/HostFolderNames.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
+#include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
 
 
 
@@ -59,7 +63,7 @@ void ExplorerFolderSync::RefreshAfterHostChange (const std::wstring & select)
     {
         if (_wcsicmp (rows[i].name.c_str(), select.c_str()) == 0)
         {
-            m_context.browser.SetSelectedRows ({ (int) i });
+            m_context.browser.GetSelection().SetSelectedRows ({ (int) i });
             break;
         }
     }
@@ -300,17 +304,23 @@ void ExplorerFolderSync::CheckDrives()
 {
     HRESULT   hr           = S_OK;
     DWORD     mask         = GetLogicalDrives();
+    DWORD     media        = GetRemovableMediaMask (mask);
     bool      cardsChanged = UpdateStorageCards();
     Location  showing;
 
 
 
-    if (mask == m_driveMask && !cardsChanged)
+    LeaveDriveWithoutMedia (media);
+
+    //  A card reader has its drive letter with no card in it, so a card
+    //  put in or taken out changes the media mask and not the drive mask.
+    if (mask == m_driveMask && media == m_mediaMask && !cardsChanged)
     {
         return;
     }
 
     m_driveMask = mask;
+    m_mediaMask = media;
 
     m_context.browser.GetTreeModel().SetDrives (HostFolderNames::GetDriveRoots());
     m_context.browser.GetTreeModel().Invalidate (TreeModel::kThisPcRootId);
@@ -345,10 +355,98 @@ void ExplorerFolderSync::CheckDrives()
         IGNORE_RETURN_VALUE (hr, S_OK);
         m_context.listPane.FillList();
     }
-    else if (m_context.browser.LeaveMissingLocation())
+    else if (m_context.browser.GetLoader().LeaveMissingLocation())
     {
         m_context.listPane.FillList();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::LeaveDriveWithoutMedia
+//
+//  An empty card reader's drive root exists, so a tab on it, or on a
+//  folder or image under it, goes to This PC rather than listing what the
+//  card had.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFolderSync::LeaveDriveWithoutMedia (DWORD media)
+{
+    Location  showing;
+    wchar_t   letter = 0;
+    int       drive  = 0;
+
+
+
+    if (!m_context.browser.GetBrowserModel().HasTabs())
+    {
+        return;
+    }
+
+    showing = m_context.browser.GetLocation();
+
+    if (showing.kind != Location::Kind::HostFolder && showing.kind != Location::Kind::DiskImage &&
+        showing.kind != Location::Kind::DiskDirectory)
+    {
+        return;
+    }
+
+    if (showing.path.size() < 2 || showing.path[1] != L':')
+    {
+        return;
+    }
+
+    letter = (wchar_t) towupper (showing.path[0]);
+
+    if (letter < L'A' || letter > L'Z')
+    {
+        return;
+    }
+
+    drive = letter - L'A';
+
+    if ((media & (1u << drive)) != 0)
+    {
+        return;
+    }
+
+    m_context.addressBar.GoToLocation (Location::MakeRoot (TreeModel::kThisPcRootId));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::GetRemovableMediaMask
+//
+//  One bit per drive with media in it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DWORD ExplorerFolderSync::GetRemovableMediaMask (DWORD driveMask)
+{
+    DWORD  media = 0;
+
+
+
+    for (int drive = 0; drive < 26; drive++)
+    {
+        std::wstring  root = { (wchar_t) (L'A' + drive), L':', L'\\' };
+
+        if ((driveMask & (1u << drive)) != 0 && HostFolderNames::IsMediaPresent (root))
+        {
+            media |= 1u << drive;
+        }
+    }
+
+    return media;
 }
 
 
@@ -368,7 +466,11 @@ void ExplorerFolderSync::CheckDrives()
 
 void ExplorerFolderSync::PollDrives()
 {
-    if (GetLogicalDrives() != m_driveMask)
+    DWORD  mask = GetLogicalDrives();
+
+
+
+    if (mask != m_driveMask || GetRemovableMediaMask (mask) != m_mediaMask)
     {
         CheckDrives();
     }
@@ -508,7 +610,7 @@ bool ExplorerFolderSync::UpdateStorageCards()
 
         for (const PartitionEntry & partition : partitions)
         {
-            entry.partitions.push_back ({ TextEncoding::Utf8ToWide (partition.step), TextEncoding::NarrowToWide (PartitionAccess::GetLabel (partition, true)) });
+            entry.partitions.push_back ({ TextEncoding::Utf8ToWide (partition.step), DiskImageCatalog::GetPartitionLabel (entry.path, partition, true) });
         }
 
         key += std::format (L"{}|{}|{}|{}|{}|{};", letters, card.drive.number, card.drive.bytes, entry.label, card.hasUnmounted ? 1 : 0, entry.partitions.size());
@@ -556,11 +658,16 @@ bool ExplorerFolderSync::UpdateStorageCards()
         }
     }
 
+    //  A tab on a card taken out goes to This PC. The active tab is left by
+    //  LeaveMissingLocation, which lists it again.
     for (int number : m_storageCardDrives)
     {
         if (std::find (drives.begin(), drives.end(), number) == drives.end())
         {
             m_context.app.cards->Close (number);
+            m_context.browser.GetBrowserModel().MoveTabsOffCard (TextEncoding::Utf8ToWide (PhysicalCards::MakeCardPath (number)),
+                                                                 Location::MakeRoot (TreeModel::kThisPcRootId));
+            m_context.tabManager.FillTabs();
         }
     }
 
@@ -614,12 +721,12 @@ void ExplorerFolderSync::UpdateWatchedFolders()
 
         if (showing.path.size() > 3)
         {
-            folders.push_back (CassoExplorerBrowser::GetParentFolder (showing.path));
+            folders.push_back (BrowserRowPaths::GetParentFolder (showing.path));
         }
     }
     else if (!showing.path.empty())
     {
-        folders.push_back (CassoExplorerBrowser::GetParentFolder (showing.path));
+        folders.push_back (BrowserRowPaths::GetParentFolder (showing.path));
     }
 
     for (row = 0; row < m_context.treePane.GetVisibleCount(); row++)
@@ -690,7 +797,7 @@ bool ExplorerFolderSync::IsShownFolderIn (const std::vector<std::wstring> & fold
         return false;
     }
 
-    shown = (showing.kind == Location::Kind::HostFolder) ? showing.path : CassoExplorerBrowser::GetParentFolder (showing.path);
+    shown = (showing.kind == Location::Kind::HostFolder) ? showing.path : BrowserRowPaths::GetParentFolder (showing.path);
 
     return std::any_of (folders.begin(), folders.end(), [&] (const std::wstring & folder) { return IsSameFolder (folder, shown); });
 }
@@ -727,7 +834,7 @@ bool ExplorerFolderSync::RefreshOpenTreeFolders (const std::vector<std::wstring>
             && m_context.browser.TryGetNodeLocation (node->id, at) && !at.path.empty()
             && (node->expanded || at.kind == Location::Kind::HostFolder))
         {
-            std::wstring  holder = (at.kind == Location::Kind::HostFolder) ? at.path : CassoExplorerBrowser::GetParentFolder (at.path);
+            std::wstring  holder = (at.kind == Location::Kind::HostFolder) ? at.path : BrowserRowPaths::GetParentFolder (at.path);
 
             if (std::any_of (folders.begin(), folders.end(), [&] (const std::wstring & folder) { return IsSameFolder (folder, holder); }))
             {
@@ -807,7 +914,7 @@ void ExplorerFolderSync::RefreshChangedFolders()
 
     //  The folder shown was deleted: the change is its parent's, so the list
     //  moves up, as Explorer's does, rather than staying on what is gone.
-    if (m_context.browser.GetBrowserModel().HasTabs() && m_context.browser.LeaveMissingLocation())
+    if (m_context.browser.GetBrowserModel().HasTabs() && m_context.browser.GetLoader().LeaveMissingLocation())
     {
         m_context.listPane.FillList();
         return;
@@ -820,7 +927,7 @@ void ExplorerFolderSync::RefreshChangedFolders()
     }
 
     //  The view as it stands, in keys, before the rows under it change.
-    m_context.browser.GetRowKeys (before.keys);
+    m_context.browser.GetSelection().GetRowKeys (before.keys);
     m_context.listPane.CaptureView (before);
 
     //  Re-read without the browser's own restore: the anchor decides both the
@@ -830,10 +937,10 @@ void ExplorerFolderSync::RefreshChangedFolders()
 
     //  The selection is set before the list is filled, so the preview pane
     //  doesn't close and reopen in between.
-    m_context.browser.GetRowKeys (keys);
+    m_context.browser.GetSelection().GetRowKeys (keys);
     after = RefreshAnchor::Compute (before, keys);
 
-    m_context.browser.SetSelectedRows (after.selected);
+    m_context.browser.GetSelection().SetSelectedRows (after.selected);
     m_context.listPane.FillList();
     m_context.listPane.RestoreView (after);
 
@@ -895,6 +1002,8 @@ void ExplorerFolderSync::StartPolling()
 
 
     m_driveMask = GetLogicalDrives();
+    m_mediaMask = GetRemovableMediaMask (m_driveMask);
+    CheckDrives();
     SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerDrive, kDrivePollMs, nullptr);
 
     hr = m_deviceWatch.Start ([this]() { HandleDeviceChange(); });

@@ -1,17 +1,10 @@
 #include "Pch.h"
 
 #include "Widgets/DxuiZoomControl.h"
-#include "Core/DxuiUnicodeSymbols.h"
 
 
 
 
-
-static constexpr int     s_kButtonDip   = 26;
-static constexpr int     s_kSliderDip   = 140;
-static constexpr float   s_kTickPercent = 25.0f;
-static constexpr int     s_kPercentDip  = 56;
-static constexpr int     s_kNearDip     = 16;
 
 //  The stops a step moves between, as percentages.
 static constexpr int     s_kStops[]     = { 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200 };
@@ -24,30 +17,16 @@ static constexpr int     s_kStops[]     = { 50, 60, 70, 80, 90, 100, 110, 120, 1
 //
 //  DxuiZoomControl::DxuiZoomControl
 //
-//  The slider runs over the zoom range in whole percents; it and its
-//  buttons start hidden.
+//  The standard range, linear, stepped through the standard stops, with
+//  Reset at 100%.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiZoomControl::DxuiZoomControl()
 {
-    m_zoomOut = CreateChild<DxuiButton> (s_kpszMinusSign);
-    m_slider  = CreateChild<DxuiSlider>();
-    m_zoomIn  = CreateChild<DxuiButton> (L"+");
-    m_percent = CreateChild<DxuiButton> (FormatZoom (m_zoom));
-
-    m_slider->SetRange     (static_cast<float> (kMinZoom * 100), static_cast<float> (kMaxZoom * 100));
-    m_slider->SetStep      (10.0f);
-    m_slider->SetDragStep  (1.0f);
-    m_slider->SetTickInterval (s_kTickPercent);
-    m_slider->SetShowValue (false);
-    m_slider->SetValue     (100.0f);
-    m_slider->SetOnChange  ([this] (float value) { ChangeZoom (value / 100.0); });
-    m_slider->SetOnDragEnd ([this] () { if (m_onZoom) { m_onZoom (m_zoom); } });
-
-    m_zoomOut->SetOnClick ([this] () { ChangeZoom (StepZoom (m_zoom, -1)); });
-    m_zoomIn->SetOnClick  ([this] () { ChangeZoom (StepZoom (m_zoom,  1)); });
-    m_percent->SetOnClick ([this] () { OnPercentClick (GetTickCount64()); });
+    m_popup.SetRange     (kMinZoom, kMaxZoom, false);
+    m_popup.SetResetZoom (1.0);
+    m_popup.SetOnStep    ([] (double zoom, int steps) { return StepZoom (zoom, steps); });
 }
 
 
@@ -56,28 +35,37 @@ DxuiZoomControl::DxuiZoomControl()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiZoomControl::OnPercentClick
-//
-//  Each click toggles the slider. A second click within the double-click time
-//  also returns the zoom to 100%, and the two toggles cancel.
+//  DxuiZoomControl::SetRange
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiZoomControl::OnPercentClick (uint64_t nowMs)
+void DxuiZoomControl::SetRange (double minZoom, double maxZoom, bool isLogarithmic)
 {
-    bool  isDouble = m_lastPercentClickMs != 0 && nowMs - m_lastPercentClickMs <= GetDoubleClickTime();
+    m_popup.SetRange (minZoom, maxZoom, isLogarithmic);
+}
 
 
 
-    m_isSliderShown      = !m_isSliderShown;
-    m_lastPercentClickMs = isDouble ? 0 : nowMs;
 
-    if (isDouble)
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomControl::UpdateHover
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiZoomControl::UpdateHover (POINT cursorPx, int64_t nowMs)
+{
+    bool  wasOpen = m_popup.IsOpen();
+
+
+
+    if (!m_popup.IsDragging())
     {
-        ChangeZoom (1.0);
+        m_popup.OnHover (cursorPx);
     }
 
-    Layout (m_boundsDip, m_scaler);
+    return Advance (nowMs, wasOpen);
 }
 
 
@@ -86,17 +74,112 @@ void DxuiZoomControl::OnPercentClick (uint64_t nowMs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiZoomControl::SetZoom
-//
-//  Sets the zoom the control displays; the callback is not called.
+//  DxuiZoomControl::Follow
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiZoomControl::SetZoom (double zoom)
+bool DxuiZoomControl::Follow (HWND owner, double zoom, int64_t nowMs)
 {
-    m_zoom = std::clamp (zoom, kMinZoom, kMaxZoom);
-    m_slider->SetValue  (static_cast<float> (m_zoom * 100));
-    m_percent->SetLabel (FormatZoom (m_zoom));
+    POINT  cursor   = {};
+    bool   isCursor = false;
+    bool   wasOpen  = m_popup.IsOpen();
+
+
+
+    if (!m_popup.IsDragging())
+    {
+        m_popup.SetZoom (zoom);
+    }
+
+    isCursor = owner != nullptr && IsVisible() && GetCursorPos (&cursor) && ScreenToClient (owner, &cursor);
+
+    if (isCursor && !m_popup.IsDragging())
+    {
+        m_popup.OnHover (cursor);
+    }
+
+    return Advance (nowMs, wasOpen);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomControl::Advance
+//
+//  Moves the opening along, and fits the bounds to what is drawn. True while
+//  the panel moves or when it opened or closed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiZoomControl::Advance (int64_t nowMs, bool wasOpen)
+{
+    bool  isMoving = m_popup.Tick (nowMs);
+
+
+
+    FitBounds();
+
+    return isMoving || wasOpen != m_popup.IsOpen();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomControl::FitBounds
+//
+//  The button at rest; open, the button and the panel, so a host that
+//  routes presses by bounds sends those on the panel here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiZoomControl::FitBounds()
+{
+    RECT  button = m_popup.GetButtonRect();
+    RECT  panel  = m_popup.GetPanelRect();
+    RECT  fitted = button;
+
+
+
+    if (m_popup.IsOpen())
+    {
+        UnionRect (&fitted, &button, &panel);
+    }
+
+    SetBounds (fitted);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomControl::PlaceInRow
+//
+//  The popup puts the button a margin in from its corner's bottom right, so
+//  the corner extends a margin past the row's right end and the button's
+//  bottom.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiZoomControl::PlaceInRow (const RECT & rowPx, const RECT & panelBoundsPx, const DxuiDpiScaler & scaler)
+{
+    long  margin = scaler.ToPx (DxuiZoomPopup::kMarginDip);
+    long  button = scaler.ToPx (DxuiZoomPopup::kButtonHeightDip);
+    RECT  corner = { rowPx.left, rowPx.top, rowPx.right + margin, (rowPx.top + rowPx.bottom + button) / 2 + margin };
+
+
+
+    m_panelBounds = panelBoundsPx;
+
+    m_popup.Place (corner, m_panelBounds, scaler);
+    FitBounds();
 }
 
 
@@ -147,13 +230,22 @@ double DxuiZoomControl::StepZoom (double zoom, int steps)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiZoomControl::FormatZoom
+//  DxuiZoomControl::GetStandardSteps
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring DxuiZoomControl::FormatZoom (double zoom)
+std::vector<double> DxuiZoomControl::GetStandardSteps()
 {
-    return std::to_wstring (std::lround (zoom * 100)) + L"%";
+    std::vector<double>  steps;
+
+
+
+    for (int percent : s_kStops)
+    {
+        steps.push_back (percent / 100.0);
+    }
+
+    return steps;
 }
 
 
@@ -164,89 +256,21 @@ std::wstring DxuiZoomControl::FormatZoom (double zoom)
 //
 //  DxuiZoomControl::Layout
 //
-//  From the right: the percentage, then, while the slider is visible, the
-//  "+" button, the slider and the "-" button.
+//  A containing panel's layout pass passes in the bounds FitBounds set,
+//  and then the button doesn't move; other bounds are a new corner, the
+//  button a margin in from its bottom right.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiZoomControl::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 {
-    int  button  = scaler.ToPx (s_kButtonDip);
-    int  slider  = scaler.ToPx (s_kSliderDip);
-    int  percent = scaler.ToPx (s_kPercentDip);
-    int  top     = boundsPx.top;
-    int  x       = boundsPx.right - percent;
-
-
-
-    SetBounds (boundsPx);
-    m_scaler = scaler;
-
-    m_percent->Layout ({ x, top, x + percent, boundsPx.bottom }, scaler);
-
-    x -= IsSliderShown() ? button : 0;
-    m_zoomIn->Layout  ({ x, top, x + button, boundsPx.bottom }, scaler);
-    x -= IsSliderShown() ? slider : 0;
-    m_slider->Layout  ({ x, top, x + slider, boundsPx.bottom }, scaler);
-    x -= IsSliderShown() ? button : 0;
-    m_zoomOut->Layout ({ x, top, x + button, boundsPx.bottom }, scaler);
-
-    m_zoomIn->SetVisible  (IsSliderShown());
-    m_slider->SetVisible  (IsSliderShown());
-    m_zoomOut->SetVisible (IsSliderShown());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiZoomControl::IsOverControls
-//
-//  Over the percentage or, while they are visible, the slider and buttons.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiZoomControl::IsOverControls (POINT p) const
-{
-    RECT  area = m_percent->GetBounds();
-
-
-
-    area.left = IsSliderShown() ? m_zoomOut->GetBounds().left : area.left;
-
-    return PtInRect (&area, p) != FALSE;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiZoomControl::UpdateHover
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiZoomControl::UpdateHover (POINT cursorPx)
-{
-    RECT  area   = m_percent->GetBounds();
-    int   margin = IsSliderShown() ? m_scaler.ToPx (s_kNearDip) : 0;
-    bool  isOver = false;
-
-
-
-    area.left = IsSliderShown() ? m_zoomOut->GetBounds().left : area.left;
-    InflateRect (&area, margin, margin);
-
-    isOver = PtInRect (&area, cursorPx) != FALSE || IsDragging();
-
-    if (isOver != m_isHoverShown)
+    if (EqualRect (&boundsPx, &m_boundsDip) && m_popup.GetButtonRect().right > m_popup.GetButtonRect().left)
     {
-        m_isHoverShown = isOver;
-        Layout (m_boundsDip, m_scaler);
+        return;
     }
+
+    m_popup.Place (boundsPx, m_panelBounds, scaler);
+    FitBounds();
 }
 
 
@@ -255,19 +279,54 @@ void DxuiZoomControl::UpdateHover (POINT cursorPx)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiZoomControl::ChangeZoom
-//
-//  A zoom from the control's own buttons or slider: set on the control, then
-//  passed to the callback.
+//  DxuiZoomControl::Paint
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiZoomControl::ChangeZoom (double zoom)
+void DxuiZoomControl::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    SetZoom (zoom);
+    (void) painter;
 
-    if (m_onZoom)
-    {
-        m_onZoom (m_zoom);
-    }
+    m_popup.Paint (text, theme);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomControl::OnMouse
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiZoomControl::OnMouse (const DxuiMouseEvent & ev)
+{
+    bool  isConsumed = m_popup.OnMouse (ev);
+
+
+
+    FitBounds();
+
+    return isConsumed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomControl::Tick
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiZoomControl::Tick (int64_t nowMs)
+{
+    bool  isMoving = m_popup.Tick (nowMs);
+
+
+
+    (void) isMoving;
+    FitBounds();
 }

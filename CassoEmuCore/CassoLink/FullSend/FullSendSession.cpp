@@ -234,6 +234,8 @@ std::string FullSendSession::GetPrefixLine() const
 //  once. At the start drive 1 is first. A drive whose disk was just sent is
 //  passed over, as its catalog track was read again a moment ago; one whose
 //  disk changed during the read is checked, so its new disk goes with no key.
+//  An image that didn't boot, and that another capture could help, pauses
+//  the session at once with the offer, before the other drive is read.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -243,6 +245,15 @@ HRESULT FullSendSession::RunRound()
     FullSendCheckedDisk  disk;
 
 
+
+    m_context.boots.Apply();
+
+    if (m_context.boots.HasRetry())
+    {
+        hr = Pause();
+        CHR (hr);
+        BAIL_OUT_IF (true, S_OK);
+    }
 
     for (int drive : GetOrder())
     {
@@ -310,6 +321,7 @@ HRESULT FullSendSession::Pause()
 
         lines = GetPauseLines();
         lines.push_back (FullSendScreen::GetQuipText (screen.quip));
+        FitPauseLines (lines);
 
         hr = link.WaitForKey (lines, key);
         CHR (hr);
@@ -338,6 +350,13 @@ HRESULT FullSendSession::Pause()
         if (key == FullSendKey::Space)
         {
             hr = CheckDrives (retry, sent);
+            CHR (hr);
+            continue;
+        }
+
+        if (key == FullSendKey::RawDrive1 || key == FullSendKey::RawDrive2)
+        {
+            hr = CaptureRaw (key == FullSendKey::RawDrive1 ? 1 : 2, sent);
             CHR (hr);
             continue;
         }
@@ -374,7 +393,7 @@ HRESULT FullSendSession::CheckDrives (const std::string & retry, bool & outSent)
 
     outSent = false;
 
-    for (int drive : GetOrder())
+    for (int drive : GetOrder (retry.empty() ? 0 : m_context.boots.GetRetryDrive()))
     {
         hr = CheckDrive (drive, disk);
         CHR (hr);
@@ -449,12 +468,54 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullSendSession::CaptureRaw
+//
+//  The drive's disk captured raw whatever its check found, for a disk that
+//  failed or looked blank or empty, so a problem report has its image.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT FullSendSession::CaptureRaw (int drive, bool & outSent)
+{
+    HRESULT              hr   = S_OK;
+    FullSendCheckedDisk  disk;
+
+
+
+    outSent = false;
+
+    BAIL_OUT_IF (!m_context.link.HasDrive (drive), S_OK);
+
+    hr = CheckDrive (drive, disk);
+    CHR (hr);
+
+    m_check.ClearRepeat (drive);
+    m_context.Report (std::format ("Capturing the disk in drive {} in raw mode, for a problem report", drive), drive);
+
+    disk.isRawOnly = true;
+
+    hr = SendDisk (drive, disk, FullSendSendMode::Anyway);
+    CHR (hr);
+
+    outSent = true;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullSendSession::SendAgain
 //
 //  A disk whose image did not boot, sent as a new image beside the first. A
 //  raw capture is built from its reads and the first capture's. A likely
 //  copy-protected disk saved as its sectors, or one whose damage is unclear,
-//  is captured raw, because protected sectors read the same each time. A
+//  is captured raw, because protected sectors read the same each time. So
+//  is a sector image that booted with a bad file system. A
 //  damaged disk is read with verification on, for sectors that read
 //  differently each time.
 //
@@ -468,17 +529,21 @@ HRESULT FullSendSession::SendAgain (int drive, const FullSendCheckedDisk & disk)
     const FullSendRow  * first         = m_folder.FindWithImage ([&] (const FullSendRow & row) { return row.fingerprint == disk.fingerprint; });
     bool                 protectedCopy = first != nullptr && first->status == FullSendManifest::kStatusProtected;
     bool                 unclearCopy   = first != nullptr && first->status == FullSendManifest::kStatusUnclear;
-    bool                 rawAgain      = protectedCopy || unclearCopy;
-    bool                 verify        = !rawAgain && !wasVerify;
+    bool                 rawCopy       = first != nullptr && first->status == FullSendManifest::kStatusRawCapture;
+    bool                 oddCatalog    = first != nullptr && !rawCopy && first->boot == FullSendManifest::kBootBooted && first->fsCheck == FullSendManifest::kCheckBad;
+    bool                 rawAgain      = protectedCopy || unclearCopy || oddCatalog;
+    bool                 verify        = !rawAgain && !rawCopy && !wasVerify;
 
 
 
     m_context.boots.NoteRetried (disk.fingerprint);
     m_check.ClearRepeat (drive);
 
-    m_context.Report (protectedCopy ? std::format ("The image captured from the disk in drive {} did not boot; the disk is likely copy-protected. Capturing the disk again in raw mode.", drive)
+    m_context.Report (oddCatalog    ? std::format ("The image captured from the disk in drive {} booted, but its file system is damaged, which can be copy protection. Capturing the disk again in raw mode.", drive)
+                    : protectedCopy ? std::format ("The image captured from the disk in drive {} did not boot; the disk is likely copy-protected. Capturing the disk again in raw mode.", drive)
                     : unclearCopy   ? std::format ("The image captured from the disk in drive {} did not boot, and its unreadable sectors may be copy protection. Capturing the disk again in raw mode.", drive)
-                                    : std::format ("The image captured from the disk in drive {} did not boot. Capturing the disk again with verified reads.", drive));
+                    : rawCopy       ? std::format ("The raw capture of the disk in drive {} did not boot. Capturing it again, combined with the first capture's reads.", drive)
+                                    : std::format ("The image captured from the disk in drive {} did not boot. Capturing the disk again with verified reads.", drive), drive);
 
     if (verify)
     {
@@ -560,13 +625,18 @@ Error:
 //
 //  FullSendSession::GetOrder
 //
-//  The other drive first, and drive 1 at the start.
+//  The other drive first, and drive 1 at the start; with irst a drive,
+//  that drive first.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::array<int, 2> FullSendSession::GetOrder() const
+std::array<int, 2> FullSendSession::GetOrder (int first) const
 {
-    return { m_lastRead == 1 ? 2 : 1, m_lastRead == 1 ? 1 : 2 };
+    int  lead = (first == 1 || first == 2) ? first : (m_lastRead == 1 ? 2 : 1);
+
+
+
+    return { lead, lead == 1 ? 2 : 1 };
 }
 
 
@@ -589,6 +659,21 @@ std::vector<std::string> FullSendSession::GetPauseLines() const
     int                       drive = m_check.IsRepeat (1) ? 1 : 2;
 
 
+
+    //  The offer to capture a disk again is the only thing on the pause, its
+    //  first line in inverse, as it isn't the usual flow.
+    if (m_context.boots.HasRetry())
+    {
+        for (std::string & line : lines)
+        {
+            if (line.ends_with ("Capture it again"))
+            {
+                std::transform (line.begin(), line.end(), line.begin(), [] (char c) { return (char) (c | 0x80); });
+            }
+        }
+
+        return lines;
+    }
 
     for (int d : { 1, 2 })
     {
@@ -626,6 +711,54 @@ std::vector<std::string> FullSendSession::GetPauseLines() const
     }
 
     return lines;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendSession::FitPauseLines
+//
+//  The pause's lines cut to what the Apple takes: the history's rows, and a
+//  request whose lines, each with its ending zero, and the mode byte fit in
+//  s_kPauseBytes. Blank rows go first, then the quip, then the earliest
+//  notes, so the instructions remain.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendSession::FitPauseLines (std::vector<std::string> & ioLines)
+{
+    auto  bytes = [&ioLines] ()
+    {
+        size_t  total = 1;
+
+        for (const std::string & line : ioLines)
+        {
+            total += std::min (line.size(), CassoLinkCodec::kSessionRowLength) + 1;
+        }
+
+        return total;
+    };
+    auto  fits  = [&] () { return ioLines.size() <= s_kPauseRows && bytes() <= s_kPauseBytes; };
+
+
+
+    for (auto blank = std::find (ioLines.begin(), ioLines.end(), std::string()); !fits() && blank != ioLines.end(); blank = std::find (ioLines.begin(), ioLines.end(), std::string()))
+    {
+        ioLines.erase (blank);
+    }
+
+    if (!fits() && !ioLines.empty())
+    {
+        ioLines.pop_back();
+    }
+
+    while (!fits() && !ioLines.empty())
+    {
+        ioLines.erase (ioLines.begin());
+    }
 }
 
 

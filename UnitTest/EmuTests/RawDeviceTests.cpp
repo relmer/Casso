@@ -209,6 +209,7 @@ public:
         std::unique_ptr<RawDeviceConnection>  connection;
         std::thread                           thread;
         HRESULT                               result = E_PENDING;
+        std::vector<std::wstring>             log;
 
         void Start()
         {
@@ -219,6 +220,8 @@ public:
             thread = std::thread ([this]
             {
                 RawDeviceServer  server ([this]() { return std::make_unique<FakeRawDevice> (drives); }, *serverEnd);
+
+                server.SetLog ([this] (const std::wstring & line) { log.push_back (line); });
 
                 result = server.Run();
             });
@@ -534,6 +537,8 @@ public:
 
         Assert::AreEqual (0, session.drives.drives[kCard].writes);
         Assert::IsTrue (session.drives.drives[kCard].bytes == original);
+        Assert::IsTrue (std::ranges::any_of (session.log, [] (const std::wstring & line) { return line == L"write drive 3 blocks 0 to 0: 0x80070005"; }),
+                        L"the failed write is logged");
     }
 
 

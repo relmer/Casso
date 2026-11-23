@@ -293,22 +293,6 @@ public:
 
 
 
-    TEST_METHOD (NameFilterWords)
-    {
-        std::vector<std::wstring>  words = CassoExplorerBrowser::SplitFilterWords (L"  Zork   II ");
-
-
-
-        Assert::AreEqual ((size_t) 2, words.size());
-        Assert::AreEqual (std::wstring (L"zork"), words[0]);
-        Assert::AreEqual (std::wstring (L"ii"),   words[1]);
-        Assert::IsTrue  (CassoExplorerBrowser::IsNameFilterMatch (L"Zork II.woz", words));
-        Assert::IsFalse (CassoExplorerBrowser::IsNameFilterMatch (L"Zork I.woz",  words));
-        Assert::IsTrue  (CassoExplorerBrowser::IsNameFilterMatch (L"anything",    {}));
-    }
-
-
-
     TEST_METHOD (PickerHasOnlyItsListedCommands)
     {
         using C = CassoExplorerCommands;

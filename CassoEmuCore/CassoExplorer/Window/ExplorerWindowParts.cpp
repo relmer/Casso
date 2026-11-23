@@ -85,12 +85,15 @@ ExplorerWindowParts::ExplorerWindowParts (IExplorerWindow             & window,
                  .cassoLinkManager = cassoLinkManager,
                  .linkDrives       = linkDrives,
                  .fullSendWindows  = fullSendWindows,
+                 .linkJobs         = linkJobs,
                  .dragDrop         = dragDrop,
                  .tabManager       = tabManager,
                  .preview          = preview,
                  .addressBar       = addressBar,
                  .menus            = menus,
                  .commandManager   = commandManager,
+                 .verbs            = verbs,
+                 .imageTools       = imageTools,
                  .clipboard          = clipboard,
                  .prompts          = prompts,
                  .deletion         = deletion,
@@ -224,8 +227,8 @@ void ExplorerWindowParts::Configure()
     services.shellIcons->SetSizePx (MulDiv (DxuiTreeView::s_kIconDip, dpi, (int) DxuiDpiScaler::kBaseDpi));
     context.browser.SetShellIcons (services.shellIcons.get());
     context.browser.SetShellVerbs (services.shellVerbs.get());
-    context.browser.SetPreviewMonitor (preview.GetPicture().GetMonitor(), context.prefs.previewCustomArgb);
-    context.browser.SetDefaultDecodeOptions (context.prefs.copyOptions);
+    context.browser.GetPreviewer().SetPreviewMonitor (preview.GetPicture().GetMonitor(), context.prefs.previewCustomArgb);
+    context.browser.GetPreviewer().SetDefaultDecodeOptions (context.prefs.copyOptions);
     explorerOptions = FolderOptions::ReadFromShell();
     context.browser.SetFolderOptions (explorerOptions);
     treePane.ApplyNavPaneOptions();
@@ -278,21 +281,9 @@ bool ExplorerWindowParts::HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lPar
         return true;
     }
 
-    if (msg == (UINT) AppMessage::ExplorerCardWrite)
-    {
-        *(bool *) wParam = opener.ConfirmCardWrite (*(const std::wstring *) lParam);
-        return true;
-    }
-
     if (msg == (UINT) AppMessage::ExplorerCardProgress)
     {
         opener.HandleCardProgress();
-        return true;
-    }
-
-    if (msg == (UINT) AppMessage::ExplorerCardArrivals)
-    {
-        listPane.GetBars().OfferArrived();
         return true;
     }
 
@@ -323,7 +314,7 @@ bool ExplorerWindowParts::HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lPar
             listPane.HandleShellListed (key);
         }
 
-        for (const std::wstring & key : context.browser.GetHostListings().TakeArrivedKeys())
+        for (const std::wstring & key : context.browser.GetLoader().GetHostListings().TakeArrivedKeys())
         {
             listPane.HandleShellListed (key);
         }
@@ -406,6 +397,13 @@ bool ExplorerWindowParts::HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lPar
     if (msg == (UINT) AppMessage::ExplorerNewChoices)
     {
         toolbars.SetCommandBarDropDowns();
+        return true;
+    }
+
+    //  An installer that changes a file association may also add commands.
+    if (msg == (UINT) AppMessage::ExplorerAssocChanged)
+    {
+        menus.RefreshPackagedCommands();
         return true;
     }
 

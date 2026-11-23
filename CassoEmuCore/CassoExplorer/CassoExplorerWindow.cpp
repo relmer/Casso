@@ -11,6 +11,7 @@
 #include "resource.h"
 #include "CassoExplorer/CassoExplorerNamedControl.h"
 #include "CassoExplorer/Picker/ExplorerPickerHost.h"
+#include "CassoExplorer/Picker/PickerRequest.h"
 #include "Seams/CassoHostDialogs.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
 #include "CassoExplorer/Model/IFolderWatcher.h"
@@ -158,7 +159,7 @@ HRESULT CassoExplorerWindow::Open (HINSTANCE instance, const std::wstring & titl
     params.title                    = title;
     params.hInstance                = instance;
     params.initialSizeDip           = { CassoExplorerShell::kDefaultWidthDip, CassoExplorerShell::kDefaultHeightDip };
-    params.minSizeDip               = { kMinWindowWidthDip, 400 };
+    params.minSizeDip               = (m_context.picker != nullptr) ? SIZE { kMinPickerWidthDip, kMinPickerHeightDip } : SIZE { kMinWindowWidthDip, 400 };
     params.resizable                = true;
     params.insetContentBelowCaption = true;
     params.classNameOverride        = ExplorerWindowFinder::GetWindowClass();
@@ -460,6 +461,16 @@ void CassoExplorerWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
     //  which the strips over them tint; everything below them is opaque.
     painter.FillRect ((float) bounds.left, (float) top,
                       (float) (bounds.right - bounds.left), (float) (bounds.bottom - top), theme.Background());
+
+    //  A save form's bar under the list is lighter, as in the standard Save
+    //  As dialog.
+    if (m_parts->context.app.picker != nullptr && m_parts->context.app.picker->IsSave())
+    {
+        RECT  rect = m_parts->layout.GetPickerBand().GetBounds();
+
+        painter.FillRect ((float) rect.left, (float) rect.top, (float) (rect.right - rect.left), (float) (rect.bottom - rect.top),
+                          DxuiColor::Mix (theme.Background(), theme.Foreground(), s_kSavePickerBarTint));
+    }
 
     m_parts->preview.PaintBackground (painter, theme);
 
@@ -1041,7 +1052,8 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
     //  goes.
     barsMoved = ((int) m_parts->preview.TickScrollbars (GetNowMs())
                | (int) m_parts->listPane.Tick (GetNowMs())
-               | (int) m_parts->treePane.TickScrollbars (GetNowMs())) != 0;
+               | (int) m_parts->treePane.TickScrollbars (GetNowMs())
+               | (int) m_parts->statusBar.Tick (GetNowMs())) != 0;
 
     //  Tabs slide apart for a dragged tab and back together after it.
     barsMoved = barsMoved || m_parts->tabManager.IsSliding();
@@ -1118,7 +1130,7 @@ bool CassoExplorerWindow::IsTickWanted() const
         || m_parts->toolbars.IsMenuOpen() || m_parts->preview.GetToolbar().IsMenuOpen()
         || m_parts->toolbars.WantsTick() || m_parts->preview.GetToolbar().WantsTick()
         || GetPopupHost()->GetContextMenu().IsVisible() || GetPopupHost()->GetContextMenu().WantsTick()
-        || m_parts->input.HasCaretFocus();
+        || m_parts->input.HasCaretFocus() || m_parts->statusBar.IsZoomShown();
 }
 
 

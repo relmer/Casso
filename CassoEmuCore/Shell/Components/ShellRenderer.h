@@ -51,6 +51,10 @@ public:
     ColorMode  GetColorMode () const          { return m_colorMode.load (std::memory_order_acquire); }
     void       SetColorMode (ColorMode mode)  { m_colorMode.store (mode, std::memory_order_release); }
 
+    //  The green monitor's color at full brightness from the theme; 0 is
+    //  pure green.
+    void       SetGreenMonitor (uint32_t argb) { m_greenMonitor.store (argb, std::memory_order_release); }
+
     // The CRT override key for one color mode of the monitor on the desk.
     const std::string &  GetCrtOverrideKey (size_t mode) const { return m_crtOverrideKeys[mode]; }
 
@@ -211,6 +215,9 @@ private:
 
     // Atomic flags (UI writes, CPU reads)
     atomic<ColorMode>             m_colorMode{ColorMode::Color};
+
+    // The theme's green monitor color; 0 is pure green.
+    atomic<uint32_t>              m_greenMonitor{0};
 
     // Joined "<monitorConfigName>/<mode>" keys, indexed by color mode. All
     // four are cached rather than just the active one, so a mode change needs

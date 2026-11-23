@@ -4,6 +4,7 @@
 
 #include "CassoLink/FullSend/FullSendLink.h"
 #include "CassoLink/FullSend/FullSendScreen.h"
+#include "CassoLink/FullSend/FullSendSession.h"
 #include "CassoLink/FullSend/FullSendStatus.h"
 #include "CassoLink/Session/CassoLinkCapture.h"
 #include "CassoLink/Session/CassoLinkSessionTypes.h"
@@ -44,6 +45,7 @@ public:
     void         ToggleVerify     () override { m_verifying = !m_verifying; }
     bool         IsBootstrapped   () override;
     HRESULT      CaptureRaw       (int drive, bool withEarlier, std::vector<Byte> & outWoz, std::vector<Byte> & outReads, std::string & outMarks) override;
+    HRESULT      ProbeRaw         (int drive, const std::vector<Byte> & previous, std::vector<Byte> & outRevolution, bool & outSame) override;
     bool         NoteImage        (const std::string & path) override;
     HRESULT      AwaitBoot        (const std::string & file) override;
     bool         HasBootTones     () override;
@@ -54,6 +56,14 @@ public:
     //  The time for a manifest's row: UTC, in ISO 8601.
     static std::string  GetUtcTime ();
 
+    //  The Apple's history line for a session that ended for `reason`.
+    static std::string  DescribeEnd (FullSendSession::EndReason reason, int sent, int bad, int duplicates);
+
+    //  The clocks a FullSendStatus is made with: seconds for times left,
+    //  and the time of day for each activity line.
+    static double       GetSeconds   ();
+    static std::string  GetClockTime ();
+
     //  The Full Send window's model of this connection's session.
     const FullSendStatus &  GetStatus () const { return m_status; }
     FullSendStatus       &  GetStatus ()       { return m_status; }
@@ -62,9 +72,6 @@ private:
     HRESULT  CheckStop     ();
     void     NoteCapture   (int drive, const CassoLinkCapture::Progress & where);
     HRESULT  ReadTrackOnce (int drive, int track, std::vector<Byte> & ioImage, std::vector<std::pair<int, int>> & outUnreadable);
-
-    static double       GetSeconds   ();
-    static std::string  GetClockTime ();
 
     static constexpr DWORD  s_kBootWaitMs = 90000;
     static constexpr DWORD  s_kBootPollMs = 100;

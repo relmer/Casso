@@ -1100,7 +1100,7 @@ HRESULT ProDosVolume::BuildIntegrityReport (VolumeIntegrityReport & outReport) c
     outReport.SetCatalogFullyParsed (fullyParsed);
 
     //  The boot blocks, the volume directory and the bitmap's blocks.
-    reserved = (uint32_t) ProDosSkeleton::GetReservedBlockCount (bufferBytes);
+    reserved = (uint32_t) ProDosSkeleton::GetReservedBlocks (GetBlockCount());
 
     for (block = 0; block < reserved; block++)
     {
@@ -1444,7 +1444,7 @@ bool ProDosVolume::TryToUnixTime (Word date, Word time, int64_t & outUnix)
 
 int ProDosVolume::GetBlockCount() const
 {
-    return ProDosSkeleton::GetBlockCount (m_sectors.size());
+    return ProDosSkeleton::GetVolumeBlockCount (m_sectors);
 }
 
 

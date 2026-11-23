@@ -1,6 +1,6 @@
 # Contract: Dxui additions for Casso Explorer
 
-**Feature**: 033-cassque | **Date**: 2026-09-10
+**Feature**: 033-casso-explorer | **Date**: 2026-09-10
 
 Each is a general widget or extension in `Dxui/`, tested headlessly on
 the existing mocks, with no knowledge of disks or Casso Explorer.
