@@ -393,6 +393,13 @@
     <ClCompile Include="EmuTests\BootLoaderIdTests.cpp" />
     <ClCompile Include="EmuTests\BlankDiskBuilderTests.cpp" />
     <ClCompile Include="EmuTests\ProDosVolumeTests.cpp" />
+    <ClCompile Include="EmuTests\ProDosFileWriterTests.cpp" />
+    <ClCompile Include="EmuTests\ProDosReaderTests.cpp" />
+    <ClCompile Include="EmuTests\ProDosSkeletonTests.cpp" />
+    <ClCompile Include="EmuTests\ProDosStartupProgramTests.cpp" />
+    <ClCompile Include="EmuTests\ProDosVolumeFixtures.cpp" />
+    <ClCompile Include="EmuTests\ProDosVolumeRemoverTests.cpp" />
+    <ClCompile Include="EmuTests\ProDosVolumeWriterTests.cpp" />
     <ClCompile Include="EmuTests\StockDisk800KTests.cpp" />
     <ClCompile Include="EmuTests\LargeVolumeTests.cpp" />
     <ClCompile Include="EmuTests\HfsBTreeEditorTests.cpp" />
