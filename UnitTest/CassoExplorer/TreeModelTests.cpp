@@ -333,6 +333,39 @@ public:
 
 
 
+    TEST_METHOD (ReadImageNode_LeavesAStorageCardUnread)
+    {
+        InMemoryFileSystem     fs;
+        HostFolderReader       hostFolders;
+        TreeModel              model (fs, hostFolders);
+        FakeDiskFileIo         io;
+        DiskOperations         operations { io };
+        DiskImageCatalog       catalog    { operations };
+        std::vector<TreeNode>  nodes;
+        StorageCardTreeEntry   card { L"\\\\.\\PhysicalDrive5", L"Storage card (Test, 64 MB)" };
+        TreeNode               cardNode;
+
+        SeedHost (fs);
+        Configure (model);
+        model.GetImageNodes().SetCatalog (&catalog);
+        card.partitions = { { L"#1.po", L"Partition 1: CARD1 (32 MB)" } };
+        model.SetStorageCards ({ card });
+
+        AssertSucceeded (model.GetChildren (TreeModel::kThisPcRootId, nodes));
+        cardNode = nodes.back();
+
+        AssertSucceeded (model.ReadImageNode (cardNode));
+
+        Assert::IsTrue  (cardNode.loadError.empty(), cardNode.loadError.c_str());
+        Assert::IsFalse (cardNode.broken, L"a card that is not open is not a broken image");
+        Assert::IsTrue  (cardNode.canExpand);
+
+        AssertSucceeded (model.GetChildren (cardNode.id, nodes));
+        Assert::AreEqual ((size_t) 1, nodes.size());
+    }
+
+
+
     TEST_METHOD (Folder_ListsSubfoldersThenImagesAndNotPlainFiles)
     {
         InMemoryFileSystem     fs;
