@@ -2064,6 +2064,10 @@ interpreter's.
 5. **Given** an Ultima III player disk or an Ultima IV Disk C, **When** its
    saved game is selected, **Then** the roster is listed, and the world map
    is drawn with the party's position marked.
+6. **Given** an Ultima V Britannia disk, or a player disk of Ultima I: The
+   Beginning, Ultima II or the 1981 Ultima, **When** its saved game is
+   selected, **Then** the characters are listed with their position, and
+   the Britannia disk's world map is drawn with the party marked.
 
 ---
 
@@ -4161,10 +4165,9 @@ as they arrive.
   Disk C, MUST be drawn as the roster: each character's name, class, sex,
   status, hit points, level, experience, strength, dexterity,
   intelligence, armor and weapon. The party's food, gold, virtues,
-  reagents, keys, stones and runes MUST also be listed. When an Ultima IV
-  Disk B image is in the same host folder as Disk C, the world map MUST be
-  read from Disk B and drawn with the party's position from `PRTY` marked.
-  Disk B does not have to be open. A copy out MUST write one RTF file, with
+  reagents, keys, stones and runes MUST also be listed. The world map MUST
+  be read from tracks 0 to 15 of Disk C and drawn with the party's
+  position from `PRTY` marked. A copy out MUST write one RTF file, with
   the map as a picture in it.
 - **FR-305**: An Ultima III player disk MUST be recognized by its roster
   sectors, since it has no catalog, and MUST be drawn as the roster: each
@@ -4172,8 +4175,25 @@ as they arrive.
   gold, equipment and marks. The world map MUST be read from the player
   disk itself and drawn with the party's position marked. A copy out MUST
   write one RTF file, with the map as a picture in it.
-- **FR-242**: Every format and protocol in FR-190 to FR-241, FR-304 and
-  FR-305 MUST be
+- **FR-306**: An Ultima V Britannia disk, a ProDOS disk with `ROSTER`
+  and `PRTY.DATA`, MUST be drawn as the party and the rest of the roster:
+  each character's name, class, sex, status, stats, hit points, magic
+  points, level and experience, then food, gold and the game's date. The
+  world map MUST be read from blocks 152 to 279 of the same disk and drawn
+  with the party's position marked.
+- **FR-307**: A player disk of Ultima I: The Beginning, a ProDOS disk with
+  `U1.VARS`, MUST be drawn as the character: name, race, class, sex, hit
+  points, the six stats, gold and position.
+- **FR-308**: An Ultima II player disk MUST be recognized by its character
+  at track 4 sector 8, since it has no readable catalog, and MUST be drawn
+  as the character: name, race, class, sex, hit points, food, gold, the
+  six stats and position.
+- **FR-309**: A player disk of the 1981 Ultima MUST be recognized by its
+  catalog file `NAME=<character>` and the Applesoft variables the game
+  saves to track 26, and MUST be drawn as the character: name, race,
+  class, hit points, food, gold, experience, the six stats and position.
+- **FR-242**: Every format and protocol in FR-190 to FR-241 and FR-304 to
+  FR-309 MUST be
   implemented by the rule FR-171 sets.
 
 ### Key Entities
