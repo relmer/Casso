@@ -57,6 +57,7 @@ private:
     float  PaintHeader     (IDxuiTextRenderer & text, const IDxuiTheme & theme, const AnalyzedSector & sector, const TrackAnalysis & track, float y);
     void   PaintHeaderItem (IDxuiTextRenderer & text, const IDxuiTheme & theme, const HeaderItem & item, float x, float y, float rowH) const;
     void   PaintCursor     (IDxuiPainter & painter, const IDxuiTheme & theme);
+    int    GetCursorByte   () const;
     void   MoveCursor      (int offset, bool isTextColumn, bool isLowNibble);
     int    GetEdit         () const;
     void   PaintBytes      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const AnalyzedSector & sector, const TrackAnalysis & track, float y);
@@ -76,7 +77,7 @@ private:
     };
 
     void                   PaintGrid      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const ByteGrid & grid, std::span<const Byte> bytes,
-                                           std::span<const Byte> other, std::span<const Byte> hits, std::span<const Byte> changed, float textPx);
+                                           std::span<const Byte> other, std::span<const Byte> hits, std::span<const Byte> changed, float textPx, int cursor);
     std::span<const Byte>  GetPairedBytes (const TrackAnalysis & track) const;
 
     ByteGrid  m_grid;

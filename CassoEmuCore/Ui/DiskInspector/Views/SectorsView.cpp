@@ -306,7 +306,7 @@ void SectorsView::PaintBytes (IDxuiPainter & painter, IDxuiTextRenderer & text, 
 
     m_grid = grid;
     PaintSelection (painter, theme);
-    PaintGrid      (painter, text, theme, grid, shown, bytesB, hits, changed, textPx);
+    PaintGrid      (painter, text, theme, grid, shown, bytesB, hits, changed, textPx, GetCursorByte());
     PaintCursor    (painter, theme);
 
     if (isB)
@@ -318,7 +318,7 @@ void SectorsView::PaintBytes (IDxuiPainter & painter, IDxuiTextRenderer & text, 
 
         if (!bytesB.empty())
         {
-            PaintGrid (painter, text, theme, grid, bytesB, data.bytes, {}, {}, textPx);
+            PaintGrid (painter, text, theme, grid, bytesB, data.bytes, {}, {}, textPx, -1);
         }
     }
 }
@@ -341,19 +341,20 @@ void SectorsView::PaintBytes (IDxuiPainter & painter, IDxuiTextRenderer & text, 
 ////////////////////////////////////////////////////////////////////////////////
 
 void SectorsView::PaintGrid (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const ByteGrid & grid, std::span<const Byte> bytes,
-                                std::span<const Byte> other, std::span<const Byte> hits, std::span<const Byte> changed, float textPx)
+                                std::span<const Byte> other, std::span<const Byte> hits, std::span<const Byte> changed, float textPx, int cursor)
 {
-    float     left   = static_cast<float> (m_boundsDip.left);
-    float     line   = m_scaler.ToPxf (s_kDiffLineDip);
-    size_t    i      = 0;
-    int       row    = 0;
-    int       col    = 0;
-    float     rowTop = 0;
-    uint32_t  color  = 0;
-    float     mark   = m_scaler.ToPxf (s_kMarkDip);
-    float     hx     = 0;
-    float     tx     = 0;
-    wchar_t   ch[2]  = {};
+    float     left     = static_cast<float> (m_boundsDip.left);
+    uint32_t  onAccent = DiskInspectorPalette::GetTextColorOn (theme.Accent());
+    float     line     = m_scaler.ToPxf (s_kDiffLineDip);
+    size_t    i        = 0;
+    int       row      = 0;
+    int       col      = 0;
+    float     rowTop   = 0;
+    uint32_t  color    = 0;
+    float     mark     = m_scaler.ToPxf (s_kMarkDip);
+    float     hx       = 0;
+    float     tx       = 0;
+    wchar_t   ch[2]    = {};
 
 
 
@@ -400,11 +401,12 @@ void SectorsView::PaintGrid (IDxuiPainter & painter, IDxuiTextRenderer & text, c
             painter.FillConvexQuad (tx, rowTop, tx + mark, rowTop, tx, rowTop + mark, tx, rowTop + mark, color);
         }
 
-        text.DrawString (std::format (L"{:02X}", bytes[i]).c_str(), grid.hexLeft + col * grid.byteW, rowTop, grid.byteW, grid.rowH, color, textPx,
+        text.DrawString (std::format (L"{:02X}", bytes[i]).c_str(), grid.hexLeft + col * grid.byteW, rowTop, grid.byteW, grid.rowH,
+                         (static_cast<int> (i) == cursor) ? (m_isLowNibble ? theme.Foreground() : onAccent) : color, textPx,
                          DxuiTheme::kMonoFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
 
         ch[0] = GetTextChar (bytes[i]);
-        text.DrawString (ch, grid.textLeft + col * grid.charW, rowTop, grid.charW, grid.rowH, color, textPx,
+        text.DrawString (ch, grid.textLeft + col * grid.charW, rowTop, grid.charW, grid.rowH, (static_cast<int> (i) == cursor) ? onAccent : color, textPx,
                          DxuiTheme::kMonoFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     }
 }
@@ -441,7 +443,8 @@ std::span<const Byte> SectorsView::GetPairedBytes (const TrackAnalysis & track) 
 //
 //  SectorsView::PaintSelection
 //
-//  The selected bytes shaded in both columns, a run per row.
+//  The selected bytes shaded in both columns, a run per row. A hex run ends
+//  at its last byte's digits, so the space after that byte is not shaded.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -463,7 +466,7 @@ void SectorsView::PaintSelection (IDxuiPainter & painter, const IDxuiTheme & the
         b = (std::min (end, (row + 1) * kBytesPerRow) - 1) % kBytesPerRow + 1;
         y = m_grid.top + row * m_grid.rowH;
 
-        painter.FillRect (m_grid.hexLeft + a * m_grid.byteW, y, (b - a) * m_grid.byteW, m_grid.rowH, shade);
+        painter.FillRect (m_grid.hexLeft + a * m_grid.byteW, y, (b - a - 1) * m_grid.byteW + 2 * m_grid.charW, m_grid.rowH, shade);
         painter.FillRect (m_grid.textLeft + a * m_grid.charW, y, (b - a) * m_grid.charW, m_grid.rowH, shade);
     }
 }
@@ -498,7 +501,7 @@ bool SectorsView::OnMouse (const DxuiMouseEvent & ev)
         else
         {
             m_context.model->SelectBytes (index, 1, isText);
-            m_isLowNibble = !isText && ev.positionDip.x >= m_grid.hexLeft + (index % kBytesPerRow) * m_grid.byteW + m_grid.byteW * 0.4f;
+            m_isLowNibble = false;
         }
 
         m_isDragging = true;
@@ -551,34 +554,56 @@ int SectorsView::GetEdit() const
 //
 //  SectorsView::PaintCursor
 //
-//  While editing, a box around the hex digit or the character typing goes
-//  to.
+//  While editing, the byte typing goes to is filled with the accent in both
+//  columns. Once its first hex digit is typed, the hex cell is a box instead:
+//  the background inside an accent outline.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void SectorsView::PaintCursor (IDxuiPainter & painter, const IDxuiTheme & theme)
 {
-    int    offset = m_context.model->GetFirstByte();
+    int    offset = GetCursorByte();
     float  row    = 0;
-    float  col    = 0;
-    float  digitW = m_grid.byteW * 0.4f;
+    float  hexX   = 0;
+    float  hexW   = 2 * m_grid.charW;
+    float  edge   = m_scaler.ToPxf (s_kCursorDip);
 
 
 
-    if (m_isEditing && m_grid.isShown && offset >= 0 && offset < DiskFieldFormat::kSectorBytes && GetEdit() >= 0)
+    if (offset >= 0)
     {
-        row = m_grid.top + (offset / kBytesPerRow) * m_grid.rowH;
-        col = static_cast<float> (offset % kBytesPerRow);
+        row  = m_grid.top + (offset / kBytesPerRow) * m_grid.rowH;
+        hexX = m_grid.hexLeft + (offset % kBytesPerRow) * m_grid.byteW;
 
-        if (m_context.model->IsTextColumn())
+        painter.FillRect (m_grid.textLeft + (offset % kBytesPerRow) * m_grid.charW, row, m_grid.charW, m_grid.rowH, theme.Accent());
+        painter.FillRect (hexX, row, hexW, m_grid.rowH, theme.Accent());
+
+        if (m_isLowNibble)
         {
-            painter.OutlineRect (m_grid.textLeft + col * m_grid.charW, row, m_grid.charW, m_grid.rowH, m_scaler.ToPxf (s_kCursorDip), theme.Accent());
-        }
-        else
-        {
-            painter.OutlineRect (m_grid.hexLeft + col * m_grid.byteW + (m_isLowNibble ? digitW : 0.0f), row, digitW, m_grid.rowH, m_scaler.ToPxf (s_kCursorDip), theme.Accent());
+            painter.FillRect (hexX + edge, row + edge, hexW - 2 * edge, m_grid.rowH - 2 * edge, theme.Background());
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SectorsView::GetCursorByte
+//
+//  The byte typing goes to while editing, or -1.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int SectorsView::GetCursorByte() const
+{
+    int  offset = m_context.model->GetFirstByte();
+
+
+
+    return (m_isEditing && m_grid.isShown && offset >= 0 && offset < DiskFieldFormat::kSectorBytes && GetEdit() >= 0) ? offset : -1;
 }
 
 
@@ -604,7 +629,7 @@ void SectorsView::MoveCursor (int offset, bool isTextColumn, bool isLowNibble)
     else if (offset >= DiskFieldFormat::kSectorBytes)
     {
         offset      = DiskFieldFormat::kSectorBytes - 1;
-        isLowNibble = !isTextColumn;
+        isLowNibble = false;
     }
 
     m_isLowNibble = isLowNibble && !isTextColumn;
@@ -619,10 +644,10 @@ void SectorsView::MoveCursor (int offset, bool isTextColumn, bool isLowNibble)
 //
 //  SectorsView::OnEditKey
 //
-//  In the hex column a digit sets the digit under the cursor and moves to
-//  the next one; in the text column a character sets the byte and moves on.
-//  The arrows move by a digit or a character and by a row, Home and End to
-//  the row's ends, and Tab between the columns.
+//  In the hex column a digit sets the byte's next digit, and the second digit
+//  moves to the next byte; in the text column a character sets the byte and
+//  moves on. The arrows move by a byte and by a row, Home and End to the
+//  row's ends, and Tab between the columns.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -667,14 +692,14 @@ bool SectorsView::OnEditKey (const DxuiKeyEvent & ev)
 
         switch (ev.vk)
         {
-            case VK_LEFT:  MoveCursor ((isText || !m_isLowNibble) ? offset - 1 : offset, isText, !isText && !m_isLowNibble); break;
-            case VK_RIGHT: MoveCursor ((isText || m_isLowNibble) ? offset + 1 : offset, isText, !isText && !m_isLowNibble);  break;
-            case VK_UP:    MoveCursor (offset - kBytesPerRow, isText, m_isLowNibble);                                          break;
-            case VK_DOWN:  MoveCursor (offset + kBytesPerRow, isText, m_isLowNibble);                                          break;
-            case VK_HOME:  MoveCursor (offset - offset % kBytesPerRow, isText, false);                                         break;
-            case VK_END:   MoveCursor (offset - offset % kBytesPerRow + kBytesPerRow - 1, isText, !isText);                    break;
-            case VK_TAB:   MoveCursor (offset, !isText, false);                                                                break;
-            default:       isHandled = false;                                                                                  break;
+            case VK_LEFT:  MoveCursor (offset - 1, isText, false);                                           break;
+            case VK_RIGHT: MoveCursor (offset + 1, isText, false);                                           break;
+            case VK_UP:    MoveCursor (offset - kBytesPerRow, isText, false);                                break;
+            case VK_DOWN:  MoveCursor (offset + kBytesPerRow, isText, false);                                break;
+            case VK_HOME:  MoveCursor (offset - offset % kBytesPerRow, isText, false);                       break;
+            case VK_END:   MoveCursor (offset - offset % kBytesPerRow + kBytesPerRow - 1, isText, false);    break;
+            case VK_TAB:   MoveCursor (offset, !isText, false);                                              break;
+            default:       isHandled = false;                                                                break;
         }
     }
 
