@@ -125,19 +125,6 @@ public:
                                       DiskImage             & inOutImage);
 
 private:
-    //  A sector write on a flux track: each sector whose bytes changed has
-    //  its data field spliced into the flux at the controller's cell. A blank
-    //  flux track gets a whole standard track the same way.
-    static HRESULT  WriteFluxTrackSectors (const vector<Byte>  &  sectors,
-                                           const int           *  interleave,
-                                           int                    track,
-                                           DiskImage           &  inOutImage);
-
-    static void     WriteBlankFluxTrack   (const vector<Byte>  &  sectors,
-                                           const int           *  interleave,
-                                           int                    track,
-                                           DiskImage           &  inOutImage);
-
     //  The walk shared by every entry point above. keepRecovered decides what
     //  becomes of a sector that decoded but did not verify; both reports are
     //  filled from the one pass, so they can never disagree about the same
