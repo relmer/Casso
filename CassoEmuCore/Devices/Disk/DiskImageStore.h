@@ -13,6 +13,7 @@
 #include "MountDiagnosis.h"
 #include "BayChange.h"
 #include "Devices/Disk/Store/BayFileAccess.h"
+#include "Devices/Disk/Store/BayWatchRegistry.h"
 #include "Devices/Disk/Store/DiskBayTable.h"
 #include "Devices/Disk/Store/DiskFlusher.h"
 #include "Devices/Disk/Store/DiskSalvager.h"
@@ -278,14 +279,6 @@ private:
     //  exactly as it was.
     HRESULT        MountExternallyModifiedDisk (int slot, int drive, const vector<Byte> & bytes) override;
 
-    //  Registers and drops the watch on a bay's directory.
-    //
-    //  A DIRECTORY IS DROPPED ONLY WHEN NO OTHER BAY STILL NEEDS IT. Two disks
-    //  out of one folder are ordinary, and ejecting the first must not blind
-    //  the second.
-    void           BeginWatching (int slot, int drive);
-    void           EndWatching   (int slot, int drive);
-
     //  Loads bytes into a bay for MountFromBytes and Mount, which each call the
     //  bay-change sink after a successful load, in their own order.
     HRESULT        LoadIntoBay (int slot, int drive, const string & virtualPath,
@@ -304,5 +297,6 @@ private:
     DiskFlusher            m_flusher       { m_bays, m_hooks, m_files, *this };
     ExternalChangeActions  m_changeActions { m_bays, m_hooks, m_files, *this, *this };
     ExternalChangeMonitor  m_changeMonitor { m_bays, m_hooks, m_files, m_changeActions };
+    BayWatchRegistry       m_watches       { m_bays, m_hooks, m_changeMonitor };
     string                 m_emptyPath;
 };
