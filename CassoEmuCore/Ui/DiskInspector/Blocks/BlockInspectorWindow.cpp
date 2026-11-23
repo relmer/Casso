@@ -188,7 +188,10 @@ void BlockInspectorWindow::RenderIfChanged()
     m_session.UpdateTitle();
     DxuiPanel::Tick ((int64_t) GetTickCount64());
     m_menus.Tick ((int64_t) GetTickCount64());
-    m_status.Tick (GetHwnd());
+    if (m_status.Tick (GetHwnd()))
+    {
+        m_isDirty = true;
+    }
 
     if (m_panel->UpdateZoom (GetHwnd()))
     {

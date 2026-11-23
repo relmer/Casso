@@ -14,7 +14,6 @@ class BlockHexView;
 class BlockInspectorModel;
 class BlockMapView;
 class FloatingGroup;
-class FloatingZoom;
 class OverlayChip;
 struct BlockField;
 struct BlockEditState;
@@ -168,7 +167,7 @@ private:
     DxuiToolbar           * m_tools           = nullptr;
     BlockMapView          * m_map             = nullptr;
     FloatingGroup         * m_chipsGroup      = nullptr;
-    FloatingZoom          * m_zoomGroup       = nullptr;
+    DxuiZoomControl       * m_zoomControl     = nullptr;
     OverlayChip           * m_filesChip       = nullptr;
     OverlayChip           * m_diffsChip       = nullptr;
     BlockNavigator          m_nav;

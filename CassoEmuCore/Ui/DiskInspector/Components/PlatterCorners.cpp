@@ -6,7 +6,6 @@
 #include "Ui/DiskInspector/Components/InspectorMetrics.h"
 #include "Ui/DiskInspector/Components/InspectorSession.h"
 #include "Ui/DiskInspector/FloatingGroup.h"
-#include "Ui/DiskInspector/FloatingZoom.h"
 #include "Ui/DiskInspector/OverlayChip.h"
 #include "Ui/DiskInspector/PlatterLegendView.h"
 #include "Ui/DiskInspector/PlatterView.h"
@@ -68,7 +67,7 @@ void PlatterCorners::Create()
     m_legendGroup  = parent.CreateChild<FloatingGroup>();
     m_tiltGroup    = parent.CreateChild<FloatingGroup>();
     m_chipsGroup   = parent.CreateChild<FloatingGroup>();
-    m_zoomGroup    = parent.CreateChild<FloatingZoom>();
+    m_zoomControl  = parent.CreateChild<DxuiZoomControl>();
 
     m_legendButton = m_legendGroup->CreateChild<DxuiIconButton>();
     m_legend       = parent.CreateChild<PlatterLegendView> (m_session.context);
@@ -125,8 +124,8 @@ void PlatterCorners::Create()
     m_alignChip->SetOnChange ([this] (bool isOn) { SetOverlay (PlatterOverlay::Alignment,   isOn); });
     m_diffsChip->SetOnChange ([this] (bool isOn) { SetOverlay (PlatterOverlay::Differences, isOn); });
 
-    m_zoomGroup->SetOnZoom ([this] (double zoom) { m_platter.ZoomAboutCenter (zoom / std::max (m_session.model.GetZoom(), 1.0)); });
-    m_zoomGroup->SetOnStep ([this] (double zoom, int steps) { return ZoomStops::Step (m_platter.GetZoomStops(), zoom, steps); });
+    m_zoomControl->SetOnZoom ([this] (double zoom) { m_platter.ZoomAboutCenter (zoom / std::max (m_session.model.GetZoom(), 1.0)); });
+    m_zoomControl->SetOnStep ([this] (double zoom, int steps) { return ZoomStops::Step (m_platter.GetZoomStops(), zoom, steps); });
 }
 
 
@@ -173,7 +172,7 @@ int PlatterCorners::GetChipsWidthPx (const DxuiDpiScaler & scaler) const
 
 int PlatterCorners::GetZoomWidthPx (const DxuiDpiScaler & scaler) const
 {
-    return FloatingZoom::GetClosedWidthPx (scaler.ToPx (s_kPadDip), scaler);
+    return scaler.ToPx (DxuiZoomControl::kWidthDip);
 }
 
 
@@ -277,7 +276,7 @@ void PlatterCorners::Place()
         x += (w > 0) ? w + gap : 0;
     }
 
-    m_zoomGroup->Place (POINT { right, bottom }, group, pad, m_scaler);
+    m_zoomControl->PlaceInRow ({ right - GetZoomWidthPx (m_scaler), bottom - group, right, bottom }, m_areaPx, m_scaler);
 }
 
 
@@ -307,7 +306,7 @@ void PlatterCorners::Update()
 
 
 
-    for (FloatingGroup * group : { m_legendGroup, m_tiltGroup, m_chipsGroup, static_cast<FloatingGroup *> (m_zoomGroup) })
+    for (FloatingGroup * group : { m_legendGroup, m_tiltGroup, m_chipsGroup })
     {
         group->SetVisible (isShown);
     }
@@ -332,7 +331,10 @@ void PlatterCorners::Update()
         SetOverlay (PlatterOverlay::Files, true);
     }
 
-    isRelayout = m_zoomGroup->Update (m_host.GetOwnerHwnd(), m_session.model.GetZoom(), stops.empty() ? 1.0 : stops.back()) || isRelayout;
+    m_zoomControl->SetVisible (isShown);
+    m_zoomControl->SetRange   (1.0, stops.empty() ? 1.0 : std::max (stops.back(), 1.0), true);
+
+    isRelayout = m_zoomControl->Follow (m_host.GetOwnerHwnd(), m_session.model.GetZoom(), (int64_t) GetTickCount64()) || isRelayout;
 
     if (!m_tiltSlider->IsDragging())
     {
@@ -414,12 +416,12 @@ bool PlatterCorners::Contains (POINT pointPx) const
 
 
 
-    for (const FloatingGroup * group : { m_legendGroup, m_tiltGroup, m_chipsGroup, static_cast<FloatingGroup *> (m_zoomGroup) })
+    for (const FloatingGroup * group : { m_legendGroup, m_tiltGroup, m_chipsGroup })
     {
         isIn = isIn || (group != nullptr && group->Contains (pointPx));
     }
 
-    return isIn;
+    return isIn || (m_zoomControl != nullptr && m_zoomControl->IsVisible() && m_zoomControl->IsOverControls (pointPx));
 }
 
 

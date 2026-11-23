@@ -11,7 +11,6 @@
 #include "Ui/DiskInspector/Blocks/BlockMapView.h"
 #include "Ui/DiskInspector/Components/InspectorCommands.h"
 #include "Ui/DiskInspector/FloatingGroup.h"
-#include "Ui/DiskInspector/FloatingZoom.h"
 #include "Ui/DiskInspector/InspectorMarquee.h"
 #include "Ui/DiskInspector/OverlayChip.h"
 #include "Ui/DiskInspector/ZoomStops.h"
@@ -110,7 +109,7 @@ void BlockInspectorPanel::Init (BlockInspectorModel * model, BlockInspectorWorke
 void BlockInspectorPanel::InitCorners()
 {
     m_chipsGroup = CreateChild<FloatingGroup>();
-    m_zoomGroup  = CreateChild<FloatingZoom>();
+    m_zoomControl = CreateChild<DxuiZoomControl>();
     m_filesChip  = m_chipsGroup->CreateChild<OverlayChip> (L"Files");
     m_diffsChip  = m_chipsGroup->CreateChild<OverlayChip> (L"Differences");
 
@@ -120,8 +119,8 @@ void BlockInspectorPanel::InitCorners()
     m_map->SetFilesColored   (m_isFilesOn);
     m_diffsChip->SetOnChange ([this] (bool isOn) { SetDiffsOn (isOn); });
 
-    m_zoomGroup->SetOnZoom ([this] (double zoom) { m_map->ZoomTo (zoom); });
-    m_zoomGroup->SetOnStep ([this] (double zoom, int steps) { return ZoomStops::Step (m_map->GetZoomStops(), zoom, steps); });
+    m_zoomControl->SetOnZoom ([this] (double zoom) { m_map->ZoomTo (zoom); });
+    m_zoomControl->SetOnStep ([this] (double zoom, int steps) { return ZoomStops::Step (m_map->GetZoomStops(), zoom, steps); });
 }
 
 
@@ -136,7 +135,14 @@ void BlockInspectorPanel::InitCorners()
 
 bool BlockInspectorPanel::UpdateZoom (HWND owner)
 {
-    return m_zoomGroup != nullptr && m_zoomGroup->Update (owner, m_map->GetZoom(), m_map->GetMostZoom());
+    if (m_zoomControl == nullptr)
+    {
+        return false;
+    }
+
+    m_zoomControl->SetRange (1.0, std::max (m_map->GetMostZoom(), 1.0), true);
+
+    return m_zoomControl->Follow (owner, m_map->GetZoom(), (int64_t) GetTickCount64());
 }
 
 
@@ -1028,7 +1034,7 @@ void BlockInspectorPanel::LayoutGrid (const RECT & column, const DxuiDpiScaler &
         x += (w > 0) ? w + gap : 0;
     }
 
-    m_zoomGroup->Place (POINT { right, bottom }, group, pad, scaler);
+    m_zoomControl->PlaceInRow ({ right - scaler.ToPx (DxuiZoomControl::kWidthDip), bottom - group, right, bottom }, column, scaler);
 }
 
 

@@ -40,21 +40,25 @@ void InspectorStatusBar::Create (DxuiPanel & parent, ZoomFn onZoom, bool hasHelp
 //
 //  InspectorStatusBar::Tick
 //
-//  The zoom's slider goes by where the cursor is, not the last mouse event, so
-//  it stays through a tooltip that ends the window's hover.
+//  The zoom's panel opens and closes by where the cursor is, not by the last
+//  mouse event, so a tooltip that ends the window's hover doesn't close it.
+//  True while the panel moves.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void InspectorStatusBar::Tick (HWND owner)
+bool InspectorStatusBar::Tick (HWND owner)
 {
-    POINT  cursor = {};
+    POINT  cursor    = {};
+    bool   isChanged = false;
 
 
 
     if (m_scaler.GetDpi() != 0 && owner != nullptr && GetCursorPos (&cursor) && ScreenToClient (owner, &cursor))
     {
-        m_zoomControl->UpdateHover (cursor);
+        isChanged = m_zoomControl->UpdateHover (cursor, (int64_t) GetTickCount64());
     }
+
+    return isChanged;
 }
 
 
@@ -80,8 +84,8 @@ int InspectorStatusBar::GetHeightPx (const DxuiDpiScaler & scaler) const
 //
 //  InspectorStatusBar::Layout
 //
-//  The zoom over the bar's last field, the "?" button in the field before
-//  it, and the lead items and the hint in the rest.
+//  The zoom's button centered in the bar's last field, the "?" button in the
+//  field before it, and the lead items and the hint in the rest.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -105,7 +109,7 @@ void InspectorStatusBar::Layout (const RECT & area, const DxuiDpiScaler & scaler
 
     m_helpPx  = m_hasHelp ? RECT { help.left + pad, area.top + 3, help.right - pad, area.bottom - 3 } : RECT {};
     m_chipsPx = { area.left + pad, area.top, m_hasHelp ? help.left : zoom.left, area.bottom };
-    m_zoomControl->Layout ({ zoom.left + pad, area.top + 1, zoom.right - pad, area.bottom - 1 }, scaler);
+    m_zoomControl->PlaceInRow ({ zoom.left, area.top, zoom.right - pad, area.bottom }, RECT {}, scaler);
 }
 
 
@@ -131,7 +135,7 @@ void InspectorStatusBar::LayOutBar (int leadPx)
     m_bar.SetFields ({ { L"", 0, false, leadPx },
                        { m_hint, 0, true },
                        { L"", 0, false, helpW },
-                       { L"", DxuiZoomControl::kWidthDip + 2 * InspectorMetrics::kMarginDip, false } });
+                       { L"", DxuiZoomPopup::kButtonWidthDip + 2 * InspectorMetrics::kMarginDip, false } });
 }
 
 

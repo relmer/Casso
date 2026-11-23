@@ -1052,7 +1052,8 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
     //  goes.
     barsMoved = ((int) m_parts->preview.TickScrollbars (GetNowMs())
                | (int) m_parts->listPane.Tick (GetNowMs())
-               | (int) m_parts->treePane.TickScrollbars (GetNowMs())) != 0;
+               | (int) m_parts->treePane.TickScrollbars (GetNowMs())
+               | (int) m_parts->statusBar.Tick (GetNowMs())) != 0;
 
     //  Tabs slide apart for a dragged tab and back together after it.
     barsMoved = barsMoved || m_parts->tabManager.IsSliding();
@@ -1129,7 +1130,7 @@ bool CassoExplorerWindow::IsTickWanted() const
         || m_parts->toolbars.IsMenuOpen() || m_parts->preview.GetToolbar().IsMenuOpen()
         || m_parts->toolbars.WantsTick() || m_parts->preview.GetToolbar().WantsTick()
         || GetPopupHost()->GetContextMenu().IsVisible() || GetPopupHost()->GetContextMenu().WantsTick()
-        || m_parts->input.HasCaretFocus();
+        || m_parts->input.HasCaretFocus() || m_parts->statusBar.IsZoomShown();
 }
 
 
