@@ -1270,6 +1270,7 @@ void BlockMapView::PaintLabels (IDxuiTextRenderer & text, const DiskInspectorPal
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  BlockMapView::ReadLabels
