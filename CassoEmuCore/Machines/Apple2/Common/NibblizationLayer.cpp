@@ -2,6 +2,7 @@
 
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
+#include "Machines/Apple2/Common/NibbleFieldWriter.h"
 
 
 
@@ -27,9 +28,6 @@ static constexpr Byte kWriteTranslate[64] =
 
 
 static constexpr int   kEncodedDataSize       = 342;
-static constexpr int   kBitsPerNibble         = 8;
-static constexpr int   kAddrPrologueGap       = 20;
-static constexpr int   kDataPrologueGap       = 6;
 static constexpr Byte  kAddrProlog0           = 0xD5;
 static constexpr Byte  kAltAddrProlog0        = 0xD4;   // Ultima I's address fields
 static constexpr Byte  kAddrProlog1           = 0xAA;
@@ -37,10 +35,6 @@ static constexpr Byte  kAddrProlog2           = 0x96;
 static constexpr Byte  kDataProlog2           = 0xAD;
 static constexpr Byte  kIllegalNibble         = 0xFF;   // InverseTranslate miss
 static constexpr Byte  kSixBitMask            = 0x3F;
-static constexpr Byte  kEpilog0               = 0xDE;
-static constexpr Byte  kEpilog1               = 0xAA;
-static constexpr Byte  kEpilog2               = 0xEB;
-static constexpr Byte  kSyncNibble            = 0xFF;
 static constexpr int   kThirdGroupSize        = 86;
 
 
@@ -90,177 +84,6 @@ static constexpr int kPo_PhysicalToFile[16] =
 {
     0, 8, 1, 9, 2, 10, 3, 11, 4, 12, 5, 13, 6, 14, 7, 15
 };
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Encode44Odd / Encode44Even
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static Byte Encode44Odd (Byte val)
-{
-    return static_cast<Byte> ((val >> 1) | 0xAA);
-}
-
-
-static Byte Encode44Even (Byte val)
-{
-    return static_cast<Byte> (val | 0xAA);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PackNibbleBits
-//
-//  Append 8 bits (MSB-first) of `nibble` into a packed bit-stream byte
-//  vector at the given bit offset. Caller pre-sized the destination.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static void PackNibbleBits (vector<Byte> & dst, size_t & bitOffset, Byte nibble)
-{
-    int    bit  = 0;
-    Byte   b    = 0;
-    Byte   mask = 0;
-
-
-
-    for (bit = 7; bit >= 0; bit--)
-    {
-        b    = static_cast<Byte> ((nibble >> bit) & 1);
-        mask = static_cast<Byte> (b << (7 - (bitOffset & 7)));
-        dst[bitOffset >> 3] = static_cast<Byte> (dst[bitOffset >> 3] | mask);
-        bitOffset++;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PackSyncNibbleBits
-//
-//  Real Disk II hardware writes a sync nibble (0xFF) as a 10-bit pattern
-//  on the disk: the 8 nibble bits followed by 2 zero "sync-gap" bits. The
-//  zero gap tail makes the next nibble's MSB-set bit arrive ~2 bit-times
-//  later than a byte boundary would, which intentionally shifts the
-//  Disk II read latch's bit alignment. After enough sync nibbles in a
-//  row the latch is guaranteed to be aligned on real nibble MSBs, which
-//  is how the boot ROM's $C65E loop synchronizes on the D5 prologue.
-//
-//  Without these gap bits, an 8-bit-only sync run is byte-aligned with
-//  the rest of the bit stream so the latch can lock onto a rotation that
-//  *never* contains a 0xD5 nibble -- the boot ROM spins forever.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static constexpr int  kSyncTailZeros = 2;
-
-static void PackSyncNibbleBits (vector<Byte> & dst, size_t & bitOffset)
-{
-    PackNibbleBits (dst, bitOffset, kSyncNibble);
-    bitOffset += kSyncTailZeros;          // bits are zero-initialized
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  AppendAddressField
-//
-//  Emits sync gap + address prologue + 4-and-4 V/T/S/checksum + epilogue
-//  for one sector.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static void AppendAddressField (
-    vector<Byte>   &  dst,
-    size_t         &  bitOffset,
-    Byte              volume,
-    Byte              track,
-    Byte              sector)
-{
-    Byte    checksum = static_cast<Byte> (volume ^ track ^ sector);
-    int     i        = 0;
-
-
-
-    for (i = 0; i < kAddrPrologueGap; i++)
-    {
-        PackSyncNibbleBits (dst, bitOffset);
-    }
-
-    PackNibbleBits (dst, bitOffset, kAddrProlog0);
-    PackNibbleBits (dst, bitOffset, kAddrProlog1);
-    PackNibbleBits (dst, bitOffset, kAddrProlog2);
-    PackNibbleBits (dst, bitOffset, Encode44Odd  (volume));
-    PackNibbleBits (dst, bitOffset, Encode44Even (volume));
-    PackNibbleBits (dst, bitOffset, Encode44Odd  (track));
-    PackNibbleBits (dst, bitOffset, Encode44Even (track));
-    PackNibbleBits (dst, bitOffset, Encode44Odd  (sector));
-    PackNibbleBits (dst, bitOffset, Encode44Even (sector));
-    PackNibbleBits (dst, bitOffset, Encode44Odd  (checksum));
-    PackNibbleBits (dst, bitOffset, Encode44Even (checksum));
-    PackNibbleBits (dst, bitOffset, kEpilog0);
-    PackNibbleBits (dst, bitOffset, kEpilog1);
-    PackNibbleBits (dst, bitOffset, kEpilog2);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  AppendDataField
-//
-//  Emits sync gap + data prologue + 6-and-2 encoded payload + checksum +
-//  epilogue.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static void AppendDataField (
-    vector<Byte>   &  dst,
-    size_t         &  bitOffset,
-    const Byte     *  sectorData)
-{
-    vector<Byte>  nibbles;
-    int           i       = 0;
-
-
-
-    for (i = 0; i < kDataPrologueGap; i++)
-    {
-        PackSyncNibbleBits (dst, bitOffset);
-    }
-
-    PackNibbleBits (dst, bitOffset, kAddrProlog0);
-    PackNibbleBits (dst, bitOffset, kAddrProlog1);
-    PackNibbleBits (dst, bitOffset, kDataProlog2);
-
-    NibblizationLayer::EncodeDataNibbles (sectorData, nibbles);
-
-    for (Byte nibble : nibbles)
-    {
-        PackNibbleBits (dst, bitOffset, nibble);
-    }
-
-    PackNibbleBits (dst, bitOffset, kEpilog0);
-    PackNibbleBits (dst, bitOffset, kEpilog1);
-    PackNibbleBits (dst, bitOffset, kEpilog2);
-}
 
 
 
@@ -420,11 +243,11 @@ static HRESULT NibblizeWithMap (
             offset = static_cast<size_t> (track * NibblizationLayer::kSectorsPerTrack + interleave[physical])
                    * NibblizationLayer::kSectorByteSize;
 
-            AppendAddressField (out.GetTrackBitsForWrite (track), bitOffset,
-                                volume,
-                                static_cast<Byte> (track),
-                                static_cast<Byte> (physical));
-            AppendDataField    (out.GetTrackBitsForWrite (track), bitOffset, &raw[offset]);
+            NibbleFieldWriter::AppendAddressField (out.GetTrackBitsForWrite (track), bitOffset,
+                                                   volume,
+                                                   static_cast<Byte> (track),
+                                                   static_cast<Byte> (physical));
+            NibbleFieldWriter::AppendDataField    (out.GetTrackBitsForWrite (track), bitOffset, &raw[offset]);
         }
 
         // Trim the track to what we actually wrote so the engine wraps
@@ -521,11 +344,11 @@ HRESULT NibblizationLayer::RenibblizeTracks (
             size_t  offset = static_cast<size_t> (track * kSectorsPerTrack + interleave[physical])
                            * kSectorByteSize;
 
-            AppendAddressField (inOutImage.GetTrackBitsForWrite (track), bitOffset,
-                                volume,
-                                static_cast<Byte> (track),
-                                static_cast<Byte> (physical));
-            AppendDataField    (inOutImage.GetTrackBitsForWrite (track), bitOffset, &sectors[offset]);
+            NibbleFieldWriter::AppendAddressField (inOutImage.GetTrackBitsForWrite (track), bitOffset,
+                                                   volume,
+                                                   static_cast<Byte> (track),
+                                                   static_cast<Byte> (physical));
+            NibbleFieldWriter::AppendDataField    (inOutImage.GetTrackBitsForWrite (track), bitOffset, &sectors[offset]);
         }
 
         inOutImage.SetTrackBitCount (track, bitOffset);
@@ -1860,7 +1683,7 @@ HRESULT NibblizationLayer::WriteFluxTrackSectors (
     DiskImage           &  inOutImage)
 {
     constexpr int     kMaxAttempts    = kSectorsPerTrack * 2;
-    constexpr size_t  kSyncNibbleBits = 8 + kSyncTailZeros;
+    constexpr size_t  kSyncNibbleBits = 8 + NibbleFieldWriter::kSyncTailZeros;
     constexpr size_t  kMaxLeadZeros   = 16;
 
 
@@ -1939,8 +1762,8 @@ HRESULT NibblizationLayer::WriteFluxTrackSectors (
 
         field.assign (kTrackBitCapacity / 8, 0);
         fieldBits = 0;
-        AppendDataField (field, fieldBits, &sectors[offset]);
-        UnpackBits (field, kDataPrologueGap * kSyncNibbleBits, fieldBits, bits);
+        NibbleFieldWriter::AppendDataField (field, fieldBits, &sectors[offset]);
+        UnpackBits (field, NibbleFieldWriter::kDataPrologueGap * kSyncNibbleBits, fieldBits, bits);
 
         // The decoder's position can sit in the zero tail of the sync byte
         // before the prologue; the field itself starts at its first 1 bit.
@@ -2008,8 +1831,8 @@ void NibblizationLayer::WriteBlankFluxTrack (
     {
         offset = static_cast<size_t> (track * kSectorsPerTrack + interleave[physical]) * kSectorByteSize;
 
-        AppendAddressField (field, fieldBits, kDefaultVolume, static_cast<Byte> (track), static_cast<Byte> (physical));
-        AppendDataField    (field, fieldBits, &sectors[offset]);
+        NibbleFieldWriter::AppendAddressField (field, fieldBits, kDefaultVolume, static_cast<Byte> (track), static_cast<Byte> (physical));
+        NibbleFieldWriter::AppendDataField    (field, fieldBits, &sectors[offset]);
     }
 
     UnpackBits (field, 0, fieldBits, bits);
