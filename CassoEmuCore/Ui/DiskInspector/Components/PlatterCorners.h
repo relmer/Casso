@@ -6,6 +6,7 @@
 #include "Ui/DiskInspector/InspectorViewModel.h"
 
 class FloatingGroup;
+class FloatingZoom;
 class IInspectorComponentHost;
 class InspectorSession;
 class OverlayChip;
@@ -80,7 +81,7 @@ private:
     FloatingGroup            * m_legendGroup      = nullptr;
     FloatingGroup            * m_tiltGroup        = nullptr;
     FloatingGroup            * m_chipsGroup       = nullptr;
-    FloatingGroup            * m_zoomGroup        = nullptr;
+    FloatingZoom             * m_zoomGroup        = nullptr;
     DxuiIconButton           * m_legendButton     = nullptr;
     PlatterLegendView        * m_legend           = nullptr;
     DxuiPopupHost            * m_legendPopup      = nullptr;
@@ -92,8 +93,6 @@ private:
     OverlayChip              * m_scansChip        = nullptr;
     OverlayChip              * m_alignChip        = nullptr;
     OverlayChip              * m_diffsChip        = nullptr;
-    DxuiIconButton           * m_zoomOut          = nullptr;
-    DxuiIconButton           * m_zoomIn           = nullptr;
     DxuiDpiScaler              m_scaler;
     RECT                       m_areaPx           = {};
     bool                       m_isLegendPinned   = false;

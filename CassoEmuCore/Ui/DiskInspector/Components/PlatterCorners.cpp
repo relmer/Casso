@@ -6,10 +6,12 @@
 #include "Ui/DiskInspector/Components/InspectorMetrics.h"
 #include "Ui/DiskInspector/Components/InspectorSession.h"
 #include "Ui/DiskInspector/FloatingGroup.h"
+#include "Ui/DiskInspector/FloatingZoom.h"
 #include "Ui/DiskInspector/OverlayChip.h"
 #include "Ui/DiskInspector/PlatterLegendView.h"
 #include "Ui/DiskInspector/PlatterView.h"
 #include "Ui/DiskInspector/TiltButton.h"
+#include "Ui/DiskInspector/ZoomStops.h"
 
 
 
@@ -18,7 +20,6 @@
 static constexpr int      s_kGroupDip       = 36;
 static constexpr int      s_kPadDip         = 4;
 static constexpr int      s_kGapDip         = 6;
-static constexpr int      s_kIconDip        = 28;
 static constexpr int      s_kSliderDip      = 120;
 static constexpr int      s_kSliderMarginDip = 16;
 static constexpr int      s_kInsetDip       = 4;
@@ -26,8 +27,6 @@ static constexpr int64_t  s_kLegendReopenMs = 300;
 static constexpr int      s_kLegendWidthDip = 480;
 static constexpr double   s_kRadiansPerDeg  = 0.017453292519943295;
 static constexpr LPCWSTR  s_kpszGlyphLegend = L"\xE790";
-static constexpr LPCWSTR  s_kpszGlyphMinus  = L"\xE738";
-static constexpr LPCWSTR  s_kpszGlyphPlus   = L"\xE710";
 static constexpr LPCWSTR  s_kpszTiltTip     = L"Tilt: click for flat or tilted, drag the slider or right-drag the disk to set the angle";
 
 
@@ -69,7 +68,7 @@ void PlatterCorners::Create()
     m_legendGroup  = parent.CreateChild<FloatingGroup>();
     m_tiltGroup    = parent.CreateChild<FloatingGroup>();
     m_chipsGroup   = parent.CreateChild<FloatingGroup>();
-    m_zoomGroup    = parent.CreateChild<FloatingGroup>();
+    m_zoomGroup    = parent.CreateChild<FloatingZoom>();
 
     m_legendButton = m_legendGroup->CreateChild<DxuiIconButton>();
     m_legend       = parent.CreateChild<PlatterLegendView> (m_session.context);
@@ -81,8 +80,6 @@ void PlatterCorners::Create()
     m_scansChip    = m_chipsGroup->CreateChild<OverlayChip> (L"Scans");
     m_alignChip    = m_chipsGroup->CreateChild<OverlayChip> (L"Track alignment");
     m_diffsChip    = m_chipsGroup->CreateChild<OverlayChip> (L"Differences");
-    m_zoomOut      = m_zoomGroup->CreateChild<DxuiIconButton>();
-    m_zoomIn       = m_zoomGroup->CreateChild<DxuiIconButton>();
 
     m_legend->SetVisible (false);
 
@@ -128,14 +125,8 @@ void PlatterCorners::Create()
     m_alignChip->SetOnChange ([this] (bool isOn) { SetOverlay (PlatterOverlay::Alignment,   isOn); });
     m_diffsChip->SetOnChange ([this] (bool isOn) { SetOverlay (PlatterOverlay::Differences, isOn); });
 
-    m_zoomOut->SetGlyph          (s_kpszGlyphMinus);
-    m_zoomOut->SetRound          (true);
-    m_zoomOut->SetAccessibleName (L"Zoom out");
-    m_zoomOut->SetOnClick        ([this] () { m_platter.StepZoom (-1); });
-    m_zoomIn->SetGlyph           (s_kpszGlyphPlus);
-    m_zoomIn->SetRound           (true);
-    m_zoomIn->SetAccessibleName  (L"Zoom in");
-    m_zoomIn->SetOnClick         ([this] () { m_platter.StepZoom (1); });
+    m_zoomGroup->SetOnZoom ([this] (double zoom) { m_platter.ZoomAboutCenter (zoom / std::max (m_session.model.GetZoom(), 1.0)); });
+    m_zoomGroup->SetOnStep ([this] (double zoom, int steps) { return ZoomStops::Step (m_platter.GetZoomStops(), zoom, steps); });
 }
 
 
@@ -182,7 +173,7 @@ int PlatterCorners::GetChipsWidthPx (const DxuiDpiScaler & scaler) const
 
 int PlatterCorners::GetZoomWidthPx (const DxuiDpiScaler & scaler) const
 {
-    return 3 * scaler.ToPx (s_kPadDip) + 2 * scaler.ToPx (s_kIconDip);
+    return FloatingZoom::GetClosedWidthPx (scaler.ToPx (s_kPadDip), scaler);
 }
 
 
@@ -256,7 +247,6 @@ void PlatterCorners::Place()
     int                  group  = m_scaler.ToPx (s_kGroupDip);
     int                  pad    = m_scaler.ToPx (s_kPadDip);
     int                  gap    = m_scaler.ToPx (s_kGapDip);
-    int                  icon   = m_scaler.ToPx (s_kIconDip);
     int                  slider = m_isSliderOut ? m_scaler.ToPx (s_kSliderDip) : 0;
     int                  puck   = m_scaler.ToPx (DxuiSlider::kTrackInsetDip);
     int                  left   = m_areaPx.left + inset;
@@ -264,7 +254,6 @@ void PlatterCorners::Place()
     int                  right  = m_areaPx.right - inset;
     int                  bottom = m_areaPx.bottom - inset;
     int                  chipsW = GetChipsWidthPx (m_scaler);
-    int                  zoomW  = GetZoomWidthPx (m_scaler);
     int                  x      = 0;
     int                  w      = 0;
     IDxuiTextRenderer  * text   = m_host.GetTextRenderer();
@@ -288,10 +277,7 @@ void PlatterCorners::Place()
         x += (w > 0) ? w + gap : 0;
     }
 
-    x = right - zoomW;
-    m_zoomGroup->Layout   ({ x, bottom - group, right, bottom }, m_scaler);
-    m_zoomOut->Layout     ({ x + pad, bottom - group + pad, x + pad + icon, bottom - pad }, m_scaler);
-    m_zoomIn->Layout      ({ right - pad - icon, bottom - group + pad, right - pad, bottom - pad }, m_scaler);
+    m_zoomGroup->Place (POINT { right, bottom }, group, pad, m_scaler);
 }
 
 
@@ -311,16 +297,17 @@ void PlatterCorners::Place()
 
 void PlatterCorners::Update()
 {
-    bool  isShown      = m_session.context.hasDisk && !m_session.is35;
-    bool  isReads      = isShown && m_session.host->GetDriveCount() > 0 && m_session.IsWindowDiskA();
-    bool  isDiffs      = isShown && m_session.comparison.IsComparing();
-    bool  isFiles      = isShown && m_session.GetFileMap() != nullptr && m_session.GetFileMap()->notMapped == NotMappedReason::None;
-    bool  isRelayout   = isReads != m_readsChip->IsVisible() || isDiffs != m_diffsChip->IsVisible() || isFiles != m_filesChip->IsVisible();
-    bool  isSliderOut  = isShown && IsSliderWanted();
+    bool            isShown      = m_session.context.hasDisk && !m_session.is35;
+    bool            isReads      = isShown && m_session.host->GetDriveCount() > 0 && m_session.IsWindowDiskA();
+    bool            isDiffs      = isShown && m_session.comparison.IsComparing();
+    bool            isFiles      = isShown && m_session.GetFileMap() != nullptr && m_session.GetFileMap()->notMapped == NotMappedReason::None;
+    bool            isRelayout   = isReads != m_readsChip->IsVisible() || isDiffs != m_diffsChip->IsVisible() || isFiles != m_filesChip->IsVisible();
+    bool            isSliderOut  = isShown && IsSliderWanted();
+    vector<double>  stops        = m_platter.GetZoomStops();
 
 
 
-    for (FloatingGroup * group : { m_legendGroup, m_tiltGroup, m_chipsGroup, m_zoomGroup })
+    for (FloatingGroup * group : { m_legendGroup, m_tiltGroup, m_chipsGroup, static_cast<FloatingGroup *> (m_zoomGroup) })
     {
         group->SetVisible (isShown);
     }
@@ -345,7 +332,7 @@ void PlatterCorners::Update()
         SetOverlay (PlatterOverlay::Files, true);
     }
 
-    m_zoomOut->SetEnabled  (!m_session.model.IsAtFit());
+    isRelayout = m_zoomGroup->Update (m_host.GetOwnerHwnd(), m_session.model.GetZoom(), stops.empty() ? 1.0 : stops.back()) || isRelayout;
 
     if (!m_tiltSlider->IsDragging())
     {
@@ -427,7 +414,7 @@ bool PlatterCorners::Contains (POINT pointPx) const
 
 
 
-    for (const FloatingGroup * group : { m_legendGroup, m_tiltGroup, m_chipsGroup, m_zoomGroup })
+    for (const FloatingGroup * group : { m_legendGroup, m_tiltGroup, m_chipsGroup, static_cast<FloatingGroup *> (m_zoomGroup) })
     {
         isIn = isIn || (group != nullptr && group->Contains (pointPx));
     }
@@ -490,8 +477,6 @@ std::wstring PlatterCorners::GetTip (POINT pointPx, RECT & outAnchorPx) const
         { m_scansChip,    L"Shade each sector by how many times the guest read its address field while searching for a sector", nullptr },
         { m_alignChip,    L"Mark where sector 0 and the longest sync start on each track",             nullptr },
         { m_diffsChip,    L"Mark the quarter tracks that differ",                                      nullptr },
-        { m_zoomOut,      L"Zoom the platter out (minus)",                                             L"The whole disk is shown, so the platter cannot zoom out further" },
-        { m_zoomIn,       L"Zoom the platter in (plus)",                                               nullptr },
     };
 
 
