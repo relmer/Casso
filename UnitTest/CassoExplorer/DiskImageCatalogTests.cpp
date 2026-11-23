@@ -172,4 +172,22 @@ public:
         Assert::AreEqual (DiskImageCatalog::GetPartitionLabel (PartitionCard::kCardPath, entries[0], false) + L" " + DiskMessageText::kDamagedPartitionText,
                           DiskImageCatalog::DescribeDamagedPartition (PartitionCard::kCardPath, entries[0]));
     }
+
+
+
+    TEST_METHOD (PartitionTitle_IsThePartitionLabelForAStepPathAndEmptyForAFile)
+    {
+        Rig                          rig;
+        PartitionLayoutKind          layout = PartitionLayoutKind::None;
+        std::vector<PartitionEntry>  entries;
+        std::wstring                 card   = PartitionCard::kCardPath;
+
+        rig.Seed (PartitionCard::kCardName, PartitionCard::MakeCard());
+        AssertSucceeded (rig.catalog.ListPartitions (card, layout, entries));
+        Assert::IsFalse (entries.empty());
+
+        Assert::AreEqual (DiskImageCatalog::GetPartitionLabel (card, entries[0], false),
+                          DiskImageCatalog::GetPartitionTitle (rig.io, card + L"|" + TextEncoding::NarrowToWide (entries[0].step)));
+        Assert::IsTrue   (DiskImageCatalog::GetPartitionTitle (rig.io, card).empty());
+    }
 };

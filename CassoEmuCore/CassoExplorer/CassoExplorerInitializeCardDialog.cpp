@@ -185,9 +185,10 @@ int CassoExplorerInitializeCardPanel::Arrange (const RECT & bounds, const DxuiDp
 
 void CassoExplorerInitializeCardDialog::OnCreate()
 {
-    DxuiButton                               * cancel = nullptr;
-    std::vector<std::wstring>                  adapters;
-    CassoExplorerInitializeCardPanel::Parts    parts;
+    DxuiButton                                       * cancel = nullptr;
+    std::vector<std::wstring>                          adapters;
+    CassoExplorerInitializeCardPanel::Parts            parts;
+    std::vector<CardLayoutModel::Adapter>::iterator    selected;
 
 
 
@@ -204,15 +205,19 @@ void CassoExplorerInitializeCardDialog::OnCreate()
     m_adapterLabel.SetText (L"Which adapter do you have?");
     m_layoutLabel.SetText (L"Layout:");
 
-    for (int index = (int) CardLayoutModel::Adapter::First; index < (int) CardLayoutModel::Adapter::Count; index++)
+    m_adapterOrder = CardLayoutModel::GetAdapterOrder();
+
+    for (CardLayoutModel::Adapter adapter : m_adapterOrder)
     {
-        adapters.push_back (CardLayoutModel::GetAdapterLabel ((CardLayoutModel::Adapter) index));
+        adapters.push_back (CardLayoutModel::GetAdapterLabel (adapter));
     }
+
+    selected = std::ranges::find (m_adapterOrder, m_adapter);
 
     m_adapterBox.SetPopupHost (GetPopupHost());
     m_adapterBox.SetItems (adapters);
-    m_adapterBox.SetSelected ((int) m_adapter - (int) CardLayoutModel::Adapter::First);
-    m_adapterBox.SetSelect ([this] (int index) { ChooseAdapter ((CardLayoutModel::Adapter) (index + (int) CardLayoutModel::Adapter::First)); });
+    m_adapterBox.SetSelected (selected == m_adapterOrder.end() ? 0 : (int) (selected - m_adapterOrder.begin()));
+    m_adapterBox.SetSelect ([this] (int index) { ChooseAdapter (m_adapterOrder[(size_t) index]); });
 
     m_layoutBox.SetPopupHost (GetPopupHost());
     m_layoutBox.SetSelect ([this] (int index) { ChooseLayout (index); });

@@ -10,10 +10,10 @@
 #include "Ui/DiskInspector/Blocks/BlockMapGrid.h"
 #include "Ui/DiskInspector/Blocks/BlockMapView.h"
 #include "Ui/DiskInspector/Components/InspectorCommands.h"
-#include "Ui/DiskInspector/EditBar.h"
 #include "Ui/DiskInspector/FloatingGroup.h"
 #include "Ui/DiskInspector/InspectorMarquee.h"
 #include "Ui/DiskInspector/OverlayChip.h"
+#include "Ui/DiskInspector/ZoomStops.h"
 #include "Core/NumberFormat.h"
 
 
@@ -23,10 +23,7 @@
 static constexpr int      s_kGroupDip       = 36;
 static constexpr int      s_kGroupPadDip    = 4;
 static constexpr int      s_kGroupGapDip    = 6;
-static constexpr int      s_kIconDip        = 28;
 static constexpr int      s_kInsetDip       = 4;
-static constexpr LPCWSTR  s_kpszGlyphMinus  = L"\xE738";
-static constexpr LPCWSTR  s_kpszGlyphPlus   = L"\xE710";
 
 
 
@@ -112,11 +109,9 @@ void BlockInspectorPanel::Init (BlockInspectorModel * model, BlockInspectorWorke
 void BlockInspectorPanel::InitCorners()
 {
     m_chipsGroup = CreateChild<FloatingGroup>();
-    m_zoomGroup  = CreateChild<FloatingGroup>();
+    m_zoomControl = CreateChild<DxuiZoomControl>();
     m_filesChip  = m_chipsGroup->CreateChild<OverlayChip> (L"Files");
     m_diffsChip  = m_chipsGroup->CreateChild<OverlayChip> (L"Differences");
-    m_zoomOut    = m_zoomGroup->CreateChild<DxuiIconButton>();
-    m_zoomIn     = m_zoomGroup->CreateChild<DxuiIconButton>();
 
     m_diffsChip->SetVisible (false);
 
@@ -124,14 +119,30 @@ void BlockInspectorPanel::InitCorners()
     m_map->SetFilesColored   (m_isFilesOn);
     m_diffsChip->SetOnChange ([this] (bool isOn) { SetDiffsOn (isOn); });
 
-    m_zoomOut->SetGlyph          (s_kpszGlyphMinus);
-    m_zoomOut->SetRound          (true);
-    m_zoomOut->SetAccessibleName (L"Zoom out");
-    m_zoomOut->SetOnClick        ([this] () { m_map->StepZoom (-1); });
-    m_zoomIn->SetGlyph           (s_kpszGlyphPlus);
-    m_zoomIn->SetRound           (true);
-    m_zoomIn->SetAccessibleName  (L"Zoom in");
-    m_zoomIn->SetOnClick         ([this] () { m_map->StepZoom (1); });
+    m_zoomControl->SetOnZoom ([this] (double zoom) { m_map->ZoomTo (zoom); });
+    m_zoomControl->SetOnStep ([this] (double zoom, int steps) { return ZoomStops::Step (m_map->GetZoomStops(), zoom, steps); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorPanel::UpdateZoom
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BlockInspectorPanel::UpdateZoom (HWND owner)
+{
+    if (m_zoomControl == nullptr)
+    {
+        return false;
+    }
+
+    m_zoomControl->SetRange (1.0, std::max (m_map->GetMostZoom(), 1.0), true);
+
+    return m_zoomControl->Follow (owner, m_map->GetZoom(), (int64_t) GetTickCount64());
 }
 
 
@@ -167,8 +178,10 @@ void BlockInspectorPanel::InitRightColumn (const IDxuiTheme * theme, HWND hwnd)
         m_map->Refresh();
 
         //  A new highlight chosen anywhere but on the map starts a flight to
-        //  it, as a sector chosen off the platter does.
-        if (m_isMapSelecting)
+        //  it, as a sector chosen off the platter does. A block clicked on
+        //  the map or gone to starts one too when its row covers several
+        //  blocks, such as the volume directory's for block 2.
+        if (m_isMapSelecting && !m_map->HasSeveralHighlighted())
         {
             m_map->StopFlight();
         }
@@ -194,6 +207,16 @@ void BlockInspectorPanel::InitRightColumn (const IDxuiTheme * theme, HWND hwnd)
         {
             m_isRecording = true;
             Refresh();
+        }
+    });
+
+    //  A double-click on a byte starts editing with the caret on it.
+    hex.SetOnOpen ([this] (uint64_t offset)
+    {
+        if (!m_isEditing && !IsBusy() && m_model->IsOpen())
+        {
+            SetEditing (true);
+            m_hexPane.GetHexView().GoToOffset (offset);
         }
     });
 
@@ -357,14 +380,14 @@ void BlockInspectorPanel::SetEditing (bool isEditing)
 //
 //  BlockInspectorPanel::SetEditState
 //
-//  The edit bar's controls, and the layout again when the bar's height
-//  changes.
+//  The edit controls, and the layout again when the controls in the
+//  header's second row change.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BlockInspectorPanel::SetEditState (const EditBarState & state)
+void BlockInspectorPanel::SetEditState (const BlockEditState & state)
 {
-    if (m_header.SetEditState (state, m_scaler) && !m_jobs.IsLongJob())
+    if (m_header.SetEditState (state) && m_scaler.GetDpi() != 0)
     {
         Layout (GetBounds(), m_scaler);
     }
@@ -580,15 +603,24 @@ bool BlockInspectorPanel::IsBlockLevel() const
 //
 //  The levels went to another location: at the Block level, its block is
 //  selected and drawn once loaded; at any other, the grid is drawn with
-//  the level's highlight.
+//  the level's highlight, and the block drawn there before, after Back or
+//  Forward, is drawn below the list again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void BlockInspectorPanel::OnLevelChanged()
 {
+    uint32_t  drawn = m_nav.GetBrowser().GetDrawnBlock();
+
+
+
     if (IsBlockLevel() && m_model->GetBlock() != m_nav.GetPlace().block)
     {
         m_model->SelectBlock (m_nav.GetPlace().block);
+    }
+    else if (!IsBlockLevel() && m_model->GetBlock() != drawn && drawn < m_model->GetBlockCount())
+    {
+        m_model->ReplaceBlock (drawn);
     }
 
     if (m_scaler.GetDpi() != 0)
@@ -811,6 +843,8 @@ void BlockInspectorPanel::Present()
     m_isRecording = false;
     m_isStepping  = false;
 
+    m_nav.GetBrowser().SetDrawnBlock (m_model->GetBlock());
+
     ApplyHighlight();
     ShowBytes();
     m_header.SetFieldLine (BlockHeaderText::BuildFieldLine (*m_model, m_model->GetBlock()));
@@ -972,12 +1006,10 @@ void BlockInspectorPanel::LayoutGrid (const RECT & column, const DxuiDpiScaler &
     int                  group  = scaler.ToPx (s_kGroupDip);
     int                  pad    = scaler.ToPx (s_kGroupPadDip);
     int                  gap    = scaler.ToPx (s_kGroupGapDip);
-    int                  icon   = scaler.ToPx (s_kIconDip);
     int                  band   = group + 2 * inset;
     int                  left   = column.left + inset;
     int                  right  = column.right - inset;
     int                  bottom = column.bottom - inset;
-    int                  zoomW  = 3 * pad + 2 * icon;
     int                  chipsW = 2 * pad;
     int                  x      = 0;
     int                  w      = 0;
@@ -1002,10 +1034,7 @@ void BlockInspectorPanel::LayoutGrid (const RECT & column, const DxuiDpiScaler &
         x += (w > 0) ? w + gap : 0;
     }
 
-    x = right - zoomW;
-    m_zoomGroup->Layout ({ x, bottom - group, right, bottom }, scaler);
-    m_zoomOut->Layout   ({ x + pad, bottom - group + pad, x + pad + icon, bottom - pad }, scaler);
-    m_zoomIn->Layout    ({ right - pad - icon, bottom - group + pad, right - pad, bottom - pad }, scaler);
+    m_zoomControl->PlaceInRow ({ right - scaler.ToPx (DxuiZoomControl::kWidthDip), bottom - group, right, bottom }, column, scaler);
 }
 
 
@@ -1019,7 +1048,8 @@ void BlockInspectorPanel::LayoutGrid (const RECT & column, const DxuiDpiScaler &
 //  The list at the top, then a splitter, then the current block: its title
 //  row with Copy block at its right end, the field line, the edit bar or
 //  a long job's progress row, then the hex view beside the fields, with a
-//  splitter between them.
+//  splitter between them. The hex view is as wide as its columns, and the
+//  fields list has the rest.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1042,6 +1072,7 @@ void BlockInspectorPanel::LayoutMiddle (const RECT & column, const DxuiDpiScaler
 
     y      = m_header.Layout (column, listEnd + pad / 2 + splitter + pad / 2, m_jobs.IsLongJob(), scaler);
     hexEnd = m_splitters.PlaceHexEnd (column);
+    hexEnd = (int) column.left + m_hexPane.FitHexWidthPx (hexEnd - (int) column.left, scaler);
 
     m_splitters.SetBarRect (BlockPanelSplitters::Bar::Hex, { hexEnd + pad / 2 - splitter / 2, y, hexEnd + pad / 2 + splitter / 2 + 1, std::max (y, (int) column.bottom) });
 
@@ -1114,11 +1145,16 @@ void BlockInspectorPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
 {
     m_splitters.Paint (painter, theme);
 
+    m_hexPane.SetEditLook (m_isEditing, m_hexPane.GetHexView().HasFocus(), { theme.Accent(), theme.ContentBackground(), theme.Foreground() });
+    m_hexPane.PaintFrame  (painter);
+
     DxuiPanel::Paint (painter, text, theme);
     m_header.Paint (painter, text, theme, m_scaler, m_jobs, m_model != nullptr && m_model->IsOpen());
 
     if (m_hexPane.RefitRows (m_scaler))
     {
+        Layout (GetBounds(), m_scaler);
+
         if (m_onChanged)
         {
             m_onChanged();
@@ -1169,6 +1205,18 @@ bool BlockInspectorPanel::OnMouse (const DxuiMouseEvent & ev)
         }
 
         return true;
+    }
+
+    //  A press anywhere else ends an edit of the address bar, as in Casso
+    //  Explorer, rather than going to the address bar's text field.
+    if (ev.kind == DxuiMouseEventKind::Down && m_nav.GetCrumbs().IsEditing())
+    {
+        RECT  crumbs = m_nav.GetCrumbs().GetBounds();
+
+        if (!PtInRect (&crumbs, ev.positionDip))
+        {
+            m_nav.GetCrumbs().EndEdit();
+        }
     }
 
     //  A right-click on the address bar, while it isn't being edited, opens

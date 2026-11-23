@@ -569,6 +569,7 @@
     <ClCompile Include="CassoExplorer\CassoExplorerSourcePreviewTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerShellIconsTests.cpp" />
     <ClCompile Include="CassoExplorer\FocusRingTests.cpp" />
+    <ClCompile Include="CassoExplorer\CassoExplorerBrowserHomeTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerBrowserTests.cpp" />
     <ClCompile Include="CassoExplorer\BrowserCellsStatusTests.cpp" />
     <ClCompile Include="CassoExplorer\BrowserColumnFiltersTests.cpp" />
@@ -650,6 +651,7 @@
     <ClCompile Include="CassoExplorer\InspectorWindowSetTests.cpp" />
     <ClCompile Include="CassoExplorer\RefreshAnchorTests.cpp" />
     <ClInclude Include="CassoExplorer\FakeExplorerWindow.h" />
+    <ClInclude Include="CassoExplorer\CassoExplorerBrowserTestHost.h" />
     <ClInclude Include="CassoExplorer\FakeRecycleBin.h" />
     <ClInclude Include="CassoExplorer\RecordingExplorerServices.h" />
     <ClInclude Include="CassoExplorer\ExplorerWindowPartsRig.h" />
@@ -947,6 +949,7 @@
     <ClCompile Include="Dxui\DxuiScrollbarTests.cpp" />
     <ClCompile Include="Dxui\DxuiScrollPanelTests.cpp" />
     <ClCompile Include="Dxui\DxuiZoomControlTests.cpp" />
+    <ClCompile Include="Dxui\DxuiZoomPopupTests.cpp" />
     <ClCompile Include="Dxui\DxuiStackLayoutTests.cpp" />
     <ClCompile Include="Dxui\DxuiViewportTests.cpp" />
     <ClCompile Include="Dxui\DxuiWidgetIDxuiControlTests.cpp" />

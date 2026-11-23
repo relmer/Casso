@@ -248,6 +248,49 @@ ActionsTypes::Outcome ActionsPartition::Replace (const std::wstring & partitionP
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ActionsPartition::AddVerbs
+//
+//  A partition is copied out to an image or replaced by one. It isn't
+//  formatted, since Format writes a whole image file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ActionsPartition::AddVerbs (bool writable, std::vector<ActionsTypes::Verb> & inOutVerbs)
+{
+    inOutVerbs.push_back (ActionsTypes::Verb::CopyPartitionToImage);
+
+    if (writable)
+    {
+        inOutVerbs.push_back (ActionsTypes::Verb::ReplacePartition);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsPartition::IsPartitionPath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ActionsPartition::IsPartitionPath (const std::wstring & path)
+{
+    std::wstring  parent;
+    int           index = 0;
+
+
+
+    return TrySplit (path, parent, index);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ActionsPartition::FindEntry
 //
 ////////////////////////////////////////////////////////////////////////////////

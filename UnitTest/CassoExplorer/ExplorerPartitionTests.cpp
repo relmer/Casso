@@ -273,6 +273,22 @@ public:
     }
 
 
+    //  The tree's menu on a partition node uses the same verbs as the list.
+    TEST_METHOD (Verbs_SharedPartitionVerbsHaveCopyAndReplaceAndNoFormat)
+    {
+        std::vector<ActionsTypes::Verb>  writable;
+        std::vector<ActionsTypes::Verb>  locked;
+
+        ActionsPartition::AddVerbs (true,  writable);
+        ActionsPartition::AddVerbs (false, locked);
+
+        Assert::IsTrue  (ActionsPartition::IsPartitionPath (kSecondPath));
+        Assert::IsFalse (ActionsPartition::IsPartitionPath (PartitionCard::kCardPath));
+        Assert::IsTrue  (writable == std::vector<ActionsTypes::Verb> { ActionsTypes::Verb::CopyPartitionToImage, ActionsTypes::Verb::ReplacePartition });
+        Assert::IsTrue  (locked   == std::vector<ActionsTypes::Verb> { ActionsTypes::Verb::CopyPartitionToImage });
+    }
+
+
     TEST_METHOD (Verbs_FileOfAPartitionIsNotAPartition)
     {
         CardHost      host;

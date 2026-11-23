@@ -474,6 +474,55 @@ void BrowserModel::InvalidateAllCatalogs()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BrowserModel::MoveTabsOffCard
+//
+//  Every tab but the active one that is on a storage card, or on one of its
+//  partitions, goes to `to`, as when the card is initialized or taken out.
+//  The active tab is navigated by the caller, which lists it again. Returns
+//  how many tabs were moved.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t BrowserModel::MoveTabsOffCard (const std::wstring & cardPath, const Location & to)
+{
+    size_t  moved = 0;
+
+
+
+    for (size_t index = 0; index < m_tabs.size(); index++)
+    {
+        Tab                & tab    = m_tabs[index];
+        const std::wstring & path   = tab.location.path;
+        bool                 isCard = !cardPath.empty() && path.size() >= cardPath.size() &&
+                                      _wcsnicmp (path.c_str(), cardPath.c_str(), cardPath.size()) == 0 &&
+                                      (path.size() == cardPath.size() || path[cardPath.size()] == L'|');
+
+        if (index == m_active || !isCard)
+        {
+            continue;
+        }
+
+        tab.back.push_back (tab.location);
+        tab.forward.clear();
+        tab.selection.clear();
+        tab.previewScroll   = 0;
+        tab.previewExpanded = false;
+        tab.listTopRow      = 0;
+        tab.location        = to;
+        tab.hasCatalog      = false;
+        tab.catalog         = VolumeListing();
+        moved++;
+    }
+
+    return moved;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BrowserModel::GetLocations
 //
 ////////////////////////////////////////////////////////////////////////////////

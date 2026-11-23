@@ -26,6 +26,7 @@
 #include "CassoExplorer/CassoExplorerElevationDialog.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
 #include "CassoExplorer/Browser/BrowserRowPaths.h"
+#include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
 
 
 
@@ -333,24 +334,6 @@ void ExplorerOpen::RunFileVerb (ActionsTypes::Verb verb)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerOpen::SetCardWriteConfirmed
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ExplorerOpen::SetCardWriteConfirmed (bool confirmed)
-{
-    if (m_context.app.cards != nullptr)
-    {
-        m_context.app.cards->SetConfirmed (confirmed);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ExplorerOpen::InitializeCard
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -605,26 +588,6 @@ bool ExplorerOpen::ConfirmElevation (const std::wstring & card)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerOpen::ConfirmCardWrite
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ExplorerOpen::ConfirmCardWrite (const std::wstring & question)
-{
-    int  choice = DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, question.c_str(), L"Write to card",
-                                  MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Write", L"Cancel" });
-
-
-
-    return choice == IDOK;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ExplorerOpen::FinishInitialize
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -711,9 +674,19 @@ void ExplorerOpen::FinishInitialize()
         }
     }
 
+    //  Every other tab on the card goes where the active one does: a FAT32
+    //  card's drive letter, or the card.
+    m_context.browser.GetBrowserModel().MoveTabsOffCard (m_initCard,
+                                                         (m_initLayout == RawDeviceProtocol::kLayoutFat32 && !root.empty()) ? Location::MakeHostFolder (root)
+                                                                                                                             : Location::MakeDiskImage (m_initCard));
+    m_context.tabManager.FillTabs();
+
     //  A FAT32 card is opened at its drive letter, and a CFFA card as a card.
+    //  The card's old node is removed from the tree, and its drive letter is
+    //  listed under This PC.
     if (m_initLayout == RawDeviceProtocol::kLayoutFat32 && !root.empty())
     {
+        m_context.folderSync.CheckDrives();
         m_context.browser.GetNavigator().NavigateToLocation (Location::MakeHostFolder (root));
     }
     else

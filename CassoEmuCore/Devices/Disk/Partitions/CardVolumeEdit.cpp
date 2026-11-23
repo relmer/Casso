@@ -143,12 +143,92 @@ HRESULT CardVolumeEdit::Commit (const BlockBuffer & edited, std::string & outRef
     for (const auto & [block, bytes] : edited.GetTouchedBlocks())
     {
         hr = m_store->WriteBlocks (block, bytes);
-        CHRF (hr, outRefusal = "could not be written");
+        CHRF (hr, outRefusal = DescribeWriteFailure (hr));
     }
 
     hr = m_store->Commit();
-    CHRF (hr, outRefusal = "could not be written");
+    CHRF (hr, outRefusal = DescribeWriteFailure (hr));
 
 Error:
     return hr;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CardVolumeEdit::GetLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CardVolumeEdit::GetLabel() const
+{
+    int            drive     = 0;
+    int            partition = 0;
+    VolumeListing  listing;
+    HRESULT        hr        = S_OK;
+    std::string    label;
+
+
+
+    PhysicalCards::ParsePath (m_path, drive, partition);
+
+    label = std::format ("Partition {}", partition);
+    hr    = m_volume->Enumerate (listing);
+
+    if (SUCCEEDED (hr) && !listing.volumeName.empty())
+    {
+        label += ": " + listing.volumeName;
+    }
+
+    return label;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CardVolumeEdit::DescribeWriteFailure
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CardVolumeEdit::DescribeWriteFailure (HRESULT hr)
+{
+    std::string  sentence = "could not be written";
+
+
+
+    if (hr == E_ACCESSDENIED || hr == HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED))
+    {
+        sentence += ". The storage card broker writes only inside an Apple partition it finds on the card, "
+                    "and not over a volume Windows has mounted";
+    }
+    else if (hr == HRESULT_FROM_WIN32 (ERROR_DEVICE_NOT_CONNECTED))
+    {
+        sentence += ". The card is no longer open. Open it again and retry";
+    }
+    else if (hr == HRESULT_FROM_WIN32 (ERROR_BROKEN_PIPE) || hr == HRESULT_FROM_WIN32 (ERROR_NO_DATA) ||
+             hr == HRESULT_FROM_WIN32 (ERROR_TIMEOUT)     || hr == HRESULT_FROM_WIN32 (WAIT_TIMEOUT))
+    {
+        sentence += ". The storage card broker stopped responding";
+    }
+    else if (hr == HRESULT_FROM_WIN32 (ERROR_WRITE_FAULT) || hr == HRESULT_FROM_WIN32 (ERROR_CRC) ||
+             hr == HRESULT_FROM_WIN32 (ERROR_IO_DEVICE))
+    {
+        sentence += ". The card reported a write error";
+    }
+    else if (hr == HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT))
+    {
+        sentence += ". The card is write-protected";
+    }
+
+    return sentence;
+}
+
+
+
+

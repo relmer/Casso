@@ -47,6 +47,8 @@
 #include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
 #include "CassoExplorer/WozPropertiesDialog.h"
 #include "CassoExplorer/Browser/BrowserRowPaths.h"
+#include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
+#include "Devices/Disk/Partitions/PhysicalCards.h"
 
 
 
@@ -179,16 +181,15 @@ void ExplorerImageTools::MakeArchive (bool shrinkItDisk)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerImageTools::CopyPartitionToImage()
+void ExplorerImageTools::CopyPartitionToImage (const std::wstring & partition)
 {
-    std::wstring                   partition;
     std::wstring                   created;
     CassoExplorerActions::Outcome  outcome;
     std::wstring                   target;
 
 
 
-    if (!m_context.actions.TryGetPartition (partition) || !m_context.opener.PickPartitionImage (partition, target))
+    if (partition.empty() || !m_context.opener.PickPartitionImage (partition, target))
     {
         return;
     }
@@ -216,10 +217,9 @@ void ExplorerImageTools::CopyPartitionToImage()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerImageTools::ReplacePartition()
+void ExplorerImageTools::ReplacePartition (const std::wstring & partition)
 {
     HRESULT                        hr       = S_OK;
-    std::wstring                   partition;
     std::wstring                   question;
     std::filesystem::path          picked;
     FileDialogSpec                 spec;
@@ -228,7 +228,7 @@ void ExplorerImageTools::ReplacePartition()
 
 
 
-    if (!m_context.actions.TryGetPartition (partition))
+    if (partition.empty())
     {
         return;
     }
@@ -254,14 +254,22 @@ void ExplorerImageTools::ReplacePartition()
         return;
     }
 
-    //  The question above covers the write to a card, so the card write
-    //  prompt is skipped.
-    m_context.opener.SetCardWriteConfirmed (true);
     outcome = m_context.actions.ReplacePartition (partition, picked.wstring());
-    m_context.opener.SetCardWriteConfirmed (false);
 
     m_context.verbs.ReportOutcome (outcome, L"Replace partition");
     m_context.listPane.FillList();
+
+    //  The partition's tree node is labeled with its volume's name, which the
+    //  new image can change. A card's partitions are listed again from the
+    //  card, and an image file's from the file.
+    if (PhysicalCards::IsOnCard (partition))
+    {
+        m_context.folderSync.CheckDrives();
+    }
+    else
+    {
+        m_context.treePane.RefreshTree();
+    }
 }
 
 

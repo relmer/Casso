@@ -14,6 +14,7 @@
 #include "CassoExplorer/Model/PreviewDecoder.h"
 #include "CassoExplorer/Model/DragPayload.h"
 #include "CassoExplorer/Model/FilesystemChoices.h"
+#include "CassoExplorer/Model/HostFolderReader.h"
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/CpmVolume.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
@@ -81,12 +82,7 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
                 verbs.push_back (Verb::InspectDiskImage);
             }
 
-            verbs.push_back (Verb::CopyPartitionToImage);
-
-            if (!m_browser.IsWriteProtected())
-            {
-                verbs.push_back (Verb::ReplacePartition);
-            }
+            ActionsPartition::AddVerbs (!m_browser.IsWriteProtected(), verbs);
         }
     }
     else if (m_browser.IsImageLocation())
@@ -163,12 +159,7 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
 
         if (isPartition)
         {
-            verbs.push_back (Verb::CopyPartitionToImage);
-
-            if (writable)
-            {
-                verbs.push_back (Verb::ReplacePartition);
-            }
+            ActionsPartition::AddVerbs (writable, verbs);
         }
     }
     else if (m_browser.IsAppleDriveLocation())
@@ -1325,6 +1316,14 @@ ActionsTypes::PutPlan CassoExplorerActions::PlanPutByContent (const std::wstring
     else
     {
         plan.catalogName = MakeCatalogName (hostName, kind);
+    }
+
+    //  A disk image is data, not a program, so it goes in as a binary file
+    //  at address zero, with no load address prompt.
+    if (HostFolderReader::IsSupportedImage (GetLeafName (hostName)))
+    {
+        SetTypedPayload (plan, bytes, ProDosVolume::kTypeBinary, true, 0, isDos);
+        return plan;
     }
 
     verdict = ContentSniffer::Classify (std::span<const Byte> (bytes.data(), bytes.size()), suggested);

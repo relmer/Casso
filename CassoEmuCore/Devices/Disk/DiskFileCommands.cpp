@@ -587,9 +587,12 @@ HRESULT DiskFileCommands::CommitCard (const std::string & imagePath, CardVolumeE
 
 
 
+    UNREFERENCED_PARAMETER (imagePath);
+
     if (FAILED (hr))
     {
-        DiskImageSession::RefuseCommit (imagePath, refusal, result);
+        result.diagnostics += card.GetLabel() + " " + refusal + ".\n";
+        result.exitStatus   = DiskCommandResult::kNoOutput;
     }
 
     return hr;

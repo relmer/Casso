@@ -295,7 +295,6 @@ public:
         CardHost       host (std::move (card));
         PhysicalCards  cards (host);
 
-        cards.SetConfirmWrite ([] (const PhysicalDrive &) { return true; });
         AssertSucceeded (cards.Open (2, nullptr));
         AssertSucceeded (cards.ListPartitions (2, kind, entries));
         Assert::IsFalse (entries.empty(), L"the card has its partitions");
@@ -360,7 +359,6 @@ public:
         CardHost       host (std::move (card));
         PhysicalCards  cards (host);
 
-        cards.SetConfirmWrite ([] (const PhysicalDrive &) { return true; });
         AssertSucceeded (cards.Open (2, nullptr));
         AssertSucceeded (cards.ListPartitions (2, kind, entries));
         Assert::IsFalse (entries.empty(), L"the card has its partitions");

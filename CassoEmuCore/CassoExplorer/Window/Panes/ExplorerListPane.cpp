@@ -1002,6 +1002,12 @@ void ExplorerListPane::OnSelectionChanged()
         m_context.preview.FillPreview();
     }
 
+    //  An image selected on an A2Pico card may be offered as a drive.
+    if (m_bars.Fill())
+    {
+        Layout (m_paneRect);
+    }
+
     m_context.statusBar.Fill();
     m_context.toolbars.UpdateCommandBar();
 }

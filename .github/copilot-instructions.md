@@ -179,7 +179,7 @@ A `.cpp` file stays under about 2,000 lines. Split a class that outgrows it into
   dialog and window titles and column headings capitalize the first word and
   proper nouns only: "Create new disk", "Map arrows to joystick", "Casso
   printer", NEVER "Create New Disk". Proper nouns keep their capitals (Casso,
-  Cassque, Apple II, ImageWriter, Disk II, Mockingboard, Windows, Visual
+  Apple II, ImageWriter, Disk II, Mockingboard, Windows, Visual
   Studio), as do key names (Open Apple, Caps Lock, Esc), a numbered drive
   ("Drive 1") and Apple's product names ("Language Card"). A feature copied
   from Visual Studio takes its layout, not its title case. Names Casso writes

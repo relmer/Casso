@@ -34,7 +34,7 @@ public:
     void  EnsureCellSize (IDxuiTextRenderer & text, const IDxuiTheme & theme);
 
     //  One cell run of the fixed-width face, and the fill behind it.
-    static void  DrawCell (IDxuiTextRenderer & text, const RECT & rect, const wchar_t * chars, uint32_t argb, const DxuiFontHandle & font);
+    static void  DrawCell (IDxuiTextRenderer & text, const RECT & rect, const wchar_t * chars, uint32_t argb, const DxuiFontHandle & font, DxuiFontWeight weight = DxuiFontWeight::Normal);
 
     //  The addresses' strength as a fraction of the bytes'.
     static constexpr float  s_kAddressStrength  = 0.55f;
@@ -42,6 +42,8 @@ public:
     uint32_t      GetByteColor (const IDxuiTheme & theme, uint8_t mark) const;
     void          PaintLineRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, uint64_t row);
     static void   FillCell     (IDxuiTextRenderer & text, const RECT & rect, uint32_t argb);
+    static void   FillStyled   (IDxuiTextRenderer & text, const RECT & rect, const DxuiHexViewTypes::ByteStyle & style);
+    bool          GetByteStyle (uint64_t offset, uint8_t mark, bool isSelected, DxuiHexViewTypes::Column column, DxuiHexViewTypes::ByteStyle & outStyle) const;
 
     static wchar_t  GetHexDigit      (int value);
     wchar_t         GetCharFor       (uint8_t byte) const;
@@ -61,6 +63,7 @@ private:
     float                          m_cellFontPx   = 0.0f;   // the font size the cell was measured at, 0 when set by the caller
     std::wstring                   m_cellFontFace;
     DxuiHexViewTypes::MarkColorFn  m_markColor;
+    DxuiHexViewTypes::ByteStyleFn  m_byteStyle;
     std::vector<uint8_t>           m_rowBytes;
     std::vector<uint8_t>           m_rowMarks;
 };

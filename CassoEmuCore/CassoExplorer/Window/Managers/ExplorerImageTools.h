@@ -35,8 +35,8 @@ public:
     int   ChooseFormatDefault       (const std::wstring & image);
     void  ChooseFilesystem          (VolumeKind kind);
     void  MakeArchive               (bool shrinkItDisk);
-    void  CopyPartitionToImage      ();
-    void  ReplacePartition          ();
+    void  CopyPartitionToImage      (const std::wstring & partition);
+    void  ReplacePartition          (const std::wstring & partition);
     void  TestImage                 ();
     void  ExtractAll                ();
     void  ExtractImageFiles         (const std::wstring & imagePath);

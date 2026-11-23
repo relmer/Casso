@@ -24,9 +24,11 @@
 class InspectorStatusBar
 {
 public:
+    //  Unsaved is a count of unsaved edits, filled in the bad color.
     enum class LeadKind
     {
         Result,
+        Unsaved,
         Chip,
         BadChip,
         Note,
@@ -52,8 +54,9 @@ public:
     //  `onZoom`. With `hasHelp` false there is no "?" button.
     void  Create (DxuiPanel & parent, ZoomFn onZoom, bool hasHelp);
 
-    //  The zoom's slider follows the cursor in `owner`'s client area.
-    void  Tick (HWND owner);
+    //  The zoom's panel opens by the cursor in `owner`'s client area; true
+    //  while it moves, so the window is drawn again.
+    bool  Tick (HWND owner);
 
     void  Layout      (const RECT & area, const DxuiDpiScaler & scaler);
     int   GetHeightPx (const DxuiDpiScaler & scaler) const;

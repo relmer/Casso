@@ -171,11 +171,7 @@ public:
 
 
 
-    bool                 ConfirmCardWrite       (const PhysicalDrive & drive);
     bool                 ConfirmElevation       (const PhysicalDrive & drive);
-    static void CALLBACK EndCardConfirmation    (HWND, UINT, UINT_PTR id, DWORD);
-
-    static inline PhysicalCards * s_confirmedCards = nullptr;
 
     //  EHM hooks for a process with no dialog host of its own.
     static void  NotifyUser      (const wchar_t * message);
@@ -223,7 +219,12 @@ private:
     static void                              CloseDialogs         ();
     static BOOL CALLBACK                     CloseDialog          (HWND hwnd, LPARAM param);
     bool                                     HasOpenWindows       () const;
+    bool                                     ConfirmInspectors    ();
     std::vector<CassoExplorerSessionWindow>  GetOpenSession       () const;
+
+    //  The text a block inspector's title has for `path`: a card's
+    //  partition, a partition of an image file, or empty for a file.
+    std::wstring  DescribeInspectedPath (const std::wstring & path);
 
     //  The open windows, then `closed`, written as the session.
     void  SaveSessionWith (const std::vector<CassoExplorerSessionWindow> & closed);

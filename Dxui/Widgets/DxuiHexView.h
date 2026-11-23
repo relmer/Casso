@@ -159,6 +159,7 @@ public:
     TextEncoding  GetTextEncoding () const                { return m_encoding; }
 
     void  SetMarkColor     (MarkColorFn fn)   { m_painter.m_markColor = std::move (fn); }
+    void  SetByteStyle     (ByteStyleFn fn)   { m_painter.m_byteStyle = std::move (fn); }
     void  SetOnContextMenu (ContextMenuFn fn) { m_onContextMenu = std::move (fn); }
 
     void  SetOnBuildContextMenu (BuildMenuFn fn) { m_onBuildMenu = std::move (fn); }

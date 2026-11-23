@@ -116,6 +116,7 @@ vector<SummaryChip> InspectorText::BuildBlockChips (const BlockInspectorModel & 
     int                   partitions = 0;
     int                   used       = 0;
     int                   crossed    = 0;
+    uint32_t              blocks     = model.GetBlockCount();
     std::wstring          volume;
 
 
@@ -148,7 +149,15 @@ vector<SummaryChip> InspectorText::BuildBlockChips (const BlockInspectorModel & 
         chips.push_back ({ SummaryChipKind::Volume, volume, false });
     }
 
-    chips.push_back ({ SummaryChipKind::Blocks, FormatCount (static_cast<int> (model.GetBlockCount()), L"block", L"blocks"), false });
+    //  A ProDOS volume smaller than its image, such as a 140K volume in a
+    //  32 MB partition, is counted at its size.
+    if (map != nullptr && (map->fileSystem == BlockFileSystem::ProDos || map->fileSystem == BlockFileSystem::Sos) &&
+        !map->blocks.empty() && map->blocks.size() < blocks)
+    {
+        blocks = static_cast<uint32_t> (map->blocks.size());
+    }
+
+    chips.push_back ({ SummaryChipKind::Blocks, FormatCount (static_cast<int> (blocks), L"block", L"blocks"), false });
 
     if (map != nullptr && map->fileSystem != BlockFileSystem::None)
     {

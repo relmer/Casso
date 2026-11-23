@@ -73,10 +73,8 @@ public:
 //  `Open` only, which is where Windows prompts for administrator access. A
 //  path on a card that is not open fails, and never raises the prompt.
 //
-//  A partition of kMaxPartitionBytes or less is read and written whole. A
-//  write is sent to the card after the confirmation callback returns true
-//  for the drive, and only the blocks that differ are sent. With no callback
-//  every write fails with ERROR_CANCELLED.
+//  A partition of kMaxPartitionBytes or less is read and written whole.
+//  Only the blocks a write changes are sent to the card.
 //
 //  A card's blocks are cached while it is open. Opening it again reads it
 //  anew.
@@ -97,7 +95,6 @@ public:
         Other,
     };
 
-    using ConfirmWrite     = std::function<bool (const PhysicalDrive &)>;
     using ConfirmElevation = std::function<bool (const PhysicalDrive &)>;
 
     struct StorageCard
@@ -135,22 +132,11 @@ public:
     //  open card, as Casso Explorer lists it; empty for any other path.
     std::wstring  DescribePartition (const std::wstring & path);
 
-    void     SetConfirmWrite     (ConfirmWrite confirm) { m_confirmWrite = std::move (confirm); }
-
     //  Called before an open or an initialize that starts the broker, which
     //  raises the UAC prompt, on the calling thread. False cancels with
     //  ERROR_CANCELLED.
     void     SetConfirmElevation (ConfirmElevation confirm) { m_confirmElevation = std::move (confirm); }
 
-    //  While set, writes are sent without the confirmation callback, so one
-    //  command that writes several times prompts once.
-    void     SetConfirmed        (bool confirmed)       { m_confirmed = confirmed; }
-
-    //  The writes of one thread sent without the confirmation callback,
-    //  until EndThreadConfirmation is called on that thread, for a command
-    //  that writes from a thread other than the UI thread.
-    void     SetConfirmedThread    (DWORD threadId) { m_confirmedThread = threadId; }
-    void     EndThreadConfirmation ();
 
     HRESULT  ListRemovableDrives (std::vector<PhysicalDrive> & outDrives);
     HRESULT  ListStorageCards    (std::vector<StorageCard> & outCards);
@@ -161,8 +147,7 @@ public:
     bool     TryGetVolumeCard    (const std::wstring & root, int & outNumber);
 
     //  The card closed, erased and given CFFA's layout: up to 13 empty ProDOS
-    //  volumes of 32 MB. The only write that is not confirmed by the
-    //  callback, as the caller confirms it with the volumes erased.
+    //  volumes of 32 MB. The caller confirms it with the volumes erased.
     //
     //  Runs on any thread. While it runs the card is busy: `TryGetWork`
     //  returns its progress, and opening it fails with ERROR_BUSY. The first
@@ -190,10 +175,9 @@ public:
     //  `bytes` is written over the start of the partition.
     HRESULT  WritePartition      (int number, int partition, std::span<const Byte> bytes);
 
-    //  `bytes` is written at `offset` in the partition, after the same
-    //  confirmation. Whole blocks of a partition of whole blocks are written
-    //  through the card's cache alone, so the rest of the partition isn't
-    //  read.
+    //  `bytes` is written at `offset` in the partition. Whole blocks of a
+    //  partition of whole blocks are written through the card's cache alone,
+    //  so the rest of the partition isn't read.
     HRESULT  WritePartitionAt    (int number, int partition, uint64_t offset, std::span<const Byte> bytes);
 
     //  The partition's length, and a number that changes at each open of the
@@ -234,14 +218,10 @@ private:
     HRESULT  CheckElevation (const PhysicalDrive & drive);
 
     IPhysicalCardHost       & m_host;
-    ConfirmWrite              m_confirmWrite;
     ConfirmElevation          m_confirmElevation;
     std::mutex                m_mutex;
     std::map<int, Session>    m_sessions;
     std::mutex                m_workMutex;
     std::map<int, Work>       m_work;
     int64_t                   m_nextStamp        = 1;
-    bool                      m_confirming       = false;
-    std::atomic<bool>         m_confirmed        = false;
-    std::atomic<DWORD>        m_confirmedThread  = 0;
 };

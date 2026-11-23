@@ -252,6 +252,7 @@
     <ClCompile Include="UthernetLoopbackTests.cpp" />
     <ClCompile Include="UthernetSoftwareTests.cpp" />
     <ClCompile Include="..\UnitTest\NetworkTests\W5100Driver.cpp" />
+    <ClCompile Include="BlankProDosBootTests.cpp" />
     <ClCompile Include="BlockDeviceBootTests.cpp" />
     <ClCompile Include="Floppy35BootTests.cpp" />
     <ClCompile Include="PickerTimingTests.cpp" />

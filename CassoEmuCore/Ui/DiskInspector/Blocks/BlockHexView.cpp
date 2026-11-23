@@ -108,22 +108,34 @@ bool BlockHexView::OnKey (const DxuiKeyEvent & ev)
 //
 //  BlockHexView::OnMouse
 //
+//  A second press on the same byte within the double-click time is a
+//  double-click.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool BlockHexView::OnMouse (const DxuiMouseEvent & ev)
 {
     HitResult  hit       = HitTestPoint (ev.positionDip);
     bool       isHandled = DxuiHexView::OnMouse (ev);
+    int64_t    nowMs     = (int64_t) GetTickCount64();
+    bool       isDouble  = false;
 
 
 
     if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && hit.hit)
     {
         m_isLowNibble = false;
+        isDouble      = m_pressMs != 0 && hit.offset == m_pressAt && nowMs - m_pressMs <= (int64_t) GetDoubleClickTime();
+        m_pressAt     = hit.offset;
+        m_pressMs     = isDouble ? 0 : nowMs;
 
         if (m_onClick && ev.ctrl)
         {
             m_onClick (hit.offset);
+        }
+        else if (m_onOpen && isDouble)
+        {
+            m_onOpen (hit.offset);
         }
     }
 

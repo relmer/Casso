@@ -53,8 +53,17 @@ void ExplorerStatusBar::Create()
 
     m_context.window.SetMouseHandler (m_status, [this] (const DxuiMouseEvent & ev)
     {
-        return HandleZoomClick (ev) || HandleSummaryClick (ev) || HandleActivityClick (ev) || m_status->OnMouse (ev);
+        return HandleSummaryClick (ev) || HandleActivityClick (ev) || m_status->OnMouse (ev);
     });
+
+    //  The preview's zoom, over the bar's last field, with the preferences'
+    //  range and the zoom commands' step.
+    m_zoom = m_context.window.CreateChild<DxuiZoomControl>();
+    m_zoom->SetRange     (CassoExplorerPrefs::kMinPreviewZoom / 100.0, CassoExplorerPrefs::kMaxPreviewZoom / 100.0, false);
+    m_zoom->SetResetZoom (CassoExplorerPrefs::kDefaultPreviewZoom / 100.0);
+    m_zoom->SetShowBox   (false);
+    m_zoom->SetOnStep    ([] (double zoom, int steps) { return zoom + steps * ExplorerCommandManager::kPreviewZoomStep / 100.0; });
+    m_zoom->SetOnZoom    ([this] (double zoom) { m_context.preview.SetPreviewZoom ((int) std::lround (zoom * 100.0)); });
 
     m_status->SetDividers (false);
     m_status->SetLeadDip  (ExplorerMetrics::kStatusLeadDip);
@@ -82,25 +91,16 @@ void ExplorerStatusBar::Configure()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerStatusBar::HandleZoomClick
+//  ExplorerStatusBar::Tick
 //
-//  A click on the zoom level puts it back to 100%.
-//
-//  Pointer events: a click on the zoom is ahead of the window's other
-//  routing, one on the CassoLink line after the panes' captures.
+//  The zoom's panel opens and closes by where the cursor is; true while it
+//  moves.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ExplorerStatusBar::HandleZoomClick (const DxuiMouseEvent & ev)
+bool ExplorerStatusBar::Tick (int64_t nowMs)
 {
-    if (ev.kind != DxuiMouseEventKind::Up || ev.button != DxuiMouseButton::Left || !ExplorerLayout::Contains (m_status->GetFieldRect (kStatusZoom), ev.positionDip))
-    {
-        return false;
-    }
-
-    m_context.commandManager.Dispatch (CassoExplorerCommands::kZoomReset);
-
-    return true;
+    return m_zoom->Follow (m_context.window.GetHwnd(), m_context.preview.GetShownZoom() / 100.0, nowMs);
 }
 
 
@@ -222,7 +222,7 @@ void ExplorerStatusBar::Fill()
     m_status->SetText (kStatusThumbnails, DescribeThumbnails (m_context.app.pictures != nullptr ? m_context.app.pictures->GetQueued() : 0));
     m_status->SetText (kStatusFree,     status.freeSpace);
     m_status->SetText (kStatusDetail,   detail);
-    m_status->SetText (kStatusZoom,     std::format (L"{}%", m_context.preview.GetShownZoom()));
+    m_zoom->SetZoom   (m_context.preview.GetShownZoom() / 100.0);
     m_status->SetText (kStatusFill,     m_context.cassoLinkManager.GetLatestActivity());
 }
 
@@ -347,6 +347,7 @@ void ExplorerStatusBar::Layout (const RECT & band)
     int    zoomPx  = m_context.scaler.ToPx (kStatusZoomDip);
     int    detail  = preview ? (std::max) ((int) band.right - seam - zoomPx, 0) : m_context.scaler.ToPx (kStatusDetailDip);
     bool   job     = m_context.app.links != nullptr && !m_context.app.links->GetPendingJobs().empty();
+    RECT   zoom    = {};
 
 
 
@@ -369,6 +370,10 @@ void ExplorerStatusBar::Layout (const RECT & band)
                            { L"", 0, false, detail },
                            { L"", kStatusZoomDip, false } });
     m_status->Layout (band, m_context.scaler);
+
+    zoom = m_status->GetFieldRect (kStatusZoom);
+    m_zoom->SetVisible (m_status->IsVisible());
+    m_zoom->PlaceInRow ({ zoom.left, band.top, zoom.right - m_context.scaler.ToPx (kStatusZoomPadDip), band.bottom }, RECT {}, m_context.scaler);
 
     Fill();
 }

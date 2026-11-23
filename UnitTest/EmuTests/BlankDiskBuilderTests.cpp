@@ -460,6 +460,56 @@ public:
     }
 
 
+    //  A ProDOS disk with no PRODOS file prints the message ProDOS's loader
+    //  prints and stops, rather than running into a BRK at $801.
+    TEST_METHOD (Build_PoProDos_BootsToUnableToLoadProDos)
+    {
+        BlankDiskSpec  spec    = MakeSpec (DiskFormat::Po, BlankDiskContents::ProDos);
+        const char   * message = "*** UNABLE TO LOAD PRODOS ***";
+        vector<Byte>   po;
+        size_t         i       = 0;
+
+
+
+        AssertSucceeded (BlankDiskBuilder::Build (spec, BootPayload{}, po));
+
+        Assert::AreEqual ((Byte) 0x01, po[0], L"one sector for the Disk II ROM");
+        Assert::AreEqual ((Byte) 0x20, po[1], L"code at $801");
+
+        //  JMP to itself after the message.
+        Assert::AreEqual ((Byte) 0x4C, po[0x22]);
+        Assert::AreEqual ((Byte) 0x22, po[0x23]);
+        Assert::AreEqual ((Byte) 0x08, po[0x24]);
+
+        for (i = 0; message[i] != '\0'; i++)
+        {
+            Assert::AreEqual ((Byte) (message[i] | 0x80), po[0x25 + i]);
+        }
+
+        Assert::AreEqual ((Byte) 0, po[0x25 + i], L"the message ends with a zero byte");
+        Assert::AreEqual ((Byte) 0, po[512],      L"block 1 is empty");
+    }
+
+
+    TEST_METHOD (ProDosSkeleton_InstallNoSystemLoader_LeavesALoaderInPlace)
+    {
+        vector<Byte>  volume ((size_t) NibbleFormat::kImageByteSize, 0);
+        vector<Byte>  before;
+
+
+
+        AssertSucceeded (ProDosSkeleton::Write (volume, "EMPTY"));
+        Assert::AreEqual ((Byte) 0, volume[ProDosSkeleton::GetBlockByteOffset (0, 1)], L"the skeleton alone has a blank boot block");
+
+        volume[ProDosSkeleton::GetBlockByteOffset (0, 0)] = 0x4C;
+        before = volume;
+
+        ProDosSkeleton::InstallNoSystemLoader (volume);
+
+        Assert::IsTrue (before == volume);
+    }
+
+
     TEST_METHOD (Build_WozProDos_RoundTripsTheSkeleton)
     {
         BlankDiskSpec  spec = MakeSpec (DiskFormat::Woz, BlankDiskContents::ProDos);
@@ -475,6 +525,7 @@ public:
 
         vector<Byte>  expected (NibbleFormat::kImageByteSize, 0);
         AssertSucceeded (ProDosSkeleton::Write (expected, spec.volumeName));
+        ProDosSkeleton::InstallNoSystemLoader (expected);
 
         Assert::IsTrue (expected == readBack,
             L"the ProDOS skeleton must survive the GCR round-trip");

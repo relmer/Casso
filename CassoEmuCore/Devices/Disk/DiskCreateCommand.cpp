@@ -535,6 +535,11 @@ void DiskCreateCommand::BuildLargeProDos (const CommandLineOptions & options, Di
     hr = InstallLargeBoot (options, isHfs, volume, bootWords, result);
     CHR (hr);
 
+    if (!isHfs)
+    {
+        ProDosSkeleton::InstallNoSystemLoader (volume);
+    }
+
     //  A 140K volume is built in DOS logical order, and every container here
     //  has its blocks in order.
     if (!ProDosSkeleton::IsBlockOrder (volume.size()))
@@ -639,6 +644,11 @@ void DiskCreateCommand::ReformatLargeProDos (const CommandLineOptions & options,
 
     hr = InstallLargeBoot (options, isHfs, sectors, bootWords, result);
     CHR (hr);
+
+    if (!isHfs)
+    {
+        ProDosSkeleton::InstallNoSystemLoader (sectors);
+    }
 
     hr = VolumeImage::Save (original, options.disk.imagePath, sectors, imageBytes, refusal);
     CHRF (hr, result.Fail (options.disk.imagePath, "", refusal.empty() ? std::string ("could not be written") : refusal));

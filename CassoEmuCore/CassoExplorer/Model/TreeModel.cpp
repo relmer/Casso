@@ -12,6 +12,7 @@
 #include "Devices/Disk/Archives/ContainerPath.h"
 #include "Devices/Disk/Containers/ImageContainer.h"
 #include "Devices/Disk/Partitions/PartitionAccess.h"
+#include "Devices/Disk/Partitions/PhysicalCards.h"
 
 
 
@@ -1897,16 +1898,21 @@ Error:
 //
 //  TreeModel::ReadImageNode
 //
-//  The node's children are cached, as for a node that was expanded.
+//  The node's children are cached, as for a node that was expanded. A storage
+//  card is not a file: its partitions are read through its session when it is
+//  opened, so its node is not read here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT TreeModel::ReadImageNode (TreeNode & inOutNode)
 {
-    HRESULT                hr = S_OK;
+    HRESULT                hr     = S_OK;
+    bool                   isCard = PhysicalCards::IsCardPath (inOutNode.location.path);
     std::vector<TreeNode>  children;
 
 
+
+    BAIL_OUT_IF (isCard, S_OK);
 
     hr = m_images.Describe (IsUnderCasso (inOutNode.id), inOutNode.location.path, inOutNode, children);
     CHR (hr);

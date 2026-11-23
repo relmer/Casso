@@ -95,7 +95,7 @@ public:
 
         Assert::AreEqual (kProDosEntries, listing.entries.size());
         Assert::IsTrue   (listing.damage.empty(), L"a fixture written by this tree must read cleanly");
-        Assert::AreEqual (std::string ("CASSQUE"), listing.volumeName);
+        Assert::AreEqual (std::string ("CASSO"), listing.volumeName);
 
         for (const FileEntry & entry : listing.entries)
         {

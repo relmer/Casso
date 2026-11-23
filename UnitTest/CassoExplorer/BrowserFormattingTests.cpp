@@ -103,7 +103,7 @@ public:
     {
         Assert::AreEqual (std::wstring (L"C:\\"),    BrowserCells::GetLocationLabel (Location::MakeHostFolder (L"C:\\")));
         Assert::AreEqual (std::wstring (L"Disks"),   BrowserCells::GetLocationLabel (Location::MakeHostFolder (L"C:\\Disks\\")));
-        Assert::AreEqual (std::wstring (L"SUB"),     BrowserCells::GetLocationLabel (Location::MakeDiskDirectory (L"C:\\a.po", "/CASSQUE/SUB")));
+        Assert::AreEqual (std::wstring (L"SUB"),     BrowserCells::GetLocationLabel (Location::MakeDiskDirectory (L"C:\\a.po", "/CASSO/SUB")));
     }
 
 

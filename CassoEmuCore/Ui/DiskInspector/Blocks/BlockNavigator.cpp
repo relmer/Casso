@@ -798,7 +798,12 @@ std::wstring BlockNavigator::GetSelectionLine() const
 
 std::wstring BlockNavigator::GetCardLabel() const
 {
-    return m_model != nullptr && m_model->IsOpen() ? fs::path (m_model->GetFile().GetPath()).filename().wstring() : std::wstring();
+    if (m_model == nullptr || !m_model->IsOpen())
+    {
+        return std::wstring();
+    }
+
+    return m_rootLabel.empty() ? fs::path (m_model->GetFile().GetPath()).filename().wstring() : m_rootLabel;
 }
 
 

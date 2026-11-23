@@ -434,6 +434,25 @@ public:
     }
 
 
+    TEST_METHOD (PlanPut_DiskImageGoesInAsDataWithNoAddressPrompt)
+    {
+        std::vector<Byte>              image (143360, 0x00);
+        CassoExplorerActions::PutPlan  pro   = CassoExplorerActions::PlanPut (L"TEST.po", image, VolumeKind::ProDos);
+        CassoExplorerActions::PutPlan  dos   = CassoExplorerActions::PlanPut (L"foo.d13", image, VolumeKind::Dos33);
+
+
+
+        Assert::IsFalse  (pro.guessedAddress);
+        Assert::IsTrue   (pro.usePayload);
+        Assert::AreEqual ((int) ProDosVolume::kTypeBinary, (int) pro.payload.type);
+        Assert::AreEqual ((int) 0, (int) pro.payload.auxType);
+
+        Assert::IsFalse  (dos.guessedAddress);
+        Assert::IsTrue   (dos.usePayload);
+        Assert::AreEqual ((int) Dos33Volume::kTypeBinary, (int) dos.payload.type);
+    }
+
+
     TEST_METHOD (CatalogName_FollowsEachFileSystemsRules)
     {
         Assert::AreEqual (std::string ("A1ST.FILE"),       CassoExplorerActions::MakeCatalogName (L"1st file.txt", VolumeKind::ProDos));

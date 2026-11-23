@@ -486,6 +486,10 @@ void ExplorerCommandManager::Dispatch (int id)
             m_context.listPane.GetColumns().ReadFolderOptions();
             m_context.folderSync.ReloadKnownFolders();
 
+            //  A storage card put in or taken out since the last look is
+            //  added to the tree or removed from it.
+            m_context.folderSync.CheckDrives();
+
             if (m_context.app.firewall != nullptr)
             {
                 m_context.app.firewall->Invalidate();
