@@ -50,7 +50,11 @@ public:
 
     // Whether the scene came up, and whether the loaded models are the //c's.
     bool  IsReady    () const { return m_deskSceneReady; }
-    bool  IsMachineC () const { return m_deskSceneMachineIsC; }
+
+    // Resets the view, as Ctrl+0 does, when the next replan finds the drives
+    // changed. Called from the CPU thread when the machine is rebuilt.
+    void  ResetViewOnReplan () { m_resetViewOnReplan = true; }
+    bool  IsMachineC        () const { return m_deskSceneMachineIsC; }
 
     // Where each of the machine's drives goes (DeskDrivePlan), made when the
     // machine's models load; a class's place toggles between the desk and
@@ -499,6 +503,7 @@ private:
     bool                             m_deskSceneMachineIsC = false;
     std::vector<DeskDrivePlacement>  m_drivePlan;
     int                              m_plannedDiskIiCount  = -1;
+    std::atomic<bool>                m_resetViewOnReplan   = false;
     std::vector<DeskDrive>           m_plannedDrives;
     bool                             m_floppyPairMovable   = false;
     int                              m_deskSceneDebug      = 0;   // CASSO_SCENE_DEBUG: 1=layout rects, 2=+calibration texture
