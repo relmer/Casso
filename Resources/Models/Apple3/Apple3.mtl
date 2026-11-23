@@ -163,24 +163,39 @@ Ka 0 0 0
 Kd 0.78 0.64 0.3
 d 1
 
+newmtl port_a_sockets
+Ka 0 0 0 
+Kd 0.055 0.055 0.062
+d 1
+
 newmtl port_a
 Ka 0 0 0 
-Kd 0.62 0.625 0.635
+Kd 0.07 0.07 0.075
 d 1
 
 newmtl port_a_insert
 Ka 0 0 0 
-Kd 0.07 0.07 0.075
+Kd 0.23 0.225 0.22
+d 1
+
+newmtl port_b_sockets
+Ka 0 0 0 
+Kd 0.055 0.055 0.062
 d 1
 
 newmtl port_b
 Ka 0 0 0 
-Kd 0.62 0.625 0.635
+Kd 0.07 0.07 0.075
 d 1
 
 newmtl port_b_insert
 Ka 0 0 0 
-Kd 0.07 0.07 0.075
+Kd 0.23 0.225 0.22
+d 1
+
+newmtl color_video_sockets
+Ka 0 0 0 
+Kd 0.055 0.055 0.062
 d 1
 
 newmtl color_video
@@ -190,32 +205,182 @@ d 1
 
 newmtl color_video_insert
 Ka 0 0 0 
-Kd 0.07 0.07 0.075
+Kd 0.23 0.225 0.22
+d 1
+
+newmtl port_c_sockets
+Ka 0 0 0 
+Kd 0.055 0.055 0.062
 d 1
 
 newmtl port_c
 Ka 0 0 0 
-Kd 0.62 0.625 0.635
+Kd 0.07 0.07 0.075
 d 1
 
 newmtl port_c_insert
 Ka 0 0 0 
-Kd 0.07 0.07 0.075
+Kd 0.23 0.225 0.22
 d 1
 
 newmtl bw_video
 Ka 0 0 0 
-Kd 0.75 0.15 0.15
+Kd 0.62 0.625 0.635
 d 1
 
-newmtl bw_video_pin
+newmtl bw_video_insul
 Ka 0 0 0 
-Kd 0.62 0.625 0.635
+Kd 0.7 0.33 0.36
+d 1
+
+newmtl bw_video_socket
+Ka 0 0 0 
+Kd 0.055 0.055 0.062
 d 1
 
 newmtl audio
 Ka 0 0 0 
+Kd 0.62 0.625 0.635
+d 1
+
+newmtl audio_insul
+Ka 0 0 0 
 Kd 0.07 0.07 0.075
+d 1
+
+newmtl audio_socket
+Ka 0 0 0 
+Kd 0.055 0.055 0.062
+d 1
+
+newmtl bracket_floppy
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
+d 1
+
+newmtl bracket_port_a
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
+d 1
+
+newmtl bracket_port_b
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
+d 1
+
+newmtl bracket_output
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
+d 1
+
+newmtl bracket_port_c
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
+d 1
+
+newmtl bracket_power
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
+d 1
+
+newmtl label_floppy_disks
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
+d 1
+
+newmtl label_port_a
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
+d 1
+
+newmtl label_port_b
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
+d 1
+
+newmtl label_output
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
+d 1
+
+newmtl label_color_video
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
+d 1
+
+newmtl label_bw_video
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
+d 1
+
+newmtl label_audio
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
+d 1
+
+newmtl label_port_c
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
+d 1
+
+newmtl label_rs232
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
+d 1
+
+newmtl label_power
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
+d 1
+
+newmtl label_power_off
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
+d 1
+
+newmtl label_power_on
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
+d 1
+
+newmtl label_rating
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
+d 1
+
+newmtl label_maker
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
+d 1
+
+newmtl maker_mark0
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
+d 1
+
+newmtl maker_mark1
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
+d 1
+
+newmtl maker_mark2
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
+d 1
+
+newmtl maker_mark3
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
+d 1
+
+newmtl maker_mark4
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
+d 1
+
+newmtl maker_mark5
+Ka 0 0 0 
+Kd 0.2 0.2 0.21
 d 1
 
 newmtl power_inlet
@@ -223,68 +388,63 @@ Ka 0 0 0
 Kd 0.07 0.07 0.075
 d 1
 
-newmtl power_switch
+newmtl power_inlet_floor
 Ka 0 0 0 
 Kd 0.07 0.07 0.075
 d 1
 
-newmtl label_FLOPPY_DISKS
+newmtl power_inlet_pin_0
 Ka 0 0 0 
-Kd 0.2 0.2 0.21
+Kd 0.62 0.625 0.635
 d 1
 
-newmtl label_PORT_A
+newmtl power_inlet_pin_1
 Ka 0 0 0 
-Kd 0.2 0.2 0.21
+Kd 0.62 0.625 0.635
 d 1
 
-newmtl label_PORT_B
+newmtl power_inlet_pin_2
 Ka 0 0 0 
-Kd 0.2 0.2 0.21
+Kd 0.62 0.625 0.635
 d 1
 
-newmtl label_OUTPUT
+newmtl power_inlet_screw_l
 Ka 0 0 0 
-Kd 0.2 0.2 0.21
+Kd 0.62 0.625 0.635
 d 1
 
-newmtl label_COLOR_VIDEO
+newmtl power_inlet_screw_r
 Ka 0 0 0 
-Kd 0.2 0.2 0.21
+Kd 0.62 0.625 0.635
 d 1
 
-newmtl label_B_W_VIDEO
+newmtl power_switch_bezel
 Ka 0 0 0 
-Kd 0.2 0.2 0.21
+Kd 0.07 0.07 0.075
 d 1
 
-newmtl label_AUDIO
+newmtl power_switch
 Ka 0 0 0 
-Kd 0.2 0.2 0.21
+Kd 0.03 0.03 0.035
 d 1
 
-newmtl label_PORT_C
-Ka 0 0 0 
-Kd 0.2 0.2 0.21
-d 1
-
-newmtl label_RS-232-C
-Ka 0 0 0 
-Kd 0.2 0.2 0.21
-d 1
-
-newmtl label_POWER
-Ka 0 0 0 
-Kd 0.2 0.2 0.21
-d 1
-
-newmtl label_OFF
+newmtl power_switch_bar
 Ka 0 0 0 
 Kd 0.92 0.92 0.9
 d 1
 
-newmtl label_ON
+newmtl label_switch_off
 Ka 0 0 0 
 Kd 0.92 0.92 0.9
+d 1
+
+newmtl label_switch_on
+Ka 0 0 0 
+Kd 0.92 0.92 0.9
+d 1
+
+newmtl fin_screw
+Ka 0 0 0 
+Kd 0.07 0.07 0.075
 d 1
 

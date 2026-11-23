@@ -42,8 +42,20 @@ with their pages in `photo-sources.md` there.
   slot is 137.8 mm wide, the width the Disk /// is scaled from, centered at
   313 mm from the left. The drive's latch, recess and lamp follow the Disk
   ///'s, which has the same mechanism.
-- **The floppy disk connector** is the 26-position shrouded header modeled
-  on the Disk ///.
+- **The back panel's connectors** were placed from close-ups of the rear
+  photograph at 0.083 mm per pixel; the standards set their shapes:
+  - the floppy disk connector, the 26-position shrouded header modeled on
+    the Disk ///;
+  - Ports A and B, DE-9 female sockets in molded black housings; color
+    video, a DA-15 female socket in a metal shell; Port C, a DB-25 female
+    socket in a molded housing; all with contacts on a 2.77 mm pitch in rows
+    2.84 mm apart;
+  - B/W video, an RCA socket; audio, a 3.5 mm phone jack;
+  - the power inlet, an IEC 60320 C14 with a screw at each side of its
+    flange, and the OFF/ON rocker switch.
+- **The panel's lettering** matches the photograph word for word, each line
+  set to its measured width in Century Gothic, with the brackets over each
+  connector. Casso's silhouette replaces the logo ahead of the maker's line.
 - **The feet, the inset panel and the side fins' pitch** are by eye.
 
 Casso's silhouette replaces the logo on the first logo plate.
