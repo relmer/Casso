@@ -2477,6 +2477,4 @@ The 033 copy-protection session used the casso MCP server to debug the //c's ser
 
 - [ ] T1540 Fix the paused state after HISTORY SAVE and HISTORY ON or OFF: `press_keys` and `wait` report a pause while the machine runs, and `resume` fails with "A run is in progress". Tests first.
 - [ ] T1541 Make HISTORY ON leave history on when it's already on, instead of turning it off without a message. Tests first.
-- [ ] T1542 Make HISTORY SAVE wait for a rebuild to finish, or fail with a message, instead of writing "(being rebuilt from history)" lines. Tests first.
-- [ ] T1543 Add a setting for the instruction trace length, which is fixed at `TraceController::kCapacity` and too short for one step of a UCSD Pascal game. Tests first.
-- [ ] T1544 Start or stop the instruction trace on a breakpoint, for example a write to $8F40, from the AppleWin and Casso modes and from MCP. Tests first.
+- [ ] T1542 Make the instruction trace a view over all of history: a request for a span of cycles rebuilds the parts not in memory, chunk by chunk, so the in-memory window is only a cache. HISTORY SAVE file <from>:<to> saves a span, and another form saves from the last stop to now; with no span, SAVE saves the cached window. A long rebuild reports progress and can be canceled, so an MCP call doesn't hang. A span that starts before history begins reports where history starts, rather than returning less without a message. SAVE does the rebuild itself, which fixes the "(being rebuilt from history)" lines. Tests first.
