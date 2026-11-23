@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/TrackLayoutWriter.h"
+#include "Devices/Disk/DiskFieldFormat.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 
@@ -195,10 +196,11 @@ void TrackLayoutWriter::PutNibble (std::vector<uint8_t> & ioBits, Byte nibble, i
 
 void TrackLayoutWriter::PutSector (std::vector<uint8_t> & ioBits, const std::vector<Byte> & sectors, int track, int physical, Byte volume)
 {
-    Byte               trackByte  = (Byte) track;
-    Byte               sectorByte = (Byte) physical;
-    Byte               checksum   = (Byte) (volume ^ trackByte ^ sectorByte);
-    size_t             offset     = ((size_t) track * NibblizationLayer::kSectorsPerTrack + (size_t) NibblizationLayer::GetDosFileIndexForPhysicalSector (physical)) * NibblizationLayer::kSectorByteSize;
+    Byte               trackByte    = (Byte) track;
+    Byte               sectorByte   = (Byte) physical;
+    Byte               checksum     = (Byte) (volume ^ trackByte ^ sectorByte);
+    size_t             offset       = ((size_t) track * NibblizationLayer::kSectorsPerTrack + (size_t) NibblizationLayer::GetDosFileIndexForPhysicalSector (physical)) * NibblizationLayer::kSectorByteSize;
+    Byte               dataChecksum = 0;
     std::vector<Byte>  data;
 
 
@@ -222,7 +224,8 @@ void TrackLayoutWriter::PutSector (std::vector<uint8_t> & ioBits, const std::vec
         PutNibble (ioBits, 0xFF, 2);
     }
 
-    NibblizationLayer::EncodeDataNibbles (&sectors[offset], data);
+    DiskFieldFormat::EncodeData (DiskFieldKind::Sixteen, std::span<const Byte> (&sectors[offset], NibblizationLayer::kSectorByteSize), data, dataChecksum);
+    data.push_back (dataChecksum);
 
     PutNibble (ioBits, NibblizationLayer::kProlog0, 0);
     PutNibble (ioBits, NibblizationLayer::kProlog1, 0);

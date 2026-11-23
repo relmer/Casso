@@ -706,7 +706,6 @@
     <ClCompile Include="Devices\Disk2ControllerAudioTests.cpp" />
     <ClCompile Include="Devices\Disk2ControllerIdleTests.cpp" />
     <ClCompile Include="Devices\DiskFieldFormatTests.cpp" />
-    <ClCompile Include="Devices\SixAndTwoCodecEquivalenceTests.cpp" />
     <ClCompile Include="Devices\ImageClassifierTests.cpp" />
     <ClCompile Include="Devices\ImageClassCacheTests.cpp" />
     <ClCompile Include="Devices\DriveImageRuleTests.cpp" />

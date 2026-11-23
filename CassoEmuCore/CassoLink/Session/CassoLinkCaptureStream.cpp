@@ -2,6 +2,7 @@
 
 #include "CassoLink/Session/CassoLinkCapture.h"
 #include "CassoLink/Session/CaptureStream.h"
+#include "Devices/Disk/DiskFieldFormat.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 
 
@@ -1242,7 +1243,7 @@ size_t CassoLinkCapture::FindDataField (std::span<const Byte> bytes, size_t at)
 
 bool CassoLinkCapture::RepairFields (const Position & position, std::vector<Byte> & ioRevolution)
 {
-    std::vector<Byte>  sector;
+    DataFieldDecode    sector;
     std::vector<Byte>  nibbles (NibblizationLayer::kDataNibbleCount);
     std::vector<Byte>  around  (ioRevolution);
     size_t             length   = ioRevolution.size();
@@ -1254,7 +1255,9 @@ bool CassoLinkCapture::RepairFields (const Position & position, std::vector<Byte
     {
         std::transform (bytes.begin() + (ptrdiff_t) data, bytes.begin() + (ptrdiff_t) (data + nibbles.size()), nibbles.begin(), [] (Byte value) { return (Byte) (value | 0x80); });
 
-        return NibblizationLayer::DecodeDataNibbles (nibbles.data(), sector);
+        DiskFieldFormat::DecodeData (DiskFieldKind::Sixteen, std::span<const Byte> (nibbles).first (DiskFieldFormat::kBodyLength62), nibbles[DiskFieldFormat::kBodyLength62], sector);
+
+        return sector.isChecksumGood && sector.invalidNibbles.empty();
     };
 
     around.insert (around.end(), ioRevolution.begin(), ioRevolution.begin() + (ptrdiff_t) std::min (length, s_kMarkerBytes + s_kDataWithin + 3 + nibbles.size()));
@@ -1363,7 +1366,7 @@ bool CassoLinkCapture::RepairProlog (const Position & position, std::vector<Byte
 {
     using Prolog = std::array<Byte, s_kPrologBytes>;
 
-    std::vector<Byte>         sector;
+    DataFieldDecode           sector;
     std::vector<Byte>         nibbles    (NibblizationLayer::kDataNibbleCount);
     std::map<Prolog, size_t>  counts;
     Prolog                    usual      = {};
@@ -1391,7 +1394,9 @@ bool CassoLinkCapture::RepairProlog (const Position & position, std::vector<Byte
     {
         std::transform (bytes.begin() + (ptrdiff_t) data, bytes.begin() + (ptrdiff_t) (data + nibbles.size()), nibbles.begin(), [] (Byte value) { return (Byte) (value | 0x80); });
 
-        return NibblizationLayer::DecodeDataNibbles (nibbles.data(), sector);
+        DiskFieldFormat::DecodeData (DiskFieldKind::Sixteen, std::span<const Byte> (nibbles).first (DiskFieldFormat::kBodyLength62), nibbles[DiskFieldFormat::kBodyLength62], sector);
+
+        return sector.isChecksumGood && sector.invalidNibbles.empty();
     };
 
     for (size_t at = 0; at < ioRevolution.size(); at++)

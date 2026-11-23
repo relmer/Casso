@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Devices/Disk/DiskFieldFormat.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/NibbleFieldWriter.h"
 
@@ -8,34 +9,11 @@
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-//
-//  6-and-2 write translate table (64 entries → nibble bytes 0x96..0xFF)
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static constexpr Byte kWriteTranslate[64] =
-{
-    0x96, 0x97, 0x9A, 0x9B, 0x9D, 0x9E, 0x9F, 0xA6,
-    0xA7, 0xAB, 0xAC, 0xAD, 0xAE, 0xAF, 0xB2, 0xB3,
-    0xB4, 0xB5, 0xB6, 0xB7, 0xB9, 0xBA, 0xBB, 0xBC,
-    0xBD, 0xBE, 0xBF, 0xCB, 0xCD, 0xCE, 0xCF, 0xD3,
-    0xD6, 0xD7, 0xD9, 0xDA, 0xDB, 0xDC, 0xDD, 0xDE,
-    0xDF, 0xE5, 0xE6, 0xE7, 0xE9, 0xEA, 0xEB, 0xEC,
-    0xED, 0xEE, 0xEF, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6,
-    0xF7, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF,
-};
-
-
-static constexpr int   kEncodedDataSize       = 342;
 static constexpr Byte  kAddrProlog0           = 0xD5;
 static constexpr Byte  kAltAddrProlog0        = 0xD4;   // Ultima I's address fields
 static constexpr Byte  kAddrProlog1           = 0xAA;
 static constexpr Byte  kAddrProlog2           = 0x96;
 static constexpr Byte  kDataProlog2           = 0xAD;
-static constexpr Byte  kIllegalNibble         = 0xFF;   // InverseTranslate miss
-static constexpr Byte  kSixBitMask            = 0x3F;
-static constexpr int   kThirdGroupSize        = 86;
 
 
 
@@ -84,80 +62,6 @@ static constexpr int kPo_PhysicalToFile[16] =
 {
     0, 8, 1, 9, 2, 10, 3, 11, 4, 12, 5, 13, 6, 14, 7, 15
 };
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  NibblizationLayer::EncodeDataNibbles
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void NibblizationLayer::EncodeDataNibbles (const Byte * sectorData, vector<Byte> & outNibbles)
-{
-    Byte    encoded[kEncodedDataSize] = {};
-    Byte    prev                      = 0;
-    Byte    enc                       = 0;
-    int     i                         = 0;
-
-
-
-    outNibbles.clear();
-    outNibbles.reserve (kDataNibbleCount);
-
-    for (i = 0; i < kThirdGroupSize; i++)
-    {
-        Byte   v = static_cast<Byte> (
-            ((sectorData[i] & 0x01) << 1) |
-            ((sectorData[i] & 0x02) >> 1));
-
-        if (i + kThirdGroupSize < NibblizationLayer::kSectorByteSize)
-        {
-            v = static_cast<Byte> (v |
-                ((sectorData[i + kThirdGroupSize] & 0x01) << 3) |
-                ((sectorData[i + kThirdGroupSize] & 0x02) << 1));
-        }
-
-        if (i + 2 * kThirdGroupSize < NibblizationLayer::kSectorByteSize)
-        {
-            v = static_cast<Byte> (v |
-                ((sectorData[i + 2 * kThirdGroupSize] & 0x01) << 5) |
-                ((sectorData[i + 2 * kThirdGroupSize] & 0x02) << 3));
-        }
-
-        encoded[i] = v;
-    }
-
-    for (i = 0; i < NibblizationLayer::kSectorByteSize; i++)
-    {
-        encoded[kThirdGroupSize + i] = static_cast<Byte> (sectorData[i] >> 2);
-    }
-
-    prev = 0;
-
-    for (i = 0; i < kEncodedDataSize; i++)
-    {
-        // Apple disk encoding (standard DOS 3.3 6+2 data field):
-        // each on-disk nibble is the encoded payload byte XOR'd with
-        // the PREVIOUS raw payload byte (not with a running checksum).
-        // The boot ROM's decode loop does
-        //     A := A XOR inverse_translate[disk_byte]
-        // which produces A_i = encoded[i] only if disk[i] = translate[
-        // encoded[i] XOR encoded[i-1]] (the running A *recovers* the
-        // encoded sequence, so the on-disk values must be consecutive
-        // XORs of raw encoded bytes, not a running cumulative XOR).
-        // The 343rd checksum nibble is just the FINAL raw encoded byte
-        // (without any XOR), which makes A_final XOR inv_translate[
-        // checksum] == 0 -- the boot ROM's success gate.
-        enc  = static_cast<Byte> (encoded[i] ^ prev);
-        prev = encoded[i];
-        outNibbles.push_back (kWriteTranslate[enc & 0x3F]);
-    }
-
-    outNibbles.push_back (kWriteTranslate[prev & 0x3F]);
-}
 
 
 
@@ -742,98 +646,6 @@ Byte NibblizationLayer::ReadNibbleAt (const TrackBits & src, size_t & bitPos)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Decode44
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static Byte Decode44 (Byte odd, Byte even)
-{
-    return static_cast<Byte> (((odd << 1) | 1) & even);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  InverseTranslate
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static Byte InverseTranslate (Byte nib)
-{
-    int   i     = 0;
-    Byte  value = 0xFF;      // 0xFF == not a legal 6-and-2 nibble
-
-
-
-    for (i = 0; i < 64 && value == 0xFF; i++)
-    {
-        if (kWriteTranslate[i] == nib)
-        {
-            value = static_cast<Byte> (i);
-        }
-    }
-
-    return value;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  NibblizationLayer::DecodeDataNibbles
-//
-//  As the boot ROM decodes a data field: each nibble's 6-bit value EOR the
-//  value before it is the encoded byte, and the checksum nibble's value is
-//  the last encoded byte. The 86 encoded bytes hold each byte's low two bits,
-//  swapped, a third of the sector to each bit pair.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool NibblizationLayer::DecodeDataNibbles (const Byte * nibbles, vector<Byte> & outSector)
-{
-    Byte  encoded[kEncodedDataSize] = {};
-    Byte  prev                      = 0;
-    Byte  value                     = 0;
-    bool  legal                     = true;
-    int   i                         = 0;
-
-
-
-    outSector.assign (kSectorByteSize, 0);
-
-    for (i = 0; i < kEncodedDataSize; i++)
-    {
-        value      = InverseTranslate (nibbles[i]);
-        legal      = legal && value != kIllegalNibble;
-        prev       = static_cast<Byte> ((value ^ prev) & kSixBitMask);
-        encoded[i] = prev;
-    }
-
-    value = InverseTranslate (nibbles[kEncodedDataSize]);
-    legal = legal && value == prev;
-
-    for (i = 0; i < kSectorByteSize; i++)
-    {
-        int   third = i / kThirdGroupSize;
-        Byte  bits  = static_cast<Byte> (encoded[i % kThirdGroupSize] >> (2 * third));
-
-        outSector[(size_t) i] = static_cast<Byte> ((encoded[kThirdGroupSize + i] << 2) | ((bits & 0x01) << 1) | ((bits & 0x02) >> 1));
-    }
-
-    return legal;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  PopCount
 //
 //  Set bits in a 16-sector mask.
@@ -930,38 +742,33 @@ static HRESULT DecodeOneSector (
     size_t                              &  outFieldStart,
     size_t                              &  outDataFieldStart)
 {
-    HRESULT   hr                        = S_OK;
-    Byte      n0                        = 0;
-    Byte      n1                        = 0;
-    Byte      n2                        = 0;
-    Byte      vOdd                      = 0;
-    Byte      vEven                     = 0;
-    Byte      tOdd                      = 0;
-    Byte      tEven                     = 0;
-    Byte      sOdd                      = 0;
-    Byte      sEven                     = 0;
-    Byte      cOdd                      = 0;
-    Byte      cEven                     = 0;
-    Byte      foundProlog               = 0;
-    Byte      encoded[kEncodedDataSize] = {};
-    Byte      addrVolume                = 0;
-    Byte      addrTrack                 = 0;
-    Byte      addrChecksum              = 0;
-    Byte      dataChecksum              = 0;
-    Byte      decodedNibble             = 0;
-    size_t    posBeforeProlog           = 0;
-    bool      addrChecksumOk            = false;
-    bool      dataChecksumOk            = false;
-    bool      nibbleLegal               = false;
-    bool      dataFieldMissing          = false;
-    bool      dataTrusted               = true;
-    Byte      prev                      = 0;
-    Byte      raw                       = 0;
-    int       i                         = 0;
-    size_t    trackBits                 = src.bitCount;
-    size_t    startBitPos               = bitPos;
-    size_t    bitsConsumed              = 0;
-    size_t    addrFieldStart            = 0;
+    HRESULT          hr                                         = S_OK;
+    Byte             n0                                         = 0;
+    Byte             n1                                         = 0;
+    Byte             n2                                         = 0;
+    Byte             vOdd                                       = 0;
+    Byte             vEven                                      = 0;
+    Byte             tOdd                                       = 0;
+    Byte             tEven                                      = 0;
+    Byte             sOdd                                       = 0;
+    Byte             sEven                                      = 0;
+    Byte             cOdd                                       = 0;
+    Byte             cEven                                      = 0;
+    Byte             foundProlog                                = 0;
+    Byte             field[NibblizationLayer::kDataNibbleCount] = {};
+    Byte             addrVolume                                 = 0;
+    Byte             addrTrack                                  = 0;
+    Byte             addrChecksum                               = 0;
+    DataFieldDecode  decode;
+    size_t           posBeforeProlog                            = 0;
+    bool             addrChecksumOk                             = false;
+    bool             dataFieldMissing                           = false;
+    bool             dataTrusted                                = false;
+    size_t           i                                          = 0;
+    size_t           trackBits                                  = src.bitCount;
+    size_t           startBitPos                                = bitPos;
+    size_t           bitsConsumed                               = 0;
+    size_t           addrFieldStart                             = 0;
 
 
 
@@ -1009,10 +816,10 @@ static HRESULT DecodeOneSector (
     cOdd  = NibblizationLayer::ReadNibbleAt (src, bitPos);
     cEven = NibblizationLayer::ReadNibbleAt (src, bitPos);
 
-    outSector    = Decode44 (sOdd, sEven);
-    addrVolume   = Decode44 (vOdd, vEven);
-    addrTrack    = Decode44 (tOdd, tEven);
-    addrChecksum = Decode44 (cOdd, cEven);
+    outSector    = DiskFieldFormat::Decode44 (sOdd, sEven);
+    addrVolume   = DiskFieldFormat::Decode44 (vOdd, vEven);
+    addrTrack    = DiskFieldFormat::Decode44 (tOdd, tEven);
+    addrChecksum = DiskFieldFormat::Decode44 (cOdd, cEven);
 
     // The address field carries its own checksum, and it was being read and
     // thrown away. It is the only thing that says the sector NUMBER can be
@@ -1073,73 +880,23 @@ static HRESULT DecodeOneSector (
     // the data field needs.
     outDataFieldStart = posBeforeProlog;
 
-    prev = 0;
-
-    for (i = 0; i < kEncodedDataSize; i++)
+    for (i = 0; i < NibblizationLayer::kDataNibbleCount; i++)
     {
-        // Inverse of the standard Apple DOS 3.3 6+2 convention used in
-        // the writer above: on-disk nibbles encode encoded[i] XOR'd
-        // with the previous raw encoded value, so we recover raw
-        // values via XOR with the previous DECODED value.
-        raw           = NibblizationLayer::ReadNibbleAt (src, bitPos);
-        decodedNibble = InverseTranslate (raw);
-
-        // 0xFF means the byte on the disk is not a legal 6-and-2 nibble at
-        // all. The sector stops being trustworthy, but decoding continues:
-        // the bytes before this point are still the disk's, and the caller
-        // may want them. The substituted value is arbitrary -- there is no
-        // right one -- which is exactly why the sector is marked unverified.
-        nibbleLegal = (decodedNibble != kIllegalNibble);
-
-        if (!nibbleLegal)
-        {
-            decodedNibble = 0;
-            dataTrusted   = false;
-        }
-
-        encoded[i]  = static_cast<Byte> (decodedNibble ^ prev);
-        prev        = encoded[i];
+        field[i] = NibblizationLayer::ReadNibbleAt (src, bitPos);
     }
 
-    // The 343rd nibble is the data field's checksum -- the boot ROM's own
-    // success gate -- and it was never read. Verifying it is what lets Casso
-    // say a sector is intact rather than merely parseable.
-    decodedNibble  = InverseTranslate (NibblizationLayer::ReadNibbleAt (src, bitPos));
-    dataChecksum   = static_cast<Byte> (prev & kSixBitMask);
-    dataChecksumOk = (decodedNibble == dataChecksum);
-    dataTrusted    = dataTrusted && dataChecksumOk;
+    // An illegal nibble makes the sector untrustworthy, but decoding goes on:
+    // the bytes before it are the disk's, and a salvage writes them. The
+    // 343rd nibble is the data field's checksum, the boot ROM's success gate.
+    DiskFieldFormat::DecodeData (DiskFieldKind::Sixteen,
+                                 std::span<const Byte> (field, DiskFieldFormat::kBodyLength62),
+                                 field[DiskFieldFormat::kBodyLength62],
+                                 decode);
 
-    outcome = dataTrusted ? SectorOutcome::Verified : SectorOutcome::Recovered;
+    dataTrusted = decode.isChecksumGood && decode.invalidNibbles.empty();
+    outcome     = dataTrusted ? SectorOutcome::Verified : SectorOutcome::Recovered;
 
-    for (i = 0; i < NibblizationLayer::kSectorByteSize; i++)
-    {
-        Byte    high  = static_cast<Byte> (encoded[kThirdGroupSize + i] << 2);
-        Byte    bit0  = 0;
-        Byte    bit1  = 0;
-        int     idx   = 0;
-        int     shift = 0;
-
-        if (i < kThirdGroupSize)
-        {
-            idx   = i;
-            shift = 0;
-        }
-        else if (i < 2 * kThirdGroupSize)
-        {
-            idx   = i - kThirdGroupSize;
-            shift = 2;
-        }
-        else
-        {
-            idx   = i - 2 * kThirdGroupSize;
-            shift = 4;
-        }
-
-        bit0 = static_cast<Byte> ((encoded[idx] >> (shift + 1)) & 1);
-        bit1 = static_cast<Byte> ((encoded[idx] >> (shift + 0)) & 1);
-
-        outData[i] = static_cast<Byte> (high | (bit0 << 0) | (bit1 << 1));
-    }
+    memcpy (outData, decode.bytes.data(), NibblizationLayer::kSectorByteSize);
 
 Error:
     return hr;

@@ -120,11 +120,6 @@ public:
     //  nibbles and the checksum nibble.
     static constexpr size_t kDataNibbleCount   = 343;
 
-    //  A sector's 256 bytes as its data field's nibbles, and back. Decoding
-    //  returns false for an illegal nibble or a wrong checksum.
-    static void     EncodeDataNibbles (const Byte * sector, vector<Byte> & outNibbles);
-    static bool     DecodeDataNibbles (const Byte * nibbles, vector<Byte> & outSector);
-
     static HRESULT  Nibblize    (const vector<Byte> & raw, DiskFormat fmt, DiskImage & out);
     static HRESULT  NibblizeDsk (const vector<Byte> & raw, DiskImage & out);
     static HRESULT  NibblizeDo  (const vector<Byte> & raw, DiskImage & out);

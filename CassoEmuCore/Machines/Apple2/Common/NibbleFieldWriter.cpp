@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/NibbleFieldWriter.h"
+#include "Devices/Disk/DiskFieldFormat.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 
 
@@ -160,7 +161,8 @@ void NibbleFieldWriter::AppendDataField (
     const Byte     *  sectorData)
 {
     vector<Byte>  nibbles;
-    int           i       = 0;
+    Byte          checksum = 0;
+    int           i        = 0;
 
 
 
@@ -173,7 +175,8 @@ void NibbleFieldWriter::AppendDataField (
     PackNibbleBits (dst, bitOffset, kAddrProlog1);
     PackNibbleBits (dst, bitOffset, kDataProlog2);
 
-    NibblizationLayer::EncodeDataNibbles (sectorData, nibbles);
+    DiskFieldFormat::EncodeData (DiskFieldKind::Sixteen, std::span<const Byte> (sectorData, NibblizationLayer::kSectorByteSize), nibbles, checksum);
+    nibbles.push_back (checksum);
 
     for (Byte nibble : nibbles)
     {

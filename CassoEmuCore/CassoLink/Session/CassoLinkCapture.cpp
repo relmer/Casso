@@ -5,6 +5,7 @@
 #include "CassoLink/CassoLinkHost.h"
 #include "CassoLink/Session/CaptureStream.h"
 #include "CassoLink/Session/CassoLinkDiskTransfer.h"
+#include "Devices/Disk/DiskFieldFormat.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
@@ -904,7 +905,7 @@ Error:
 int CassoLinkCapture::CountSectors (std::span<const Byte> revolution, int track, bool & outThirteen, int & outAddressed)
 {
     std::vector<Byte>  bytes;
-    std::vector<Byte>  sector;
+    DataFieldDecode    sector;
     std::set<int>      found;
     std::set<int>      addressed;
     bool               kindKnown = false;
@@ -966,7 +967,8 @@ int CassoLinkCapture::CountSectors (std::span<const Byte> revolution, int track,
         //  The loop has gone one past the prolog.
         if (hasData && is16)
         {
-            hasData = NibblizationLayer::DecodeDataNibbles (&bytes[data + 2], sector);
+            DiskFieldFormat::DecodeData (DiskFieldKind::Sixteen, std::span<const Byte> (&bytes[data + 2], DiskFieldFormat::kBodyLength62), bytes[data + 2 + DiskFieldFormat::kBodyLength62], sector);
+            hasData = sector.isChecksumGood && sector.invalidNibbles.empty();
         }
 
         if (hasData && is13 == outThirteen)

@@ -36,6 +36,31 @@ TEST_CLASS (CaptureProgramTests)
 {
 public:
 
+    //  A 16-sector data field's nibbles, its checksum nibble last.
+    static void EncodeDataField (const std::vector<Byte> & data, std::vector<Byte> & outNibbles)
+    {
+        Byte  checksum = 0;
+
+
+
+        DiskFieldFormat::EncodeData (DiskFieldKind::Sixteen, data, outNibbles, checksum);
+        outNibbles.push_back (checksum);
+    }
+
+
+
+    static bool DoesDataFieldDecode (const Byte * nibbles)
+    {
+        DataFieldDecode  decode;
+
+
+
+        DiskFieldFormat::DecodeData (DiskFieldKind::Sixteen, std::span<const Byte> (nibbles, DiskFieldFormat::kBodyLength62), nibbles[DiskFieldFormat::kBodyLength62], decode);
+
+        return decode.isChecksumGood && decode.invalidNibbles.empty();
+    }
+
+
     //  Each token: values as they are, a repeat, and a copy of a revolution
     //  before, then the marks, with the padding after the last ignored. The
     //  copy's values are the same, and its marks aren't.
@@ -395,7 +420,6 @@ public:
         CassoLinkCapture::Result                 result;
         DiskImage                                image;
         std::vector<Byte>                        framed;
-        std::vector<Byte>                        sector;
         uint32_t                                 seed    = 4321;
         size_t                                   badAt   = 0;
         bool                                     decoded = false;
@@ -435,7 +459,7 @@ public:
                 value = (Byte) (seed >> 16);
             }
 
-            NibblizationLayer::EncodeDataNibbles (data.data(), nibbles);
+            EncodeDataField (data, nibbles);
             badAt = number == kBad ? revolution.size() + kMisread : badAt;
             revolution.insert (revolution.end(), nibbles.begin(), nibbles.end());
             revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
@@ -480,7 +504,7 @@ public:
                 {
                     bool  prolog = framed[data] == 0xD5 && framed[data + 1] == 0xAA && framed[data + 2] == 0xAD;
 
-                    decoded = decoded || (prolog && NibblizationLayer::DecodeDataNibbles (&framed[data + 3], sector));
+                    decoded = decoded || (prolog && DoesDataFieldDecode (&framed[data + 3]));
                 }
             }
 
@@ -540,7 +564,7 @@ public:
                 value = (Byte) (seed >> 16);
             }
 
-            NibblizationLayer::EncodeDataNibbles (data.data(), nibbles);
+            EncodeDataField (data, nibbles);
             revolution.insert (revolution.end(), nibbles.begin(), nibbles.end());
             revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
         }
@@ -626,7 +650,7 @@ public:
                 value = (Byte) (seed >> 16);
             }
 
-            NibblizationLayer::EncodeDataNibbles (data.data(), nibbles);
+            EncodeDataField (data, nibbles);
             revolution.insert (revolution.end(), nibbles.begin(), nibbles.end());
             revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
         }
@@ -718,7 +742,7 @@ public:
                     value = (Byte) (seed >> 16);
                 }
 
-                NibblizationLayer::EncodeDataNibbles (data.data(), nibbles);
+                EncodeDataField (data, nibbles);
                 nibbles.back() = decodes ? nibbles.back() : (Byte) (nibbles.back() == 0x96 ? 0x97 : 0x96);
                 revolution.insert (revolution.end(), nibbles.begin(), nibbles.end());
                 revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
@@ -816,7 +840,7 @@ public:
                     value = (Byte) (seed >> 16);
                 }
 
-                NibblizationLayer::EncodeDataNibbles (data.data(), nibbles);
+                EncodeDataField (data, nibbles);
                 revolution.insert (revolution.end(), nibbles.begin(), nibbles.end());
                 revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
             }
@@ -918,7 +942,7 @@ public:
                     value = (Byte) (seed >> 16);
                 }
 
-                NibblizationLayer::EncodeDataNibbles (data.data(), nibbles);
+                EncodeDataField (data, nibbles);
                 revolution.insert (revolution.end(), nibbles.begin(), nibbles.end());
                 revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
                 revolution.insert (revolution.end(), kSyncs, 0xFF);
@@ -1057,7 +1081,7 @@ public:
                 value = (Byte) (seed >> 16);
             }
 
-            NibblizationLayer::EncodeDataNibbles (data.data(), nibbles);
+            EncodeDataField (data, nibbles);
             revolution.insert (revolution.end(), nibbles.begin(), nibbles.end());
             revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
         }
