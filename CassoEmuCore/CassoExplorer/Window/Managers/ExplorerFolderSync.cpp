@@ -18,6 +18,7 @@
 #include "CassoExplorer/Model/HostFolderNames.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
 #include "CassoExplorer/Browser/BrowserRowPaths.h"
+#include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
 
 
 
@@ -657,11 +658,16 @@ bool ExplorerFolderSync::UpdateStorageCards()
         }
     }
 
+    //  A tab on a card taken out goes to This PC. The active tab is left by
+    //  LeaveMissingLocation, which lists it again.
     for (int number : m_storageCardDrives)
     {
         if (std::find (drives.begin(), drives.end(), number) == drives.end())
         {
             m_context.app.cards->Close (number);
+            m_context.browser.GetBrowserModel().MoveTabsOffCard (TextEncoding::Utf8ToWide (PhysicalCards::MakeCardPath (number)),
+                                                                 Location::MakeRoot (TreeModel::kThisPcRootId));
+            m_context.tabManager.FillTabs();
         }
     }
 

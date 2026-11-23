@@ -117,6 +117,9 @@ public:
     void  InvalidateCatalog     (const std::wstring & imagePath);
     void  InvalidateAllCatalogs ();
 
+    //  Every tab but the active one on a storage card goes to `to`.
+    size_t  MoveTabsOffCard (const std::wstring & cardPath, const Location & to);
+
     //  Every open tab's location, for persistence.
     void  GetLocations (std::vector<Location> & outLocations) const;
 

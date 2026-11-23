@@ -26,6 +26,29 @@ public:
 
 
 
+    TEST_METHOD (MoveTabsOffCard_MovesEveryOtherTabOnTheCard)
+    {
+        BrowserModel  model;
+        Location      thisPc = Location::MakeRoot (L"thispc");
+
+        model.OpenTab (Image  (L"\\\\.\\PhysicalDrive5"));
+        model.OpenTab (Image  (L"\\\\.\\PhysicalDrive5|#2.po"));
+        model.OpenTab (Image  (L"\\\\.\\PhysicalDrive50"));
+        model.OpenTab (Folder (L"C:\\A"));
+        model.OpenTab (Image  (L"\\\\.\\physicaldrive5|#3.po"));
+
+        Assert::AreEqual ((size_t) 2, model.MoveTabsOffCard (L"\\\\.\\PhysicalDrive5", thisPc));
+
+        Assert::IsTrue (model.GetTab (0).location == thisPc);
+        Assert::IsTrue (model.GetTab (1).location == thisPc);
+        Assert::IsTrue (model.GetTab (1).back.back() == Image (L"\\\\.\\PhysicalDrive5|#2.po"), L"Back returns to the card");
+        Assert::IsTrue (model.GetTab (2).location == Image (L"\\\\.\\PhysicalDrive50"), L"another drive's tab stays");
+        Assert::IsTrue (model.GetTab (3).location == Folder (L"C:\\A"));
+        Assert::IsTrue (model.GetTab (4).location == Image (L"\\\\.\\physicaldrive5|#3.po"), L"the active tab is navigated by the caller");
+    }
+
+
+
     TEST_METHOD (Tabs_OpenCloseSwitchAndCycle)
     {
         BrowserModel  model;

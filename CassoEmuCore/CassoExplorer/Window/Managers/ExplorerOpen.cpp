@@ -26,6 +26,7 @@
 #include "CassoExplorer/CassoExplorerElevationDialog.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
 #include "CassoExplorer/Browser/BrowserRowPaths.h"
+#include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
 
 
 
@@ -672,6 +673,13 @@ void ExplorerOpen::FinishInitialize()
             IGNORE_RETURN_VALUE (labeled, TRUE);
         }
     }
+
+    //  Every other tab on the card goes where the active one does: a FAT32
+    //  card's drive letter, or the card.
+    m_context.browser.GetBrowserModel().MoveTabsOffCard (m_initCard,
+                                                         (m_initLayout == RawDeviceProtocol::kLayoutFat32 && !root.empty()) ? Location::MakeHostFolder (root)
+                                                                                                                             : Location::MakeDiskImage (m_initCard));
+    m_context.tabManager.FillTabs();
 
     //  A FAT32 card is opened at its drive letter, and a CFFA card as a card.
     //  The card's old node is removed from the tree, and its drive letter is
