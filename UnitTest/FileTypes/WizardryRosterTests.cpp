@@ -132,6 +132,47 @@ public:
     }
 
 
+    //  Wizardry IV's WERDNA.DATA: Werdna in each of the eight slots, at level
+    //  0 in a slot not saved to. Slots 1 and 3 are saved here.
+    TEST_METHOD (Decode_WerdnaData_ListsTheSlotsSavedTo)
+    {
+        std::vector<Byte>  bytes (WizardryRoster::kSlots * WizardryRoster::kSlotBytes, 0);
+        DecodedFile        file;
+        std::wstring       error;
+
+
+
+        for (int slot = 0; slot < WizardryRoster::kSlots; slot++)
+        {
+            size_t  at = (size_t) slot * WizardryRoster::kSlotBytes;
+
+            PutName (bytes, at, "WERDNA");
+            PutWord (bytes, at + WizardryRoster::kWAgeAt,   5200);
+            PutWord (bytes, at + WizardryRoster::kWHpLeftAt, 1);
+            PutWord (bytes, at + WizardryRoster::kWHpMaxAt,  1);
+        }
+
+        PutWord (bytes, WizardryRoster::kWLevelAt,     1);
+        PutWord (bytes, WizardryRoster::kWHpLeftAt,    10);
+        PutWord (bytes, WizardryRoster::kWHpMaxAt,     10);
+        PutWord (bytes, WizardryRoster::kWGoldAt,      879);
+        PutWord (bytes, WizardryRoster::kWKeysAt,      9845);
+        PutWord (bytes, WizardryRoster::kWKeysAt + 2,  99);
+        PutWord (bytes, WizardryRoster::kWItemCountAt, 4);
+        PutWord (bytes, 2 * WizardryRoster::kSlotBytes + WizardryRoster::kWLevelAt, 2);
+
+        Assert::IsTrue  (WizardryRoster::Matches (MakeFacts ("WERDNA.DATA"), bytes));
+        AssertSucceeded (WizardryRoster::Decode (bytes, MakeFacts ("WERDNA.DATA"), DecodeOptions(), file, error));
+
+        Assert::AreEqual (std::wstring (L"Wizardry IV: The Return of Werdna"), GetTexts (file)[0]);
+        Assert::IsTrue   (HasText (file, L"Saved game: 2 save slots"));
+        Assert::IsTrue   (HasText (file, L"Save slot 1   Level 1"));
+        Assert::IsTrue   (HasText (file, L"Status OK   HP 10/10   Gold 879   Keys 999,845   Items 4"));
+        Assert::IsTrue   (HasText (file, L"Save slot 3   Level 2"));
+        Assert::IsFalse  (HasText (file, L"Save slot 2   Level 0"));
+    }
+
+
     TEST_METHOD (Matches_ByNameAndRecords)
     {
         std::vector<Byte>  bytes  = MakeRoster();

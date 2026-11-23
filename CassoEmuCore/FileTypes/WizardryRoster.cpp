@@ -49,11 +49,26 @@ bool WizardryRoster::IsRecord (std::span<const Byte> bytes, size_t at)
 //
 //  WizardryRoster::Matches
 //
+////////////////////////////////////////////////////////////////////////////////
+
+bool WizardryRoster::Matches (const FileFacts & facts, std::span<const Byte> bytes)
+{
+    return IsPlayerData (facts, bytes) || IsWerdnaData (facts, bytes);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WizardryRoster::IsPlayerData
+//
 //  PLAYER.DATA with at least one record, every record's fields in range.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool WizardryRoster::Matches (const FileFacts & facts, std::span<const Byte> bytes)
+bool WizardryRoster::IsPlayerData (const FileFacts & facts, std::span<const Byte> bytes)
 {
     bool  named = _stricmp (facts.name.c_str(), "PLAYER.DATA") == 0;
     bool  fits  = named && bytes.size() >= kCharacterBytes;
@@ -66,6 +81,121 @@ bool WizardryRoster::Matches (const FileFacts & facts, std::span<const Byte> byt
     }
 
     return fits;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WizardryRoster::IsWerdnaData
+//
+//  WERDNA.DATA with a block for each save slot, each block's record a name
+//  of 1 to 15 characters.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WizardryRoster::IsWerdnaData (const FileFacts & facts, std::span<const Byte> bytes)
+{
+    bool  named = _stricmp (facts.name.c_str(), "WERDNA.DATA") == 0;
+    bool  fits  = named && bytes.size() >= kSlots * kSlotBytes;
+
+
+
+    for (int slot = 0; fits && slot < kSlots; slot++)
+    {
+        int  length = bytes[(size_t) slot * kSlotBytes + kNameAt];
+
+        fits = length >= 1 && length <= (int) kShortStringMax;
+    }
+
+    return fits;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WizardryRoster::ListSlots
+//
+//  Each save slot saved to, as a row: its number in bold, then Werdna's
+//  level, status, hit points, age in years, gold, keys and item count.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WizardryRoster::ListSlots (std::span<const Byte> bytes, std::vector<Paragraph> & ioParagraphs)
+{
+    auto  slots  = std::make_shared<RecordTable>();
+    int   listed = 0;
+
+
+
+    slots->headings = { L"Save slot", L"Level", L"Status", L"Hit points", L"Age", L"Gold", L"Keys", L"Items" };
+
+    for (int slot = 0; slot < kSlots; slot++)
+    {
+        size_t               at     = (size_t) slot * kSlotBytes;
+        int                  level  = WizardryScenario::ReadWord (bytes, at + kWLevelAt);
+        int                  status = WizardryScenario::ReadWord (bytes, at + kWStatusAt);
+        int                  left   = WizardryScenario::ReadWord (bytes, at + kWHpLeftAt);
+        int                  most   = WizardryScenario::ReadWord (bytes, at + kWHpMaxAt);
+        RunColor             color  = (status == 0) ? RunColor::Good : RunColor::Bad;
+        RunColor             hp     = WizardryScenario::GetHpColor (left, most);
+        RecordTable::Record  record;
+
+        if (level < 1)
+        {
+            continue;
+        }
+
+        std::wstring  number = std::format (L"{}", slot + 1);
+        std::wstring  shown  = GetStatusName (status);
+        std::wstring  hits   = std::format (L"{}/{}", left, most);
+        std::wstring  age    = std::format (L"{}", WizardryScenario::ReadWord (bytes, at + kWAgeAt) / kWeeksPerYear);
+        std::wstring  gold   = NumberFormat::FormatInteger ((int64_t) WizardryScenario::ReadAmount (bytes, at + kWGoldAt));
+        std::wstring  keys   = NumberFormat::FormatInteger ((int64_t) WizardryScenario::ReadAmount (bytes, at + kWKeysAt));
+        std::wstring  items  = std::format (L"{}", (std::clamp) (WizardryScenario::ReadWord (bytes, at + kWItemCountAt), 0, 8));
+
+        record.cells = { Run { number, true }, Run { std::format (L"{}", level) }, Run { shown, true, false, false, color },
+                         Run { hits, true, false, false, hp }, Run { age }, Run { gold }, Run { keys }, Run { items } };
+
+        record.card.push_back (WizardryScenario::MakeParagraph ({ Run { L"Save slot ", false, false, false, RunColor::Muted },
+                                                                  Run { number, true },
+                                                                  Run { L"   Level ", false, false, false, RunColor::Muted },
+                                                                  Run { std::format (L"{}", level), true, false, false, RunColor::Keyword } }));
+        record.card.push_back (WizardryScenario::MakeParagraph ({ Run { L"Status ", false, false, false, RunColor::Muted },
+                                                                  Run { shown, true, false, false, color },
+                                                                  Run { L"   HP ", false, false, false, RunColor::Muted },
+                                                                  Run { hits, true, false, false, hp },
+                                                                  Run { L"   Gold ", false, false, false, RunColor::Muted },
+                                                                  Run { gold, true, false, false, RunColor::Keyword },
+                                                                  Run { L"   Keys ", false, false, false, RunColor::Muted },
+                                                                  Run { keys, true, false, false, RunColor::Keyword },
+                                                                  Run { L"   Items ", false, false, false, RunColor::Muted },
+                                                                  Run { items, true, false, false, RunColor::Keyword } }));
+
+        slots->records.push_back (std::move (record));
+        listed++;
+    }
+
+    slots->title = std::format (L"Saved game: {} {}", listed, (listed == 1) ? L"save slot" : L"save slots");
+
+    if (listed > 0)
+    {
+        Paragraph  table;
+
+        table.table = slots;
+        ioParagraphs.push_back (std::move (table));
+    }
+    else
+    {
+        ioParagraphs.push_back (WizardryScenario::MakeParagraph ({ Run { slots->title, true } }));
+        ioParagraphs.push_back (Paragraph());
+        ioParagraphs.push_back (WizardryScenario::MakeParagraph ({ Run { L"No game saved yet." } }));
+    }
 }
 
 
@@ -242,10 +372,18 @@ HRESULT WizardryRoster::Decode (std::span<const Byte> bytes, const FileFacts & f
 
     CBRFEx (isValid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outError = L"The roster's records can't be read.");
 
-    outFile.paragraphs.push_back (WizardryScenario::MakeParagraph ({ Run { L"Wizardry V: Heart of the Maelstrom", true } }));
-    outFile.paragraphs.push_back (Paragraph());
-
-    ListRoster (bytes, outFile.paragraphs);
+    if (IsWerdnaData (facts, bytes))
+    {
+        outFile.paragraphs.push_back (WizardryScenario::MakeParagraph ({ Run { L"Wizardry IV: The Return of Werdna", true } }));
+        outFile.paragraphs.push_back (Paragraph());
+        ListSlots (bytes, outFile.paragraphs);
+    }
+    else
+    {
+        outFile.paragraphs.push_back (WizardryScenario::MakeParagraph ({ Run { L"Wizardry V: Heart of the Maelstrom", true } }));
+        outFile.paragraphs.push_back (Paragraph());
+        ListRoster (bytes, outFile.paragraphs);
+    }
 
 Error:
     return hr;

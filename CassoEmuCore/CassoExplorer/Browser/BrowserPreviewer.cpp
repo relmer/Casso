@@ -661,8 +661,8 @@ void BrowserPreviewer::SetSavedGameShown (bool shown)
 //
 //  BrowserPreviewer::FindSavedGame
 //
-//  A Wizardry scenario disk's SCENARIO.DATA, or Wizardry V's PLAYER.DATA,
-//  or null for any other disk.
+//  A Wizardry scenario disk's SCENARIO.DATA, Wizardry IV's WERDNA.DATA or
+//  Wizardry V's PLAYER.DATA, or null for any other disk.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -671,7 +671,8 @@ const FileEntry * BrowserPreviewer::FindSavedGame (const VolumeListing & listing
     auto  scenario = std::find_if (listing.entries.begin(), listing.entries.end(),
                                    [] (const FileEntry & entry)
                                    {
-                                       return !entry.isDirectory && (_stricmp (entry.name.c_str(), "SCENARIO.DATA") == 0 || _stricmp (entry.name.c_str(), "PLAYER.DATA") == 0);
+                                       return !entry.isDirectory && (_stricmp (entry.name.c_str(), "SCENARIO.DATA") == 0 || _stricmp (entry.name.c_str(), "PLAYER.DATA") == 0
+                                                                   || _stricmp (entry.name.c_str(), "WERDNA.DATA") == 0);
                                    });
 
 
