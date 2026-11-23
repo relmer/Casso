@@ -47,6 +47,8 @@
 #include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
 #include "CassoExplorer/WozPropertiesDialog.h"
 #include "CassoExplorer/Browser/BrowserRowPaths.h"
+#include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
+#include "Devices/Disk/Partitions/PhysicalCards.h"
 
 
 
@@ -256,6 +258,18 @@ void ExplorerImageTools::ReplacePartition (const std::wstring & partition)
 
     m_context.verbs.ReportOutcome (outcome, L"Replace partition");
     m_context.listPane.FillList();
+
+    //  The partition's tree node is labeled with its volume's name, which the
+    //  new image can change. A card's partitions are listed again from the
+    //  card, and an image file's from the file.
+    if (PhysicalCards::IsOnCard (partition))
+    {
+        m_context.folderSync.CheckDrives();
+    }
+    else
+    {
+        m_context.treePane.RefreshTree();
+    }
 }
 
 
