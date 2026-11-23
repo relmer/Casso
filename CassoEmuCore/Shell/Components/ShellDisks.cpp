@@ -72,6 +72,7 @@
 #include "Devices/Disk/DamagedMountReport.h"
 #include "Devices/Disk/Store/DiskStoreMessages.h"
 #include "Devices/Disk/Store/DiskSalvager.h"
+#include "Devices/Disk/Store/ExternalChangeActions.h"
 
 
 
@@ -1791,7 +1792,7 @@ HRESULT ShellDisks::ToggleImageWriteProtect (int drive)
 
 void ShellDisks::ResolvePendingChange (int slot, int drive, int action, const std::string & savePath)
 {
-    m_shell.m_machine.GetDiskStore().ResolvePendingChange (slot, drive, (ChangeAction) action, savePath);
+    m_shell.m_machine.GetDiskStore().GetChangeActions().ResolvePendingChange (slot, drive, (ChangeAction) action, savePath);
 }
 
 

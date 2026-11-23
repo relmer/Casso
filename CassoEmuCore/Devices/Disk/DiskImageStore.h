@@ -18,6 +18,7 @@
 #include "Devices/Disk/Store/DiskSalvager.h"
 #include "Devices/Disk/Store/DiskStoreHooks.h"
 #include "Devices/Disk/Store/DiskStoreInterfaces.h"
+#include "Devices/Disk/Store/ExternalChangeActions.h"
 
 
 
@@ -63,7 +64,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DiskImageStore : private IBayRepoint
+class DiskImageStore : private IBayRepoint, private IBayLifecycle
 {
 public:
     HRESULT       Mount             (int slot, int drive, const string & path);
@@ -80,7 +81,7 @@ public:
     HRESULT       MountFromBytes    (int slot, int drive, const string & virtualPath,
                                      DiskFormat fmt, const vector<Byte> & bytes,
                                      MountDiagnosis & outDiagnosis);
-    void          Eject             (int slot, int drive);
+    void          Eject             (int slot, int drive) override;
 
     //  Writing dirty images back to their files, and a WOZ's write-protect
     //  flag into its file.
@@ -224,18 +225,8 @@ public:
     //  FIRES ON THE THREAD THAT OWNS DISK WRITES, where the decision is taken.
     void          SetDecisionSink (DiskStoreHooks::DecisionSink sink) { m_hooks.decisionSink = std::move (sink); }
 
-    //  The user answered a question this store asked.
-    //
-    //  ON THE THREAD THAT OWNS DISK WRITES, like every other entry point that
-    //  can swap an image. The shell routes it there rather than acting on the
-    //  UI thread where the answer arrived.
-    //
-    //  `savePath` IS WHERE THE USER CHOSE TO PUT THE IN-MEMORY COPY, and is
-    //  meaningful only for an answer of PreserveCopy. Choosing it is a file
-    //  dialog, which only the shell can raise, so the path arrives with the
-    //  answer rather than being asked for from here.
-    void          ResolvePendingChange (int slot, int drive, ChangeAction chosen,
-                                        const string & savePath = string());
+    //  Applies a ChangeAction to a bay, and the user's answer to a prompt.
+    ExternalChangeActions & GetChangeActions () { return m_changeActions; }
 
     //  Where "now" comes from, in milliseconds, so the quiet period can be
     //  swept in a test without waiting for one.
@@ -283,20 +274,10 @@ private:
     //  Everything one bay's settled change leads to.
     void           ApplyPendingReloadToBay (int slot, int drive);
 
-    //  Carries out what was decided. Split from deciding so the decision has
-    //  one shape whether it came from the policy or from the user.
-    //
-    //  `author` COMES FROM THE CALLER BECAUSE ONLY THE CALLER STILL KNOWS. A
-    //  bay's pending record holds the newest change and nothing older, so by
-    //  the time this runs it can describe a write that landed after the one
-    //  being acted on. Reading it here named whoever wrote last.
-    void           CarryOutChangeAction (int slot, int drive, ChangeAction action,
-                                         const vector<Byte> & bytes, ChangeAuthor author);
-
     //  Empties a bay whose file is gone, WITHOUT trying to flush it. The
     //  ordinary eject flushes first, which here would either fail or write the
     //  disk back to a path the user has just been told no longer exists.
-    void           EjectLostImage (int slot, int drive);
+    void           EjectLostImage (int slot, int drive) override;
 
     //  Replaces a mounted image's contents WITHOUT flushing what it held.
     //
@@ -304,7 +285,7 @@ private:
     //  precise loss this feature exists to prevent. The new bytes are loaded
     //  into a fresh image first, so a load that fails leaves the mounted disk
     //  exactly as it was.
-    HRESULT        MountExternallyModifiedDisk (int slot, int drive, const vector<Byte> & bytes);
+    HRESULT        MountExternallyModifiedDisk (int slot, int drive, const vector<Byte> & bytes) override;
 
     //  Registers and drops the watch on a bay's directory.
     //
@@ -328,10 +309,11 @@ private:
     //  be lit from a path that forgot to.
     void           EmitBayChange (int slot, int drive, BayChange change);
 
-    DiskStoreHooks  m_hooks;
-    DiskBayTable    m_bays;
-    BayFileAccess   m_files     { m_hooks };
-    DiskSalvager    m_salvager  { m_bays, m_hooks };
-    DiskFlusher     m_flusher   { m_bays, m_hooks, m_files, *this };
-    string          m_emptyPath;
+    DiskStoreHooks         m_hooks;
+    DiskBayTable           m_bays;
+    BayFileAccess          m_files         { m_hooks };
+    DiskSalvager           m_salvager      { m_bays, m_hooks };
+    DiskFlusher            m_flusher       { m_bays, m_hooks, m_files, *this };
+    ExternalChangeActions  m_changeActions { m_bays, m_hooks, m_files, *this, *this };
+    string                 m_emptyPath;
 };

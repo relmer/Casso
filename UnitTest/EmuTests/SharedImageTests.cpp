@@ -3,6 +3,7 @@
 #include "FakeImageWatcher.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/ExternalChangeActions.h"
 #include "Devices/Disk/Store/DiskFlusher.h"
 #include "Devices/Disk/Store/DiskFileCommit.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
@@ -478,7 +479,7 @@ public:
                           L"putting the question reserves a name, it does not write a file");
 
         //  "Insert the modified <file>."
-        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::ReloadInPlace);
+        rig.store.GetChangeActions().ResolvePendingChange (kSlot, kDrive, ChangeAction::ReloadInPlace);
 
         Assert::AreEqual ((size_t) 1, rig.reports.size());
         Assert::AreEqual ((size_t) 0, rig.PreservedPaths().size(),
@@ -542,7 +543,7 @@ public:
         rig.store.NoteExternalChange (kImagePath, ExternalChangeIntent::ReloadInPlace);
 
         //  "Insert the modified <file>."
-        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::ReloadInPlace);
+        rig.store.GetChangeActions().ResolvePendingChange (kSlot, kDrive, ChangeAction::ReloadInPlace);
 
         Assert::AreEqual ((size_t) 1, rig.reports.size());
         Assert::IsTrue (rig.reports[0].message.find (L"CassoCli") == std::wstring::npos,
@@ -575,7 +576,7 @@ public:
                           L"which reserves a name without writing anything to it");
 
         //  "Leave it alone."
-        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::Ignore);
+        rig.store.GetChangeActions().ResolvePendingChange (kSlot, kDrive, ChangeAction::Ignore);
 
         Assert::AreEqual ((size_t) 0, rig.PreservedPaths().size(),
                           L"and dismissing it writes nothing either");
@@ -635,7 +636,7 @@ public:
                           L"and nothing reached the disk under the name it tried");
 
         //  "Leave it alone" rather than "Save as...".
-        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::Ignore);
+        rig.store.GetChangeActions().ResolvePendingChange (kSlot, kDrive, ChangeAction::Ignore);
 
         //  An hour later the conflict is real again, and this time it can write.
         rig.wallClock     += 3600;
@@ -792,7 +793,7 @@ public:
         rig.WriteImage (kImagePath, 0x11);
         AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
 
-        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::KeepHeld, "");
+        rig.store.GetChangeActions().ResolvePendingChange (kSlot, kDrive, ChangeAction::KeepHeld, "");
 
         Assert::AreEqual ((size_t) 0, rig.reports.size(),
                           L"nothing is reported about a disk that is gone");
@@ -847,7 +848,7 @@ public:
             reference.WriteImage (kImagePath, 0x33);
             AssertSucceeded (reference.store.Mount (kSlot, kDrive, kImagePath));
 
-            rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::ReloadInPlace, "");
+            rig.store.GetChangeActions().ResolvePendingChange (kSlot, kDrive, ChangeAction::ReloadInPlace, "");
 
             Assert::AreEqual ((int) FirstTrackByte (reference.store),
                               (int) FirstTrackByte (rig.store),
@@ -1146,7 +1147,7 @@ public:
         //  still running on it.
         rig.refusePreserve = false;
 
-        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::PreserveCopy, chosen);
+        rig.store.GetChangeActions().ResolvePendingChange (kSlot, kDrive, ChangeAction::PreserveCopy, chosen);
 
         Assert::AreEqual (chosen, rig.store.GetSourcePath (kSlot, kDrive),
                           L"the drive reads and writes the rescued file now");
@@ -1192,7 +1193,7 @@ public:
 
         rig.refusePreserve = false;
 
-        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::PreserveCopy, chosen);
+        rig.store.GetChangeActions().ResolvePendingChange (kSlot, kDrive, ChangeAction::PreserveCopy, chosen);
 
         Assert::IsFalse (rig.store.IsMounted (kSlot, kDrive),
                          L"the eject finishes once it has an answer");
@@ -1224,7 +1225,7 @@ public:
 
         Assert::AreEqual ((size_t) 1, rig.questions.size());
 
-        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::Discard, "");
+        rig.store.GetChangeActions().ResolvePendingChange (kSlot, kDrive, ChangeAction::Discard, "");
 
         Assert::IsFalse (rig.store.IsMounted (kSlot, kDrive),
                          L"the drive empties");
@@ -1477,7 +1478,7 @@ public:
 
         Assert::AreEqual ((size_t) 1, rig.questions.size());
 
-        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::ReloadInPlace);
+        rig.store.GetChangeActions().ResolvePendingChange (kSlot, kDrive, ChangeAction::ReloadInPlace);
 
         Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->GetPending().seen);
         Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->GetIdentity()
@@ -1549,7 +1550,7 @@ public:
 
         //  Answering it now does what it said, and does not make a second copy
         //  of the same disk.
-        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::KeepHeld);
+        rig.store.GetChangeActions().ResolvePendingChange (kSlot, kDrive, ChangeAction::KeepHeld);
 
         Assert::AreEqual ((size_t) 1, rig.PreservedPaths().size(),
                           L"still one copy, not two");
@@ -1645,7 +1646,7 @@ public:
             rig->Stamp (kImagePath);
             rig->FireAndSettle (kImagePath);
 
-            rig->store.ResolvePendingChange (kSlot, kDrive, ChangeAction::Discard);
+            rig->store.GetChangeActions().ResolvePendingChange (kSlot, kDrive, ChangeAction::Discard);
 
             Assert::IsTrue (!rig->bayChanges.empty());
             Assert::IsTrue (rig->bayChanges.back() == BayChange::Ejected);
@@ -1661,7 +1662,7 @@ public:
 
             rig->WriteImage (kImagePath, 0x22);
             rig->FireAndSettle (kImagePath);
-            rig->store.ResolvePendingChange (kSlot, kDrive, ChangeAction::KeepHeld);
+            rig->store.GetChangeActions().ResolvePendingChange (kSlot, kDrive, ChangeAction::KeepHeld);
 
             //  One Inserted from the mount, and nothing from the keep.
             Assert::AreEqual ((size_t) 1, rig->bayChanges.size());
@@ -1720,7 +1721,7 @@ public:
         rig.WriteImage (kImagePath, 0x22);
         rig.FireAndSettle (kImagePath);
 
-        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::KeepHeld);
+        rig.store.GetChangeActions().ResolvePendingChange (kSlot, kDrive, ChangeAction::KeepHeld);
 
         Assert::AreEqual ((size_t) 1, rig.PreservedPaths().size(),
                           L"keeping wrote the kept version to a file of its own");
@@ -1759,7 +1760,7 @@ public:
         rig.WriteImage (kImagePath, 0x22);
         rig.FireAndSettle (kImagePath);
 
-        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::KeepHeld);
+        rig.store.GetChangeActions().ResolvePendingChange (kSlot, kDrive, ChangeAction::KeepHeld);
 
         //  The user saw both and chose the one in memory. Without recording
         //  the file as seen, the re-check before every commit would refuse
@@ -1951,7 +1952,7 @@ public:
                         L"a user whose file was deleted needs to be told it is gone");
 
         //  Present, but not this disk any more.
-        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::Discard);
+        rig.store.GetChangeActions().ResolvePendingChange (kSlot, kDrive, ChangeAction::Discard);
 
         rig.WriteImage (kImagePath, 0x11);
         AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
@@ -1993,7 +1994,7 @@ public:
 
         Assert::AreEqual ((size_t) 1, rig.questions.size());
 
-        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::PreserveCopy, chosen);
+        rig.store.GetChangeActions().ResolvePendingChange (kSlot, kDrive, ChangeAction::PreserveCopy, chosen);
 
         Assert::IsTrue (rig.files.count (chosen) == 1,
                         L"what the emulator held may be the only copy left");
@@ -2032,7 +2033,7 @@ public:
         rig.files.erase (kImagePath);
         rig.Stamp (kImagePath);
 
-        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::ReloadInPlace);
+        rig.store.GetChangeActions().ResolvePendingChange (kSlot, kDrive, ChangeAction::ReloadInPlace);
 
         Assert::AreEqual ((size_t) 2, rig.questions.size(),
                           L"asked again, about the file that has gone");
@@ -2059,7 +2060,7 @@ public:
         rig.Stamp (kImagePath);
         rig.FireAndSettle (kImagePath);
 
-        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::Discard);
+        rig.store.GetChangeActions().ResolvePendingChange (kSlot, kDrive, ChangeAction::Discard);
 
         Assert::IsFalse (rig.store.IsMounted (kSlot, kDrive));
         Assert::AreEqual ((size_t) 0, rig.PreservedPaths().size(),
@@ -2084,7 +2085,7 @@ public:
 
         rig.refusePreserve = true;
 
-        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::PreserveCopy, chosen);
+        rig.store.GetChangeActions().ResolvePendingChange (kSlot, kDrive, ChangeAction::PreserveCopy, chosen);
 
         //  A save the user asked for and did not get must not be followed by
         //  emptying the drive it was the only copy in.
