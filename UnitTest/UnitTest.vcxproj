@@ -793,6 +793,7 @@
     <ClCompile Include="UiTests\AutoMountTests.cpp" />
     <ClCompile Include="UiTests\SettingsPanelStateTests.cpp" />
     <ClCompile Include="UiTests\DiskPortChainEditTests.cpp" />
+    <ClCompile Include="UiTests\DiskPortPageTests.cpp" />
     <ClCompile Include="UiTests\SerialCardNoticeTests.cpp" />
     <ClCompile Include="UiTests\CommandLineHelpLayoutTests.cpp" />
     <ClCompile Include="UiTests\CommandLineHelpPanelTests.cpp" />

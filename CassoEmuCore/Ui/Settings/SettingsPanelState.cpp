@@ -206,6 +206,9 @@ bool SettingsPanelState::RequiresReset() const
                               || before.portRealTiming != after.portRealTiming));
     }
 
+    // Drives plugged into or unplugged from the disk port's chain.
+    changed = changed || ReadDiskPortChain (m_original.machinePorts) != ReadDiskPortChain (m_current.machinePorts);
+
     return changed;
 }
 
@@ -755,11 +758,26 @@ void SettingsPanelState::EditDiskPortChain (const std::function<void (std::vecto
 
 std::vector<std::string> SettingsPanelState::GetDiskPortChain() const
 {
+    return ReadDiskPortChain (m_current.machinePorts);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadDiskPortChain
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> SettingsPanelState::ReadDiskPortChain (const std::vector<SettingsMachinePort> & ports)
+{
     std::vector<std::string>  devices;
 
 
 
-    for (const SettingsMachinePort & port : m_current.machinePorts)
+    for (const SettingsMachinePort & port : ports)
     {
         for (const auto & [key, value] : port.otherKeys)
         {
@@ -776,6 +794,58 @@ std::vector<std::string> SettingsPanelState::GetDiskPortChain() const
     }
 
     return devices;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetDiskPortDrives
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> SettingsPanelState::GetDiskPortDrives() const
+{
+    std::vector<std::string>  drives = GetDiskPortChain();
+
+
+
+    if (drives.empty() && SecondDriveAttached())
+    {
+        drives.push_back (kpszDiskIicDevice);
+    }
+
+    return drives;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDiskPortDrives
+//
+//  A lone 5.25-inch drive is recorded as the port's device, as the second
+//  drive switch records it, so the two agree. Any other set is the chain.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::SetDiskPortDrives (std::vector<std::string> drives)
+{
+    bool  isLoneFloppy = drives.size() == 1 && drives[0] == kpszDiskIicDevice;
+
+
+
+    EditDiskPortChain ([] (std::vector<JsonValue> & chain) { chain.clear(); });
+    SetExternalDriveConnected (isLoneFloppy);
+
+    for (size_t i = 0; !isLoneFloppy && i < drives.size(); i++)
+    {
+        AddDiskPortDrive (drives[i]);
+    }
 }
 
 

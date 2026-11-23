@@ -101,6 +101,7 @@ void SettingsSheet::OnBuildPages()
     m_generalPage  = CreatePage<GeneralPage>  (L"General");
     m_hardwarePage = CreatePage<HardwarePage> (L"Machine");   // machine + CPU + hardware
     m_slotsPage    = CreatePage<SlotsPage>    (L"Slots");
+    m_diskPortPage = CreatePage<DiskPortPage> (L"Disk port");
     m_diskPage     = CreatePage<DiskPage>     (L"Storage");
     m_themePage    = CreatePage<ThemePage>    (L"Theme");
     m_displayPage  = CreatePage<DisplayPage>  (L"Display");
@@ -280,6 +281,7 @@ HRESULT SettingsSheet::OpenModeless (
     // an enabled Disk ][ controller. Remember its page index for the toggle.
     m_diskPageIndex   = IndexOfPage (m_diskPage);
     m_slotsPageIndex  = IndexOfPage (m_slotsPage);
+    m_diskPortPageIndex = IndexOfPage (m_diskPortPage);
 
     // The Network tab likewise exists only while the staged config has the
     // Uthernet II turned on.
@@ -515,6 +517,7 @@ HRESULT SettingsSheet::OpenModeless (
     // escape the client clip (FR-054 / FR-061).
     m_hardwarePage->SetPopupHost (GetPopupHost());
     m_slotsPage->SetPopupHost    (GetPopupHost());
+    m_diskPortPage->SetPopupHost (GetPopupHost());
     m_diskPage->SetPopupHost     (GetPopupHost());
     m_themePage->SetPopupHost    (GetPopupHost());
     m_displayPage->SetPopupHost  (GetPopupHost());
@@ -651,6 +654,7 @@ HRESULT SettingsSheet::OpenModeless (
     // Serial card page: the staged slot entry, the firmware's status in the
     // running machine's config, the shell's download, and the file pickers.
     m_slotsPage->SetState           (&m_state);
+    m_diskPortPage->SetState        (&m_state);
     m_serialPage->SetFirmwareStatus (GetSerialFirmwareStatus(), IsSerialFirmwareMissing());
     m_serialPage->SetOnDownload ([this] ()
     {
@@ -729,6 +733,7 @@ HRESULT SettingsSheet::OpenModeless (
     Show();
     m_hardwarePage->Rebuild();
     m_slotsPage->Rebuild();
+    m_diskPortPage->Rebuild();
     m_diskPage->Rebuild();
     m_serialPage->SetComPorts (m_hardwarePage->GetComPorts());
     m_serialPage->Rebuild();
@@ -1608,6 +1613,13 @@ void SettingsSheet::UpdateSlotsTabVisibility()
 
 
 
+    // A //c has a disk port in place of slots.
+    if (m_diskPortPageIndex >= 0 && want == m_diskPortTabVisible)
+    {
+        m_diskPortTabVisible = !want;
+        SetPageVisible (m_diskPortPageIndex, !want);
+    }
+
     if (m_slotsPageIndex < 0 || want == m_slotsTabVisible)
     {
         return;
@@ -1951,6 +1963,7 @@ void SettingsSheet::ReportCrossTabChange (const std::wstring & notice)
     m_printingPage->Sync();
     m_hardwarePage->Rebuild();
     m_slotsPage->Rebuild();
+    m_diskPortPage->Rebuild();
     Invalidate();
 
     m_pendingNotice = notice;
