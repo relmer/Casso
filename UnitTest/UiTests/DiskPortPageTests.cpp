@@ -130,6 +130,23 @@ public:
         Assert::IsTrue (st.RequiresReset());
     }
 
+    TEST_METHOD (TheStagedDrivesSurviveTheRereadOnOk)
+    {
+        SettingsPanelState  st;
+        DiskPortPage        page;
+
+
+
+        Load (st, "Apple2c");
+        page.SetState (&st);
+
+        page.AddDrive (1);   // UniDisk 3.5
+        st.RefreshMergedJson (st.GetDefaultJson());
+
+        Assert::IsTrue (st.GetDiskPortChain() == std::vector<std::string> { "unidisk35" });
+        Assert::IsTrue (st.RequiresReset(), L"OK rebuilds the machine");
+    }
+
 
 private:
 

@@ -513,6 +513,9 @@ private:
 
     static std::vector<std::string>  ReadDiskPortChain (const std::vector<SettingsMachinePort> & ports);
 
+    // The staged disk port, when this sheet changed its drives.
+    std::optional<SettingsMachinePort>  GetChangedDiskPort () const;
+
     void  EditDiskPortChain (const std::function<void (std::vector<JsonValue> &)> & edit);
 
     std::string          m_machineName;

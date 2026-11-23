@@ -802,6 +802,36 @@ std::vector<std::string> SettingsPanelState::ReadDiskPortChain (const std::vecto
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetChangedDiskPort
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<SettingsMachinePort> SettingsPanelState::GetChangedDiskPort() const
+{
+    std::optional<SettingsMachinePort>  changed;
+    bool                                isChained = ReadDiskPortChain (m_original.machinePorts) != ReadDiskPortChain (m_current.machinePorts);
+
+
+
+    for (const SettingsMachinePort & port : m_current.machinePorts)
+    {
+        bool  isDiskPort = port.name == kpszDiskPortName;
+
+        if (isDiskPort && (isChained || port.device != SettingsJson::GetPortDevice (m_original.machinePorts, kpszDiskPortName)))
+        {
+            changed = port;
+        }
+    }
+
+    return changed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetDiskPortDrives
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1121,6 +1151,8 @@ void SettingsPanelState::RefreshMergedJson (const JsonValue & mergedJson)
             changed[i] = staged[i] != SettingsJson::GetPortDevice (m_original.machinePorts, kpszSerialPortNames[i]);
         }
 
+        std::optional<SettingsMachinePort>  stagedDiskPort = GetChangedDiskPort();
+
         m_current.machinePorts  = ports;
         m_original.machinePorts = ports;
 
@@ -1129,6 +1161,16 @@ void SettingsPanelState::RefreshMergedJson (const JsonValue & mergedJson)
             if (changed[i])
             {
                 SetSerialPortDevice ((int) i + 1, staged[i]);
+            }
+        }
+
+        // The Disk port page edits the disk port, so its staged drives are
+        // put back too.
+        for (SettingsMachinePort & port : m_current.machinePorts)
+        {
+            if (stagedDiskPort.has_value() && port.name == kpszDiskPortName)
+            {
+                port = *stagedDiskPort;
             }
         }
     }
