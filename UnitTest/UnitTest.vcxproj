@@ -314,6 +314,7 @@
     <ClCompile Include="EmuTests\NibblizationTests.cpp" />
     <ClCompile Include="EmuTests\SectorInterleaveTests.cpp" />
     <ClCompile Include="EmuTests\TrackBitReaderTests.cpp" />
+    <ClCompile Include="EmuTests\TrackSectorDecoderTests.cpp" />
     <ClCompile Include="EmuTests\TrackLayoutWriterTests.cpp" />
     <ClCompile Include="AppleTextCodecTests.cpp" />
     <ClCompile Include="ApplesoftTokenizerTests.cpp" />

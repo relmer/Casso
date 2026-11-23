@@ -31,37 +31,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 //
-//  What became of one sector.
-//
-//    Verified   both checksums matched. The bytes are the disk's.
-//    Recovered  the data field decoded but did not verify -- a failed data
-//               checksum or an illegal 6-and-2 nibble. The bytes are usable
-//               but may contain errors, and how many is unknowable: the
-//               decode is a running XOR chain, so a single bad nibble skews
-//               every byte after it by one constant delta. Worth keeping
-//               anyway. A sector that fails its checksum makes DOS report an
-//               I/O error, which can cost a whole file; the same sector with
-//               a recomputed checksum reads, and may even be perfect (if what
-//               rotted was the check nibble itself, the 342 data nibbles are
-//               untouched).
-//    Lost       nothing usable. Either no data field was found, or the
-//               ADDRESS field failed its checksum -- and that one cannot be
-//               recovered on principle, because an untrustworthy sector
-//               number means writing the data anywhere risks overwriting a
-//               good sector.
-//
-enum class SectorOutcome
-{
-    Verified,
-    Recovered,
-    Lost
-};
-
-
-
-
-
-//
 //  What one Denibblize pass managed to decode. A caller about to overwrite a
 //  user's disk file needs to know the difference between "this track is blank"
 //  and "this track would not read", because the buffer looks identical either

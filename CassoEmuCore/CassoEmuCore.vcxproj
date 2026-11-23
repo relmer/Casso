@@ -419,6 +419,7 @@
     <ClCompile Include="Machines\Apple2\Common\NibblizationLayer.cpp" />
     <ClCompile Include="Machines\Apple2\Common\SectorInterleave.cpp" />
     <ClCompile Include="Machines\Apple2\Common\TrackBitReader.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\TrackSectorDecoder.cpp" />
     <ClCompile Include="Machines\Apple2\Common\TrackLayoutWriter.cpp" />
     <ClCompile Include="Machines\Apple2\Common\SectorDecodeReport.cpp" />
     <ClCompile Include="Machines\Apple2\Common\TrackWritability.cpp" />
@@ -1636,6 +1637,7 @@
     <ClInclude Include="Machines\Apple2\Common\NibblizationLayer.h" />
     <ClInclude Include="Machines\Apple2\Common\SectorInterleave.h" />
     <ClInclude Include="Machines\Apple2\Common\TrackBitReader.h" />
+    <ClInclude Include="Machines\Apple2\Common\TrackSectorDecoder.h" />
     <ClInclude Include="Machines\Apple2\Common\TrackLayoutWriter.h" />
     <ClInclude Include="Machines\Apple2\Common\SectorDecodeReport.h" />
     <ClInclude Include="Machines\Apple2\Common\TrackWritability.h" />
