@@ -1186,6 +1186,13 @@ void CassoExplorerShell::CloseWindow (CassoExplorerWindow & window)
 
     last = std::count_if (m_windows.begin(), m_windows.end(), [] (const std::unique_ptr<WindowSlot> & slot) { return !slot->closed; }) == 1;
 
+    //  Closing the last window exits the app, so the inspectors' unsaved
+    //  edits are confirmed first, as File > Exit confirms them.
+    if (last && !ConfirmInspectors())
+    {
+        return;
+    }
+
     //  The last close's session is final, as File > Exit's is: any save after
     //  it, with nothing left open, would write an empty session over it.
     if (last)
@@ -1237,13 +1244,21 @@ void CassoExplorerShell::CloseWindow (CassoExplorerWindow & window)
 
 void CassoExplorerShell::ExitAll()
 {
-    if (m_exiting)
+    if (m_exiting || !ConfirmInspectors())
     {
         return;
     }
 
     SaveSession();
     m_exiting = true;
+
+    //  The loop ends once no Explorer window is open, before a WM_CLOSE
+    //  posted to an inspector arrives, so the inspectors close here, after
+    //  their edits are confirmed.
+    if (m_inspectors != nullptr)
+    {
+        m_inspectors->CloseAll();
+    }
 
     CloseDialogs();
 
@@ -1260,6 +1275,23 @@ void CassoExplorerShell::ExitAll()
             slot->window->CloseForApp();
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::ConfirmInspectors
+//
+//  Before the app exits: true when every inspector window can close.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerShell::ConfirmInspectors()
+{
+    return m_inspectors == nullptr || m_inspectors->ConfirmExit();
 }
 
 

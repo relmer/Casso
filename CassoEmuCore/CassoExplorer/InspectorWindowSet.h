@@ -65,6 +65,10 @@ public:
         //  Repair's confirmation, once the window has the disk. A window
         //  with no repair ignores it.
         virtual void     RequestRepair   ()                                                                                     {}
+
+        //  Before the app exits: true when the window can close. A window
+        //  with unsaved edits comes to the front and prompts for them first.
+        virtual bool     ConfirmExit     ()                                                                                     { return true; }
     };
 
     //  The functions for the window, the block mode window and the check
@@ -101,6 +105,10 @@ public:
     void     SetTheme (const DxuiTheme & theme);
     void     CloseAll ();
     size_t   GetCount () const;
+
+    //  Before the app exits: each open window prompts for its unsaved
+    //  edits. False when the user cancels in any of them.
+    bool     ConfirmExit ();
 
     //  One frame: changed files read again, every window drawn, and closed
     //  windows released. The timer calls it; tests call it directly.

@@ -219,6 +219,7 @@ private:
     static void                              CloseDialogs         ();
     static BOOL CALLBACK                     CloseDialog          (HWND hwnd, LPARAM param);
     bool                                     HasOpenWindows       () const;
+    bool                                     ConfirmInspectors    ();
     std::vector<CassoExplorerSessionWindow>  GetOpenSession       () const;
 
     //  The text a block inspector's title has for `path`: a card's
