@@ -924,7 +924,7 @@ void CassoLinkSession::Run (std::stop_token stop)
             logged  = m_connector.LogOnApple (FitToApple (*operation,
                                                           summary ? DescribeOperation (*operation, std::nullopt, true)
                                                                   : std::format ("{} {}", status, DescribeOperation (*operation, std::nullopt, SUCCEEDED (hr) || operation->kind == LinkOperationKind::FullSend)),
-                                                          CassoLinkCodec::kLogLength));
+                                                          m_host->GetLogLength()));
             IGNORE_RETURN_VALUE (logged, S_OK);
         }
 
