@@ -960,7 +960,6 @@ $script:LongCppAllowed = @(
     'UnitTest/ControllerTests/ControllerInputServiceTests.cpp',
     'UnitTest/ControllerTests/ControllersPageStateTests.cpp',
     'UnitTest/CpuOperationTests.cpp',
-    'UnitTest/EmuTests/SharedImageTests.cpp',
     'UnitTest/EmuTests/WozLoaderTests.cpp',
     'UnitTest/MerlinCorpusTests.cpp',
     'UnitTest/MerlinDirectiveTests.cpp',

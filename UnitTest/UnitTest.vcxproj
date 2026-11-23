@@ -510,6 +510,10 @@
     <ClCompile Include="EmuTests\ImageIdentityTests.cpp" />
     <ClCompile Include="EmuTests\ExternalChangePolicyTests.cpp" />
     <ClCompile Include="EmuTests\SharedImageTests.cpp" />
+    <ClCompile Include="EmuTests\SharedImageFlushTests.cpp" />
+    <ClCompile Include="EmuTests\SharedImageQuestionTests.cpp" />
+    <ClCompile Include="EmuTests\SharedImageReloadTests.cpp" />
+    <ClCompile Include="EmuTests\SharedImageRig.cpp" />
     <ClCompile Include="EmuTests\Win32ImageWatcherTests.cpp" />
     <ClCompile Include="EmuTests\IntentChannelTests.cpp" />
     <ClCompile Include="EmuTests\PreservedCopyTests.cpp" />
