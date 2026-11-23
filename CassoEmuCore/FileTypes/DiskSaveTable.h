@@ -43,4 +43,8 @@ public:
     static HRESULT  DecodeUltima3Save (const std::vector<Byte> & sectors, std::span<const bool> unreadable, DecodedFile & outFile);
     static bool     IsUltima4Save     (const std::vector<Byte> & sectors);
     static HRESULT  DecodeUltima4Save (const std::vector<Byte> & sectors, std::span<const bool> unreadable, DecodedFile & outFile);
+    static bool     IsUltima5Save     (const std::vector<Byte> & sectors);
+    static HRESULT  DecodeUltima5Save (const std::vector<Byte> & sectors, std::span<const bool> unreadable, DecodedFile & outFile);
+    static bool     IsUltima1Save     (const std::vector<Byte> & sectors);
+    static HRESULT  DecodeUltima1Save (const std::vector<Byte> & sectors, std::span<const bool> unreadable, DecodedFile & outFile);
 };
