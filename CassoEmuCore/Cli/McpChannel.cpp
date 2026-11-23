@@ -216,13 +216,21 @@ void McpChannel::Start (const std::string & line, const std::string & mode, DWOR
 
 void McpChannel::ReadReply (const JsonValue & reply, McpChannelResult & result)
 {
-    const JsonValue  * text  = nullptr;
-    const JsonValue  * data  = nullptr;
-    const JsonValue  * error = nullptr;
+    const JsonValue  * text      = nullptr;
+    const JsonValue  * data      = nullptr;
+    const JsonValue  * error     = nullptr;
+    bool               isRunning = false;
 
 
 
     (void) reply.HasString ("status", result.status);
+
+    //  A run started from a pause doesn't send a resumed notification, so
+    //  the reply's running flag ends the pause.
+    if (reply.HasBool ("running", isRunning) && isRunning)
+    {
+        m_isPaused = false;
+    }
 
     if (reply.HasArray ("text", text))
     {
