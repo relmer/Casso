@@ -7,6 +7,7 @@
 #include "Machines/Apple2/Common/Dos33FreeMap.h"
 #include "Machines/Apple2/Common/Dos33IntegrityScanner.h"
 #include "Machines/Apple2/Common/Dos33SectorAccess.h"
+#include "Machines/Apple2/Common/Dos33VolumeRemover.h"
 #include "Machines/Apple2/Common/IVolume.h"
 
 class ISectorReadObserver;
@@ -138,12 +139,10 @@ private:
                            const vector<Byte>  & stored,
                            vector<Byte>        & outBuffer) const;
 
-    //  Turns what a delete decided into text a user can act on.
-    static void  AppendDeleteWarnings (DeleteOutcome & inOutOutcome);
-
     Dos33SectorAccess      m_access;
     Dos33Catalog           m_catalog { m_access };
     Dos33FileChain         m_chain   { m_access };
     Dos33FreeMap           m_freeMap { m_access };
     Dos33IntegrityScanner  m_scanner { m_access };
+    Dos33VolumeRemover     m_remover { m_access };
 };
