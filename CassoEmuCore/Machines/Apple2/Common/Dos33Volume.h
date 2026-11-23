@@ -3,11 +3,11 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/Dos33Catalog.h"
+#include "Machines/Apple2/Common/Dos33FileChain.h"
 #include "Machines/Apple2/Common/Dos33SectorAccess.h"
 #include "Machines/Apple2/Common/IVolume.h"
 
 class ISectorReadObserver;
-#include "Devices/Disk/ChainWalkGuard.h"
 
 
 
@@ -134,17 +134,6 @@ public:
     static constexpr uint32_t  kUnitCount = 560;   // 35 tracks x 16 sectors
 
 private:
-    //  Track/sector list geometry.
-    static constexpr size_t  kTsOffNextTrack  = 0x01;
-    static constexpr size_t  kTsOffNextSector = 0x02;
-    static constexpr size_t  kTsOffFirstPair  = 0x0C;
-    static constexpr int     kTsPairsPerList  = 122;
-
-    //  Offset in the list of the first data sector it describes, so a walker
-    //  that joins the chain partway knows where it is.
-    static constexpr size_t  kTsOffSectorOffsetLo = 0x05;
-    static constexpr size_t  kTsOffSectorOffsetHi = 0x06;
-
     //  Free bitmap: four bytes per track, of which two are used. Byte 0 holds
     //  sectors 15..8 in bits 7..0 and byte 1 holds sectors 7..0; a SET bit
     //  means free.
@@ -179,11 +168,6 @@ private:
     bool  IsFreeInBitmap  (const vector<Byte> & buffer, int track, int sector) const;
     void  SetFreeInBitmap (vector<Byte> & buffer, int track, int sector, bool isFree) const;
 
-    void  ZeroUnits        (vector<Byte> & buffer, const vector<uint32_t> & units) const;
-    void  PlaceFile        (vector<Byte>            & buffer,
-                            const vector<uint32_t>  & units,
-                            size_t                    dataSectorCount,
-                            const vector<Byte>      & stored) const;
     //  Hands out `count` sectors, or none at all.
     bool  TryAllocateUnits (const VolumeIntegrityReport  & report,
                             size_t                         count,
@@ -201,16 +185,7 @@ private:
     //  Turns what a delete decided into text a user can act on.
     static void  AppendDeleteWarnings (DeleteOutcome & inOutOutcome);
 
-    //  Gathers a file's data sectors by walking its track/sector list under a
-    //  guard, so a corrupted chain cannot loop forever. The list sectors come
-    //  back separately: a reader wants only the data, while everything that
-    //  accounts for space -- the integrity pass, and through it delete -- needs
-    //  the lists too, since they are as much the file's footprint as its bytes.
-    bool  CollectDataSectors (const Dos33CatalogEntry  & entry,
-                              vector<uint32_t>         & outUnits,
-                              vector<uint32_t>         & outListUnits,
-                              ChainWalkGuard           & guard) const;
-
     Dos33SectorAccess  m_access;
     Dos33Catalog       m_catalog { m_access };
+    Dos33FileChain     m_chain   { m_access };
 };
