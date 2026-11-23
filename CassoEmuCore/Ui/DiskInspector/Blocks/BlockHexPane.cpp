@@ -273,10 +273,9 @@ void BlockHexPane::PaintFrame (IDxuiPainter & painter) const
 //
 //  As the memory window draws the byte the keys act on: the accent behind
 //  the caret byte while editing, in both columns. An edited byte is drawn
-//  bold in the accent, made readable on whatever is behind it, so an
-//  edited caret byte is bold in a pale accent where a caret byte that isn't
-//  edited is in the plain ink. While editing, every other byte has a light
-//  accent tint behind it.
+//  in the memory window's changed-byte red, made readable on whatever is
+//  behind it, the caret's accent included. While editing, every other byte
+//  has a light accent tint behind it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -284,6 +283,7 @@ bool BlockHexPane::PickByteStyle (const EditColors & colors, bool isEditing, boo
 {
     bool      isEdited = mark == BlockHexSource::kMarkChanged;
     uint32_t  tint     = DxuiColor::Mix (colors.background, colors.accent, kTintShare);
+    uint32_t  changed  = GetChangedInk (colors.background);
 
 
 
@@ -296,10 +296,8 @@ bool BlockHexPane::PickByteStyle (const EditColors & colors, bool isEditing, boo
 
     if (isCaret)
     {
-        outStyle.fill   = colors.accent;
-        outStyle.ink    = isEdited ? GetReadableInk (DxuiColor::Mix (colors.accent, DxuiColor::GetContrastingInk (colors.accent), kCaretInkShare), colors.accent)
-                                   : DxuiColor::GetContrastingInk (colors.accent);
-        outStyle.isBold = isEdited;
+        outStyle.fill = colors.accent;
+        outStyle.ink  = isEdited ? GetReadableInk (changed, colors.accent) : DxuiColor::GetContrastingInk (colors.accent);
         return true;
     }
 
@@ -308,11 +306,41 @@ bool BlockHexPane::PickByteStyle (const EditColors & colors, bool isEditing, boo
         return false;
     }
 
-    outStyle.fill   = isSelected ? DxuiColor::Mix (colors.background, colors.accent, 2 * kTintShare) : isEditing ? tint : 0;
-    outStyle.ink    = isEdited ? GetReadableInk (colors.accent, outStyle.fill != 0 ? outStyle.fill : colors.background) : 0;
-    outStyle.isBold = isEdited;
+    outStyle.fill = isSelected ? DxuiColor::Mix (colors.background, colors.accent, 2 * kTintShare) : isEditing ? tint : 0;
+    outStyle.ink  = isEdited ? GetReadableInk (changed, outStyle.fill != 0 ? outStyle.fill : colors.background) : 0;
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockHexPane::GetChangedInk
+//
+//  The debugger's memory window color for a changed byte: coral on a dark
+//  page and red on a light one, made readable on the page, or on a light
+//  page's row shade.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t BlockHexPane::GetChangedInk (uint32_t background)
+{
+    constexpr uint32_t  kDarkChanged  = 0xFFFF6B68;
+    constexpr uint32_t  kLightChanged = 0xFFD00000;
+    constexpr uint32_t  kBlack        = 0xFF000000;
+    constexpr float     kRowShade     = 0.15f;
+    constexpr float     kDarkLimit    = 0.5f;
+
+
+
+    bool  isDark = DxuiColor::ComputeRelativeLuminance (background) < kDarkLimit;
+
+
+
+    return GetReadableInk (isDark ? kDarkChanged : kLightChanged, isDark ? background : DxuiColor::Mix (background | kBlack, kBlack, kRowShade));
 }
 
 

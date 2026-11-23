@@ -22,8 +22,8 @@ struct BlockField;
 //  in a hex row that fit. While the block is edited, an accent frame is
 //  drawn around the hex view, the bytes have a light accent tint, and the
 //  caret byte has the accent behind it in both columns. Edited bytes are
-//  drawn bold in the accent. The views are children of the panel that
-//  creates the pane.
+//  drawn in the debugger's changed-byte red. The views are children of the
+//  panel that creates the pane.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,7 +36,6 @@ public:
     static constexpr float  kFrameDip      = 2.0f;    // the edit frame around the hex view, reserved whether or not it's drawn
     static constexpr float  kTintShare     = 0.12f;   // the accent's share of the edit tint behind the bytes
     static constexpr float  kMinContrast   = 4.5f;    // the least contrast of an edited byte's ink with its fill
-    static constexpr float  kCaretInkShare = 0.5f;    // how far an edited caret byte's ink goes from the accent toward white or black
 
     //  The theme's colors the edit look is made from.
     struct EditColors
@@ -74,6 +73,9 @@ public:
 
     //  ink, moved toward black or white until it reads on ill.
     static uint32_t  GetReadableInk (uint32_t ink, uint32_t fill);
+
+    //  An edited byte's ink before it is fitted to its fill.
+    static uint32_t  GetChangedInk  (uint32_t background);
 
     //  The hex view measures its text as it paints, so its rows are fitted
     //  again once their width is known. True when the rows were fitted.

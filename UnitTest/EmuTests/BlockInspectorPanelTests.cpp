@@ -849,10 +849,12 @@ public:
         Assert::IsTrue (BlockHexPane::PickByteStyle (colors, true, true,  BlockHexSource::kMarkChanged, true,  both));
 
         Assert::IsTrue  (plain.fill != 0 && plain.fill != colors.background, L"editable bytes have a tint");
-        Assert::IsTrue  (edited.isBold && !plain.isBold && !caret.isBold && both.isBold);
+        Assert::IsTrue  (!edited.isBold && !plain.isBold && !caret.isBold && !both.isBold, L"edited bytes are regular weight");
+        Assert::AreEqual (BlockHexPane::GetReadableInk (BlockHexPane::GetChangedInk (colors.background), edited.fill), edited.ink, L"an edited byte is in the changed-byte red");
+        Assert::AreEqual (BlockHexPane::GetReadableInk (BlockHexPane::GetChangedInk (colors.background), colors.accent), both.ink, L"an edited caret byte is in that red, fitted to the accent");
+        Assert::IsTrue  (edited.ink != plain.ink, L"an edited byte's ink differs from a byte not edited");
         Assert::AreEqual (colors.accent, caret.fill, L"the caret byte has the accent behind it");
         Assert::AreEqual (colors.accent, both.fill);
-        Assert::IsTrue  (caret.ink != both.ink, L"an edited caret byte's ink differs from a caret byte's");
         Assert::IsTrue  (DxuiColor::ComputeContrastRatio (both.ink, both.fill) >= BlockHexPane::kMinContrast);
         Assert::IsTrue  (DxuiColor::ComputeContrastRatio (edited.ink, edited.fill) >= BlockHexPane::kMinContrast);
     }
