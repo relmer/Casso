@@ -2461,3 +2461,14 @@ Master's new hardware on the default machines (the //e's UniDisk 3.5 card in slo
   - The debugger pair: the UI and debug engine splits are merged and checked against rules 1 to 5; class-redesign-plan.md section 8 has the result. The code-edge and pane-layout forwarders are removed from `DebuggerWindow`, and `RouteWindowMouse` and `RenderFrame` are split into stages.
   - Dxui: the Dxui split is merged.
   - The classes near the limit: `ProfilerPane`, `HistoryThumbnails`, `DisassemblyGroup` and `DebugSession` are split along their state, and `DebugSession` calls its parts directly; class-redesign-plan.md section 9 has the classes.
+
+## Phase 75: MCP debugger feedback from the //c port 1 debugging, 2026-11-22
+
+The 033 copy-protection session used the casso MCP server to debug the //c's serial port 1 and reported these rough spots, the costliest first.
+
+- [ ] T1534 Add a bank choice to `read_memory` and `write_memory` (main, aux, and the language card banks), so an agent can read aux memory such as the //c's screen holes at aux `$047A`. Tests first: a read and a write in each bank through the debug channel.
+- [ ] T1535 Make loading a host file into memory work from MCP. `load "path" 3A00` in casso mode took the address as part of the file name, a quoted path failed as "not a plain file path", the monitor mode failed with "O is not a Monitor command", and the session's scratch folder was outside the allowed folders. Choose between a `load_file` tool and `write_memory` taking a file or a hex string, fix the casso-mode parsing, and add to the allowed-folder failure how to add a folder (`--allow-path`).
+- [ ] T1536 Make `type_text` report when the guest has read the text, or add a way to wait for it, so an agent doesn't guess at waits or read the screen partway through a paste.
+- [ ] T1537 Make `launch` wait on while Casso has a dialog open, such as the ROM downloads, and report the open dialog when it times out, instead of reporting only that the debug channel didn't open within 30 s.
+- [ ] T1538 Add a `set_registers` tool (A, X, Y, S, P and PC). Setting the PC took `r pc=3a00` in the WinDbg command mode, found by trial.
+- [ ] T1539 Fix `help` returning an empty message in the AppleWin and Casso command modes. Test it in every mode.
