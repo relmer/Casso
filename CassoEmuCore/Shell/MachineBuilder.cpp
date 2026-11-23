@@ -68,6 +68,7 @@
 #include "WasapiAudio.h"
 #include "../AssetBootstrap.h"
 #include "Devices/Disk/Store/DiskFlusher.h"
+#include "Devices/Disk/Store/ExternalChangeMonitor.h"
 
 
 
@@ -1756,7 +1757,7 @@ HRESULT MachineBuilder::CreateCpu (const MachineConfig & config)
             // is to swap what is under it. One line and no decisions: which
             // bay, whether anything settled and what to do about it are all
             // the store's.
-            m_host.GetDiskStore().ApplyPendingReload();
+            m_host.GetDiskStore().GetChangeMonitor().ApplyPendingReload();
         });
 
         // The spindown hook above is not enough on its own, and the gap is the
@@ -1773,7 +1774,7 @@ HRESULT MachineBuilder::CreateCpu (const MachineConfig & config)
         {
             m_host.GetRefs().diskController->SetIdleCallback ([this] ()
             {
-                m_host.GetDiskStore().ApplyPendingReload();
+                m_host.GetDiskStore().GetChangeMonitor().ApplyPendingReload();
             });
         }
 

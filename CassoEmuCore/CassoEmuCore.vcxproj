@@ -1037,6 +1037,7 @@
     <ClCompile Include="Machines\Apple2\Common\ProDosSkeleton.cpp" />
     <ClCompile Include="Machines\Apple2\Common\ProDosStartup.cpp" />
     <ClCompile Include="Devices\Disk\DiskImageStore.cpp" />
+    <ClCompile Include="Devices\Disk\Store\ExternalChangeMonitor.cpp" />
     <ClCompile Include="Devices\Disk\Store\ExternalChangeActions.cpp" />
     <ClCompile Include="Devices\Disk\Store\DiskFlusher.cpp" />
     <ClCompile Include="Devices\Disk\Store\DiskSalvager.cpp" />
@@ -1983,6 +1984,7 @@
     <ClInclude Include="Machines\Apple2\Common\ProDosSkeleton.h" />
     <ClInclude Include="Machines\Apple2\Common\ProDosStartup.h" />
     <ClInclude Include="Devices\Disk\DiskImageStore.h" />
+    <ClInclude Include="Devices\Disk\Store\ExternalChangeMonitor.h" />
     <ClInclude Include="Devices\Disk\Store\ExternalChangeActions.h" />
     <ClInclude Include="Devices\Disk\Store\DiskFlusher.h" />
     <ClInclude Include="Devices\Disk\Store\DiskStoreInterfaces.h" />

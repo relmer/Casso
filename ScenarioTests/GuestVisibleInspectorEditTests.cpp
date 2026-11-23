@@ -16,6 +16,7 @@
 #include "Seams/Win32IntentChannel.h"
 #include "Shell/InspectorRequestQueue.h"
 #include "Devices/Disk/Store/DiskFlusher.h"
+#include "Devices/Disk/Store/ExternalChangeMonitor.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -292,7 +293,7 @@ public:
 
         void StateIntent (const std::string & imagePath, ExternalChangeIntent intent) override
         {
-            m_machine.GetDiskStore().NoteExternalChange (imagePath, intent, true);
+            m_machine.GetDiskStore().GetChangeMonitor().NoteExternalChange (imagePath, intent, true);
         }
 
     private:
@@ -367,7 +368,7 @@ public:
         {
             isSaveFailing  = false;
             nowMs         += MountedImageState::kQuietPeriodMs;
-            machine.GetDiskStore().ApplyPendingReload();
+            machine.GetDiskStore().GetChangeMonitor().ApplyPendingReload();
 
             return decisions > 0 && IntentReplyTracker::TryMakeReloadReply (action, isPreserved, preservedPath, outReply);
         }

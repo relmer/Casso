@@ -3,6 +3,7 @@
 #include "FakeImageWatcher.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/ExternalChangeMonitor.h"
 #include "Devices/Disk/Store/ExternalChangeActions.h"
 #include "Devices/Disk/Store/DiskFlusher.h"
 #include "Devices/Disk/Store/DiskFileCommit.h"
@@ -271,11 +272,11 @@ public:
 
             if (intent != ExternalChangeIntent::Unstated)
             {
-                store.NoteExternalChange (path, intent, fromCassoExplorer);
+                store.GetChangeMonitor().NoteExternalChange (path, intent, fromCassoExplorer);
             }
 
             nowMs += MountedImageState::kQuietPeriodMs;
-            store.ApplyPendingReload();
+            store.GetChangeMonitor().ApplyPendingReload();
         }
 
         std::vector<std::string>  preserved;
@@ -540,7 +541,7 @@ public:
 
         //  A build finishes while the user is still reading it.
         rig.WriteImage (kImagePath, 0x33);
-        rig.store.NoteExternalChange (kImagePath, ExternalChangeIntent::ReloadInPlace);
+        rig.store.GetChangeMonitor().NoteExternalChange (kImagePath, ExternalChangeIntent::ReloadInPlace);
 
         //  "Insert the modified <file>."
         rig.store.GetChangeActions().ResolvePendingChange (kSlot, kDrive, ChangeAction::ReloadInPlace);
@@ -881,9 +882,9 @@ public:
             const int  before = rig.reads;
 
             rig.nowMs += 5000;
-            rig.store.ApplyPendingReload();
-            rig.store.ApplyPendingReload();
-            rig.store.ApplyPendingReload();
+            rig.store.GetChangeMonitor().ApplyPendingReload();
+            rig.store.GetChangeMonitor().ApplyPendingReload();
+            rig.store.GetChangeMonitor().ApplyPendingReload();
 
             Assert::AreEqual (before, rig.reads,
                               L"an idle tick under a standing question reads nothing");
@@ -1346,14 +1347,14 @@ public:
         rig.watcher.Fire (kDirectory, kImagePath);
 
         rig.nowMs += MountedImageState::kQuietPeriodMs / 2;
-        rig.store.ApplyPendingReload();
+        rig.store.GetChangeMonitor().ApplyPendingReload();
         Assert::AreEqual ((size_t) 0, rig.reports.size(), L"still being written");
 
         rig.WriteImage (kImagePath, 0x33);
         rig.watcher.Fire (kDirectory, kImagePath);
 
         rig.nowMs += MountedImageState::kQuietPeriodMs / 2;
-        rig.store.ApplyPendingReload();
+        rig.store.GetChangeMonitor().ApplyPendingReload();
         Assert::AreEqual ((size_t) 0, rig.reports.size(),
                           L"the third change resets the timer -- the period is "
                           L"measured from the LAST change, not the first");
@@ -1377,14 +1378,14 @@ public:
 
         //  What a watcher reports and what a mount recorded rarely match as
         //  strings.
-        rig.store.NoteExternalChange ("c:/WORK/loader.dsk", ExternalChangeIntent::Unstated);
+        rig.store.GetChangeMonitor().NoteExternalChange ("c:/WORK/loader.dsk", ExternalChangeIntent::Unstated);
         Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->GetPending().seen);
 
         rig.store.GetSharedState (kSlot, kDrive);
         rig.store.Eject (kSlot, kDrive);
         AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
 
-        rig.store.NoteExternalChange ("C:\\work\\Something Else.dsk", ExternalChangeIntent::Unstated);
+        rig.store.GetChangeMonitor().NoteExternalChange ("C:\\work\\Something Else.dsk", ExternalChangeIntent::Unstated);
         Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->GetPending().seen,
                          L"a directory watch reports every file under it");
     }
@@ -1401,10 +1402,10 @@ public:
         AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
 
         rig.WriteImage (kImagePath, 0x22);
-        rig.store.NoteExternalChange (kImagePath, ExternalChangeIntent::Restart);
+        rig.store.GetChangeMonitor().NoteExternalChange (kImagePath, ExternalChangeIntent::Restart);
 
         rig.nowMs += MountedImageState::kQuietPeriodMs;
-        rig.store.ApplyPendingReload();
+        rig.store.GetChangeMonitor().ApplyPendingReload();
 
         Assert::AreEqual (1, rig.restarts);
         Assert::AreEqual ((size_t) 0, rig.questions.size(),
@@ -1422,12 +1423,12 @@ public:
         rig.WriteImage (kImagePath, 0x11);
         AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
 
-        rig.store.NoteExternalChange (kImagePath, ExternalChangeIntent::Restart);
+        rig.store.GetChangeMonitor().NoteExternalChange (kImagePath, ExternalChangeIntent::Restart);
         rig.WriteImage (kImagePath, 0x22);
-        rig.store.NoteExternalChange (kImagePath, ExternalChangeIntent::ReloadInPlace);
+        rig.store.GetChangeMonitor().NoteExternalChange (kImagePath, ExternalChangeIntent::ReloadInPlace);
 
         rig.nowMs += MountedImageState::kQuietPeriodMs;
-        rig.store.ApplyPendingReload();
+        rig.store.GetChangeMonitor().ApplyPendingReload();
 
         //  The last writer is the one whose bytes are on the disk, so a stale
         //  intent describes contents that are gone.
@@ -1456,8 +1457,8 @@ public:
         //  Without the outstanding flag the user would be asked again sixty
         //  times a second while reading the first one.
         rig.nowMs += MountedImageState::kQuietPeriodMs;
-        rig.store.ApplyPendingReload();
-        rig.store.ApplyPendingReload();
+        rig.store.GetChangeMonitor().ApplyPendingReload();
+        rig.store.GetChangeMonitor().ApplyPendingReload();
 
         Assert::AreEqual ((size_t) 1, rig.questions.size());
     }
@@ -1859,7 +1860,7 @@ public:
             for (i = 0; i < 100; i++)
             {
                 rig.nowMs += MountedImageState::kQuietPeriodMs;
-                rig.store.ApplyPendingReload();
+                rig.store.GetChangeMonitor().ApplyPendingReload();
             }
         }
 
@@ -2161,7 +2162,7 @@ public:
             if (rig.reports.size() == 1)
             {
                 rig.WriteImage (kImagePath, 0x44);
-                rig.store.NoteExternalChange (kImagePath, ExternalChangeIntent::ReloadInPlace);
+                rig.store.GetChangeMonitor().NoteExternalChange (kImagePath, ExternalChangeIntent::ReloadInPlace);
             }
         });
 
@@ -2172,7 +2173,7 @@ public:
                         L"the change that arrived mid-apply is still there");
 
         rig.nowMs += MountedImageState::kQuietPeriodMs;
-        rig.store.ApplyPendingReload();
+        rig.store.GetChangeMonitor().ApplyPendingReload();
 
         Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->GetPending().seen);
     }
@@ -2279,8 +2280,8 @@ public:
 
         //  The writer cannot know whether anything is running, and a build
         //  script must behave the same either way.
-        rig.store.NoteExternalChange ("C:\\elsewhere\\Nothing.dsk", ExternalChangeIntent::Restart);
-        rig.store.ApplyPendingReload();
+        rig.store.GetChangeMonitor().NoteExternalChange ("C:\\elsewhere\\Nothing.dsk", ExternalChangeIntent::Restart);
+        rig.store.GetChangeMonitor().ApplyPendingReload();
 
         Assert::AreEqual (0, rig.restarts);
         Assert::AreEqual ((size_t) 0, rig.reports.size());

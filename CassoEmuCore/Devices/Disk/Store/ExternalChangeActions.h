@@ -4,6 +4,7 @@
 
 #include "Devices/Disk/ChangePrompt.h"
 #include "Devices/Disk/ExternalChangePolicy.h"
+#include "Devices/Disk/Store/DiskStoreInterfaces.h"
 
 class  BayFileAccess;
 class  DiskBayTable;
@@ -25,7 +26,7 @@ struct DiskStoreHooks;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class ExternalChangeActions
+class ExternalChangeActions : public IChangeActions
 {
 public:
     ExternalChangeActions (DiskBayTable         & bays,
@@ -49,7 +50,7 @@ public:
     //  `author` is passed in, because by this point the bay's pending record
     //  can be for a later write.
     void  CarryOutChangeAction (int slot, int drive, ChangeAction action,
-                                const vector<Byte> & bytes, ChangeAuthor author);
+                                const vector<Byte> & bytes, ChangeAuthor author) override;
 
 private:
     DiskBayTable          & m_bays;

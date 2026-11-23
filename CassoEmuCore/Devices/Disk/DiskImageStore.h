@@ -19,6 +19,7 @@
 #include "Devices/Disk/Store/DiskStoreHooks.h"
 #include "Devices/Disk/Store/DiskStoreInterfaces.h"
 #include "Devices/Disk/Store/ExternalChangeActions.h"
+#include "Devices/Disk/Store/ExternalChangeMonitor.h"
 
 
 
@@ -228,6 +229,10 @@ public:
     //  Applies a ChangeAction to a bay, and the user's answer to a prompt.
     ExternalChangeActions & GetChangeActions () { return m_changeActions; }
 
+    //  Recording changes made to mounted images' files outside Casso, and
+    //  acting on them once they settle.
+    ExternalChangeMonitor & GetChangeMonitor () { return m_changeMonitor; }
+
     //  Where "now" comes from, in milliseconds, so the quiet period can be
     //  swept in a test without waiting for one.
     void          SetClock (std::function<int64_t ()> clock) { m_hooks.clock = std::move (clock); }
@@ -239,17 +244,6 @@ public:
     //  date; deriving one from the other would tie a timer to the user's clock
     //  changing under it.
     void          SetTimestampSource (std::function<time_t ()> source) { m_hooks.timestamp = std::move (source); }
-
-    //  A change was noticed, from a watcher or stated by a writer.
-    //
-    //  CALLED FROM ANY THREAD and does no work beyond recording: the watcher
-    //  runs on its own thread and the message channel on the UI thread, while
-    //  acting on a change belongs to the thread that owns disk writes.
-    void          NoteExternalChange (const string & path, ExternalChangeIntent intent, bool fromCassoExplorer = false);
-
-    //  Act on whatever has settled. Called on the CPU thread at a moment with
-    //  no disk operation in flight.
-    void          ApplyPendingReload ();
 
     //  What a bay knows about its image beyond the bytes: the identity read at
     //  mount, any change noticed since, and whether a report stands. Null for
@@ -270,9 +264,6 @@ private:
     //  THIS IS A SAVE-AS, NOT A MOUNT. Nothing is loaded, so a guest mid-write
     //  sees nothing at all.
     HRESULT       RepointBayToFile  (int slot, int drive, const string & newPath) override;
-
-    //  Everything one bay's settled change leads to.
-    void           ApplyPendingReloadToBay (int slot, int drive);
 
     //  Empties a bay whose file is gone, WITHOUT trying to flush it. The
     //  ordinary eject flushes first, which here would either fail or write the
@@ -295,9 +286,6 @@ private:
     void           BeginWatching (int slot, int drive);
     void           EndWatching   (int slot, int drive);
 
-    //  Milliseconds now, through the injected clock when one is installed.
-    int64_t        GetNowMs () const;
-
     //  Loads bytes into a bay for MountFromBytes and Mount, which each call the
     //  bay-change sink after a successful load, in their own order.
     HRESULT        LoadIntoBay (int slot, int drive, const string & virtualPath,
@@ -315,5 +303,6 @@ private:
     DiskSalvager           m_salvager      { m_bays, m_hooks };
     DiskFlusher            m_flusher       { m_bays, m_hooks, m_files, *this };
     ExternalChangeActions  m_changeActions { m_bays, m_hooks, m_files, *this, *this };
+    ExternalChangeMonitor  m_changeMonitor { m_bays, m_hooks, m_files, m_changeActions };
     string                 m_emptyPath;
 };
