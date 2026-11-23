@@ -138,7 +138,7 @@ struct DecodeOptions
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-enum class RunColor { Text, Good, Bad, Muted, Keyword, String, Comment };
+enum class RunColor { Text, Good, Bad, Muted, Keyword, String, Comment, Number, Label };
 
 
 

@@ -43,7 +43,7 @@ PreviewArchiveView::PreviewArchiveView (PreviewListingView & listing, ExplorerCo
 
 std::vector<std::wstring> PreviewArchiveView::GetSelectedIds() const
 {
-    const std::vector<CatalogRow> &  rows = m_context.browser.GetPreview().rows;
+    const std::vector<CatalogRow> &  rows = m_context.browser.GetPreviewer().GetPreview().rows;
     std::vector<std::wstring>        ids;
 
 
@@ -317,7 +317,7 @@ void PreviewArchiveView::ShowContextMenu (int x, int y)
 
 void PreviewArchiveView::OpenRow (int row)
 {
-    const std::vector<CatalogRow> &  rows = m_context.browser.GetPreview().rows;
+    const std::vector<CatalogRow> &  rows = m_context.browser.GetPreviewer().GetPreview().rows;
     HRESULT                          hr   = S_OK;
 
 
@@ -329,7 +329,7 @@ void PreviewArchiveView::OpenRow (int row)
 
     if (rows[(size_t) row].isDirectory)
     {
-        m_context.browser.NavigateToLocation (Location::MakeShellFolder (rows[(size_t) row].shellId, rows[(size_t) row].name));
+        m_context.browser.GetNavigator().NavigateToLocation (Location::MakeShellFolder (rows[(size_t) row].shellId, rows[(size_t) row].name));
         m_context.listPane.FillList();
         return;
     }

@@ -141,7 +141,7 @@ HRESULT FullSendDiskSend::Begin (Sending & disk)
     m_context.status.SetActivity (FullSendActivity::Sending, disk.drive);
     m_context.status.BeginDisk (disk.drive, verifying, verifying ? std::span<const int>() : std::span<const int> (disk.checked->wholeTracks));
     m_context.status.SetTitle (disk.drive, disk.title, FullSendDisk::GetSystemName (sectors));
-    m_context.status.AddLine (std::format ("Sending the disk in drive {}", disk.drive));
+    m_context.status.AddLine (std::format ("Sending the disk in drive {}", disk.drive), disk.drive);
 
     if (m_context.link.HasDrive (other))
     {
@@ -172,7 +172,8 @@ Error:
 //  FullSendDiskSend::Read
 //
 //  A raw retry follows a sector read of the same disk, so its capture begins
-//  at once, with that read's hash and counts.
+//  at once, with that read's hash and counts. So does a disk whose track 0
+//  has no sectors, as there are no sectors to read.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -193,6 +194,12 @@ HRESULT FullSendDiskSend::Read (Sending & disk)
     if (disk.isRawRetry)
     {
         disk.first = *first;
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (disk.checked->isRawOnly)
+    {
+        disk.same = true;
         BAIL_OUT_IF (true, S_OK);
     }
 
@@ -330,7 +337,7 @@ HRESULT FullSendDiskSend::DropChanged (Sending & disk)
 
 
     m_check.NoteChanged (disk.checked->fingerprint);
-    m_context.Report (std::format ("The disk in drive {} changed while it was read, so no image was written", disk.drive));
+    m_context.Report (std::format ("The disk in drive {} changed while it was read, so no image was written", disk.drive), disk.drive);
 
     m_context.screen.SetDriveState (disk.drive, FullSendDriveState::Idle);
     m_context.status.ClearDisk (disk.drive, FullSendDiskState::None);
@@ -357,8 +364,10 @@ Error:
 //  when the disk is assessed as protected: a damaged disk with no file
 //  system Casso recognizes is assessed alike, and a raw capture of it has
 //  more than its sector image. A disk read again in raw mode is captured
-//  whatever its signs. The capture draws on the Apple's screen, so the
-//  session's screen is drawn again after it.
+//  whatever its signs, as is one whose track 0 has no sectors, and a blank
+//  disk sent with its drive's number, whose sectors may not be all it has. The capture
+//  draws on the Apple's screen, so the session's screen is drawn again
+//  after it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -367,7 +376,9 @@ HRESULT FullSendDiskSend::CaptureProtected (Sending & disk)
     HRESULT          hr       = S_OK;
     FullSendImage  & image    = disk.image;
     ProtectionSigns  signs    = FullSendProtection::Find (image.sectors);
-    bool             rawAgain = disk.mode == FullSendSendMode::RawAgain;
+    bool             rawOnly  = disk.checked->isRawOnly;
+    bool             isBlank  = disk.mode == FullSendSendMode::Anyway && disk.checked->check == FullSendDiskCheck::Blank;
+    bool             rawAgain = disk.mode == FullSendSendMode::RawAgain || rawOnly || isBlank;
     bool             readSign = m_protection.readErrors && !image.unreadable.empty()
                              && std::string (FullSendDisk::AssessDamage (image.sectors, image.report.emptyTracks, (int) image.unreadable.size())) == FullSendManifest::kStatusProtected;
     std::string      reason;
@@ -377,16 +388,23 @@ HRESULT FullSendDiskSend::CaptureProtected (Sending & disk)
     disk.isLikely = readSign || m_protection.IsMet (signs);
     BAIL_OUT_IF (!rawAgain && (!disk.isLikely || !m_protection.captureRaw), S_OK);
 
-    //  A disk read again in raw mode whose damage is unclear has the reason
-    //  in the line that began the read.
-    if (disk.isLikely)
+    //  A disk read again in raw mode whose damage is unclear, or one whose
+    //  track 0 has no sectors, has the reason in the line that began the
+    //  read.
+    disk.isLikely = disk.isLikely || rawOnly;
+
+    if (disk.isLikely && !rawOnly)
     {
         reason = readSign                                         ? std::format ("Unreadable sectors were found on the disk in drive {} during the normal transfer", disk.drive)
                : m_protection.unrecognized && signs.isUnrecognized ? std::format ("The disk in drive {} has no recognized file system", disk.drive)
                : m_protection.diskCode && signs.hasDiskCode        ? std::format ("{} on the disk in drive {} accesses the disk drive directly", signs.diskCodeFile, disk.drive)
                                                                     : std::format ("The disk in drive {} doesn't have a recognized boot loader", disk.drive);
 
-        m_context.Report (reason + ", so it appears to be copy-protected. Restarting the capture using raw mode.");
+        m_context.Report (reason + ", so it appears to be copy-protected. Restarting the capture using raw mode.", disk.drive);
+    }
+    else if (isBlank)
+    {
+        m_context.Report (std::format ("The disk in drive {} looks blank, so it's captured in raw mode too, for anything its sectors don't show.", disk.drive), disk.drive);
     }
 
     m_context.screen.SetDriveState (disk.drive, FullSendDriveState::Capturing);
@@ -446,7 +464,7 @@ HRESULT FullSendDiskSend::CheckVolume (Sending & disk)
     BAIL_OUT_IF (!differs, S_OK);
 
     m_context.Report (std::format ("The disk in drive {} doesn't use volume {}, so it can't be saved as a {} image. Preserving its volume {} by saving it as a WOZ image instead.",
-                                   disk.drive, imageVolume, FullSendDisk::GetImageExtension (image.sectors, m_context.folder.GetExtension()), layouts[0].volume));
+                                   disk.drive, imageVolume, FullSendDisk::GetImageExtension (image.sectors, m_context.folder.GetExtension()), layouts[0].volume), disk.drive);
 
     hr = m_context.link.MeasureLayouts (disk.drive, NibblizationLayer::kTrackCount, image.report.layouts);
     CHR (hr);
@@ -538,6 +556,11 @@ HRESULT FullSendDiskSend::Identify (Sending & disk)
     if (disk.isRawRetry)
     {
         hash = disk.first.hash;
+    }
+    else if (disk.checked->isRawOnly)
+    {
+        hr = FullSendDisk::ComputeHash (disk.image.raw, hash);
+        CHR (hr);
     }
     else
     {
@@ -654,7 +677,7 @@ void FullSendDiskSend::Tally (Sending & disk)
 
     if (disk.isProtected && !isRaw)
     {
-        m_context.Report (std::format ("{} is likely copy-protected, and its image {} has the sectors that could be read.", disk.title, row.file));
+        m_context.Report (std::format ("{} is likely copy-protected, and its image {} has the sectors that could be read.", disk.title, row.file), disk.drive);
     }
 }
 
@@ -678,7 +701,7 @@ void FullSendDiskSend::ReportSent (const Sending & disk)
     m_context.Report (disk.hasEarlier             ? std::format ("Disk {:04} is {}, a duplicate of {}. Took {}.", row.sequence, row.file, row.duplicateOf, took)
                       : !row.duplicateOf.empty()  ? std::format ("Disk {:04} is {}, sent again though it matches {}. Took {}.", row.sequence, row.file, row.duplicateOf, took)
                       : !disk.image.raw.empty()   ? std::format ("Disk {:04} is {}, a raw capture of a disk that is likely copy-protected. Took {}.", row.sequence, row.file, took)
-                                                  : std::format ("Disk {:04} is {}, with {} unreadable sectors. Took {}.", row.sequence, row.file, row.unreadable, took));
+                                                  : std::format ("Disk {:04} is {}, with {} unreadable sectors. Took {}.", row.sequence, row.file, row.unreadable, took), disk.drive);
 }
 
 
@@ -692,8 +715,9 @@ void FullSendDiskSend::ReportSent (const Sending & disk)
 //  The image is booted on the PC while its disk is in the drive, so an
 //  image that did not boot is on the Apple at the pause that follows. Where
 //  the Apple sounds the results, the failure's tone is for an image that did
-//  not boot, has unreadable sectors or has a bad file system, and the
-//  success's for any other. A duplicate isn't booted.
+//  not boot, and for one that has unreadable sectors or a bad file system
+//  unless it booted, as a crack's odd catalog does; the success's is for any
+//  other. A duplicate isn't booted.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -726,8 +750,9 @@ HRESULT FullSendDiskSend::AwaitBootCheck (Sending & disk)
 
     m_context.boots.Apply();
 
-    failed = m_context.boots.GetLatest() == FullSendManifest::kBootDidNotBoot || m_context.boots.GetLatestCheck() == FullSendManifest::kCheckBad ||
-             (disk.image.raw.empty() && !disk.image.unreadable.empty());
+    failed = m_context.boots.GetLatest() == FullSendManifest::kBootDidNotBoot ||
+             (m_context.boots.GetLatest() != FullSendManifest::kBootBooted &&
+              (m_context.boots.GetLatestCheck() == FullSendManifest::kCheckBad || (disk.image.raw.empty() && !disk.image.unreadable.empty())));
 
     screen.tone = !m_context.link.HasBootTones() || m_context.boots.GetLatest().empty() ? tone
                 : failed                                                                ? FullSendTone::DidNotBoot

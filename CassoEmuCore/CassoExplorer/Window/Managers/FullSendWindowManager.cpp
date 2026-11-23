@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Managers/FullSendWindowManager.h"
+#include "CassoExplorer/Window/Managers/DiskReportSender.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerImageTools.h"
 #include "CassoExplorer/Window/Managers/ExplorerOpen.h"
@@ -10,6 +11,8 @@
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "CassoExplorer/WozPropertiesDialog.h"
+#include "CassoExplorer/Model/CassoLinkLogFile.h"
+#include "Core/PathResolver.h"
 #include "CassoLink/FullSend/FullSendManifest.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/Inspector/Repair/DiskRepair.h"
@@ -366,6 +369,20 @@ void FullSendWindowManager::ShowConnectionWindow (const std::wstring & connectio
 
     window->SetDiskAction ([this] (const std::string & file, FullSendDialog::DiskAction action) { RunFullSendDisk (file, action); });
     window->SetCanRepair  ([this] (const std::string & file) { return CanRepair (file); });
+
+    if (!connection.empty())
+    {
+        window->SetRawCapture ([this, connection] (int drive)
+        {
+            CassoLinkSession  * session = (m_context.app.links != nullptr) ? m_context.app.links->GetSession (TextEncoding::WideToNarrow (connection)) : nullptr;
+
+            if (session != nullptr)
+            {
+                session->PressFullSendKey (drive == 1 ? CassoLinkCodec::kKeyRawDrive1 : CassoLinkCodec::kKeyRawDrive2);
+            }
+        });
+    }
+
     window->SetOnMoved ([this] (POINT topLeft)
     {
         m_context.prefs.fullSendWindow.x     = topLeft.x;
@@ -482,6 +499,7 @@ void FullSendWindowManager::RunFullSendDisk (const std::string & file, FullSendD
         case FullSendDialog::DiskAction::Inspect:    m_context.opener.InspectSelected();                                                             break;
         case FullSendDialog::DiskAction::Properties: m_context.properties.ShowWozProperties ((std::filesystem::path (folder) / name).wstring(), WozPropertiesDialog::kInfoTab); break;
         case FullSendDialog::DiskAction::Repair:     m_context.imageTools.RepairDiskImage ((std::filesystem::path (folder) / name).wstring());                    break;
+        case FullSendDialog::DiskAction::Report:     ReportDisk (std::filesystem::path (folder) / name);                                                          break;
         default:                                                                                                                                     break;
     }
 }
@@ -561,4 +579,33 @@ void FullSendWindowManager::EndFullSend (const std::wstring & connection)
     {
         PostMessageW (found->second->GetHwnd(), WM_CLOSE, 0, 0);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendWindowManager::ReportDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendWindowManager::ReportDisk (const std::filesystem::path & image)
+{
+    DiskReportSender::Sources  sources;
+
+
+
+    sources.links    = m_context.app.links;
+    sources.pictures = m_context.app.pictures;
+    sources.logFile  = PathResolver::GetDataFolder() / L"Logs" / CassoLinkLogFile::kFileName;
+    sources.select   = [this] (const std::filesystem::path & file)
+    {
+        m_context.addressBar.GoToLocation (Location::MakeHostFolder (file.parent_path().wstring()));
+        m_context.listPane.FillList();
+        m_context.listPane.SelectRowNamed (file.filename().wstring());
+    };
+
+    DiskReportSender::Report (m_context.window.GetHwnd(), m_context.theme, image, sources);
 }

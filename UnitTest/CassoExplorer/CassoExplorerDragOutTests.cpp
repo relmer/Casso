@@ -190,7 +190,7 @@ public:
             }
         }
 
-        browser.SetSelectedRows ({ hello });
+        browser.GetSelection().SetSelectedRows ({ hello });
         formats = CassoExplorerDragOut::BuildFormats (browser, HostFileNaming::Style::Descriptive, log);
 
         Assert::IsTrue   (Find (formats, CFSTR_FILECONTENTS)->render (0, contents) == HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
@@ -233,7 +233,7 @@ public:
             }
         }
 
-        browser.SetSelectedRows ({ hello });
+        browser.GetSelection().SetSelectedRows ({ hello });
 
         formats = CassoExplorerDragOut::BuildFormats (browser, HostFileNaming::Style::Descriptive, log, false, true);
 

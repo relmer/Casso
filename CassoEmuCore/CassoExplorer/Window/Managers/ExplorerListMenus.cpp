@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "Seams/ShellItemId.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerListMenus.h"
 #include "CassoExplorer/Window/Managers/ExplorerOpen.h"
@@ -469,7 +470,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
     }
 
     //  A folder or a disk image opens in a new tab, as Explorer's items do.
-    if (m_context.browser.GetSelectedRows().size() == 1 && m_context.browser.TryGetRowLocation (m_context.browser.GetSelectedRows()[0], location))
+    if (m_context.browser.GetSelectedRows().size() == 1 && BrowserRowPaths::TryGetRowLocation (m_context.browser.GetRowListing(), m_context.browser.GetSelectedRows()[0], location))
     {
         browsable = true;
 
@@ -673,7 +674,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
     //  folder being shown, as the tree offers them from a node.
     if (m_context.browser.GetSelectedRows().size() == 1)
     {
-        folderForCasso = (m_context.browser.TryGetRowLocation (m_context.browser.GetSelectedRows()[0], location) &&
+        folderForCasso = (BrowserRowPaths::TryGetRowLocation (m_context.browser.GetRowListing(), m_context.browser.GetSelectedRows()[0], location) &&
                           location.kind == Location::Kind::HostFolder) ? location.path : std::wstring();
     }
     else if (m_context.browser.GetSelectedRows().empty() && m_context.browser.GetLocation().kind == Location::Kind::HostFolder)
@@ -749,7 +750,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
         //  Windows' own commands lead into Copy as path in one group, as in
         //  File Explorer; without them the group starts here.
-        if ((m_context.browser.GetLocation().kind == Location::Kind::HostFolder || m_context.browser.IsHomeLocation() || m_context.browser.AreSelectedRowsSearchFiles())
+        if ((m_context.browser.GetLocation().kind == Location::Kind::HostFolder || m_context.browser.IsHomeLocation() || m_context.browser.GetSelection().AreSelectedRowsSearchFiles())
             && m_context.menus.GetSelectionKind (selectedPaths, kind))
         {
             std::vector<std::wstring>  homeIds;
@@ -776,7 +777,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
         //  A search's file opens its folder with it selected, as File
         //  Explorer's Open file location does there.
-        if (m_context.browser.AreSelectedRowsSearchFiles() && m_context.browser.GetSelectedRows().size() == 1)
+        if (m_context.browser.GetSelection().AreSelectedRowsSearchFiles() && m_context.browser.GetSelectedRows().size() == 1)
         {
             AddOpenLocationRow (items, m_context.browser.GetSelectedRows()[0]);
         }
@@ -788,7 +789,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
             for (int row : m_context.browser.GetSelectedRows())
             {
-                if (m_context.browser.TryGetRowPath (row, rowPath))
+                if (BrowserRowPaths::TryGetRowPath (m_context.browser.GetRowListing(), row, rowPath))
                 {
                     rowPaths.push_back (rowPath);
                 }
@@ -893,7 +894,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
     //  A drive in This PC has them, and the shell's menu, as in File Explorer.
     moreOptions = moreOptions || selectedDrives;
 
-    if (moreOptions && (m_context.browser.GetLocation().kind == Location::Kind::HostFolder || m_context.browser.IsHomeLocation() || m_context.browser.AreSelectedRowsSearchFiles() || selectedDrives))
+    if (moreOptions && (m_context.browser.GetLocation().kind == Location::Kind::HostFolder || m_context.browser.IsHomeLocation() || m_context.browser.GetSelection().AreSelectedRowsSearchFiles() || selectedDrives))
     {
         m_context.menus.AddPackagedCommands (items);
         m_context.menus.SetCommandItemIds ({});
@@ -915,11 +916,11 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
             if (m_context.browser.GetLocation().kind == Location::Kind::RecycleBin)
             {
-                m_context.browser.GetSelectedRecycledIds (paths);
+                m_context.browser.GetLoader().GetSelectedRecycledIds (paths);
                 hr = m_context.shellVerbs.ShowRecycledMenu (m_context.window.GetHwnd(), paths, screen);
                 m_context.folderSync.RefreshAfterHostChange();
             }
-            else if (m_context.browser.TryGetSelectedShellIds (paths))
+            else if (m_context.browser.GetSelection().TryGetSelectedShellIds (paths))
             {
                 hr = m_context.shellVerbs.ShowShellMenu (m_context.window.GetHwnd(), paths, screen, [this]() { m_context.verbs.RunVerb (CassoExplorerActions::Verb::Rename); });
             }
@@ -2020,7 +2021,7 @@ void ExplorerListMenus::AddConvertMenu (std::vector<DxuiPopupMenuItem> & items)
 void ExplorerListMenus::ShowFilterMenu (size_t column, RECT chevron)
 {
     std::vector<DxuiPopupMenuItem>  items;
-    RowGrouping::Field              field  = CassoExplorerBrowser::GetFilterField (column);
+    RowGrouping::Field              field  = BrowserColumnFilters::GetFilterField (column);
 
 
 
@@ -2031,7 +2032,7 @@ void ExplorerListMenus::ShowFilterMenu (size_t column, RECT chevron)
 
     m_context.menus.GetMenuCommands().clear();
 
-    for (const RowGrouping::Group & group : m_context.browser.GetFilterChoices (field))
+    for (const RowGrouping::Group & group : m_context.browser.GetColumnFilters().GetFilterChoices (field))
     {
         std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
         std::wstring                  label   = group.label;
@@ -2040,12 +2041,12 @@ void ExplorerListMenus::ShowFilterMenu (size_t column, RECT chevron)
         command->keepsMenuOpen = true;
         command->checkBox      = true;
         command->menuImage     = m_context.shellIcons.GetForIconResource (s_kFilterGroupIcon);
-        command->isChecked     = [this, field, label]() { return m_context.browser.IsFilterChecked (field, label); };
+        command->isChecked     = [this, field, label]() { return m_context.browser.GetColumnFilters().IsFilterChecked (field, label); };
         command->dispatch      = [this, field, label]()
         {
             HRESULT  hr = S_OK;
 
-            m_context.browser.ToggleFilter (field, label);
+            m_context.browser.GetColumnFilters().ToggleFilter (field, label);
             hr = m_context.browser.Reload (true);
             IGNORE_RETURN_VALUE (hr, S_OK);
             m_pane.FillList();
@@ -2055,14 +2056,14 @@ void ExplorerListMenus::ShowFilterMenu (size_t column, RECT chevron)
         m_context.menus.GetMenuCommands().push_back (std::move (command));
     }
 
-    if (m_context.browser.IsFiltering (field))
+    if (m_context.browser.GetColumnFilters().IsFiltering (field))
     {
         items.push_back (DxuiPopupMenuItem::ForSeparator());
         m_context.menus.AddMenuCommand (items, L"&Clear filter", [this, field]()
         {
             HRESULT  hr = S_OK;
 
-            m_context.browser.ClearFilter (field);
+            m_context.browser.GetColumnFilters().ClearFilter (field);
             hr = m_context.browser.Reload (true);
             IGNORE_RETURN_VALUE (hr, S_OK);
             m_pane.FillList();

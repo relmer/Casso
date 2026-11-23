@@ -79,7 +79,7 @@ public:
             std::filesystem::create_directories (folder);
             AssertSucceeded (DiskImageStore::WriteFileAtomically (image.string(), rig.io.files[image.string()]));
             rig.Open();
-            Assert::IsTrue (rig.browser.NavigateToAddress (folder.wstring()));
+            Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (folder.wstring()));
             rig.parts->listPane.FillList();
             Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"a.dsk"));
             rig.parts->preview.FillPreview();
@@ -137,7 +137,7 @@ public:
 
             rig.Open();
             rig.parts->layout.SetClient (RECT { 0, 0, rig.scaler.ToPx (1280), rig.scaler.ToPx (900) });
-            Assert::IsTrue (rig.browser.NavigateToAddress (folder.wstring()));
+            Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (folder.wstring()));
             rig.parts->listPane.FillList();
 
             auto  select = [&rig] (const wchar_t * name)
@@ -220,7 +220,7 @@ public:
                 std::filesystem::create_directories (folder);
                 AssertSucceeded (DiskImageStore::WriteFileAtomically (narrow, c.bytes));
                 rig.Open();
-                Assert::IsTrue (rig.browser.NavigateToAddress (folder.wstring()));
+                Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (folder.wstring()));
                 rig.parts->listPane.FillList();
                 Assert::IsTrue (rig.parts->listPane.SelectRowNamed (c.name));
                 rig.parts->preview.FillPreview();
@@ -297,7 +297,7 @@ public:
 
             rig.Open();
             rig.parts->layout.SetClient (RECT { 0, 0, rig.scaler.ToPx (1280), rig.scaler.ToPx (900) });
-            Assert::IsTrue (rig.browser.NavigateToAddress (folder.wstring()));
+            Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (folder.wstring()));
             rig.parts->listPane.FillList();
 
             auto  select = [&rig] (const wchar_t * name)
@@ -380,7 +380,7 @@ public:
 
         rig.Open();
         rig.parts->layout.SetClient (RECT { 0, 0, rig.scaler.ToPx (1280), rig.scaler.ToPx (900) });
-        Assert::IsTrue (rig.browser.NavigateToAddress (folder.wstring()));
+        Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (folder.wstring()));
         rig.parts->listPane.FillList();
         Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"a.dsk"));
         rig.parts->preview.FillPreview();
@@ -450,7 +450,7 @@ public:
             AssertSucceeded (DiskImageStore::WriteFileAtomically (narrow, bytes));
             rig.Open();
             rig.parts->layout.SetClient (RECT { 0, 0, rig.scaler.ToPx (1280), rig.scaler.ToPx (440) });
-            Assert::IsTrue (rig.browser.NavigateToAddress (folder.wstring()));
+            Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (folder.wstring()));
             rig.parts->listPane.FillList();
             Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"bad.dsk"));
             rig.parts->preview.FillPreview();
@@ -562,7 +562,7 @@ public:
         std::filesystem::create_directories (folder);
         AssertSucceeded (DiskImageStore::WriteFileAtomically (narrow, bytes));
         rig.Open();
-        Assert::IsTrue (rig.browser.NavigateToAddress (folder.wstring()));
+        Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (folder.wstring()));
         rig.parts->listPane.FillList();
         Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"lost.dsk"));
         rig.parts->preview.FillPreview();
@@ -577,7 +577,7 @@ public:
         Assert::IsTrue (isDrawn);
         rig.parts->preview.TakeThumbnail();
         Assert::AreEqual (std::wstring (L"DOS 3.3, damaged"), rig.parts->preview.GetThumbnail().GetFileSystemText());
-        Assert::IsTrue   (rig.browser.GetPreview().kind == PreviewContent::Kind::Details, L"the disk doesn't mount");
+        Assert::IsTrue   (rig.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Details, L"the disk doesn't mount");
 
         for (const DxuiTextView::Row & row : static_cast<DxuiTextView *> (rig.parts->preview.GetText().GetControl())->GetLayout().GetRows())
         {
@@ -616,7 +616,7 @@ public:
 
         rig.prefs.previewVisible = true;
         rig.Open();
-        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks"));
+        Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (L"C:\\Disks"));
         rig.parts->listPane.FillList();
         Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"big.po"));
         rig.parts->preview.FillPreview();

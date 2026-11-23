@@ -266,7 +266,7 @@ HRESULT ActionsPartition::FindEntry (const std::wstring & partitionPath, Partiti
 
     CBREx (split, HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
 
-    hr = m_actions.m_browser.ListPartitions (parent, kind, entries);
+    hr = m_actions.m_browser.GetLoader().ListPartitions (parent, kind, entries);
     CHR (hr);
 
     for (const PartitionEntry & entry : entries)

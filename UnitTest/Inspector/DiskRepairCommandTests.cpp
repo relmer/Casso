@@ -163,7 +163,12 @@ public:
 
         io.files[kImage] = RepairFixtures::MakeDos33CountDiffers().damaged;
         result           = Run (io, Command::Test);
-        Assert::IsTrue   (Contains (result.output, "Game.dsk: file system: Bad, HELLO: expected a catalog sector count of 4, but found 9\n"), Widen (result.output).c_str());
+        Assert::IsTrue   (Contains (result.output, "Game.dsk: file system: Possible inconsistencies, HELLO: the catalog lists 9 sectors, but the file has 4\n"), Widen (result.output).c_str());
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus, L"a catalog count that differs isn't a complaint");
+
+        io.files[kImage] = RepairFixtures::MakeDos33CrossLink().damaged;
+        result           = Run (io, Command::Test);
+        Assert::IsTrue   (Contains (result.output, "Game.dsk: file system: Bad, "), Widen (result.output).c_str());
         Assert::AreEqual (DiskCommandResult::kWithComplaints, result.exitStatus);
 
         io.files[kImage] = RepairFixtures::MakeDos33NextTrackOff().damaged;

@@ -412,4 +412,46 @@ public:
         rig.status.SetBoot ("0002.dsk", FullSendManifest::kBootBooted, "0002 Archon.dsk");
         Assert::AreEqual (std::string ("0002 Archon.dsk"), rig.status.GetSnapshot().disks[0].row.file, L"a boot that renamed the image");
     }
+
+
+
+    //  An image renamed in Casso Explorer is renamed in the manifest, and its
+    //  disk done takes the name; a row of another disk isn't matched.
+    TEST_METHOD (ADiskDone_TakesTheNameItsManifestRowHasNow)
+    {
+        Rig                       rig;
+        std::vector<FullSendRow>  rows;
+
+
+
+        rig.status.Begin();
+        rig.SendDisk (1, 1, false);
+        rig.SendDisk (2, 2, false);
+
+        rows = { rig.status.GetSnapshot().disks[1].row, rig.status.GetSnapshot().disks[0].row };
+        rows[0].file        = "Karateka.dsk";
+        rows[1].file        = "Other.dsk";
+        rows[1].fingerprint = "another disk";
+
+        rig.status.RenameDisks (rows);
+
+        Assert::AreEqual (std::string ("Karateka.dsk"), rig.status.GetSnapshot().disks[1].row.file);
+        Assert::AreEqual (std::string ("0002.dsk"),     rig.status.GetSnapshot().disks[0].row.file, L"another disk's row isn't matched");
+    }
+
+
+
+    //  An activity line has the drive it's about, 0 for the session.
+    TEST_METHOD (AnActivityLine_HasItsDrive)
+    {
+        Rig  rig;
+
+
+
+        rig.status.AddLine ("Sending the disk in drive 2", 2);
+        rig.status.AddLine ("Waiting");
+
+        Assert::AreEqual (2, rig.status.GetSnapshot().lines[0].drive);
+        Assert::AreEqual (0, rig.status.GetSnapshot().lines[1].drive);
+    }
 };

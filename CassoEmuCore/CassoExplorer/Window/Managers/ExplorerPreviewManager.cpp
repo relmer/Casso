@@ -69,7 +69,7 @@ void ExplorerPreviewManager::Create()
     m_sections->SetVisible  (false);
     m_sections->SetOnChange ([this] (int index)
     {
-        m_context.browser.SetPreviewSavedGame (index == 0);
+        m_context.browser.GetPreviewer().SetSavedGameShown (index == 0);
         FillPreview();
         m_context.window.Invalidate();
     });
@@ -317,7 +317,7 @@ void ExplorerPreviewManager::Hide()
 
 void ExplorerPreviewManager::FillPreview()
 {
-    const PreviewContent  & preview  = m_context.browser.GetPreview();
+    const PreviewContent  & preview  = m_context.browser.GetPreviewer().GetPreview();
     bool                    autoOpen = UpdateAutoPreview();
     bool                    toggled  = UpdateShown() || autoOpen;
     bool                    visible  = m_shown;
@@ -331,7 +331,7 @@ void ExplorerPreviewManager::FillPreview()
     bool                    vars     = preview.kind == PreviewContent::Kind::Variables;
     bool                    columns  = (preview.kind == PreviewContent::Kind::Catalog && preview.lines.empty()) || vars || preview.kind == PreviewContent::Kind::Grid;
     bool                    program  = preview.kind == PreviewContent::Kind::Listing && !preview.bytes.empty();
-    bool                    forms    = picture && m_context.browser.CanTogglePictureColor();
+    bool                    forms    = picture && m_context.browser.GetPreviewer().CanTogglePictureColor();
     bool                    shell    = preview.kind == PreviewContent::Kind::Shell;
     bool                    woz      = !preview.wozPath.empty();
     bool                    random   = preview.recordLength > 0;
@@ -378,7 +378,7 @@ void ExplorerPreviewManager::FillPreview()
     {
         bool          wasShown = m_thumbnail.IsShown();
         bool          isOne    = visible && !error && !preview.savedGameShown && m_context.browser.GetSelectedRows().size() == 1;
-        std::wstring  path     = isOne && m_context.browser.AreSelectedRowsImages() ? m_context.cassoTarget.GetSelectedImagePath() : std::wstring();
+        std::wstring  path     = isOne && m_context.browser.GetSelection().AreSelectedRowsImages() ? m_context.cassoTarget.GetSelectedImagePath() : std::wstring();
 
         if (isOne && m_context.browser.IsPartitionListLocation())
         {
@@ -508,7 +508,7 @@ void ExplorerPreviewManager::HandlePicturesReady()
 void ExplorerPreviewManager::TakeThumbnail()
 {
     m_thumbnail.TakeResult();
-    FillText (m_context.browser.GetPreview());
+    FillText (m_context.browser.GetPreviewer().GetPreview());
     m_context.layout.RecomputeLayout();
     m_context.window.Invalidate();
 }
@@ -638,7 +638,7 @@ std::wstring ExplorerPreviewManager::GetAutoKey() const
 bool ExplorerPreviewManager::UpdateAutoPreview()
 {
     const std::vector<int>  & selected = m_context.browser.GetSelectedRows();
-    const PreviewContent    & preview  = m_context.browser.GetPreview();
+    const PreviewContent    & preview  = m_context.browser.GetPreviewer().GetPreview();
     std::wstring              key      = GetAutoKey();
     bool                      known    = false;
     std::wstring              address  = BrowserModel::FormatAddress (m_context.browser.GetLocation());
@@ -1434,7 +1434,7 @@ void ExplorerPreviewManager::SetExpanded (bool expanded)
 
     if (expanded && selected.size() > 1)
     {
-        m_context.browser.GetRowKeys (keys);
+        m_context.browser.GetSelection().GetRowKeys (keys);
 
         for (int row : selected)
         {
@@ -1478,7 +1478,7 @@ int ExplorerPreviewManager::GetStepTarget (bool forward) const
 
 
 
-    m_context.browser.GetRowKeys (keys);
+    m_context.browser.GetSelection().GetRowKeys (keys);
 
     return PreviewSteps::GetTarget (m_context.browser.GetRows(), keys, m_stepSet, current, forward);
 }
@@ -1665,7 +1665,7 @@ bool ExplorerPreviewManager::HandleExpandedKey (const DxuiKeyEvent & ev, Explore
 
 void ExplorerPreviewManager::ChooseRecordLength()
 {
-    std::wstring  text   = std::to_wstring (m_context.browser.GetPreview().recordLength);
+    std::wstring  text   = std::to_wstring (m_context.browser.GetPreviewer().GetPreview().recordLength);
     size_t        length = 0;
     bool          parsed = false;
 
@@ -1684,7 +1684,7 @@ void ExplorerPreviewManager::ChooseRecordLength()
 
     if (parsed)
     {
-        m_context.browser.SetPreviewRecordLength (length);
+        m_context.browser.GetPreviewer().SetRecordLength (length);
         FillPreview();
     }
 }

@@ -923,7 +923,6 @@ $script:LongCppAllowed = @(
     'CassoCore/CommandLineParser.cpp',
     'CassoEmuCore/AssetBootstrap.cpp',
     'CassoEmuCore/CassoExplorer/CassoExplorerActions.cpp',
-    'CassoEmuCore/CassoExplorer/CassoExplorerBrowser.cpp',
     'CassoEmuCore/CassoExplorer/Window/Managers/ExplorerListMenus.cpp',
     'CassoEmuCore/CassoExplorer/Window/Panes/ExplorerListPane.cpp',
     'CassoEmuCore/Config/UserConfigStore.cpp',

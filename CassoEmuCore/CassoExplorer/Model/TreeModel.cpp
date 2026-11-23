@@ -1059,6 +1059,10 @@ std::wstring TreeModel::GetLinkDriveLabel (const LinkTreeEntry::Drive & drive)
         //  the drive reads alike.
         label += L" (no disk or unformatted)";
     }
+    else if (drive.thirteenSector)
+    {
+        label += L" (13-sector disk)";
+    }
     else if (!drive.volume.empty())
     {
         label += L" (" + drive.volume + L")";
@@ -1165,6 +1169,41 @@ std::wstring TreeModel::GetLinkDriveTitle (const std::wstring & driveId) const
     }
 
     return title;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::IsThirteenSectorDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TreeModel::IsThirteenSectorDrive (const std::wstring & driveId) const
+{
+    std::wstring  name;
+    int           slot   = 0;
+    int           drive  = 0;
+    bool          is13   = false;
+
+
+
+    if (!TryParseLinkId (driveId, name, slot, drive))
+    {
+        return is13;
+    }
+
+    for (const LinkTreeEntry & link : m_links)
+    {
+        for (const LinkTreeEntry::Drive & row : link.name == name ? link.drives : std::vector<LinkTreeEntry::Drive>())
+        {
+            is13 = is13 || (row.slot == slot && row.drive == drive && row.thirteenSector);
+        }
+    }
+
+    return is13;
 }
 
 

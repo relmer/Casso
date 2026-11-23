@@ -291,6 +291,15 @@ public:
     //  own sink calls this from it.
     void  ConnectDiskToController (int slot, int drive);
 
+    //  The slot 6 Disk II card's 16-sector and 13-sector boot ROMs, and the
+    //  device on the bus with the card's ROM on a ][ or ][+, null where the
+    //  //e's MMU has it. Either ROM is empty when its file isn't installed.
+    //  Set by the machine build.
+    void  SetDisk2Roms (std::vector<Byte> rom16, std::vector<Byte> rom13, class RomDevice * device);
+
+    static constexpr const char *  s_kDisk2Rom16 = "Disk2.rom";
+    static constexpr const char *  s_kDisk2Rom13 = "Disk2_13Sector.rom";
+
     //  Stops the recorder at the current cycle; the tape stays inserted. Reset,
     //  power cycle and a machine switch all do this.
     void  StopTape();
@@ -348,6 +357,10 @@ private:
     //  Power-on bytes the fill must not decide: the power-up byte and the
     //  monitor's random seed.
     void  ApplyPowerOnOverrides();
+
+    //  The card's ROM to match the disk in drive 1: the 13-sector ROM for a
+    //  13-sector disk, the 16-sector ROM for any other, when both are set.
+    void  MatchDisk2Rom();
 
     //  Puts `endpoint` on the port in place of whatever was there, closing
     //  the old bridge's stream. `bridge` is the endpoint when it is one.
@@ -426,6 +439,11 @@ private:
     IDiskFileIo                     * m_blockFileIo        = nullptr;
     WriteProtectProbe                 m_blockProbe;
     std::vector<std::wstring>         m_blockMediaProblems;
+
+    std::vector<Byte>                 m_disk2Rom16;
+    std::vector<Byte>                 m_disk2Rom13;
+    class RomDevice                 * m_disk2RomDevice = nullptr;
+    bool                              m_isDisk2Rom13   = false;
     std::string                       m_stockImageFolder;
 
     std::wstring  m_currentMachineName;

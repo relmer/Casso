@@ -73,7 +73,7 @@ public:
 
     ActionsTypes::Outcome  ReadDiskToImage  (const std::wstring & imagePath, bool blankUnreadable, ActionsTypes::UnreadableFn onUnreadable);
     ActionsTypes::Outcome  ReadDiskToImage  (const std::string & link, int drive, const std::wstring & imagePath, bool blankUnreadable, bool forceVerify, ActionsTypes::UnreadableFn onUnreadable,
-                                             std::function<void ()> onRead = nullptr);
+                                             std::function<void ()> onRead = nullptr, std::optional<FullSendProtectionChoices> automatic = std::nullopt);
 
     //  A raw capture of a linked drive's disk into a WOZ, for a copy-protected
     //  disk; `report` is called with the tracks whose reads differ, if any.

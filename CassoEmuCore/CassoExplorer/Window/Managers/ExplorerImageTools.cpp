@@ -46,6 +46,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
 #include "CassoExplorer/WozPropertiesDialog.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 
 
@@ -83,7 +84,7 @@ void ExplorerImageTools::CompareSelectedDiskImages()
 
 
 
-    m_context.browser.GetSelectedHostPaths (paths);
+    m_context.browser.GetSelection().GetSelectedHostPaths (paths);
 
     if (m_context.app.host != nullptr && m_context.theme != nullptr && paths.size() == 2 && rows.size() == 2)
     {
@@ -150,7 +151,7 @@ void ExplorerImageTools::MakeArchive (bool shrinkItDisk)
 
 
 
-    m_context.browser.GetSelectedHostPaths (hostPaths);
+    m_context.browser.GetSelection().GetSelectedHostPaths (hostPaths);
 
     if (hostPaths.empty() || (shrinkItDisk && hostPaths.size() != 1))
     {
@@ -310,7 +311,7 @@ void ExplorerImageTools::TestImage()
 void ExplorerImageTools::ExtractAll()
 {
     HRESULT       hr     = S_OK;
-    std::wstring  target = m_context.browser.GetExtractTarget();
+    std::wstring  target = m_context.browser.GetPreviewer().GetExtractTarget();
 
 
 
@@ -621,7 +622,7 @@ bool ExplorerImageTools::CreateDiskForPicker (std::wstring & outPath)
         return false;
     }
 
-    outPath = CassoExplorerBrowser::JoinPath (location.path, newDisk.fileName);
+    outPath = BrowserRowPaths::JoinPath (location.path, newDisk.fileName);
 
     return true;
 }

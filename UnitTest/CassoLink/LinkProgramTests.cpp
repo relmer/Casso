@@ -158,12 +158,12 @@ public:
 
         Assert::IsTrue (SUCCEEDED (hr));
 
-        at = FindReady (bytes, 0x0B);
-        Assert::IsTrue (at + 12 <= bytes.size());
+        at = FindReady (bytes, 0x27);
+        Assert::IsTrue (at + 44 <= bytes.size());
         Assert::AreEqual<int> (LinkProgram::kProgramVersion & 0xFF, bytes[at + 5]);
         Assert::AreEqual<int> (LinkProgram::kProgramVersion >> 8,   bytes[at + 6]);
         Assert::AreEqual<int> (LinkProgram::kShimVersion,           bytes[at + 7]);
-        Assert::AreEqual<int> (11, bytes[at + 1], L"versions, the drives, the ROM's five identification bytes and the program's CRC, set at startup with the EOR");
+        Assert::AreEqual<int> (39, bytes[at + 1], L"versions, the drives, the ROM's five identification bytes, the program's CRC and each slot's firmware bytes, set at startup with the EOR");
     }
 
 
@@ -186,8 +186,8 @@ public:
         Assert::AreEqual<int> (LinkProgram::kShimVersion | LinkProgram::kW5100ReadyFlag, shim[at + 7]);
         Assert::AreEqual<int> (CassoLinkCodec::ComputeEor (std::span<const Byte> (shim).subspan (at + 5, 4)), shim[at + 9]);
 
-        at = FindReady (program, 0x0B);
-        Assert::IsTrue (at + 12 <= program.size());
+        at = FindReady (program, 0x27);
+        Assert::IsTrue (at + 44 <= program.size());
         Assert::AreEqual<int> (LinkProgram::kShimVersion | LinkProgram::kW5100ReadyFlag, program[at + 7]);
     }
 
@@ -331,9 +331,9 @@ public:
     //  changed with no new version fails here.
     TEST_METHOD (Program_ChangesOnlyWithANewVersion)
     {
-        static constexpr Word      s_kHashedVersion = 107;
-        static constexpr uint64_t  s_kAciaHash      = 0x8794D7F0DF0674B9;
-        static constexpr uint64_t  s_kW5100Hash     = 0xDF337E134795C4D2;
+        static constexpr Word      s_kHashedVersion = 110;
+        static constexpr uint64_t  s_kAciaHash      = 0x1BFA9AB5A08986E1;
+        static constexpr uint64_t  s_kW5100Hash     = 0xA21A375FE8DAC60B;
 
         std::vector<Byte>  acia;
         std::vector<Byte>  w5100;

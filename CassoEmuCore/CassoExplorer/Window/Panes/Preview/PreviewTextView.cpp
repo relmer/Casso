@@ -671,7 +671,7 @@ void PreviewTextView::ToggleLineAddresses()
 {
     m_context.prefs.lineAddresses = !m_context.prefs.lineAddresses;
 
-    Fill (m_context.browser.GetPreview());
+    Fill (m_context.browser.GetPreviewer().GetPreview());
     m_context.window.Invalidate();
 }
 
@@ -692,7 +692,7 @@ void PreviewTextView::ToggleCrossReference()
 {
     m_crossReference = !m_crossReference;
 
-    Fill (m_context.browser.GetPreview());
+    Fill (m_context.browser.GetPreviewer().GetPreview());
     m_context.window.Invalidate();
 }
 

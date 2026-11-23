@@ -100,7 +100,7 @@ public:
 
 
 
-    TEST_METHOD (EachPlantedDamageIsBadAndANextTrackOffTheDiskIsSuspect)
+    TEST_METHOD (EachPlantedDamageIsBad_ButANextTrackOffTheDiskOrACatalogCountIsSuspect)
     {
         vector<RepairFixture>  fixtures = RepairFixtures::MakeAll();
 
@@ -110,7 +110,8 @@ public:
 
         for (const RepairFixture & fixture : fixtures)
         {
-            FileSystemVerdict  expected = (fixture.name == L"DOS 3.3 next track off the disk") ? FileSystemVerdict::Suspect : FileSystemVerdict::Bad;
+            bool               suspect  = fixture.name == L"DOS 3.3 next track off the disk" || fixture.name == L"DOS 3.3 count";
+            FileSystemVerdict  expected = suspect ? FileSystemVerdict::Suspect : FileSystemVerdict::Bad;
 
             Assert::IsTrue (VerdictOf (fixture.damaged, fixture.isProDosOrder) == expected, fixture.name.c_str());
             Assert::IsTrue (VerdictOf (fixture.before,  fixture.isProDosOrder) == FileSystemVerdict::Ok, fixture.name.c_str());
@@ -533,7 +534,7 @@ public:
 
         for (const Finding & f : analysis.findings)
         {
-            linked += (f.kind == FindingKind::FileCountDiffers && !DiskRepair::GetFixingKeys (plan, f).empty()) ? 1 : 0;
+            linked += (f.kind == FindingKind::Dos33EntryCountDiffers && !DiskRepair::GetFixingKeys (plan, f).empty()) ? 1 : 0;
         }
 
         Assert::AreEqual (1, linked);
@@ -634,7 +635,7 @@ public:
             RepairFixtures::GetDosSector (image, 17, 15)[0x0B + 0x21] = recorded;
             Analyze (image, false, analysis);
 
-            Assert::IsFalse (HasKind (analysis, FindingKind::FileCountDiffers), std::format (L"a count of {}", recorded).c_str());
+            Assert::IsFalse (HasKind (analysis, FindingKind::Dos33EntryCountDiffers), std::format (L"a count of {}", recorded).c_str());
         }
     }
 
