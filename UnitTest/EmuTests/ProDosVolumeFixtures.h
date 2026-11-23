@@ -63,5 +63,5 @@ public:
     static void          AssertEditLeftTheVolumeConsistent (const vector<Byte> & before, const vector<Byte> & after);
     static vector<Byte>  MakeVolumeWithCrossLinkedFiles    (vector<Byte> & outSurvivorBytes, Word & outSharedBlock);
     static void          MarkFree                          (vector<Byte> & vol, uint32_t block, bool isFree);
-    static vector<Byte>  LoadFixture                       (const char * relativePath);
+    static vector<Byte>  MakeVolumeWithSubdirectory        ();
 };

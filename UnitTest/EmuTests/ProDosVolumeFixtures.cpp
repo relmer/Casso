@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "../EhmTestHelper.h"
-#include "FixtureProvider.h"
+#include "Devices/Disk/FilePath.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
@@ -329,24 +329,34 @@ void ProDosVolumeFixtures::MarkFree (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ProDosVolumeFixtures::LoadFixture
+//  ProDosVolumeFixtures::MakeVolumeWithSubdirectory
+//
+//  A blank volume with the directory SUB, and the file SUB/FILE inside it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-vector<Byte> ProDosVolumeFixtures::LoadFixture (
-    const char  * relativePath)
+vector<Byte> ProDosVolumeFixtures::MakeVolumeWithSubdirectory()
 {
-    FixtureProvider  fixtures;
-    vector<Byte>     bytes;
+    vector<Byte>  vol = MakeVolume();
+    vector<Byte>  withDirectory;
+    vector<Byte>  withFile;
 
 
 
-    AssertSucceeded (fixtures.OpenFixture (relativePath, bytes));
-    Assert::IsTrue (bytes.size() > 0, L"a fixture must not be empty");
+    {
+        ProDosVolume  volume (vol);
 
-    return bytes;
+        AssertSucceeded (volume.CreateDirectory (FilePath::Parse ("SUB"), withDirectory));
+    }
+
+    {
+        ProDosVolume  volume (withDirectory);
+
+        AssertSucceeded (volume.Write (FilePath::Parse ("SUB/FILE"), MakeBinaryPayload (600, 0x2000), withFile));
+    }
+
+    return withFile;
 }
-
 
 
 

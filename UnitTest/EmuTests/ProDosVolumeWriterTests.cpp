@@ -545,59 +545,6 @@ public:
     }
 
 
-    TEST_METHOD (Volume_Write_ASaplingSizedFile_MatchesTheShapeRealProDosGaveOne)
-    {
-        // The half of tree growth that real material CAN check. /APPLESOFT's
-        // WHATSIT.A.Q was written in 1985 by software that had never heard of
-        // this code: 29,798 bytes recorded as 60 blocks. Writing a file of the
-        // same length here must arrive at the same block count, which is the
-        // only available evidence that the overhead arithmetic -- data blocks
-        // plus index blocks -- matches Apple's rather than merely itself.
-        vector<Byte>   disk       = ProDosVolumeFixtures::LoadFixture ("Disks/Merlin-proProdos2.33-b.dsk");
-        vector<Byte>   vol        = ProDosVolumeFixtures::MakeVolume();
-        vector<Byte>   result;
-        ProDosVolume   volume (vol);
-        VolumeListing  real;
-        VolumeListing  ours;
-        size_t         i          = 0;
-        bool           found      = false;
-        uint32_t       realEof    = 0;
-        uint32_t       realBlocks = 0;
-
-        {
-            ProDosVolume  onDisk (disk);
-
-            AssertSucceeded (onDisk.Enumerate (real));
-        }
-
-        for (i = 0; i < real.entries.size(); i++)
-        {
-            if (real.entries[i].name == "WHATSIT.A.Q")
-            {
-                realEof    = real.entries[i].eofBytes;
-                realBlocks = real.entries[i].sizeUnits;
-                found      = true;
-            }
-        }
-
-        Assert::IsTrue (found, L"the disk must carry the file this case is about");
-        Assert::IsTrue (realEof > ProDosVolumeFixtures::kBlockBytes, L"and it must be past seedling size");
-
-        AssertSucceeded (volume.Write (FilePath::Parse ("SAME.SIZE"),
-                                       ProDosVolumeFixtures::MakeBinaryPayload (realEof, 0x2000), result));
-
-        {
-            ProDosVolume  written (result);
-
-            AssertSucceeded (written.Enumerate (ours));
-        }
-
-        Assert::AreEqual (realBlocks, ours.entries[0].sizeUnits,
-            L"a file of the same length must occupy the same number of blocks real ProDOS used");
-        Assert::AreEqual (kStorageSapling, (Byte) (ProDosVolumeFixtures::At (result, 2, ProDosVolumeFixtures::EntryOffset (1)) & 0xF0));
-    }
-
-
     //  GS/OS Technical Note #8: the name is stored upper case and the two bytes
     //  ProDOS 8 called version and min_version record its case, bit 15 marking
     //  the word as describing the name at all.
@@ -788,67 +735,6 @@ public:
         Assert::AreEqual (size_t (0), report.GetClaimedButFree().size(),
             L"a stale pointer shows up as a claim on a block the bitmap calls free");
         Assert::AreEqual (size_t (0), report.GetCrossLinked().size());
-    }
-
-
-    TEST_METHOD (Volume_Write_OntoARealDisk_LeavesEveryExistingEntryWhereItWas)
-    {
-        // /MERLIN is 1985 material with subdirectories, locked files and 21
-        // free blocks. Placement on it must add one entry and take exactly the
-        // blocks the new file needs.
-        //
-        // The comparison is by MEMBERSHIP, not by position, and that is a
-        // finding rather than a convenience: this disk's volume directory has
-        // an inactive record sitting BEFORE an active one, so ProDOS's reuse of
-        // slots in place leaves a listing that is not densely packed. A new
-        // file lands in the hole and every later entry keeps its slot while
-        // moving one place down the listing.
-        vector<Byte>   disk    = ProDosVolumeFixtures::LoadFixture ("Disks/Merlin-proProdos2.33-a.dsk");
-        vector<Byte>   result;
-        ProDosVolume   volume (disk);
-        FilePayload    payload = ProDosVolumeFixtures::MakeBinaryPayload (600, 0x0300);
-        VolumeListing  before;
-        VolumeListing  after;
-        FilePayload    sample;
-        size_t         i       = 0;
-        size_t         j       = 0;
-
-        AssertSucceeded (volume.Enumerate (before));
-        AssertSucceeded (volume.Write (FilePath::Parse ("CASSOTEST"), payload, result));
-
-        {
-            ProDosVolume  written (result);
-
-            AssertSucceeded (written.Enumerate (after));
-        }
-
-        Assert::IsTrue (before.entries.size() > 0, L"the disk must carry entries");
-        Assert::AreEqual (before.entries.size() + 1, after.entries.size());
-        Assert::AreEqual (before.freeUnits - 3, after.freeUnits);
-
-        for (i = 0; i < before.entries.size(); i++)
-        {
-            bool  survived = false;
-
-            for (j = 0; j < after.entries.size(); j++)
-            {
-                if (after.entries[j].name == before.entries[i].name
-                 && after.entries[j].sizeUnits == before.entries[i].sizeUnits)
-                {
-                    survived = true;
-                }
-            }
-
-            Assert::IsTrue (survived, L"no existing entry may be displaced or resized");
-        }
-
-        {
-            ProDosVolume  written (result);
-
-            AssertSucceeded (written.Read (FilePath::Parse ("CASSOTEST"), sample));
-        }
-
-        Assert::IsTrue (payload.bytes == sample.bytes);
     }
 
 

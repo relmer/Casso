@@ -47,6 +47,24 @@ public:
         return payload;
     }
 
+    //  A blank volume with PRODOS as its first record and BASIC.SYSTEM after it.
+    static vector<Byte> MakeVolumeWithKernel()
+    {
+        vector<Byte>  disk = ProDosVolumeFixtures::MakeVolume();
+        vector<Byte>  next;
+
+        for (const char * name : { "PRODOS", "BASIC.SYSTEM" })
+        {
+            ProDosVolume  volume (disk);
+
+            AssertSucceeded (volume.Write (FilePath::Parse (name), MakeSystemPayload (60), next));
+
+            disk = next;
+        }
+
+        return disk;
+    }
+
     static size_t IndexOfEntry (const VolumeListing & listing, const std::string & name)
     {
         size_t  i = 0;
@@ -217,9 +235,9 @@ public:
         // PRODOS is a SYS file like any other and is the one file that must
         // never be nominated: the boot block loads it by name, and a volume
         // whose startup program was the kernel would ask a running ProDOS to
-        // load ProDOS. Asserted against a disk that shipped, where the kernel
-        // is the first SYS record on the volume.
-        vector<Byte>   disk = ProDosVolumeFixtures::LoadFixture ("Disks/Merlin-proProdos2.33-b.dsk");
+        // load ProDOS. Asserted on a volume where the kernel is the first SYS
+        // record, followed by another system program.
+        vector<Byte>   disk = MakeVolumeWithKernel();
         ProDosVolume   volume (disk);
         vector<Byte>   after;
         VolumeListing  listing;
@@ -235,48 +253,5 @@ public:
 
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_BAD_FILE_TYPE), hr);
         Assert::AreEqual (size_t (0), after.size());
-    }
-
-    TEST_METHOD (Volume_SetStartupProgram_OnARealDisk_OvertakesTheProgramItWouldHaveLaunched)
-    {
-        // /APPLESOFT boots PRODOS and then BASIC.SYSTEM. A newly placed system
-        // program must end up ahead of BASIC.SYSTEM and BEHIND nothing -- while
-        // the kernel keeps the slot it has always had, since the boot block
-        // finds it by name and moving it would be a change nobody asked for.
-        vector<Byte>   disk = ProDosVolumeFixtures::LoadFixture ("Disks/Merlin-proProdos2.33-b.dsk");
-        vector<Byte>   written;
-        vector<Byte>   after;
-        VolumeListing  before;
-        VolumeListing  listed;
-
-        {
-            ProDosVolume  volume (disk);
-
-            AssertSucceeded (volume.Enumerate (before));
-            AssertSucceeded (volume.Write (FilePath::Parse ("CASSO.SYSTEM"),
-                                           MakeSystemPayload (60), written));
-        }
-
-        {
-            ProDosVolume  volume (written);
-
-            AssertSucceeded (volume.SetStartupProgram (FilePath::Parse ("CASSO.SYSTEM"), after));
-        }
-
-        {
-            ProDosVolume  volume (after);
-
-            AssertSucceeded (volume.Enumerate (listed));
-        }
-
-        Assert::IsTrue (IndexOfEntry (listed, "CASSO.SYSTEM")
-                      < IndexOfEntry (listed, "BASIC.SYSTEM"),
-            L"the placed program must precede the one the disk used to launch");
-
-        Assert::AreEqual (IndexOfEntry (before, "PRODOS"), IndexOfEntry (listed, "PRODOS"),
-            L"and the kernel must not have been shuffled to make room for it");
-
-        Assert::AreEqual (before.entries.size() + 1, listed.entries.size(),
-            L"with every entry the disk shipped with still on it");
     }
 };

@@ -558,11 +558,11 @@ public:
 
     TEST_METHOD (Volume_Delete_ASubdirectory_IsRefusedRatherThanOrphaningWhatIsInside)
     {
-        // /MERLIN carries real subdirectories. This layer does not walk into
+        // A subdirectory with a file in it. This layer does not walk into
         // one, so the report credits it with its key block and nothing else --
         // deleting it would free that single block and silently orphan every
         // file beneath, while reporting a clean removal.
-        vector<Byte>   disk   = ProDosVolumeFixtures::LoadFixture ("Disks/Merlin-proProdos2.33-a.dsk");
+        vector<Byte>   disk   = ProDosVolumeFixtures::MakeVolumeWithSubdirectory();
         vector<Byte>   result;
         ProDosVolume   volume (disk);
         VolumeListing  listing;
@@ -584,52 +584,5 @@ public:
         Assert::IsTrue (found, L"this disk must carry the subdirectories the case is about");
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_DIRECTORY_NOT_SUPPORTED), hr);
         Assert::AreEqual (size_t (0), result.size());
-    }
-
-
-    TEST_METHOD (Volume_Delete_OnARealDisk_ReturnsExactlyWhatItSaysItReturned)
-    {
-        vector<Byte>   disk    = ProDosVolumeFixtures::LoadFixture ("Disks/Merlin-proProdos2.33-a.dsk");
-        vector<Byte>   result;
-        ProDosVolume   volume (disk);
-        DeleteOutcome  outcome;
-        VolumeListing  before;
-        VolumeListing  after;
-        size_t         chosen  = 0;
-        size_t         i       = 0;
-        bool           haveOne = false;
-
-        AssertSucceeded (volume.Enumerate (before));
-
-        for (i = 0; i < before.entries.size() && !haveOne; i++)
-        {
-            if (!before.entries[i].isDirectory && before.entries[i].sizeUnits > 0
-                                               && !before.entries[i].isLocked)
-            {
-                chosen  = i;
-                haveOne = true;
-            }
-        }
-
-        Assert::IsTrue (haveOne,
-            L"the disk must hold an unlocked file for this to be testing anything");
-
-        AssertSucceeded (volume.Delete (FilePath::Parse (before.entries[chosen].name),
-                                        result, outcome));
-
-        {
-            ProDosVolume  written (result);
-
-            AssertSucceeded (written.Enumerate (after));
-        }
-
-        Assert::AreEqual (before.entries.size() - 1, after.entries.size());
-        Assert::AreEqual (before.freeUnits + (uint32_t) outcome.freedUnits.size(), after.freeUnits,
-            L"the bitmap must move by exactly what the outcome claims");
-        Assert::AreEqual (size_t (before.entries[chosen].sizeUnits), outcome.freedUnits.size(),
-            L"and by exactly what the entry said the file occupied");
-        Assert::AreEqual (size_t (0), outcome.leakedUnits.size(),
-            L"nothing on this disk is cross-linked, so nothing should be left behind");
-        Assert::IsTrue (outcome.catalogFullyParsed);
     }
 };

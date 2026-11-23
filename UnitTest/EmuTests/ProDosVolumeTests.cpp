@@ -215,7 +215,7 @@ public:
     //  directory that is not there is refused.
     TEST_METHOD (Volume_EnumerateDirectory_ListsAndReadsInsideASubdirectory)
     {
-        vector<Byte>   disk      = ProDosVolumeFixtures::LoadFixture ("Disks/Merlin-proProdos2.33-a.dsk");
+        vector<Byte>   disk      = ProDosVolumeFixtures::MakeVolumeWithSubdirectory();
         ProDosVolume   volume (disk);
         VolumeListing  root;
         VolumeListing  inside;
