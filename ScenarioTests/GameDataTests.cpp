@@ -9,8 +9,6 @@
 #include "Devices/Disk/FilePath.h"
 #include "FileTypes/FileFormatTable.h"
 #include "FileTypes/WizardryScenario.h"
-#include "FileTypes/WizardryText.h"
-#include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Core/UnicodeSymbols.h"
 #include "Machines/Apple2/Common/InfocomSave.h"
 #include "Machines/Apple2/Common/InfocomVolume.h"
@@ -480,7 +478,6 @@ public:
         AssertSucceeded (FileFormatTable::Decode (format, payload.bytes, FileFacts::From (entry, VolumeKind::Pascal), options, decoded, error));
 
         Assert::IsTrue (HasLineStarting (decoded, L"Wizardry V: Heart of the Maelstrom"));
-        { std::vector<WizardryText::ItemName> dn; bool ok = WizardryText::ReadItemNames (sectors, dn); Logger::WriteMessage (std::format ("names ok={} n={} tree0={} {} {}\n", ok, dn.size(), sectors[ProDosSkeleton::GetBlockByteOffset (sectors.size(), 207, 256)], sectors[ProDosSkeleton::GetBlockByteOffset (sectors.size(), 207, 257)], sectors[ProDosSkeleton::GetBlockByteOffset (sectors.size(), 207, 258)]).c_str()); Logger::WriteMessage (std::format ("blk251 {} {} {} {}\n", sectors[ProDosSkeleton::GetBlockByteOffset (sectors.size(), 251, 292)], sectors[ProDosSkeleton::GetBlockByteOffset (sectors.size(), 251, 293)], sectors[ProDosSkeleton::GetBlockByteOffset (sectors.size(), 251, 294)], sectors[ProDosSkeleton::GetBlockByteOffset (sectors.size(), 251, 295)]).c_str()); }
         Assert::IsTrue (HasLineStarting (decoded, L"      LONG SWORD"), L"ALDRIC's items, by the game's names");
         Assert::IsTrue (HasLineStarting (decoded, L"      LEATHER ARMOR"));
         Assert::IsTrue (HasLineStarting (decoded, L"Saved game: 2 characters"));

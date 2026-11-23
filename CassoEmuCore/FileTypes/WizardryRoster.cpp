@@ -364,6 +364,77 @@ void WizardryRoster::ListRoster (std::span<const Byte> bytes, const std::vector<
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WizardryRoster::FindParty
+//
+//  The square of the first character out in the maze, or false when every
+//  character is in town.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WizardryRoster::FindParty (std::span<const Byte> bytes, WizardryMaze::Square & outSquare)
+{
+    bool  found = false;
+
+
+
+    for (size_t at = 0; !found && at + kCharacterBytes <= bytes.size(); at += kCharacterBytes)
+    {
+        found = WizardryScenario::ReadWord (bytes, at + kStatusAt) != kStatusLost && WizardryScenario::ReadWord (bytes, at + WizardryMaze::kOutAt) == 0;
+
+        if (found)
+        {
+            outSquare = WizardryMaze::ReadSquare (WizardryScenario::ReadWord (bytes, at + WizardryMaze::kLocationAt));
+            found     = outSquare.level >= 1;
+        }
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WizardryRoster::DrawPartyLevel
+//
+//  The map of the level a party out in the maze is on, from the disk side of
+//  that level among the other disks. Without that side, a line has where
+//  the party is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WizardryRoster::DrawPartyLevel (std::span<const Byte> bytes, std::span<const std::vector<Byte>> otherDisks, std::vector<Paragraph> & ioParagraphs)
+{
+    WizardryMaze::Square  party;
+    std::vector<Byte>     walls;
+
+
+
+    if (!FindParty (bytes, party))
+    {
+        return;
+    }
+
+    if (WizardryMaze::FindWalls (otherDisks, party.level, walls))
+    {
+        WizardryScenario::DrawWizardry5Level (walls, party, ioParagraphs);
+        return;
+    }
+
+    ioParagraphs.push_back (Paragraph());
+    ioParagraphs.push_back (WizardryScenario::MakeParagraph ({ Run { std::format (L"The party is on maze level {}, at {} east, {} north. To see the map, put the image of disk side {} in this folder.",
+                                                                                  party.level, party.x, party.y, (wchar_t) (L'A' + party.level)),
+                                                                     false, false, false, RunColor::Muted } }));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WizardryRoster::Decode
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -399,6 +470,7 @@ HRESULT WizardryRoster::Decode (std::span<const Byte> bytes, const FileFacts & f
         }
 
         ListRoster (bytes, items, outFile.paragraphs);
+        DrawPartyLevel (bytes, options.otherDisks, outFile.paragraphs);
     }
 
 Error:

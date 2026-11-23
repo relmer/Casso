@@ -2,6 +2,7 @@
 #include "../EhmTestHelper.h"
 #include "FileTypes/FileFormatTable.h"
 #include "FileTypes/WizardryRoster.h"
+#include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -209,5 +210,85 @@ public:
         Assert::IsTrue   (HasText (file, L"MIRIEL   Level 2 Elf Mage, Neutral"));
         Assert::IsTrue   (HasText (file, L"Status Dead   HP 0/6   Age 25   Gold 0   Exp 0"));
         Assert::IsFalse  (HasText (file, L"UNSET"));
+    }
+
+
+    //  The roster with ALDRIC out in the maze at (9, 10) on level 1, and
+    //  MIRIEL, dead, in town.
+    static std::vector<Byte> MakeRosterInMaze()
+    {
+        std::vector<Byte>  bytes = MakeRoster();
+
+
+
+        PutWord (bytes, 2 * WizardryRoster::kCharacterBytes + WizardryMaze::kOutAt, 1);
+        PutWord (bytes, WizardryMaze::kOutAt,      0);
+        PutWord (bytes, WizardryMaze::kLocationAt, 0x0551);
+
+        return bytes;
+    }
+
+
+    //  Level 1's side among the other disks: the map, its heading and the
+    //  party's square.
+    TEST_METHOD (Decode_PartyInMaze_DrawsTheLevelFromItsSide)
+    {
+        std::vector<Byte>               bytes = MakeRosterInMaze();
+        std::vector<std::vector<Byte>>  sides (1, std::vector<Byte> (143360, 0));
+        DecodeOptions                   options;
+        DecodedFile                     file;
+        std::wstring                    error;
+        const Paragraph               * map   = nullptr;
+
+
+
+        sides[0][ProDosSkeleton::GetBlockByteOffset (sides[0].size(), WizardryMaze::kSideBlock, WizardryMaze::kSideAt)] = 2;
+        options.otherDisks = sides;
+
+        AssertSucceeded (WizardryRoster::Decode (bytes, MakeFacts ("PLAYER.DATA"), options, file, error));
+
+        Assert::IsTrue (HasText (file, L"Maze level 1, the party at 9 east, 10 north"));
+
+        for (const Paragraph & paragraph : file.paragraphs)
+        {
+            map = paragraph.picture.empty() ? map : &paragraph;
+        }
+
+        Assert::IsNotNull (map);
+        Assert::IsTrue    (map->tips[(size_t) (WizardryMaze::kSide - 1 - 10) * WizardryMaze::kSide + 9].lines.size() == 2, L"where it is, then the party");
+    }
+
+
+    //  Without the side, a line has where the party is and which disk side
+    //  to put beside the saved game.
+    TEST_METHOD (Decode_PartyInMazeWithoutItsSide_ShowsTheSquare)
+    {
+        std::vector<Byte>  bytes = MakeRosterInMaze();
+        DecodedFile        file;
+        std::wstring       error;
+
+
+
+        AssertSucceeded (WizardryRoster::Decode (bytes, MakeFacts ("PLAYER.DATA"), DecodeOptions(), file, error));
+
+        Assert::IsTrue (HasText (file, L"The party is on maze level 1, at 9 east, 10 north. To see the map, put the image of disk side B in this folder."));
+    }
+
+
+    //  A party in town has no map and no line.
+    TEST_METHOD (Decode_PartyInTown_HasNoMap)
+    {
+        std::vector<Byte>  bytes = MakeRoster();
+        DecodedFile        file;
+        std::wstring       error;
+
+
+
+        AssertSucceeded (WizardryRoster::Decode (bytes, MakeFacts ("PLAYER.DATA"), DecodeOptions(), file, error));
+
+        for (const Paragraph & paragraph : file.paragraphs)
+        {
+            Assert::IsTrue (paragraph.picture.empty());
+        }
     }
 };

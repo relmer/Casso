@@ -11,6 +11,7 @@
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Devices/Disk/DiskImageSession.h"
 #include "FileTypes/DiskSaveTable.h"
+#include "FileTypes/WizardryMaze.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/WozLoader.h"
@@ -696,11 +697,12 @@ const FileEntry * BrowserPreviewer::FindSavedGame (const VolumeListing & listing
 
 bool BrowserPreviewer::PreviewSavedGame (const std::wstring & imagePath, const VolumeListing & listing, VolumeKind kind)
 {
-    const FileEntry  * scenario = FindSavedGame (listing, kind);
-    std::vector<Byte>  bytes;
-    std::vector<Byte>  sectors;
-    SectorDecodeReport report;
-    std::string        narrow   = TextEncoding::WideToNarrow (imagePath);
+    const FileEntry                 * scenario = FindSavedGame (listing, kind);
+    std::vector<Byte>                 bytes;
+    std::vector<Byte>                 sectors;
+    std::vector<std::vector<Byte>>    sides;
+    SectorDecodeReport                report;
+    std::string                       narrow   = TextEncoding::WideToNarrow (imagePath);
 
 
 
@@ -710,12 +712,13 @@ bool BrowserPreviewer::PreviewSavedGame (const std::wstring & imagePath, const V
     }
 
     //  Wizardry V's roster has item numbers, and the text for them is
-    //  elsewhere on the disk.
+    //  elsewhere on the disk. Its maze is on the other disks.
     if (_stricmp (scenario->name.c_str(), "PLAYER.DATA") == 0)
     {
         HRESULT  read = m_browser.m_operations.GetFileIo().ReadAllBytes (narrow, bytes);
 
         IGNORE_RETURN_VALUE (read, S_OK);
+        WizardryMaze::FindSides (m_browser.m_operations.GetFileIo(), narrow, sides);
     }
 
     if (!bytes.empty())
@@ -725,7 +728,7 @@ bool BrowserPreviewer::PreviewSavedGame (const std::wstring & imagePath, const V
         IGNORE_RETURN_VALUE (loaded, S_OK);
     }
 
-    PreviewEntry (imagePath, scenario->name, *scenario, kind, sectors);
+    PreviewEntry (imagePath, scenario->name, *scenario, kind, sectors, sides);
 
     if (m_preview.kind != PreviewContent::Kind::Document)
     {
@@ -1557,7 +1560,7 @@ void BrowserPreviewer::PreviewShellItem (const CatalogRow & row)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BrowserPreviewer::PreviewEntry (const std::wstring & imagePath, const std::string & entryPath, const FileEntry & entry, VolumeKind kind, std::span<const Byte> diskSectors)
+void BrowserPreviewer::PreviewEntry (const std::wstring & imagePath, const std::string & entryPath, const FileEntry & entry, VolumeKind kind, std::span<const Byte> diskSectors, std::span<const std::vector<Byte>> otherDisks)
 {
     DiskOperations::Result  result;
     FilePayload             payload;
@@ -1584,6 +1587,7 @@ void BrowserPreviewer::PreviewEntry (const std::wstring & imagePath, const std::
 
     hexForm = GetHexForm (imagePath + L"|" + TextEncoding::NarrowToWide (entryPath));
     options.diskSectors = diskSectors;
+    options.otherDisks  = otherDisks;
     hr                  = PreviewViewChoices::Render (m_viewAs, entry, kind, payload, hexForm, m_bus, m_preview, m_previewMonitor, m_customArgb, options);
 
     //  A double hi-res picture's monitor follows its form, which is known once

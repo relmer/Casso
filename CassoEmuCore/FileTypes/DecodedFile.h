@@ -97,6 +97,13 @@ enum class DisassemblyCpu { None, Mos6502, Mos6502Undocumented, Wdc65C02, Wdc658
 
 
 
+//  Disk images, each as its sectors in DOS order.
+using DiskSectorsList = std::span<const std::vector<Byte>>;
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DecodeOptions
@@ -120,6 +127,7 @@ struct DecodeOptions
     bool                   longRegisters    = true;                     // 65816 code starts with 16-bit registers
     bool                   followFlags      = true;                     // 65816 register widths follow REP and SEP
     std::span<const Byte>  diskSectors;                                 // the disk the file is on, in DOS order, for a file that refers to others
+    DiskSectorsList        otherDisks;                                  // other disks of the same game, from the image's folder
 };
 
 

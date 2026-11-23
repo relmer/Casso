@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "FileTypes/FileFormatTable.h"
+#include "FileTypes/WizardryMaze.h"
 #include "FileTypes/WizardryText.h"
 
 
@@ -41,8 +42,12 @@
 class WizardryRoster
 {
 public:
-    static bool     Matches (const FileFacts & facts, std::span<const Byte> bytes);
-    static HRESULT  Decode  (std::span<const Byte> bytes, const FileFacts & facts, const DecodeOptions & options, DecodedFile & outFile, std::wstring & outError);
+    static bool     Matches        (const FileFacts & facts, std::span<const Byte> bytes);
+    static HRESULT  Decode         (std::span<const Byte> bytes, const FileFacts & facts, const DecodeOptions & options, DecodedFile & outFile, std::wstring & outError);
+
+    //  The square of a party out in the maze, from the first character out.
+    static bool     FindParty      (std::span<const Byte> bytes, WizardryMaze::Square & outSquare);
+    static void     DrawPartyLevel (std::span<const Byte> bytes, std::span<const std::vector<Byte>> otherDisks, std::vector<Paragraph> & ioParagraphs);
 
     static constexpr size_t  kCharacterBytes = 246;
     static constexpr size_t  kNameAt         = 0;
@@ -89,5 +94,4 @@ private:
     static std::wstring  GetClassName  (int kind);
     static std::wstring  GetAlignName  (int align);
     static std::wstring  GetStatusName (int status);
-    static void          ListRoster    (std::span<const Byte> bytes, const std::vector<WizardryText::ItemName> & items, std::vector<Paragraph> & ioParagraphs);
-};
+    static void          ListRoster    (std::span<const Byte> bytes, const std::vector<WizardryText::ItemName> & items, std::vector<Paragraph> & ioParagraphs);};
