@@ -214,6 +214,22 @@ std::string InfocomSave::GetFullTitle (const std::string & title)
 
 
 
+//  The global of the moves, or of the clock in minutes from midnight, of
+//  each later story measured: two saves three moves apart, and the global
+//  three higher in the second.
+static constexpr struct { int release; const char * serial; int global; bool isClock; }  s_kLateStatus[] =
+{
+    { 77, "850814",  57, true  },     // A Mind Forever Voyaging
+    { 11, "860509", 133, false },     // Trinity
+    { 19, "870722",  97, false },     // Nord and Bert Couldn't Make Head or Tail of It
+    { 21, "871214", 159, false },     // Sherlock
+    { 23, "880706", 125, false },     // Wishbringer
+};
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  InfocomSave::GetMovesLabel
@@ -418,6 +434,21 @@ bool InfocomSave::ReadMemory (std::vector<Byte> & memory, int number, bool isLat
         outPosition.isTimed   = header.version == 3 && (header.flags1 & s_kTimedFlag) != 0;
         outPosition.score     = isLate ? 0 : (int16_t) GetWord (memory, globals + 2u);
         outPosition.moves     = isLate ? 0 : (int16_t) GetWord (memory, globals + 4u);
+
+        //  A later story in the table has its moves or its clock, and no score.
+        for (const auto & known : s_kLateStatus)
+        {
+            if (isLate && known.release == header.release && outPosition.serial == known.serial)
+            {
+                int  value = (int16_t) GetWord (memory, globals + 2u * (size_t) known.global);
+
+                outPosition.hasStatus = true;
+                outPosition.hasScore  = false;
+                outPosition.isTimed   = known.isClock;
+                outPosition.score     = known.isClock ? value / kMinutesPerHour : 0;
+                outPosition.moves     = known.isClock ? value % kMinutesPerHour : value;
+            }
+        }
 
         int  count  = CountObjects (memory, header);
 
@@ -808,6 +839,7 @@ std::string InfocomSave::Describe (const Position & position)
     }
 
     text += !position.hasStatus ? std::string()
+          : (!position.hasScore && !position.isTimed) ? std::format (", {} {}", position.moves, (position.moves == 1) ? "move" : "moves")
           : position.isTimed ? std::format (", time {}:{:02} {}", hours, position.moves, (position.score < 12) ? "AM" : "PM")
                              : std::format (", score {}{}, {} {}", position.score, max, position.moves, (position.moves == 1) ? "move" : "moves");
 

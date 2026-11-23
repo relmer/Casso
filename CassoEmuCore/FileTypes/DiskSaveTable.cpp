@@ -184,7 +184,7 @@ void DiskSaveTable::AddInfocomPosition (const InfocomSave::Position & position, 
     {
         std::string  title = story ? story->title : std::string();
 
-        if (!InfocomSave::IsUnscored (title))
+        if (position.hasScore && !InfocomSave::IsUnscored (title))
         {
             line.runs = { Run { L"Score\t", false, false, false, RunColor::Muted }, Run { std::format (L"{}", position.score), true, false, false, RunColor::Keyword } };
 

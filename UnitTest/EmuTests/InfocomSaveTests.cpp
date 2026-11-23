@@ -136,6 +136,37 @@ public:
     }
 
 
+    //  A later story in the table has its moves, or its clock in minutes,
+    //  from the table's global, and no score.
+    TEST_METHOD (FindPositions_ReadsALaterStorysMovesOrClock)
+    {
+        std::vector<Byte>                   memory = InfocomSaveBuilder::MakeMemory (0);
+        std::vector<InfocomSave::Position>  positions;
+
+
+
+        memory.resize (0x300, 0);
+        memory[0] = 4;
+        InfocomSaveBuilder::PutWord (memory, 0x0E, 0x300);
+        InfocomSaveBuilder::PutWord (memory, 0x02, 77);
+        memcpy (&memory[0x12], "850814", 6);
+        InfocomSaveBuilder::PutWord (memory, InfocomSaveBuilder::kGlobals + 57 * 2, 1149);
+        InfocomSave::FindPositions (InfocomSaveBuilder::MakeLateDisk (memory, 0, InfocomSave::kSmallSlotPages), positions);
+
+        Assert::AreEqual ((size_t) 1, positions.size());
+        Assert::IsTrue   (positions[0].isTimed && !positions[0].hasScore);
+        Assert::AreEqual (std::string ("A Mind Forever Voyaging (release 77), time 7:09 PM"), InfocomSave::Describe (positions[0]));
+
+        InfocomSaveBuilder::PutWord (memory, 0x02, 11);
+        memcpy (&memory[0x12], "860509", 6);
+        InfocomSaveBuilder::PutWord (memory, InfocomSaveBuilder::kGlobals + 133 * 2, 42);
+        InfocomSave::FindPositions (InfocomSaveBuilder::MakeLateDisk (memory, 0, InfocomSave::kSmallSlotPages), positions);
+
+        Assert::AreEqual ((size_t) 1, positions.size());
+        Assert::AreEqual (std::string ("Trinity (release 11), 42 moves"), InfocomSave::Describe (positions[0]));
+    }
+
+
     //  A version 3 story with the timed flag has the hours and minutes in
     //  the globals of the score and the moves.
     TEST_METHOD (Describe_ATimedStoryHasTheTime)

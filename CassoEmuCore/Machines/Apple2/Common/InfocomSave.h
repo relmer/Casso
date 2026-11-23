@@ -32,7 +32,8 @@
 //  dynamic memory. Measured from Wishbringer, A Mind Forever Voyaging,
 //  Trinity, Nord and Bert, Sherlock, Beyond Zork and Border Zone saved in
 //  Casso. The story code of these games prints the status line, so the
-//  score and moves aren't in fixed globals.
+//  score and moves aren't in fixed globals. A table has the global of the
+//  moves, or of the clock in minutes, of each release measured.
 //
 //  The object tree is in dynamic memory too: what the player carries is the
 //  tree under the player, and what's in the room is the rest of the tree
@@ -66,6 +67,7 @@ public:
         int                score     = 0;      // the hours, in a timed story
         int                moves     = 0;      // the minutes, in a timed story
         bool               hasStatus = true;   // the score and moves, or the time, are known
+        bool               hasScore  = true;   // the score is known, with the moves
         std::vector<Item>  carried;
         std::vector<Item>  here;               // in the room, but for the player
     };
@@ -133,6 +135,7 @@ private:
     static constexpr int     kMaxDepth          = 6;
     static constexpr size_t  kMaxItems          = 200;
     static constexpr int     kNameScore         = 2;
+    static constexpr int     kMinutesPerHour    = 60;
 
     static Word  GetWord       (const std::vector<Byte> & memory, size_t at);
     static void  ReadPages     (const std::vector<Byte> & sectors, size_t first, size_t count, std::vector<Byte> & outMemory);
