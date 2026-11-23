@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "Assembler.h"
 #include "AssemblerTypes.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "TestMachine.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
@@ -492,7 +493,7 @@ public:
                 L"the container must not grow or shrink across cycles");
 
             AssertSucceeded (NibbleImageCodec::Load (file, reloaded));
-            AssertSucceeded (NibblizationLayer::Denibblize (reloaded, DiskFormat::Dsk,
+            AssertSucceeded (Denibblizer::Denibblize (reloaded, DiskFormat::Dsk,
                                                            recovered, report));
             cycles++;
         }

@@ -2,6 +2,7 @@
 #include "EhmTestHelper.h"
 #include "FakeDiskFileIo.h"
 #include "GuestSession.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
 #include "TestMachine.h"
 #include "ApplesoftTokenizer.h"
 #include "Devices/Disk/DiskCommandRunner.h"
@@ -236,7 +237,7 @@ public:
             L"and it must actually have changed the image, or nothing was placed");
 
         AssertSucceeded (NibblizationLayer::NibblizeDsk (written, image));
-        AssertSucceeded (NibblizationLayer::Denibblize (image, DiskFormat::Dsk, sectors, report));
+        AssertSucceeded (Denibblizer::Denibblize (image, DiskFormat::Dsk, sectors, report));
 
         {
             Dos33Volume  volume (sectors);
@@ -340,7 +341,7 @@ public:
 
 
         AssertSucceeded (NibblizationLayer::NibblizeDsk (master, image));
-        AssertSucceeded (NibblizationLayer::Denibblize (image, DiskFormat::Dsk, sectors, report));
+        AssertSucceeded (Denibblizer::Denibblize (image, DiskFormat::Dsk, sectors, report));
 
         {
             Dos33Volume  volume (sectors);

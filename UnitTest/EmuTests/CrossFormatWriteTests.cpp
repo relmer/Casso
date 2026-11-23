@@ -2,6 +2,7 @@
 #include "../EhmTestHelper.h"
 #include "FixtureProvider.h"
 #include "GuestSession.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "TestMachine.h"
 #include "MachineIdle.h"
@@ -177,7 +178,7 @@ public:
             AssertSucceeded (NibblizationLayer::NibblizeDsk (bytes, img));
         }
 
-        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, sectors, report));
+        AssertSucceeded (Denibblizer::Denibblize (img, DiskFormat::Dsk, sectors, report));
 
         return sectors;
     }

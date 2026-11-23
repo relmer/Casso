@@ -1,6 +1,6 @@
 #include "Pch.h"
 #include "Devices/Disk/DiskImage.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -191,7 +191,7 @@ public:
         HRESULT   hr = img.Serialize (bytes);
 
         AssertSucceeded (hr,
-            L"Phase 10: Serialize routes DSK through NibblizationLayer::Denibblize");
+            L"Phase 10: Serialize routes DSK through Denibblizer::Denibblize");
         Assert::AreEqual (size_t (143360), bytes.size(),
             L"Phase 10: a default 35-track DSK serializes to 143360 bytes");
     }

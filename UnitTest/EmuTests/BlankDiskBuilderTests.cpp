@@ -2,10 +2,10 @@
 #include "../EhmTestHelper.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Devices/Disk/DiskCommandRunner.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
@@ -309,7 +309,7 @@ public:
 
         // ...whose tracks denibblize back to the exact skeleton buffer, so
         // the GCR encoding of the fresh disk is bit-faithful.
-        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, readBack));
+        AssertSucceeded (Denibblizer::Denibblize (img, DiskFormat::Dsk, readBack));
 
         vector<Byte>  expected (NibbleFormat::kImageByteSize, 0);
         AssertSucceeded (Dos33Skeleton::Write (expected, spec.volumeNumber));
@@ -469,7 +469,7 @@ public:
 
         AssertSucceeded (BlankDiskBuilder::Build (spec, BootPayload{}, woz));
         AssertSucceeded (WozLoader::Load (woz, img));
-        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, readBack));
+        AssertSucceeded (Denibblizer::Denibblize (img, DiskFormat::Dsk, readBack));
 
         vector<Byte>  expected (NibbleFormat::kImageByteSize, 0);
         AssertSucceeded (ProDosSkeleton::Write (expected, spec.volumeName));
@@ -619,7 +619,7 @@ public:
 
         AssertSucceeded (BlankDiskBuilder::Build (spec, payload, woz));
         AssertSucceeded (WozLoader::Load (woz, img));
-        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, readBack));
+        AssertSucceeded (Denibblizer::Denibblize (img, DiskFormat::Dsk, readBack));
 
         // The DOS image landed in tracks 0-2...
         for (i = 0; i < (size_t) (3 * 16 * 256); i++)

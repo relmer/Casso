@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DiskImageStore.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
@@ -1539,7 +1540,7 @@ HRESULT DiskImageStore::DecodeForSalvage (
     hasImage = (entry.mounted && entry.image != nullptr);
     CBRAEx (hasImage, E_INVALIDARG);
 
-    hr = NibblizationLayer::SalvageSectors (*entry.image, DiskFormat::Dsk, outSectors, report);
+    hr = Denibblizer::SalvageSectors (*entry.image, DiskFormat::Dsk, outSectors, report);
     CHR (hr);
 
 Error:

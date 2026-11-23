@@ -3,6 +3,7 @@
 #include "FakeDiskFileIo.h"
 #include "FixtureProvider.h"
 #include "GuestSession.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "TestMachine.h"
 #include "Devices/Disk/DiskCommandRunner.h"
@@ -216,7 +217,7 @@ public:
         std::vector<Byte>   sectors;
 
         AssertSucceeded (NibblizationLayer::NibblizeDsk (bytes, image));
-        AssertSucceeded (NibblizationLayer::Denibblize (image, DiskFormat::Dsk, sectors, report));
+        AssertSucceeded (Denibblizer::Denibblize (image, DiskFormat::Dsk, sectors, report));
 
         return sectors;
     }

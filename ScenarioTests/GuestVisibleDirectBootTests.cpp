@@ -2,6 +2,7 @@
 #include "EhmTestHelper.h"
 #include "FakeDiskFileIo.h"
 #include "GuestSession.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/SectorInterleave.h"
 #include "TestMachine.h"
@@ -324,7 +325,7 @@ public:
         size_t              i    = 0;
 
         AssertSucceeded (NibblizationLayer::NibblizeDsk (image, decoded));
-        AssertSucceeded (NibblizationLayer::Denibblize (decoded, DiskFormat::Dsk,
+        AssertSucceeded (Denibblizer::Denibblize (decoded, DiskFormat::Dsk,
                                                         sectors, report));
 
         Assert::AreEqual (1, (int) sectors[0],

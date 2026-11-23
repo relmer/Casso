@@ -2,6 +2,7 @@
 
 #include "EhmTestHelper.h"
 #include "FixtureProvider.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/SectorInterleave.h"
 #include "TestMachine.h"
@@ -26,7 +27,6 @@
 #include "Devices/Tape/TapeImageLoader.h"
 #include "Devices/Tape/WavCodec.h"
 #include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Seams/IByteStreamFactory.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -437,7 +437,7 @@ public:
             AssertSucceeded (rig.audio->Capture (1000, heard));
         }
 
-        AssertSucceeded (NibblizationLayer::Denibblize (*rig.machine.GetDiskStore().GetImage (kDiskSlot, 0), DiskFormat::Dsk, written));
+        AssertSucceeded (Denibblizer::Denibblize (*rig.machine.GetDiskStore().GetImage (kDiskSlot, 0), DiskFormat::Dsk, written));
         Assert::IsTrue (written == sectors, TextEncoding::NarrowToWide (rig.Screen()).c_str());
     }
 
@@ -603,7 +603,7 @@ public:
             Assert::AreEqual<int> (CassoLinkHost::kErrorNone, status.error, std::format (L"track {}", track).c_str());
         }
 
-        AssertSucceeded (NibblizationLayer::Denibblize (*rig.machine.GetDiskStore().GetImage (kDiskSlot, 0), DiskFormat::Dsk, image));
+        AssertSucceeded (Denibblizer::Denibblize (*rig.machine.GetDiskStore().GetImage (kDiskSlot, 0), DiskFormat::Dsk, image));
         Assert::IsTrue (image == expected, L"the drive's disk has every sector written over the cassette ports");
     }
 

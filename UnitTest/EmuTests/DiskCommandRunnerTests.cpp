@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "Devices/Disk/Containers/DiskCopy42Container.h"
 #include "Devices/Disk/Archives/NuFxArchive.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/SectorInterleave.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
@@ -3689,7 +3690,7 @@ public:
             L"the placement must succeed before there is anything to decode");
 
         AssertSucceeded (NibblizationLayer::NibblizeDsk (io.files[kBlankImage], image));
-        AssertSucceeded (NibblizationLayer::Denibblize (image, DiskFormat::Dsk, decoded, report));
+        AssertSucceeded (Denibblizer::Denibblize (image, DiskFormat::Dsk, decoded, report));
 
         Assert::IsTrue (decoded == io.files[kBlankImage],
             L"every sector of the committed image must come back off the drive as it "

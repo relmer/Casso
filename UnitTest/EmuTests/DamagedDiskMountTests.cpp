@@ -2,6 +2,7 @@
 #include "Devices/Disk/DamagedMountReport.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
@@ -251,7 +252,7 @@ public:
         mounted = store.GetImage (6, 1);
         Assert::IsNotNull (mounted);
 
-        hr = NibblizationLayer::SalvageSectors (*mounted, DiskFormat::Dsk, salvaged, report);
+        hr = Denibblizer::SalvageSectors (*mounted, DiskFormat::Dsk, salvaged, report);
         Assert::IsTrue (SUCCEEDED (hr));
 
         Assert::IsTrue (memcmp (salvaged.data(), sectors.data(), 9 * 16 * kSectorBytes) == 0,

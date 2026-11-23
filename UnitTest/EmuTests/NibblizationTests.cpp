@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 #include "Devices/Disk/DiskImage.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
@@ -231,7 +232,7 @@ public:
 
         AssertSucceeded (hrLoad);
 
-        hrSave = NibblizationLayer::Denibblize (img, DiskFormat::Dsk, recovered);
+        hrSave = Denibblizer::Denibblize (img, DiskFormat::Dsk, recovered);
 
         AssertSucceeded (hrSave);
         Assert::AreEqual (raw.size(), recovered.size());
@@ -245,7 +246,7 @@ public:
         vector<Byte>   recovered;
 
         AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
-        AssertSucceeded (NibblizationLayer::Denibblize  (img, DiskFormat::Dsk, recovered));
+        AssertSucceeded (Denibblizer::Denibblize  (img, DiskFormat::Dsk, recovered));
 
         Assert::IsTrue (raw == recovered, L"DSK round-trip identity (0xA5)");
     }
@@ -257,7 +258,7 @@ public:
         vector<Byte>   recovered;
 
         AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
-        AssertSucceeded (NibblizationLayer::Denibblize  (img, DiskFormat::Dsk, recovered));
+        AssertSucceeded (Denibblizer::Denibblize  (img, DiskFormat::Dsk, recovered));
 
         Assert::IsTrue (raw == recovered, L"DSK round-trip identity (alternating)");
     }
@@ -269,7 +270,7 @@ public:
         vector<Byte>   recovered;
 
         AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
-        AssertSucceeded (NibblizationLayer::Denibblize  (img, DiskFormat::Dsk, recovered));
+        AssertSucceeded (Denibblizer::Denibblize  (img, DiskFormat::Dsk, recovered));
 
         Assert::IsTrue (raw == recovered, L"DSK round-trip identity (pinned PRNG)");
     }
@@ -282,7 +283,7 @@ public:
 
         AssertSucceeded (NibblizationLayer::NibblizeDo (raw, img));
         Assert::IsTrue (img.GetSourceFormat() == DiskFormat::Do);
-        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Do, recovered));
+        AssertSucceeded (Denibblizer::Denibblize (img, DiskFormat::Do, recovered));
 
         Assert::IsTrue (raw == recovered, L".DO round-trip identity");
     }
@@ -295,7 +296,7 @@ public:
 
         AssertSucceeded (NibblizationLayer::NibblizePo (raw, img));
         Assert::IsTrue (img.GetSourceFormat() == DiskFormat::Po);
-        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Po, recovered));
+        AssertSucceeded (Denibblizer::Denibblize (img, DiskFormat::Po, recovered));
 
         Assert::IsTrue (raw == recovered, L".PO round-trip identity");
     }
@@ -373,13 +374,13 @@ public:
         vector<Byte>   recovered;
 
         AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
-        AssertSucceeded (NibblizationLayer::Denibblize  (img, DiskFormat::Dsk, recovered));
+        AssertSucceeded (Denibblizer::Denibblize  (img, DiskFormat::Dsk, recovered));
         Assert::IsTrue (raw == recovered);
     }
 
     TEST_METHOD (SerializeOnSyntheticImageMatchesDenibblize)
     {
-        // DiskImage::Serialize must agree with NibblizationLayer::Denibblize.
+        // DiskImage::Serialize must agree with Denibblizer::Denibblize.
         DiskImage      img;
         vector<Byte>   raw      = MakePinnedRandomImage (0xC0FFEE01u);
         vector<Byte>   viaSer;
@@ -387,7 +388,7 @@ public:
 
         AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
         AssertSucceeded (img.Serialize (viaSer));
-        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, viaDirect));
+        AssertSucceeded (Denibblizer::Denibblize (img, DiskFormat::Dsk, viaDirect));
 
         Assert::IsTrue (viaSer == viaDirect);
         Assert::IsTrue (viaSer == raw);
@@ -469,7 +470,7 @@ public:
 
         img.SetTrackBitCount (wiped, DiskImage::kDefaultTrackByteSize * 8);
 
-        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, recovered));
+        AssertSucceeded (Denibblizer::Denibblize (img, DiskFormat::Dsk, recovered));
 
         // Wiped track -> all zeros.
         for (size_t i = 0; i < trkBytes; i++)
@@ -564,7 +565,7 @@ public:
         DenibblizeReport  report;
 
         AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
-        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, out, report));
+        AssertSucceeded (Denibblizer::Denibblize (img, DiskFormat::Dsk, out, report));
 
         Assert::AreEqual (35,  report.tracksPresent);
         Assert::AreEqual (35,  report.tracksComplete);
@@ -597,7 +598,7 @@ public:
             L"precondition: the track must have held a data field to damage, or this "
             L"test passes by having broken nothing");
 
-        hr = NibblizationLayer::Denibblize (img, DiskFormat::Dsk, out, report);
+        hr = Denibblizer::Denibblize (img, DiskFormat::Dsk, out, report);
 
         Assert::IsTrue (FAILED (hr),
             L"a partly decoded track must not report success -- the caller writes "
@@ -641,7 +642,7 @@ public:
         Assert::IsTrue (BreakOneDataField (img, kTrack) > 0,
             L"precondition: a data field was actually damaged");
 
-        hr = NibblizationLayer::Denibblize (img, DiskFormat::Dsk, out, report);
+        hr = Denibblizer::Denibblize (img, DiskFormat::Dsk, out, report);
         Assert::IsTrue (FAILED (hr));
 
         for (sector = 0; sector < 16; sector++)
@@ -695,7 +696,7 @@ public:
 
         img.SetTrackBitCount (kWiped, DiskImage::kDefaultTrackByteSize * 8);
 
-        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, out, report),
+        AssertSucceeded (Denibblizer::Denibblize (img, DiskFormat::Dsk, out, report),
             L"a wholly unformatted track is blank media, not damage");
 
         Assert::AreEqual (1,  report.tracksUnformatted);
@@ -792,7 +793,7 @@ public:
             L"precondition: a data nibble was actually corrupted");
 
         // Strict: refuses, and the damaged sector is a hole.
-        hrStrict = NibblizationLayer::Denibblize (img, DiskFormat::Dsk, strict, strictReport);
+        hrStrict = Denibblizer::Denibblize (img, DiskFormat::Dsk, strict, strictReport);
 
         Assert::IsTrue (FAILED (hrStrict),
             L"the strict path must still refuse a partly-decoded image");
@@ -802,7 +803,7 @@ public:
             L"and nothing was outright unreadable");
 
         // Salvage: succeeds, and keeps the bytes.
-        AssertSucceeded (NibblizationLayer::SalvageSectors (img, DiskFormat::Dsk,
+        AssertSucceeded (Denibblizer::SalvageSectors (img, DiskFormat::Dsk,
                                                             salvaged, salvageReport),
             L"salvage must not fail on damage -- that is the job");
 
@@ -848,14 +849,14 @@ public:
         AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
         Assert::IsTrue (CorruptOneDataNibble (img, 7));
 
-        AssertSucceeded (NibblizationLayer::SalvageSectors (img, DiskFormat::Dsk,
+        AssertSucceeded (Denibblizer::SalvageSectors (img, DiskFormat::Dsk,
                                                             salvaged, salvageReport));
         Assert::AreEqual (1, salvageReport.sectorsRecovered, L"precondition: one recovered");
 
         // The salvaged image, put back on a disk.
         AssertSucceeded (NibblizationLayer::NibblizeDsk (salvaged, rebuilt));
 
-        AssertSucceeded (NibblizationLayer::Denibblize (rebuilt, DiskFormat::Dsk,
+        AssertSucceeded (Denibblizer::Denibblize (rebuilt, DiskFormat::Dsk,
                                                         reread, rereadReport),
             L"the salvaged disk must denibblize cleanly -- no refusal, no damage");
 
@@ -882,7 +883,7 @@ public:
         Assert::IsTrue (BreakOneDataField (img, 7) > 0,
             L"precondition: a data field was destroyed outright");
 
-        AssertSucceeded (NibblizationLayer::SalvageSectors (img, DiskFormat::Dsk,
+        AssertSucceeded (Denibblizer::SalvageSectors (img, DiskFormat::Dsk,
                                                             salvaged, report));
 
         Assert::AreEqual (1, report.sectorsLost,
@@ -903,7 +904,7 @@ public:
         DenibblizeReport  report;
 
         AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
-        AssertSucceeded (NibblizationLayer::SalvageSectors (img, DiskFormat::Dsk,
+        AssertSucceeded (Denibblizer::SalvageSectors (img, DiskFormat::Dsk,
                                                             salvaged, report));
 
         Assert::AreEqual (560, report.sectorsVerified);
@@ -940,7 +941,7 @@ public:
                               static_cast<Byte> (kTrack), victim);
         }
 
-        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, recovered, report));
+        AssertSucceeded (Denibblizer::Denibblize (img, DiskFormat::Dsk, recovered, report));
 
         Assert::IsTrue (TrackDecodeOutcome::Partial == report.GetOutcome (kTrack),
             L"a duplicated slot means some other slot went unclaimed");
@@ -973,7 +974,7 @@ public:
                               static_cast<Byte> (kTrack), kBogus);
         }
 
-        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, recovered, report));
+        AssertSucceeded (Denibblizer::Denibblize (img, DiskFormat::Dsk, recovered, report));
 
         Assert::IsTrue (TrackDecodeOutcome::Partial == report.GetOutcome (kTrack),
             L"an unreachable sector number leaves the track short");
@@ -1017,7 +1018,7 @@ public:
                                 static_cast<Byte> (kTrack));
         }
 
-        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, recovered, report));
+        AssertSucceeded (Denibblizer::Denibblize (img, DiskFormat::Dsk, recovered, report));
 
         Assert::IsTrue (TrackDecodeOutcome::Partial == report.GetOutcome (kTrack),
             L"a track with an unusable header is damaged, not blank");
@@ -1057,7 +1058,7 @@ public:
                                 static_cast<Byte> (kTrack));
         }
 
-        hr = NibblizationLayer::Denibblize (img, DiskFormat::Dsk, recovered);
+        hr = Denibblizer::Denibblize (img, DiskFormat::Dsk, recovered);
 
         Assert::IsTrue (FAILED (hr),
             L"the reportless overload must fail rather than hand back a truncated buffer");
@@ -1086,7 +1087,7 @@ public:
 
         img.SetTrackBitCount (kWiped, DiskImage::kDefaultTrackByteSize * 8);
 
-        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, recovered));
+        AssertSucceeded (Denibblizer::Denibblize (img, DiskFormat::Dsk, recovered));
     }
 
 
@@ -1195,7 +1196,7 @@ public:
         edited[at] ^= 0xFF;
 
         AssertSucceeded (NibblizationLayer::RenibblizeTracks (edited, DiskFormat::Dsk, tracks, img));
-        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, recovered, report));
+        AssertSucceeded (Denibblizer::Denibblize (img, DiskFormat::Dsk, recovered, report));
 
         Assert::AreEqual (edited[at], recovered[at], L"the edit must survive the re-encode");
         Assert::IsFalse (report.HasDataLoss(), L"a re-encoded image must still decode cleanly");
@@ -1212,7 +1213,7 @@ public:
         SectorDecodeReport  report;
 
         AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
-        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, recovered, report));
+        AssertSucceeded (Denibblizer::Denibblize (img, DiskFormat::Dsk, recovered, report));
 
         {
             TrackWritability  writability = TrackWritability::Evaluate (img, report);
@@ -1247,7 +1248,7 @@ public:
                                 static_cast<Byte> (kDamaged));
         }
 
-        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, recovered, report));
+        AssertSucceeded (Denibblizer::Denibblize (img, DiskFormat::Dsk, recovered, report));
 
         {
             TrackWritability  writability = TrackWritability::Evaluate (img, report);
@@ -1276,7 +1277,7 @@ public:
         SectorDecodeReport  report;
 
         AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
-        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, recovered, report));
+        AssertSucceeded (Denibblizer::Denibblize (img, DiskFormat::Dsk, recovered, report));
 
         // Point a half-track position at a slot that is not its whole track,
         // which is what a bit-stream capture of a protected disk looks like.

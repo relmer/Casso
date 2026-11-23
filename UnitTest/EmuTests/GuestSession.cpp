@@ -7,6 +7,7 @@
 #include "GuestSession.h"
 #include "KeystrokeInjector.h"
 #include "MachineIdle.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "TextScreenScraper.h"
@@ -499,7 +500,7 @@ std::vector<Byte> GuestSession::DecodeThroughTheDrive (const DiskImage     & ima
     //  any data loss, and a copy-protected disk loses data by construction --
     //  which would turn "this WOZ cannot be pre-checked" into "this WOZ is
     //  broken" at every game gate on the branch.
-    AssertSucceeded (NibblizationLayer::Denibblize (image, DiskFormat::Dsk, sectors, outReport),
+    AssertSucceeded (Denibblizer::Denibblize (image, DiskFormat::Dsk, sectors, outReport),
         L"and the drive must be able to walk its tracks at all");
 
     return sectors;

@@ -3,6 +3,7 @@
 #include "DiskImage.h"
 #include "DamagedMountReport.h"
 #include "DiskImageStore.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "Machines/Apple2/Common/WozLoader.h"
@@ -762,7 +763,7 @@ HRESULT DiskImage::Serialize (vector<Byte> & outBytes) const
         case DiskFormat::Dsk:
         case DiskFormat::Do:
         case DiskFormat::Po:
-            hr = NibblizationLayer::Denibblize (*this, m_format, outBytes);
+            hr = Denibblizer::Denibblize (*this, m_format, outBytes);
             break;
 
         case DiskFormat::Woz:

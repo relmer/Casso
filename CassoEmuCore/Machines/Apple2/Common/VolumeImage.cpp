@@ -1,9 +1,9 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/VolumeImage.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/CpmVolume.h"
 #include "Machines/Apple2/Common/Dos33Geometry.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
@@ -731,7 +731,7 @@ HRESULT VolumeImage::DenibblizeBitStream (const DiskImage & image, vector<Byte> 
     }
     else
     {
-        hr = NibblizationLayer::Denibblize (image, DiskFormat::Dsk, outSectors, outReport);
+        hr = Denibblizer::Denibblize (image, DiskFormat::Dsk, outSectors, outReport);
     }
 
     return hr;

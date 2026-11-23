@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "GuestSession.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "TestMachine.h"
 #include "KeystrokeInjector.h"
 #include "TextScreenScraper.h"

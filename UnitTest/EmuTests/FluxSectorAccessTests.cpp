@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/FluxBitView.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/SectorInterleave.h"
@@ -98,7 +99,7 @@ public:
     {
         vector<Byte>      out;
         DenibblizeReport  report;
-        HRESULT           hr = NibblizationLayer::Denibblize (disk, DiskFormat::Dsk, out, report);
+        HRESULT           hr = Denibblizer::Denibblize (disk, DiskFormat::Dsk, out, report);
 
         Assert::IsTrue (SUCCEEDED (hr), L"every flux track must decode completely");
         return out;

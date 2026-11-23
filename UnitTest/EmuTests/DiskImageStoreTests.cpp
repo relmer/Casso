@@ -4,6 +4,7 @@
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Devices/Disk/MountDiagnosis.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
@@ -550,7 +551,7 @@ public:
     TEST_METHOD (DirtyDskFlushesNibblizedSerializedBytes)
     {
         // Capture the bytes flushed by the store and confirm they match
-        // NibblizationLayer::Denibblize on the DiskImage at flush time.
+        // Denibblizer::Denibblize on the DiskImage at flush time.
         DiskImageStore   store;
         vector<Byte>     raw      = MakeDsk (0x33);
         vector<Byte>     captured;

@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
 #include "Machines/Apple2/Common/DirectBootBuilder.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
@@ -603,7 +604,7 @@ public:
         AssertSucceeded (DirectBootBuilder::Build (payload, spec, built, refusal));
 
         AssertSucceeded (NibblizationLayer::NibblizeDsk (built, image));
-        AssertSucceeded (NibblizationLayer::Denibblize (image, DiskFormat::Dsk, decoded, report));
+        AssertSucceeded (Denibblizer::Denibblize (image, DiskFormat::Dsk, decoded, report));
 
         Assert::IsTrue (built == decoded,
             L"every sector the builder wrote must come back off the drive as it went on");

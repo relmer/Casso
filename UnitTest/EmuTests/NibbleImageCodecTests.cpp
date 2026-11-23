@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 #include "Devices/Disk/DiskImage.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
@@ -436,7 +437,7 @@ public:
             L"the container is a whole nibble image");
 
         AssertSucceeded (NibbleImageCodec::Load (nibFile, reloaded));
-        AssertSucceeded (NibblizationLayer::Denibblize (reloaded, DiskFormat::Dsk, recovered, report));
+        AssertSucceeded (Denibblizer::Denibblize (reloaded, DiskFormat::Dsk, recovered, report));
 
         //  Assert there was something to decode before comparing it, or a
         //  codec that produced an empty disk would compare equal to nothing.
@@ -526,7 +527,7 @@ public:
 
         AssertSucceeded (NibbleImageCodec::Serialize (written, vector<Byte>(), nibFile));
         AssertSucceeded (NibbleImageCodec::Load (nibFile, reloaded));
-        AssertSucceeded (NibblizationLayer::Denibblize (reloaded, DiskFormat::Dsk, recovered, report));
+        AssertSucceeded (Denibblizer::Denibblize (reloaded, DiskFormat::Dsk, recovered, report));
 
         Assert::AreEqual (NibbleFormat::kTrackCount, report.GetTrackCount(),
             L"every track must have been examined");
@@ -578,7 +579,7 @@ public:
 
         //  And the edit is the one that arrived, not merely some difference.
         AssertSucceeded (NibbleImageCodec::Load (rewritten, img));
-        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, recovered, report));
+        AssertSucceeded (Denibblizer::Denibblize (img, DiskFormat::Dsk, recovered, report));
 
         Assert::AreEqual ((int) 0x5A,
                           (int) recovered[3 * 16 * NibbleFormat::kSectorByteSize],
