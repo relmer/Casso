@@ -1023,7 +1023,7 @@ void DiskInspectorWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
                              static_cast<float> (focus.bottom - focus.top), m_session.scaler.ToPxf (2.0f), theme.FocusRing());
     }
 
-    m_walkthrough->Paint (text, theme, m_boundsDip);
+    m_walkthrough->Paint (painter, text, theme, m_boundsDip);
 }
 
 

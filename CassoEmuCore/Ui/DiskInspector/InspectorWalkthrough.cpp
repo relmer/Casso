@@ -170,8 +170,8 @@ WalkthroughArea InspectorWalkthrough::GetArea() const
 //  InspectorWalkthrough::Paint
 //
 //  The window dimmed in four bands around the area, an outline around it,
-//  then the card: the title, the step count, the text, and Close, Back and
-//  Next along the bottom.
+//  then the card: the title, the step count and the text. Close, Back and
+//  Next go along the bottom, in the rectangles from GetButtonRect.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -193,7 +193,6 @@ void InspectorWalkthrough::Paint (IDxuiTextRenderer & text, const IDxuiTheme & t
     RECT          card    = {};
     float         x       = 0.0f;
     float         y       = 0.0f;
-    bool          isLast  = m_step + 1 == static_cast<int> (std::size (s_kSteps));
 
 
 
@@ -255,17 +254,33 @@ void InspectorWalkthrough::Paint (IDxuiTextRenderer & text, const IDxuiTheme & t
     m_closePx = { static_cast<LONG> (x), static_cast<LONG> (y), static_cast<LONG> (x + buttonW), static_cast<LONG> (y + buttonH) };
     m_nextPx  = { static_cast<LONG> (card.right - pad - buttonW), static_cast<LONG> (y), static_cast<LONG> (card.right - pad), static_cast<LONG> (y + buttonH) };
     m_backPx  = { static_cast<LONG> (m_nextPx.left - pad / 2 - buttonW), static_cast<LONG> (y), static_cast<LONG> (m_nextPx.left - pad / 2), static_cast<LONG> (y + buttonH) };
+}
 
-    for (const auto & [rect, label, isEnabled] : { std::tuple { m_closePx, L"Close", true },
-                                                   std::tuple { m_backPx,  L"Back",  m_step > 0 },
-                                                   std::tuple { m_nextPx,  isLast ? L"Done" : L"Next", true } })
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorWalkthrough::GetButtonRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT InspectorWalkthrough::GetButtonRect (WalkthroughButton button) const
+{
+    RECT  rect = {};
+
+
+
+    switch (button)
     {
-        text.FillRect (static_cast<float> (rect.left), static_cast<float> (rect.top), static_cast<float> (rect.right - rect.left), static_cast<float> (rect.bottom - rect.top),
-                       (rect.left == m_nextPx.left) ? theme.Accent() : theme.ButtonIdle());
-        text.DrawString (label, static_cast<float> (rect.left), static_cast<float> (rect.top), static_cast<float> (rect.right - rect.left),
-                         static_cast<float> (rect.bottom - rect.top), (rect.left == m_nextPx.left) ? DiskInspectorPalette::GetTextColorOn (theme.Accent()) : (isEnabled ? theme.Foreground() : theme.ForegroundMuted()),
-                         scaler.ToPxf (s_kBodyDip), DxuiTheme::kBodyFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        case WalkthroughButton::Back:  rect = m_backPx;  break;
+        case WalkthroughButton::Next:  rect = m_nextPx;  break;
+        case WalkthroughButton::Close: rect = m_closePx; break;
+        case WalkthroughButton::None:                    break;
     }
+
+    return rect;
 }
 
 
