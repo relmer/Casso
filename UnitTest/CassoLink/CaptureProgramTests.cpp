@@ -260,11 +260,11 @@ public:
     //  doesn't read the checksum's FF again where the epilog's DE is.
     TEST_METHOD (ADataFieldsFFs_AreWrittenWithNoZeroBits)
     {
-        static constexpr size_t  kSectors   = 16;
-        static constexpr size_t  kSyncs     = 6;
-        static constexpr size_t  kDataBytes = 341;
-        static constexpr size_t  kReadBytes = 14000;
-        static constexpr Byte    kMarked    = 0x7F;
+        static constexpr size_t  kSectors    = 16;
+        static constexpr size_t  kSyncs      = 6;
+        static constexpr size_t  kDataBytes  = 341;
+        static constexpr size_t  kReadBytes  = 14000;
+        static constexpr Byte    kMarked     = 0x7F;
         static constexpr size_t  kNoiseEvery = 4;
 
         std::vector<Byte>                        revolution;
