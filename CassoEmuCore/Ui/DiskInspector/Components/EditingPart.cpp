@@ -49,9 +49,6 @@ void EditingPart::Create()
     m_editBar->SetOnEdit          ([this] () { ToggleEditing(); });
     m_editBar->SetOnChecksum      ([this] (bool isOn) { m_session.edits.SetChecksumMode (GetSelectedEdit(), isOn ? ChecksumMode::Recompute : ChecksumMode::KeepStored); });
     m_editBar->SetOnDiscardSector ([this] () { m_session.edits.DiscardSector (GetSelectedEdit()); });
-    m_editBar->SetOnDiscard       ([this] () { m_session.edits.DiscardAll(); });
-    m_editBar->SetOnApply         ([this] () { ApplyEdits(); });
-    m_editBar->SetOnSaveCopy      ([this] () { SaveEditedCopy(); });
     m_editBar->SetOnUseB          ([this] () { UseBBytes(); });
     m_editBar->SetOnPauseApply    ([this] () { PauseApply(); });
     m_editBar->SetOnCancelApply   ([this] () { CancelApply(); });
@@ -469,7 +466,7 @@ void EditingPart::UpdateEditBar()
     EditBarState           state;
     EditController::Counts counts = m_session.edits.GetCounts();
     int                    width  = 0;
-    int                    rows   = 0;
+    int                    height = 0;
     PendingEdit::Sector    paired = {};
 
 
@@ -502,12 +499,13 @@ void EditingPart::UpdateEditBar()
                              (IsHistoryCurrent (m_history[m_historyAt].countsUndone) || m_history[m_historyAt].edits.MakeOverCurrent (true).IsCurrentIn (m_session.analysis));
     state.note             = !m_session.editNote.empty() ? m_session.editNote : (m_session.model.GetSector() != nullptr && !reason.empty()) ? L"Cannot edit: " + reason : std::wstring();
 
-    //  A change of the bar's rows moves the bytes under it.
-    width = m_editBar->GetBounds().right - m_editBar->GetBounds().left;
-    rows  = m_editBar->GetRowCount (width, m_session.scaler);
+    //  A change of the bar's height moves the bytes under it. The height, not
+    //  the row count, is compared: an empty bar has one row and no height.
+    width  = m_editBar->GetBounds().right - m_editBar->GetBounds().left;
+    height = m_editBar->GetHeightPx (width, m_session.scaler);
     m_editBar->SetState (state);
     m_state = state;
-    m_session.isLayoutStale = m_session.isLayoutStale || (width > 0 && m_editBar->GetRowCount (width, m_session.scaler) != rows);
+    m_session.isLayoutStale = m_session.isLayoutStale || (width > 0 && m_editBar->GetHeightPx (width, m_session.scaler) != height);
 }
 
 

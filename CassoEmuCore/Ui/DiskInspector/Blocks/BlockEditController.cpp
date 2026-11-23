@@ -47,9 +47,6 @@ void BlockEditController::ConnectEditBar()
 
     bar.SetOnEdit          ([this] () { m_parts.view.SetEditing (false); });
     bar.SetOnDiscardSector ([this] () { if (!m_parts.jobs.IsBusy()) { m_parts.model.DiscardBlock (m_parts.model.GetBlock()); m_parts.view.Refresh(); } });
-    bar.SetOnDiscard       ([this] () { Discard(); });
-    bar.SetOnApply         ([this] () { Save(); });
-    bar.SetOnSaveCopy      ([this] () { SaveEditedCopy(); });
     bar.SetOnUndoApplied   ([this] () { UndoApplied(); });
     bar.SetOnRedoApplied   ([this] () { RedoApplied(); });
     bar.SetOnUseB          ([this] () { if (!m_parts.jobs.IsBusy() && m_parts.model.UseOtherBlock (m_parts.model.GetBlock())) { m_parts.view.Refresh(); } });

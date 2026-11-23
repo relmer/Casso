@@ -248,45 +248,38 @@ public:
 
 
 
-    TEST_METHOD (SaveAndNoSaveAsOnACard)
+    TEST_METHOD (AnEditLeavesTheBarHeightAndAddsNoSaveButtons)
     {
         EditBar        bar;
         EditBarState   state;
         DxuiDpiScaler  scaler;
-        int            widthPx = 1200;
+        int            widthPx  = 800;
+        int            heightPx = 0;
+        RECT           anchor   = {};
+        RECT           stop     = {};
 
 
 
-        auto  collectTips = [&] ()
+        state.isEditing = true;
+        bar.SetState (state);
+        heightPx = bar.GetHeightPx (widthPx, scaler);
+        bar.Layout ({ 0, 0, widthPx, heightPx }, scaler);
+        Assert::IsFalse (bar.GetTip ({ 4, heightPx / 2 }, stop).empty(), L"Stop editing is at the left end");
+
+        state.hasSectorEdit = true;
+        state.bytes         = 1;
+        state.sectors       = 1;
+        state.canApply      = true;
+        bar.SetState (state);
+        bar.Layout ({ 0, 0, widthPx, bar.GetHeightPx (widthPx, scaler) }, scaler);
+
+        Assert::AreEqual (heightPx, bar.GetHeightPx (widthPx, scaler), L"the bar's height is constant");
+        Assert::AreEqual (std::wstring (L"Drop the selected sector's pending edits"), bar.GetTip ({ widthPx - 4, heightPx / 2 }, anchor), L"Discard sector is at the right end");
+
+        for (int x = 0; x < widthPx; x += 4)
         {
-            std::set<std::wstring>  tips;
-            RECT                    anchor = {};
-            int                     height = bar.GetHeightPx (widthPx, scaler);
-
-            bar.Layout ({ 0, 0, widthPx, height }, scaler);
-
-            for (int y = 2; y < height; y += 4)
-            {
-                for (int x = 0; x < widthPx; x += 4)
-                {
-                    tips.insert (bar.GetTip ({ x, y }, anchor));
-                }
-            }
-
-            return tips;
-        };
-
-        state.bytes    = 1;
-        state.sectors  = 1;
-        state.canApply = true;
-        bar.SetState (state);
-
-        Assert::IsTrue (collectTips().contains (L"Save the pending edits (Ctrl+S)"), L"the button saves");
-        Assert::IsTrue (collectTips().contains (L"Save the disk with the pending edits to a new file"), L"Save as is offered for an image");
-
-        state.canSaveCopy = false;
-        bar.SetState (state);
-        Assert::IsFalse (collectTips().contains (L"Save the disk with the pending edits to a new file"), L"a card has no Save as");
+            Assert::IsTrue (bar.GetTip ({ x, heightPx / 2 }, anchor).find (L"Save") == std::wstring::npos, L"saving is on the menus");
+        }
     }
 
 
