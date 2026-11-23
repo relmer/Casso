@@ -23,7 +23,7 @@ class ISectorReadObserver;
 class Dos33SectorAccess
 {
 public:
-    //  Holds the buffer by reference and never modifies it.
+    //  Stores a reference to the buffer and never modifies it.
     explicit Dos33SectorAccess (const vector<Byte> & sectors);
 
     void                    SetReadObserver (ISectorReadObserver * observer) { m_readObserver = observer; }

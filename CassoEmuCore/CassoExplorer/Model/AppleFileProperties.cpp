@@ -3,6 +3,7 @@
 #include "CassoExplorer/Model/AppleFileProperties.h"
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/CpmVolume.h"
+#include "Machines/Apple2/Common/Dos33Catalog.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
@@ -312,7 +313,7 @@ bool AppleFileProperties::IsValidName (VolumeKind kind, const std::wstring & nam
         return CpmVolume::IsValidName (narrow);
     }
 
-    return (kind == VolumeKind::ProDos) ? ProDosVolume::IsValidName (narrow) : Dos33Volume::IsValidName (narrow);
+    return (kind == VolumeKind::ProDos) ? ProDosVolume::IsValidName (narrow) : Dos33Catalog::IsValidName (narrow);
 }
 
 

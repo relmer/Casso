@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Machines/Apple2/Common/Dos33Catalog.h"
 #include "Machines/Apple2/Common/Dos33SectorAccess.h"
 #include "Machines/Apple2/Common/IVolume.h"
 
@@ -70,9 +71,6 @@ public:
                             const FileAttributes  & attributes,
                             vector<Byte>          & outBuffer) const override;
 
-    //  Whether DOS 3.3 could open a file of this name again, the rule Rename applies.
-    static bool  IsValidName (const std::string & name) { vector<Byte> bytes; return TryEncodeCatalogName (name, bytes); }
-
     //  The self-check every computed write and delete runs over its own output,
     //  and the ONLY way a computed buffer reaches a caller. Refuses a buffer
     //  that disagrees with itself in a way the buffer it was computed from did
@@ -136,40 +134,6 @@ public:
     static constexpr uint32_t  kUnitCount = 560;   // 35 tracks x 16 sectors
 
 private:
-    //  One catalog record, plus where it was found so a rewrite can address it.
-    struct RawEntry
-    {
-        int       catalogTrack  = 0;
-        int       catalogSector = 0;
-        size_t    entryOffset   = 0;
-        int       tsListTrack   = 0;
-        int       tsListSector  = 0;
-        Byte      typeByte      = 0;
-        uint16_t  sectorCount   = 0;
-        bool      isDeleted     = false;
-        string    name;
-    };
-
-    //  Catalog geometry. The VTOC's own offsets live in Dos33Skeleton.
-    static constexpr size_t  kEntryBase        = 0x0B;
-    static constexpr size_t  kEntrySize        = 0x23;
-    static constexpr int     kEntriesPerSector = 7;
-    static constexpr size_t  kNameBytes        = 30;
-
-    static constexpr size_t  kEntOffTsTrack     = 0x00;
-    static constexpr size_t  kEntOffTsSector    = 0x01;
-    static constexpr size_t  kEntOffType        = 0x02;
-    static constexpr size_t  kEntOffName        = 0x03;
-    static constexpr size_t  kEntOffSectorCount = 0x21;
-
-    //  Where DOS stashes the original track byte when it tombstones an entry.
-    static constexpr size_t  kEntOffLastNameByte = 0x20;
-
-    //  A track byte of $FF marks a deleted entry; $00 means the catalog has no
-    //  further entries at all.
-    static constexpr Byte    kEntryDeleted = 0xFF;
-    static constexpr Byte    kEntryUnused  = 0x00;
-
     //  Track/sector list geometry.
     static constexpr size_t  kTsOffNextTrack  = 0x01;
     static constexpr size_t  kTsOffNextSector = 0x02;
@@ -186,9 +150,6 @@ private:
     //  means free.
     static constexpr size_t  kBitmapBytesPerTrack = 4;
     static constexpr int     kBitmapSplitSector   = 8;
-
-    //  High-ASCII space, which is what a short name is padded out with.
-    static constexpr Byte    kNamePad = 0xA0;
 
     //  Where the name of the program a booted DOS runs is kept: inside the DOS
     //  image on track 1, NOT in the catalog. Thirty bytes of high ASCII padded
@@ -218,43 +179,11 @@ private:
     bool  IsFreeInBitmap  (const vector<Byte> & buffer, int track, int sector) const;
     void  SetFreeInBitmap (vector<Byte> & buffer, int track, int sector, bool isFree) const;
 
-    //  30 bytes of high ASCII, space-padded. False when the name is one DOS
-    //  could not open again.
-    static bool  TryEncodeCatalogName (const std::string & name, vector<Byte> & outBytes);
-
     void  ZeroUnits        (vector<Byte> & buffer, const vector<uint32_t> & units) const;
     void  PlaceFile        (vector<Byte>            & buffer,
                             const vector<uint32_t>  & units,
                             size_t                    dataSectorCount,
                             const vector<Byte>      & stored) const;
-    void  WriteCatalogEntry (vector<Byte>        & buffer,
-                             int                   catalogTrack,
-                             int                   catalogSector,
-                             size_t                entryOffset,
-                             uint32_t              listUnit,
-                             Byte                  typeByte,
-                             uint16_t              sectorCount,
-                             const vector<Byte>  & nameBytes) const;
-
-    //  Case-insensitive, because the catalog is upper case and the caller's
-    //  shell is not.
-    static bool  TryFindEntry (const vector<RawEntry>  & entries,
-                               const std::string       & leaf,
-                               uint16_t                & outOwner);
-
-    //  One entry by path: at its catalog index when the path includes one, whose
-    //  name must still match, and otherwise by a name only one entry has.
-    //  Returns ERROR_DUP_NAME for a name that several entries share.
-    static HRESULT  FindEntry (const vector<RawEntry>  & entries,
-                               const FilePath          & path,
-                               uint16_t                & outOwner);
-
-    //  A catalog slot is reusable only when its track byte says never-used or
-    //  deleted. AN ENTRY OCCUPYING NO SECTORS IS STILL AN ENTRY -- twenty of
-    //  the sixty-three on Merlin's own disk are exactly that, drawing headings
-    //  in CATALOG -- so the sector count must not be consulted here.
-    bool  TryFindFreeCatalogSlot (int & outTrack, int & outSector, size_t & outOffset) const;
-
     //  Hands out `count` sectors, or none at all.
     bool  TryAllocateUnits (const VolumeIntegrityReport  & report,
                             size_t                         count,
@@ -272,21 +201,16 @@ private:
     //  Turns what a delete decided into text a user can act on.
     static void  AppendDeleteWarnings (DeleteOutcome & inOutOutcome);
 
-    //  Walks the catalog chain. Damage is appended rather than thrown, and
-    //  `outFullyParsed` reports whether anything had to be skipped.
-    void  CollectEntries (vector<RawEntry>    & outEntries,
-                          vector<std::string> & outDamage,
-                          bool                & outFullyParsed) const;
-
     //  Gathers a file's data sectors by walking its track/sector list under a
     //  guard, so a corrupted chain cannot loop forever. The list sectors come
     //  back separately: a reader wants only the data, while everything that
     //  accounts for space -- the integrity pass, and through it delete -- needs
     //  the lists too, since they are as much the file's footprint as its bytes.
-    bool  CollectDataSectors (const RawEntry           & entry,
+    bool  CollectDataSectors (const Dos33CatalogEntry  & entry,
                               vector<uint32_t>         & outUnits,
                               vector<uint32_t>         & outListUnits,
                               ChainWalkGuard           & guard) const;
 
     Dos33SectorAccess  m_access;
+    Dos33Catalog       m_catalog { m_access };
 };

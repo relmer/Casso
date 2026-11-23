@@ -22,7 +22,7 @@ class Dos33PayloadCodec
 {
 public:
     //  Strips whatever header the file type has, and reports the load address
-    //  when the type records one.
+    //  when the type stores one.
     static void     ApplyTypeHeader    (Byte typeByte, vector<Byte> & inOutBytes, FilePayload & outPayload);
 
     //  Rebuilds whatever header the type stores inside the file's data, the
