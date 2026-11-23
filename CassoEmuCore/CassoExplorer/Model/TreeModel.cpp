@@ -12,6 +12,7 @@
 #include "Devices/Disk/Archives/ContainerPath.h"
 #include "Devices/Disk/Containers/ImageContainer.h"
 #include "Devices/Disk/Partitions/PartitionAccess.h"
+#include "Devices/Disk/Partitions/PhysicalCards.h"
 
 
 
@@ -1059,6 +1060,10 @@ std::wstring TreeModel::GetLinkDriveLabel (const LinkTreeEntry::Drive & drive)
         //  the drive reads alike.
         label += L" (no disk or unformatted)";
     }
+    else if (drive.thirteenSector)
+    {
+        label += L" (13-sector disk)";
+    }
     else if (!drive.volume.empty())
     {
         label += L" (" + drive.volume + L")";
@@ -1165,6 +1170,41 @@ std::wstring TreeModel::GetLinkDriveTitle (const std::wstring & driveId) const
     }
 
     return title;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::IsThirteenSectorDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TreeModel::IsThirteenSectorDrive (const std::wstring & driveId) const
+{
+    std::wstring  name;
+    int           slot   = 0;
+    int           drive  = 0;
+    bool          is13   = false;
+
+
+
+    if (!TryParseLinkId (driveId, name, slot, drive))
+    {
+        return is13;
+    }
+
+    for (const LinkTreeEntry & link : m_links)
+    {
+        for (const LinkTreeEntry::Drive & row : link.name == name ? link.drives : std::vector<LinkTreeEntry::Drive>())
+        {
+            is13 = is13 || (row.slot == slot && row.drive == drive && row.thirteenSector);
+        }
+    }
+
+    return is13;
 }
 
 
@@ -1858,16 +1898,21 @@ Error:
 //
 //  TreeModel::ReadImageNode
 //
-//  The node's children are cached, as for a node that was expanded.
+//  The node's children are cached, as for a node that was expanded. A storage
+//  card is not a file: its partitions are read through its session when it is
+//  opened, so its node is not read here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT TreeModel::ReadImageNode (TreeNode & inOutNode)
 {
-    HRESULT                hr = S_OK;
+    HRESULT                hr     = S_OK;
+    bool                   isCard = PhysicalCards::IsCardPath (inOutNode.location.path);
     std::vector<TreeNode>  children;
 
 
+
+    BAIL_OUT_IF (isCard, S_OK);
 
     hr = m_images.Describe (IsUnderCasso (inOutNode.id), inOutNode.location.path, inOutNode, children);
     CHR (hr);

@@ -4,7 +4,7 @@
 #include "Machines/Apple2/Common/Dos33Geometry.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/ThirteenSectorCodec.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
@@ -276,5 +276,61 @@ public:
         }
 
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED), hr);
+    }
+
+
+    //  The replacement is larger than the free space of a 35-track, 16-sector
+    //  volume, so it lands correctly only when the replacement is placed with
+    //  the volume's real geometry.
+    TEST_METHOD (Write_ReplacingAFile_OnEachGeometry_ReadsBackTheReplacement)
+    {
+        static constexpr int     kCounts[][2]   = { { 35, 13 }, { 40, 16 }, { 50, 16 }, { 50, 32 }, { 80, 16 } };
+        static constexpr size_t  kFillPercent   = 90;
+        static constexpr Byte    kTextByte      = 0xC1;
+
+        for (const int * counts : kCounts)
+        {
+            Dos33Geometry          geometry = Dos33Geometry::Make (counts[0], counts[1]);
+            vector<Byte>           buffer   = MakeBlankVolume (geometry);
+            vector<Byte>           withFile;
+            vector<Byte>           replaced;
+            FilePayload            original;
+            FilePayload            replacement;
+            FilePayload            back;
+            VolumeListing          listing;
+            VolumeIntegrityReport  report;
+            wstring                label    = std::format (L"{} tracks x {} sectors", counts[0], counts[1]);
+
+            {
+                Dos33Volume  blank (buffer);
+
+                AssertSucceeded (blank.Enumerate (listing));
+
+                original.type     = Dos33Volume::kTypeText;
+                original.bytes    = vector<Byte> (16, kTextByte);
+                replacement.type  = Dos33Volume::kTypeText;
+                replacement.bytes = vector<Byte> ((size_t) listing.freeUnits * kFillPercent / 100 * NibbleFormat::kSectorByteSize, kTextByte);
+
+                AssertSucceeded (blank.Write (FilePath::Parse ("DATA"), original, withFile));
+            }
+
+            {
+                Dos33Volume  written (withFile);
+
+                Assert::AreEqual (S_OK, written.Write (FilePath::Parse ("DATA"), replacement, replaced), label.c_str());
+            }
+
+            {
+                Dos33Volume  result (replaced);
+
+                AssertSucceeded (result.Enumerate (listing));
+                AssertSucceeded (result.Read (FilePath::Parse ("DATA"), back));
+                AssertSucceeded (result.BuildIntegrityReport (report));
+            }
+
+            Assert::AreEqual (size_t (1), listing.entries.size(), label.c_str());
+            Assert::IsTrue (replacement.bytes == back.bytes, label.c_str());
+            Assert::IsTrue (report.IsClean(), label.c_str());
+        }
     }
 };

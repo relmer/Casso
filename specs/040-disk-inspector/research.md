@@ -474,7 +474,7 @@ the target, copying the target's metadata, flushing to storage, then
 (`DiskImageSession::CommitImage`), the store's flush of an applied, undone or
 redone edit, and "Save edited copy..." (`CreateNew`, or `Replace` after the
 user confirms). Whichever of 040 and 041 merges first provides the class; the
-other uses it. 041 then routes the rest (`WriteFileAtomically`, Cassque).
+other uses it. 041 then routes the rest (`WriteFileAtomically`, Casso Explorer).
 
 **Rationale**: Neither branch has built it, both need it, and 041's contract
 already fixes the signature. Waiting for 041 would gate 040 behind 035.

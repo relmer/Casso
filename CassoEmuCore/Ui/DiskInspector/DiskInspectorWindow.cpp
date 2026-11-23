@@ -685,10 +685,13 @@ void DiskInspectorWindow::OnCreate()
 
     m_corners     = std::make_unique<PlatterCorners> (m_session, GetHost(), *m_session.views.platter);
     m_corners->Create();
-    m_statusBand  = std::make_unique<StatusBand> (m_session, GetHost());
-    m_statusBand->Create();
     m_menus       = std::make_unique<InspectorMenus> (m_session, GetHost(), m_commands);
     m_menus->Create();
+
+    //  The status band's zoom is the last control, so its slider, which opens
+    //  over the views, is drawn on top and has the pointer there.
+    m_statusBand  = std::make_unique<StatusBand> (m_session, GetHost());
+    m_statusBand->Create();
 
     m_components = { m_hostLink.get(), m_menus.get(), m_toolbar.get(), m_corners.get(), m_trackColumn.get(), m_stripControls.get(), m_dialogs.get(), m_files.get(), m_editing.get(), m_comparisonPart.get(), m_findPart.get(), m_statusBand.get() };
 

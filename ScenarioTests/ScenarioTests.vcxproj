@@ -169,6 +169,10 @@
     </ClCompile>
     <ClCompile Include="BasicCorpusFixtureTests.cpp" />
     <ClCompile Include="BlockCountTests.cpp" />
+    <ClCompile Include="DiskFileCommitScenarioTests.cpp" />
+    <ClCompile Include="DiskCommandRealDiskTests.cpp" />
+    <ClCompile Include="RealDiskFixtures.cpp" />
+    <ClCompile Include="ProDosVolumeRealDiskTests.cpp" />
     <ClCompile Include="ImageClassifierScenarioTests.cpp" />
     <ClCompile Include="BlockModeTests.cpp" />
     <ClCompile Include="InspectorPerformanceTests.cpp" />
@@ -238,6 +242,8 @@
     <ClCompile Include="..\UnitTest\ModuleSetup.cpp" />
     <ClCompile Include="..\UnitTest\EhmTestHelper.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\FixtureProvider.cpp" />
+    <ClCompile Include="..\UnitTest\EmuTests\DiskRunnerFixtures.cpp" />
+    <ClCompile Include="..\UnitTest\EmuTests\ProDosVolumeFixtures.cpp" />
     <ClCompile Include="..\UnitTest\NetworkTests\FakeHostNetwork.cpp" />
     <ClCompile Include="..\UnitTest\NetworkTests\FakeHostSocket.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\FileMapTestImages.cpp" />
@@ -252,6 +258,7 @@
     <ClCompile Include="UthernetLoopbackTests.cpp" />
     <ClCompile Include="UthernetSoftwareTests.cpp" />
     <ClCompile Include="..\UnitTest\NetworkTests\W5100Driver.cpp" />
+    <ClCompile Include="BlankProDosBootTests.cpp" />
     <ClCompile Include="BlockDeviceBootTests.cpp" />
     <ClCompile Include="Floppy35BootTests.cpp" />
     <ClCompile Include="PickerTimingTests.cpp" />
@@ -262,6 +269,7 @@
   <ItemGroup>
     <ClInclude Include="EmulatorLink.h" />
     <ClInclude Include="PacedRun.h" />
+    <ClInclude Include="RealDiskFixtures.h" />
     <ClInclude Include="Pch.h" />
   </ItemGroup>
   <ItemGroup>

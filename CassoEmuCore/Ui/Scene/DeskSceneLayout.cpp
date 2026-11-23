@@ -1702,12 +1702,14 @@ void DeskSceneLayout::PlaceStack (const DeskSceneMetrics & metrics,
         const float  * lo;
         const float  * hi;
         float          z;
+        float          doorClearMm;
     };
 
     std::vector<Item>  items;
     float              columnW = 0.0f;
     float              columnX = 0.0f;
     float              y       = 0.0f;
+    float              backMm  = 0.0f;
 
 
 
@@ -1715,13 +1717,13 @@ void DeskSceneLayout::PlaceStack (const DeskSceneMetrics & metrics,
     {
         if ((everyExtra || metrics.extras[i].spot == spot) && !(hardDisksOnly && IsDockedExtra (metrics.extras[i])))
         {
-            items.push_back ({ metrics.extras[i].level, out.extraWorld[i], metrics.extras[i].min, metrics.extras[i].max, frontZ });
+            items.push_back ({ metrics.extras[i].level, out.extraWorld[i], metrics.extras[i].min, metrics.extras[i].max, frontZ, metrics.extras[i].doorClearMm });
         }
     }
 
     for (int i = 0; i < driveCount && i < 2 && !everyExtra && metrics.driveSpot == spot; i++)
     {
-        items.push_back ({ metrics.driveLevel[i], out.driveWorld[i], metrics.driveMin, metrics.driveMax, driveZ });
+        items.push_back ({ metrics.driveLevel[i], out.driveWorld[i], metrics.driveMin, metrics.driveMax, driveZ, metrics.driveDoorClearMm });
     }
 
     if (items.empty())
@@ -1741,15 +1743,20 @@ void DeskSceneLayout::PlaceStack (const DeskSceneMetrics & metrics,
 
     for (const Item & item : items)
     {
+        float  z     = item.z - backMm;
         float  tx    = columnX - (item.lo[0] + item.hi[0]) * 0.5f;
         float  ty    = y - item.lo[2];
-        float  lo[3] = { item.lo[0] + tx, y, item.z - item.hi[1] };
-        float  hi[3] = { item.hi[0] + tx, y + (item.hi[2] - item.lo[2]), item.z - item.lo[1] };
+        float  lo[3] = { item.lo[0] + tx, y, z - item.hi[1] };
+        float  hi[3] = { item.hi[0] + tx, y + (item.hi[2] - item.lo[2]), z - item.lo[1] };
 
 
 
-        MakeDeviceWorld (tx, ty, item.z, 1.0f, item.world);
+        MakeDeviceWorld (tx, ty, z, 1.0f, item.world);
         y = hi[1];
+
+        // A drive whose door rises sets whatever stands on it back, so the
+        // door opens in front of it.
+        backMm += item.doorClearMm;
 
         for (int axis = 0; axis < 3; axis++)
         {

@@ -96,7 +96,7 @@ public:
 
         rig.EditOneByte();
         rig.edits.Save();
-        rig.edits.UpdateEditBar();
+        rig.edits.UpdateEditControls();
 
         Assert::AreEqual (kValue, rig.GetFileByte());
         Assert::IsTrue (rig.model.GetEdits().IsEmpty());
@@ -128,7 +128,7 @@ public:
         rig.EditOneByte();
         rig.edits.Save();
         rig.edits.UndoApplied();
-        rig.edits.UpdateEditBar();
+        rig.edits.UpdateEditControls();
 
         Assert::AreEqual ((Byte) 0, rig.GetFileByte());
         Assert::AreEqual (std::wstring (L"Undid the save to vol.po"), rig.view.lastState.note);
@@ -164,6 +164,41 @@ public:
         Assert::IsFalse (rig.view.isEditing);
 
         Assert::IsFalse (rig.edits.HandleKey (MakeKey ('Q', false)));
+    }
+
+
+    TEST_METHOD (Undo_OutsideEditingUndoesAndRedoesTheUnsavedEdit)
+    {
+        Rig  rig;
+
+
+
+        rig.EditOneByte();
+        rig.view.isEditing = false;
+
+        rig.edits.Undo();
+        Assert::IsTrue (rig.model.GetEdits().IsEmpty());
+
+        rig.edits.Redo();
+        Assert::IsFalse (rig.model.GetEdits().IsEmpty());
+        Assert::AreEqual ((Byte) 0, rig.GetFileByte(), L"the edit is unsaved");
+    }
+
+
+    TEST_METHOD (HandleKey_CtrlShiftZRedoes)
+    {
+        Rig           rig;
+        DxuiKeyEvent  redo = MakeKey ('Z', true);
+
+
+
+        redo.shift = true;
+        rig.EditOneByte();
+        rig.view.isEditing = true;
+
+        Assert::IsTrue (rig.edits.HandleKey (MakeKey ('Z', true)));
+        Assert::IsTrue (rig.edits.HandleKey (redo));
+        Assert::IsFalse (rig.model.GetEdits().IsEmpty());
     }
 
 

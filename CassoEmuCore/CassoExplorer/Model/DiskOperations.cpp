@@ -313,7 +313,7 @@ bool DiskOperations::TryEditCardVolume (const std::string & imagePath, const std
     if (FAILED (hr))
     {
         outResult.hr      = hr;
-        outResult.message = DiskCommandResult::FormatFailure (imagePath, "", refusal);
+        outResult.message = card.GetLabel() + " " + refusal + ".";
         return true;
     }
 

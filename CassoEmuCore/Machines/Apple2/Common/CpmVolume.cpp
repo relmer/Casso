@@ -1,7 +1,8 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/CpmVolume.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 
 
 
@@ -59,13 +60,13 @@ CpmVolume::CpmVolume (const vector<Byte> & sectors)
 size_t CpmVolume::GetSectorOffset (int block, int sector)
 {
     constexpr int  kSkew     = 3;
-    int            track     = (kDirectoryTrack + block / kSectorsPerBlock) % NibblizationLayer::kTrackCount;
+    int            track     = (kDirectoryTrack + block / kSectorsPerBlock) % NibbleFormat::kTrackCount;
     int            cpmSector = kSectorsPerBlock * (block % kSectorsPerBlock) + sector;
-    int            physical  = (kSkew * cpmSector) % NibblizationLayer::kSectorsPerTrack;
+    int            physical  = (kSkew * cpmSector) % NibbleFormat::kSectorsPerTrack;
 
 
 
-    return ((size_t) track * NibblizationLayer::kSectorsPerTrack + (size_t) NibblizationLayer::GetDosFileIndexForPhysicalSector (physical)) * NibblizationLayer::kSectorByteSize;
+    return ((size_t) track * NibbleFormat::kSectorsPerTrack + (size_t) SectorInterleave::GetDosFileIndexForPhysicalSector (physical)) * NibbleFormat::kSectorByteSize;
 }
 
 
@@ -88,7 +89,7 @@ vector<size_t> CpmVolume::GetDirectorySectors()
     {
         for (int sector = 0; sector < kSectorsPerBlock; sector++)
         {
-            sectors.push_back (GetSectorOffset (block, sector) / NibblizationLayer::kSectorByteSize);
+            sectors.push_back (GetSectorOffset (block, sector) / NibbleFormat::kSectorByteSize);
         }
     }
 
@@ -157,15 +158,15 @@ bool CpmVolume::IsFound (const vector<Byte> & sectors)
 
 
 
-    if (sectors.size() != (size_t) NibblizationLayer::kImageByteSize)
+    if (sectors.size() != (size_t) NibbleFormat::kImageByteSize)
     {
         return false;
     }
 
     for (size_t at : GetDirectorySectors())
     {
-        std::copy_n (sectors.begin() + (ptrdiff_t) (at * NibblizationLayer::kSectorByteSize), NibblizationLayer::kSectorByteSize,
-                     directory.begin() + (ptrdiff_t) ((size_t) sector * NibblizationLayer::kSectorByteSize));
+        std::copy_n (sectors.begin() + (ptrdiff_t) (at * NibbleFormat::kSectorByteSize), NibbleFormat::kSectorByteSize,
+                     directory.begin() + (ptrdiff_t) ((size_t) sector * NibbleFormat::kSectorByteSize));
         sector++;
     }
 
@@ -233,7 +234,7 @@ bool CpmVolume::IsFreeSlot (std::span<const Byte> entry)
 
 void CpmVolume::WriteBlank (vector<Byte> & outSectors)
 {
-    outSectors.assign ((size_t) NibblizationLayer::kImageByteSize, kFree);
+    outSectors.assign ((size_t) NibbleFormat::kImageByteSize, kFree);
 }
 
 
@@ -248,7 +249,7 @@ void CpmVolume::WriteBlank (vector<Byte> & outSectors)
 
 bool CpmVolume::HasSystemTracks (const vector<Byte> & sectors)
 {
-    size_t  bytes = (size_t) kDirectoryTrack * NibblizationLayer::kSectorsPerTrack * NibblizationLayer::kSectorByteSize;
+    size_t  bytes = (size_t) kDirectoryTrack * NibbleFormat::kSectorsPerTrack * NibbleFormat::kSectorByteSize;
 
 
 
@@ -268,8 +269,8 @@ bool CpmVolume::HasSystemTracks (const vector<Byte> & sectors)
 HRESULT CpmVolume::InstallSystem (const vector<Byte> & source, vector<Byte> & ioSectors)
 {
     HRESULT       hr     = S_OK;
-    size_t        bytes  = (size_t) kDirectoryTrack * NibblizationLayer::kSectorsPerTrack * NibblizationLayer::kSectorByteSize;
-    bool          sized  = source.size() == (size_t) NibblizationLayer::kImageByteSize && ioSectors.size() == source.size();
+    size_t        bytes  = (size_t) kDirectoryTrack * NibbleFormat::kSectorsPerTrack * NibbleFormat::kSectorByteSize;
+    bool          sized  = source.size() == (size_t) NibbleFormat::kImageByteSize && ioSectors.size() == source.size();
     int           target = 0;
     vector<Byte>  fromDirectory;
     vector<Byte>  directory;
@@ -413,7 +414,7 @@ bool CpmVolume::IsValidName (const std::string & name)
 
 void CpmVolume::ReadBlock (int block, std::span<Byte> outBytes) const
 {
-    constexpr size_t  kSectorBytes = (size_t) NibblizationLayer::kSectorByteSize;
+    constexpr size_t  kSectorBytes = (size_t) NibbleFormat::kSectorByteSize;
 
 
 
@@ -703,7 +704,7 @@ void CpmVolume::FillEntry (const RawFile & file, size_t index, FileEntry & outEn
 HRESULT CpmVolume::Enumerate (VolumeListing & outListing) const
 {
     HRESULT                hr      = S_OK;
-    bool                   whole   = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool                   whole   = m_sectors.size() == (size_t) NibbleFormat::kImageByteSize;
     int                    invalid = 0;
     uint32_t               used    = 0;
     uint32_t               wrapped = 0;
@@ -769,7 +770,7 @@ Error:
 HRESULT CpmVolume::Read (const FilePath & path, FilePayload & outPayload) const
 {
     HRESULT          hr      = S_OK;
-    bool             whole   = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool             whole   = m_sectors.size() == (size_t) NibbleFormat::kImageByteSize;
     bool             found   = false;
     size_t           index   = 0;
     size_t           size    = 0;
@@ -834,7 +835,7 @@ Error:
 HRESULT CpmVolume::BuildIntegrityReport (VolumeIntegrityReport & outReport) const
 {
     HRESULT          hr      = S_OK;
-    bool             whole   = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool             whole   = m_sectors.size() == (size_t) NibbleFormat::kImageByteSize;
     int              invalid = 0;
     vector<Byte>     directory;
     vector<RawFile>  files;
@@ -930,7 +931,7 @@ Error:
 
 void CpmVolume::WriteBlockBytes (vector<Byte> & buffer, int block, std::span<const Byte> bytes)
 {
-    constexpr size_t  kSectorBytes = (size_t) NibblizationLayer::kSectorByteSize;
+    constexpr size_t  kSectorBytes = (size_t) NibbleFormat::kSectorByteSize;
 
 
 
@@ -982,7 +983,7 @@ HRESULT CpmVolume::Write (const FilePath & path, const FilePayload & payload, ve
 {
     HRESULT                hr         = S_OK;
     std::string            name       = path.ToString();
-    bool                   whole      = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool                   whole      = m_sectors.size() == (size_t) NibbleFormat::kImageByteSize;
     bool                   nameOk     = false;
     bool                   locked     = false;
     bool                   hasRoom    = false;
@@ -1150,7 +1151,7 @@ HRESULT CpmVolume::Delete (const FilePath & path, vector<Byte> & outBuffer) cons
 HRESULT CpmVolume::Delete (const FilePath & path, vector<Byte> & outBuffer, DeleteOutcome & outOutcome) const
 {
     HRESULT                hr      = S_OK;
-    bool                   whole   = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool                   whole   = m_sectors.size() == (size_t) NibbleFormat::kImageByteSize;
     bool                   found   = false;
     bool                   locked  = false;
     size_t                 index   = 0;
@@ -1240,7 +1241,7 @@ HRESULT CpmVolume::SetStartupProgram (const FilePath & path, vector<Byte> & outB
 HRESULT CpmVolume::Rename (const FilePath & from, const std::string & to, vector<Byte> & outBuffer) const
 {
     HRESULT                hr      = S_OK;
-    bool                   whole   = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool                   whole   = m_sectors.size() == (size_t) NibbleFormat::kImageByteSize;
     bool                   nameOk  = false;
     bool                   found   = false;
     bool                   locked  = false;
@@ -1314,7 +1315,7 @@ Error:
 HRESULT CpmVolume::SetAttributes (const FilePath & path, const FileAttributes & attributes, vector<Byte> & outBuffer) const
 {
     HRESULT                hr      = S_OK;
-    bool                   whole   = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool                   whole   = m_sectors.size() == (size_t) NibbleFormat::kImageByteSize;
     bool                   stored  = !attributes.hasType && !attributes.hasAuxType && !attributes.hasCreated && !attributes.hasModified;
     bool                   found   = false;
     bool                   locks   = attributes.hasAccess && (attributes.access & FilePayload::kAccessWriteEnable) == 0;

@@ -3,7 +3,6 @@ name: "refactor"
 description: "Refactor a .cpp file or class to follow docs/class-design.md, through the class-design-refactor agent."
 argument-hint: "A .cpp path or a class name, for example CassoExplorerBrowser.cpp or CassoExplorerBrowser"
 user-invocable: true
-disable-model-invocation: true
 ---
 
 Target: $ARGUMENTS

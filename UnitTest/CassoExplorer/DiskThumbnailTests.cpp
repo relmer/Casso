@@ -197,6 +197,35 @@ public:
 
 
 
+    TEST_METHOD (ASmallVolumeInALargeImageIsCountedAtItsSize)
+    {
+        static constexpr size_t   kVolumeBlocks = 1600;
+        static constexpr size_t   kImageBlocks  = 3200;
+        static constexpr int64_t  kTime         = 1'700'000'000;
+
+        FakeDiskFileIo       io;
+        vector<Byte>         volume (kVolumeBlocks * BlockImageFile::kBlockBytes, 0);
+        vector<Byte>         image  (kImageBlocks * BlockImageFile::kBlockBytes, 0);
+        DiskThumbnailResult  result;
+
+
+
+        AssertSucceeded (ProDosSkeleton::Write (volume, "SMALL"));
+        std::copy (volume.begin(), volume.end(), image.begin());
+
+        io.files["part.po"]  = image;
+        io.stamps["part.po"] = { image.size(), kTime };
+
+        result = DiskThumbnailWorker::BuildBlocks (io, L"part.po");
+
+        Assert::IsTrue   (result.isOpened);
+        Assert::IsTrue   (result.chips.size() >= 3);
+        Assert::AreEqual (std::wstring (L"/SMALL"),    result.chips[1].text);
+        Assert::AreEqual (std::wstring (L"1,600 blocks"), result.chips[2].text);
+    }
+
+
+
     TEST_METHOD (AnImageOfBlocksThatDoesNotOpenGetsNoBlockMap)
     {
         FakeDiskFileIo       io;

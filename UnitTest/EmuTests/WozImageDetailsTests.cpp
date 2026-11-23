@@ -4,6 +4,8 @@
 #include "Devices/Disk/DamagedMountReport.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/DiskStoreMessages.h"
+#include "Devices/Disk/Store/DiskSourceFormat.h"
 #include "Devices/Disk/Inspector/ImageDetails.h"
 #include "Ui/DiskInspector/InspectorTables.h"
 #include "Shell/InspectorStatusPublisher.h"
@@ -523,11 +525,11 @@ public:
     TEST_METHOD (AFileThatCannotBeOpenedSaysWhy)
     {
         const vector<Byte>  junk (300, 0x42);
-        MountDiagnosis      diagnosis = DiskImageStore::ClassifyLoadFailure (DiskFormat::Woz, junk);
+        MountDiagnosis      diagnosis = DiskSourceFormat::ClassifyLoadFailure (DiskFormat::Woz, junk);
 
 
 
         Assert::IsTrue  (diagnosis.failure != MountFailure::None);
-        Assert::IsFalse (DiskImageStore::FormatMountFailureMessage ("junk.woz", diagnosis).empty());
+        Assert::IsFalse (DiskStoreMessages::FormatMountFailureMessage ("junk.woz", diagnosis).empty());
     }
 };

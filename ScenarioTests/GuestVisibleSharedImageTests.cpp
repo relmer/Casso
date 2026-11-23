@@ -5,8 +5,8 @@
 #include "TestMachine.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
+#include "Devices/Disk/Store/ExternalChangeMonitor.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -186,13 +186,13 @@ public:
 
         //  Stated by the writer, which is what a `--on-change reload` build
         //  step says: take the new contents, leave the machine running.
-        machine.GetDiskStore().NoteExternalChange (kImagePath, ExternalChangeIntent::ReloadInPlace);
+        machine.GetDiskStore().GetChangeMonitor().NoteExternalChange (kImagePath, ExternalChangeIntent::ReloadInPlace);
 
         //  Time passes and the machine reaches a quiet moment -- the two things
         //  the emulator's own clock and idle callback supply in a real session.
         nowMs += MountedImageState::kQuietPeriodMs;
 
-        machine.GetDiskStore().ApplyPendingReload();
+        machine.GetDiskStore().GetChangeMonitor().ApplyPendingReload();
 
         //  SC-001: the guest can run the new program, with no eject and no
         //  re-insert by hand. Nothing below the disk layer was told anything --

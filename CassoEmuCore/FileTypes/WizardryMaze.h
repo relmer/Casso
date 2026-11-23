@@ -52,11 +52,12 @@ public:
     static constexpr size_t  kOutAt         = 38;
     static constexpr size_t  kLocationAt    = 170;
 
-    static Square  ReadSquare  (int word);
-    static int     GetSide     (std::span<const Byte> sectors);
-    static bool    FindWalls   (std::span<const std::vector<Byte>> sides, int level, std::vector<Byte> & outWalls);
-    static int     GetWall     (std::span<const Byte> walls, int x, int y, bool north);
-    static void    FindSides   (IDiskFileIo & fileIo, const std::string & imagePath, std::vector<std::vector<Byte>> & outSides);
+    static Square  ReadSquare    (int word);
+    static int     GetSide       (std::span<const Byte> sectors);
+    static bool    FindWalls     (std::span<const std::vector<Byte>> sides, int level, std::vector<Byte> & outWalls);
+    static int     GetWall       (std::span<const Byte> walls, int x, int y, bool north);
+    static void    FindSides     (IDiskFileIo & fileIo, const std::string & imagePath, std::vector<std::vector<Byte>> & outSides);
+    static void    LoadSaveDisks (IDiskFileIo & fileIo, const std::string & imagePath, std::vector<Byte> & outSectors, std::vector<std::vector<Byte>> & outSides);
 
 private:
     static bool  LoadSide (IDiskFileIo & fileIo, const std::string & path, std::vector<Byte> & outSectors);

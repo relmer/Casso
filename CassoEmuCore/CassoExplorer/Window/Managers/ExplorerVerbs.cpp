@@ -149,7 +149,7 @@ bool ExplorerVerbs::RunRecycleBinVerb (CassoExplorerActions::Verb verb)
 
 
 
-    m_context.browser.GetSelectedRecycledIds (ids);
+    m_context.browser.GetLoader().GetSelectedRecycledIds (ids);
 
     switch (verb)
     {
@@ -164,7 +164,7 @@ bool ExplorerVerbs::RunRecycleBinVerb (CassoExplorerActions::Verb verb)
             //  command bar's Restore all items does.
             if (ids.empty() && verb == Verb::Restore)
             {
-                m_context.browser.GetAllRecycledIds (ids);
+                m_context.browser.GetLoader().GetAllRecycledIds (ids);
             }
 
             BAIL_OUT_IF (ids.empty(), S_OK);
@@ -213,6 +213,7 @@ void ExplorerVerbs::RunVerb (CassoExplorerActions::Verb verb)
     int                                  answer    = 0;
     CassoExplorerActions::Outcome        outcome;
     std::wstring                         newName;
+    std::wstring                         partition;
     std::vector<std::wstring>            hostPaths;
     CassoExplorerNewDiskDialog::Outcome  newDisk;
     HostFileNaming::Style                style     = GetNamingStyle();
@@ -270,7 +271,7 @@ void ExplorerVerbs::RunVerb (CassoExplorerActions::Verb verb)
         case CassoExplorerActions::Verb::GetWithOptions:
         {
             std::vector<CopyOptionRows::Row>  rows;
-            DecodeOptions                     options = m_context.browser.GetDefaultDecodeOptions();
+            DecodeOptions                     options = m_context.browser.GetPreviewer().GetDefaultDecodeOptions();
 
             m_context.actions.FindCopyOptionRows (rows);
 
@@ -280,7 +281,7 @@ void ExplorerVerbs::RunVerb (CassoExplorerActions::Verb verb)
             }
 
             m_context.prefs.copyOptions = options;
-            m_context.browser.SetDefaultDecodeOptions (options);
+            m_context.browser.GetPreviewer().SetDefaultDecodeOptions (options);
 
             hr = m_context.dialogs.PickFolder (m_context.window.GetHwnd(), picked, chosen);
 
@@ -325,7 +326,7 @@ void ExplorerVerbs::RunVerb (CassoExplorerActions::Verb verb)
                 break;
             }
 
-            if (m_context.browser.TryGetSelectedShellIds (hostPaths))
+            if (m_context.browser.GetSelection().TryGetSelectedShellIds (hostPaths))
             {
                 hr = m_context.shellVerbs.PlaceOnClipboard (m_context.window.GetHwnd(), hostPaths, verb == CassoExplorerActions::Verb::Cut);
             }
@@ -335,7 +336,7 @@ void ExplorerVerbs::RunVerb (CassoExplorerActions::Verb verb)
             break;
 
         case CassoExplorerActions::Verb::Share:
-            m_context.browser.GetSelectedHostPaths (hostPaths);
+            m_context.browser.GetSelection().GetSelectedHostPaths (hostPaths);
             hr = hostPaths.empty() ? E_NOT_SET : m_context.shellVerbs.Share (m_context.window.GetHwnd(), hostPaths);
 
             if (FAILED (hr))
@@ -506,11 +507,13 @@ void ExplorerVerbs::RunVerb (CassoExplorerActions::Verb verb)
             break;
 
         case CassoExplorerActions::Verb::CopyPartitionToImage:
-            m_context.imageTools.CopyPartitionToImage();
+            m_context.actions.TryGetPartition (partition);
+            m_context.imageTools.CopyPartitionToImage (partition);
             break;
 
         case CassoExplorerActions::Verb::ReplacePartition:
-            m_context.imageTools.ReplacePartition();
+            m_context.actions.TryGetPartition (partition);
+            m_context.imageTools.ReplacePartition (partition);
             break;
 
         case CassoExplorerActions::Verb::Refresh:

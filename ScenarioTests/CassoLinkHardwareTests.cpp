@@ -2,10 +2,14 @@
 
 #include "EhmTestHelper.h"
 #include "GuestSession.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
+#include "Machines/Apple2/Common/TrackBitReader.h"
 #include "TestMachine.h"
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/CassoLinkHost.h"
 #include "Core/TextEncoding.h"
+#include "CassoExplorer/ExplorerBootWorker.h"
 #include "CassoExplorer/Model/PicturePreview.h"
 #include "Devices/Disk/DiskImage.h"
 #include "DiskCheck/BootCheck.h"
@@ -147,6 +151,52 @@ public:
                             result.betweenRead, result.betweenTotal);
         log << std::format ("{} streams, {} weak, {} unstable\n", result.streams.size(), result.weak.size(), result.unstable.size());
         log << std::format ("revolution {:.0f} cycles\n", result.revolutionCycles);
+    }
+
+    //  Track 0 of each drive probed raw twice, the second against the first
+    //  (CassoLinkCapture::ProbeRevolution), into probe.log in CASSO_LINK_OUT:
+    //  a disk has a revolution both times and the second is the same; an
+    //  empty drive's revolutions are empty.
+    TEST_METHOD (RealApple_ProbesTrackZero)
+    {
+        std::string                    port   = GetSetting ("CASSO_LINK_PORT", "");
+        std::filesystem::path          folder = GetSetting ("CASSO_LINK_OUT", ".");
+        Win32ByteStreamFactory         factory;
+        ComSettings                    settings;
+        std::unique_ptr<IByteStream>   opened;
+        InMemoryCassoLinkFolder        files;
+        std::vector<Byte>              module;
+        std::ofstream                  log;
+
+
+
+        if (port.empty())
+        {
+            Logger::WriteMessage ("CASSO_LINK_PORT isn't set; no Apple to probe.\n");
+            return;
+        }
+
+        log.open (folder / "probe.log");
+
+        OpenPort (factory, port, settings, opened);
+
+        CassoLinkHost  host (std::shared_ptr<IByteStream> (std::move (opened)), files, [] () { return std::array<Byte, 4> {}; });
+
+        AssertSucceeded (host.BuildCaptureModule (module));
+
+        for (Byte drive : { (Byte) 1, (Byte) 2 })
+        {
+            std::vector<Byte>  first;
+            std::vector<Byte>  second;
+            bool               same   = false;
+            ULONGLONG          began  = GetTickCount64();
+
+            AssertSucceeded (CassoLinkCapture::ProbeRevolution (host, drive, module, {}, first, same));
+            AssertSucceeded (CassoLinkCapture::ProbeRevolution (host, drive, module, first, second, same));
+
+            log << std::format ("drive {}: first {} bytes, second {} bytes, same {}, {} ms\n", drive, first.size(), second.size(), same, GetTickCount64() - began);
+            log.flush();
+        }
     }
 
     //  The positions of CASSO_READ_POSITIONS, as 120,124, each read
@@ -691,6 +741,35 @@ public:
         }
     }
 
+    //  The image CASSO_SAVE_IMAGE's saved game drawn for its thumbnail, as
+    //  save.png in CASSO_LINK_OUT: run only when CASSO_SAVE_IMAGE is set.
+    TEST_METHOD (ASaveDisk_IsDrawnForItsThumbnail)
+    {
+        std::string            path = GetSetting ("CASSO_SAVE_IMAGE", "");
+        std::filesystem::path  out  = GetSetting ("CASSO_LINK_OUT", ".");
+        std::vector<Byte>      bytes;
+        std::vector<Byte>      png;
+        BootReport             report;
+
+
+
+        if (path.empty())
+        {
+            Logger::WriteMessage ("CASSO_SAVE_IMAGE isn't set; no save to draw.\n");
+            return;
+        }
+
+        {
+            std::ifstream  in (path, std::ios::binary);
+
+            bytes.assign (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
+        }
+
+        Assert::IsTrue (ExplorerBootWorker::DrawSave (bytes, path, BootCheck::BuildInstalled, report), L"The image has a save");
+        AssertSucceeded (PicturePreview::EncodePng (report.frame, report.width, report.height, png));
+        WriteFile (out / "save.png", png);
+    }
+
     //  Each .woz, .dsk, .do and .po file of the folder CASSO_PROBE_IMAGES,
     //  booted by BootProbe on an enhanced //e: its verdict, reason and
     //  seconds are written to probe.txt and its last frame to a PNG with the
@@ -855,7 +934,7 @@ public:
         while (at < length * 2 && length > 0)
         {
             size_t  start  = at;
-            Byte    nibble = NibblizationLayer::ReadNibbleAt (image, track, at);
+            Byte    nibble = TrackBitReader::ReadNibbleAt (image, track, at);
 
             if (nibble == 0)
             {
@@ -918,13 +997,13 @@ public:
         AssertSucceeded (WozLoader::Load (captureBytes, captured));
         AssertSucceeded (VolumeImage::Load (poBytes, "boot.po", sectors, report));
 
-        for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+        for (int track = 0; track < NibbleFormat::kTrackCount; track++)
         {
             layouts.push_back (ReadLayout (captured, track));
         }
 
         AssertSucceeded (TrackLayoutWriter::BuildWoz (sectors, layouts, built));
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, laidOut));
+        AssertSucceeded (Nibblizer::NibblizeDsk (sectors, laidOut));
         AssertSucceeded (WozLoader::Serialize (laidOut, plain));
 
         Assert::IsTrue  (PassesBoot (built, kBootCycles), L"The WOZ built to the measured layouts");
@@ -1031,13 +1110,13 @@ public:
     static std::vector<CassoLinkHost::TrackMeasure>  Measure (const std::vector<Byte> & woz)
     {
         std::vector<CassoLinkHost::TrackMeasure>  measures;
-        ProgramRig                                rig (std::vector<Byte> (NibblizationLayer::kImageByteSize, 0));
+        ProgramRig                                rig (std::vector<Byte> (NibbleFormat::kImageByteSize, 0));
 
 
 
         AssertSucceeded (rig.machine.GetDiskStore().MountFromBytes (ProgramRig::kSlot, 0, "", DiskFormat::Woz, woz));
 
-        for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+        for (int track = 0; track < NibbleFormat::kTrackCount; track++)
         {
             CassoLinkHost::TrackMeasure  measure;
             CassoLinkStatus              status;

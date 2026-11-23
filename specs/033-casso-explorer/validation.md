@@ -809,6 +809,14 @@ Archon, the owner's original disk, captured from drive 1 of the owner's //c over
 | Sectors | Every sector of tracks 0 to 4 and 7 to 34 matches the reference's but six: track 1's sector 3 and one sector each of tracks 23, 27 and 29 differ with good checksums, as the owner's copy differs from the reference's; two sectors of track 30 have a bad nibble, and track 31's sector 12 is missing. Tracks 4.75 to 6.5 have no flux on the owner's disk |
 | Boot | In Casso's //c, the image boots to Archon's board and its options screen |
 
+Captured again 2026-11-21 from drive 2 with this build (Release), synchronized:
+
+| Measure | Result |
+|---|---|
+| Time | 7 minutes 19 seconds: 144 reads, 120 seconds reading the disk and 294 seconds sending over the line, 1,427,456 bytes sent for 2,027,520 stored. SC-055's 5 minutes isn't met |
+| Positions | 12 of the 102 positions between whole tracks; 39 streams, 4 weak tracks and no unstable one |
+| Boot | In Casso, the image boots to Archon's options screen |
+
 ## 17. SOS disks in MAME's Apple ///, 2026-11-12 (T626 to T628, SC-060)
 
 MAME 0.289's `apple3` with the Apple /// ROM from the apple2.org.za

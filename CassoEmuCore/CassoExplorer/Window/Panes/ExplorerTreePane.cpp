@@ -20,6 +20,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerProperties.h"
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 #include "CassoExplorer/CassoExplorerActions.h"
+#include "CassoExplorer/Actions/ActionsPartition.h"
 #include "CassoExplorer/Model/FilesystemChoices.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
@@ -1062,13 +1063,21 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
         m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.compressedfile.extract");
 
         //  Format and Krunch act on the image the list shows, so the image is
-        //  opened first.
-        m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::Format), [this, location]()
+        //  opened first. A partition has the partition commands instead of
+        //  Format, as its row in the list has.
+        if (ActionsPartition::IsPartitionPath (image))
         {
-            m_context.addressBar.GoToLocation (location);
-            m_context.verbs.RunVerb (CassoExplorerActions::Verb::Format);
-        }, L"", ExplorerMenus::GetVerbMenuGlyph (CassoExplorerActions::Verb::Format));
-        m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::Format));
+            AddPartitionRows (items, image);
+        }
+        else
+        {
+            m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::Format), [this, location]()
+            {
+                m_context.addressBar.GoToLocation (location);
+                m_context.verbs.RunVerb (CassoExplorerActions::Verb::Format);
+            }, L"", ExplorerMenus::GetVerbMenuGlyph (CassoExplorerActions::Verb::Format));
+            m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::Format));
+        }
 
         if (m_context.actions.IsImagePascal (image))
         {
@@ -1105,6 +1114,13 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
                 IGNORE_RETURN_VALUE (removed, S_OK);
             });
         }
+    }
+
+    //  A partition with no volume to open has the partition commands too.
+    if (hasLocation && location.kind == Location::Kind::Partition && ActionsPartition::IsPartitionPath (location.path))
+    {
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
+        AddPartitionRows (items, location.path);
     }
 
     if (hasFolder && m_context.browser.CanRemoveFromCasso (id))
@@ -1216,6 +1232,44 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
     if (!items.empty())
     {
         DxuiContextMenu::Show (*m_context.window.GetPopupHost(), x, y, std::move (items));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerTreePane::AddPartitionRows
+//
+//  The list's partition verbs, run on the node's partition rather than on
+//  the list's location.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerTreePane::AddPartitionRows (std::vector<DxuiPopupMenuItem> & items, const std::wstring & partition)
+{
+    std::vector<CassoExplorerActions::Verb>  verbs;
+
+
+
+    ActionsPartition::AddVerbs (true, verbs);
+
+    for (CassoExplorerActions::Verb verb : verbs)
+    {
+        m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (verb), [this, verb, partition]()
+        {
+            if (verb == CassoExplorerActions::Verb::CopyPartitionToImage)
+            {
+                m_context.imageTools.CopyPartitionToImage (partition);
+            }
+            else
+            {
+                m_context.imageTools.ReplacePartition (partition);
+            }
+        }, L"", ExplorerMenus::GetVerbMenuGlyph (verb));
+        m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (verb));
     }
 }
 
@@ -1598,7 +1652,7 @@ void ExplorerTreePane::UpdateTip (const DxuiMouseEvent & ev, POINT point)
     if (broken && node->id != m_treeTipId)
     {
         m_treeTipId   = node->id;
-        m_treeTipText = m_context.browser.TryGetNodeLocation (node->id, location) ? m_context.browser.GetImageProblem (location.path) : std::wstring();
+        m_treeTipText = m_context.browser.TryGetNodeLocation (node->id, location) ? m_context.browser.GetLoader().GetImageProblem (location.path) : std::wstring();
     }
 
     //  A connection the firewall blocks has the cause as its tip.

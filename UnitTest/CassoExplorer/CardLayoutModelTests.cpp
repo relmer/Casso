@@ -79,6 +79,7 @@ public:
 
         Assert::IsTrue (rows[2].support == CardLayoutModel::Support::Fails);
         Assert::IsTrue (rows[3].support == CardLayoutModel::Support::Step);
+        Assert::IsTrue (rows[3].note.starts_with (L"Set Partitions Dev0 to 13 "));
         Assert::IsTrue (rows[3].note.find (L"13") != std::wstring::npos);
     }
 
@@ -191,5 +192,20 @@ public:
 
         tiny.GetChoices (CardLayoutModel::Adapter::A2Pico, positions);
         Assert::IsTrue (positions.empty());
+    }
+
+
+    TEST_METHOD (AdapterOrder_IsAlphabeticalWithEveryAdapter)
+    {
+        std::vector<CardLayoutModel::Adapter>  order = CardLayoutModel::GetAdapterOrder();
+
+        Assert::AreEqual ((size_t) CardLayoutModel::Adapter::Count - (size_t) CardLayoutModel::Adapter::First, order.size());
+        Assert::IsTrue   (order.front() == CardLayoutModel::Adapter::A2Pico);
+        Assert::IsTrue   (order.back()  == CardLayoutModel::Adapter::Cffa3000);
+
+        for (size_t i = 1; i < order.size(); i++)
+        {
+            Assert::IsTrue (_wcsicmp (CardLayoutModel::GetAdapterLabel (order[i - 1]).c_str(), CardLayoutModel::GetAdapterLabel (order[i]).c_str()) < 0);
+        }
     }
 };

@@ -17,10 +17,14 @@
 #include "Devices/BlockDevice/ScsiHardDisk.h"
 #include "Shell/StorageCardWiring.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/DiskFlusher.h"
+#include "Devices/Disk/Store/DiskBayTable.h"
 #include "Seams/Win32DiskFileIo.h"
 #include "Shell/DiskManager.h"
 #include "Devices/Floppy35/IFloppy35EventSink.h"
 #include "Devices/RamDevice.h"
+#include "Devices/RomDevice.h"
+#include "Machines/Apple2/Common/ThirteenSectorCodec.h"
 #include "Machines/Apple2/Common/AppleSoftSwitchBank.h"
 #include "Machines/Apple2/Common/VideoScanner.h"
 #include "Devices/Acia6551.h"
@@ -1026,7 +1030,7 @@ void MachineHost::SoftReset()
     // saved the guest's disk as a spare copy beside it.
     if (m_diskStore != nullptr)
     {
-        hrFlush = m_diskStore->FlushAll();
+        hrFlush = m_diskStore->GetFlusher().FlushAll();
         IGNORE_RETURN_VALUE (hrFlush, S_OK);
     }
 
@@ -1101,7 +1105,7 @@ void MachineHost::PowerCycle()
     // DiskImageStore::SoftReset semantics -- see the comment block on
     // DiskImageStore::PowerCycle, which is the unmount-everything variant
     // tests can opt into directly).
-    hrFlush = m_diskStore->FlushAll();
+    hrFlush = m_diskStore->GetFlusher().FlushAll();
     IGNORE_RETURN_VALUE (hrFlush, S_OK);
 
     m_memoryBus->PowerCycleAll (*m_prng);
@@ -1114,7 +1118,7 @@ void MachineHost::PowerCycle()
     // The Disk II controller's power cycle selects its empty disks, so the
     // drives are pointed back at the store's mounts. Without this, a disk
     // mounted from memory, which has no file to remount, is disconnected.
-    for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+    for (drive = 0; drive < DiskBayTable::kDriveCount; drive++)
     {
         ConnectDiskToController (kDiskSlot, drive);
     }
@@ -1272,6 +1276,67 @@ void MachineHost::ConnectDiskToController (int slot, int drive)
     }
 
     controller->SetExternalDisk (drive, m_diskStore->GetImage (slot, drive));
+
+    if (drive == 0)
+    {
+        MatchDisk2Rom();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::SetDisk2Roms
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::SetDisk2Roms (std::vector<Byte> rom16, std::vector<Byte> rom13, RomDevice * device)
+{
+    m_disk2Rom16     = std::move (rom16);
+    m_disk2Rom13     = std::move (rom13);
+    m_disk2RomDevice = device;
+    m_isDisk2Rom13   = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::MatchDisk2Rom
+//
+//  A real card has one ROM or the other. Swapping it with the disk lets a
+//  13-sector disk boot with PR#6 or a power cycle on any machine with the
+//  card, and a 16-sector disk boot after it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::MatchDisk2Rom()
+{
+    DiskImage  *  image  = m_diskStore->GetImage (6, 0);
+    bool          want13 = image != nullptr && ThirteenSectorCodec::IsThirteenSector (*image);
+
+
+
+    if (m_disk2Rom16.empty() || m_disk2Rom13.size() != m_disk2Rom16.size() || want13 == m_isDisk2Rom13)
+    {
+        return;
+    }
+
+    if (m_disk2RomDevice != nullptr)
+    {
+        m_disk2RomDevice->Patch (want13 ? m_disk2Rom13 : m_disk2Rom16);
+    }
+    else if (m_mmu != nullptr)
+    {
+        m_mmu->PatchSlotRom (6, want13 ? m_disk2Rom13 : m_disk2Rom16);
+    }
+
+    m_isDisk2Rom13 = want13;
 }
 
 

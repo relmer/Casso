@@ -148,7 +148,7 @@ struct DecodeOptions
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-enum class RunColor { Text, Good, Bad, Muted, Keyword, String, Comment };
+enum class RunColor { Text, Good, Bad, Muted, Keyword, String, Comment, Number, Label };
 
 
 
@@ -345,4 +345,5 @@ struct DecodedFile
     Charset                    charset      = Charset::Default;
     size_t                     recordLength = 0;
     SheetForm                  sheetForm    = SheetForm::None;
+    std::wstring               viewName;    // the preview switch's label for a disk decoded as a whole; empty for "Saved game"
 };

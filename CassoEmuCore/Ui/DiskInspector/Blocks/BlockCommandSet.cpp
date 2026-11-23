@@ -62,17 +62,19 @@ void BlockCommandSet::Build()
     };
 
     //  File
-    c.save                      = make (L"&Save...", L"Ctrl+S", [&editing] () { editing.Save(); });
+    c.save                      = make (L"&Save", L"Ctrl+S", [&editing] () { editing.Save(); });
     c.save->isEnabled           = hasEdits;
     c.saveEditedCopy            = make (L"Save &as...", L"", [&editing] () { editing.SaveEditedCopy(); });
     c.saveEditedCopy->isEnabled = [this, hasEdits] () { return hasEdits() && !m_parts.file.IsOnCard(); };
     c.close                     = make (L"&Close", L"Alt+F4", [&frame] () { frame.RequestClose(); });
 
     //  Edit
-    c.undoApplied                = make (L"&Undo save", L"Ctrl+Z", [&editing] () { editing.UndoApplied(); });
-    c.undoApplied->isEnabled     = [&model, isOpen] () { return isOpen() && model.CanUndoApplied(); };
-    c.redoApplied                = make (L"&Redo save", L"Ctrl+Y", [&editing] () { editing.RedoApplied(); });
-    c.redoApplied->isEnabled     = [&model, isOpen] () { return isOpen() && model.CanRedoApplied(); };
+    c.undoApplied                = make (L"&Undo save", L"Ctrl+Z", [&editing] () { editing.Undo(); });
+    c.undoApplied->isEnabled     = [&model, isOpen] () { return isOpen() && (model.GetEdits().CanUndo() || model.CanUndoApplied()); };
+    c.undoApplied->labelText     = [&model] () { return std::wstring (model.GetEdits().CanUndo() ? L"&Undo" : L"&Undo save"); };
+    c.redoApplied                = make (L"&Redo save", L"Ctrl+Y", [&editing] () { editing.Redo(); });
+    c.redoApplied->isEnabled     = [&model, isOpen] () { return isOpen() && (model.GetEdits().CanRedo() || model.CanRedoApplied()); };
+    c.redoApplied->labelText     = [&model] () { return std::wstring (model.GetEdits().CanRedo() ? L"&Redo" : L"&Redo save"); };
     c.copySector                 = make (L"Copy &block", L"Ctrl+Shift+C", [&editing] () { editing.CopyBlock(); });
     c.copySector->isEnabled      = isOpen;
     c.copySector->glyph          = kpszGlyphCopy;
@@ -218,7 +220,8 @@ bool BlockCommandSet::TryRunWindowKey (const DxuiKeyEvent & ev, bool & outResult
 //  BlockCommandSet::TryRunKey
 //
 //  The shortcuts after the focused control's typing and editing keys. Escape
-//  cancels the running job and goes on to the focused control. False for a
+//  cancels the running job, stops editing, and goes on to the focused
+//  control. False for a
 //  key the focused control takes; otherwise `outResult` is whether it was
 //  handled.
 //
@@ -238,12 +241,12 @@ bool BlockCommandSet::TryRunKey (const DxuiKeyEvent & ev, bool & outResult)
     {
         switch (ev.vk)
         {
-            case 'G': command = m_commands.goTo;                                    break;
-            case 'C': command = ev.shift ? m_commands.copySector : nullptr;         break;
-            case 'S': command = m_commands.save;                                    break;
-            case 'Z': command = m_commands.undoApplied;                             break;
-            case 'Y': command = m_commands.redoApplied;                             break;
-            default:                                                                break;
+            case 'G': command = m_commands.goTo;                                            break;
+            case 'C': command = ev.shift ? m_commands.copySector : nullptr;                 break;
+            case 'S': command = m_commands.save;                                            break;
+            case 'Z': command = ev.shift ? m_commands.redoApplied : m_commands.undoApplied; break;
+            case 'Y': command = m_commands.redoApplied;                                     break;
+            default:                                                                        break;
         }
 
         if (command == nullptr)
@@ -258,7 +261,7 @@ bool BlockCommandSet::TryRunKey (const DxuiKeyEvent & ev, bool & outResult)
             case VK_PRIOR:  command = m_commands.previousSector;                                               break;
             case VK_NEXT:   command = m_commands.nextSector;                                                   break;
             case VK_F8:     command = ev.shift ? m_commands.previousDifference : m_commands.nextDifference;    break;
-            case VK_ESCAPE: m_parts.jobs.CancelJobs();                                                         break;
+            case VK_ESCAPE: CancelOrStopEditing();                                                             break;
             default:                                                                                           break;
         }
     }
@@ -271,6 +274,26 @@ bool BlockCommandSet::TryRunKey (const DxuiKeyEvent & ev, bool & outResult)
     outResult = Run (command);
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockCommandSet::CancelOrStopEditing
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockCommandSet::CancelOrStopEditing()
+{
+    m_parts.jobs.CancelJobs();
+
+    if (m_parts.view.IsEditing())
+    {
+        m_parts.view.SetEditing (false);
+    }
 }
 
 

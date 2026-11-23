@@ -3,7 +3,7 @@
 #include "Ui/DiskInspector/GoToDialog.h"
 
 #include "Devices/Disk/Inspector/InspectorFormat.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 
 
 
@@ -606,7 +606,7 @@ vector<vector<std::wstring>> GoToDialog::BuildDosOrderTable()
     {
         p = 0;
 
-        while (p < kSectors && NibblizationLayer::GetDosFileIndexForPhysicalSector (p) != index)
+        while (p < kSectors && SectorInterleave::GetDosFileIndexForPhysicalSector (p) != index)
         {
             p++;
         }

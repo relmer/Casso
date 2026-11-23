@@ -53,9 +53,10 @@ private:
     static constexpr const wchar_t *  kpszGlyphCopy = L"\xE8C8";
     static constexpr const wchar_t *  kpszGlyphEdit = L"\xE70F";
 
-    void  ShowLevel      (BlockPlace::Kind kind);
-    void  GoToBlock      ();
-    void  StepDifference (bool isForward);
+    void  ShowLevel           (BlockPlace::Kind kind);
+    void  GoToBlock           ();
+    void  StepDifference      (bool isForward);
+    void  CancelOrStopEditing ();
 
     Parts                m_parts;
     InspectorCommands  & m_commands;

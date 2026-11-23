@@ -3,7 +3,7 @@
 #include "CassoLink/CassoLinkProDosDisk.h"
 #include "CassoLink/LinkProgram.h"
 #include "ApplesoftTokenizer.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
@@ -22,7 +22,7 @@ HRESULT CassoLinkProDosDisk::Make (const std::vector<Byte> & usersDisk, const st
 {
     HRESULT                hr      = S_OK;
     std::vector<Byte>      sectors;
-    std::vector<Byte>      image (NibblizationLayer::kImageByteSize, 0);
+    std::vector<Byte>      image (NibbleFormat::kImageByteSize, 0);
     std::vector<Byte>      installer;
     std::vector<Byte>      startup;
     std::string            errors;
@@ -40,7 +40,7 @@ HRESULT CassoLinkProDosDisk::Make (const std::vector<Byte> & usersDisk, const st
     hr = VolumeImage::Load (usersDisk, usersPath, sectors, report);
     CHR (hr);
 
-    sized = sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    sized = sectors.size() == (size_t) NibbleFormat::kImageByteSize;
     CBREx (sized, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     hr = ProDosSkeleton::Write (image, kVolumeName);

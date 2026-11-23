@@ -6,7 +6,7 @@
 #include "CassoLink/FullSend/FullSendDisk.h"
 #include "CassoLink/FullSend/FullSendLink.h"
 #include "CassoLink/FullSend/FullSendStatus.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 
 
 
@@ -65,6 +65,12 @@ HRESULT FullSendDriveCheck::Check (int drive, FullSendCheckedDisk & outDisk)
 
     hr = ReadFingerprint (drive, outDisk, stable);
     CHR (hr);
+
+    if (outDisk.noSectors)
+    {
+        hr = CheckRawOnly (drive, outDisk, known);
+        CHR (hr);
+    }
 
     if (stable)
     {
@@ -128,10 +134,12 @@ HRESULT FullSendDriveCheck::ReadFingerprint (int drive, FullSendCheckedDisk & ou
 
 
     outStable = false;
-    outDisk.image.assign (NibblizationLayer::kImageByteSize, 0);
+    outDisk.image.assign (NibbleFormat::kImageByteSize, 0);
 
     hr = ReadStableTrack (drive, 0, outDisk, hasDisk, outStable);
     CHR (hr);
+
+    outDisk.noSectors = !hasDisk;
     BAIL_OUT_IF (!hasDisk || !outStable, S_OK);
 
     if (!FullSendDisk::IsCatalogOnTrackZero (outDisk.image))
@@ -174,7 +182,7 @@ Error:
 
 HRESULT FullSendDriveCheck::ReadStableTrack (int drive, int track, FullSendCheckedDisk & ioDisk, bool & outHasDisk, bool & outStable)
 {
-    constexpr size_t   kTrackBytes = (size_t) NibblizationLayer::kSectorsPerTrack * NibblizationLayer::kSectorByteSize;
+    constexpr size_t   kTrackBytes = (size_t) NibbleFormat::kSectorsPerTrack * NibbleFormat::kSectorByteSize;
     HRESULT            hr          = S_OK;
     auto               start       = ioDisk.image.begin() + (ptrdiff_t) ((size_t) track * kTrackBytes);
     bool               whole       = false;
@@ -209,6 +217,65 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullSendDriveCheck::CheckRawOnly
+//
+//  A drive whose track 0 has no sector that reads is empty, or has a disk
+//  whose tracks aren't standard sectors. A raw read of track 0 that repeats
+//  is a disk, sent as a raw capture. Its fingerprint is from that read, so
+//  the same disk read again in the drive is matched by its revolution: a
+//  repeat once its image is in the folder.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT FullSendDriveCheck::CheckRawOnly (int drive, FullSendCheckedDisk & ioDisk, bool & outKnown)
+{
+    HRESULT            hr     = S_OK;
+    DriveRecord      & record = GetRecord (drive);
+    std::vector<Byte>  revolution;
+    bool               same   = false;
+
+
+
+    outKnown = false;
+
+    hr = m_context.link.ProbeRaw (drive, record.rawRevolution, revolution, same);
+    CHR (hr);
+    BAIL_OUT_IF (revolution.empty(), S_OK);
+
+    ioDisk.isRawOnly = true;
+    same             = same && !record.rawPrint.empty();
+
+    if (same)
+    {
+        ioDisk.fingerprint = record.rawPrint;
+        outKnown           = m_context.folder.FindWithImage ([&] (const FullSendRow & row) { return row.fingerprint == record.rawPrint; }) != nullptr;
+    }
+    else
+    {
+        hr = FullSendDisk::ComputeHash (revolution, ioDisk.fingerprint);
+        CHR (hr);
+
+        record.rawRevolution = std::move (revolution);
+        record.rawPrint      = ioDisk.fingerprint;
+    }
+
+    ioDisk.check = outKnown ? FullSendDiskCheck::Repeat : FullSendDiskCheck::New;
+
+    if (!outKnown)
+    {
+        m_context.Report (std::format ("Track 0 of the disk in drive {} has no sectors that read, so the disk is captured in raw mode.", drive), drive);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullSendDriveCheck::FindRepeat
 //
 //  From the manifest as it is in the folder now, with any of its images that
@@ -227,6 +294,8 @@ HRESULT FullSendDriveCheck::FindRepeat (FullSendCheckedDisk & ioDisk, bool & out
 
     hr = m_context.folder.Reload();
     CHR (hr);
+
+    m_context.status.RenameDisks (m_context.folder.GetManifest().GetRows());
 
     hr = m_context.FindMovedImages (matches);
     CHR (hr);
@@ -286,13 +355,13 @@ void FullSendDriveCheck::ReportRepeat (int drive, const FullSendCheckedDisk & di
 
     if (match == nullptr)
     {
-        m_context.Report (std::format ("The disk in drive {} changed while it was read. Press {} on the Apple to read it again.", drive, drive));
+        m_context.Report (std::format ("The disk in drive {} changed while it was read. Press {} on the Apple to read it again.", drive, drive), drive);
     }
     else
     {
         m_context.screen.GetName (drive) = match->file;
 
-        m_context.Report (std::format ("The disk in drive {} matches {}. A match compares only a few tracks, so different disks can match. Press {} on the Apple to send it anyway.", drive, match->file, drive));
+        m_context.Report (std::format ("The disk in drive {} matches {}. A match compares only a few tracks, so different disks can match. Press {} on the Apple to send it anyway.", drive, match->file, drive), drive);
     }
 }
 
@@ -307,8 +376,10 @@ void FullSendDriveCheck::ReportRepeat (int drive, const FullSendCheckedDisk & di
 //  A new disk that is formatted and has no files isn't sent: its drive's
 //  number on the Apple sends it, as it sends a repeat. A DOS 3.3 disk whose
 //  one file is a short BASIC program has that program's track read first, as
-//  a program with no lines is what INIT writes after NEW. A blank is counted
-//  once while it stays in its drive.
+//  a program with no lines is what INIT writes after NEW. A disk that passes
+//  is called blank only when it isn't write-protected and each of
+//  FullSendDisk::kBlankProbeTracks reads whole and all zero, as a formatter
+//  leaves it. A blank is counted once while it stays in its drive.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -319,6 +390,7 @@ HRESULT FullSendDriveCheck::CheckBlank (int drive, FullSendCheckedDisk & ioDisk)
     int            track   = FullSendDisk::FindLoneProgramTrack (ioDisk.image);
     bool           hasDisk = true;
     bool           whole   = false;
+    bool           isBlank = false;
     std::string    system;
 
 
@@ -336,6 +408,12 @@ HRESULT FullSendDriveCheck::CheckBlank (int drive, FullSendCheckedDisk & ioDisk)
 
     if (hasDisk && FullSendDisk::IsBlank (ioDisk.image, ioDisk.wholeTracks, system))
     {
+        hr = ProbeBlank (drive, ioDisk, isBlank);
+        CHR (hr);
+    }
+
+    if (isBlank)
+    {
         ioDisk.check  = FullSendDiskCheck::Blank;
         ioDisk.system = system;
         record.blank  = true;
@@ -349,11 +427,59 @@ HRESULT FullSendDriveCheck::CheckBlank (int drive, FullSendCheckedDisk & ioDisk)
             m_context.status.AddBlank();
         }
 
-        m_context.Report (std::format ("The disk in drive {} is formatted for {} but is blank, so it wasn't sent. Press {} on the Apple to send it anyway.", drive, system, drive));
+        m_context.Report (std::format ("The disk in drive {} is formatted for {} but is blank, so it wasn't sent. Press {} on the Apple to send it anyway.", drive, system, drive), drive);
     }
     else
     {
         record.blankDisk.clear();
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendDriveCheck::ProbeBlank
+//
+//  Whether a disk whose directory is empty is blank past it too: not
+//  write-protected, and each probe track read whole and all zero.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT FullSendDriveCheck::ProbeBlank (int drive, FullSendCheckedDisk & ioDisk, bool & outBlank)
+{
+    HRESULT  hr      = S_OK;
+    bool     hasDisk = true;
+    bool     whole   = false;
+
+
+
+    outBlank = !m_context.link.IsWriteProtected (drive);
+
+    for (int track : FullSendDisk::kBlankProbeTracks)
+    {
+        if (!outBlank)
+        {
+            break;
+        }
+
+        if (!ioDisk.IsReadWhole (track))
+        {
+            hr = m_context.link.ReadTrack (drive, track, ioDisk.image, hasDisk, whole);
+            CHR (hr);
+
+            if (hasDisk && whole)
+            {
+                ioDisk.wholeTracks.push_back (track);
+            }
+        }
+
+        outBlank = ioDisk.IsReadWhole (track) && FullSendDisk::IsTrackZero (ioDisk.image, track);
     }
 
 Error:

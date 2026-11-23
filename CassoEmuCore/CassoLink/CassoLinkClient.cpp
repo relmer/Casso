@@ -85,3 +85,53 @@ std::wstring CassoLinkClient::GetModelName() const
         default:    return L"Apple //c";
     }
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkClient::GetSlotCards
+//
+//  By the signature bytes ProDOS and Pascal check: $20 $00 $03 is a block
+//  device's firmware, whose $Cn07 is $3C on a Disk II and $00 on a
+//  SmartPort controller, and $38 $18 at $Cn05 and $Cn07 is Pascal 1.1
+//  firmware, as a serial or parallel card has. Any other bytes are an empty
+//  slot or a card with neither.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CassoLinkClient::GetSlotCards() const
+{
+    std::string  cards;
+
+
+
+    if (!hasSlotIds)
+    {
+        return cards;
+    }
+
+    for (size_t slot = 0; slot < 7; slot++)
+    {
+        const Byte  * id   = &slotIds[slot * 4];
+        const char  * card = nullptr;
+
+        if (id[0] == 0x20 && id[1] == 0x00 && id[2] == 0x03)
+        {
+            card = (id[3] == 0x3C) ? "Disk II" : (id[3] == 0x00) ? "SmartPort" : "block device";
+        }
+        else if (id[2] == 0x38 && id[3] == 0x18)
+        {
+            card = "Pascal firmware card";
+        }
+
+        if (card != nullptr)
+        {
+            cards += std::format ("{}{}: {}", cards.empty() ? "" : ", ", slot + 1, card);
+        }
+    }
+
+    return cards;
+}

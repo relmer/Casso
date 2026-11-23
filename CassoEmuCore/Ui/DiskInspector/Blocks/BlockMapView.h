@@ -61,14 +61,17 @@ public:
 
     //  The zoom, from 1 for the whole volume, in even steps up to a cell of
     //  kMostCellDip with one block in it. StepZoom steps about
-    //  the map's center, StepZoomAt about a point, and Fit returns to the
-    //  whole volume.
-    void    StepZoom   (int steps);
-    void    StepZoomAt (int steps, POINT anchorPx);
-    void    Fit        ();
-    bool    IsAtFit    () const { return m_zoom <= 1.0 && !m_isFlying; }
-    bool    IsAtMost   () const { return m_stops.empty() || m_zoom >= m_stops.back(); }
-    double  GetZoom    () const { return m_zoom; }
+    //  the map's center, StepZoomAt about a point, ZoomTo goes to a zoom
+    //  about the center, and Fit returns to the whole volume.
+    void                     StepZoom     (int steps);
+    void                     StepZoomAt   (int steps, POINT anchorPx);
+    void                     ZoomTo       (double zoom);
+    void                     Fit          ();
+    bool                     IsAtFit      () const { return m_zoom <= 1.0 && !m_isFlying; }
+    bool                     IsAtMost     () const { return m_stops.empty() || m_zoom >= m_stops.back(); }
+    double                   GetZoom      () const { return m_zoom; }
+    double                   GetMostZoom  () const { return m_stops.empty() ? 1.0 : m_stops.back(); }
+    const vector<double>   & GetZoomStops () const { return m_stops; }
 
     //  Reads each cell's role and highlight from the model again.
     void  Refresh ();
@@ -81,6 +84,9 @@ public:
     bool  StepFlight  (double nowMs);
     void  StopFlight  () { m_isFlying = false; }
     bool  IsFlying    () const { return m_isFlying; }
+
+    //  Whether the highlight, as Refresh last read it, is more than one block.
+    bool  HasSeveralHighlighted () const { return m_hasHighlight && (m_highlightBox.right - m_highlightBox.left) * (m_highlightBox.bottom - m_highlightBox.top) > 1; }
 
     //  What pointing at a cell reports.
     std::wstring  DescribeCell   (uint32_t cell) const;
@@ -116,6 +122,8 @@ private:
     static constexpr float   kLabelDip     = 18.0f;  // the least cell a run of blocks is labeled in
     static constexpr float   kLabelPadDip  = 4.0f;
 
+    struct LabelSpot;
+
     RECT             GetGridRect    () const;
     bool             IsDiffersShown (int64_t cell) const;
     void             PaintCells     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & grid) const;
@@ -124,6 +132,7 @@ private:
     void             PaintMarquee   (IDxuiPainter & painter, const DiskInspectorPalette & palette, const RECT & grid) const;
     uint32_t         GetCellColor   (const DiskInspectorPalette & palette, uint32_t cell) const;
     void             PaintLabels    (IDxuiTextRenderer & text, const DiskInspectorPalette & palette, const RECT & grid, float left, float top) const;
+    void             FindLabelSpots (const RECT & grid, float left, float top, vector<LabelSpot> & outSpots) const;
     void             GetCellsInView (const RECT & grid, int & outFirstColumn, int & outLastColumn, int & outFirstRow, int & outLastRow) const;
     void             ReadBlocks     ();
     static uint32_t  GetFileColor   (int64_t key, bool isDark);

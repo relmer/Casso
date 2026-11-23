@@ -1,10 +1,10 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/ThirteenSectorCodec.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Devices/Disk/DiskFieldFormat.h"
 #include "Devices/Disk/Inspector/LatchFramer.h"
 #include "Devices/Disk/Inspector/TrackCopy.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 
 
 
@@ -14,19 +14,55 @@
 //
 //  ThirteenSectorCodec::MakeMarks
 //
-//  The standard marks, plus the address prologue of RDOS 3.2.
+//  The standard marks, plus the address prologue of RDOS 3.2, plus the
+//  prologues of the 1981 Ultima's program disk. Each of its tracks has the
+//  standard D5 AA B5 and D5 AA AD with extra bits set in the first and
+//  third nibbles: D5, D7, DD or DF, then B5, B7, F5 or F7 for an address
+//  and AD, BD, ED or FD for data.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 FieldMarks ThirteenSectorCodec::MakeMarks()
 {
-    FieldMarks  marks = FieldMarks::MakeStandard();
+    static constexpr Byte  kFirsts[]        = { 0xD5, 0xD7, 0xDD, 0xDF };
+    static constexpr Byte  kAddressThirds[] = { 0xB5, 0xB7, 0xF5, 0xF7 };
+    static constexpr Byte  kDataThirds[]    = { 0xAD, 0xBD, 0xED, 0xFD };
+    FieldMarks             marks            = FieldMarks::MakeStandard();
 
 
 
     marks.address13.push_back (DiskMarkPattern::MakeExact (0xD4, 0xAA, 0xB7));
 
+    for (Byte first : kFirsts)
+    {
+        for (size_t i = 0; i < std::size (kAddressThirds); i++)
+        {
+            AddMark (marks.address13, DiskMarkPattern::MakeExact (first, 0xAA, kAddressThirds[i]));
+            AddMark (marks.data,      DiskMarkPattern::MakeExact (first, 0xAA, kDataThirds[i]));
+        }
+    }
+
     return marks;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThirteenSectorCodec::AddMark
+//
+//  The pattern at the end of the list, unless the list has it already.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ThirteenSectorCodec::AddMark (vector<DiskMarkPattern> & ioMarks, const DiskMarkPattern & mark)
+{
+    if (std::ranges::find (ioMarks, mark) == ioMarks.end())
+    {
+        ioMarks.push_back (mark);
+    }
 }
 
 
@@ -407,7 +443,7 @@ HRESULT ThirteenSectorCodec::Nibblize (const vector<Byte> & sectors, Byte volume
     {
         size_t  bitOffset = 0;
 
-        out.ResizeTrack (track, NibblizationLayer::kTrackBitCapacity);
+        out.ResizeTrack (track, NibbleFormat::kTrackBitCapacity);
 
         bits = &out.GetTrackBitsForWrite (track);
 

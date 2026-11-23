@@ -58,7 +58,10 @@ void StatusBand::Tick (int64_t nowMs)
 {
     (void) nowMs;
 
-    m_bar.Tick (m_host.GetOwnerHwnd());
+    if (m_bar.Tick (m_host.GetOwnerHwnd()))
+    {
+        m_host.Relayout();
+    }
 }
 
 

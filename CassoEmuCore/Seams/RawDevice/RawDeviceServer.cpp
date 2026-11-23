@@ -195,6 +195,7 @@ HRESULT RawDeviceServer::ServeOpen (int number)
     if (SUCCEEDED (result))
     {
         FindApplePartitions (*session.device, session.drive.bytes / IRawDevice::kBlockBytes, session.writable);
+        Log (std::format (L"drive {}: {} Apple partitions found", number, session.writable.size()), S_OK);
 
         RawDeviceProtocol::AppendQuad (payload, session.drive.bytes);
         payload.push_back (session.drive.removable ? 1 : 0);
@@ -384,6 +385,13 @@ HRESULT RawDeviceServer::ServeWrite (int number, uint64_t first, uint32_t count)
         {
             LogTraffic (number, *session, false);
         }
+    }
+
+    //  A write that fails is logged with its blocks, so the reason is in the
+    //  log as well as in the reply.
+    if (FAILED (result))
+    {
+        Log (std::format (L"write drive {} blocks {} to {}", number, first, first + count - 1), result);
     }
 
     hr = Reply (result, {});

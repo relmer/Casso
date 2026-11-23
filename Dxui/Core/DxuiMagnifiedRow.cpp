@@ -72,6 +72,17 @@ void DxuiMagnifiedRow::Lay (std::span<const DxuiMagnifiedItem> items, float poin
         anchor            = (pointer >= items[i].left) ? i : anchor;
     }
 
+    if (!options.growsWidth)
+    {
+        for (size_t i = 0; i < count; i++)
+        {
+            outSpans[i].left  = items[i].left;
+            outSpans[i].width = items[i].width;
+        }
+
+        return;
+    }
+
     for (size_t i = 0; i < count; i++)
     {
         gaps += GetGap (items, outSpans, i, options.gaps);

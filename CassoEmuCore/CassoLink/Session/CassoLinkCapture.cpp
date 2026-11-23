@@ -5,8 +5,9 @@
 #include "CassoLink/CassoLinkHost.h"
 #include "CassoLink/Session/CaptureStream.h"
 #include "CassoLink/Session/CassoLinkDiskTransfer.h"
+#include "Devices/Disk/DiskFieldFormat.h"
 #include "Devices/Disk/DiskImage.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Update/ZipArchive.h"
 
@@ -428,6 +429,59 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkCapture::ProbeRevolution
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkCapture::ProbeRevolution (CassoLinkHost & host, Byte drive, std::span<const Byte> module, std::span<const Byte> previous, std::vector<Byte> & outRevolution, bool & outSame)
+{
+    HRESULT            hr      = S_OK;
+    Result             result;
+    ProgressFn         none;
+    Run                run     { host, drive, module, none, result };
+    std::vector<Byte>  bytes;
+    std::vector<Byte>  twice;
+    std::vector<int>   map;
+    std::vector<bool>  stretch;
+    size_t             start   = 0;
+    size_t             length  = 0;
+    size_t             differ  = 0;
+    bool               missed  = false;
+    bool               isFound = false;
+
+
+
+    outRevolution.clear();
+    outSame = false;
+
+    hr = ReadOnce (run, 0, 0, 1, 1, CassoLinkHost::kNoSync, {}, bytes, missed);
+    CHR (hr);
+
+    isFound = FindReference (bytes, start, length) && length != 0;
+    BAIL_OUT_IF (!isFound, S_OK);
+
+    outRevolution.assign (bytes.begin() + (ptrdiff_t) start, bytes.begin() + (ptrdiff_t) (start + length));
+
+    BAIL_OUT_IF (previous.size() < kAlignBytes || previous.size() > length + s_kBand || length > previous.size() + s_kBand, S_OK);
+
+    twice.assign (outRevolution.begin(), outRevolution.end());
+    twice.insert (twice.end(), outRevolution.begin(), outRevolution.end());
+
+    for (size_t from : FindAnchors (previous, twice))
+    {
+        outSame = outSame || (Align (previous, twice, from, map, differ, stretch) && differ * s_kProbeShare <= previous.size());
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkCapture::ReadOnce
 //
 //  The module is loaded again before the read when a read of the drive
@@ -452,10 +506,16 @@ HRESULT CassoLinkCapture::ReadOnce (Run & run, int position, Byte delay, int rea
     //  so the last read draws it full.
     after = (Byte) std::max (run.percent, std::min (100, (run.done + 1) * 100 / std::max (run.planned, run.done + 1)));
 
-    //  A request the line drops is made again, with the module loaded again
-    //  when the program no longer has it.
+    //  A request the line drops is made again, after the line is recovered,
+    //  with the module loaded again when the program no longer has it.
     for (int attempt = 0; attempt < s_kReadAttempts; attempt++)
     {
+        if (attempt > 0)
+        {
+            hr = run.host.RecoverLine();
+            CHR (hr);
+        }
+
         hr = run.host.EnsureModule (run.module);
 
         if (SUCCEEDED (hr))
@@ -845,11 +905,11 @@ Error:
 int CassoLinkCapture::CountSectors (std::span<const Byte> revolution, int track, bool & outThirteen, int & outAddressed)
 {
     std::vector<Byte>  bytes;
-    std::vector<Byte>  sector;
+    DataFieldDecode    sector;
     std::set<int>      found;
     std::set<int>      addressed;
     bool               kindKnown = false;
-    size_t             wrap      = std::min (revolution.size(), (size_t) NibblizationLayer::kDataNibbleCount + 2 * s_kDataWithin);
+    size_t             wrap      = std::min (revolution.size(), (size_t) NibbleFormat::kDataNibbleCount + 2 * s_kDataWithin);
 
 
 
@@ -896,7 +956,7 @@ int CassoLinkCapture::CountSectors (std::span<const Byte> revolution, int track,
             outThirteen = is13;
         }
 
-        for (data = at + 11; data + 3 + NibblizationLayer::kDataNibbleCount <= bytes.size() && data < at + 11 + s_kDataWithin && !hasData; data++)
+        for (data = at + 11; data + 3 + NibbleFormat::kDataNibbleCount <= bytes.size() && data < at + 11 + s_kDataWithin && !hasData; data++)
         {
             bool  standard = bytes[data + 1] == s_kProlog1 && bytes[data + 2] == s_kData;
             bool  other    = is16 && bytes[data + 1] == s_kOtherProlog1;
@@ -907,7 +967,8 @@ int CassoLinkCapture::CountSectors (std::span<const Byte> revolution, int track,
         //  The loop has gone one past the prolog.
         if (hasData && is16)
         {
-            hasData = NibblizationLayer::DecodeDataNibbles (&bytes[data + 2], sector);
+            DiskFieldFormat::DecodeData (DiskFieldKind::Sixteen, std::span<const Byte> (&bytes[data + 2], DiskFieldFormat::kBodyLength62), bytes[data + 2 + DiskFieldFormat::kBodyLength62], sector);
+            hasData = sector.isChecksumGood && sector.invalidNibbles.empty();
         }
 
         if (hasData && is13 == outThirteen)
@@ -1386,6 +1447,18 @@ HRESULT CassoLinkCapture::BuildWoz (const std::vector<Position> & positions, int
 
     hr = WozLoader::Serialize (image, outResult.woz);
     CHR (hr);
+
+    //  The boot sector format is track 0's: a 13-sector disk boots only from
+    //  a Disk II with the 13-sector boot ROM.
+    if (auto  zero = streams.find (0);  zero != streams.end())
+    {
+        bool  thirteen  = false;
+        int   addressed = 0;
+
+        CountSectors (zero->second.bytes, 0, thirteen, addressed);
+
+        edits.bootSectorFormat = addressed == 0 ? WozLoader::kBootSectorUnknown : thirteen ? WozLoader::kBootSector13 : WozLoader::kBootSector16;
+    }
 
     edits.meta.push_back ({ "image_date", imageDate });
     edits.meta.push_back ({ "notes", DescribeResult (outResult, drive) });

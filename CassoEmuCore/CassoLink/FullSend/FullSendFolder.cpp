@@ -4,7 +4,7 @@
 
 #include "CassoLink/FullSend/FullSendDisk.h"
 #include "CassoLink/Session/CassoLinkDiskTransfer.h"
-#include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/DiskSourceFormat.h"
 #include "Devices/Disk/DurableCommit.h"
 #include "Devices/Disk/IDiskFileIo.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
@@ -244,7 +244,7 @@ HRESULT FullSendFolder::BuildImageFile (const FullSendImage & image, bool withRa
     }
     else
     {
-        hr = DiskImageStore::GetSourceFormatByExtension (extension, format);
+        hr = DiskSourceFormat::GetSourceFormatByExtension (extension, format);
         CHR (hr);
 
         hr = BlankDiskBuilder::WrapInContainer (format, NibbleImageCodec::GetTrackSizeForPath (extension), false, 0, image.sectors, outBytes);

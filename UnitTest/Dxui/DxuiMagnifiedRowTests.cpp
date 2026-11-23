@@ -186,6 +186,28 @@ namespace DxuiMagnifiedRowTests
             Assert::AreEqual (kGap, spans[1].left - (spans[0].left + spans[0].width), kTolerance);
         }
 
+        TEST_METHOD (ARowThatDoesntGrowWidths_KeepsEachItemInPlace_AndGrowsItsScale)
+        {
+            std::array<DxuiMagnifiedItem, kCount>  items   = MakeRow();
+            std::array<DxuiMagnifiedSpan, kCount>  spans   = {};
+            DxuiMagnifiedRow::Options              options = MakeOptions (DxuiMagnifiedRow::Anchor::Pointer);
+
+
+
+            options.growsWidth = false;
+
+            DxuiMagnifiedRow::Lay (items, GetCenter (items[4]), 1.0f, options, spans);
+
+            for (size_t i = 0; i < kCount; i++)
+            {
+                Assert::AreEqual (items[i].left,  spans[i].left,  kTolerance);
+                Assert::AreEqual (items[i].width, spans[i].width, kTolerance);
+            }
+
+            Assert::AreEqual (kMaxScale, spans[4].scale, kTolerance);
+            Assert::AreEqual (1.0f,      spans[0].scale, kTolerance);
+        }
+
         TEST_METHOD (TheItemAtAPoint_HasTheGapAfterIt)
         {
             std::array<DxuiMagnifiedItem, kCount>  items = MakeRow();

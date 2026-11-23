@@ -102,6 +102,8 @@ uint32_t PreviewText::GetRunColor (RunColor color, const SourceSyntax::Colors & 
          : (color == RunColor::Bad  || color == RunColor::String)  ? colors.string
          : (color == RunColor::Muted)                              ? colors.address
          : (color == RunColor::Keyword)                            ? colors.mnemonic
+         : (color == RunColor::Number)                             ? colors.number
+         : (color == RunColor::Label)                              ? colors.symbol
                                                                    : 0u;
 }
 

@@ -131,4 +131,72 @@ public:
 
         Assert::IsTrue (FAILED (hr));
     }
+
+
+    static Byte ReadByteAt (const std::vector<Byte> & bits, size_t bitAt)
+    {
+        Byte  value = 0;
+
+        for (size_t i = 0; i < 8; i++)
+        {
+            value = (Byte) ((value << 1) | ((bits[(bitAt + i) / 8] >> (7 - (bitAt + i) % 8)) & 1));
+        }
+
+        return value;
+    }
+
+
+    static void WriteByteAt (std::vector<Byte> & bits, size_t bitAt, Byte value)
+    {
+        for (size_t i = 0; i < 8; i++)
+        {
+            size_t  at   = bitAt + i;
+            Byte    mask = (Byte) (0x80 >> (at % 8));
+
+            bits[at / 8] = (Byte) (((value >> (7 - i)) & 1) ? (bits[at / 8] | mask) : (bits[at / 8] & ~mask));
+        }
+    }
+
+
+    //  Each prologue on the track, D5 AA third, becomes first AA newThird, as
+    //  on the 1981 Ultima's program disk.
+    static void AlterPrologues (DiskImage & image, int track, Byte third, Byte first, Byte newThird)
+    {
+        std::vector<Byte> &  bits  = image.GetTrackBitsForWrite (track);
+        size_t               count = image.GetTrackBitCount (track);
+
+        for (size_t at = 0; at + 24 <= count; at++)
+        {
+            if (ReadByteAt (bits, at) == 0xD5 && ReadByteAt (bits, at + 8) == 0xAA && ReadByteAt (bits, at + 16) == third)
+            {
+                WriteByteAt (bits, at,      first);
+                WriteByteAt (bits, at + 16, newThird);
+                at += 23;
+            }
+        }
+    }
+
+
+    TEST_METHOD (Denibblize_AlteredPrologues_ReturnsEverySector)
+    {
+        vector<Byte>        flat = MakePatternedSectors();
+        vector<Byte>        read;
+        DiskImage           image;
+        SectorDecodeReport  report;
+
+        AssertSucceeded (ThirteenSectorCodec::Nibblize (flat, kVolumeNumber, image));
+
+        for (int track = 1; track < ThirteenSectorCodec::kTrackCount; track++)
+        {
+            AlterPrologues (image, track, 0xB5, track % 2 ? 0xDF : 0xDD, track % 2 ? 0xF7 : 0xB7);
+            AlterPrologues (image, track, 0xAD, track % 2 ? 0xD7 : 0xDF, track % 2 ? 0xFD : 0xED);
+        }
+
+        Assert::IsTrue (ThirteenSectorCodec::IsThirteenSector (image));
+
+        ThirteenSectorCodec::Denibblize (image, read, report);
+
+        Assert::IsFalse (report.HasDataLoss());
+        Assert::IsTrue  (read == flat);
+    }
 };

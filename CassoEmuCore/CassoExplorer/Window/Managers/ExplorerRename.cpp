@@ -18,6 +18,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 #include "Core/TextEncoding.h"
 #include "Seams/IShellItemVerbs.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 
 
@@ -265,6 +266,51 @@ void ExplorerRename::BeginTreeRename (const std::wstring & id)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerRename::ResolveTakenName
+//
+//  When another file in the folder already uses the new name, offer the
+//  first free "name (n)" instead, as File Explorer does. Returns false when
+//  the rename is canceled. A change of case alone renames the same file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerRename::ResolveTakenName (const std::wstring & path, std::wstring & ioNewName)
+{
+    std::filesystem::path  source     = path;
+    std::filesystem::path  target     = source.parent_path() / ioNewName;
+    std::filesystem::path  free;
+    std::error_code        ec;
+    std::wstring           question;
+    bool                   isRenaming = true;
+
+
+
+    if (std::filesystem::exists (target, ec) && !std::filesystem::equivalent (source, target, ec))
+    {
+        for (int n = 2; free.empty() || std::filesystem::exists (free, ec); n++)
+        {
+            free = source.parent_path() / std::format (L"{} ({}){}", target.stem().wstring(), n, target.extension().wstring());
+        }
+
+        question   = std::format (L"Do you want to rename \"{}\" to \"{}\"?\n\nThere is already a file with the same name in this location.",
+                                  source.filename().wstring(), free.filename().wstring());
+        isRenaming = DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, question.c_str(), L"Rename File", MB_YESNO | MB_ICONQUESTION, { L"Yes", L"No" }) == IDYES;
+
+        if (isRenaming)
+        {
+            ioNewName = free.filename().wstring();
+        }
+    }
+
+    return isRenaming;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerRename::EndRename
 //
 //  A name left as it was, or emptied, changes nothing. A renamed row is
@@ -294,7 +340,7 @@ void ExplorerRename::EndRename (bool commit)
     {
         oldName = std::filesystem::path (m_context.browser.TryGetNodePath (treeId, path) ? path : std::wstring()).filename().wstring();
 
-        if (commit && !path.empty() && !newName.empty() && newName != oldName)
+        if (commit && !path.empty() && !newName.empty() && newName != oldName && ResolveTakenName (path, newName))
         {
             hr = m_context.shellVerbs.RenameItem (m_context.window.GetHwnd(), path, newName);
 
@@ -324,7 +370,12 @@ void ExplorerRename::EndRename (bool commit)
 
     if (!m_context.browser.IsVolumeLocation())
     {
-        if (m_context.browser.TryGetRowPath (row, path))
+        if (BrowserRowPaths::TryGetRowPath (m_context.browser.GetRowListing(), row, path) && !ResolveTakenName (path, newName))
+        {
+            return;
+        }
+
+        if (!path.empty())
         {
             hr = m_context.shellVerbs.RenameItem (m_context.window.GetHwnd(), path, newName);
 
@@ -368,7 +419,7 @@ void ExplorerRename::EndRename (bool commit)
 
         //  The row renamed is the one the box was over, whatever else is
         //  selected.
-        m_context.browser.SetSelectedRows ({ row });
+        m_context.browser.GetSelection().SetSelectedRows ({ row });
         renamed = m_context.actions.RenameSelected (newName);
 
         if (renamed.Succeeded())

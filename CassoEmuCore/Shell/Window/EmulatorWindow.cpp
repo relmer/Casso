@@ -76,6 +76,7 @@
 #include "Devices/Disk/PreservedCopy.h"
 #include "Devices/Disk/WriteProtectChange.h"
 #include "Core/AppTimerIds.h"
+#include "Devices/Disk/Store/ExternalChangeMonitor.h"
 
 
 
@@ -2359,7 +2360,7 @@ DxuiMessageResult EmulatorShell::OnCopyData (WPARAM sender, LPARAM data)
                 m_disks->GetIntentReplies().NoteReload (payload.imagePath, replyTo);
             }
 
-            m_machine.GetDiskStore().NoteExternalChange (payload.imagePath, payload.intent, replyTo != nullptr);
+            m_machine.GetDiskStore().GetChangeMonitor().NoteExternalChange (payload.imagePath, payload.intent, replyTo != nullptr);
             break;
     }
 

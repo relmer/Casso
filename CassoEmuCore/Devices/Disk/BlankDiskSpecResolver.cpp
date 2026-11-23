@@ -3,12 +3,13 @@
 #include "BlankDiskSpecResolver.h"
 #include "DiskImageSession.h"
 #include "DiskImageStore.h"
+#include "Devices/Disk/Store/DiskSourceFormat.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DamagedMountReport.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Machines/Apple2/Common/CpmVolume.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/StockBootDisks.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
@@ -744,7 +745,7 @@ std::string BlankDiskSpecResolver::DescribeNewDisk (const BlankDiskSpec & spec)
         wstring      list;
         int          track = 0;
 
-        for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+        for (track = 0; track < NibbleFormat::kTrackCount; track++)
         {
             if ((spec.fluxTrackMask & (1ull << track)) != 0)
             {
@@ -799,7 +800,7 @@ HRESULT BlankDiskSpecResolver::ParseTrackList (const std::string & text, uint64_
 
         first = 0;
 
-        while (pos < text.size() && isdigit ((unsigned char) text[pos]) != 0 && first < NibblizationLayer::kTrackCount)
+        while (pos < text.size() && isdigit ((unsigned char) text[pos]) != 0 && first < NibbleFormat::kTrackCount)
         {
             first = first * 10 + (text[pos] - '0');
             pos++;
@@ -816,14 +817,14 @@ HRESULT BlankDiskSpecResolver::ParseTrackList (const std::string & text, uint64_
 
             last = 0;
 
-            while (pos < text.size() && isdigit ((unsigned char) text[pos]) != 0 && last < NibblizationLayer::kTrackCount)
+            while (pos < text.size() && isdigit ((unsigned char) text[pos]) != 0 && last < NibbleFormat::kTrackCount)
             {
                 last = last * 10 + (text[pos] - '0');
                 pos++;
             }
         }
 
-        ok = first <= last && last < NibblizationLayer::kTrackCount;
+        ok = first <= last && last < NibbleFormat::kTrackCount;
         CBREx (ok, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
         for (track = first; track <= last; track++)
@@ -887,7 +888,7 @@ HRESULT BlankDiskSpecResolver::ResolveFlux (const CommandLineOptions & options,
     }
     else if (overExisting)
     {
-        hr = DiskImageStore::GetSourceFormatByExtension (options.disk.imagePath, format);
+        hr = DiskSourceFormat::GetSourceFormatByExtension (options.disk.imagePath, format);
         BAIL_OUT_IF (FAILED (hr) || !BlankDiskBuilder::CanHoldFlux (format), S_OK);
 
         hr = m_context.GetFileIo().ReadAllBytes (options.disk.imagePath, existing);
@@ -896,7 +897,7 @@ HRESULT BlankDiskSpecResolver::ResolveFlux (const CommandLineOptions & options,
         hr = WozLoader::Load (existing, image);
         BAIL_OUT_IF (FAILED (hr), S_OK);
 
-        for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+        for (track = 0; track < NibbleFormat::kTrackCount; track++)
         {
             slot = image.ResolveQuarterTrack (track * DiskImage::kQuarterTracksPerWholeTrack);
 

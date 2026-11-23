@@ -63,8 +63,17 @@ public:
     //  -1 otherwise. IsBlank reads the program from that track.
     static int      FindLoneProgramTrack (const std::vector<Byte> & image);
 
+    //  Whether every byte of a track in the image is zero, as a formatter
+    //  writes each data sector.
+    static bool     IsTrackZero (const std::vector<Byte> & image, int track);
+
     static constexpr uint32_t  kBlankFreeTenths = 8;
     static constexpr int       kGreetingSectors = 3;
+
+    //  Tracks away from every file system's directory and boot tracks, read
+    //  before a disk is called blank. A directory alone can be a false match:
+    //  an Infocom disk's track 0 passed for an empty Pascal directory.
+    static constexpr std::array<int, 4>  kBlankProbeTracks = { 4, 12, 22, 34 };
 
     //  What a disk with unreadable sectors probably is, as a manifest status.
     //  Sector reads aren't conclusive: a recognized file system comes first,

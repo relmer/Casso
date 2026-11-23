@@ -14,6 +14,7 @@
 #include "CassoExplorer/Model/KnownFolderStore.h"
 #include "CassoExplorer/Model/LaunchCommand.h"
 #include "CassoExplorer/Model/CassoImagesListing.h"
+#include "CassoExplorer/Model/DiskImageCatalog.h"
 #include "Seams/Win32FolderWatcher.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "Seams/Win32IntentChannel.h"
@@ -81,7 +82,6 @@ CassoExplorerShell::CassoExplorerShell()
         return folder;
     });
 
-    m_cards.SetConfirmWrite ([this] (const PhysicalDrive & drive) { return ConfirmCardWrite (drive); });
     m_cards.SetConfirmElevation ([this] (const PhysicalDrive & drive) { return ConfirmElevation (drive); });
 
     StartBootWorker();
@@ -173,13 +173,18 @@ void CassoExplorerShell::StartBootWorker()
         }
 
         //  An image no machine could be built for waits for the ROMs, which
-        //  a window offers when it is posted the message.
-        if (!result.hasReport && !result.missing.empty())
+        //  a window offers when it is posted the message. So does a 13-sector
+        //  disk's image that didn't boot with the 13-sector ROM missing.
+        bool  wants13 = result.hasReport && result.verdict != BootVerdict::Booted
+                        && std::find (result.missing.begin(), result.missing.end(), BootCheck::kRom13) != result.missing.end();
+
+        if ((!result.hasReport && !result.missing.empty()) || wants13)
         {
             std::lock_guard  lock (m_unbootedLock);
 
             m_unbooted.push_back ({ result.path, result.source });
-            m_romsWanted = true;
+            m_romsWanted   = m_romsWanted || !result.hasReport;
+            m_rom13Wanted  = m_rom13Wanted || wants13;
         }
 
         if (result.hasReport || !result.missing.empty())
@@ -264,33 +269,46 @@ void CassoExplorerShell::PlayBootSound (const ExplorerBootWorker::Result & resul
 //
 //  CassoExplorerShell::OfferBootRoms
 //
-//  The ROMs of the enhanced //e and the ][+, in one dialog, once in a run.
-//  With them installed, each image that waited is booted again.
+//  The ROMs of the enhanced //e and the ][+, in one dialog, once in a run,
+//  and the 13-sector Disk II ROM in a second dialog, once. With them installed,
+//  each image that waited is booted again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassoExplorerShell::OfferBootRoms (HWND hwnd, const DxuiTheme * theme)
 {
-    HRESULT                hr         = S_OK;
-    bool                   downloaded = false;
+    HRESULT                hr           = S_OK;
+    bool                   downloaded   = false;
+    bool                   downloaded13 = false;
     std::string            error;
     std::vector<Unbooted>  waiting;
 
 
 
-    if (!m_romsWanted || m_romsOffered)
+    if (m_romsWanted && !m_romsOffered)
     {
-        return;
+        m_romsOffered = true;
+
+        hr = AssetBootstrap::OfferMachineRoms (hwnd, theme, { TextEncoding::NarrowToWide (BootCheck::kEnhanced), TextEncoding::NarrowToWide (BootCheck::kPlus) },
+                                               L"Machine ROM download",
+                                               L"Casso Explorer boots each disk image on an emulated Apple to check that it runs and to capture a screenshot for its thumbnail. "
+                                               L"The ROMs of these machines aren't installed. Download them?",
+                                               downloaded, error);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
-    m_romsOffered = true;
+    if (m_rom13Wanted && !m_rom13Offered)
+    {
+        m_rom13Offered = true;
 
-    hr = AssetBootstrap::OfferMachineRoms (hwnd, theme, { TextEncoding::NarrowToWide (BootCheck::kEnhanced), TextEncoding::NarrowToWide (BootCheck::kPlus) },
-                                           L"Machine ROM download",
-                                           L"Casso Explorer boots each disk image on an emulated Apple to check that it runs and to capture a screenshot for its thumbnail. "
-                                           L"The ROMs of these machines aren't installed. Download them?",
-                                           downloaded, error);
-    IGNORE_RETURN_VALUE (hr, S_OK);
+        hr = AssetBootstrap::OfferOptionalRomDownload (hwnd, theme, BootCheck::kRom13, L"Disk II ROM download",
+                                                       L"A 13-sector disk boots only from a Disk II with the 13-sector boot ROM, which isn't installed. "
+                                                       L"Casso Explorer boots such a disk on an emulated Apple ][ plus with it. Download it?",
+                                                       downloaded13, error);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        downloaded = downloaded || downloaded13;
+    }
 
     if (downloaded)
     {
@@ -841,6 +859,25 @@ void CassoExplorerShell::StartLinkFaults()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerShell::DescribeInspectedPath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerShell::DescribeInspectedPath (const std::wstring & path)
+{
+    std::wstring  text = m_cards.DescribePartition (path);
+
+
+
+    return text.empty() ? DiskImageCatalog::GetPartitionTitle (m_containerIo, path) : text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerShell::Initialize
 //
 //  COM first, because the drag source and drop target in each browser
@@ -867,7 +904,7 @@ HRESULT CassoExplorerShell::Initialize (HINSTANCE instance, const CassoExplorerL
     m_instance    = instance;
     m_showCommand = showCommand;
     m_baseDir     = AssetBootstrap::GetAssetBaseDirectory().wstring();
-    m_inspectors  = std::make_unique<InspectorWindowSet> (m_imageWatcher, m_prefs.diskInspector, InspectorWindowSet::Seams { .fileIo = &m_containerIo, .explorer = this, .describePath = [this] (const std::wstring & path) { return m_cards.DescribePartition (path); } });
+    m_inspectors  = std::make_unique<InspectorWindowSet> (m_imageWatcher, m_prefs.diskInspector, InspectorWindowSet::Seams { .fileIo = &m_containerIo, .explorer = this, .describePath = [this] (const std::wstring & path) { return DescribeInspectedPath (path); } });
 
 #if defined (_DEBUG)
     StartLinkFaults();
@@ -944,12 +981,8 @@ void CassoExplorerShell::ConfigureBrowser (CassoExplorerBrowser & browser)
     browser.SetPhysicalCards (&m_cards);
 
     browser.SetRecentLoads ([this] () { return CassoImagesListing::LoadRecent (m_fs, m_baseDir); });
-    browser.GetTreeModel().SetDirectoryProbe ([] (const std::wstring & path)
-    {
-        DWORD  attributes = GetFileAttributesW (path.c_str());
-
-        return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
-    });
+    browser.GetTreeModel().SetDirectoryProbe (&HostFolderNames::IsReadableDirectory);
+    browser.GetTreeModel().SetMediaProbe (&HostFolderNames::IsMediaPresent);
 }
 
 
@@ -1153,6 +1186,13 @@ void CassoExplorerShell::CloseWindow (CassoExplorerWindow & window)
 
     last = std::count_if (m_windows.begin(), m_windows.end(), [] (const std::unique_ptr<WindowSlot> & slot) { return !slot->closed; }) == 1;
 
+    //  Closing the last window exits the app, so the inspectors' unsaved
+    //  edits are confirmed first, as File > Exit confirms them.
+    if (last && !ConfirmInspectors())
+    {
+        return;
+    }
+
     //  The last close's session is final, as File > Exit's is: any save after
     //  it, with nothing left open, would write an empty session over it.
     if (last)
@@ -1204,13 +1244,21 @@ void CassoExplorerShell::CloseWindow (CassoExplorerWindow & window)
 
 void CassoExplorerShell::ExitAll()
 {
-    if (m_exiting)
+    if (m_exiting || !ConfirmInspectors())
     {
         return;
     }
 
     SaveSession();
     m_exiting = true;
+
+    //  The loop ends once no Explorer window is open, before a WM_CLOSE
+    //  posted to an inspector arrives, so the inspectors close here, after
+    //  their edits are confirmed.
+    if (m_inspectors != nullptr)
+    {
+        m_inspectors->CloseAll();
+    }
 
     CloseDialogs();
 
@@ -1227,6 +1275,23 @@ void CassoExplorerShell::ExitAll()
             slot->window->CloseForApp();
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::ConfirmInspectors
+//
+//  Before the app exits: true when every inspector window can close.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerShell::ConfirmInspectors()
+{
+    return m_inspectors == nullptr || m_inspectors->ConfirmExit();
 }
 
 
@@ -1777,61 +1842,6 @@ int CassoExplorerShell::RunMessageLoop()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoExplorerShell::ConfirmCardWrite
-//
-//  The prompt is sent to an Explorer window, as it is a window of the UI
-//  thread. On the UI thread one prompt covers every write of a command; from
-//  another thread it covers that thread's writes until their flush.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool CassoExplorerShell::ConfirmCardWrite (const PhysicalDrive & drive)
-{
-    CassoExplorerWindow  * window   = GetWindowFor (GetForegroundWindow());
-    std::wstring           question = std::format (L"Write to {}? The card is changed in place.", PhysicalCards::FormatDrive (drive));
-    bool                   choice   = false;
-    UINT_PTR               timer    = 0;
-
-
-
-    for (const std::unique_ptr<WindowSlot> & slot : m_windows)
-    {
-        if (window == nullptr && !slot->closed)
-        {
-            window = slot->window.get();
-        }
-    }
-
-    if (window == nullptr)
-    {
-        return false;
-    }
-
-    SendMessageW (window->GetHwnd(), (UINT) AppMessage::ExplorerCardWrite, (WPARAM) &choice, (LPARAM) &question);
-
-    //  The writes that follow in the same command are sent without a prompt.
-    //  On the UI thread the timer fires once the thread is back in its loop.
-    if (choice && GetCurrentThreadId() == m_uiThread)
-    {
-        s_confirmedCards = &m_cards;
-        m_cards.SetConfirmed (true);
-        timer = SetTimer (nullptr, 0, 0, &CassoExplorerShell::EndCardConfirmation);
-        IGNORE_RETURN_VALUE (timer, 0);
-    }
-    else if (choice)
-    {
-        m_cards.SetConfirmedThread (GetCurrentThreadId());
-    }
-
-    return choice;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  CassoExplorerShell::ConfirmElevation
 //
 //  Sent to the foreground window, or the first one open, so the explanation
@@ -1868,22 +1878,3 @@ bool CassoExplorerShell::ConfirmElevation (const PhysicalDrive & drive)
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerShell::EndCardConfirmation
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CALLBACK CassoExplorerShell::EndCardConfirmation (HWND, UINT, UINT_PTR id, DWORD)
-{
-    BOOL  killed = KillTimer (nullptr, id);
-
-
-
-    IGNORE_RETURN_VALUE (killed, TRUE);
-
-    if (s_confirmedCards != nullptr)
-    {
-        s_confirmedCards->SetConfirmed (false);
-    }
-}

@@ -1,6 +1,6 @@
 # Quickstart: Validating Casso Explorer
 
-**Feature**: 033-cassque | **Date**: 2026-09-10
+**Feature**: 033-casso-explorer | **Date**: 2026-09-10
 
 Contracts: [intent-channel.md](contracts/intent-channel.md),
 [host-file-names.md](contracts/host-file-names.md),
