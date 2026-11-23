@@ -5,6 +5,7 @@
 #include "Machines/Apple2/Common/Dos33Catalog.h"
 #include "Machines/Apple2/Common/Dos33FileChain.h"
 #include "Machines/Apple2/Common/Dos33FreeMap.h"
+#include "Machines/Apple2/Common/Dos33IntegrityScanner.h"
 #include "Machines/Apple2/Common/Dos33SectorAccess.h"
 #include "Machines/Apple2/Common/IVolume.h"
 
@@ -72,27 +73,6 @@ public:
                             const FileAttributes  & attributes,
                             vector<Byte>          & outBuffer) const override;
 
-    //  The self-check every computed write and delete runs over its own output,
-    //  and the ONLY way a computed buffer reaches a caller. Refuses a buffer
-    //  that disagrees with itself in a way the buffer it was computed from did
-    //  not, and hands it over otherwise.
-    //
-    //  The check and the hand-off are one operation on purpose. A check sitting
-    //  BESIDE the assignment can be deleted while the assignment stays, and
-    //  nothing observable changes -- the suite cannot catch that, because no
-    //  input makes correct code produce a bad buffer. Routing the hand-off
-    //  through the check means removing it cannot be silent.
-    //
-    //  A refusal means OUR writer produced a bad image, not that the user asked
-    //  for something impossible, so it answers E_UNEXPECTED and asserts -- the
-    //  one condition in this layer that is a defect rather than a verdict.
-    //
-    //  Public because a refusal is only reachable by handing it a result that is
-    //  deliberately wrong.
-    static HRESULT  HandBackVerifiedResult (const VolumeIntegrityReport  & before,
-                                            const vector<Byte>           & result,
-                                            vector<Byte>                 & outBuffer);
-
     //  DOS 3.3 file types, as stored in the catalog's type byte below the lock
     //  bit. Exposed because callers name types on the command line.
     static constexpr Byte  kTypeText        = 0x00;
@@ -149,12 +129,6 @@ private:
     static constexpr int     kGreetingSector = 9;
     static constexpr size_t  kGreetingOffset = 0x75;
 
-    //  Credits the volume's own structures -- the tracks DOS occupies and the
-    //  catalog track -- to the reserved volume owner. No catalog entry names
-    //  them, and a report that left them unowned would call every healthy
-    //  volume inconsistent.
-    void  ClaimVolumeStructures  (VolumeIntegrityReport & outReport) const;
-
     //  Lays down a file whose name the catalog does not already hold, over the
     //  buffer this volume was constructed with. Replacement stages the removal
     //  into a working buffer and calls this on a volume over that, so one code
@@ -167,8 +141,9 @@ private:
     //  Turns what a delete decided into text a user can act on.
     static void  AppendDeleteWarnings (DeleteOutcome & inOutOutcome);
 
-    Dos33SectorAccess  m_access;
-    Dos33Catalog       m_catalog { m_access };
-    Dos33FileChain     m_chain   { m_access };
-    Dos33FreeMap       m_freeMap { m_access };
+    Dos33SectorAccess      m_access;
+    Dos33Catalog           m_catalog { m_access };
+    Dos33FileChain         m_chain   { m_access };
+    Dos33FreeMap           m_freeMap { m_access };
+    Dos33IntegrityScanner  m_scanner { m_access };
 };

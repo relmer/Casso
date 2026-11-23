@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 #include "FixtureProvider.h"
+#include "Machines/Apple2/Common/Dos33IntegrityScanner.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
@@ -1298,7 +1299,7 @@ public:
 
         AssertSucceeded (volume.BuildIntegrityReport (before));
 
-        hr = Dos33Volume::HandBackVerifiedResult (before, result, handedBack);
+        hr = Dos33IntegrityScanner::HandBackVerifiedResult (before, result, handedBack);
 
         Assert::AreEqual (E_UNEXPECTED, hr,
             L"a bad buffer from our own writer is a defect, not a verdict on input");
@@ -1324,7 +1325,7 @@ public:
         // the pool -- the state that lets the next allocation destroy it.
         MarkFree (result, 18, 14);
 
-        hr = Dos33Volume::HandBackVerifiedResult (before, result, handedBack);
+        hr = Dos33IntegrityScanner::HandBackVerifiedResult (before, result, handedBack);
 
         Assert::AreEqual (E_UNEXPECTED, hr);
         Assert::AreEqual (size_t (0), handedBack.size());
@@ -1348,7 +1349,7 @@ public:
         // HELLO's track/sector list chained onward to a track the disk lacks.
         result[listAt + 0x01] = kTrackOffTheVolume;
 
-        hr = Dos33Volume::HandBackVerifiedResult (before, result, handedBack);
+        hr = Dos33IntegrityScanner::HandBackVerifiedResult (before, result, handedBack);
 
         Assert::AreEqual (E_UNEXPECTED, hr);
         Assert::AreEqual (size_t (0), handedBack.size());
@@ -1391,7 +1392,7 @@ public:
                           after.GetAllocatedButUnclaimed().size());
         Assert::AreEqual (before.GetClaimedButFree().size(), after.GetClaimedButFree().size());
 
-        hr = Dos33Volume::HandBackVerifiedResult (before, result, handedBack);
+        hr = Dos33IntegrityScanner::HandBackVerifiedResult (before, result, handedBack);
 
         Assert::AreEqual (E_UNEXPECTED, hr);
         Assert::AreEqual (size_t (0), handedBack.size());
@@ -1436,7 +1437,7 @@ public:
                           after.GetAllocatedButUnclaimed().size());
         Assert::AreEqual (before.GetCrossLinked().size(), after.GetCrossLinked().size());
 
-        hr = Dos33Volume::HandBackVerifiedResult (before, result, handedBack);
+        hr = Dos33IntegrityScanner::HandBackVerifiedResult (before, result, handedBack);
 
         Assert::AreEqual (E_UNEXPECTED, hr);
         Assert::AreEqual (size_t (0), handedBack.size());
@@ -1462,7 +1463,7 @@ public:
 
         result[entryAt + 0x00] = 0xFF;   // tombstoned, bitmap untouched
 
-        hr = Dos33Volume::HandBackVerifiedResult (before, result, handedBack);
+        hr = Dos33IntegrityScanner::HandBackVerifiedResult (before, result, handedBack);
 
         Assert::AreEqual (E_UNEXPECTED, hr);
         Assert::AreEqual (size_t (0), handedBack.size());
@@ -1491,7 +1492,7 @@ public:
 
         result[catalogAt + 0x01] = kTrackOffTheVolume;
 
-        hr = Dos33Volume::HandBackVerifiedResult (before, result, handedBack);
+        hr = Dos33IntegrityScanner::HandBackVerifiedResult (before, result, handedBack);
 
         Assert::AreEqual (E_UNEXPECTED, hr);
         Assert::AreEqual (size_t (0), handedBack.size());
@@ -1528,7 +1529,7 @@ public:
 
         Assert::IsFalse (after.IsClean(),
             L"the pre-existing disagreement is still there, and was not the write's to fix");
-        AssertSucceeded (Dos33Volume::HandBackVerifiedResult (before, result, handedBack));
+        AssertSucceeded (Dos33IntegrityScanner::HandBackVerifiedResult (before, result, handedBack));
 
         Assert::IsTrue (handedBack == result, L"an accepted buffer is handed over unchanged");
     }

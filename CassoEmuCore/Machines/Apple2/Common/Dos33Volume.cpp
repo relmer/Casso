@@ -8,6 +8,7 @@
 #include "Machines/Apple2/Common/Dos33PayloadCodec.h"
 #include "Machines/Apple2/Common/Dos33FileChain.h"
 #include "Machines/Apple2/Common/Dos33FreeMap.h"
+#include "Machines/Apple2/Common/Dos33IntegrityScanner.h"
 #include "Devices/Disk/ChainWalkGuard.h"
 
 
@@ -169,171 +170,13 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Dos33Volume::ClaimVolumeStructures
-//
-//  The tracks a formatted volume reserves for itself: 0-2, where DOS lives on a
-//  bootable disk and which every 1980s formatter kept allocated on a data disk
-//  too, and 17, which holds the VTOC and the catalog.
-//
-//  Sixty-four sectors, named by nothing in the catalog. Crediting them to the
-//  volume is what makes the free map and the claim map agree on a healthy disk;
-//  without it every DOS 3.3 volume reports those sixty-four as space allocated
-//  to nobody, which is indistinguishable from the leak a bad delete leaves.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Dos33Volume::ClaimVolumeStructures (VolumeIntegrityReport & outReport) const
-{
-    int  track  = 0;
-    int  sector = 0;
-
-
-
-    for (track = 0; track < m_access.GetGeometry().tracks; track++)
-    {
-        bool  reserved = track < Dos33Skeleton::kDosImageTracks
-                      || track == Dos33Skeleton::kVtocTrack;
-
-        if (!reserved)
-        {
-            continue;
-        }
-
-        for (sector = 0; sector < m_access.GetGeometry().sectorsPerTrack; sector++)
-        {
-            outReport.AddClaim (m_access.ToUnit (track, sector), VolumeIntegrityReport::kVolumeOwner);
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  Dos33Volume::BuildIntegrityReport
-//
-//  Every catalog entry's chain walked into the claim map, then compared against
-//  the VTOC's own free bitmap. The volume's own tracks -- the boot area and the
-//  catalog track -- are claimed too, under a reserved owner: they are as
-//  allocated as any file's sectors, and a report that ignored them would call
-//  every volume inconsistent.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Dos33Volume::BuildIntegrityReport (VolumeIntegrityReport & outReport) const
 {
-    HRESULT                    hr          = S_OK;
-    size_t                     bufferBytes = m_access.GetBuffer().size();
-    size_t                     imageBytes  = m_access.GetGeometry().GetImageByteSize();
-    vector<Dos33CatalogEntry>  entries;
-    vector<std::string>        damage;
-    bool                       fullyParsed = true;
-    uint16_t                   owner       = 0;
-    int                        track       = 0;
-    int                        sector      = 0;
-
-
-
-    CBREx (bufferBytes == imageBytes, E_INVALIDARG);
-
-    outReport.Reset (m_access.GetGeometry().GetUnitCount());
-
-    m_catalog.CollectEntries (entries, damage, fullyParsed);
-    outReport.SetCatalogFullyParsed (fullyParsed);
-
-    ClaimVolumeStructures (outReport);
-
-    for (owner = 0; owner < (uint16_t) entries.size(); owner++)
-    {
-        ChainWalkGuard    guard (m_access.GetGeometry().GetUnitCount());
-        vector<uint32_t>  units;
-        vector<uint32_t>  listUnits;
-        bool              walked = m_chain.CollectDataSectors (entries[owner], units, listUnits, guard);
-
-        // The list sectors themselves are part of the file's footprint. An
-        // entry occupying no sectors contributes none of either: the walk
-        // returns before it starts, so a decorative entry's $7F/$7F pointer is
-        // never treated as a sector it owns.
-        for (uint32_t unit : listUnits)
-        {
-            outReport.AddClaim (unit, owner);
-        }
-
-        for (uint32_t unit : units)
-        {
-            outReport.AddClaim (unit, owner);
-        }
-
-        if (!walked)
-        {
-            outReport.MarkChainUnfollowable (owner);
-        }
-    }
-
-    // The free bitmap's view. A CLEAR bit means the sector is in use.
-    for (track = 0; track < m_access.GetGeometry().tracks; track++)
-    {
-        for (sector = 0; sector < m_access.GetGeometry().sectorsPerTrack; sector++)
-        {
-            bool  isFree = m_freeMap.IsFree (track, sector);
-
-            outReport.SetAllocatedInFreeMap (m_access.ToUnit (track, sector), !isFree);
-        }
-    }
-
-    outReport.Finish();
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Dos33Volume::HandBackVerifiedResult
-//
-//  A write that never inspects what it produced is how a decoder shipped
-//  returning success over a buffer it had partly zeroed. Every computed result
-//  here is read back through the same integrity pass a user's disk goes
-//  through, refused if the edit made the volume worse, and handed over only
-//  once it survives that.
-//
-//  WORSE, not imperfect. Asking whether the result is CLEAN would refuse two
-//  correct outcomes: a delete that declines to free a cross-linked sector
-//  leaves space allocated with nothing claiming it, which is exactly what the
-//  leak rule requires, and a volume that already carried a disagreement would
-//  become permanently uneditable -- on the degraded disks this feature exists
-//  to recover. The comparison is against the input, on the sets that matter.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT Dos33Volume::HandBackVerifiedResult (
-    const VolumeIntegrityReport  & before,
-    const vector<Byte>           & result,
-    vector<Byte>                 & outBuffer)
-{
-    HRESULT                hr   = S_OK;
-    Dos33Volume            volume (result);
-    bool                   safe = false;
-    VolumeIntegrityReport  after;
-
-
-
-    hr = volume.BuildIntegrityReport (after);
-    CHRA (hr);
-
-    safe = after.IsSafeToCommitAfter (before);
-    CBRAEx (safe, E_UNEXPECTED);
-
-    outBuffer = result;
-
-Error:
-    return hr;
+    return m_scanner.BuildIntegrityReport (outReport);
 }
 
 
@@ -378,7 +221,7 @@ HRESULT Dos33Volume::AddFile (
     slotOk = m_catalog.TryFindFreeSlot (slotTrack, slotSector, slotOffset);
     CBREx (slotOk, HRESULT_FROM_WIN32 (ERROR_DISK_FULL));
 
-    hr = BuildIntegrityReport (report);
+    hr = m_scanner.BuildIntegrityReport (report);
     CHRA (hr);
 
     dataCount = (storedSize + (size_t) NibbleFormat::kSectorByteSize - 1)
@@ -414,7 +257,7 @@ HRESULT Dos33Volume::AddFile (
                           (uint16_t) units.size(),
                           nameBytes);
 
-    hr = HandBackVerifiedResult (report, result, outBuffer);
+    hr = Dos33IntegrityScanner::HandBackVerifiedResult (report, result, outBuffer);
     CHRA (hr);
 
 Error:
@@ -644,7 +487,7 @@ HRESULT Dos33Volume::Delete (
     isLocked = (entries[owner].typeByte & kLockedBit) != 0;
     CBREx (!isLocked, HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED));
 
-    hr = BuildIntegrityReport (report);
+    hr = m_scanner.BuildIntegrityReport (report);
     CHRA (hr);
 
     outOutcome                    = DeleteOutcome();
@@ -681,7 +524,7 @@ HRESULT Dos33Volume::Delete (
 
     AppendDeleteWarnings (outOutcome);
 
-    hr = HandBackVerifiedResult (report, result, outBuffer);
+    hr = Dos33IntegrityScanner::HandBackVerifiedResult (report, result, outBuffer);
     CHRA (hr);
 
 Error:
@@ -784,7 +627,7 @@ HRESULT Dos33Volume::SetStartupProgram (const FilePath & path, vector<Byte> & ou
     hr = Dos33Catalog::FindEntry (entries, path, owner);
     CHR (hr);
 
-    hr = BuildIntegrityReport (report);
+    hr = m_scanner.BuildIntegrityReport (report);
     CHRA (hr);
 
     result = m_access.GetBuffer();
@@ -799,7 +642,7 @@ HRESULT Dos33Volume::SetStartupProgram (const FilePath & path, vector<Byte> & ou
     // The same self-check every other mutating call runs over its own output.
     // Nothing here moves a sector, so a difference would mean the patch landed
     // somewhere it had no business being.
-    hr = HandBackVerifiedResult (report, result, outBuffer);
+    hr = Dos33IntegrityScanner::HandBackVerifiedResult (report, result, outBuffer);
     CHRA (hr);
 
 Error:
@@ -897,7 +740,7 @@ HRESULT Dos33Volume::Rename (
     taken = Dos33Catalog::TryFindEntry (entries, to, holder) && holder != owner;
     CBREx (!taken, HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS));
 
-    hr = BuildIntegrityReport (report);
+    hr = m_scanner.BuildIntegrityReport (report);
     CHRA (hr);
 
     result = m_access.GetBuffer();
@@ -907,7 +750,7 @@ HRESULT Dos33Volume::Rename (
     // The same self-check every other mutating call runs over its own output.
     // A rename moves nothing, so a disagreement would mean the name landed
     // outside the entry it was meant for.
-    hr = HandBackVerifiedResult (report, result, outBuffer);
+    hr = Dos33IntegrityScanner::HandBackVerifiedResult (report, result, outBuffer);
     CHRA (hr);
 
 Error:
@@ -966,7 +809,7 @@ HRESULT Dos33Volume::SetAttributes (
     locked   = attributes.hasAccess ? (attributes.access & FilePayload::kAccessWriteEnable) == 0 : (typeByte & kLockedBit) != 0;
     typeByte = locked ? (Byte) (typeByte | kLockedBit) : (Byte) (typeByte & ~kLockedBit);
 
-    hr = BuildIntegrityReport (report);
+    hr = m_scanner.BuildIntegrityReport (report);
     CHRA (hr);
 
     result = m_access.GetBuffer();
@@ -990,7 +833,7 @@ HRESULT Dos33Volume::SetAttributes (
         result[data + 1] = (Byte) (attributes.auxType >> 8);
     }
 
-    hr = HandBackVerifiedResult (report, result, outBuffer);
+    hr = Dos33IntegrityScanner::HandBackVerifiedResult (report, result, outBuffer);
     CHRA (hr);
 
 Error:
