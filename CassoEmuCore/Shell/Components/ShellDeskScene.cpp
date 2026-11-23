@@ -3882,6 +3882,13 @@ void ShellDeskScene::ReplanIfDrivesChanged()
          DeskDrivePlan::Collect (m_shell.m_machine.GetConfig(), diskIiCount, m_shell.m_disks->HasDiskIicDrives()) != m_plannedDrives))
     {
         PlanDrives();
+
+        //  Drives added or removed in a rebuild move the desk's layout, so
+        //  the window is sized to it again, as Ctrl+0 does.
+        if (m_resetViewOnReplan.exchange (false) && m_shell.DeskSceneActive() && m_shell.m_hwnd != nullptr)
+        {
+            PostMessage (m_shell.m_hwnd, WM_COMMAND, IDM_VIEW_RESET_SIZE, 0);
+        }
     }
 }
 
