@@ -3,7 +3,8 @@
 #include "DiskImage.h"
 #include "DamagedMountReport.h"
 #include "DiskImageStore.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 
@@ -745,7 +746,7 @@ void DiskImage::ClearDirty()
 //  Serialize
 //
 //  For sector-based formats (DSK/DO/PO) this calls back into the
-//  NibblizationLayer to recover the flat sector image. For WOZ images it
+//  Denibblizer to recover the flat sector image. For WOZ images it
 //  re-emits a WOZ v2 byte image from the live per-track bit streams via
 //  WozLoader::Serialize, so guest writes round-trip on flush.
 //
@@ -762,7 +763,7 @@ HRESULT DiskImage::Serialize (vector<Byte> & outBytes) const
         case DiskFormat::Dsk:
         case DiskFormat::Do:
         case DiskFormat::Po:
-            hr = NibblizationLayer::Denibblize (*this, m_format, outBytes);
+            hr = Denibblizer::Denibblize (*this, m_format, outBytes);
             break;
 
         case DiskFormat::Woz:
@@ -870,7 +871,7 @@ void DiskImage::SetLoadedForTest (bool loaded, bool dirty)
 //  LoadFromBytes
 //
 //  In-memory load entry point used by DiskImageStore and unit tests. The
-//  raw bytes are routed through the appropriate loader (NibblizationLayer
+//  raw bytes are routed through the appropriate loader (Nibblizer
 //  for DSK/DO/PO; WozLoader for WOZ). The cached raw bytes preserve the
 //  Phase 9 round-trip path until WOZ writeback lands.
 //
@@ -901,7 +902,7 @@ void DiskImage::LoadFromBytes (DiskFormat fmt, const vector<Byte> & raw, const s
         case DiskFormat::Dsk:
         case DiskFormat::Do:
         case DiskFormat::Po:
-            hr = NibblizationLayer::Nibblize (raw, fmt, *this);
+            hr = Nibblizer::Nibblize (raw, fmt, *this);
             break;
 
         case DiskFormat::Woz:
@@ -982,13 +983,13 @@ Error:
 //
 //  LoadDsk
 //
-//  Thin shim — delegates to NibblizationLayer::NibblizeDsk.
+//  Calls Nibblizer::NibblizeDsk.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DiskImage::LoadDsk (const vector<Byte> & raw)
 {
-    return NibblizationLayer::NibblizeDsk (raw, *this);
+    return Nibblizer::NibblizeDsk (raw, *this);
 }
 
 

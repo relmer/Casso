@@ -192,7 +192,7 @@ are written by the WOZ serializer and never take the sector path.
 ### 2g. Salvage
 
 A damaged disk is held read-only, which protects the evidence and leaves the
-user stuck. Salvage is the way out: `NibblizationLayer::SalvageSectors` keeps
+user stuck. Salvage is the way out: `Denibblizer::SalvageSectors` keeps
 every sector that decoded at all, `DiskImageStore::AssessSalvage` reports what
 that would cost without writing anything, and `SalvageToFile` writes
 `<disk>.salvaged.woz` beside the original.
@@ -390,7 +390,7 @@ when no operation is in flight bounds the damage; it does not eliminate it, and
 nothing in the product claims otherwise. Every message about a still-running
 machine says why a reboot may be needed.
 
-**`NibblizationLayer::Denibblize` is still the hazard §6 should worry about
+**`Denibblizer::Denibblize` is still the hazard §6 should worry about
 most.** It stops at the first undecodable sector on a track, zeroes that sector
 and every later one, and returns `S_OK` -- and `DiskImage::Serialize` puts it on
 the flush path. A guest that leaves a track partly written can still lose the

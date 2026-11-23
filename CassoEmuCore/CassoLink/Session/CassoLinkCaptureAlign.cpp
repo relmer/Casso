@@ -2,7 +2,6 @@
 
 #include "CassoLink/Session/CassoLinkCapture.h"
 #include "CassoLink/Session/CaptureStream.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 
 
 

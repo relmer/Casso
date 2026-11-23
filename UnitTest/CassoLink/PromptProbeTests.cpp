@@ -9,7 +9,6 @@
 #include "CassoLink/Session/CassoLinkConnector.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImageStore.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Seams/InProcessByteStream.h"
 #include "InMemoryCassoLinkFolder.h"
 #include "SteppedByteStream.h"

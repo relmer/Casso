@@ -5,7 +5,7 @@
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/A2retroNetConfig.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 
 
@@ -722,7 +722,7 @@ bool ActionsA2retroNet::TryGetConvertibleLayout (const std::wstring & path, Layo
         }
     }
 
-    if (!outLayout.isDosOrder || outLayout.length != (uint64_t) NibblizationLayer::kImageByteSize || outLayout.start + outLayout.length > stamp.sizeBytes)
+    if (!outLayout.isDosOrder || outLayout.length != (uint64_t) NibbleFormat::kImageByteSize || outLayout.start + outLayout.length > stamp.sizeBytes)
     {
         return false;
     }

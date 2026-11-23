@@ -2,8 +2,9 @@
 
 #include "DiskSectorCommands.h"
 #include "DiskImageSession.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 #include "Utils.h"
 
 
@@ -57,8 +58,8 @@ void DiskSectorCommands::RunSectorRead (const CommandLineOptions & options,
     how = options.disk.numbering == CommandLineOptions::DiskOptions::Numbering::Physical
               ? "physical" : "logical";
 
-    onDisk = options.disk.track >= 0 && options.disk.track < NibblizationLayer::kTrackCount
-          && options.disk.sector >= 0 && options.disk.sector < NibblizationLayer::kSectorsPerTrack;
+    onDisk = options.disk.track >= 0 && options.disk.track < NibbleFormat::kTrackCount
+          && options.disk.sector >= 0 && options.disk.sector < NibbleFormat::kSectorsPerTrack;
 
     if (!onDisk)
     {
@@ -66,8 +67,8 @@ void DiskSectorCommands::RunSectorRead (const CommandLineOptions & options,
                   "Error: track %d sector %d is out of range\n"
                   "       Tracks are 0-%d and sectors are 0-%d.\n",
                   options.disk.track, options.disk.sector,
-                  NibblizationLayer::kTrackCount - 1,
-                  NibblizationLayer::kSectorsPerTrack - 1);
+                  NibbleFormat::kTrackCount - 1,
+                  NibbleFormat::kSectorsPerTrack - 1);
     }
 
     CBRFEx (onDisk, E_INVALIDARG, result.FailBadValue (summary));
@@ -84,9 +85,9 @@ void DiskSectorCommands::RunSectorRead (const CommandLineOptions & options,
 
     CBRFEx (isARead, E_INVALIDARG, result.FailBadValue (summary));
 
-    first = (size_t) (options.disk.track * NibblizationLayer::kSectorsPerTrack
+    first = (size_t) (options.disk.track * NibbleFormat::kSectorsPerTrack
                     + options.disk.sector);
-    total = (size_t) (NibblizationLayer::kTrackCount * NibblizationLayer::kSectorsPerTrack);
+    total = (size_t) (NibbleFormat::kTrackCount * NibbleFormat::kSectorsPerTrack);
     fits  = first + (size_t) options.disk.count <= total;
 
     if (!fits)
@@ -121,14 +122,14 @@ void DiskSectorCommands::RunSectorRead (const CommandLineOptions & options,
     {
         size_t  at = GetSectorRecordOffset (options.disk.numbering, first + (size_t) index);
 
-        if (at + (size_t) NibblizationLayer::kSectorByteSize > opened.sectors.size())
+        if (at + (size_t) NibbleFormat::kSectorByteSize > opened.sectors.size())
         {
             break;
         }
 
         payload.insert (payload.end(),
                         opened.sectors.begin() + (ptrdiff_t) at,
-                        opened.sectors.begin() + (ptrdiff_t) (at + NibblizationLayer::kSectorByteSize));
+                        opened.sectors.begin() + (ptrdiff_t) (at + NibbleFormat::kSectorByteSize));
     }
 
     if (!options.disk.hostFile.empty())
@@ -241,8 +242,8 @@ void DiskSectorCommands::RunSectorWrite (const CommandLineOptions & options,
     how = options.disk.numbering == CommandLineOptions::DiskOptions::Numbering::Physical
               ? "physical" : "logical";
 
-    onDisk = options.disk.track >= 0 && options.disk.track < NibblizationLayer::kTrackCount
-          && options.disk.sector >= 0 && options.disk.sector < NibblizationLayer::kSectorsPerTrack;
+    onDisk = options.disk.track >= 0 && options.disk.track < NibbleFormat::kTrackCount
+          && options.disk.sector >= 0 && options.disk.sector < NibbleFormat::kSectorsPerTrack;
 
     if (!onDisk)
     {
@@ -250,8 +251,8 @@ void DiskSectorCommands::RunSectorWrite (const CommandLineOptions & options,
                   "Error: track %d sector %d is out of range\n"
                   "       Tracks are 0-%d and sectors are 0-%d.\n",
                   options.disk.track, options.disk.sector,
-                  NibblizationLayer::kTrackCount - 1,
-                  NibblizationLayer::kSectorsPerTrack - 1);
+                  NibbleFormat::kTrackCount - 1,
+                  NibbleFormat::kSectorsPerTrack - 1);
     }
 
     CBRFEx (onDisk, E_INVALIDARG, result.FailBadValue (summary));
@@ -270,13 +271,13 @@ void DiskSectorCommands::RunSectorWrite (const CommandLineOptions & options,
     //  Whole sectors, because that is the unit the drive reads. A payload that
     //  does not fill its last one is padded with what was already there rather
     //  than with a value this command invented.
-    needed = (payload.size() + (size_t) NibblizationLayer::kSectorByteSize - 1)
-           / (size_t) NibblizationLayer::kSectorByteSize;
+    needed = (payload.size() + (size_t) NibbleFormat::kSectorByteSize - 1)
+           / (size_t) NibbleFormat::kSectorByteSize;
 
     {
-        size_t  first = (size_t) (options.disk.track * NibblizationLayer::kSectorsPerTrack
+        size_t  first = (size_t) (options.disk.track * NibbleFormat::kSectorsPerTrack
                                 + options.disk.sector);
-        size_t  total = (size_t) (NibblizationLayer::kTrackCount * NibblizationLayer::kSectorsPerTrack);
+        size_t  total = (size_t) (NibbleFormat::kTrackCount * NibbleFormat::kSectorsPerTrack);
 
         fits = first + needed <= total;
 
@@ -300,8 +301,8 @@ void DiskSectorCommands::RunSectorWrite (const CommandLineOptions & options,
         for (size_t index = 0; index < needed; index++)
         {
             size_t  at    = GetSectorRecordOffset (options.disk.numbering, first + index);
-            size_t  from  = index * (size_t) NibblizationLayer::kSectorByteSize;
-            size_t  count = std::min ((size_t) NibblizationLayer::kSectorByteSize,
+            size_t  from  = index * (size_t) NibbleFormat::kSectorByteSize;
+            size_t  count = std::min ((size_t) NibbleFormat::kSectorByteSize,
                                       payload.size() - from);
 
             if (at + count > edited.size())
@@ -356,8 +357,8 @@ size_t DiskSectorCommands::GetSectorRecordOffset (
     CommandLineOptions::DiskOptions::Numbering  numbering,
     size_t                                      running)
 {
-    size_t  track    = running / (size_t) NibblizationLayer::kSectorsPerTrack;
-    size_t  position = running % (size_t) NibblizationLayer::kSectorsPerTrack;
+    size_t  track    = running / (size_t) NibbleFormat::kSectorsPerTrack;
+    size_t  position = running % (size_t) NibbleFormat::kSectorsPerTrack;
     bool    physical = numbering == CommandLineOptions::DiskOptions::Numbering::Physical;
     size_t  record   = running;
 
@@ -365,11 +366,11 @@ size_t DiskSectorCommands::GetSectorRecordOffset (
 
     if (physical)
     {
-        record = track * (size_t) NibblizationLayer::kSectorsPerTrack
-               + (size_t) NibblizationLayer::GetDosFileIndexForPhysicalSector ((int) position);
+        record = track * (size_t) NibbleFormat::kSectorsPerTrack
+               + (size_t) SectorInterleave::GetDosFileIndexForPhysicalSector ((int) position);
     }
 
-    return record * (size_t) NibblizationLayer::kSectorByteSize;
+    return record * (size_t) NibbleFormat::kSectorByteSize;
 }
 
 
@@ -399,7 +400,7 @@ size_t DiskSectorCommands::GetSectorRecordOffset (
 void DiskSectorCommands::RunBlockRead (const CommandLineOptions & options,
                                       DiskCommandResult        & result)
 {
-    constexpr size_t  kHalfBytes = (size_t) NibblizationLayer::kSectorByteSize;
+    constexpr size_t  kHalfBytes = (size_t) NibbleFormat::kSectorByteSize;
 
 
 
@@ -549,7 +550,7 @@ Error:
 void DiskSectorCommands::RunBlockWrite (const CommandLineOptions & options,
                                        DiskCommandResult        & result)
 {
-    constexpr size_t  kHalfBytes  = (size_t) NibblizationLayer::kSectorByteSize;
+    constexpr size_t  kHalfBytes  = (size_t) NibbleFormat::kSectorByteSize;
     constexpr size_t  kBlockBytes = (size_t) ProDosSkeleton::kBlockByteSize;
 
 

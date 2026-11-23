@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/StockDisk800K.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 
@@ -24,7 +24,7 @@ HRESULT StockDisk800K::Build (const vector<Byte> & source, vector<Byte> & outVol
     vector<Byte>  volume (kBytes, 0);
     std::string   name;
     bool          named  = false;
-    bool          sized  = source.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool          sized  = source.size() == (size_t) NibbleFormat::kImageByteSize;
     size_t        i      = 0;
 
 

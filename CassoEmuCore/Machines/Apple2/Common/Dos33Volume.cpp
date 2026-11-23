@@ -1,10 +1,10 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Utils.h"
 #include "Machines/Apple2/Common/Dos33Geometry.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 
 
 
@@ -703,7 +703,7 @@ HRESULT Dos33Volume::Read (const FilePath & path, FilePayload & outPayload) cons
         int     sector = GetSector (unit);
         size_t  i      = 0;
 
-        for (i = 0; i < (size_t) NibblizationLayer::kSectorByteSize; i++)
+        for (i = 0; i < (size_t) NibbleFormat::kSectorByteSize; i++)
         {
             outPayload.bytes.push_back (ReadByte (track, sector, i));
         }
@@ -1207,10 +1207,10 @@ void Dos33Volume::ZeroUnits (vector<Byte> & buffer, const vector<uint32_t> & uni
     {
         size_t  at = m_geometry.GetSectorOffset (GetTrack (unit), GetSector (unit));
 
-        if (at + (size_t) NibblizationLayer::kSectorByteSize <= buffer.size())
+        if (at + (size_t) NibbleFormat::kSectorByteSize <= buffer.size())
         {
             std::fill (buffer.begin() + (ptrdiff_t) at,
-                       buffer.begin() + (ptrdiff_t) (at + NibblizationLayer::kSectorByteSize),
+                       buffer.begin() + (ptrdiff_t) (at + NibbleFormat::kSectorByteSize),
                        (Byte) 0);
         }
     }
@@ -1265,10 +1265,10 @@ void Dos33Volume::PlaceFile (
         {
             uint32_t  dataUnit = units[cursor + k];
             size_t    pairAt   = kTsOffFirstPair + k * 2;
-            size_t    from     = (placed + k) * (size_t) NibblizationLayer::kSectorByteSize;
+            size_t    from     = (placed + k) * (size_t) NibbleFormat::kSectorByteSize;
             size_t    to       = m_geometry.GetSectorOffset (GetTrack (dataUnit), GetSector (dataUnit));
             size_t    left     = (from < storedSize) ? storedSize - from : 0;
-            size_t    copyable = std::min ((size_t) NibblizationLayer::kSectorByteSize, left);
+            size_t    copyable = std::min ((size_t) NibbleFormat::kSectorByteSize, left);
 
             WriteByteAt (buffer, listTrack, listSec, pairAt,     (Byte) GetTrack (dataUnit));
             WriteByteAt (buffer, listTrack, listSec, pairAt + 1, (Byte) GetSector (dataUnit));
@@ -1424,8 +1424,8 @@ HRESULT Dos33Volume::AddFile (
     hr = BuildIntegrityReport (report);
     CHRA (hr);
 
-    dataCount = (storedSize + (size_t) NibblizationLayer::kSectorByteSize - 1)
-              / (size_t) NibblizationLayer::kSectorByteSize;
+    dataCount = (storedSize + (size_t) NibbleFormat::kSectorByteSize - 1)
+              / (size_t) NibbleFormat::kSectorByteSize;
     listCount = (dataCount + (size_t) kTsPairsPerList - 1) / (size_t) kTsPairsPerList;
 
     // Even a file with no data occupies its track/sector list, which is what
@@ -1766,7 +1766,7 @@ bool Dos33Volume::HasDosImage() const
     {
         for (sector = 0; sector < m_geometry.sectorsPerTrack; sector++)
         {
-            for (i = 0; i < (size_t) NibblizationLayer::kSectorByteSize; i++)
+            for (i = 0; i < (size_t) NibbleFormat::kSectorByteSize; i++)
             {
                 if (ReadByte (track, sector, i) != 0)
                 {

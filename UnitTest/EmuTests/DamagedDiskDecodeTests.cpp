@@ -2,8 +2,10 @@
 
 #include "DamagedDisk.h"
 
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -47,8 +49,8 @@ public:
 
         DamagedDisk::BuildGoodDos33 (image);
 
-        AssertSucceeded (NibblizationLayer::Denibblize (image, DiskFormat::Dsk, decoded));
-        Assert::AreEqual (static_cast<size_t> (NibblizationLayer::kImageByteSize),
+        AssertSucceeded (Denibblizer::Denibblize (image, DiskFormat::Dsk, decoded));
+        Assert::AreEqual (static_cast<size_t> (NibbleFormat::kImageByteSize),
                           decoded.size(),
                           L"a clean disk decodes to a whole image");
     }
@@ -62,7 +64,7 @@ public:
         DamagedDisk::BuildGoodDos33 (image);
         DamagedDisk::BreakSector (image, 20, 5);
 
-        HRESULT  hr = NibblizationLayer::Denibblize (image, DiskFormat::Dsk, decoded);
+        HRESULT  hr = Denibblizer::Denibblize (image, DiskFormat::Dsk, decoded);
 
         Assert::IsTrue (FAILED (hr), L"a track that stops decoding partway must not report success");
     }
@@ -79,7 +81,7 @@ public:
         DamagedDisk::BuildGoodDos33 (image);
         DamagedDisk::BreakSector (image, 20, 5);
 
-        AssertSucceeded (NibblizationLayer::Denibblize (image, DiskFormat::Dsk, decoded, report));
+        AssertSucceeded (Denibblizer::Denibblize (image, DiskFormat::Dsk, decoded, report));
 
         Assert::IsTrue (report.HasDataLoss(), L"the coverage map must record the lost sector");
         Assert::IsTrue (report.GetUnrecoveredCount() > 0, L"and count it");
@@ -97,7 +99,7 @@ public:
         DamagedDisk::BuildGoodDos33 (image);
         DamagedDisk::WipeTrack (image, 20);
 
-        AssertSucceeded (NibblizationLayer::Denibblize (image, DiskFormat::Dsk, decoded));
+        AssertSucceeded (Denibblizer::Denibblize (image, DiskFormat::Dsk, decoded));
     }
 
     //  A track whose address fields start D4 AA 96, as Ultima I's do, decodes
@@ -111,7 +113,7 @@ public:
         DamagedDisk::BuildGoodDos33 (image);
         DamagedDisk::RewriteAddressFields (image, 20, 0xD4, 0);
 
-        AssertSucceeded (NibblizationLayer::Denibblize (image, DiskFormat::Dsk, decoded, report));
+        AssertSucceeded (Denibblizer::Denibblize (image, DiskFormat::Dsk, decoded, report));
 
         Assert::IsTrue (TrackDecodeOutcome::Complete == report.GetOutcome (20), L"every sector of the track");
     }
@@ -126,10 +128,10 @@ public:
         SectorDecodeReport  report;
 
         DamagedDisk::BuildGoodDos33 (image);
-        AssertSucceeded (NibblizationLayer::Denibblize (image, DiskFormat::Dsk, original, report));
+        AssertSucceeded (Denibblizer::Denibblize (image, DiskFormat::Dsk, original, report));
         DamagedDisk::RewriteAddressFields (image, 17, 0xD5, 0x11);
 
-        AssertSucceeded (NibblizationLayer::Denibblize (image, DiskFormat::Dsk, decoded, report));
+        AssertSucceeded (Denibblizer::Denibblize (image, DiskFormat::Dsk, decoded, report));
 
         Assert::IsTrue (TrackDecodeOutcome::Complete == report.GetOutcome (17), L"every sector of the track");
         Assert::IsTrue (decoded == original, L"each sector in its slot");
@@ -146,7 +148,7 @@ public:
         DamagedDisk::BuildGoodDos33 (image);
         DamagedDisk::RewriteAddressFields (image, 20, 0xD7, 0);
 
-        AssertSucceeded (NibblizationLayer::Denibblize (image, DiskFormat::Dsk, decoded, report));
+        AssertSucceeded (Denibblizer::Denibblize (image, DiskFormat::Dsk, decoded, report));
 
         Assert::IsTrue (TrackDecodeOutcome::Partial == report.GetOutcome (20), L"the track is damaged, not unformatted");
         Assert::IsTrue (report.HasDataLoss(), L"and its sectors are lost");
@@ -175,7 +177,7 @@ public:
         DamagedDisk::BuildGoodDos33 (image);
         DamagedDisk::RedirectSectorToSlot (image, 20, 5, 4);
 
-        HRESULT  hr = NibblizationLayer::Denibblize (image, DiskFormat::Dsk, decoded);
+        HRESULT  hr = Denibblizer::Denibblize (image, DiskFormat::Dsk, decoded);
 
         Assert::IsTrue (FAILED (hr), L"a sector landing in another's slot leaves its own empty");
     }
@@ -208,11 +210,11 @@ public:
         DamagedDisk::BuildGoodDos33 (image);
         DamagedDisk::DuplicateSector (image, 20, 5);
 
-        Assert::AreEqual (NibblizationLayer::kSectorsPerTrack + 1,
+        Assert::AreEqual (NibbleFormat::kSectorsPerTrack + 1,
                           DamagedDisk::CountAddressFields (image, 20),
                           L"the splice must leave the track carrying a seventeenth address field");
 
-        HRESULT  hr = NibblizationLayer::Denibblize (image, DiskFormat::Dsk, decoded);
+        HRESULT  hr = Denibblizer::Denibblize (image, DiskFormat::Dsk, decoded);
 
         Assert::IsTrue (FAILED (hr), L"a slot filled twice is damage, however full the track reads");
     }
@@ -233,7 +235,7 @@ public:
         DamagedDisk::BuildGoodDos33 (image);
         DamagedDisk::DuplicateSector (image, 20, 5);
 
-        AssertSucceeded (NibblizationLayer::Denibblize (image, DiskFormat::Dsk, decoded, report));
+        AssertSucceeded (Denibblizer::Denibblize (image, DiskFormat::Dsk, decoded, report));
 
         Assert::IsTrue (TrackDecodeOutcome::Partial == report.GetOutcome (20),
                         L"a slot claimed twice leaves the track damaged");
@@ -258,7 +260,7 @@ public:
 
         DamagedDisk::BuildGoodDos33 (image);
 
-        Assert::AreEqual (NibblizationLayer::kSectorsPerTrack,
+        Assert::AreEqual (NibbleFormat::kSectorsPerTrack,
                           DamagedDisk::CountAddressFields (image, 20),
                           L"a bit-wise scan must find every address field on the track");
     }

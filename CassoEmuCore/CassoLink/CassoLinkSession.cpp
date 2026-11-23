@@ -5,8 +5,10 @@
 #include "CassoLink/LinkFault.h"
 #include "Devices/Disk/IDiskFileIo.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 #include "Seams/IByteStreamFactory.h"
 
 
@@ -512,7 +514,7 @@ LinkChip CassoLinkSession::GetLinkChip (LinkTransport transport)
 
 int CassoLinkSession::GetLogicalSector (int physical)
 {
-    return NibblizationLayer::GetDosFileIndexForPhysicalSector (physical);
+    return SectorInterleave::GetDosFileIndexForPhysicalSector (physical);
 }
 
 
@@ -531,7 +533,7 @@ int CassoLinkSession::GetPhysicalSector (int logical)
 
 
 
-    for (int physical = 0; physical < NibblizationLayer::kSectorsPerTrack; physical++)
+    for (int physical = 0; physical < NibbleFormat::kSectorsPerTrack; physical++)
     {
         if (GetLogicalSector (physical) == logical)
         {
@@ -599,16 +601,16 @@ HRESULT CassoLinkSessionTypes::DriveSource::ReadSectors (std::span<const size_t>
 
     outData.assign (sectors.size() * LinkedDisk::kSectorSize, 0);
 
-    for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+    for (int track = 0; track < NibbleFormat::kTrackCount; track++)
     {
         physicals.clear();
         places.clear();
 
         for (size_t i = 0; i < sectors.size(); i++)
         {
-            if ((int) (sectors[i] / NibblizationLayer::kSectorsPerTrack) == track)
+            if ((int) (sectors[i] / NibbleFormat::kSectorsPerTrack) == track)
             {
-                physicals.push_back ((Byte) CassoLinkSession::GetPhysicalSector ((int) (sectors[i] % NibblizationLayer::kSectorsPerTrack)));
+                physicals.push_back ((Byte) CassoLinkSession::GetPhysicalSector ((int) (sectors[i] % NibbleFormat::kSectorsPerTrack)));
                 places.push_back (i);
             }
         }
@@ -656,16 +658,16 @@ HRESULT CassoLinkSessionTypes::DriveSource::WriteSectors (std::span<const size_t
 
 
 
-    for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+    for (int track = 0; track < NibbleFormat::kTrackCount; track++)
     {
         physicals.clear();
         trackData.clear();
 
         for (size_t i = 0; i < sectors.size(); i++)
         {
-            if ((int) (sectors[i] / NibblizationLayer::kSectorsPerTrack) == track)
+            if ((int) (sectors[i] / NibbleFormat::kSectorsPerTrack) == track)
             {
-                physicals.push_back ((Byte) CassoLinkSession::GetPhysicalSector ((int) (sectors[i] % NibblizationLayer::kSectorsPerTrack)));
+                physicals.push_back ((Byte) CassoLinkSession::GetPhysicalSector ((int) (sectors[i] % NibbleFormat::kSectorsPerTrack)));
                 trackData.insert (trackData.end(), data.begin() + (ptrdiff_t) (i * LinkedDisk::kSectorSize), data.begin() + (ptrdiff_t) ((i + 1) * LinkedDisk::kSectorSize));
             }
         }
@@ -1385,7 +1387,7 @@ HRESULT CassoLinkSession::Revalidate (int drive)
         //  probed with: the VTOC and the volume directory's key block read
         //  again find a disk put in its place, such as a DOS 3.3 disk where
         //  the CassoLink disk was.
-        for (size_t mark : { (size_t) Dos33Skeleton::kVtocTrack * NibblizationLayer::kSectorsPerTrack,
+        for (size_t mark : { (size_t) Dos33Skeleton::kVtocTrack * NibbleFormat::kSectorsPerTrack,
                              ProDosSkeleton::GetBlockByteOffset (ProDosSkeleton::kDirKeyBlock, 0) / LinkedDisk::kSectorSize,
                              ProDosSkeleton::GetBlockByteOffset (ProDosSkeleton::kDirKeyBlock, LinkedDisk::kSectorSize) / LinkedDisk::kSectorSize })
         {
@@ -1399,7 +1401,7 @@ HRESULT CassoLinkSession::Revalidate (int drive)
     }
     else if (disk.GetKind() == VolumeKind::Dos33)
     {
-        marks.push_back ((size_t) Dos33Skeleton::kVtocTrack * NibblizationLayer::kSectorsPerTrack);
+        marks.push_back ((size_t) Dos33Skeleton::kVtocTrack * NibbleFormat::kSectorsPerTrack);
     }
     else if (disk.GetKind() != VolumeKind::ProDos)
     {

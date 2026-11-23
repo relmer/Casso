@@ -6,7 +6,7 @@
 #include "Core/TextEncoding.h"
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -282,7 +282,7 @@ public:
         Host                           host;
         FixtureProvider                fixtures;
         std::vector<Byte>              po;
-        std::vector<Byte>              dsk (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>              dsk (NibbleFormat::kImageByteSize, 0);
         std::vector<std::wstring>      found;
         std::wstring                   written;
         CassoExplorerActions::Outcome  outcome;
@@ -327,7 +327,7 @@ public:
         Host                           host;
         FixtureProvider                fixtures;
         std::vector<Byte>              po;
-        std::vector<Byte>              dsk (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>              dsk (NibbleFormat::kImageByteSize, 0);
         std::vector<std::wstring>      arrived;
         std::wstring                   written;
         CassoExplorerActions::Outcome  outcome;

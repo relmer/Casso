@@ -3,7 +3,7 @@
 #include "FixtureProvider.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -78,7 +78,7 @@ public:
 
     vector<Byte> MakeFormattedVolume()
     {
-        vector<Byte>  buffer (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>  buffer (NibbleFormat::kImageByteSize, 0);
 
         AssertSucceeded (Dos33Skeleton::Write (buffer, kVolumeNumber));
 
@@ -786,9 +786,9 @@ public:
 
         // Every sector spoken for, so the replacement cannot fit even once the
         // original's two come back.
-        for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+        for (track = 0; track < NibbleFormat::kTrackCount; track++)
         {
-            for (sector = 0; sector < NibblizationLayer::kSectorsPerTrack; sector++)
+            for (sector = 0; sector < NibbleFormat::kSectorsPerTrack; sector++)
             {
                 MarkAllocated (withProg, track, sector);
             }
@@ -839,9 +839,9 @@ public:
         int            sector  = 0;
         HRESULT        hr      = S_OK;
 
-        for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+        for (track = 0; track < NibbleFormat::kTrackCount; track++)
         {
-            for (sector = 0; sector < NibblizationLayer::kSectorsPerTrack; sector++)
+            for (sector = 0; sector < NibbleFormat::kSectorsPerTrack; sector++)
             {
                 MarkAllocated (buffer, track, sector);
             }
@@ -1671,7 +1671,7 @@ public:
 
     TEST_METHOD (CreateDirectory_IsNotSomethingThisFilesystemHas)
     {
-        vector<Byte>  disk (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>  disk (NibbleFormat::kImageByteSize, 0);
         vector<Byte>  result;
         Dos33Volume   volume (disk);
 
@@ -1827,11 +1827,11 @@ public:
 
         for (track = 0; track < kDosImageTracks; track++)
         {
-            for (sector = 0; sector < NibblizationLayer::kSectorsPerTrack; sector++)
+            for (sector = 0; sector < NibbleFormat::kSectorsPerTrack; sector++)
             {
                 size_t  at = Dos33Skeleton::GetSectorOffset (track, sector);
 
-                for (i = 0; i < (size_t) NibblizationLayer::kSectorByteSize; i++)
+                for (i = 0; i < (size_t) NibbleFormat::kSectorByteSize; i++)
                 {
                     buffer[at + i] = (Byte) ((at + i) & 0xFF);
                 }

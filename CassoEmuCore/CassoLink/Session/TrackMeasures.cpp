@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoLink/Session/TrackMeasures.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 
 
 
@@ -25,7 +26,7 @@ std::vector<TrackLayout> TrackMeasures::ToLayouts (const std::vector<CassoLinkHo
 {
     std::vector<TrackLayout>  layouts;
     double                    turn    = 0.0;
-    Byte                      volume  = NibblizationLayer::kDefaultVolume;
+    Byte                      volume  = NibbleFormat::kDefaultVolume;
 
 
 

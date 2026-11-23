@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Devices/Disk/ChainWalkGuard.h"
 
 
@@ -20,14 +21,14 @@ size_t ProDosSkeleton::GetBlockByteOffset (int block, size_t offsetInBlock)
 {
     int     track  = block / kBlocksPerTrack;
     int     sub    = block % kBlocksPerTrack;
-    int     half   = (offsetInBlock >= (size_t) NibblizationLayer::kSectorByteSize) ? 1 : 0;
+    int     half   = (offsetInBlock >= (size_t) NibbleFormat::kSectorByteSize) ? 1 : 0;
     int     sector = kBlockHalfSector[sub][half];
 
 
 
-    return ((size_t) track * NibblizationLayer::kSectorsPerTrack + (size_t) sector)
-         * (size_t) NibblizationLayer::kSectorByteSize
-         + (offsetInBlock % (size_t) NibblizationLayer::kSectorByteSize);
+    return ((size_t) track * NibbleFormat::kSectorsPerTrack + (size_t) sector)
+         * (size_t) NibbleFormat::kSectorByteSize
+         + (offsetInBlock % (size_t) NibbleFormat::kSectorByteSize);
 }
 
 
@@ -45,7 +46,7 @@ size_t ProDosSkeleton::GetBlockByteOffset (int block, size_t offsetInBlock)
 
 bool ProDosSkeleton::IsBlockOrder (size_t bufferBytes)
 {
-    return bufferBytes != (size_t) NibblizationLayer::kImageByteSize;
+    return bufferBytes != (size_t) NibbleFormat::kImageByteSize;
 }
 
 
@@ -366,7 +367,7 @@ HRESULT ProDosSkeleton::InstallBoot (vector<Byte> & buffer, const vector<Byte> &
     //  The volume is a 140K disk in DOS order or a larger one in block order,
     //  and the master a 140K disk in DOS order.
     CBRA (sizeValid);
-    CBRAEx (usersBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+    CBRAEx (usersBytes == (size_t) NibbleFormat::kImageByteSize, E_INVALIDARG);
 
     for (block = 0; block < 2; block++)
     {
@@ -919,8 +920,8 @@ void ProDosReader::NoteBlockRead (ISectorReadObserver * observer, size_t bufferB
 {
     if (observer != nullptr)
     {
-        observer->OnSectorRead (ProDosSkeleton::GetBlockByteOffset (bufferBytes, block, 0) / NibblizationLayer::kSectorByteSize);
-        observer->OnSectorRead (ProDosSkeleton::GetBlockByteOffset (bufferBytes, block, NibblizationLayer::kSectorByteSize) / NibblizationLayer::kSectorByteSize);
+        observer->OnSectorRead (ProDosSkeleton::GetBlockByteOffset (bufferBytes, block, 0) / NibbleFormat::kSectorByteSize);
+        observer->OnSectorRead (ProDosSkeleton::GetBlockByteOffset (bufferBytes, block, NibbleFormat::kSectorByteSize) / NibbleFormat::kSectorByteSize);
     }
 }
 

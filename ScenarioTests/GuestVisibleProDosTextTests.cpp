@@ -2,6 +2,7 @@
 #include "EhmTestHelper.h"
 #include "FixtureProvider.h"
 #include "GuestSession.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "TestMachine.h"
 #include "AppleTextCodec.h"
 #include "Devices/Disk/FilePath.h"

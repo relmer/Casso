@@ -3,6 +3,7 @@
 #include "EmuTests/FakeDiskFileIo.h"
 #include "EmuTests/FakeIntentChannel.h"
 #include "EhmTestHelper.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "TestHelpers.h"
 #include "TestCpu65C02.h"
 #include "Assembler.h"
@@ -12,7 +13,6 @@
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Devices/Disk/FilePath.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
@@ -68,7 +68,7 @@ namespace AssemblerToDiskTests
 
         static vector<Byte> MakeDos33Image()
         {
-            vector<Byte>  buffer (NibblizationLayer::kImageByteSize, 0);
+            vector<Byte>  buffer (NibbleFormat::kImageByteSize, 0);
 
             AssertSucceeded (Dos33Skeleton::Write (buffer, kBlankVolumeNum));
 
@@ -79,7 +79,7 @@ namespace AssemblerToDiskTests
 
         static vector<Byte> MakeProDosImage()
         {
-            vector<Byte>  buffer (NibblizationLayer::kImageByteSize, 0);
+            vector<Byte>  buffer (NibbleFormat::kImageByteSize, 0);
 
             AssertSucceeded (ProDosSkeleton::Write (buffer, kProDosVolumeName));
 

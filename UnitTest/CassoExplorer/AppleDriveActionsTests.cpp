@@ -14,7 +14,7 @@
 #include "CassoLink/LinkProgram.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "CassoExplorer/Browser/BrowserRowPaths.h"
@@ -177,7 +177,7 @@ public:
 
     static std::vector<Byte>  BuildDos33()
     {
-        std::vector<Byte>  buffer (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  buffer (NibbleFormat::kImageByteSize, 0);
         std::vector<Byte>  next;
 
         AssertSucceeded (Dos33Skeleton::Write (buffer, 254));
@@ -188,7 +188,7 @@ public:
 
     static std::vector<Byte>  BuildProDos()
     {
-        std::vector<Byte>  buffer (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  buffer (NibbleFormat::kImageByteSize, 0);
 
         AssertSucceeded (ProDosSkeleton::Write (buffer, "LINKED"));
 
@@ -767,8 +767,8 @@ public:
 
         Rig                rig;
         CassoLinkSettings  serial;
-        std::vector<Byte>  users (NibblizationLayer::kImageByteSize, 0);
-        std::vector<Byte>  blank (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  users (NibbleFormat::kImageByteSize, 0);
+        std::vector<Byte>  blank (NibbleFormat::kImageByteSize, 0);
         std::vector<Byte>  file;
         Byte               fileType = 0;
         Word               auxType  = 0;

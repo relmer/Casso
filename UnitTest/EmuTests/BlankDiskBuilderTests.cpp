@@ -1,10 +1,14 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
+#include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Devices/Disk/DiskCommandRunner.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
@@ -53,7 +57,7 @@ public:
         Assert::IsTrue (spec.format   == DiskFormat::Woz);
         Assert::IsTrue (spec.contents == BlankDiskContents::Dos33);
         Assert::IsFalse (spec.bootable);
-        Assert::AreEqual ((int) NibblizationLayer::kDefaultVolume, (int) spec.volumeNumber);
+        Assert::AreEqual ((int) NibbleFormat::kDefaultVolume, (int) spec.volumeNumber);
         AssertSucceeded (BlankDiskBuilder::ValidateSpec (spec));
     }
 
@@ -186,9 +190,9 @@ public:
         expect.RequireCount (1);
     }
 
-    static vector<Byte> MakeDos33Buffer (Byte volume = NibblizationLayer::kDefaultVolume)
+    static vector<Byte> MakeDos33Buffer (Byte volume = NibbleFormat::kDefaultVolume)
     {
-        vector<Byte>  buffer (NibblizationLayer::kImageByteSize, 0xEE);
+        vector<Byte>  buffer (NibbleFormat::kImageByteSize, 0xEE);
 
         AssertSucceeded (Dos33Skeleton::Write (buffer, volume));
 
@@ -307,9 +311,9 @@ public:
 
         // ...whose tracks denibblize back to the exact skeleton buffer, so
         // the GCR encoding of the fresh disk is bit-faithful.
-        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, readBack));
+        AssertSucceeded (Denibblizer::Denibblize (img, DiskFormat::Dsk, readBack));
 
-        vector<Byte>  expected (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>  expected (NibbleFormat::kImageByteSize, 0);
         AssertSucceeded (Dos33Skeleton::Write (expected, spec.volumeNumber));
 
         Assert::IsTrue (expected == readBack, L"skeleton must survive the GCR round-trip");
@@ -358,9 +362,9 @@ public:
         AssertSucceeded (BlankDiskBuilder::Build (spec, BootPayload{}, woz));
         AssertSucceeded (WozLoader::Load (woz, img));
 
-        for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+        for (track = 0; track < NibbleFormat::kTrackCount; track++)
         {
-            Assert::AreEqual (NibblizationLayer::kTrackBitCapacity,
+            Assert::AreEqual (NibbleFormat::kTrackBitCapacity,
                               img.GetTrackBitCount (track));
         }
     }
@@ -404,7 +408,7 @@ public:
 
         AssertSucceeded (BlankDiskBuilder::Build (spec, BootPayload{}, dsk));
 
-        Assert::AreEqual ((size_t) NibblizationLayer::kImageByteSize, dsk.size());
+        Assert::AreEqual ((size_t) NibbleFormat::kImageByteSize, dsk.size());
         Assert::IsTrue (expected == dsk, L"a .dsk is the DOS-order buffer itself");
     }
 
@@ -413,7 +417,7 @@ public:
     {
         vector<Byte>  dsk;
         vector<Byte>  po;
-        vector<Byte>  zeros ((size_t) NibblizationLayer::kImageByteSize, (Byte) 0);
+        vector<Byte>  zeros ((size_t) NibbleFormat::kImageByteSize, (Byte) 0);
 
 
 
@@ -437,7 +441,7 @@ public:
 
 
         AssertSucceeded (BlankDiskBuilder::Build (spec, BootPayload{}, po));
-        Assert::AreEqual ((size_t) NibblizationLayer::kImageByteSize, po.size());
+        Assert::AreEqual ((size_t) NibbleFormat::kImageByteSize, po.size());
 
         // Key block 2: storage 0xF + name length 7, name NEWDISK.
         Assert::AreEqual ((Byte) 0xF7, po[2 * 512 + 0x04]);
@@ -467,9 +471,9 @@ public:
 
         AssertSucceeded (BlankDiskBuilder::Build (spec, BootPayload{}, woz));
         AssertSucceeded (WozLoader::Load (woz, img));
-        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, readBack));
+        AssertSucceeded (Denibblizer::Denibblize (img, DiskFormat::Dsk, readBack));
 
-        vector<Byte>  expected (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>  expected (NibbleFormat::kImageByteSize, 0);
         AssertSucceeded (ProDosSkeleton::Write (expected, spec.volumeName));
 
         Assert::IsTrue (expected == readBack,
@@ -522,7 +526,7 @@ public:
     {
         // A fabricated System Master: recognizable pattern in tracks 0-2,
         // distinct junk elsewhere so a copy that over-reaches is caught.
-        vector<Byte>  master (NibblizationLayer::kImageByteSize, 0x5A);
+        vector<Byte>  master (NibbleFormat::kImageByteSize, 0x5A);
         size_t        i = 0;
 
         for (i = 0; i < (size_t) (3 * 16 * 256); i++)
@@ -617,7 +621,7 @@ public:
 
         AssertSucceeded (BlankDiskBuilder::Build (spec, payload, woz));
         AssertSucceeded (WozLoader::Load (woz, img));
-        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, readBack));
+        AssertSucceeded (Denibblizer::Denibblize (img, DiskFormat::Dsk, readBack));
 
         // The DOS image landed in tracks 0-2...
         for (i = 0; i < (size_t) (3 * 16 * 256); i++)
@@ -720,7 +724,7 @@ public:
         BuildAndLoad (bitSpec,  bitBytes,  bitImage);
         BuildAndLoad (fluxSpec, fluxBytes, fluxImage);
 
-        for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+        for (track = 0; track < NibbleFormat::kTrackCount; track++)
         {
             Assert::IsTrue (IsFluxTrack (fluxImage, track), L"every track is flux");
         }
@@ -741,7 +745,7 @@ public:
 
         BuildAndLoad (spec, bytes, image);
 
-        for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+        for (track = 0; track < NibbleFormat::kTrackCount; track++)
         {
             bool  listed = track <= 2 || track == 17;
 
@@ -811,9 +815,9 @@ public:
 
         const Case  cases[] =
         {
-            { DiskFormat::Dsk, "out.dsk", 0,                               NibblizationLayer::kImageByteSize },
-            { DiskFormat::Do,  "out.do",  0,                               NibblizationLayer::kImageByteSize },
-            { DiskFormat::Po,  "out.po",  0,                               NibblizationLayer::kImageByteSize },
+            { DiskFormat::Dsk, "out.dsk", 0,                               NibbleFormat::kImageByteSize },
+            { DiskFormat::Do,  "out.do",  0,                               NibbleFormat::kImageByteSize },
+            { DiskFormat::Po,  "out.po",  0,                               NibbleFormat::kImageByteSize },
             { DiskFormat::Nib, "out.nib", NibbleImageCodec::kNibTrackSize, NibbleImageCodec::kNibImageSize   },
             { DiskFormat::Nib, "out.nb2", NibbleImageCodec::kNb2TrackSize, NibbleImageCodec::kNb2ImageSize   },
             { DiskFormat::Woz, "out.woz", 0,                               0                                 },

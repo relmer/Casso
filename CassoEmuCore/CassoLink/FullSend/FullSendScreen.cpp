@@ -3,7 +3,7 @@
 #include "CassoLink/FullSend/FullSendScreen.h"
 
 #include "CassoLink/Session/CassoLinkSessionTypes.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 
 
 
@@ -96,7 +96,7 @@ std::vector<std::string> FullSendScreen::GetRows() const
 
 std::string & FullSendScreen::MakeTrackRuler (std::string & ioMap)
 {
-    ioMap.assign (NibblizationLayer::kTrackCount, '.');
+    ioMap.assign (NibbleFormat::kTrackCount, '.');
 
     for (size_t track = 0; track < ioMap.size(); track += 5)
     {

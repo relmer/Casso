@@ -3,10 +3,10 @@
 #include "EhmTestHelper.h"
 #include "FakeDiskFileIo.h"
 #include "GuestSession.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "UiTests/InMemoryFileSystem.h"
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -38,7 +38,7 @@ public:
         CassoExplorerBrowser   browser { fs, io };
         CassoExplorerActions   actions { browser, fs };
         CassoLinkSettings      serial;
-        std::vector<Byte>      blank (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>      blank (NibbleFormat::kImageByteSize, 0);
         std::vector<Byte>      file;
         Byte                   fileType = 0;
         Word                   auxType  = 0;

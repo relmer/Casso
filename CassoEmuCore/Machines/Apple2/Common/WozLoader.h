@@ -39,7 +39,7 @@ struct WozSyntheticTrack
 //  per https://applesaucefdc.com/woz/reference2/. Parses the chunked
 //  layout (INFO, TMAP, TRKS, optional META) and populates the target
 //  DiskImage's per-track bit streams directly. WOZ images are already
-//  stored at nibble level — no NibblizationLayer pass is needed.
+//  stored at nibble level and are not passed through Nibblizer.
 //
 //  Test fixtures use synthetic WOZ images built in memory to avoid any
 //  third-party content dependencies.

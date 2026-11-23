@@ -557,7 +557,7 @@ flowchart TB
 
     subgraph load ["Mount: whole file read into memory"]
         direction LR
-        Mount["<b>DiskImageStore::Mount</b><br/>format from the extension,<br/>identity recorded, folder watched"] --> Codec["<b>format codec</b><br/>WozLoader, NibblizationLayer,<br/>NibbleImageCodec"]
+        Mount["<b>DiskImageStore::Mount</b><br/>format from the extension,<br/>identity recorded, folder watched"] --> Codec["<b>format codec</b><br/>WozLoader, Nibblizer,<br/>NibbleImageCodec"]
         Codec --> Img["<b>DiskImage</b><br/>bit or flux track per slot,<br/>160-entry quarter-track map,<br/>dirty bits, write protect"]
     end
 
@@ -597,7 +597,7 @@ flowchart TB
 
 **Mount: the whole file, read once.** A mount reads the image file into memory
 and closes it; nothing holds the file open while Casso runs. The format comes
-from the extension. `NibblizationLayer` turns a `.dsk`, `.do` or `.po` into
+from the extension. `Nibblizer` turns a `.dsk`, `.do` or `.po` into
 GCR-encoded tracks (6-and-2, in DOS 3.3 or ProDOS sector order), `WozLoader`
 loads WOZ 1 and 2 bit tracks and WOZ 2.1 flux tracks, and `NibbleImageCodec`
 loads `.nib` and `.nb2` as raw nibbles. Each produces one `DiskImage`: a bit or
@@ -710,7 +710,7 @@ Decisions we deliberately did **not** make, so they aren't re-litigated:
 | Video modes + timing | `CassoEmuCore/Machines/Apple2/Common/` (the five Apple II modes, character ROM, palette, `VideoTiming.*`); `CassoEmuCore/Video/` keeps only what assumes no machine |
 | Threading, frame pump, commands | `CassoEmuCore/Shell/CpuManager.*`, `CassoEmuCore/EmulatorShell.cpp`, `CassoEmuCore/Shell/MachineManager.cpp` |
 | Render / present / CRT | `CassoEmuCore/D3DRenderer.cpp`, `CassoEmuCore/CrtPostProcess.cpp`, `Dxui/Window/DxuiHwndSource*` |
-| Disks | `CassoEmuCore/Devices/Disk/` (`DiskImageStore`, `DiskImage`, `FluxTrack`, the image watcher); `CassoEmuCore/Machines/Apple2/Common/` (`Disk2Controller`, `Disk2NibbleEngine`, `NibblizationLayer`, `WozLoader`, `NibbleImageCodec`); `CassoEmuCore/Shell/DiskManager.cpp` |
+| Disks | `CassoEmuCore/Devices/Disk/` (`DiskImageStore`, `DiskImage`, `FluxTrack`, the image watcher); `CassoEmuCore/Machines/Apple2/Common/` (`Disk2Controller`, `Disk2NibbleEngine`, `Nibblizer`, `Denibblizer`, `WozLoader`, `NibbleImageCodec`); `CassoEmuCore/Shell/DiskManager.cpp` |
 | Audio | `CassoEmuCore/WasapiAudio.cpp`, `CassoEmuCore/Audio/`, `CassoEmuCore/Machines/Apple2/Common/` (Mockingboard, Disk II audio) |
 | Machine definitions | `CassoEmuCore/Machines/<Family>/<Model>/*Definition.cpp` for invariant hardware; `Resources/Machines/*/*.json` for what an owner configures |
 | Entry points | `CassoEmuCore/Gui/GuiMain.cpp` (`wWinMain`), `CassoEmuCore/Cli/CliEntry.cpp` (`main`). `Casso/` and `CassoCli/` have no code: each is a resource script plus one comment-only translation unit, and its project file specifies the CRT startup symbol so the linker recovers the entry point from the library |
