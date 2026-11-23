@@ -671,9 +671,12 @@ void CassoLinkManager::BootstrapConnection (const std::string & name)
     else
     {
         steps  = L"On the Apple, at the prompt, type:\n\n"
-                 L"1. **IN#2** on a //c's port 2, **POKE 49157,0:POKE 1146,65:POKE 49156,0:IN#1** on its port 1, "
-                 L"or IN# and the Super Serial Card's slot, then press Return\n"
+                 L"1. **IN#2** on a //c's port 2, or IN# and the Super Serial Card's slot, then press Return\n"
                  L"2. **Ctrl+A 14B**, then press Return\n\n"
+                 L"On a //c's port 1, type **IN#1** and press Return, then type "
+                 L"**POKE 1913,65:POKE 49306,11:POKE 49307,30:POKE 43605,5:POKE 43606,193** with DOS 3.3 loaded, "
+                 L"**POKE 1913,65:POKE 49306,11:POKE 49307,30:POKE 48690,5:POKE 48691,193** with ProDOS, or "
+                 L"**POKE 1913,65:POKE 49306,11:POKE 49307,30:POKE 56,5:POKE 57,193** with neither, and press Return.\n\n"
                  L"The loader is then typed into the Apple, which takes about 40 seconds.";
         answer = DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, steps.c_str(), L"Bootstrap the Apple",
                                  MB_OKCANCEL | MB_ICONINFORMATION, { L"Bootstrap", L"Cancel" });

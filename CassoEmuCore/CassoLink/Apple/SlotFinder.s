@@ -3,7 +3,8 @@
 ; Typed in, or read from tape, ahead of the 6551 shim, and run in its place.
 ; It writes the 6551's slot into the shim's header at $3A38 and starts the
 ; shim at $3A00. The slot is the input hook's when IN# set it to a slot's
-; firmware, which a bootstrap typed in through the Apple's serial input has;
+; firmware, which a bootstrap typed in through the Apple's serial input has,
+; or DOS 3.3's copy of the hook when the hook is DOS's input handler;
 ; otherwise the first slot, from 7 down, whose firmware has the Super Serial
 ; Card's identification bytes, as after a bootstrap from tape; otherwise the
 ; slot the shim is assembled with. On a //c, IN#1 and IN#2 select ports 1
@@ -36,6 +37,10 @@
 SHIM     = $3A00
 SHIMSLOT = $3A38                ; the shim's 6551 slot
 KSWH     = $39                  ; the input hook's high byte
+DOSKSW   = $9E81                ; DOS 3.3's input handler
+DOSKSWH  = $AA56                ; DOS 3.3's copy of the input hook's high byte
+MLI      = $BF00                ; ProDOS's entry, a JMP when ProDOS is loaded
+PDKSWH   = $BE33                ; BASIC.SYSTEM's copy of the input hook's high byte
 CHKSUM   = $2E                  ; the monitor's XOR of the bytes it read from tape
 REPARSE  = $FF70                ; the monitor's prompt, past reading a line: the line read last is run again
 BASIC    = $E003                ; Applesoft's warm start, which doesn't clear the program or reset the hooks
@@ -55,7 +60,15 @@ ORIGIN   = $39A0
 whole:
         endif
         lda KSWH                ; $C1 to $C7: IN# and a slot
-        cmp #$C1
+        cmp #>DOSKSW            ; DOS 3.3's input handler: its copy of the hook
+        bne prodos
+        lda DOSKSWH
+        bne hook                ; always taken
+prodos: ldx MLI                 ; ProDOS loaded: BASIC.SYSTEM's copy of the hook
+        cpx #$4C
+        bne hook
+        lda PDKSWH
+hook:   cmp #$C1
         bcc scan
         cmp #$C8
         bcs scan
@@ -66,17 +79,9 @@ scan:   ldy #7
 next:   tya                     ; the slot's firmware page, $Cn
         ora #$C0
         sta id1+2
-        sta id2+2
-        sta id3+2
         sta id4+2
 id1:    lda $C005
         cmp #$38
-        bne skip
-id2:    lda $C007
-        cmp #$18
-        bne skip
-id3:    lda $C00B
-        cmp #$01
         bne skip
 id4:    lda $C00C
         cmp #$31

@@ -8,6 +8,7 @@
 #include "Core/TextEncoding.h"
 #include "Devices/Acia6551.h"
 #include "Devices/IAciaEndpoint.h"
+#include "CassoLink/LinkBootstrap.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -22,7 +23,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  The //c's own serial ports, run by Apple's //c firmware, on the 6551 the
 //  Super Serial Card shares. A listing sent to the printer port with PR#1 is
 //  transmitted whole, one character time apart at the baud rate the firmware
-//  sets, rather than all at once.
+//  sets, rather than all at once. The CassoLink loader typed into port 1
+//  runs and replies on port 1.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -89,7 +91,85 @@ public:
     }
 
 
+    //  The loader typed into port 1 after Ctrl+Reset, with DOS 3.3 loaded:
+    //  IN#1 and the bootstrap dialog's POKEs for port 1, then the loader
+    //  lines at the session's pace. The loader sends its $A5 on port 1.
+    TEST_METHOD (LoaderTypedIntoPort1UnderDos_SendsItsReadyByteOnPort1)
+    {
+        std::vector<std::string>  rows;
+        bool                      ready = RunPort1Bootstrap (GuestSession::RequireDos33Master(), kDosPort1Line, rows);
+
+
+
+        Assert::IsTrue (ready, Widen ("the loader's $A5 on port 1: " + JoinRows (rows)).c_str());
+    }
+
+
+    //  The same under ProDOS's BASIC.SYSTEM, with the dialog's POKEs for it.
+    TEST_METHOD (LoaderTypedIntoPort1UnderProDos_SendsItsReadyByteOnPort1)
+    {
+        std::vector<std::string>  rows;
+        bool                      ready = RunPort1Bootstrap (GuestSession::RequireProDosUsersDisk(), kProDosPort1Line, rows);
+
+
+
+        Assert::IsTrue (ready, Widen ("the loader's $A5 on port 1: " + JoinRows (rows)).c_str());
+    }
+
+
 private:
+
+    //  Boots the image, presses Ctrl+Reset, types IN#1 and pokeLine, and types
+    //  the loader into port 1. Returns whether the loader sent its $A5 there.
+    static bool RunPort1Bootstrap (const std::vector<Byte> & image, const char * pokeLine, std::vector<std::string> & rows)
+    {
+        TestMachine                machine ("Apple2c");
+        std::vector<std::string>   lines;
+        Acia6551                 * port1   = nullptr;
+        Recorder                   recorder;
+        bool                       ready   = false;
+
+
+
+        BootFromReset (machine, image);
+        machine.SoftReset();
+        machine.RunCycles (kLineCycles);
+
+        port1        = machine.GetRefs().serialChips[0];
+        recorder.cpu = machine.GetCpu();
+        port1->SetEndpoint (&recorder);
+        port1->SetModemInputs (true, true, true);
+
+        //  The //c drops the first key after Ctrl+Reset.
+        TypeLine (machine, "");
+        TypeLine (machine, "IN#1");
+        TypeLine (machine, pokeLine);
+
+        AssertSucceeded (LinkBootstrap::BuildLines (lines));
+
+        for (const std::string & line : lines)
+        {
+            for (char c : line)
+            {
+                port1->EnqueueReceivedBytes (reinterpret_cast<const Byte *> (&c), 1);
+                machine.RunCycles (kSerialCharCycles);
+            }
+
+            machine.RunCycles (kSerialLineCycles);
+        }
+
+        machine.RunCycles (kLoaderCycles);
+        port1->SetEndpoint (nullptr);
+
+        for (const Sent & s : recorder.sent)
+        {
+            ready = ready || s.value == LinkBootstrap::kLoaderReady;
+        }
+
+        rows = ReadScreen (machine);
+        return ready;
+    }
+
 
     struct Sent
     {
@@ -117,6 +197,17 @@ private:
     static constexpr uint64_t  kKeyGapCycles  = 30'000;
     static constexpr uint64_t  kLineCycles    = 1'000'000;
     static constexpr uint64_t  kBootCycles    = 40'000'000;
+
+    //  The bootstrap's pace: LinkBootstrap::kCharPauseUs after each character
+    //  and LinkBootstrap::kLinePauseMs after each line, in cycles.
+    static constexpr uint64_t  kSerialCharCycles = 3'100;
+    static constexpr uint64_t  kSerialLineCycles = 256'000;
+    static constexpr uint64_t  kLoaderCycles     = 3'000'000;
+
+    //  The bootstrap dialog's POKEs for port 1 with DOS 3.3 loaded, and with
+    //  ProDOS's BASIC.SYSTEM.
+    static constexpr const char *  kDosPort1Line    = "POKE 1913,65:POKE 49306,11:POKE 49307,30:POKE 43605,5:POKE 43606,193";
+    static constexpr const char *  kProDosPort1Line = "POKE 1913,65:POKE 49306,11:POKE 49307,30:POKE 48690,5:POKE 48691,193";
 
 
     //  The //c starts from its own reset, which sets up the serial ports'
