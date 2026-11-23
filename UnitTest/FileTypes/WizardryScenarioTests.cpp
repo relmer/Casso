@@ -39,12 +39,26 @@ public:
     }
 
 
-    //  Each paragraph's text, its runs joined.
+    static std::wstring GetText (const Paragraph & paragraph)
+    {
+        std::wstring  text;
+
+        for (const Run & run : paragraph.runs)
+        {
+            text += run.text;
+        }
+
+        return text;
+    }
+
+
+    //  Each paragraph's text, its runs joined, the roster's table as its
+    //  cards and details.
     static std::vector<std::wstring> GetTexts (const DecodedFile & file)
     {
         std::vector<std::wstring>  texts;
 
-        for (const Paragraph & paragraph : file.paragraphs)
+        for (const Paragraph & paragraph : FlattenRecordTables (file.paragraphs))
         {
             std::wstring  text;
 
@@ -69,14 +83,25 @@ public:
 
 
     //  The paragraph whose text is `text`, which must be there.
-    static const Paragraph & FindParagraph (const DecodedFile & file, const std::wstring & text)
+    static Paragraph FindParagraph (const DecodedFile & file, const std::wstring & text)
     {
         std::vector<std::wstring>  texts = GetTexts (file);
         auto                       found = std::find (texts.begin(), texts.end(), text);
 
         Assert::IsTrue (found != texts.end(), text.c_str());
 
-        return file.paragraphs[(size_t) (found - texts.begin())];
+        return FlattenRecordTables (file.paragraphs)[(size_t) (found - texts.begin())];
+    }
+
+
+    //  The roster's table, which must be there.
+    static const RecordTable & FindRoster (const DecodedFile & file)
+    {
+        auto  table = std::find_if (file.paragraphs.begin(), file.paragraphs.end(), [] (const Paragraph & p) { return p.table != nullptr; });
+
+        Assert::IsTrue (table != file.paragraphs.end(), L"The roster is a table");
+
+        return *table->table;
     }
 
 
@@ -113,11 +138,11 @@ public:
         Assert::AreEqual (std::wstring (L"Saved game: 1 character"), GetTexts (file)[1]);
 
         const Paragraph &  gandalf = FindParagraph (file, L"GANDALF   Level 13 Elf Mage, Evil");
-        const Paragraph &  sword   = FindParagraph (file, std::wstring (L"      LONG SWORD (") + s_kpszCheckMark + L" equipped)");
-        const Paragraph &  armor   = FindParagraph (file, L"      ARMOR (? unidentified)");
+        const Paragraph &  sword   = FindParagraph (file, std::wstring (L"      LONG SWORD\t") + s_kpszCheckMark + L" equipped");
+        const Paragraph &  armor   = FindParagraph (file, L"      ARMOR\t? unidentified");
 
         Assert::IsTrue (gandalf.runs[0].bold);
-        Assert::IsTrue (HasText (file, L"Status: OK   Hit points: 40/52   Gold: 14,321   Experience: 2,500"));
+        Assert::IsTrue (HasText (file, L"Status OK   HP 40/52   Gold 14,321   Exp 2,500"));
         Assert::IsTrue (sword.runs[3].color == RunColor::Good, L"equipped is green, with its check");
         Assert::IsTrue (armor.runs[1].italic && armor.runs[1].color == RunColor::Muted, L"one not identified is gray italics, by its unknown name");
         Assert::IsTrue (armor.runs[3].color == RunColor::Muted);
@@ -151,8 +176,55 @@ public:
 
         Assert::IsTrue   (HasText (file, L"Maze level 1, the party at 1 east, 0 north"));
         Assert::IsTrue   (map != file.paragraphs.end());
+        Assert::IsTrue   (map->canZoom, L"The map zooms and pans");
+        Assert::IsTrue   (map->pingX > map->width / 16 && map->pingX < map->width / 8 && map->pingY > map->height - map->height / 16,
+                          L"The ping is at the party's square, the second from the left in the bottom row");
         Assert::AreEqual (map->width, map->height);
-        Assert::IsTrue   (FindParagraph (file, L"Status: Dead   Hit points: 40/52   Gold: 14,321   Experience: 2,500").runs[1].color == RunColor::Bad);
+        Assert::IsTrue   (FindParagraph (file, L"Status Dead   HP 40/52   Gold 14,321   Exp 2,500").runs[1].color == RunColor::Bad);
+        Assert::IsTrue   (FindParagraph (file, L"GANDALF   Level 13 Elf Mage, Evil").runs[0].color == RunColor::Bad, L"A dead character's name is red");
+        Assert::IsTrue   (FindRoster (file).records[0].cells[0].color == RunColor::Bad, L"in the table too");
+        Assert::IsTrue   (map < std::find_if (file.paragraphs.begin(), file.paragraphs.end(), [] (const Paragraph & p) { return p.table != nullptr; }),
+                          L"The map is above the party");
+        Assert::IsFalse  (HasText (file, L"The party is the gold circle."), L"No legend: the map has tips");
+    }
+
+
+    //  Each square of the map has a tip: where it is, what is on it, and its
+    //  doors, each but the place with the color the map draws it in.
+    TEST_METHOD (Decode_TheMapsSquaresHaveTips)
+    {
+        std::vector<Byte>  bytes     = WizardryScenarioBuilder::MakeScenario();
+        size_t             character = WizardryScenarioBuilder::kCharacterBlock * WizardryScenario::kBlockBytes;
+        DecodedFile        file;
+        std::wstring       error;
+        constexpr int      kCell     = 24;
+        constexpr int      kBorder   = 4;
+
+
+
+        WizardryScenarioBuilder::PutWord (bytes, character + 40,  5);
+        WizardryScenarioBuilder::PutWord (bytes, character + 200, 1);
+        WizardryScenarioBuilder::PutWord (bytes, character + 202, 0);
+        WizardryScenarioBuilder::PutWord (bytes, character + 204, 1);
+
+        AssertSucceeded (WizardryScenario::Decode (bytes, MakeFacts ("SCENARIO.DATA"), DecodeOptions(), file, error));
+
+        auto  map = std::find_if (file.paragraphs.begin(), file.paragraphs.end(), [] (const Paragraph & p) { return !p.picture.empty(); });
+
+        const PictureTip *  door   = map->GetTipAt (kBorder + kCell / 2,         kBorder + 19 * kCell + kCell / 2);
+        const PictureTip *  stairs = map->GetTipAt (kBorder + kCell + kCell / 2, kBorder + 19 * kCell + kCell / 2);
+        const PictureTip *  fight  = map->GetTipAt (kBorder + kCell / 2,         kBorder + 18 * kCell + kCell / 2);
+
+        Assert::IsNotNull (door);
+        Assert::AreEqual  (std::wstring (L"0 east, 0 north"), door->lines[0].second);
+        Assert::AreEqual  (0u, door->lines[0].first, L"The place has no swatch");
+        Assert::AreEqual  (std::wstring (L"Door to the east"), door->lines[1].second);
+        Assert::AreNotEqual (0u, door->lines[1].first, L"and a door has its color");
+
+        Assert::AreEqual  (std::wstring (L"The party"), stairs->lines[1].second);
+        Assert::AreEqual  (std::wstring (L"Stairs"),    stairs->lines[2].second);
+        Assert::AreEqual  (std::wstring (L"Fight zone"), fight->lines[1].second);
+        Assert::IsNull    (map->GetTipAt (1, 1), L"The border has no tip");
     }
 
 
@@ -173,9 +245,34 @@ public:
 
         AssertSucceeded (WizardryScenario::Decode (bytes, MakeFacts ("SCENARIO.DATA"), DecodeOptions(), file, error));
 
-        Assert::IsTrue (HasText (file, std::wstring (L"      LONG SWORD (") + s_kpszCheckMark + L" equipped)"), L"Item 1000 is item 0");
-        Assert::IsTrue (HasText (file, L"Status: Out, in the maze   Hit points: 40/52   Gold: 14,321   Experience: 2,500"));
+        Assert::IsTrue (HasText (file, std::wstring (L"      LONG SWORD\t") + s_kpszCheckMark + L" equipped"), L"Item 1000 is item 0");
+        Assert::IsTrue (HasText (file, L"Status Out, in the maze   HP 40/52   Gold 14,321   Exp 2,500"));
         Assert::IsTrue (HasText (file, L"No map: the party is still in the maze, and no square is saved for it. To get them back, choose Recover in the boot disk's Utilities menu."));
+    }
+
+
+    //  The roster as a table: a column for each of the character's facts,
+    //  and the inventory under the character in either form.
+    TEST_METHOD (Decode_TheRosterIsATable)
+    {
+        std::vector<Byte>  bytes = WizardryScenarioBuilder::MakeScenario();
+        DecodedFile        file;
+        std::wstring       error;
+
+
+
+        AssertSucceeded (WizardryScenario::Decode (bytes, MakeFacts ("SCENARIO.DATA"), DecodeOptions(), file, error));
+
+        const RecordTable &  roster = FindRoster (file);
+
+        Assert::AreEqual ((size_t) 9, roster.headings.size());
+        Assert::AreEqual (std::wstring (L"Name"), roster.headings[0]);
+        Assert::AreEqual ((size_t) 1, roster.records.size(), L"The deleted character isn't a record");
+        Assert::AreEqual (std::wstring (L"GANDALF"), roster.records[0].cells[0].text);
+        Assert::IsTrue   (roster.records[0].cells[0].bold);
+        Assert::AreEqual (std::wstring (L"Mage"),  roster.records[0].cells[3].text);
+        Assert::AreEqual (std::wstring (L"40/52"), roster.records[0].cells[6].text);
+        Assert::AreEqual ((size_t) 2, roster.records[0].details.size(), L"Two items");
     }
 
 
@@ -214,7 +311,7 @@ public:
         Assert::AreEqual (0xFFC0601Au, Pixel (bgra, width, 0,  0, 24, 12), L"the door east of (0, 0), brown in the middle");
         Assert::AreEqual (0xFFCFE0FFu, Pixel (bgra, width, 1,  0, 8,  8),  L"the stairs at (1, 0)");
         Assert::AreEqual (0xFFFBE0E0u, Pixel (bgra, width, 0,  1, 8,  8),  L"the fight zone at (0, 1)");
-        Assert::AreEqual (0xFFE0A800u, Pixel (bgra, width, 5,  5, 12, 12), L"the party at (5, 5)");
+        Assert::AreEqual (0xFF12B05Au, Pixel (bgra, width, 5,  5, 12, 12), L"the party at (5, 5), in green");
         Assert::AreEqual (0xFFFFFFFFu, Pixel (bgra, width, 10, 10, 12, 12), L"an empty square");
     }
 

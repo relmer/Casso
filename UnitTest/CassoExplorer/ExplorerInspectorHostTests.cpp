@@ -4,7 +4,7 @@
 #include "../EmuTests/FakeDiskFileIo.h"
 #include "CassoExplorer/ExplorerInspectorHost.h"
 #include "Devices/Disk/Archives/GzipFile.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Seams/IIntentChannel.h"
 #include "Seams/Win32IntentChannel.h"
@@ -54,7 +54,7 @@ public:
         FakeDiskFileIo         fileIo;
         FakeIntents            intents;
         ExplorerInspectorHost  host     { kPath, fileIo, &intents };
-        vector<Byte>           original = vector<Byte> (NibblizationLayer::kImageByteSize, 0x11);
+        vector<Byte>           original = vector<Byte> (NibbleFormat::kImageByteSize, 0x11);
         uint64_t               mediaId  = 0;
         int                    slot     = -1;
 
@@ -163,7 +163,7 @@ public:
         FakeDiskFileIo          fileIo;
         FakeIntents             intents;
         ExplorerInspectorHost   host     (L"C:\\Disks\\mist.dsk.gz", fileIo, &intents);
-        vector<Byte>            original (NibblizationLayer::kImageByteSize, 0x11);
+        vector<Byte>            original (NibbleFormat::kImageByteSize, 0x11);
         vector<Byte>            gzip;
         vector<Byte>            expanded;
         vector<InspectorReply>  replies;
@@ -347,7 +347,7 @@ public:
     TEST_METHOD (AsFirstOpenedIsTheFileAsFirstRead)
     {
         Rig             rig;
-        vector<Byte>    changed = vector<Byte> (NibblizationLayer::kImageByteSize, 0x22);
+        vector<Byte>    changed = vector<Byte> (NibbleFormat::kImageByteSize, 0x22);
         InspectorReply  reply;
 
 

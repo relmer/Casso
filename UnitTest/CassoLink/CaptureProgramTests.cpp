@@ -8,9 +8,9 @@
 #include "CassoLink/Session/CaptureStream.h"
 #include "CassoLink/Session/CassoLinkCapture.h"
 #include "CassoLink/Session/CassoLinkThirteenSector.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Machines/Apple2/Common/ThirteenSectorCodec.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskFieldFormat.h"
@@ -35,6 +35,31 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 TEST_CLASS (CaptureProgramTests)
 {
 public:
+
+    //  A 16-sector data field's nibbles, its checksum nibble last.
+    static void EncodeDataField (const std::vector<Byte> & data, std::vector<Byte> & outNibbles)
+    {
+        Byte  checksum = 0;
+
+
+
+        DiskFieldFormat::EncodeData (DiskFieldKind::Sixteen, data, outNibbles, checksum);
+        outNibbles.push_back (checksum);
+    }
+
+
+
+    static bool DoesDataFieldDecode (const Byte * nibbles)
+    {
+        DataFieldDecode  decode;
+
+
+
+        DiskFieldFormat::DecodeData (DiskFieldKind::Sixteen, std::span<const Byte> (nibbles, DiskFieldFormat::kBodyLength62), nibbles[DiskFieldFormat::kBodyLength62], decode);
+
+        return decode.isChecksumGood && decode.invalidNibbles.empty();
+    }
+
 
     //  Each token: values as they are, a repeat, and a copy of a revolution
     //  before, then the marks, with the padding after the last ignored. The
@@ -395,7 +420,6 @@ public:
         CassoLinkCapture::Result                 result;
         DiskImage                                image;
         std::vector<Byte>                        framed;
-        std::vector<Byte>                        sector;
         uint32_t                                 seed    = 4321;
         size_t                                   badAt   = 0;
         bool                                     decoded = false;
@@ -410,7 +434,7 @@ public:
 
         for (int number = 0; number < kSectors; number++)
         {
-            std::vector<Byte>  data (NibblizationLayer::kSectorByteSize);
+            std::vector<Byte>  data (NibbleFormat::kSectorByteSize);
             std::vector<Byte>  nibbles;
 
             revolution.insert (revolution.end(), kSyncs, 0xFF);
@@ -435,7 +459,7 @@ public:
                 value = (Byte) (seed >> 16);
             }
 
-            NibblizationLayer::EncodeDataNibbles (data.data(), nibbles);
+            EncodeDataField (data, nibbles);
             badAt = number == kBad ? revolution.size() + kMisread : badAt;
             revolution.insert (revolution.end(), nibbles.begin(), nibbles.end());
             revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
@@ -471,7 +495,7 @@ public:
 
             FrameTrack (image, image.ResolveQuarterTrack (0), framed);
 
-            for (size_t at = 0; !decoded && at + 20 + NibblizationLayer::kDataNibbleCount < framed.size(); at++)
+            for (size_t at = 0; !decoded && at + 20 + NibbleFormat::kDataNibbleCount < framed.size(); at++)
             {
                 bool  address = framed[at] == 0xD5 && framed[at + 1] == 0xAA && framed[at + 2] == 0x96;
                 int   number  = address ? (((framed[at + 7] << 1) | 1) & framed[at + 8]) : -1;
@@ -480,7 +504,7 @@ public:
                 {
                     bool  prolog = framed[data] == 0xD5 && framed[data + 1] == 0xAA && framed[data + 2] == 0xAD;
 
-                    decoded = decoded || (prolog && NibblizationLayer::DecodeDataNibbles (&framed[data + 3], sector));
+                    decoded = decoded || (prolog && DoesDataFieldDecode (&framed[data + 3]));
                 }
             }
 
@@ -520,7 +544,7 @@ public:
 
         for (int number = 0; number < kSectors; number++)
         {
-            std::vector<Byte>  data (NibblizationLayer::kSectorByteSize);
+            std::vector<Byte>  data (NibbleFormat::kSectorByteSize);
             std::vector<Byte>  nibbles;
 
             revolution.insert (revolution.end(), number == 0 ? kGapSyncs : kSyncs, 0xFF);
@@ -540,7 +564,7 @@ public:
                 value = (Byte) (seed >> 16);
             }
 
-            NibblizationLayer::EncodeDataNibbles (data.data(), nibbles);
+            EncodeDataField (data, nibbles);
             revolution.insert (revolution.end(), nibbles.begin(), nibbles.end());
             revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
         }
@@ -606,7 +630,7 @@ public:
 
         for (int number = 0; number < kSectors; number++)
         {
-            std::vector<Byte>  data (NibblizationLayer::kSectorByteSize);
+            std::vector<Byte>  data (NibbleFormat::kSectorByteSize);
             std::vector<Byte>  nibbles;
 
             revolution.insert (revolution.end(), kSyncs, 0xFF);
@@ -626,7 +650,7 @@ public:
                 value = (Byte) (seed >> 16);
             }
 
-            NibblizationLayer::EncodeDataNibbles (data.data(), nibbles);
+            EncodeDataField (data, nibbles);
             revolution.insert (revolution.end(), nibbles.begin(), nibbles.end());
             revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
         }
@@ -699,7 +723,7 @@ public:
 
             for (int number = 0; number < kSectors; number++)
             {
-                std::vector<Byte>  data (NibblizationLayer::kSectorByteSize);
+                std::vector<Byte>  data (NibbleFormat::kSectorByteSize);
                 std::vector<Byte>  nibbles;
 
                 revolution.insert (revolution.end(), kSyncs, 0xFF);
@@ -718,7 +742,7 @@ public:
                     value = (Byte) (seed >> 16);
                 }
 
-                NibblizationLayer::EncodeDataNibbles (data.data(), nibbles);
+                EncodeDataField (data, nibbles);
                 nibbles.back() = decodes ? nibbles.back() : (Byte) (nibbles.back() == 0x96 ? 0x97 : 0x96);
                 revolution.insert (revolution.end(), nibbles.begin(), nibbles.end());
                 revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
@@ -784,7 +808,7 @@ public:
 
             for (int number = 0; number < kSectors; number++)
             {
-                std::vector<Byte>  data (NibblizationLayer::kSectorByteSize);
+                std::vector<Byte>  data (NibbleFormat::kSectorByteSize);
                 std::vector<Byte>  nibbles;
                 bool               odd = number == kOdd;
 
@@ -816,7 +840,7 @@ public:
                     value = (Byte) (seed >> 16);
                 }
 
-                NibblizationLayer::EncodeDataNibbles (data.data(), nibbles);
+                EncodeDataField (data, nibbles);
                 revolution.insert (revolution.end(), nibbles.begin(), nibbles.end());
                 revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
             }
@@ -889,7 +913,7 @@ public:
 
             for (int number = 0; number < kSectors; number++)
             {
-                std::vector<Byte>  data (NibblizationLayer::kSectorByteSize);
+                std::vector<Byte>  data (NibbleFormat::kSectorByteSize);
                 std::vector<Byte>  nibbles;
 
                 revolution.insert (revolution.end(), { 0xD5, 0xAA, 0x96 });
@@ -918,7 +942,7 @@ public:
                     value = (Byte) (seed >> 16);
                 }
 
-                NibblizationLayer::EncodeDataNibbles (data.data(), nibbles);
+                EncodeDataField (data, nibbles);
                 revolution.insert (revolution.end(), nibbles.begin(), nibbles.end());
                 revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
                 revolution.insert (revolution.end(), kSyncs, 0xFF);
@@ -1038,7 +1062,7 @@ public:
 
         for (int number = 0; number < kSectors; number++)
         {
-            std::vector<Byte>  data (NibblizationLayer::kSectorByteSize);
+            std::vector<Byte>  data (NibbleFormat::kSectorByteSize);
             std::vector<Byte>  nibbles;
 
             revolution.insert (revolution.end(), kSyncs, 0xFF);
@@ -1057,7 +1081,7 @@ public:
                 value = (Byte) (seed >> 16);
             }
 
-            NibblizationLayer::EncodeDataNibbles (data.data(), nibbles);
+            EncodeDataField (data, nibbles);
             revolution.insert (revolution.end(), nibbles.begin(), nibbles.end());
             revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
         }

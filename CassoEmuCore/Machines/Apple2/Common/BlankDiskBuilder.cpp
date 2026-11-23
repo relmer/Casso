@@ -1,11 +1,14 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
+#include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/FluxTrack.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 
 #include "Machines/Apple2/Common/CpmVolume.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/WozLoader.h"
@@ -249,7 +252,7 @@ void BlankDiskBuilder::ConvertTracksToFlux (uint64_t fluxTrackMask, DiskImage & 
 
 
 
-    for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+    for (track = 0; track < NibbleFormat::kTrackCount; track++)
     {
         if ((fluxTrackMask & (1ull << track)) == 0)
         {
@@ -299,19 +302,19 @@ void BlankDiskBuilder::ReorderDosToPo (const vector<Byte> & dosOrdered, vector<B
 
     outPo.assign (dosOrdered.size(), (Byte) 0);
 
-    for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+    for (track = 0; track < NibbleFormat::kTrackCount; track++)
     {
-        for (file = 0; file < NibblizationLayer::kSectorsPerTrack; file++)
+        for (file = 0; file < NibbleFormat::kSectorsPerTrack; file++)
         {
-            size_t  src = ((size_t) track * NibblizationLayer::kSectorsPerTrack
+            size_t  src = ((size_t) track * NibbleFormat::kSectorsPerTrack
                           + (size_t) kPoFileToDosLogical[file])
-                        * (size_t) NibblizationLayer::kSectorByteSize;
-            size_t  dst = ((size_t) track * NibblizationLayer::kSectorsPerTrack
+                        * (size_t) NibbleFormat::kSectorByteSize;
+            size_t  dst = ((size_t) track * NibbleFormat::kSectorsPerTrack
                           + (size_t) file)
-                        * (size_t) NibblizationLayer::kSectorByteSize;
+                        * (size_t) NibbleFormat::kSectorByteSize;
 
             std::copy (dosOrdered.begin() + src,
-                       dosOrdered.begin() + src + NibblizationLayer::kSectorByteSize,
+                       dosOrdered.begin() + src + NibbleFormat::kSectorByteSize,
                        outPo.begin() + dst);
         }
     }
@@ -366,7 +369,7 @@ HRESULT BlankDiskBuilder::Build (
     hr = ValidateSpec (spec);
     CHR (hr);
 
-    buffer.assign ((size_t) NibblizationLayer::kImageByteSize, (Byte) 0);
+    buffer.assign ((size_t) NibbleFormat::kImageByteSize, (Byte) 0);
 
     if (spec.contents == BlankDiskContents::Dos33)
     {
@@ -495,14 +498,14 @@ HRESULT BlankDiskBuilder::WrapInContainer (
             if (unformatted)
             {
                 // Raw media: full-capacity all-zero bit tracks, no structure.
-                for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+                for (track = 0; track < NibbleFormat::kTrackCount; track++)
                 {
-                    img.ResizeTrack (track, NibblizationLayer::kTrackBitCapacity);
+                    img.ResizeTrack (track, NibbleFormat::kTrackBitCapacity);
                 }
             }
             else
             {
-                hr = NibblizationLayer::NibblizeDsk (sectors, img);
+                hr = Nibblizer::NibblizeDsk (sectors, img);
                 CHR (hr);
             }
 
@@ -524,14 +527,14 @@ HRESULT BlankDiskBuilder::WrapInContainer (
         case DiskFormat::Nib:
             if (unformatted)
             {
-                for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+                for (track = 0; track < NibbleFormat::kTrackCount; track++)
                 {
-                    img.ResizeTrack (track, NibblizationLayer::kTrackBitCapacity);
+                    img.ResizeTrack (track, NibbleFormat::kTrackBitCapacity);
                 }
             }
             else
             {
-                hr = NibblizationLayer::NibblizeDsk (sectors, img);
+                hr = Nibblizer::NibblizeDsk (sectors, img);
                 CHR (hr);
             }
 

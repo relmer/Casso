@@ -65,10 +65,9 @@ void ExplorerPreviewManager::Create()
     m_summary->SetVisible      (false);
 
     m_sections = m_context.window.CreateChild<DxuiSegmentedControl>();
-    m_sections->SetSegments          ({ L"Saved game", L"Disk" });
-    m_sections->SetAnimationsEnabled (false);
-    m_sections->SetVisible           (false);
-    m_sections->SetOnChange          ([this] (int index)
+    m_sections->SetSegments ({ L"Saved game", L"Disk" });
+    m_sections->SetVisible  (false);
+    m_sections->SetOnChange ([this] (int index)
     {
         m_context.browser.GetPreviewer().SetSavedGameShown (index == 0);
         FillPreview();
@@ -166,15 +165,18 @@ void ExplorerPreviewManager::Layout (const RECT & rect)
         content.top += barPx;
     }
 
-    //  The switch between a disk's saved game and the disk, under the toolbar.
+    //  The switch between a disk's saved game and the disk, under the toolbar:
+    //  the pane's width inside its padding, and centered at its widest.
     if (m_sections->IsVisible())
     {
         int  band   = scaler.ToPx (kSectionsBandDip);
         int  height = scaler.ToPx (kSectionsDip);
-        int  left   = content.left + scaler.ToPx (kSectionsPadDip);
+        int  pad    = scaler.ToPx (kSectionsPadDip);
+        int  width  = (std::min) ((int) (content.right - content.left) - 2 * pad, scaler.ToPx (kSectionsMaxDip));
+        int  left   = content.left + ((int) (content.right - content.left) - width) / 2;
         int  top    = content.top + (band - height) / 2;
 
-        m_sections->Layout (RECT { left, top, left + 2 * scaler.ToPx (kSectionDip), top + height }, scaler);
+        m_sections->Layout (RECT { left, top, left + (std::max) (width, 0), top + height }, scaler);
         content.top += band;
     }
 
@@ -218,12 +220,12 @@ void ExplorerPreviewManager::Layout (const RECT & rect)
         //  The details scroll away by whole lines once the thumbnail is gone.
         if (m_summary->IsVisible())
         {
-            int  lineH  = (std::max) (1, m_summary->GetLineHeightPx());
+            int  lineH  = (std::max) (1, m_summary->GetLayout().GetCellHeightPx());
             int  hidden = (std::max) (0, m_headerScroll - height);
             int  lines  = (hidden + lineH - 1) / lineH;
 
-            m_summary->SetVerticalScrollbarHidden (true);
-            m_summary->SetTopLine (lines);
+            m_summary->GetScroll().SetVerticalScrollbarHidden (true);
+            m_summary->GetScroll().SetTopLine (lines);
 
             summaryPx = std::clamp (m_summary->GetContentHeightPx() - hidden, 0, (std::max) (0, static_cast<int> (content.bottom - content.top)));
         }
@@ -239,7 +241,7 @@ void ExplorerPreviewManager::Layout (const RECT & rect)
         //  pane's width, up to a share of the pane.
         if (m_summary->IsVisible())
         {
-            m_summary->SetVerticalScrollbarHidden (false);
+            m_summary->GetScroll().SetVerticalScrollbarHidden (false);
             summaryPx = (std::min) (m_summary->GetContentHeightPx(), (int) (content.bottom - content.top) / kSummaryShare);
         }
     }
@@ -975,6 +977,13 @@ bool ExplorerPreviewManager::TickScrollbars (int64_t nowMs)
     }
 
     moved = m_thumbnail.GetScrollbar().TickBar (nowMs) || moved;
+
+    //  The switch's pill slides to a new selection.
+    if (m_sections->WantsTick())
+    {
+        m_sections->Tick (nowMs);
+        moved = true;
+    }
 
     return moved;
 }

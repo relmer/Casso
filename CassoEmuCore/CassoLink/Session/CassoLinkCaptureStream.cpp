@@ -2,7 +2,8 @@
 
 #include "CassoLink/Session/CassoLinkCapture.h"
 #include "CassoLink/Session/CaptureStream.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Devices/Disk/DiskFieldFormat.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 
 
 
@@ -840,7 +841,7 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const std::v
             std::fill (values.begin() + (ptrdiff_t) each + 3, values.begin() + (ptrdiff_t) std::min (length, each + 3 + s_kAddressValues), true);
         }
 
-        for (size_t nibble = 0; data != SIZE_MAX && nibble < NibblizationLayer::kDataNibbleCount && data + nibble < length; nibble++)
+        for (size_t nibble = 0; data != SIZE_MAX && nibble < NibbleFormat::kDataNibbleCount && data + nibble < length; nibble++)
         {
             inData[data + nibble] = true;
         }
@@ -1211,7 +1212,7 @@ size_t CassoLinkCapture::FindDataField (std::span<const Byte> bytes, size_t at)
 
     for (size_t each = at + s_kMarkerBytes; address && data == SIZE_MAX && each < at + s_kMarkerBytes + s_kDataWithin; each++)
     {
-        bool  fits = each + 3 + NibblizationLayer::kDataNibbleCount <= bytes.size();
+        bool  fits = each + 3 + NibbleFormat::kDataNibbleCount <= bytes.size();
 
         Byte  second = fits ? (Byte) (bytes[each + 1] | 0x80) : 0;
         bool  prolog = fits && (bytes[each] | 0x80) == s_kProlog0 && (second == s_kProlog1 || second == s_kOtherProlog1);
@@ -1242,8 +1243,8 @@ size_t CassoLinkCapture::FindDataField (std::span<const Byte> bytes, size_t at)
 
 bool CassoLinkCapture::RepairFields (const Position & position, std::vector<Byte> & ioRevolution)
 {
-    std::vector<Byte>  sector;
-    std::vector<Byte>  nibbles (NibblizationLayer::kDataNibbleCount);
+    DataFieldDecode    sector;
+    std::vector<Byte>  nibbles (NibbleFormat::kDataNibbleCount);
     std::vector<Byte>  around  (ioRevolution);
     size_t             length   = ioRevolution.size();
     bool               repaired = false;
@@ -1254,7 +1255,9 @@ bool CassoLinkCapture::RepairFields (const Position & position, std::vector<Byte
     {
         std::transform (bytes.begin() + (ptrdiff_t) data, bytes.begin() + (ptrdiff_t) (data + nibbles.size()), nibbles.begin(), [] (Byte value) { return (Byte) (value | 0x80); });
 
-        return NibblizationLayer::DecodeDataNibbles (nibbles.data(), sector);
+        DiskFieldFormat::DecodeData (DiskFieldKind::Sixteen, std::span<const Byte> (nibbles).first (DiskFieldFormat::kBodyLength62), nibbles[DiskFieldFormat::kBodyLength62], sector);
+
+        return sector.isChecksumGood && sector.invalidNibbles.empty();
     };
 
     around.insert (around.end(), ioRevolution.begin(), ioRevolution.begin() + (ptrdiff_t) std::min (length, s_kMarkerBytes + s_kDataWithin + 3 + nibbles.size()));
@@ -1363,8 +1366,8 @@ bool CassoLinkCapture::RepairProlog (const Position & position, std::vector<Byte
 {
     using Prolog = std::array<Byte, s_kPrologBytes>;
 
-    std::vector<Byte>         sector;
-    std::vector<Byte>         nibbles    (NibblizationLayer::kDataNibbleCount);
+    DataFieldDecode           sector;
+    std::vector<Byte>         nibbles    (NibbleFormat::kDataNibbleCount);
     std::map<Prolog, size_t>  counts;
     Prolog                    usual      = {};
     size_t                    most       = 0;
@@ -1391,7 +1394,9 @@ bool CassoLinkCapture::RepairProlog (const Position & position, std::vector<Byte
     {
         std::transform (bytes.begin() + (ptrdiff_t) data, bytes.begin() + (ptrdiff_t) (data + nibbles.size()), nibbles.begin(), [] (Byte value) { return (Byte) (value | 0x80); });
 
-        return NibblizationLayer::DecodeDataNibbles (nibbles.data(), sector);
+        DiskFieldFormat::DecodeData (DiskFieldKind::Sixteen, std::span<const Byte> (nibbles).first (DiskFieldFormat::kBodyLength62), nibbles[DiskFieldFormat::kBodyLength62], sector);
+
+        return sector.isChecksumGood && sector.invalidNibbles.empty();
     };
 
     for (size_t at = 0; at < ioRevolution.size(); at++)

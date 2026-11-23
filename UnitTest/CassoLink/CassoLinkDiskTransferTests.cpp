@@ -4,8 +4,8 @@
 #include "CassoLink/Session/CassoLinkDiskTransfer.h"
 #include "CassoLink/Session/TrackMeasures.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/TrackLayoutWriter.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -29,7 +29,7 @@ public:
 
     static std::vector<Byte>  MakeDisk()
     {
-        std::vector<Byte>  disk (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  disk (NibbleFormat::kImageByteSize, 0);
 
         for (size_t offset = 0; offset < disk.size(); offset++)
         {
@@ -43,7 +43,7 @@ public:
     {
         std::vector<CassoLinkHost::TrackMeasure>  measures;
 
-        for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+        for (int track = 0; track < NibbleFormat::kTrackCount; track++)
         {
             measures.push_back (CassoLinkHost::TrackMeasure { (Word) (track == 0 ? 0 : 1000 + track * 7), 6330, 254 });
         }
@@ -105,11 +105,11 @@ public:
 
     TEST_METHOD (Automatic_ATrack0WithNoSectorRead_IsCapturedRaw)
     {
-        std::vector<Byte>                  disk (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>                  disk (NibbleFormat::kImageByteSize, 0);
         std::vector<std::pair<int, int>>   unreadable;
         FullSendProtectionChoices          none { false, false, false, false, false, false };
 
-        for (int sector = 0; sector < NibblizationLayer::kSectorsPerTrack; sector++)
+        for (int sector = 0; sector < NibbleFormat::kSectorsPerTrack; sector++)
         {
             unreadable.push_back ({ 0, sector });
         }
@@ -122,7 +122,7 @@ public:
 
     TEST_METHOD (Automatic_WithNoSignChecked_IsASectorImage)
     {
-        std::vector<Byte>          disk (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>          disk (NibbleFormat::kImageByteSize, 0);
         FullSendProtectionChoices  none { false, false, false, false, false, false };
 
         Assert::IsFalse (CassoLinkDiskTransfer::IsAutomaticRaw (disk, { { 5, 3 } }, none));

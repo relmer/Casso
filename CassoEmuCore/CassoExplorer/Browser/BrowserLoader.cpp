@@ -14,7 +14,7 @@
 #include "Devices/Disk/Partitions/PartitionAccess.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
 #include "Devices/Tape/TapeImageLoader.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 
@@ -840,7 +840,7 @@ void BrowserLoader::AddCassoLinkItems()
         entry.name = disk ? L"CassoLink.dsk" : L"What's CassoLink.md";
         m_parts.list.rows.push_back (CatalogModel::FromHostEntry (entry, disk, m_parts.list.rootChildren.size() + m_parts.list.rows.size()));
         m_parts.list.rows.back().cassoLinkItem = item;
-        m_parts.list.rows.back().sizeBytes     = disk ? NibblizationLayer::kImageByteSize : wcslen (GetCassoLinkHelp());
+        m_parts.list.rows.back().sizeBytes     = disk ? NibbleFormat::kImageByteSize : wcslen (GetCassoLinkHelp());
         m_parts.list.rows.back().hostPath      = (length > 0) ? std::wstring (temp) + entry.name : std::wstring();
 
         if (!disk && m_parts.sources.shellIcons != nullptr && !m_parts.sources.shellIcons->GetTypeName (m_parts.list.rows.back().hostPath, false).empty())

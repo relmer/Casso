@@ -2,7 +2,6 @@
 
 #include "Pch.h"
 
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/SectorReadObserver.h"
 #include "Devices/Disk/BlockImage.h"
 

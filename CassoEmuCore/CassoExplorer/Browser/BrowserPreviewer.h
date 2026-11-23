@@ -75,6 +75,7 @@ public:
     bool                      PreviewPartitions    (const std::wstring & imagePath, PartitionLayoutKind layout, const std::vector<PartitionEntry> & entries);
     bool                      PreviewSavedGame     (const std::wstring & imagePath, const VolumeListing & listing, VolumeKind kind);
     static const FileEntry  * FindSavedGame        (const VolumeListing & listing, VolumeKind kind);
+    bool                      TryDecodeDiskSave    (const std::wstring & imagePath, DecodedFile & outFile);
 
     using DetailIterator = std::vector<std::pair<std::wstring, std::wstring>>::iterator;
 

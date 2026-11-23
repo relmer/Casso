@@ -6,7 +6,7 @@
 #include "CassoLink/FullSend/FullSendManifest.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 
@@ -30,7 +30,7 @@ namespace FullSendTestDisks
 
     inline Image  Dos (const char * program, Byte seed = 1)
     {
-        Image        buffer (NibblizationLayer::kImageByteSize, 0);
+        Image        buffer (NibbleFormat::kImageByteSize, 0);
         Image        next;
         FilePayload  payload;
 
@@ -48,7 +48,7 @@ namespace FullSendTestDisks
     //  A ProDOS disk with one file, so it isn't blank.
     inline Image  ProDos (const char * volume)
     {
-        Image        buffer (NibblizationLayer::kImageByteSize, 0);
+        Image        buffer (NibbleFormat::kImageByteSize, 0);
         Image        next;
         FilePayload  payload;
 
@@ -66,7 +66,7 @@ namespace FullSendTestDisks
     //  A formatted disk with no files.
     inline Image  BlankProDos (const char * volume)
     {
-        Image  buffer (NibblizationLayer::kImageByteSize, 0);
+        Image  buffer (NibbleFormat::kImageByteSize, 0);
 
         AssertSucceeded (ProDosSkeleton::Write (buffer, volume));
 
@@ -75,7 +75,7 @@ namespace FullSendTestDisks
 
     inline Image  BlankDos()
     {
-        Image  buffer (NibblizationLayer::kImageByteSize, 0);
+        Image  buffer (NibbleFormat::kImageByteSize, 0);
 
         AssertSucceeded (Dos33Skeleton::Write (buffer, 254));
 
@@ -99,7 +99,7 @@ namespace FullSendTestDisks
     //  An unrecognized disk, with bytes of its seed in every sector.
     inline Image  Other (Byte seed)
     {
-        return Image (NibblizationLayer::kImageByteSize, seed);
+        return Image (NibbleFormat::kImageByteSize, seed);
     }
 
     inline FullSendRow  Row (int sequence, const std::string & file, char fingerprint = 'a', char hash = 'b')

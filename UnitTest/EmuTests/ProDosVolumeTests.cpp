@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 #include "FixtureProvider.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
@@ -69,7 +70,7 @@ public:
 
     static vector<Byte> MakeVolume (const std::string & name = "NEWDISK")
     {
-        vector<Byte>  buffer (NibblizationLayer::kImageByteSize, 0xEE);
+        vector<Byte>  buffer (NibbleFormat::kImageByteSize, 0xEE);
 
         AssertSucceeded (ProDosSkeleton::Write (buffer, name));
 
@@ -90,7 +91,7 @@ public:
     TEST_METHOD (SkeletonConstants_MatchGeometry)
     {
         // 280 blocks x 512 bytes == the 143,360-byte 5.25" sector image.
-        Assert::AreEqual (NibblizationLayer::kImageByteSize,
+        Assert::AreEqual (NibbleFormat::kImageByteSize,
                           ProDosSkeleton::kTotalBlocks * 512);
     }
 
@@ -99,7 +100,7 @@ public:
     {
         // Every (block, offset) must land on a distinct buffer byte and the
         // union must tile the full image — the interleave map is a bijection.
-        std::vector<char>  seen (NibblizationLayer::kImageByteSize, 0);
+        std::vector<char>  seen (NibbleFormat::kImageByteSize, 0);
         int                block  = 0;
         size_t             offset = 0;
 
@@ -109,7 +110,7 @@ public:
             {
                 size_t  at = ProDosSkeleton::GetBlockByteOffset (block, offset);
 
-                Assert::IsTrue (at < (size_t) NibblizationLayer::kImageByteSize);
+                Assert::IsTrue (at < (size_t) NibbleFormat::kImageByteSize);
                 Assert::AreEqual ((char) 0, seen[at]);
                 seen[at] = 1;
             }
@@ -134,7 +135,7 @@ public:
     {
         UnitTestHelpers::ExpectedEhmAssert  expect;
 
-        vector<Byte>  buffer (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>  buffer (NibbleFormat::kImageByteSize, 0);
 
 
 
@@ -2581,7 +2582,7 @@ public:
         vector<Byte>       after;
         VolumeListing      listedBefore;
         VolumeListing      listedAfter;
-        std::vector<char>  allowed (NibblizationLayer::kImageByteSize, 0);
+        std::vector<char>  allowed (NibbleFormat::kImageByteSize, 0);
         size_t             differing = 0;
         size_t             i         = 0;
 

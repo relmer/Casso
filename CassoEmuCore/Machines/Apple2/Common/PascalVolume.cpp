@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/PascalVolume.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 
@@ -95,9 +95,9 @@ bool PascalVolume::IsFound (const vector<Byte> & sectors)
 
 
 
-    for (half = 0; isFound && half < block.size(); half += (size_t) NibblizationLayer::kSectorByteSize)
+    for (half = 0; isFound && half < block.size(); half += (size_t) NibbleFormat::kSectorByteSize)
     {
-        std::copy_n (sectors.begin() + (ptrdiff_t) ProDosSkeleton::GetBlockByteOffset (sectors.size(), kFirstDirectoryBlock, half), NibblizationLayer::kSectorByteSize, block.begin() + (ptrdiff_t) half);
+        std::copy_n (sectors.begin() + (ptrdiff_t) ProDosSkeleton::GetBlockByteOffset (sectors.size(), kFirstDirectoryBlock, half), NibbleFormat::kSectorByteSize, block.begin() + (ptrdiff_t) half);
     }
 
     if (isFound)
@@ -134,7 +134,7 @@ bool PascalVolume::IsValidSize (size_t bytes)
 
 
 
-    return bytes == (size_t) NibblizationLayer::kImageByteSize || (bytes % kBlockBytes == 0 && blocks > (size_t) kFirstDataBlock && blocks <= kMaxBlocks);
+    return bytes == (size_t) NibbleFormat::kImageByteSize || (bytes % kBlockBytes == 0 && blocks > (size_t) kFirstDataBlock && blocks <= kMaxBlocks);
 }
 
 
@@ -412,7 +412,7 @@ Word PascalVolume::FromProDosDate (Word date)
 
 void PascalVolume::ReadBlock (int block, std::span<Byte> outBytes) const
 {
-    constexpr size_t  kSectorBytes = (size_t) NibblizationLayer::kSectorByteSize;
+    constexpr size_t  kSectorBytes = (size_t) NibbleFormat::kSectorByteSize;
 
 
 

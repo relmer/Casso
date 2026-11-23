@@ -40,7 +40,7 @@ public:
     static constexpr int              kRuleInsetDip    = 8;
     static constexpr int              kSectionsBandDip = 40;      // the band with the switch between a disk's saved game and the disk
     static constexpr int              kSectionsDip     = 28;
-    static constexpr int              kSectionDip      = 100;     // each of its segments
+    static constexpr int              kSectionsMaxDip  = 360;     // its widest; a wider pane centers it
     static constexpr int              kSectionsPadDip  = 12;
 
     //  The longest record length that can be typed, and its digits.
@@ -107,6 +107,7 @@ public:
     PreviewShellView                & GetShell               ()            { return m_shell; }
     PreviewFindBar                  & GetFind                ()            { return m_find; }
     PreviewDiskThumbnail            & GetThumbnail           ()            { return m_thumbnail; }
+    const DxuiSegmentedControl      & GetSections            () const      { return *m_sections; }
 
     //  The preview over the whole tab, below the tab strip, and its steps to
     //  the previous and next file.

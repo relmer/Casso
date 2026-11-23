@@ -123,7 +123,7 @@ struct WriteProtectInfo
 //  Abstract in-memory bit-stream track buffer. Tracks are bit streams
 //  (not byte streams) — the controller addresses bits. Serialize produces
 //  output in the original source format; for DSK/DO/PO this requires
-//  de-nibblization via NibblizationLayer. WOZ tracks are already in
+//  de-nibblization via Denibblizer. WOZ tracks are already in
 //  native form.
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -25,7 +25,7 @@ enum class FileFormat
     Lz4fh, PrintShopGraphic, PrintShopGsClipArt, ShapeTable,
     IigsIcons, HiResFont, Apple3Font, FontrixFont, PrintShopFont,
     IigsFont, WizardryScenario, InfocomStory, HiResScreen,
-    DoubleHiResScreen, LoResScreen, MacPaint, Disassembly,
+    DoubleHiResScreen, LoResScreen, MacPaint, Disassembly, UltimaSave,
 };
 
 
@@ -132,12 +132,20 @@ struct DecodeOptions
 //  grid's headings and rows of cell strings.
 //
 //  A run's color is a role, drawn in the theme's color for it on screen and
-//  in a fixed color in a copy out. A paragraph with a picture is the
+//  in a fixed color in a copy out. A run with a swatch, an ARGB color, has a
+//  square of that color before its text, as a map's legend has. A paragraph with a picture is the
 //  picture alone, in 32-bit BGRA pixels.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 enum class RunColor { Text, Good, Bad, Muted, Keyword, String, Comment, Number, Label };
+
+
+
+//  A swatch drawn as dark and light diagonal stripes, as a map marks what
+//  couldn't be read, for a Run's swatch or a PictureTip line. Its alpha is
+//  0, so it can't be a real color.
+inline constexpr uint32_t  kHatchedSwatch = 0x00FFFFFF;
 
 
 
@@ -148,6 +156,7 @@ struct Run
     bool          italic    = false;
     bool          underline = false;
     RunColor      color     = RunColor::Text;
+    uint32_t      swatch    = 0;
 
     bool  operator== (const Run &) const = default;
 };
@@ -158,16 +167,130 @@ enum class Alignment { Left, Center, Right, Justified };
 
 
 
+//  What a cell of a picture is, as tooltip lines, each with the color it is
+//  drawn in, or 0 for a line with no color.
+struct PictureTip
+{
+    std::vector<std::pair<uint32_t, std::wstring>>  lines;
+
+    bool  operator== (const PictureTip &) const = default;
+};
+
+
+
+struct RecordTable;
+
+
+
+//  A picture's tips are a grid of tipCell-pixel cells from (tipLeft, tipTop),
+//  tipColumns wide, row by row. A paragraph with a table is the table alone.
 struct Paragraph
 {
-    Alignment              alignment = Alignment::Left;
-    std::vector<Run>       runs;
-    std::vector<uint32_t>  picture;
-    int                    width     = 0;
-    int                    height    = 0;
+    Alignment                           alignment  = Alignment::Left;
+    std::vector<Run>                    runs;
+    std::vector<uint32_t>               picture;
+    int                                 width      = 0;
+    int                                 height     = 0;
+    std::vector<PictureTip>             tips;
+    int                                 tipCell    = 0;
+    int                                 tipLeft    = 0;
+    int                                 tipTop     = 0;
+    int                                 tipColumns = 0;
+    int                                 pingX      = -1;      // a picture's ping center, in its pixels; -1 for none
+    int                                 pingY      = -1;
+    bool                                canZoom    = false;   // the wheel zooms the picture and a drag pans it
+    bool                                isLegend   = false;   // each run is an entry, laid out in columns as many as fit
+    std::shared_ptr<const RecordTable>  table;
 
     bool  operator== (const Paragraph &) const = default;
+
+    //  The tip of the cell at a pixel of the picture, or nullptr.
+    const PictureTip * GetTipAt (int x, int y) const
+    {
+        int  column = (tipCell > 0 && x >= tipLeft) ? (x - tipLeft) / tipCell : -1;
+        int  row    = (tipCell > 0 && y >= tipTop)  ? (y - tipTop)  / tipCell : -1;
+        int  index  = row * tipColumns + column;
+
+        return (column >= 0 && column < tipColumns && row >= 0 && index < (int) tips.size()) ? &tips[(size_t) index] : nullptr;
+    }
 };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RecordTable
+//
+//  Records, such as a game's characters, drawn as a table with a heading
+//  row and a row a record where the view is wide enough, and as each
+//  record's card where it isn't. A record has a run for each column, the
+//  lines of its card, and lines under it in either form, such as a
+//  character's inventory. The title, when there is one, is a bold heading
+//  above either form, with a rule under it above the cards.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct RecordTable
+{
+    struct Record
+    {
+        std::vector<Run>        cells;
+        std::vector<Paragraph>  card;
+        std::vector<Paragraph>  details;
+
+        bool  operator== (const Record &) const = default;
+    };
+
+    std::wstring               title;
+    std::vector<std::wstring>  headings;
+    std::vector<Record>        records;
+
+    bool  operator== (const RecordTable &) const = default;
+};
+
+
+
+//  The paragraphs with each table as its title in bold and its records'
+//  cards and details, a blank line between records: the form a copy out
+//  uses.
+inline std::vector<Paragraph> FlattenRecordTables (const std::vector<Paragraph> & paragraphs)
+{
+    std::vector<Paragraph>  flat;
+
+    for (const Paragraph & paragraph : paragraphs)
+    {
+        if (paragraph.table == nullptr)
+        {
+            flat.push_back (paragraph);
+            continue;
+        }
+
+        if (!paragraph.table->title.empty())
+        {
+            Paragraph  title;
+
+            title.runs = { Run { paragraph.table->title, true } };
+            flat.push_back (title);
+        }
+
+        for (size_t i = 0; i < paragraph.table->records.size(); i++)
+        {
+            const RecordTable::Record &  record = paragraph.table->records[i];
+
+            if (i > 0)
+            {
+                flat.push_back (Paragraph());
+            }
+
+            flat.insert (flat.end(), record.card.begin(),    record.card.end());
+            flat.insert (flat.end(), record.details.begin(), record.details.end());
+        }
+    }
+
+    return flat;
+}
 
 
 

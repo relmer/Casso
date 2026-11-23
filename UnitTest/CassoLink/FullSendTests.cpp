@@ -18,7 +18,7 @@
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
@@ -330,7 +330,7 @@ public:
     TEST_METHOD (Blank_IsAFormattedDiskWithNoFiles_OrOnlyAProgramWithNoLines)
     {
         std::string       system;
-        std::vector<int>  all (NibblizationLayer::kTrackCount);
+        std::vector<int>  all (NibbleFormat::kTrackCount);
         Image             empty   = DosProgram ({ 0x00, 0x00 });
         Image             written = DosProgram ({ 0x0A, 0x08, 0x0A, 0x00, 0xBA, 0x00, 0x00, 0x00 });
 
@@ -392,7 +392,7 @@ public:
             }
             else
             {
-                size_t  at = (size_t) FullSendDisk::kBlankProbeTracks[1] * NibblizationLayer::kSectorsPerTrack * NibblizationLayer::kSectorByteSize;
+                size_t  at = (size_t) FullSendDisk::kBlankProbeTracks[1] * NibbleFormat::kSectorsPerTrack * NibbleFormat::kSectorByteSize;
 
                 rig.link.drives[0][at + 7] = 0x4C;
             }
@@ -747,7 +747,7 @@ public:
         rig.link.present[1]        = false;
         rig.link.writeProtected[0] = true;
 
-        for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+        for (int track = 0; track < NibbleFormat::kTrackCount; track++)
         {
             rig.link.layouts.push_back (TrackLayout { 254, 6337, 51244, (track * 30763LL + 4111) % 51244 });
         }
@@ -776,7 +776,7 @@ public:
     {
         std::vector<TrackLayout>  layouts;
 
-        for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+        for (int track = 0; track < NibbleFormat::kTrackCount; track++)
         {
             layouts.push_back (TrackLayout { volume, 6330, TrackLayoutWriter::kDefaultBits, (track * 30763LL) % TrackLayoutWriter::kDefaultBits });
         }
@@ -801,7 +801,7 @@ public:
 
         Assert::AreEqual ((size_t) 1, session->GetManifest().GetRows().size());
         Assert::IsTrue (session->GetManifest().GetRows()[0].file.ends_with (".woz"), L"A WOZ in place of the .dsk");
-        Assert::IsTrue (rig.link.measures == std::vector<int> { 1, NibblizationLayer::kTrackCount }, L"Track 0, then every track");
+        Assert::IsTrue (rig.link.measures == std::vector<int> { 1, NibbleFormat::kTrackCount }, L"Track 0, then every track");
 
         AssertSucceeded (TrackLayoutWriter::BuildWoz (rig.link.drives[0], rig.link.layouts, built));
         Assert::IsTrue (rig.io.files["C:\\Box\\" + session->GetManifest().GetRows()[0].file] == built, L"The WOZ is built to the layouts");
@@ -1024,7 +1024,7 @@ public:
     //  off.
     TEST_METHOD (Session_ADiskWithDiskCode_IsCapturedRaw_OrMarked_ByTheChoices)
     {
-        Image        buffer (NibblizationLayer::kImageByteSize, 0);
+        Image        buffer (NibbleFormat::kImageByteSize, 0);
         Image        disk;
         FilePayload  payload;
         Rig          capture;
@@ -1091,7 +1091,7 @@ public:
         Assert::AreEqual (session->GetManifest().GetRows()[0].file, snapshot.disks[0].row.file);
         Assert::AreEqual (std::string ("DOS 3.3"), snapshot.disks[0].fileSystem);
         Assert::AreEqual (1, snapshot.totals.sent);
-        Assert::AreEqual ((uint64_t) NibblizationLayer::kImageByteSize, snapshot.totals.bytes);
+        Assert::AreEqual ((uint64_t) NibbleFormat::kImageByteSize, snapshot.totals.bytes);
         Assert::IsTrue (snapshot.drives[0].state == FullSendDiskState::Sent);
         Assert::AreEqual (std::string ("0001 GAME"), snapshot.drives[0].title);
         Assert::IsTrue (std::all_of (snapshot.drives[0].tracks.begin(), snapshot.drives[0].tracks.end(), [] (FullSendTrackMark mark) { return mark == FullSendTrackMark::Read; }));

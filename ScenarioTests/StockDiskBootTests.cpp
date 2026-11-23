@@ -10,7 +10,6 @@
 #include "DiskCheck/BootCheck.h"
 #include "DiskCheck/BootProbe.h"
 #include "DiskCheck/GivenNames.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Seams/Win32DiskFileIo.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;

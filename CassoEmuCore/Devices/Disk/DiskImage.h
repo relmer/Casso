@@ -104,7 +104,7 @@ public:
 //  Phase 9 scope: bit-stream storage + the soft sector-level Load that
 //  preserves Phase 8 runtime behavior (.dsk → 6+2 nibblization → packed
 //  bit stream). The full WOZ / .DO / .PO loaders + true round-trip
-//  Serialize land in Phase 10 (NibblizationLayer / WozLoader).
+//  Serialize land in Phase 10 (Nibblizer / WozLoader).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -265,7 +265,7 @@ public:
     void  SetQuarterTrackSlot  (int quarterTrack, int slot);
     void  EnsureTrackSlots     (int slotCount);
 
-    // Direct bit-buffer access for bulk writers (NibblizationLayer, WozLoader).
+    // Direct bit-buffer access for bulk writers (Nibblizer, WozLoader).
     // ResizeTrack must be called first; the returned buffer length matches the
     // packed-byte size for the track. Bypasses write-protect.
     vector<Byte> &   GetTrackBitsForWrite (int track) { return m_trackBits[track]; }

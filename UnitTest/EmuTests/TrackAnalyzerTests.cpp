@@ -1,8 +1,8 @@
 #include "Pch.h"
 
 #include "Devices/Disk/Inspector/TrackAnalyzer.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "InspectorTrackBuilder.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -99,7 +99,7 @@ public:
 
         builder.AppendStandardTrack (DiskFieldKind::Sixteen, 254, 17, InspectorTrackBuilder::FillPattern);
         analysis = Analyze (builder);
-        po       = NibblizationLayer::GetPoFileIndexForDosLogicalSector (analysis.sectors[1].dosOrderIndex);
+        po       = SectorInterleave::GetPoFileIndexForDosLogicalSector (analysis.sectors[1].dosOrderIndex);
 
         Assert::AreEqual (7, analysis.sectors[1].dosOrderIndex, L"physical sector 1 has DOS-order sector index 7");
         Assert::AreEqual (17 * 8 + po / 2, analysis.sectors[1].prodosBlock);

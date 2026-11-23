@@ -75,7 +75,7 @@
 ; Ready is sent again after each second with no reply.
 ;
 ; The disk routines are Casso's own, from Apple's published description of
-; the Disk II and the 6-and-2 encoding Casso's NibblizationLayer writes: the
+; the Disk II and the 6-and-2 encoding Casso's DiskFieldFormat writes: the
 ; arm is stepped by its phases, sectors are found by their address fields,
 ; and data fields are read and written in 6-and-2. Writes go through one
 ; cycle-counted loop, the player, which writes a prepared stream of nibbles
@@ -4134,7 +4134,7 @@ wpdone: clc
         rts
 
 ; encode: SECBUF as 6-and-2: WRAUX's 86 two-bit groups, then WRPRI's 256
-; six-bit values, as NibblizationLayer lays them out; the last two groups
+; six-bit values, as DiskFieldFormat lays them out; the last two groups
 ; have no third byte. encodeto puts them on page A and the page after it.
 encode: lda #>WRAUX
 encodeto: sta enauxst+2

@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 
 
 
@@ -144,7 +144,7 @@ bool SectorDecodeReport::IsDuplicated (int track) const
 bool SectorDecodeReport::IsSectorRecovered (int track, int sector) const
 {
     Word  mask     = GetCoverage (track);
-    bool  inRange  = sector >= 0 && sector < NibblizationLayer::kSectorsPerTrack;
+    bool  inRange  = sector >= 0 && sector < NibbleFormat::kSectorsPerTrack;
 
 
 
@@ -209,7 +209,7 @@ int SectorDecodeReport::GetUnrecoveredCount() const
             continue;
         }
 
-        for (bit = 0; bit < NibblizationLayer::kSectorsPerTrack; bit++)
+        for (bit = 0; bit < NibbleFormat::kSectorsPerTrack; bit++)
         {
             if (((m_coverage[track] >> bit) & 1) == 0)
             {

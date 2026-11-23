@@ -3,6 +3,7 @@
 #include "EhmTestHelper.h"
 #include "FixtureProvider.h"
 #include "GuestSession.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 #include "TestMachine.h"
 #include "TextScreenScraper.h"
 #include "CassoLink/InMemoryCassoLinkFolder.h"
@@ -20,7 +21,6 @@
 #include "Devices/Tape/TapeImageLoader.h"
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Seams/InProcessByteStream.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -317,7 +317,7 @@ public:
 
             for (int p = 0; p < 16; p++)
             {
-                size_t  offset = (size_t) (track * 16 + NibblizationLayer::GetDosFileIndexForPhysicalSector (p)) * 256;
+                size_t  offset = (size_t) (track * 16 + SectorInterleave::GetDosFileIndexForPhysicalSector (p)) * 256;
 
                 data.insert (data.end(), disk.begin() + (ptrdiff_t) offset, disk.begin() + (ptrdiff_t) offset + 256);
             }

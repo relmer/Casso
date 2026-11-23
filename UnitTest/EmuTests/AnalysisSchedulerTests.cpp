@@ -1,7 +1,9 @@
 #include "Pch.h"
 
 #include "../EhmTestHelper.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Devices/Disk/DiskImage.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Ui/DiskInspector/AnalysisScheduler.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -30,12 +32,12 @@ public:
 
     static std::shared_ptr<const DiskCopy> MakeCopy (uint64_t mediaId, Byte fill)
     {
-        vector<Byte>  sectors (NibblizationLayer::kImageByteSize, fill);
+        vector<Byte>  sectors (NibbleFormat::kImageByteSize, fill);
         DiskImage     image;
 
 
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, image));
+        AssertSucceeded (Nibblizer::NibblizeDsk (sectors, image));
 
         return DiskCopy::MakeFromImage (image, mediaId, "test", 0, false);
     }
@@ -100,7 +102,7 @@ public:
 
         AnalysisScheduler     scheduler (nullptr);
         vector<RecordResult>  results;
-        vector<Byte>          sectors (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>          sectors (NibbleFormat::kImageByteSize, 0);
         DiskImage             image;
         vector<int>           written;
         vector<uint64_t>      before;
@@ -108,7 +110,7 @@ public:
 
 
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, image));
+        AssertSucceeded (Nibblizer::NibblizeDsk (sectors, image));
         scheduler.Restart (DiskCopy::MakeFromImage (image, 1, "test", 0, false), DecodeSettings::MakeStandard());
         Drain (scheduler, results);
         Assert::IsTrue (results.size() > 1, L"the whole disk on insert");

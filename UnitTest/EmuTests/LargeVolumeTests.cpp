@@ -1,10 +1,10 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/VolumeIntegrityReport.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Devices/Disk/Containers/TwoImgContainer.h"
 #include "Devices/Disk/Containers/DiskCopy42Container.h"
 #include "Devices/Disk/Containers/ImageContainer.h"
@@ -148,7 +148,7 @@ public:
     {
         Assert::AreEqual ((size_t) (5 * kBlockBytes + 3), ProDosSkeleton::GetBlockByteOffset (k800KBlocks * kBlockBytes, 5, 3));
         Assert::AreEqual (ProDosSkeleton::GetBlockByteOffset (5, 3),
-                          ProDosSkeleton::GetBlockByteOffset (NibblizationLayer::kImageByteSize, 5, 3));
+                          ProDosSkeleton::GetBlockByteOffset (NibbleFormat::kImageByteSize, 5, 3));
     }
 
 
@@ -258,7 +258,7 @@ public:
     {
         Assert::IsTrue (ImageContainer::GetKind ("a.hdv", 1) == ImageContainerKind::Blocks);
         Assert::IsTrue (ImageContainer::GetKind ("a.PO", k800KBlocks * kBlockBytes) == ImageContainerKind::Blocks);
-        Assert::IsTrue (ImageContainer::GetKind ("a.po", NibblizationLayer::kImageByteSize) == ImageContainerKind::None);
+        Assert::IsTrue (ImageContainer::GetKind ("a.po", NibbleFormat::kImageByteSize) == ImageContainerKind::None);
         Assert::IsTrue (ImageContainer::GetKind ("a.2mg", 1) == ImageContainerKind::TwoImg);
         Assert::IsTrue (ImageContainer::GetKind ("a.dc42", 1) == ImageContainerKind::DiskCopy42);
         Assert::IsTrue (ImageContainer::GetKind ("a.woz", 1) == ImageContainerKind::None);
@@ -312,7 +312,7 @@ public:
 
     TEST_METHOD (Load_ReadsA140KTwoImgInProDosOrder)
     {
-        vector<Byte>        volume (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>        volume (NibbleFormat::kImageByteSize, 0);
         vector<Byte>        blocks;
         TwoImgHeader        header;
         vector<Byte>        file;

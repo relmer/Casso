@@ -1,10 +1,10 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/ThirteenSectorCodec.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Devices/Disk/DiskFieldFormat.h"
 #include "Devices/Disk/Inspector/LatchFramer.h"
 #include "Devices/Disk/Inspector/TrackCopy.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 
 
 
@@ -407,7 +407,7 @@ HRESULT ThirteenSectorCodec::Nibblize (const vector<Byte> & sectors, Byte volume
     {
         size_t  bitOffset = 0;
 
-        out.ResizeTrack (track, NibblizationLayer::kTrackBitCapacity);
+        out.ResizeTrack (track, NibbleFormat::kTrackBitCapacity);
 
         bits = &out.GetTrackBitsForWrite (track);
 
