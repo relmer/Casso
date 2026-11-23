@@ -17,60 +17,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 Dos33Volume::Dos33Volume (const vector<Byte> & sectors)
-    : m_sectors (sectors)
+    : m_access (sectors)
 {
-    if (!Dos33Geometry::TryDetect (sectors, m_geometry))
-    {
-        m_geometry = Dos33Geometry::GetForSize (sectors.size());
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Dos33Volume::ToUnit
-//
-//  One flat address per sector, so the integrity pass can talk about a DOS 3.3
-//  volume without knowing anything about tracks.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-uint32_t Dos33Volume::ToUnit (int track, int sector) const
-{
-    return m_geometry.ToUnit (track, sector);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Dos33Volume::GetTrack
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int Dos33Volume::GetTrack (uint32_t unit) const
-{
-    return m_geometry.GetTrack (unit);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Dos33Volume::GetSector
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int Dos33Volume::GetSector (uint32_t unit) const
-{
-    return m_geometry.GetSector (unit);
 }
 
 
@@ -92,7 +40,7 @@ int Dos33Volume::GetSector (uint32_t unit) const
 
 int Dos33Volume::GetAllocationTrack (int index) const
 {
-    int  outwardCount = m_geometry.tracks - Dos33Skeleton::kVtocTrack - 1;
+    int  outwardCount = m_access.GetGeometry().tracks - Dos33Skeleton::kVtocTrack - 1;
 
 
 
@@ -120,20 +68,20 @@ bool Dos33Volume::IsFreeInBitmap (const vector<Byte> & buffer, int track, int se
 
 
 
-    if (track < 0 || track >= m_geometry.tracks
-     || sector < 0 || sector >= m_geometry.sectorsPerTrack)
+    if (track < 0 || track >= m_access.GetGeometry().tracks
+     || sector < 0 || sector >= m_access.GetGeometry().sectorsPerTrack)
     {
         return false;
     }
 
-    byteAt = m_geometry.GetBitmapByteOffset (track, sector);
+    byteAt = m_access.GetGeometry().GetBitmapByteOffset (track, sector);
 
     if (byteAt >= buffer.size())
     {
         return false;
     }
 
-    return (buffer[byteAt] & m_geometry.GetBitmapMask (sector)) != 0;
+    return (buffer[byteAt] & m_access.GetGeometry().GetBitmapMask (sector)) != 0;
 }
 
 
@@ -153,14 +101,14 @@ void Dos33Volume::SetFreeInBitmap (vector<Byte> & buffer, int track, int sector,
 
 
 
-    if (track < 0 || track >= m_geometry.tracks
-     || sector < 0 || sector >= m_geometry.sectorsPerTrack)
+    if (track < 0 || track >= m_access.GetGeometry().tracks
+     || sector < 0 || sector >= m_access.GetGeometry().sectorsPerTrack)
     {
         return;
     }
 
-    byteAt = m_geometry.GetBitmapByteOffset (track, sector);
-    mask   = m_geometry.GetBitmapMask (sector);
+    byteAt = m_access.GetGeometry().GetBitmapByteOffset (track, sector);
+    mask   = m_access.GetGeometry().GetBitmapMask (sector);
 
     if (byteAt >= buffer.size())
     {
@@ -175,98 +123,6 @@ void Dos33Volume::SetFreeInBitmap (vector<Byte> & buffer, int track, int sector,
     {
         buffer[byteAt] = (Byte) (buffer[byteAt] & ~mask);
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Dos33Volume::WriteByteAt
-//
-//  Out-of-range writes do nothing, mirroring ReadByte. Nothing here addresses a
-//  sector it did not first obtain from the allocator or the catalog walk, so
-//  this is a backstop rather than a supported way to address the volume.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Dos33Volume::WriteByteAt (vector<Byte> & buffer, int track, int sector, size_t offset, Byte value) const
-{
-    size_t  at = 0;
-
-
-
-    if (track < 0 || track >= m_geometry.tracks
-     || sector < 0 || sector >= m_geometry.sectorsPerTrack)
-    {
-        return;
-    }
-
-    at = m_geometry.GetSectorOffset (track, sector) + offset;
-
-    if (at >= buffer.size())
-    {
-        return;
-    }
-
-    buffer[at] = value;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Dos33Volume::ReadByte
-//
-//  Out-of-range reads answer zero rather than asserting. Every caller here is
-//  following a pointer that came off the disk, and a damaged disk names sectors
-//  that do not exist -- that is a finding to report, not a programming error.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-Byte Dos33Volume::ReadByte (int track, int sector, size_t offset) const
-{
-    size_t  at = 0;
-
-
-
-    if (track < 0 || track >= m_geometry.tracks
-     || sector < 0 || sector >= m_geometry.sectorsPerTrack)
-    {
-        return 0;
-    }
-
-    at = m_geometry.GetSectorOffset (track, sector) + offset;
-
-    if (at >= m_sectors.size())
-    {
-        return 0;
-    }
-
-    return AccessSector (track, sector)[at];
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Dos33Volume::AccessSector
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const vector<Byte> & Dos33Volume::AccessSector (int track, int sector) const
-{
-    if (m_readObserver != nullptr)
-    {
-        m_readObserver->OnSectorRead ((size_t) ToUnit (track, sector));
-    }
-
-    return m_sectors;
 }
 
 
@@ -292,7 +148,7 @@ void Dos33Volume::CollectEntries (
     vector<std::string> & outDamage,
     bool                & outFullyParsed) const
 {
-    ChainWalkGuard  guard (m_geometry.GetUnitCount());
+    ChainWalkGuard  guard (m_access.GetGeometry().GetUnitCount());
     int             track  = 0;
     int             sector = 0;
     int             slot   = 0;
@@ -303,12 +159,12 @@ void Dos33Volume::CollectEntries (
 
     outFullyParsed = true;
 
-    track  = ReadByte (Dos33Skeleton::kVtocTrack, 0, Dos33Skeleton::kVtocOffCatalogTrack);
-    sector = ReadByte (Dos33Skeleton::kVtocTrack, 0, Dos33Skeleton::kVtocOffCatalogSector);
+    track  = m_access.ReadByte (Dos33Skeleton::kVtocTrack, 0, Dos33Skeleton::kVtocOffCatalogTrack);
+    sector = m_access.ReadByte (Dos33Skeleton::kVtocTrack, 0, Dos33Skeleton::kVtocOffCatalogSector);
 
     while (more && track != 0)
     {
-        bool  stepOk = guard.TryVisit (ToUnit (track, sector));
+        bool  stepOk = guard.TryVisit (m_access.ToUnit (track, sector));
 
         if (!stepOk)
         {
@@ -318,8 +174,8 @@ void Dos33Volume::CollectEntries (
             break;
         }
 
-        if (track >= m_geometry.tracks
-         || sector >= m_geometry.sectorsPerTrack)
+        if (track >= m_access.GetGeometry().tracks
+         || sector >= m_access.GetGeometry().sectorsPerTrack)
         {
             outDamage.push_back ("the catalog chain names a sector outside the volume");
             outFullyParsed = false;
@@ -335,7 +191,7 @@ void Dos33Volume::CollectEntries (
             entry.catalogTrack  = track;
             entry.catalogSector = sector;
 
-            tsTrack = ReadByte (track, sector, entry.entryOffset + kEntOffTsTrack);
+            tsTrack = m_access.ReadByte (track, sector, entry.entryOffset + kEntOffTsTrack);
 
             if (tsTrack == kEntryUnused)
             {
@@ -344,17 +200,17 @@ void Dos33Volume::CollectEntries (
 
             entry.isDeleted    = tsTrack == kEntryDeleted;
             entry.tsListTrack  = tsTrack;
-            entry.tsListSector = ReadByte (track, sector, entry.entryOffset + kEntOffTsSector);
-            entry.typeByte     = ReadByte (track, sector, entry.entryOffset + kEntOffType);
+            entry.tsListSector = m_access.ReadByte (track, sector, entry.entryOffset + kEntOffTsSector);
+            entry.typeByte     = m_access.ReadByte (track, sector, entry.entryOffset + kEntOffType);
             entry.sectorCount  = (uint16_t)
-                (ReadByte (track, sector, entry.entryOffset + kEntOffSectorCount)
-              | (ReadByte (track, sector, entry.entryOffset + kEntOffSectorCount + 1) << 8));
+                (m_access.ReadByte (track, sector, entry.entryOffset + kEntOffSectorCount)
+              | (m_access.ReadByte (track, sector, entry.entryOffset + kEntOffSectorCount + 1) << 8));
 
             // Names are high ASCII padded with high-ASCII spaces. Strip the high
             // bit and the padding; keep interior spaces, which are legal.
             for (i = 0; i < kNameBytes; i++)
             {
-                Byte  c = ReadByte (track, sector, entry.entryOffset + kEntOffName + i);
+                Byte  c = m_access.ReadByte (track, sector, entry.entryOffset + kEntOffName + i);
 
                 entry.name += (char) (c & 0x7F);
             }
@@ -371,8 +227,8 @@ void Dos33Volume::CollectEntries (
         }
 
         {
-            int  nextTrack  = ReadByte (track, sector, Dos33Skeleton::kCatalogOffNextTrack);
-            int  nextSector = ReadByte (track, sector, Dos33Skeleton::kCatalogOffNextSector);
+            int  nextTrack  = m_access.ReadByte (track, sector, Dos33Skeleton::kCatalogOffNextTrack);
+            int  nextSector = m_access.ReadByte (track, sector, Dos33Skeleton::kCatalogOffNextSector);
 
             more   = nextTrack != 0;
             track  = nextTrack;
@@ -435,10 +291,10 @@ bool Dos33Volume::CollectDataSectors (
 
     while (ok && listTrack != 0)
     {
-        bool  stepOk = guard.TryVisit (ToUnit (listTrack, listSector));
+        bool  stepOk = guard.TryVisit (m_access.ToUnit (listTrack, listSector));
 
-        if (!stepOk || listTrack >= m_geometry.tracks
-                    || listSector >= m_geometry.sectorsPerTrack)
+        if (!stepOk || listTrack >= m_access.GetGeometry().tracks
+                    || listSector >= m_access.GetGeometry().sectorsPerTrack)
         {
             ok = false;
             break;
@@ -448,27 +304,27 @@ bool Dos33Volume::CollectDataSectors (
         // a second list occupies that sector as surely as it occupies its data,
         // and an accounting that saw only the head left the rest allocated with
         // nothing owning it -- which a delete would then fail to return.
-        outListUnits.push_back (ToUnit (listTrack, listSector));
+        outListUnits.push_back (m_access.ToUnit (listTrack, listSector));
 
         for (pair = 0; pair < kTsPairsPerList; pair++)
         {
             size_t  at    = kTsOffFirstPair + (size_t) pair * 2;
-            Byte    dataT = ReadByte (listTrack, listSector, at);
-            Byte    dataS = ReadByte (listTrack, listSector, at + 1);
+            Byte    dataT = m_access.ReadByte (listTrack, listSector, at);
+            Byte    dataS = m_access.ReadByte (listTrack, listSector, at + 1);
 
             if (dataT == 0 && dataS == 0)
             {
                 continue;   // sparse hole -- reads as zeros
             }
 
-            if (dataT >= m_geometry.tracks
-             || dataS >= m_geometry.sectorsPerTrack)
+            if (dataT >= m_access.GetGeometry().tracks
+             || dataS >= m_access.GetGeometry().sectorsPerTrack)
             {
                 ok = false;
                 break;
             }
 
-            outUnits.push_back (ToUnit (dataT, dataS));
+            outUnits.push_back (m_access.ToUnit (dataT, dataS));
         }
 
         // Both halves of the next pointer come from the sector being left, and
@@ -477,8 +333,8 @@ bool Dos33Volume::CollectDataSectors (
         // head IS the current sector there -- and then loops on the second,
         // which reports a healthy file as an unfollowable chain.
         {
-            int  nextTrack  = ReadByte (listTrack, listSector, kTsOffNextTrack);
-            int  nextSector = ReadByte (listTrack, listSector, kTsOffNextSector);
+            int  nextTrack  = m_access.ReadByte (listTrack, listSector, kTsOffNextTrack);
+            int  nextSector = m_access.ReadByte (listTrack, listSector, kTsOffNextSector);
 
             listTrack  = nextTrack;
             listSector = nextSector;
@@ -577,8 +433,8 @@ void Dos33Volume::ApplyTypeHeader (Byte typeByte, vector<Byte> & inOutBytes, Fil
 HRESULT Dos33Volume::Enumerate (VolumeListing & outListing) const
 {
     HRESULT           hr          = S_OK;
-    size_t            bufferBytes = m_sectors.size();
-    size_t            imageBytes  = m_geometry.GetImageByteSize();
+    size_t            bufferBytes = m_access.GetBuffer().size();
+    size_t            imageBytes  = m_access.GetGeometry().GetImageByteSize();
     vector<RawEntry>  entries;
     bool              fullyParsed = true;
     int               track       = 0;
@@ -591,10 +447,10 @@ HRESULT Dos33Volume::Enumerate (VolumeListing & outListing) const
 
     outListing = VolumeListing();
 
-    outListing.volumeNumber    = ReadByte (Dos33Skeleton::kVtocTrack, 0,
+    outListing.volumeNumber    = m_access.ReadByte (Dos33Skeleton::kVtocTrack, 0,
                                            Dos33Skeleton::kVtocOffVolumeNumber);
     outListing.hasVolumeNumber = true;
-    outListing.totalUnits      = m_geometry.GetUnitCount();
+    outListing.totalUnits      = m_access.GetGeometry().GetUnitCount();
 
     CollectEntries (entries, outListing.damage, fullyParsed);
 
@@ -613,14 +469,14 @@ HRESULT Dos33Volume::Enumerate (VolumeListing & outListing) const
         //  so listing it costs a walk to the file's first data sector.
         if (listed.type == kTypeBinary)
         {
-            ChainWalkGuard    guard (m_geometry.GetUnitCount());
+            ChainWalkGuard    guard (m_access.GetGeometry().GetUnitCount());
             vector<uint32_t>  units;
             vector<uint32_t>  listUnits;
 
             if (CollectDataSectors (entry, units, listUnits, guard) && !units.empty())
             {
-                listed.loadAddress    = (Word) (ReadByte (GetTrack (units[0]), GetSector (units[0]), 0)
-                                              | (ReadByte (GetTrack (units[0]), GetSector (units[0]), 1) << 8));
+                listed.loadAddress    = (Word) (m_access.ReadByte (m_access.GetTrack (units[0]), m_access.GetSector (units[0]), 0)
+                                              | (m_access.ReadByte (m_access.GetTrack (units[0]), m_access.GetSector (units[0]), 1) << 8));
                 listed.hasLoadAddress = true;
             }
         }
@@ -628,11 +484,11 @@ HRESULT Dos33Volume::Enumerate (VolumeListing & outListing) const
         outListing.entries.push_back (listed);
     }
 
-    for (track = 0; track < m_geometry.tracks; track++)
+    for (track = 0; track < m_access.GetGeometry().tracks; track++)
     {
-        for (sector = 0; sector < m_geometry.sectorsPerTrack; sector++)
+        for (sector = 0; sector < m_access.GetGeometry().sectorsPerTrack; sector++)
         {
-            bool  isFree = IsFreeInBitmap (AccessSector (Dos33Skeleton::kVtocTrack, 0), track, sector);
+            bool  isFree = IsFreeInBitmap (m_access.AccessSector (Dos33Skeleton::kVtocTrack, 0), track, sector);
 
             freeUnits += isFree ? 1u : 0u;
         }
@@ -662,8 +518,8 @@ Error:
 HRESULT Dos33Volume::Read (const FilePath & path, FilePayload & outPayload) const
 {
     HRESULT              hr          = S_OK;
-    size_t               bufferBytes = m_sectors.size();
-    size_t               imageBytes  = m_geometry.GetImageByteSize();
+    size_t               bufferBytes = m_access.GetBuffer().size();
+    size_t               imageBytes  = m_access.GetGeometry().GetImageByteSize();
     bool                 single      = path.IsSingleComponent();
     bool                 walked      = false;
     bool                 fullyParsed = true;
@@ -683,7 +539,7 @@ HRESULT Dos33Volume::Read (const FilePath & path, FilePayload & outPayload) cons
     CHR (hr);
 
     {
-        ChainWalkGuard    guard (m_geometry.GetUnitCount());
+        ChainWalkGuard    guard (m_access.GetGeometry().GetUnitCount());
         vector<uint32_t>  listUnits;
 
         walked = CollectDataSectors (entries[owner], units, listUnits, guard);
@@ -699,13 +555,13 @@ HRESULT Dos33Volume::Read (const FilePath & path, FilePayload & outPayload) cons
 
     for (uint32_t unit : units)
     {
-        int     track  = GetTrack (unit);
-        int     sector = GetSector (unit);
+        int     track  = m_access.GetTrack (unit);
+        int     sector = m_access.GetSector (unit);
         size_t  i      = 0;
 
         for (i = 0; i < (size_t) NibbleFormat::kSectorByteSize; i++)
         {
-            outPayload.bytes.push_back (ReadByte (track, sector, i));
+            outPayload.bytes.push_back (m_access.ReadByte (track, sector, i));
         }
     }
 
@@ -741,7 +597,7 @@ void Dos33Volume::ClaimVolumeStructures (VolumeIntegrityReport & outReport) cons
 
 
 
-    for (track = 0; track < m_geometry.tracks; track++)
+    for (track = 0; track < m_access.GetGeometry().tracks; track++)
     {
         bool  reserved = track < Dos33Skeleton::kDosImageTracks
                       || track == Dos33Skeleton::kVtocTrack;
@@ -751,9 +607,9 @@ void Dos33Volume::ClaimVolumeStructures (VolumeIntegrityReport & outReport) cons
             continue;
         }
 
-        for (sector = 0; sector < m_geometry.sectorsPerTrack; sector++)
+        for (sector = 0; sector < m_access.GetGeometry().sectorsPerTrack; sector++)
         {
-            outReport.AddClaim (ToUnit (track, sector), VolumeIntegrityReport::kVolumeOwner);
+            outReport.AddClaim (m_access.ToUnit (track, sector), VolumeIntegrityReport::kVolumeOwner);
         }
     }
 }
@@ -777,8 +633,8 @@ void Dos33Volume::ClaimVolumeStructures (VolumeIntegrityReport & outReport) cons
 HRESULT Dos33Volume::BuildIntegrityReport (VolumeIntegrityReport & outReport) const
 {
     HRESULT              hr          = S_OK;
-    size_t               bufferBytes = m_sectors.size();
-    size_t               imageBytes  = m_geometry.GetImageByteSize();
+    size_t               bufferBytes = m_access.GetBuffer().size();
+    size_t               imageBytes  = m_access.GetGeometry().GetImageByteSize();
     vector<RawEntry>     entries;
     vector<std::string>  damage;
     bool                 fullyParsed = true;
@@ -790,7 +646,7 @@ HRESULT Dos33Volume::BuildIntegrityReport (VolumeIntegrityReport & outReport) co
 
     CBREx (bufferBytes == imageBytes, E_INVALIDARG);
 
-    outReport.Reset (m_geometry.GetUnitCount());
+    outReport.Reset (m_access.GetGeometry().GetUnitCount());
 
     CollectEntries (entries, damage, fullyParsed);
     outReport.SetCatalogFullyParsed (fullyParsed);
@@ -799,7 +655,7 @@ HRESULT Dos33Volume::BuildIntegrityReport (VolumeIntegrityReport & outReport) co
 
     for (owner = 0; owner < (uint16_t) entries.size(); owner++)
     {
-        ChainWalkGuard    guard (m_geometry.GetUnitCount());
+        ChainWalkGuard    guard (m_access.GetGeometry().GetUnitCount());
         vector<uint32_t>  units;
         vector<uint32_t>  listUnits;
         bool              walked = CollectDataSectors (entries[owner], units, listUnits, guard);
@@ -825,13 +681,13 @@ HRESULT Dos33Volume::BuildIntegrityReport (VolumeIntegrityReport & outReport) co
     }
 
     // The free bitmap's view. A CLEAR bit means the sector is in use.
-    for (track = 0; track < m_geometry.tracks; track++)
+    for (track = 0; track < m_access.GetGeometry().tracks; track++)
     {
-        for (sector = 0; sector < m_geometry.sectorsPerTrack; sector++)
+        for (sector = 0; sector < m_access.GetGeometry().sectorsPerTrack; sector++)
         {
-            bool  isFree = IsFreeInBitmap (AccessSector (Dos33Skeleton::kVtocTrack, 0), track, sector);
+            bool  isFree = IsFreeInBitmap (m_access.AccessSector (Dos33Skeleton::kVtocTrack, 0), track, sector);
 
-            outReport.SetAllocatedInFreeMap (ToUnit (track, sector), !isFree);
+            outReport.SetAllocatedInFreeMap (m_access.ToUnit (track, sector), !isFree);
         }
     }
 
@@ -1082,7 +938,7 @@ Error:
 
 bool Dos33Volume::TryFindFreeCatalogSlot (int & outTrack, int & outSector, size_t & outOffset) const
 {
-    ChainWalkGuard  guard (m_geometry.GetUnitCount());
+    ChainWalkGuard  guard (m_access.GetGeometry().GetUnitCount());
     int             track  = 0;
     int             sector = 0;
     int             slot   = 0;
@@ -1090,15 +946,15 @@ bool Dos33Volume::TryFindFreeCatalogSlot (int & outTrack, int & outSector, size_
 
 
 
-    track  = ReadByte (Dos33Skeleton::kVtocTrack, 0, Dos33Skeleton::kVtocOffCatalogTrack);
-    sector = ReadByte (Dos33Skeleton::kVtocTrack, 0, Dos33Skeleton::kVtocOffCatalogSector);
+    track  = m_access.ReadByte (Dos33Skeleton::kVtocTrack, 0, Dos33Skeleton::kVtocOffCatalogTrack);
+    sector = m_access.ReadByte (Dos33Skeleton::kVtocTrack, 0, Dos33Skeleton::kVtocOffCatalogSector);
 
     while (more && track != 0)
     {
-        bool  stepOk = guard.TryVisit (ToUnit (track, sector));
+        bool  stepOk = guard.TryVisit (m_access.ToUnit (track, sector));
 
-        if (!stepOk || track >= m_geometry.tracks
-                    || sector >= m_geometry.sectorsPerTrack)
+        if (!stepOk || track >= m_access.GetGeometry().tracks
+                    || sector >= m_access.GetGeometry().sectorsPerTrack)
         {
             break;
         }
@@ -1106,7 +962,7 @@ bool Dos33Volume::TryFindFreeCatalogSlot (int & outTrack, int & outSector, size_
         for (slot = 0; slot < kEntriesPerSector; slot++)
         {
             size_t  entryOffset = kEntryBase + (size_t) slot * kEntrySize;
-            Byte    tsTrack     = ReadByte (track, sector, entryOffset + kEntOffTsTrack);
+            Byte    tsTrack     = m_access.ReadByte (track, sector, entryOffset + kEntOffTsTrack);
 
             if (tsTrack == kEntryUnused || tsTrack == kEntryDeleted)
             {
@@ -1119,8 +975,8 @@ bool Dos33Volume::TryFindFreeCatalogSlot (int & outTrack, int & outSector, size_
         }
 
         {
-            int  nextTrack  = ReadByte (track, sector, Dos33Skeleton::kCatalogOffNextTrack);
-            int  nextSector = ReadByte (track, sector, Dos33Skeleton::kCatalogOffNextSector);
+            int  nextTrack  = m_access.ReadByte (track, sector, Dos33Skeleton::kCatalogOffNextTrack);
+            int  nextSector = m_access.ReadByte (track, sector, Dos33Skeleton::kCatalogOffNextSector);
 
             more   = nextTrack != 0;
             track  = nextTrack;
@@ -1156,7 +1012,7 @@ bool Dos33Volume::TryAllocateUnits (
     size_t                         count,
     vector<uint32_t>             & outUnits) const
 {
-    int     allocatableTracks = m_geometry.tracks - 1;
+    int     allocatableTracks = m_access.GetGeometry().tracks - 1;
     int     slot              = 0;
     size_t  taken             = 0;
 
@@ -1169,10 +1025,10 @@ bool Dos33Volume::TryAllocateUnits (
         int  track  = GetAllocationTrack (slot);
         int  sector = 0;
 
-        for (sector = m_geometry.sectorsPerTrack - 1; sector >= 0 && taken < count; sector--)
+        for (sector = m_access.GetGeometry().sectorsPerTrack - 1; sector >= 0 && taken < count; sector--)
         {
-            uint32_t  unit    = ToUnit (track, sector);
-            bool      isFree  = IsFreeInBitmap (AccessSector (Dos33Skeleton::kVtocTrack, 0), track, sector);
+            uint32_t  unit    = m_access.ToUnit (track, sector);
+            bool      isFree  = IsFreeInBitmap (m_access.AccessSector (Dos33Skeleton::kVtocTrack, 0), track, sector);
             bool      claimed = report.IsClaimed (unit);
 
             if (isFree && !claimed)
@@ -1205,7 +1061,7 @@ void Dos33Volume::ZeroUnits (vector<Byte> & buffer, const vector<uint32_t> & uni
 {
     for (uint32_t unit : units)
     {
-        size_t  at = m_geometry.GetSectorOffset (GetTrack (unit), GetSector (unit));
+        size_t  at = m_access.GetGeometry().GetSectorOffset (m_access.GetTrack (unit), m_access.GetSector (unit));
 
         if (at + (size_t) NibbleFormat::kSectorByteSize <= buffer.size())
         {
@@ -1250,28 +1106,28 @@ void Dos33Volume::PlaceFile (
     while (cursor < unitCount)
     {
         uint32_t  listUnit   = units[cursor];
-        int       listTrack  = GetTrack (listUnit);
-        int       listSec    = GetSector (listUnit);
+        int       listTrack  = m_access.GetTrack (listUnit);
+        int       listSec    = m_access.GetSector (listUnit);
         size_t    remaining  = dataSectorCount - placed;
         size_t    inThisList = std::min ((size_t) kTsPairsPerList, remaining);
         size_t    k          = 0;
 
         cursor++;
 
-        WriteByteAt (buffer, listTrack, listSec, kTsOffSectorOffsetLo, (Byte) (placed & 0xFF));
-        WriteByteAt (buffer, listTrack, listSec, kTsOffSectorOffsetHi, (Byte) ((placed >> 8) & 0xFF));
+        m_access.WriteByteAt (buffer, listTrack, listSec, kTsOffSectorOffsetLo, (Byte) (placed & 0xFF));
+        m_access.WriteByteAt (buffer, listTrack, listSec, kTsOffSectorOffsetHi, (Byte) ((placed >> 8) & 0xFF));
 
         for (k = 0; k < inThisList; k++)
         {
             uint32_t  dataUnit = units[cursor + k];
             size_t    pairAt   = kTsOffFirstPair + k * 2;
             size_t    from     = (placed + k) * (size_t) NibbleFormat::kSectorByteSize;
-            size_t    to       = m_geometry.GetSectorOffset (GetTrack (dataUnit), GetSector (dataUnit));
+            size_t    to       = m_access.GetGeometry().GetSectorOffset (m_access.GetTrack (dataUnit), m_access.GetSector (dataUnit));
             size_t    left     = (from < storedSize) ? storedSize - from : 0;
             size_t    copyable = std::min ((size_t) NibbleFormat::kSectorByteSize, left);
 
-            WriteByteAt (buffer, listTrack, listSec, pairAt,     (Byte) GetTrack (dataUnit));
-            WriteByteAt (buffer, listTrack, listSec, pairAt + 1, (Byte) GetSector (dataUnit));
+            m_access.WriteByteAt (buffer, listTrack, listSec, pairAt,     (Byte) m_access.GetTrack (dataUnit));
+            m_access.WriteByteAt (buffer, listTrack, listSec, pairAt + 1, (Byte) m_access.GetSector (dataUnit));
 
             std::copy (stored.begin() + (ptrdiff_t) from,
                        stored.begin() + (ptrdiff_t) (from + copyable),
@@ -1283,8 +1139,8 @@ void Dos33Volume::PlaceFile (
 
         if (cursor < unitCount)
         {
-            WriteByteAt (buffer, listTrack, listSec, kTsOffNextTrack,  (Byte) GetTrack (units[cursor]));
-            WriteByteAt (buffer, listTrack, listSec, kTsOffNextSector, (Byte) GetSector (units[cursor]));
+            m_access.WriteByteAt (buffer, listTrack, listSec, kTsOffNextTrack,  (Byte) m_access.GetTrack (units[cursor]));
+            m_access.WriteByteAt (buffer, listTrack, listSec, kTsOffNextSector, (Byte) m_access.GetSector (units[cursor]));
         }
     }
 }
@@ -1313,22 +1169,22 @@ void Dos33Volume::WriteCatalogEntry (
 
 
 
-    WriteByteAt (buffer, catalogTrack, catalogSector, entryOffset + kEntOffTsTrack,
-                 (Byte) GetTrack (listUnit));
-    WriteByteAt (buffer, catalogTrack, catalogSector, entryOffset + kEntOffTsSector,
-                 (Byte) GetSector (listUnit));
-    WriteByteAt (buffer, catalogTrack, catalogSector, entryOffset + kEntOffType, typeByte);
+    m_access.WriteByteAt (buffer, catalogTrack, catalogSector, entryOffset + kEntOffTsTrack,
+                 (Byte) m_access.GetTrack (listUnit));
+    m_access.WriteByteAt (buffer, catalogTrack, catalogSector, entryOffset + kEntOffTsSector,
+                 (Byte) m_access.GetSector (listUnit));
+    m_access.WriteByteAt (buffer, catalogTrack, catalogSector, entryOffset + kEntOffType, typeByte);
 
     for (i = 0; i < kNameBytes; i++)
     {
         Byte  c = (i < nameBytes.size()) ? nameBytes[i] : kNamePad;
 
-        WriteByteAt (buffer, catalogTrack, catalogSector, entryOffset + kEntOffName + i, c);
+        m_access.WriteByteAt (buffer, catalogTrack, catalogSector, entryOffset + kEntOffName + i, c);
     }
 
-    WriteByteAt (buffer, catalogTrack, catalogSector, entryOffset + kEntOffSectorCount,
+    m_access.WriteByteAt (buffer, catalogTrack, catalogSector, entryOffset + kEntOffSectorCount,
                  (Byte) (sectorCount & 0xFF));
-    WriteByteAt (buffer, catalogTrack, catalogSector, entryOffset + kEntOffSectorCount + 1,
+    m_access.WriteByteAt (buffer, catalogTrack, catalogSector, entryOffset + kEntOffSectorCount + 1,
                  (Byte) (sectorCount >> 8));
 }
 
@@ -1438,14 +1294,14 @@ HRESULT Dos33Volume::AddFile (
     allocated = TryAllocateUnits (report, dataCount + listCount, units);
     CBREx (allocated, HRESULT_FROM_WIN32 (ERROR_DISK_FULL));
 
-    result = m_sectors;
+    result = m_access.GetBuffer();
 
     ZeroUnits (result, units);
     PlaceFile (result, units, dataCount, stored);
 
     for (uint32_t unit : units)
     {
-        SetFreeInBitmap (result, GetTrack (unit), GetSector (unit), false);
+        SetFreeInBitmap (result, m_access.GetTrack (unit), m_access.GetSector (unit), false);
     }
 
     WriteCatalogEntry (result,
@@ -1493,8 +1349,8 @@ HRESULT Dos33Volume::Write (
     vector<Byte>       & outBuffer) const
 {
     HRESULT              hr          = S_OK;
-    size_t               bufferBytes = m_sectors.size();
-    size_t               imageBytes  = m_geometry.GetImageByteSize();
+    size_t               bufferBytes = m_access.GetBuffer().size();
+    size_t               imageBytes  = m_access.GetGeometry().GetImageByteSize();
     bool                 single      = path.IsSingleComponent();
     bool                 nameOk      = false;
     bool                 exists      = false;
@@ -1663,8 +1519,8 @@ HRESULT Dos33Volume::Delete (
     DeleteOutcome   & outOutcome) const
 {
     HRESULT                hr          = S_OK;
-    size_t                 bufferBytes = m_sectors.size();
-    size_t                 imageBytes  = m_geometry.GetImageByteSize();
+    size_t                 bufferBytes = m_access.GetBuffer().size();
+    size_t                 imageBytes  = m_access.GetGeometry().GetImageByteSize();
     bool                   single      = path.IsSingleComponent();
     bool                   isLocked    = false;
     bool                   fullyParsed = true;
@@ -1693,7 +1549,7 @@ HRESULT Dos33Volume::Delete (
     outOutcome                    = DeleteOutcome();
     outOutcome.catalogFullyParsed = report.IsCatalogFullyParsed();
 
-    result = m_sectors;
+    result = m_access.GetBuffer();
 
     // The report walks the same catalog in the same order over the same buffer,
     // so an owner index names the same entry on both sides.
@@ -1703,7 +1559,7 @@ HRESULT Dos33Volume::Delete (
 
         if (mineAlone)
         {
-            SetFreeInBitmap (result, GetTrack (unit), GetSector (unit), true);
+            SetFreeInBitmap (result, m_access.GetTrack (unit), m_access.GetSector (unit), true);
             outOutcome.freedUnits.push_back (unit);
         }
         else
@@ -1723,13 +1579,13 @@ HRESULT Dos33Volume::Delete (
     // DOS's own tombstone: the original track byte moves into the last byte of
     // the name and $FF takes its place, which is how an undelete tool finds the
     // file again.
-    WriteByteAt (result,
+    m_access.WriteByteAt (result,
                  entries[owner].catalogTrack,
                  entries[owner].catalogSector,
                  entries[owner].entryOffset + kEntOffLastNameByte,
                  (Byte) entries[owner].tsListTrack);
 
-    WriteByteAt (result,
+    m_access.WriteByteAt (result,
                  entries[owner].catalogTrack,
                  entries[owner].catalogSector,
                  entries[owner].entryOffset + kEntOffTsTrack,
@@ -1764,11 +1620,11 @@ bool Dos33Volume::HasDosImage() const
 
     for (track = 0; track < Dos33Skeleton::kDosImageTracks; track++)
     {
-        for (sector = 0; sector < m_geometry.sectorsPerTrack; sector++)
+        for (sector = 0; sector < m_access.GetGeometry().sectorsPerTrack; sector++)
         {
             for (i = 0; i < (size_t) NibbleFormat::kSectorByteSize; i++)
             {
-                if (ReadByte (track, sector, i) != 0)
+                if (m_access.ReadByte (track, sector, i) != 0)
                 {
                     return true;
                 }
@@ -1809,10 +1665,10 @@ bool Dos33Volume::HasDosImage() const
 HRESULT Dos33Volume::SetStartupProgram (const FilePath & path, vector<Byte> & outBuffer) const
 {
     HRESULT                hr          = S_OK;
-    size_t                 bufferBytes = m_sectors.size();
-    size_t                 imageBytes  = m_geometry.GetImageByteSize();
+    size_t                 bufferBytes = m_access.GetBuffer().size();
+    size_t                 imageBytes  = m_access.GetGeometry().GetImageByteSize();
     bool                   single      = path.IsSingleComponent();
-    bool                   sixteen     = m_geometry.sectorsPerTrack == 16;
+    bool                   sixteen     = m_access.GetGeometry().sectorsPerTrack == 16;
     bool                   hasDos      = false;
     bool                   fullyParsed = true;
     uint16_t               owner       = 0;
@@ -1842,15 +1698,15 @@ HRESULT Dos33Volume::SetStartupProgram (const FilePath & path, vector<Byte> & ou
     hr = BuildIntegrityReport (report);
     CHRA (hr);
 
-    result = m_sectors;
+    result = m_access.GetBuffer();
 
     for (i = 0; i < kNameBytes; i++)
     {
-        Byte  stored = ReadByte (entries[owner].catalogTrack,
+        Byte  stored = m_access.ReadByte (entries[owner].catalogTrack,
                                  entries[owner].catalogSector,
                                  entries[owner].entryOffset + kEntOffName + i);
 
-        WriteByteAt (result, kGreetingTrack, kGreetingSector, kGreetingOffset + i, stored);
+        m_access.WriteByteAt (result, kGreetingTrack, kGreetingSector, kGreetingOffset + i, stored);
     }
 
     // The same self-check every other mutating call runs over its own output.
@@ -1920,8 +1776,8 @@ HRESULT Dos33Volume::Rename (
     vector<Byte>       & outBuffer) const
 {
     HRESULT                hr          = S_OK;
-    size_t                 bufferBytes = m_sectors.size();
-    size_t                 imageBytes  = m_geometry.GetImageByteSize();
+    size_t                 bufferBytes = m_access.GetBuffer().size();
+    size_t                 imageBytes  = m_access.GetGeometry().GetImageByteSize();
     bool                   single      = from.IsSingleComponent();
     bool                   nameOk      = false;
     bool                   taken       = false;
@@ -1958,11 +1814,11 @@ HRESULT Dos33Volume::Rename (
     hr = BuildIntegrityReport (report);
     CHRA (hr);
 
-    result = m_sectors;
+    result = m_access.GetBuffer();
 
     for (i = 0; i < kNameBytes; i++)
     {
-        WriteByteAt (result,
+        m_access.WriteByteAt (result,
                      entries[owner].catalogTrack,
                      entries[owner].catalogSector,
                      entries[owner].entryOffset + kEntOffName + i,
@@ -2001,7 +1857,7 @@ HRESULT Dos33Volume::SetAttributes (
     HRESULT                hr          = S_OK;
     bool                   single      = path.IsSingleComponent();
     bool                   dated       = attributes.hasCreated || attributes.hasModified;
-    bool                   whole       = m_sectors.size() == m_geometry.GetImageByteSize();
+    bool                   whole       = m_access.GetBuffer().size() == m_access.GetGeometry().GetImageByteSize();
     bool                   listed      = false;
     bool                   inImage     = false;
     bool                   fullyParsed = true;
@@ -2034,20 +1890,20 @@ HRESULT Dos33Volume::SetAttributes (
     hr = BuildIntegrityReport (report);
     CHRA (hr);
 
-    result = m_sectors;
+    result = m_access.GetBuffer();
 
-    WriteByteAt (result, entries[owner].catalogTrack, entries[owner].catalogSector, entries[owner].entryOffset + kEntOffType, typeByte);
+    m_access.WriteByteAt (result, entries[owner].catalogTrack, entries[owner].catalogSector, entries[owner].entryOffset + kEntOffType, typeByte);
 
     //  Only a binary has a load address, and an empty one has no data sector for it.
     if (attributes.hasAuxType)
     {
         CBREx ((typeByte & ~kLockedBit) == kTypeBinary, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
 
-        pair   = m_geometry.GetSectorOffset (entries[owner].tsListTrack, entries[owner].tsListSector) + kTsOffFirstPair;
+        pair   = m_access.GetGeometry().GetSectorOffset (entries[owner].tsListTrack, entries[owner].tsListSector) + kTsOffFirstPair;
         listed = pair + 1 < result.size() && result[pair] != 0;
         CBREx (listed, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-        data    = m_geometry.GetSectorOffset (result[pair], result[pair + 1]);
+        data    = m_access.GetGeometry().GetSectorOffset (result[pair], result[pair + 1]);
         inImage = data + 1 < result.size();
         CBREx (inImage, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 

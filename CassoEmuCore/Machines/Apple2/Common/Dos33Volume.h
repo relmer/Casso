@@ -2,9 +2,10 @@
 
 #include "Pch.h"
 
-#include "Machines/Apple2/Common/Dos33Geometry.h"
+#include "Machines/Apple2/Common/Dos33SectorAccess.h"
 #include "Machines/Apple2/Common/IVolume.h"
-#include "Machines/Apple2/Common/SectorReadObserver.h"
+
+class ISectorReadObserver;
 #include "Devices/Disk/ChainWalkGuard.h"
 
 
@@ -40,7 +41,7 @@ public:
     explicit Dos33Volume (const vector<Byte> & sectors);
 
     //  Called with each sector the volume reads from here on; null for none.
-    void     SetReadObserver (ISectorReadObserver * observer) { m_readObserver = observer; }
+    void     SetReadObserver (ISectorReadObserver * observer) { m_access.SetReadObserver (observer); }
 
     HRESULT  Enumerate (VolumeListing & outListing) const override;
     HRESULT  Read      (const FilePath & path, FilePayload & outPayload) const override;
@@ -207,10 +208,6 @@ private:
     static constexpr int     kGreetingSector = 9;
     static constexpr size_t  kGreetingOffset = 0x75;
 
-    uint32_t  ToUnit    (int track, int sector) const;
-    int       GetTrack  (uint32_t unit) const;
-    int       GetSector (uint32_t unit) const;
-
     //  Order in which free sectors are handed out: outward from the catalog
     //  track first, then inward, which is the order DOS's own allocation hint
     //  describes. Never yields the catalog track.
@@ -224,7 +221,6 @@ private:
 
     bool  IsFreeInBitmap  (const vector<Byte> & buffer, int track, int sector) const;
     void  SetFreeInBitmap (vector<Byte> & buffer, int track, int sector, bool isFree) const;
-    void  WriteByteAt     (vector<Byte> & buffer, int track, int sector, size_t offset, Byte value) const;
 
     //  30 bytes of high ASCII, space-padded. False when the name is one DOS
     //  could not open again.
@@ -248,12 +244,6 @@ private:
                              Byte                  typeByte,
                              uint16_t              sectorCount,
                              const vector<Byte>  & nameBytes) const;
-
-    Byte  ReadByte (int track, int sector, size_t offset) const;
-
-    //  The buffer, for a read of one sector of it. Every read of the volume's
-    //  own buffer goes through here, so the read observer has each sector.
-    const vector<Byte> &  AccessSector (int track, int sector) const;
 
     //  Case-insensitive, because the catalog is upper case and the caller's
     //  shell is not.
@@ -311,7 +301,5 @@ private:
     //  address when the type records one.
     static void  ApplyTypeHeader (Byte typeByte, vector<Byte> & inOutBytes, FilePayload & outPayload);
 
-    const vector<Byte> &   m_sectors;
-    Dos33Geometry          m_geometry;
-    ISectorReadObserver  * m_readObserver = nullptr;
+    Dos33SectorAccess  m_access;
 };
