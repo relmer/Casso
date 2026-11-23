@@ -76,6 +76,32 @@ public:
     }
 
 
+    //  Planetfall's moves are its clock, and Suspended has no score.
+    TEST_METHOD (InfocomSaveDisk_LabelsTheClockAndLeavesOutAMissingScore)
+    {
+        std::vector<Byte>  memory = InfocomSaveBuilder::MakeMemory (0);
+        DecodedFile        file;
+
+
+
+        InfocomSaveBuilder::PutWord (memory, 0x02, 1);
+        memcpy (&memory[0x12], "830306", 6);
+
+        std::vector<Byte>  planetfall = InfocomSaveBuilder::MakeDisk (memory, 0);
+
+        AssertSucceeded  (DiskSaveTable::Find (planetfall)->decode (planetfall, {}, file));
+        Assert::AreEqual (std::wstring (L"Time\t12"), GetText (file.paragraphs[5]));
+
+        InfocomSaveBuilder::PutWord (memory, 0x02, 8);
+        memcpy (&memory[0x12], "830521", 6);
+
+        std::vector<Byte>  suspended = InfocomSaveBuilder::MakeDisk (memory, 0);
+
+        AssertSucceeded  (DiskSaveTable::Find (suspended)->decode (suspended, {}, file));
+        Assert::AreEqual (std::wstring (L"Moves\t12"), GetText (file.paragraphs[4]), L"No score row");
+    }
+
+
     //  A line separates one saved position from the next.
     TEST_METHOD (InfocomSaveDisk_HasARuleBetweenPositions)
     {

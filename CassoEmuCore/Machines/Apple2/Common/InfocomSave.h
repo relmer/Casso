@@ -94,6 +94,14 @@ public:
     //  or the title alone for a game without one.
     static std::string  GetFullTitle (const std::string & title);
 
+    //  The label of the moves global: "Time" in a game whose moves are its
+    //  clock, as Planetfall's, else "Moves".
+    static const wchar_t *  GetMovesLabel (const std::string & title);
+
+    //  Whether the game has no score, as Suspended, whose score global has
+    //  something else.
+    static bool  IsUnscored (const std::string & title);
+
 private:
     static constexpr size_t  kHeaderBytes       = 64;
     static constexpr size_t  kDefaultsBytes     = 62;     // a version 1 to 3 story's 31 property defaults

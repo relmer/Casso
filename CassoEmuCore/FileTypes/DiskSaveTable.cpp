@@ -181,17 +181,23 @@ void DiskSaveTable::AddInfocomPosition (const InfocomSave::Position & position, 
     }
     else
     {
-        line.runs = { Run { L"Score\t", false, false, false, RunColor::Muted }, Run { std::format (L"{}", position.score), true, false, false, RunColor::Keyword } };
+        std::string  title = story ? story->title : std::string();
 
-        if (story != nullptr && story->maxScore > 0)
+        if (!InfocomSave::IsUnscored (title))
         {
-            line.runs.push_back (Run { std::format (L" of {}   ", story->maxScore), false, false, false, RunColor::Muted });
-            AddScoreBar (position.score, story->maxScore, line.runs);
+            line.runs = { Run { L"Score\t", false, false, false, RunColor::Muted }, Run { std::format (L"{}", position.score), true, false, false, RunColor::Keyword } };
+
+            if (story != nullptr && story->maxScore > 0)
+            {
+                line.runs.push_back (Run { std::format (L" of {}   ", story->maxScore), false, false, false, RunColor::Muted });
+                AddScoreBar (position.score, story->maxScore, line.runs);
+            }
+
+            ioParagraphs.push_back (line);
         }
 
-        ioParagraphs.push_back (line);
-
-        line.runs = { Run { L"Moves\t", false, false, false, RunColor::Muted }, Run { std::format (L"{}", position.moves), true, false, false, RunColor::Keyword } };
+        line.runs = { Run { std::wstring (InfocomSave::GetMovesLabel (title)) + L"\t", false, false, false, RunColor::Muted },
+                      Run { std::format (L"{}", position.moves), true, false, false, RunColor::Keyword } };
         ioParagraphs.push_back (line);
     }
 
