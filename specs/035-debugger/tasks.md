@@ -2475,7 +2475,7 @@ The 033 copy-protection session used the casso MCP server to debug the //c's ser
 
 ## Phase 76: HISTORY feedback from the Wizardry session, 2026-11-23
 
-- [ ] T1540 Fix the paused state after HISTORY SAVE and HISTORY ON or OFF: `press_keys` and `wait` report a pause while the machine runs, and `resume` fails with "A run is in progress". Tests first.
+- [ ] T1540 Fix the paused state after HISTORY SAVE and HISTORY ON or OFF: `press_keys` and `wait` report a pause while the machine runs, and `resume` fails with "A run is in progress". Keys sent then sometimes never reach the guest, while the reply looks like they did, so check whether input is dropped too. Tests first.
 - [ ] T1541 Make HISTORY ON leave history on when it's already on, instead of turning it off without a message. Tests first.
 - [ ] T1542 Measure the speed of a Release history replay with tracing on, on one core and on all cores, and how much emulated time 035's history keeps. Record the figures here; they set the defaults below.
 - [ ] T1543 Make the instruction trace a view over all of history. The window in memory is a cache, with a length setting that defaults to 1M entries. A request for cycles outside it rebuilds the spans between history snapshots, and the spans replay in parallel across the host's cores. Rows on screen are fetched by viewport, so a row not rebuilt yet shows a placeholder and the pane never waits. Tests first.
@@ -2484,3 +2484,4 @@ The 033 copy-protection session used the casso MCP server to debug the //c's ser
 - [ ] T1546 Check whether the stale pause state in T1540 comes from the rebuild's replay changing the session's run state. Rebuilds run on a separate machine instance with a separate run state.
 - [ ] T1547 Pack `CpuTrace::Entry` into 16 bytes: the cycle as a 1-byte difference with a side table of absolute cycles every 4,096 entries, and the flags in 1 byte. Low priority.
 - [X] T1548 Not a bug: the owner closed every Casso window after an NVIDIA driver upgrade left them unusable, which ended the debugged instance during BPMW 8F3C:8F41. History's memory per hour is measured in T1542.
+- [ ] T1549 Fix S (search) returning addresses $328 too high: on a //e Enhanced running Wizardry V, "S 0800:BFFF 41 01 00 00 41 01 00 00 55 15" returned 24090 ($5E1A) for bytes at $5AF2, and a second search was off by the same amount. Check the result's radix too, since it's decimal. Tests first.
