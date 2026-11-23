@@ -4,6 +4,7 @@
 
 #include "Machines/Apple2/Common/Dos33Catalog.h"
 #include "Machines/Apple2/Common/Dos33FileChain.h"
+#include "Machines/Apple2/Common/Dos33FreeMap.h"
 #include "Machines/Apple2/Common/Dos33SectorAccess.h"
 #include "Machines/Apple2/Common/IVolume.h"
 
@@ -134,12 +135,6 @@ public:
     static constexpr uint32_t  kUnitCount = 560;   // 35 tracks x 16 sectors
 
 private:
-    //  Free bitmap: four bytes per track, of which two are used. Byte 0 holds
-    //  sectors 15..8 in bits 7..0 and byte 1 holds sectors 7..0; a SET bit
-    //  means free.
-    static constexpr size_t  kBitmapBytesPerTrack = 4;
-    static constexpr int     kBitmapSplitSector   = 8;
-
     //  Where the name of the program a booted DOS runs is kept: inside the DOS
     //  image on track 1, NOT in the catalog. Thirty bytes of high ASCII padded
     //  with high-ASCII spaces, the same width a catalog name field has.
@@ -154,24 +149,11 @@ private:
     static constexpr int     kGreetingSector = 9;
     static constexpr size_t  kGreetingOffset = 0x75;
 
-    //  Order in which free sectors are handed out: outward from the catalog
-    //  track first, then inward, which is the order DOS's own allocation hint
-    //  describes. Never yields the catalog track.
-    int       GetAllocationTrack (int index) const;
-
     //  Credits the volume's own structures -- the tracks DOS occupies and the
     //  catalog track -- to the reserved volume owner. No catalog entry names
     //  them, and a report that left them unowned would call every healthy
     //  volume inconsistent.
     void  ClaimVolumeStructures  (VolumeIntegrityReport & outReport) const;
-
-    bool  IsFreeInBitmap  (const vector<Byte> & buffer, int track, int sector) const;
-    void  SetFreeInBitmap (vector<Byte> & buffer, int track, int sector, bool isFree) const;
-
-    //  Hands out `count` sectors, or none at all.
-    bool  TryAllocateUnits (const VolumeIntegrityReport  & report,
-                            size_t                         count,
-                            vector<uint32_t>             & outUnits) const;
 
     //  Lays down a file whose name the catalog does not already hold, over the
     //  buffer this volume was constructed with. Replacement stages the removal
@@ -188,4 +170,5 @@ private:
     Dos33SectorAccess  m_access;
     Dos33Catalog       m_catalog { m_access };
     Dos33FileChain     m_chain   { m_access };
+    Dos33FreeMap       m_freeMap { m_access };
 };

@@ -7,6 +7,7 @@
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33PayloadCodec.h"
 #include "Machines/Apple2/Common/Dos33FileChain.h"
+#include "Machines/Apple2/Common/Dos33FreeMap.h"
 #include "Devices/Disk/ChainWalkGuard.h"
 
 
@@ -30,110 +31,6 @@ Dos33Volume::Dos33Volume (const vector<Byte> & sectors)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Dos33Volume::GetAllocationTrack
-//
-//  The order free sectors are handed out in: track 18 outward to the rim, then
-//  track 16 inward to track 0. That is what the VTOC's own allocation hint and
-//  direction byte describe, and it keeps a file's sectors near its catalog.
-//
-//  The catalog track itself is never produced, so it cannot be handed out even
-//  if its free bitmap were wrong.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int Dos33Volume::GetAllocationTrack (int index) const
-{
-    int  outwardCount = m_access.GetGeometry().tracks - Dos33Skeleton::kVtocTrack - 1;
-
-
-
-    if (index < outwardCount)
-    {
-        return Dos33Skeleton::kVtocTrack + 1 + index;
-    }
-
-    return Dos33Skeleton::kVtocTrack - 1 - (index - outwardCount);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Dos33Volume::IsFreeInBitmap
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool Dos33Volume::IsFreeInBitmap (const vector<Byte> & buffer, int track, int sector) const
-{
-    size_t  byteAt = 0;
-
-
-
-    if (track < 0 || track >= m_access.GetGeometry().tracks
-     || sector < 0 || sector >= m_access.GetGeometry().sectorsPerTrack)
-    {
-        return false;
-    }
-
-    byteAt = m_access.GetGeometry().GetBitmapByteOffset (track, sector);
-
-    if (byteAt >= buffer.size())
-    {
-        return false;
-    }
-
-    return (buffer[byteAt] & m_access.GetGeometry().GetBitmapMask (sector)) != 0;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Dos33Volume::SetFreeInBitmap
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Dos33Volume::SetFreeInBitmap (vector<Byte> & buffer, int track, int sector, bool isFree) const
-{
-    size_t  byteAt = 0;
-    Byte    mask   = 0;
-
-
-
-    if (track < 0 || track >= m_access.GetGeometry().tracks
-     || sector < 0 || sector >= m_access.GetGeometry().sectorsPerTrack)
-    {
-        return;
-    }
-
-    byteAt = m_access.GetGeometry().GetBitmapByteOffset (track, sector);
-    mask   = m_access.GetGeometry().GetBitmapMask (sector);
-
-    if (byteAt >= buffer.size())
-    {
-        return;
-    }
-
-    if (isFree)
-    {
-        buffer[byteAt] = (Byte) (buffer[byteAt] | mask);
-    }
-    else
-    {
-        buffer[byteAt] = (Byte) (buffer[byteAt] & ~mask);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  Dos33Volume::Enumerate
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -145,9 +42,6 @@ HRESULT Dos33Volume::Enumerate (VolumeListing & outListing) const
     size_t                     imageBytes  = m_access.GetGeometry().GetImageByteSize();
     vector<Dos33CatalogEntry>  entries;
     bool                       fullyParsed = true;
-    int                        track       = 0;
-    int                        sector      = 0;
-    uint32_t                   freeUnits   = 0;
 
 
 
@@ -192,17 +86,7 @@ HRESULT Dos33Volume::Enumerate (VolumeListing & outListing) const
         outListing.entries.push_back (listed);
     }
 
-    for (track = 0; track < m_access.GetGeometry().tracks; track++)
-    {
-        for (sector = 0; sector < m_access.GetGeometry().sectorsPerTrack; sector++)
-        {
-            bool  isFree = IsFreeInBitmap (m_access.AccessSector (Dos33Skeleton::kVtocTrack, 0), track, sector);
-
-            freeUnits += isFree ? 1u : 0u;
-        }
-    }
-
-    outListing.freeUnits = freeUnits;
+    outListing.freeUnits = m_freeMap.CountFreeUnits();
 
 Error:
     return hr;
@@ -393,7 +277,7 @@ HRESULT Dos33Volume::BuildIntegrityReport (VolumeIntegrityReport & outReport) co
     {
         for (sector = 0; sector < m_access.GetGeometry().sectorsPerTrack; sector++)
         {
-            bool  isFree = IsFreeInBitmap (m_access.AccessSector (Dos33Skeleton::kVtocTrack, 0), track, sector);
+            bool  isFree = m_freeMap.IsFree (track, sector);
 
             outReport.SetAllocatedInFreeMap (m_access.ToUnit (track, sector), !isFree);
         }
@@ -403,61 +287,6 @@ HRESULT Dos33Volume::BuildIntegrityReport (VolumeIntegrityReport & outReport) co
 
 Error:
     return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Dos33Volume::TryAllocateUnits
-//
-//  Hands out exactly `count` sectors or none at all, so a refusal leaves nothing
-//  half-reserved.
-//
-//  A sector must be free in the VTOC bitmap AND unclaimed by the catalog. The
-//  second condition is the one that matters: a bitmap calling a sector free
-//  while a catalog entry still points at it is the disagreement that hands the
-//  next file someone else's live data, and it is exactly the state a previous
-//  bad delete leaves behind. Skipping those sectors costs a little space and
-//  leaves the disagreement for the integrity report to name.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool Dos33Volume::TryAllocateUnits (
-    const VolumeIntegrityReport  & report,
-    size_t                         count,
-    vector<uint32_t>             & outUnits) const
-{
-    int     allocatableTracks = m_access.GetGeometry().tracks - 1;
-    int     slot              = 0;
-    size_t  taken             = 0;
-
-
-
-    outUnits.clear();
-
-    for (slot = 0; slot < allocatableTracks && taken < count; slot++)
-    {
-        int  track  = GetAllocationTrack (slot);
-        int  sector = 0;
-
-        for (sector = m_access.GetGeometry().sectorsPerTrack - 1; sector >= 0 && taken < count; sector--)
-        {
-            uint32_t  unit    = m_access.ToUnit (track, sector);
-            bool      isFree  = IsFreeInBitmap (m_access.AccessSector (Dos33Skeleton::kVtocTrack, 0), track, sector);
-            bool      claimed = report.IsClaimed (unit);
-
-            if (isFree && !claimed)
-            {
-                outUnits.push_back (unit);
-                taken++;
-            }
-        }
-    }
-
-    return taken == count;
 }
 
 
@@ -563,7 +392,7 @@ HRESULT Dos33Volume::AddFile (
         listCount = 1;
     }
 
-    allocated = TryAllocateUnits (report, dataCount + listCount, units);
+    allocated = m_freeMap.TryAllocateUnits (report, dataCount + listCount, units);
     CBREx (allocated, HRESULT_FROM_WIN32 (ERROR_DISK_FULL));
 
     result = m_access.GetBuffer();
@@ -573,7 +402,7 @@ HRESULT Dos33Volume::AddFile (
 
     for (uint32_t unit : units)
     {
-        SetFreeInBitmap (result, m_access.GetTrack (unit), m_access.GetSector (unit), false);
+        m_freeMap.SetFreeInBitmap (result, m_access.GetTrack (unit), m_access.GetSector (unit), false);
     }
 
     m_catalog.WriteEntry (result,
@@ -831,7 +660,7 @@ HRESULT Dos33Volume::Delete (
 
         if (mineAlone)
         {
-            SetFreeInBitmap (result, m_access.GetTrack (unit), m_access.GetSector (unit), true);
+            m_freeMap.SetFreeInBitmap (result, m_access.GetTrack (unit), m_access.GetSector (unit), true);
             outOutcome.freedUnits.push_back (unit);
         }
         else
