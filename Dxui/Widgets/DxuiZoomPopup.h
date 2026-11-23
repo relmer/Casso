@@ -79,6 +79,10 @@ public:
     //  callbacks OnMouse calls: a new zoom, and a wheel notch's step.
     void    SetRange     (double minZoom, double maxZoom, bool isLogarithmic);
     void    SetResetZoom (double zoom)  { m_resetZoom = zoom; }
+
+    //  False draws the closed percentage with no box around it, as a status
+    //  bar's fields are drawn.
+    void    SetShowBox   (bool show)    { m_showBox = show; }
     void    SetOnZoom    (ZoomFn fn)    { m_onZoom = std::move (fn); }
     void    SetOnStep    (StepFn fn)    { m_onStep = std::move (fn); }
     void    SetZoom      (double zoom)  { m_zoom = std::clamp (zoom, m_minZoom, m_maxZoom); }
@@ -155,6 +159,7 @@ private:
     bool           m_isOpen        = false;
     bool           m_isDragging    = false;
     bool           m_isOwnButton   = true;
+    bool           m_showBox       = true;
     bool           m_isHoverHeld   = false;   // a press closed the panel with the pointer on the button
     float          m_labelInset    = 0.0f;    // another control's label: its inset, in DIPs
     float          m_labelFont     = 0.0f;    // and its font size, in DIPs

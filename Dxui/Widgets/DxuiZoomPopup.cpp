@@ -259,8 +259,16 @@ RECT DxuiZoomPopup::GetFullPanelRect() const
 
 
 
+    //  A margin below the button's row, so Reset doesn't sit on the panel's
+    //  bottom edge. It stays inside the host's bounds.
     panel.right  = m_button.right;
-    panel.bottom = m_button.bottom;
+    panel.bottom = m_button.bottom + pad / 2;
+
+    if (m_bounds.bottom > m_bounds.top)
+    {
+        panel.bottom = std::min (panel.bottom, m_bounds.bottom);
+    }
+
     panel.left   = std::min (m_button.left, panel.right - (long) m_scaler.ToPx (kPanelWidthDip));
     panel.top    = std::max (m_bounds.top, m_button.top - pad - (long) m_scaler.ToPx (kRowDip));
 
@@ -614,7 +622,11 @@ void DxuiZoomPopup::Paint (IDxuiTextRenderer & text, const IDxuiTheme & theme) c
 
     if (m_isOwnButton && !IsShown())
     {
-        PaintBox (text, m_button, theme.BackgroundElevated(), theme.Border());
+        if (m_showBox)
+        {
+            PaintBox (text, m_button, theme.BackgroundElevated(), theme.Border());
+        }
+
         PaintLabel (text, theme, percent);
     }
 

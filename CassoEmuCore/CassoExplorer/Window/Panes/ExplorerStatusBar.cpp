@@ -59,6 +59,7 @@ void ExplorerStatusBar::Create()
     m_zoom = m_context.window.CreateChild<DxuiZoomControl>();
     m_zoom->SetRange     (CassoExplorerPrefs::kMinPreviewZoom / 100.0, CassoExplorerPrefs::kMaxPreviewZoom / 100.0, false);
     m_zoom->SetResetZoom (CassoExplorerPrefs::kDefaultPreviewZoom / 100.0);
+    m_zoom->SetShowBox   (false);
     m_zoom->SetOnStep    ([] (double zoom, int steps) { return zoom + steps * ExplorerCommandManager::kPreviewZoomStep / 100.0; });
     m_zoom->SetOnZoom    ([this] (double zoom) { m_context.preview.SetPreviewZoom ((int) std::lround (zoom * 100.0)); });
 

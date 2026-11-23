@@ -43,6 +43,7 @@ public:
     void    SetOnZoom      (ZoomFn fn)          { m_popup.SetOnZoom (std::move (fn)); }
     void    SetOnStep      (StepFn fn)          { m_popup.SetOnStep (std::move (fn)); }
     void    SetResetZoom   (double zoom)        { m_popup.SetResetZoom (zoom); }
+    void    SetShowBox     (bool show)          { m_popup.SetShowBox (show); }
     void    SetRange       (double minZoom, double maxZoom, bool isLogarithmic);
     void    SetPanelBounds (const RECT & bounds) { m_panelBounds = bounds; }
 

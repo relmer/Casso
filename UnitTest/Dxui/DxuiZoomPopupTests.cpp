@@ -142,7 +142,7 @@ public:
         Assert::IsTrue    (popup.IsOpen());
         Assert::IsTrue    (panel.top < button.top, L"the panel grows up");
         Assert::AreEqual  (button.right,  panel.right);
-        Assert::AreEqual  (button.bottom, panel.bottom);
+        Assert::IsTrue    (panel.bottom > button.bottom, L"a margin below the button's row");
         Assert::IsNotNull (before);
         Assert::IsNotNull (after);
         Assert::AreEqual  (before->x, after->x);
