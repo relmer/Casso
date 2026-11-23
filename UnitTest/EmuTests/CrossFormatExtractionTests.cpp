@@ -5,6 +5,7 @@
 #include "CassoExplorer/Model/DiskOperations.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
@@ -314,7 +315,7 @@ public:
 
             Assert::AreNotEqual (SIZE_MAX, addrAt, L"the track must carry address fields to corrupt");
 
-            PatchFieldChecksum (bits, addrAt, NibblizationLayer::kDefaultVolume,
+            PatchFieldChecksum (bits, addrAt, NibbleFormat::kDefaultVolume,
                                 static_cast<Byte> (track));
         }
 
@@ -413,7 +414,7 @@ public:
 
             while (addrAt != SIZE_MAX)
             {
-                PatchFieldChecksum (bits, addrAt, NibblizationLayer::kDefaultVolume, static_cast<Byte> (track));
+                PatchFieldChecksum (bits, addrAt, NibbleFormat::kDefaultVolume, static_cast<Byte> (track));
 
                 field++;
                 addrAt = FindAddressField (bits, field);
@@ -469,9 +470,9 @@ public:
             //  track and sector list, so the list reads.
             for (size_t at = 1; at < log.sectors.size(); at++)
             {
-                int  track = (int) (log.sectors[at] / NibblizationLayer::kSectorsPerTrack);
+                int  track = (int) (log.sectors[at] / NibbleFormat::kSectorsPerTrack);
 
-                if (track != 17 && track != (int) (log.sectors[0] / NibblizationLayer::kSectorsPerTrack))
+                if (track != 17 && track != (int) (log.sectors[0] / NibbleFormat::kSectorsPerTrack))
                 {
                     tracks.insert (track);
                 }

@@ -3,6 +3,7 @@
 #include "FakeDiskFileIo.h"
 #include "FixtureProvider.h"
 #include "GuestSession.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "TestMachine.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
@@ -143,7 +144,7 @@ public:
 
     static std::string GetMasterHeading (const std::vector<Byte> & image)
     {
-        constexpr size_t  kVtocOffset = (size_t) (Dos33Skeleton::kVtocTrack * NibblizationLayer::kSectorsPerTrack) * NibblizationLayer::kSectorByteSize;
+        constexpr size_t  kVtocOffset = (size_t) (Dos33Skeleton::kVtocTrack * NibbleFormat::kSectorsPerTrack) * NibbleFormat::kSectorByteSize;
 
         return std::format ("DISK VOLUME {:03}", image[kVtocOffset + Dos33Skeleton::kVtocOffVolumeNumber]);
     }

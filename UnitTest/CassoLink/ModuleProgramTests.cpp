@@ -5,7 +5,7 @@
 #include "CassoLink/CassoLinkHost.h"
 #include "CassoLink/LinkProgram.h"
 #include "Core/TextEncoding.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "ProgramRig.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -80,7 +80,7 @@ public:
 
     TEST_METHOD (LoadedModule_RunsItsRequest)
     {
-        ProgramRig         rig (std::vector<Byte> (NibblizationLayer::kImageByteSize, 0));
+        ProgramRig         rig (std::vector<Byte> (NibbleFormat::kImageByteSize, 0));
         std::vector<Byte>  module  = BuildEcho();
         Byte               id      = 0xFF;
         Byte               version = 0xFF;
@@ -101,7 +101,7 @@ public:
 
     TEST_METHOD (DiskOperation_OverwritesTheModule_AndEnsureLoadsItAgain)
     {
-        ProgramRig            rig (std::vector<Byte> (NibblizationLayer::kImageByteSize, 0));
+        ProgramRig            rig (std::vector<Byte> (NibbleFormat::kImageByteSize, 0));
         std::vector<Byte>  module    = BuildEcho();
         std::vector<Byte>  data;
         const Byte         sectors[] = { 0 };
@@ -128,7 +128,7 @@ public:
 
     TEST_METHOD (ChangedModule_FailsItsCheck)
     {
-        ProgramRig         rig (std::vector<Byte> (NibblizationLayer::kImageByteSize, 0));
+        ProgramRig         rig (std::vector<Byte> (NibbleFormat::kImageByteSize, 0));
         std::vector<Byte>  module = BuildEcho();
         HRESULT            hr     = S_OK;
 

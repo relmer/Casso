@@ -4,6 +4,7 @@
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Devices/Disk/MountDiagnosis.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
@@ -67,14 +68,14 @@ public:
 
     vector<Byte> MakeDsk (Byte fill)
     {
-        return vector<Byte> (NibblizationLayer::kImageByteSize, fill);
+        return vector<Byte> (NibbleFormat::kImageByteSize, fill);
     }
 
     // A full-size sector image with a distinct per-byte pattern so a
     // round-trip actually exercises every sector (not a uniform fill).
     vector<Byte> MakeSectorImage (uint32_t seed)
     {
-        vector<Byte>  raw (NibblizationLayer::kImageByteSize);
+        vector<Byte>  raw (NibbleFormat::kImageByteSize);
 
         for (size_t i = 0; i < raw.size(); i++)
         {
@@ -426,7 +427,7 @@ public:
         ScopedFlushNotifyCapture  capture;
         DiskImageStore            store;
         DiskImage                 built;
-        vector<Byte>              sectors (NibblizationLayer::kImageByteSize, 0x3C);
+        vector<Byte>              sectors (NibbleFormat::kImageByteSize, 0x3C);
         vector<Byte>              file;
         HRESULT                   hr = S_OK;
 
@@ -564,7 +565,7 @@ public:
         store.GetImage (kSlot, kDrive)->WriteBit (0, 0, 1);
 
         AssertSucceeded (store.Flush (kSlot, kDrive));
-        Assert::AreEqual (size_t (NibblizationLayer::kImageByteSize), captured.size(),
+        Assert::AreEqual (size_t (NibbleFormat::kImageByteSize), captured.size(),
             L"Flushed payload must be 143360 bytes for DSK");
     }
 
@@ -848,7 +849,7 @@ public:
 
         AssertSucceeded (store.Flush (kSlot, kDrive));
 
-        Assert::AreEqual (static_cast<size_t> (NibblizationLayer::kImageByteSize), ReadBackAll (target).size(),
+        Assert::AreEqual (static_cast<size_t> (NibbleFormat::kImageByteSize), ReadBackAll (target).size(),
             L"a real-file flush must write a full-size image");
         Assert::IsFalse (fs::exists (DiskImageStore::GetCommitTemporaryPath (target.string(), 0)),
             L"the flush must not leave its temp file beside the image");
@@ -999,7 +1000,7 @@ public:
     vector<Byte> MakeDamagedStandardWoz()
     {
         DiskImage     src;
-        vector<Byte>  sectors (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>  sectors (NibbleFormat::kImageByteSize, 0);
         vector<Byte>  woz;
         uint32_t      seed = 0xC0FFEEu;
         size_t        i    = 0;
@@ -1499,7 +1500,7 @@ public:
         //  it, and the interface must not imply the image asked for it.
         DiskImageStore    store;
         DiskImage         built;
-        vector<Byte>      sectors (NibblizationLayer::kImageByteSize, 0x11);
+        vector<Byte>      sectors (NibbleFormat::kImageByteSize, 0x11);
         vector<Byte>      file;
         DiskImage       * img = nullptr;
         WriteProtectInfo  info;

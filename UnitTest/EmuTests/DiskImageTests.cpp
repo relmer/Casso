@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "Devices/Disk/DiskImage.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

@@ -2,6 +2,7 @@
 
 #include "EhmTestHelper.h"
 #include "FixtureProvider.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "TestMachine.h"
 #include "TextScreenScraper.h"
 #include "CassoLink/EmulatedCassetteAudio.h"
@@ -408,7 +409,7 @@ public:
         static constexpr uint32_t  kRate = 44100;
 
         Rig                 rig ("Apple2e", EmulatedCassetteAudio::Faults(), kRate, Start::AtPrompt);
-        std::vector<Byte>   sectors (NibblizationLayer::kImageByteSize);
+        std::vector<Byte>   sectors (NibbleFormat::kImageByteSize);
         std::vector<float>  samples;
         std::vector<float>  heard;
         std::vector<Byte>   written;

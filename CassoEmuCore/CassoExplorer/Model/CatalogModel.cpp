@@ -8,7 +8,7 @@
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/AppleFileName.h"
 #include "Machines/Apple2/Common/CpmVolume.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosTypeNames.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
@@ -30,7 +30,7 @@ uint64_t CatalogModel::GetUnitBytes (VolumeKind kind)
 
 
 
-    return isSectors                  ? (uint64_t) NibblizationLayer::kSectorByteSize
+    return isSectors                  ? (uint64_t) NibbleFormat::kSectorByteSize
          : (kind == VolumeKind::Cpm)  ? (uint64_t) CpmVolume::kBlockBytes
                                       : (uint64_t) ProDosSkeleton::kBlockByteSize;
 }

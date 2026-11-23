@@ -7,6 +7,8 @@
 #include "GuestSession.h"
 #include "KeystrokeInjector.h"
 #include "MachineIdle.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "TextScreenScraper.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 
@@ -542,8 +544,8 @@ void GuestSession::AssertTheDrivePresentsWhatWasMounted (const DiskImage        
         L"believe it, and jump into it",
         what,
         at,
-        at / ((size_t) NibblizationLayer::kSectorByteSize * NibblizationLayer::kSectorsPerTrack),
-        (at / (size_t) NibblizationLayer::kSectorByteSize) % NibblizationLayer::kSectorsPerTrack,
+        at / ((size_t) NibbleFormat::kSectorByteSize * NibbleFormat::kSectorsPerTrack),
+        (at / (size_t) NibbleFormat::kSectorByteSize) % NibbleFormat::kSectorsPerTrack,
         (unsigned) (at < mounted.size() ? mounted[at] : 0),
         (unsigned) (at < seen.size()    ? seen[at]    : 0)).c_str());
 }
@@ -574,7 +576,7 @@ void GuestSession::AssertTheDriveCanReadTheBootSector (const DiskImage  & image,
         L"into data and write a look-back per illegal opcode until something killed it",
         what).c_str());
 
-    for (i = 0; i < (size_t) NibblizationLayer::kSectorByteSize && blank; i++)
+    for (i = 0; i < (size_t) NibbleFormat::kSectorByteSize && blank; i++)
     {
         blank = sectors[i] == 0;
     }

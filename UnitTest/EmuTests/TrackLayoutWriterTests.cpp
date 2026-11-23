@@ -2,7 +2,7 @@
 
 #include "../EhmTestHelper.h"
 #include "Devices/Disk/DiskImage.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Machines/Apple2/Common/TrackLayoutWriter.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
@@ -33,7 +33,7 @@ public:
     //  A 140K image with different bytes in every sector.
     static Image  MakeSectors()
     {
-        Image  sectors (NibblizationLayer::kImageByteSize);
+        Image  sectors (NibbleFormat::kImageByteSize);
 
 
 
@@ -133,14 +133,14 @@ public:
     TEST_METHOD (Woz_ReadsBackItsSectors)
     {
         Image                     sectors = MakeSectors();
-        std::vector<TrackLayout>  layouts (NibblizationLayer::kTrackCount);
+        std::vector<TrackLayout>  layouts (NibbleFormat::kTrackCount);
         Image                     woz;
         Image                     back;
         SectorDecodeReport        report;
 
 
 
-        for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+        for (int track = 0; track < NibbleFormat::kTrackCount; track++)
         {
             layouts[(size_t) track] = (track % 2 == 0) ? TrackLayout { 0, 6337, 51244, track * 1471LL } : TrackLayout { 0 };
         }

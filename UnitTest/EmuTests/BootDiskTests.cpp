@@ -6,10 +6,10 @@
 #include "AssemblerTypes.h"
 
 #include "GuestSession.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "TestMachine.h"
 #include "KeystrokeInjector.h"
 #include "Devices/Disk/DiskImageStore.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Common/AppleHiResMode.h"
@@ -394,7 +394,7 @@ public:
                 0, 7, 14, 6, 13, 5, 12, 4, 11, 3, 10, 2, 9, 1, 8, 15
             };
 
-            std::vector<Byte>  raw (NibblizationLayer::kImageByteSize, 0);
+            std::vector<Byte>  raw (NibbleFormat::kImageByteSize, 0);
 
             for (size_t i = 0; i < asmResult.bytes.size(); i++)
             {

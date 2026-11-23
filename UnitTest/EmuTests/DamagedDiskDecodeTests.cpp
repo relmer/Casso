@@ -4,6 +4,7 @@
 
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -48,7 +49,7 @@ public:
         DamagedDisk::BuildGoodDos33 (image);
 
         AssertSucceeded (NibblizationLayer::Denibblize (image, DiskFormat::Dsk, decoded));
-        Assert::AreEqual (static_cast<size_t> (NibblizationLayer::kImageByteSize),
+        Assert::AreEqual (static_cast<size_t> (NibbleFormat::kImageByteSize),
                           decoded.size(),
                           L"a clean disk decodes to a whole image");
     }
@@ -208,7 +209,7 @@ public:
         DamagedDisk::BuildGoodDos33 (image);
         DamagedDisk::DuplicateSector (image, 20, 5);
 
-        Assert::AreEqual (NibblizationLayer::kSectorsPerTrack + 1,
+        Assert::AreEqual (NibbleFormat::kSectorsPerTrack + 1,
                           DamagedDisk::CountAddressFields (image, 20),
                           L"the splice must leave the track carrying a seventeenth address field");
 
@@ -258,7 +259,7 @@ public:
 
         DamagedDisk::BuildGoodDos33 (image);
 
-        Assert::AreEqual (NibblizationLayer::kSectorsPerTrack,
+        Assert::AreEqual (NibbleFormat::kSectorsPerTrack,
                           DamagedDisk::CountAddressFields (image, 20),
                           L"a bit-wise scan must find every address field on the track");
     }

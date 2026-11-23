@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "ExplorerWindowPartsRig.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -1254,7 +1255,7 @@ public:
         Rig                rig;
         FixtureProvider    fixtures;
         std::vector<Byte>  po;
-        std::vector<Byte>  dsk (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  dsk (NibbleFormat::kImageByteSize, 0);
         std::string        text = "[drives]\n";
 
 

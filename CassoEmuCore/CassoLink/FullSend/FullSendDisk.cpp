@@ -5,7 +5,7 @@
 #include "CassoExplorer/Model/HostFileNaming.h"
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
@@ -26,13 +26,13 @@
 
 bool FullSendDisk::IsCatalogOnTrackZero (const std::vector<Byte> & image)
 {
-    constexpr size_t   kTrackBytes = (size_t) NibblizationLayer::kSectorsPerTrack * NibblizationLayer::kSectorByteSize;
+    constexpr size_t   kTrackBytes = (size_t) NibbleFormat::kSectorsPerTrack * NibbleFormat::kSectorByteSize;
     std::vector<Byte>  zero (image.size(), 0);
     VolumeKind         kind = VolumeKind::Unknown;
 
 
 
-    if (image.size() != (size_t) NibblizationLayer::kImageByteSize)
+    if (image.size() != (size_t) NibbleFormat::kImageByteSize)
     {
         return false;
     }
@@ -56,12 +56,12 @@ bool FullSendDisk::IsCatalogOnTrackZero (const std::vector<Byte> & image)
 
 bool FullSendDisk::NeedsDirectoryTrack (const std::vector<Byte> & image)
 {
-    constexpr size_t   kTrackBytes = (size_t) NibblizationLayer::kSectorsPerTrack * NibblizationLayer::kSectorByteSize;
+    constexpr size_t   kTrackBytes = (size_t) NibbleFormat::kSectorsPerTrack * NibbleFormat::kSectorByteSize;
     std::vector<Byte>  tracks (image.size(), 0);
 
 
 
-    if (image.size() != (size_t) NibblizationLayer::kImageByteSize)
+    if (image.size() != (size_t) NibbleFormat::kImageByteSize)
     {
         return false;
     }
@@ -110,9 +110,9 @@ const char * FullSendDisk::AssessDamage (const std::vector<Byte> & image, int em
 
 HRESULT FullSendDisk::ComputeFingerprint (const std::vector<Byte> & image, std::string & outHex)
 {
-    constexpr size_t   kTrackBytes = (size_t) NibblizationLayer::kSectorsPerTrack * NibblizationLayer::kSectorByteSize;
+    constexpr size_t   kTrackBytes = (size_t) NibbleFormat::kSectorsPerTrack * NibbleFormat::kSectorByteSize;
     HRESULT            hr          = S_OK;
-    bool               sized       = image.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool               sized       = image.size() == (size_t) NibbleFormat::kImageByteSize;
     std::vector<Byte>  tracks;
 
 
@@ -318,7 +318,7 @@ Error:
 
 size_t FullSendDisk::GetDosSectorOffset (int track, int sector)
 {
-    return ((size_t) track * NibblizationLayer::kSectorsPerTrack + (size_t) sector) * NibblizationLayer::kSectorByteSize;
+    return ((size_t) track * NibbleFormat::kSectorsPerTrack + (size_t) sector) * NibbleFormat::kSectorByteSize;
 }
 
 
@@ -353,7 +353,7 @@ int FullSendDisk::FindDosEntries (const std::vector<Byte> & image, Byte & outLis
 
 
 
-    for (int hop = 0; hop < kMostSectors && track != 0 && GetDosSectorOffset (track, sector) + NibblizationLayer::kSectorByteSize <= image.size(); hop++)
+    for (int hop = 0; hop < kMostSectors && track != 0 && GetDosSectorOffset (track, sector) + NibbleFormat::kSectorByteSize <= image.size(); hop++)
     {
         size_t  at = GetDosSectorOffset (track, sector);
 
@@ -406,7 +406,7 @@ int FullSendDisk::FindLoneProgramTrack (const std::vector<Byte> & image)
 
 
 
-    return (lone && (type == kInteger || type == kApplesoft) && sectors <= kGreetingSectors && listTrack < NibblizationLayer::kTrackCount) ? listTrack : -1;
+    return (lone && (type == kInteger || type == kApplesoft) && sectors <= kGreetingSectors && listTrack < NibbleFormat::kTrackCount) ? listTrack : -1;
 }
 
 
@@ -421,7 +421,7 @@ int FullSendDisk::FindLoneProgramTrack (const std::vector<Byte> & image)
 
 bool FullSendDisk::IsTrackZero (const std::vector<Byte> & image, int track)
 {
-    size_t  size  = (size_t) NibblizationLayer::kSectorsPerTrack * NibblizationLayer::kSectorByteSize;
+    size_t  size  = (size_t) NibbleFormat::kSectorsPerTrack * NibbleFormat::kSectorByteSize;
     size_t  start = (size_t) track * size;
 
 
@@ -487,7 +487,7 @@ bool FullSendDisk::IsBlank (const std::vector<Byte> & image, std::span<const int
 
         list = GetDosSectorOffset (track, sector);
 
-        if (list + NibblizationLayer::kSectorByteSize <= image.size() && image[list + kFirstPair] != 0 && image[list + kFirstPair] < NibblizationLayer::kTrackCount && have (image[list + kFirstPair]))
+        if (list + NibbleFormat::kSectorByteSize <= image.size() && image[list + kFirstPair] != 0 && image[list + kFirstPair] < NibbleFormat::kTrackCount && have (image[list + kFirstPair]))
         {
             data   = GetDosSectorOffset (image[list + kFirstPair], image[list + kFirstPair + 1]);
             length = (data + kProgramAt + 2 <= image.size()) ? (image[data] | (image[data + 1] << 8)) : INT_MAX;

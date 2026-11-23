@@ -3,6 +3,7 @@
 #include "Devices/Disk/Inspector/TrackAnalyzer.h"
 #include "Devices/Disk/Inspector/StandardTrackDecoder.h"
 #include "Devices/Disk/FluxTrack.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 
 
@@ -307,7 +308,7 @@ void TrackAnalyzer::BuildSectors (TrackAnalysis & inOut, const DecodeChecks & ch
 void TrackAnalyzer::MapLogical (int physicalTrack, AnalyzedSector & inOut)
 {
     static constexpr int  kHalvesPerBlock = 2;
-    static constexpr int  kBlocksPerTrack = NibblizationLayer::kSectorsPerTrack / kHalvesPerBlock;
+    static constexpr int  kBlocksPerTrack = NibbleFormat::kSectorsPerTrack / kHalvesPerBlock;
 
 
 
@@ -315,7 +316,7 @@ void TrackAnalyzer::MapLogical (int physicalTrack, AnalyzedSector & inOut)
 
 
 
-    if (inOut.kind != DiskFieldKind::Sixteen || inOut.sector >= NibblizationLayer::kSectorsPerTrack)
+    if (inOut.kind != DiskFieldKind::Sixteen || inOut.sector >= NibbleFormat::kSectorsPerTrack)
     {
         return;
     }

@@ -3,6 +3,7 @@
 #include "FakeImageWatcher.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Devices/Disk/CommitPlan.h"
@@ -247,7 +248,7 @@ public:
         //  Puts an image on "disk" with a distinct byte pattern.
         void  WriteImage (const std::string & path, Byte fill)
         {
-            files[path] = vector<Byte> (NibblizationLayer::kImageByteSize, fill);
+            files[path] = vector<Byte> (NibbleFormat::kImageByteSize, fill);
             Stamp (path);
         }
 
@@ -320,7 +321,7 @@ public:
     static vector<Byte> MakeWoz()
     {
         DiskImage     src;
-        vector<Byte>  sectors (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>  sectors (NibbleFormat::kImageByteSize, 0);
         vector<Byte>  woz;
 
         AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, src));
@@ -2430,7 +2431,7 @@ public:
     TEST_METHOD (AMountFromBytesIsNeverStaleCheckedIntoARefusedFlush)
     {
         Rig           rig;
-        vector<Byte>  bytes (NibblizationLayer::kImageByteSize, 0x55);
+        vector<Byte>  bytes (NibbleFormat::kImageByteSize, 0x55);
 
 
 

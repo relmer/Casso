@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/FluxBitView.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/WozLoader.h"
@@ -28,12 +29,12 @@ TEST_CLASS (FluxSectorAccessTests)
 {
 public:
 
-    static constexpr int     kTracks      = NibblizationLayer::kTrackCount;
-    static constexpr size_t  kSectorBytes = NibblizationLayer::kSectorByteSize;
+    static constexpr int     kTracks      = NibbleFormat::kTrackCount;
+    static constexpr size_t  kSectorBytes = NibbleFormat::kSectorByteSize;
 
     static vector<Byte> MakeSectors()
     {
-        vector<Byte>  sectors (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>  sectors (NibbleFormat::kImageByteSize, 0);
         size_t        i = 0;
 
         for (i = 0; i < sectors.size(); i++)

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/Components/ShellDisks.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Shell/Components/ShellDrivePickers.h"
 #include "Shell/Components/ShellAudio.h"
 #include "Shell/DiskManager.h"

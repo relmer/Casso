@@ -3,6 +3,7 @@
 #include "FakeDiskFileIo.h"
 #include "FluxTestImages.h"
 #include "GuestSession.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "TestMachine.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
@@ -38,7 +39,7 @@ public:
 
     static constexpr int     kSlot          = 6;
     static constexpr int     kDrive         = 0;
-    static constexpr int     kTracks        = NibblizationLayer::kTrackCount;
+    static constexpr int     kTracks        = NibbleFormat::kTrackCount;
     static constexpr size_t  kStretchBits   = 3000;
     static constexpr double  kSpeedSpread   = 1.03;
     static constexpr size_t  kPayloadBytes  = 256;

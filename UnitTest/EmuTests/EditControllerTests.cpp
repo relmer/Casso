@@ -2,6 +2,7 @@
 
 #include "../EhmTestHelper.h"
 #include "Devices/Disk/Inspector/DiskAnalyzer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Ui/DiskInspector/EditController.h"
 #include "InspectorTrackBuilder.h"
@@ -31,7 +32,7 @@ public:
     //  first byte of every sector $C1 so the text column has a high bit set.
     static void AnalyzePlanted (DiskAnalysis & out)
     {
-        vector<Byte>                                     sectors (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>                                     sectors (NibbleFormat::kImageByteSize, 0);
         DiskImage                                        image;
         InspectorTrackBuilder                            odd;
         std::array<Byte, DiskFieldFormat::kSectorBytes>  bytes = {};
@@ -53,7 +54,7 @@ public:
             odd.AppendSync         (20);
         }
 
-        odd.PadToCells (NibblizationLayer::kTrackBitCapacity);
+        odd.PadToCells (NibbleFormat::kTrackBitCapacity);
         odd.PackBits (image.GetTrackBitsForWrite (5));
         image.SetTrackBitCount (5, odd.GetCellCount());
 

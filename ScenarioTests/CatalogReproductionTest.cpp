@@ -8,7 +8,6 @@
 #include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "MachineIdle.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;

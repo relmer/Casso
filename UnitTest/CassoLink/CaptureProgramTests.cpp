@@ -8,9 +8,9 @@
 #include "CassoLink/Session/CaptureStream.h"
 #include "CassoLink/Session/CassoLinkCapture.h"
 #include "CassoLink/Session/CassoLinkThirteenSector.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Machines/Apple2/Common/ThirteenSectorCodec.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskFieldFormat.h"
@@ -434,7 +434,7 @@ public:
 
         for (int number = 0; number < kSectors; number++)
         {
-            std::vector<Byte>  data (NibblizationLayer::kSectorByteSize);
+            std::vector<Byte>  data (NibbleFormat::kSectorByteSize);
             std::vector<Byte>  nibbles;
 
             revolution.insert (revolution.end(), kSyncs, 0xFF);
@@ -495,7 +495,7 @@ public:
 
             FrameTrack (image, image.ResolveQuarterTrack (0), framed);
 
-            for (size_t at = 0; !decoded && at + 20 + NibblizationLayer::kDataNibbleCount < framed.size(); at++)
+            for (size_t at = 0; !decoded && at + 20 + NibbleFormat::kDataNibbleCount < framed.size(); at++)
             {
                 bool  address = framed[at] == 0xD5 && framed[at + 1] == 0xAA && framed[at + 2] == 0x96;
                 int   number  = address ? (((framed[at + 7] << 1) | 1) & framed[at + 8]) : -1;
@@ -544,7 +544,7 @@ public:
 
         for (int number = 0; number < kSectors; number++)
         {
-            std::vector<Byte>  data (NibblizationLayer::kSectorByteSize);
+            std::vector<Byte>  data (NibbleFormat::kSectorByteSize);
             std::vector<Byte>  nibbles;
 
             revolution.insert (revolution.end(), number == 0 ? kGapSyncs : kSyncs, 0xFF);
@@ -630,7 +630,7 @@ public:
 
         for (int number = 0; number < kSectors; number++)
         {
-            std::vector<Byte>  data (NibblizationLayer::kSectorByteSize);
+            std::vector<Byte>  data (NibbleFormat::kSectorByteSize);
             std::vector<Byte>  nibbles;
 
             revolution.insert (revolution.end(), kSyncs, 0xFF);
@@ -723,7 +723,7 @@ public:
 
             for (int number = 0; number < kSectors; number++)
             {
-                std::vector<Byte>  data (NibblizationLayer::kSectorByteSize);
+                std::vector<Byte>  data (NibbleFormat::kSectorByteSize);
                 std::vector<Byte>  nibbles;
 
                 revolution.insert (revolution.end(), kSyncs, 0xFF);
@@ -808,7 +808,7 @@ public:
 
             for (int number = 0; number < kSectors; number++)
             {
-                std::vector<Byte>  data (NibblizationLayer::kSectorByteSize);
+                std::vector<Byte>  data (NibbleFormat::kSectorByteSize);
                 std::vector<Byte>  nibbles;
                 bool               odd = number == kOdd;
 
@@ -913,7 +913,7 @@ public:
 
             for (int number = 0; number < kSectors; number++)
             {
-                std::vector<Byte>  data (NibblizationLayer::kSectorByteSize);
+                std::vector<Byte>  data (NibbleFormat::kSectorByteSize);
                 std::vector<Byte>  nibbles;
 
                 revolution.insert (revolution.end(), { 0xD5, 0xAA, 0x96 });
@@ -1062,7 +1062,7 @@ public:
 
         for (int number = 0; number < kSectors; number++)
         {
-            std::vector<Byte>  data (NibblizationLayer::kSectorByteSize);
+            std::vector<Byte>  data (NibbleFormat::kSectorByteSize);
             std::vector<Byte>  nibbles;
 
             revolution.insert (revolution.end(), kSyncs, 0xFF);

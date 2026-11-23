@@ -2,16 +2,16 @@
 
 #include "Machines/Apple2/Common/NibbleFieldWriter.h"
 #include "Devices/Disk/DiskFieldFormat.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 
 
 
 
 
-static constexpr Byte  kAddrProlog0 = NibblizationLayer::kProlog0;
-static constexpr Byte  kAddrProlog1 = NibblizationLayer::kProlog1;
-static constexpr Byte  kAddrProlog2 = NibblizationLayer::kAddressProlog2;
-static constexpr Byte  kDataProlog2 = NibblizationLayer::kDataProlog2;
+static constexpr Byte  kAddrProlog0 = NibbleFormat::kProlog0;
+static constexpr Byte  kAddrProlog1 = NibbleFormat::kProlog1;
+static constexpr Byte  kAddrProlog2 = NibbleFormat::kAddressProlog2;
+static constexpr Byte  kDataProlog2 = NibbleFormat::kDataProlog2;
 static constexpr Byte  kEpilog0     = 0xDE;
 static constexpr Byte  kEpilog1     = 0xAA;
 static constexpr Byte  kEpilog2     = 0xEB;
@@ -175,7 +175,7 @@ void NibbleFieldWriter::AppendDataField (
     PackNibbleBits (dst, bitOffset, kAddrProlog1);
     PackNibbleBits (dst, bitOffset, kDataProlog2);
 
-    DiskFieldFormat::EncodeData (DiskFieldKind::Sixteen, std::span<const Byte> (sectorData, NibblizationLayer::kSectorByteSize), nibbles, checksum);
+    DiskFieldFormat::EncodeData (DiskFieldKind::Sixteen, std::span<const Byte> (sectorData, NibbleFormat::kSectorByteSize), nibbles, checksum);
     nibbles.push_back (checksum);
 
     for (Byte nibble : nibbles)

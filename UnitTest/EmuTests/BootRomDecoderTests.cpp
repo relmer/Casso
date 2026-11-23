@@ -1,7 +1,7 @@
 #include "Pch.h"
 #include "GuestSession.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "TestMachine.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -69,7 +69,7 @@ public:
 
 
 
-        vector<Byte>   raw (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>   raw (NibbleFormat::kImageByteSize, 0);
 
         // A .dsk holds its sectors in DOS logical order: logical sector S of
         // track T starts at file offset (T * 16 + S) * 256. The DOS 3.3

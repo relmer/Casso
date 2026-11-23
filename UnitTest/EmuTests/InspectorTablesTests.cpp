@@ -4,6 +4,7 @@
 #include "Devices/Disk/Inspector/DiskAnalyzer.h"
 #include "Devices/Disk/Inspector/FindingFormatter.h"
 #include "Devices/Disk/Inspector/InspectorFormat.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Ui/DiskInspector/FindBar.h"
 #include "Ui/DiskInspector/FindSession.h"
@@ -37,7 +38,7 @@ public:
     //  track with data.
     static void AnalyzePlanted (DiskAnalysis & out, const DecodeSettings & settings = DecodeSettings::MakeStandard(), bool isWholeDisk = true)
     {
-        vector<Byte>           sectors (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>           sectors (NibbleFormat::kImageByteSize, 0);
         DiskImage                                        image;
         InspectorTrackBuilder                            odd;
         std::array<Byte, DiskFieldFormat::kSectorBytes>  bytes = {};
@@ -61,7 +62,7 @@ public:
             odd.AppendSync         (20);
         }
 
-        odd.PadToCells (NibblizationLayer::kTrackBitCapacity);
+        odd.PadToCells (NibbleFormat::kTrackBitCapacity);
         odd.PackBits (image.GetTrackBitsForWrite (5));
         image.SetTrackBitCount (5, odd.GetCellCount());
 

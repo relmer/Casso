@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/RdosVolume.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/ThirteenSectorCodec.h"
 
@@ -255,7 +256,7 @@ RdosVolume::Layout RdosVolume::DetectLayout (const vector<Byte> & sectors)
     Layout       layout   = Layout::None;
     bool         thirteen = sectors.size() == ThirteenSectorCodec::kImageByteSize;
     size_t       at       = (size_t) (kCatalogTrack * (thirteen ? s_kSectorsRdos3 : kBufferSectorsPerTrack)) * kSectorBytes;
-    bool         isFound  = thirteen || sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool         isFound  = thirteen || sectors.size() == (size_t) NibbleFormat::kImageByteSize;
     uint32_t     count    = 0;
     std::string  name;
 

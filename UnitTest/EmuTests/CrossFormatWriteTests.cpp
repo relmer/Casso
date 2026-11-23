@@ -2,6 +2,7 @@
 #include "../EhmTestHelper.h"
 #include "FixtureProvider.h"
 #include "GuestSession.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "TestMachine.h"
 #include "MachineIdle.h"
 #include "TextScreenScraper.h"
@@ -121,7 +122,7 @@ public:
         vector<Byte>     bytes;
 
         AssertSucceeded (fixtures.OpenFixture (relativePath, bytes));
-        Assert::AreEqual (size_t (NibblizationLayer::kImageByteSize), bytes.size(),
+        Assert::AreEqual (size_t (NibbleFormat::kImageByteSize), bytes.size(),
             L"a fixture volume must be a full sector image");
 
         return bytes;
@@ -273,7 +274,7 @@ public:
 
             Assert::AreNotEqual (SIZE_MAX, addrAt, L"the track must carry address fields to corrupt");
 
-            PatchFieldChecksum (bits, addrAt, NibblizationLayer::kDefaultVolume, (Byte) track);
+            PatchFieldChecksum (bits, addrAt, NibbleFormat::kDefaultVolume, (Byte) track);
         }
 
         AssertSucceeded (WozLoader::Serialize (img, woz));
@@ -310,7 +311,7 @@ public:
 
         AssertSucceeded (VolumeImage::Save (sectors, "merlin.po", sectors, po, reason));
 
-        Assert::AreEqual (size_t (NibblizationLayer::kImageByteSize), po.size(),
+        Assert::AreEqual (size_t (NibbleFormat::kImageByteSize), po.size(),
             L"a ProDOS-ordered image is the same length as the sectors it holds");
 
         Assert::AreEqual ((int) kVolumeDirStorage, (int) (po[header] & 0xF0),
@@ -522,7 +523,7 @@ public:
         AssertSucceeded (WozLoader::Load (woz,     before));
         AssertSucceeded (WozLoader::Load (written, after));
 
-        for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+        for (track = 0; track < NibbleFormat::kTrackCount; track++)
         {
             bool  touched = Contains (changed, track);
 
@@ -755,7 +756,7 @@ public:
 
         Assert::AreEqual (dskImage->GetTrackCount(), poImage->GetTrackCount());
 
-        for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+        for (track = 0; track < NibbleFormat::kTrackCount; track++)
         {
             Assert::AreEqual (dskImage->GetTrackBitCount (track), poImage->GetTrackBitCount (track),
                 L"every track must be the same length on both");

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DiskImageStore.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "Machines/Apple2/Common/WozLoader.h"
@@ -735,7 +736,7 @@ MountDiagnosis DiskImageStore::ClassifyLoadFailure (DiskFormat fmt, const vector
     size_t          size       = bytes.size();
     size_t          trackSize  = 0;
     bool            hasNibble  = false;
-    bool            isSized    = size == (size_t) NibblizationLayer::kImageByteSize;
+    bool            isSized    = size == (size_t) NibbleFormat::kImageByteSize;
 
 
 
@@ -1661,7 +1662,7 @@ HRESULT DiskImageStore::AssessSalvage (int slot, int drive, SalvageAssessment & 
         hr = DecodeForSalvage (entry, sectors, out.report);
         CHR (hr);
 
-        out.totalSectors = out.report.tracksPresent * NibblizationLayer::kSectorsPerTrack;
+        out.totalSectors = out.report.tracksPresent * NibbleFormat::kSectorsPerTrack;
 
         // A track with no standard structure at all is the signature of copy
         // protection, and rebuilding from sectors would destroy it.

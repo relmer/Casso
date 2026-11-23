@@ -7,6 +7,7 @@
 #include "CassoLink/FullSend/FullSendDriveCheck.h"
 #include "CassoLink/FullSend/FullSendLink.h"
 #include "CassoLink/FullSend/FullSendStatus.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 
 
@@ -466,7 +467,7 @@ HRESULT FullSendDiskSend::CheckVolume (Sending & disk)
     m_context.Report (std::format ("The disk in drive {} doesn't use volume {}, so it can't be saved as a {} image. Preserving its volume {} by saving it as a WOZ image instead.",
                                    disk.drive, imageVolume, FullSendDisk::GetImageExtension (image.sectors, m_context.folder.GetExtension()), layouts[0].volume), disk.drive);
 
-    hr = m_context.link.MeasureLayouts (disk.drive, NibblizationLayer::kTrackCount, image.report.layouts);
+    hr = m_context.link.MeasureLayouts (disk.drive, NibbleFormat::kTrackCount, image.report.layouts);
     CHR (hr);
 
 Error:
@@ -613,7 +614,7 @@ void FullSendDiskSend::BuildRow (Sending & disk, int sequence, const std::string
     row.recovered      = (int) std::count_if (marks.begin(), marks.end(), [] (const SectorMark & mark) { return mark.mark == 'R'; });
     row.unreliable     = (int) std::count_if (marks.begin(), marks.end(), [] (const SectorMark & mark) { return mark.mark == 'U'; });
     row.verification   = read == 0                              ? FullSendManifest::kVerifyNone
-                       : read >= NibblizationLayer::kTrackCount ? FullSendManifest::kVerifyFull
+                       : read >= NibbleFormat::kTrackCount ? FullSendManifest::kVerifyFull
                                                                 : FullSendManifest::kVerifyPartial;
     row.writeProtected = m_context.link.IsWriteProtected (disk.drive);
 

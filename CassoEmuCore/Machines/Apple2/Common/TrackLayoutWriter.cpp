@@ -1,8 +1,10 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/TrackLayoutWriter.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Devices/Disk/DiskFieldFormat.h"
 #include "Devices/Disk/DiskImage.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 
 
@@ -22,14 +24,14 @@
 HRESULT TrackLayoutWriter::BuildTrack (const std::vector<Byte> & sectors, int track, const TrackLayout & layout, std::vector<uint8_t> & outBits)
 {
     HRESULT               hr        = S_OK;
-    int                   gapNibs   = layout.nibbles - NibblizationLayer::kSectorsPerTrack * kFieldNibbles;
-    int                   zeros     = layout.bits - NibblizationLayer::kSectorsPerTrack * kFieldBits - 8 * gapNibs;
+    int                   gapNibs   = layout.nibbles - NibbleFormat::kSectorsPerTrack * kFieldNibbles;
+    int                   zeros     = layout.bits - NibbleFormat::kSectorsPerTrack * kFieldBits - 8 * gapNibs;
     int                   syncs     = (zeros + 1) / 2;
     int                   fills     = gapNibs - syncs;
     long long             start0    = 0;
     long long             length    = 0;
     long long             shift     = 0;
-    bool                  isWhole   = sectors.size() >= (size_t) NibblizationLayer::kImageByteSize;
+    bool                  isWhole   = sectors.size() >= (size_t) NibbleFormat::kImageByteSize;
     bool                  isFit     = IsFeasible (layout);
     std::vector<uint8_t>  bits;
 
@@ -37,15 +39,15 @@ HRESULT TrackLayoutWriter::BuildTrack (const std::vector<Byte> & sectors, int tr
 
     outBits.clear();
 
-    CBREx (track >= 0 && track < NibblizationLayer::kTrackCount && isWhole, E_INVALIDARG);
+    CBREx (track >= 0 && track < NibbleFormat::kTrackCount && isWhole, E_INVALIDARG);
     CBREx (isFit, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     bits.reserve ((size_t) layout.bits);
 
-    for (int physical = 0; physical < NibblizationLayer::kSectorsPerTrack; physical++)
+    for (int physical = 0; physical < NibbleFormat::kSectorsPerTrack; physical++)
     {
-        int  gapFills = fills / NibblizationLayer::kSectorsPerTrack + (physical < fills % NibblizationLayer::kSectorsPerTrack ? 1 : 0);
-        int  gapSyncs = syncs / NibblizationLayer::kSectorsPerTrack + (physical < syncs % NibblizationLayer::kSectorsPerTrack ? 1 : 0);
+        int  gapFills = fills / NibbleFormat::kSectorsPerTrack + (physical < fills % NibbleFormat::kSectorsPerTrack ? 1 : 0);
+        int  gapSyncs = syncs / NibbleFormat::kSectorsPerTrack + (physical < syncs % NibbleFormat::kSectorsPerTrack ? 1 : 0);
 
         for (int i = 0; i < gapFills; i++)
         {
@@ -94,7 +96,7 @@ Error:
 HRESULT TrackLayoutWriter::BuildWoz (const std::vector<Byte> & sectors, const std::vector<TrackLayout> & layouts, std::vector<Byte> & outWoz)
 {
     HRESULT               hr        = S_OK;
-    bool                  isEvery   = layouts.size() == (size_t) NibblizationLayer::kTrackCount;
+    bool                  isEvery   = layouts.size() == (size_t) NibbleFormat::kTrackCount;
     DiskImage             image;
     std::vector<uint8_t>  bits;
 
@@ -107,7 +109,7 @@ HRESULT TrackLayoutWriter::BuildWoz (const std::vector<Byte> & sectors, const st
     hr = NibblizationLayer::NibblizeDsk (sectors, image);
     CHR (hr);
 
-    for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+    for (int track = 0; track < NibbleFormat::kTrackCount; track++)
     {
         TrackLayout  layout = layouts[(size_t) track];
 
@@ -151,13 +153,13 @@ Error:
 
 bool TrackLayoutWriter::IsFeasible (const TrackLayout & layout)
 {
-    int  gapNibs = layout.nibbles - NibblizationLayer::kSectorsPerTrack * kFieldNibbles;
-    int  zeros   = layout.bits - NibblizationLayer::kSectorsPerTrack * kFieldBits - 8 * gapNibs;
+    int  gapNibs = layout.nibbles - NibbleFormat::kSectorsPerTrack * kFieldNibbles;
+    int  zeros   = layout.bits - NibbleFormat::kSectorsPerTrack * kFieldBits - 8 * gapNibs;
     int  syncs   = (zeros + 1) / 2;
 
 
 
-    return syncs >= NibblizationLayer::kSectorsPerTrack * kMinGapSyncs && gapNibs - syncs >= 0;
+    return syncs >= NibbleFormat::kSectorsPerTrack * kMinGapSyncs && gapNibs - syncs >= 0;
 }
 
 
@@ -199,15 +201,15 @@ void TrackLayoutWriter::PutSector (std::vector<uint8_t> & ioBits, const std::vec
     Byte               trackByte    = (Byte) track;
     Byte               sectorByte   = (Byte) physical;
     Byte               checksum     = (Byte) (volume ^ trackByte ^ sectorByte);
-    size_t             offset       = ((size_t) track * NibblizationLayer::kSectorsPerTrack + (size_t) NibblizationLayer::GetDosFileIndexForPhysicalSector (physical)) * NibblizationLayer::kSectorByteSize;
+    size_t             offset       = ((size_t) track * NibbleFormat::kSectorsPerTrack + (size_t) NibblizationLayer::GetDosFileIndexForPhysicalSector (physical)) * NibbleFormat::kSectorByteSize;
     Byte               dataChecksum = 0;
     std::vector<Byte>  data;
 
 
 
-    PutNibble (ioBits, NibblizationLayer::kProlog0, 0);
-    PutNibble (ioBits, NibblizationLayer::kProlog1, 0);
-    PutNibble (ioBits, NibblizationLayer::kAddressProlog2, 0);
+    PutNibble (ioBits, NibbleFormat::kProlog0, 0);
+    PutNibble (ioBits, NibbleFormat::kProlog1, 0);
+    PutNibble (ioBits, NibbleFormat::kAddressProlog2, 0);
 
     for (Byte value : { volume, trackByte, sectorByte, checksum })
     {
@@ -224,12 +226,12 @@ void TrackLayoutWriter::PutSector (std::vector<uint8_t> & ioBits, const std::vec
         PutNibble (ioBits, 0xFF, 2);
     }
 
-    DiskFieldFormat::EncodeData (DiskFieldKind::Sixteen, std::span<const Byte> (&sectors[offset], NibblizationLayer::kSectorByteSize), data, dataChecksum);
+    DiskFieldFormat::EncodeData (DiskFieldKind::Sixteen, std::span<const Byte> (&sectors[offset], NibbleFormat::kSectorByteSize), data, dataChecksum);
     data.push_back (dataChecksum);
 
-    PutNibble (ioBits, NibblizationLayer::kProlog0, 0);
-    PutNibble (ioBits, NibblizationLayer::kProlog1, 0);
-    PutNibble (ioBits, NibblizationLayer::kDataProlog2, 0);
+    PutNibble (ioBits, NibbleFormat::kProlog0, 0);
+    PutNibble (ioBits, NibbleFormat::kProlog1, 0);
+    PutNibble (ioBits, NibbleFormat::kDataProlog2, 0);
 
     for (Byte nibble : data)
     {

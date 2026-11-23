@@ -5,6 +5,7 @@
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
@@ -251,7 +252,7 @@ public:
 
     vector<Byte> BlankDos33Sectors()
     {
-        vector<Byte>  buffer (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>  buffer (NibbleFormat::kImageByteSize, 0);
 
         AssertSucceeded (Dos33Skeleton::Write (buffer, kBlankVolumeNumber));
 

@@ -4,7 +4,6 @@
 #include "../EmuTests/FixtureProvider.h"
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/CassoLinkPacketText.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "FakeApple.h"
 #include "ProgramRig.h"
 

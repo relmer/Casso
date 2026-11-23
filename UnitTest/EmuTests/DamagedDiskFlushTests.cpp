@@ -4,6 +4,7 @@
 
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 
@@ -89,7 +90,7 @@ public:
 
         Assert::IsTrue (SUCCEEDED (hr), L"flushing a healthy dirty image must succeed");
         Assert::AreEqual (1, writes, L"and must write it back");
-        Assert::AreEqual (static_cast<size_t> (NibblizationLayer::kImageByteSize), written,
+        Assert::AreEqual (static_cast<size_t> (NibbleFormat::kImageByteSize), written,
                           L"as a whole image, not a truncated one");
     }
 

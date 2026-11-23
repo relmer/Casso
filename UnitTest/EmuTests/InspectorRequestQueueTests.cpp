@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "../EhmTestHelper.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Shell/InspectorRequestQueue.h"
 
@@ -45,7 +46,7 @@ public:
 
     static void MakeSource (FakeSource & source)
     {
-        vector<Byte>  sectors (NibblizationLayer::kImageByteSize, 0x11);
+        vector<Byte>  sectors (NibbleFormat::kImageByteSize, 0x11);
 
 
 
@@ -96,7 +97,7 @@ public:
         FakeSource              source;
         InspectorRequestQueue   queue;
         vector<InspectorReply>  replies;
-        vector<Byte>            sectors (NibblizationLayer::kImageByteSize, 0x22);
+        vector<Byte>            sectors (NibbleFormat::kImageByteSize, 0x22);
 
 
 
@@ -478,7 +479,7 @@ public:
         reply = DrainOne (queue, source);
 
         Assert::IsNotNull (reply.sourceBytes.get(), reply.reason.c_str());
-        Assert::AreEqual  (static_cast<size_t> (NibblizationLayer::kImageByteSize), reply.sourceBytes->size());
+        Assert::AreEqual  (static_cast<size_t> (NibbleFormat::kImageByteSize), reply.sourceBytes->size());
         Assert::IsTrue    (std::search (reply.sourceBytes->begin(), reply.sourceBytes->end(), run.begin(), run.end()) != reply.sourceBytes->end(), L"the copy has the sector's new bytes");
         Assert::IsTrue    (TrackCopy::MakeFromImage (source.image, before->slot)->bits == before->bits, L"the drive's disk is unchanged");
         Assert::IsFalse   (source.image.IsDirty());

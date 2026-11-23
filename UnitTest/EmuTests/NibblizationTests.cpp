@@ -2,6 +2,7 @@
 #include "../EhmTestHelper.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/TrackWritability.h"
@@ -111,16 +112,16 @@ public:
         const SectorDecodeReport  & report,
         int                         track)
     {
-        const size_t  kSectorBytes = NibblizationLayer::kSectorByteSize;
+        const size_t  kSectorBytes = NibbleFormat::kSectorByteSize;
         int           sector       = 0;
         size_t        i            = 0;
 
 
 
-        for (sector = 0; sector < NibblizationLayer::kSectorsPerTrack; sector++)
+        for (sector = 0; sector < NibbleFormat::kSectorsPerTrack; sector++)
         {
             bool    covered = report.IsSectorRecovered (track, sector);
-            size_t  base    = (static_cast<size_t> (track) * NibblizationLayer::kSectorsPerTrack
+            size_t  base    = (static_cast<size_t> (track) * NibbleFormat::kSectorsPerTrack
                             + static_cast<size_t> (sector)) * kSectorBytes;
 
             if (!covered)
@@ -137,7 +138,7 @@ public:
     }
 
 
-    static constexpr int      kImageSize = NibblizationLayer::kImageByteSize;
+    static constexpr int      kImageSize = NibbleFormat::kImageByteSize;
     static constexpr int      kPattern1  = 0x55;
     static constexpr int      kPattern2  = 0xAA;
 
@@ -395,15 +396,15 @@ public:
     //  other disk's with 254.
     TEST_METHOD (ImageVolume_IsTheVtocsOnADos33Disk_And254OnAnyOther)
     {
-        vector<Byte>  dos (NibblizationLayer::kImageByteSize, 0);
-        vector<Byte>  prodos (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>  dos (NibbleFormat::kImageByteSize, 0);
+        vector<Byte>  prodos (NibbleFormat::kImageByteSize, 0);
 
         AssertSucceeded (Dos33Skeleton::Write (dos, 7));
         AssertSucceeded (ProDosSkeleton::Write (prodos, "DATA"));
 
         Assert::AreEqual ((Byte) 7, NibblizationLayer::GetImageVolume (dos));
-        Assert::AreEqual (NibblizationLayer::kDefaultVolume, NibblizationLayer::GetImageVolume (prodos));
-        Assert::AreEqual (NibblizationLayer::kDefaultVolume, NibblizationLayer::GetImageVolume (vector<Byte> (100, 0)), L"A short image");
+        Assert::AreEqual (NibbleFormat::kDefaultVolume, NibblizationLayer::GetImageVolume (prodos));
+        Assert::AreEqual (NibbleFormat::kDefaultVolume, NibblizationLayer::GetImageVolume (vector<Byte> (100, 0)), L"A short image");
     }
 
     TEST_METHOD (DskReformatRewrite_serializesToNewContentNotStale)
@@ -934,7 +935,7 @@ public:
 
             victim = ReadFieldSector (bits, firstAt);
 
-            PatchFieldSector (bits, nextAt, NibblizationLayer::kDefaultVolume,
+            PatchFieldSector (bits, nextAt, NibbleFormat::kDefaultVolume,
                               static_cast<Byte> (kTrack), victim);
         }
 
@@ -967,7 +968,7 @@ public:
 
             Assert::AreNotEqual (SIZE_MAX, addrAt, L"the track must carry address fields to corrupt");
 
-            PatchFieldSector (bits, addrAt, NibblizationLayer::kDefaultVolume,
+            PatchFieldSector (bits, addrAt, NibbleFormat::kDefaultVolume,
                               static_cast<Byte> (kTrack), kBogus);
         }
 
@@ -1011,7 +1012,7 @@ public:
 
             // Break only the checksum: the header still parses, and is refused
             // because it cannot be trusted rather than because it is unreadable.
-            PatchFieldChecksum (bits, addrAt, NibblizationLayer::kDefaultVolume,
+            PatchFieldChecksum (bits, addrAt, NibbleFormat::kDefaultVolume,
                                 static_cast<Byte> (kTrack));
         }
 
@@ -1051,7 +1052,7 @@ public:
 
             Assert::AreNotEqual (SIZE_MAX, addrAt, L"the track must carry address fields to corrupt");
 
-            PatchFieldChecksum (bits, addrAt, NibblizationLayer::kDefaultVolume,
+            PatchFieldChecksum (bits, addrAt, NibbleFormat::kDefaultVolume,
                                 static_cast<Byte> (kTrack));
         }
 
@@ -1104,11 +1105,11 @@ public:
         // see it and the file was unreadable only on a real machine.
         constexpr int     kBlocksPerTrack = 8;
         constexpr int     kHalvesPerBlock = 2;
-        constexpr size_t  kHalfBytes      = (size_t) NibblizationLayer::kSectorByteSize;
+        constexpr size_t  kHalfBytes      = (size_t) NibbleFormat::kSectorByteSize;
         int               block           = 0;
         int               half            = 0;
         int               seen            = 0;
-        vector<bool>      claimed (NibblizationLayer::kSectorsPerTrack, false);
+        vector<bool>      claimed (NibbleFormat::kSectorsPerTrack, false);
 
 
 
@@ -1130,7 +1131,7 @@ public:
             }
         }
 
-        Assert::AreEqual (NibblizationLayer::kSectorsPerTrack, seen,
+        Assert::AreEqual (NibbleFormat::kSectorsPerTrack, seen,
             L"all sixteen sectors of a track must be accounted for, or this compared nothing");
     }
 
@@ -1154,7 +1155,7 @@ public:
         edited = raw;
 
         // Change a byte that lives on the touched track only.
-        edited[static_cast<size_t> (kTouched) * 16 * NibblizationLayer::kSectorByteSize] ^= 0xFF;
+        edited[static_cast<size_t> (kTouched) * 16 * NibbleFormat::kSectorByteSize] ^= 0xFF;
 
         AssertSucceeded (NibblizationLayer::RenibblizeTracks (edited, DiskFormat::Dsk, tracks, img));
 
@@ -1185,7 +1186,7 @@ public:
         const int           kTouched = 4;
         int                 tracks[] = { kTouched };
         size_t              at       = static_cast<size_t> (kTouched) * 16
-                                     * NibblizationLayer::kSectorByteSize;
+                                     * NibbleFormat::kSectorByteSize;
 
         AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, img));
 
@@ -1241,7 +1242,7 @@ public:
 
             Assert::AreNotEqual (SIZE_MAX, addrAt, L"the track must carry address fields to corrupt");
 
-            PatchFieldChecksum (bits, addrAt, NibblizationLayer::kDefaultVolume,
+            PatchFieldChecksum (bits, addrAt, NibbleFormat::kDefaultVolume,
                                 static_cast<Byte> (kDamaged));
         }
 

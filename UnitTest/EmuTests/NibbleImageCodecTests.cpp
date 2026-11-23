@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 #include "Devices/Disk/DiskImage.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/DirectBootBuilder.h"
@@ -392,7 +393,7 @@ public:
     TEST_METHOD (Serialize_DerivedTrackNeverOverflowsItsBlock)
     {
         DiskImage     img;
-        vector<Byte>  sectors (NibblizationLayer::kImageByteSize, 0xE7);
+        vector<Byte>  sectors (NibbleFormat::kImageByteSize, 0xE7);
         vector<Byte>  out;
 
         //  Real GCR tracks, self-sync and all: 50,624 bits carrying 6,224
@@ -415,7 +416,7 @@ public:
         //  comparison at the two ends. Every step is the production path.
         DiskImage           written;
         DiskImage           reloaded;
-        vector<Byte>        sectors (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>        sectors (NibbleFormat::kImageByteSize, 0);
         vector<Byte>        nibFile;
         vector<Byte>        recovered;
         SectorDecodeReport  report;
@@ -439,7 +440,7 @@ public:
 
         //  Assert there was something to decode before comparing it, or a
         //  codec that produced an empty disk would compare equal to nothing.
-        Assert::AreEqual (NibblizationLayer::kTrackCount, report.GetTrackCount(),
+        Assert::AreEqual (NibbleFormat::kTrackCount, report.GetTrackCount(),
             L"every track must have been examined");
 
         Assert::AreEqual (sectors.size(), recovered.size());
@@ -459,7 +460,7 @@ public:
         //  prologues off the byte boundary. In a nibble image every nibble IS a
         //  byte, which is the one place the format is easier to inspect.
         DiskImage     img;
-        vector<Byte>  sectors (NibblizationLayer::kImageByteSize, 0x5A);
+        vector<Byte>  sectors (NibbleFormat::kImageByteSize, 0x5A);
         vector<Byte>  nibFile;
         size_t        i        = 0;
         int           addrs    = 0;
@@ -502,7 +503,7 @@ public:
         //  and still lose the sector.
         DiskImage           written;
         DiskImage           reloaded;
-        vector<Byte>        sectors (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>        sectors (NibbleFormat::kImageByteSize, 0);
         vector<Byte>        nibFile;
         vector<Byte>        recovered;
         SectorDecodeReport  report;
@@ -527,7 +528,7 @@ public:
         AssertSucceeded (NibbleImageCodec::Load (nibFile, reloaded));
         AssertSucceeded (NibblizationLayer::Denibblize (reloaded, DiskFormat::Dsk, recovered, report));
 
-        Assert::AreEqual (NibblizationLayer::kTrackCount, report.GetTrackCount(),
+        Assert::AreEqual (NibbleFormat::kTrackCount, report.GetTrackCount(),
             L"every track must have been examined");
         Assert::AreEqual (0, memcmp (sectors.data(), recovered.data(), sectors.size()),
             L"padding must land in the gap, not in the field the seam runs through");
@@ -550,7 +551,7 @@ public:
         //  round-trip through the command line did.
         DiskImage           img;
         DiskImage           reloaded;
-        vector<Byte>        sectors (NibblizationLayer::kImageByteSize, 0x00);
+        vector<Byte>        sectors (NibbleFormat::kImageByteSize, 0x00);
         vector<Byte>        edited;
         vector<Byte>        original;
         vector<Byte>        rewritten;
@@ -565,7 +566,7 @@ public:
         AssertSucceeded (NibbleImageCodec::Load (original, reloaded));
 
         edited = sectors;
-        edited[3 * 16 * NibblizationLayer::kSectorByteSize] = 0x5A;
+        edited[3 * 16 * NibbleFormat::kSectorByteSize] = 0x5A;
         changed.push_back (3);
 
         AssertSucceeded (NibblizationLayer::RenibblizeTracks (edited, DiskFormat::Dsk,
@@ -580,7 +581,7 @@ public:
         AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, recovered, report));
 
         Assert::AreEqual ((int) 0x5A,
-                          (int) recovered[3 * 16 * NibblizationLayer::kSectorByteSize],
+                          (int) recovered[3 * 16 * NibbleFormat::kSectorByteSize],
             L"the edited byte must read back from the rewritten container");
     }
 
@@ -589,7 +590,7 @@ public:
     TEST_METHOD (Serialize_PadsAShortTrackWithSyncBytes)
     {
         DiskImage     img;
-        vector<Byte>  sectors (NibblizationLayer::kImageByteSize, 0x00);
+        vector<Byte>  sectors (NibbleFormat::kImageByteSize, 0x00);
         vector<Byte>  out;
         size_t        i       = 0;
         size_t        syncRun = 0;

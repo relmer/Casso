@@ -16,7 +16,7 @@
 #include "CassoExplorer/Model/DragPayload.h"
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 
 
@@ -1538,7 +1538,7 @@ ActionsTypes::Outcome ActionsAppleDrive::FormatAppleDrive (const std::string & l
     std::string                     volume;
     VolumeListing                   listing;
     VolumeKind                      kind     = VolumeKind::Unknown;
-    std::vector<Byte>               blank (NibblizationLayer::kImageByteSize, 0);
+    std::vector<Byte>               blank (NibbleFormat::kImageByteSize, 0);
     HRESULT                         hr       = S_OK;
 
 

@@ -3,6 +3,7 @@
 #include "../EhmTestHelper.h"
 #include "Devices/Disk/Inspector/DiskAnalyzer.h"
 #include "Devices/Disk/Inspector/DiskComparer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Ui/DiskInspector/PlatterView.h"
@@ -65,7 +66,7 @@ public:
     //  tracks, with the sectors of a DOS 3.3 disk.
     static void LoadFluxTrack (DiskImage & outImage, size_t & outSize)
     {
-        vector<Byte>               sectors (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>               sectors (NibbleFormat::kImageByteSize, 0);
         vector<Byte>               woz;
         DiskImage                  bits;
         vector<WozSyntheticTrack>  tracks;

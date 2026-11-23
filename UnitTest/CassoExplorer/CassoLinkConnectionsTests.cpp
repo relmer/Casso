@@ -13,7 +13,7 @@
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Net/FirewallMonitor.h"
 #include "Seams/ILinkAnnouncements.h"
@@ -48,7 +48,7 @@ public:
 
         Rig()
         {
-            std::vector<Byte>  buffer (NibblizationLayer::kImageByteSize, 0);
+            std::vector<Byte>  buffer (NibbleFormat::kImageByteSize, 0);
             std::vector<Byte>  next;
             FilePayload        payload;
             CassoLinkSettings  settings;
@@ -62,7 +62,7 @@ public:
 
             AssertSucceeded (Dos33Volume (buffer).Write (FilePath::Parse ("HELLO"), payload, next));
             apple.drives[0] = next;
-            apple.drives[1] = std::vector<Byte> (NibblizationLayer::kImageByteSize, 0);
+            apple.drives[1] = std::vector<Byte> (NibbleFormat::kImageByteSize, 0);
 
             settings.name      = "Test";
             settings.transport = LinkTransport::Emulated;
@@ -1006,7 +1006,7 @@ public:
     {
         Rig                         rig;
         std::vector<LinkTreeEntry>  entries;
-        std::vector<Byte>           other (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>           other (NibbleFormat::kImageByteSize, 0);
         auto                        until = std::chrono::steady_clock::now() + std::chrono::seconds (30);
 
         auto  volumeOf = [&rig, &entries] () -> std::wstring

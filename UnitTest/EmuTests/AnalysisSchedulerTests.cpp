@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "../EhmTestHelper.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Ui/DiskInspector/AnalysisScheduler.h"
 
@@ -30,7 +31,7 @@ public:
 
     static std::shared_ptr<const DiskCopy> MakeCopy (uint64_t mediaId, Byte fill)
     {
-        vector<Byte>  sectors (NibblizationLayer::kImageByteSize, fill);
+        vector<Byte>  sectors (NibbleFormat::kImageByteSize, fill);
         DiskImage     image;
 
 
@@ -100,7 +101,7 @@ public:
 
         AnalysisScheduler     scheduler (nullptr);
         vector<RecordResult>  results;
-        vector<Byte>          sectors (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>          sectors (NibbleFormat::kImageByteSize, 0);
         DiskImage             image;
         vector<int>           written;
         vector<uint64_t>      before;

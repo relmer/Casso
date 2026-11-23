@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "Assembler.h"
 #include "AssemblerTypes.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "TestMachine.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Devices/Disk/DiskImageStore.h"
@@ -263,7 +264,7 @@ public:
         machine.PowerCycle();
 
         // Mount a synthetic blank .dsk (nibblizes to a formatted track 0).
-        std::vector<Byte>  blank (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  blank (NibbleFormat::kImageByteSize, 0);
         hr = machine.GetDiskStore().MountFromBytes (kSlot6, kDrive1, "blank.dsk",
                                              DiskFormat::Dsk, blank);
         AssertSucceeded (hr, L"MountFromBytes must succeed");
@@ -367,7 +368,7 @@ public:
     static vector<Byte>  BuildNibbleImage()
     {
         DiskImage     img;
-        vector<Byte>  sectors (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>  sectors (NibbleFormat::kImageByteSize, 0);
         vector<Byte>  file;
         size_t        i  = 0;
         HRESULT       hr = S_OK;

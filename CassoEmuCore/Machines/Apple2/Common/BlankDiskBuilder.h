@@ -2,7 +2,8 @@
 
 #include "Pch.h"
 
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Devices/Disk/DiskImage.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 
 
 
@@ -90,7 +91,7 @@ struct BlankDiskSpec
     DiskFormat         format       = DiskFormat::Woz;
     BlankDiskContents  contents     = BlankDiskContents::Dos33;
     bool               bootable     = false;
-    Byte               volumeNumber = NibblizationLayer::kDefaultVolume;
+    Byte               volumeNumber = NibbleFormat::kDefaultVolume;
     std::string        volumeName   = "NEWDISK";   // ProDOS and Apple Pascal
     Word               pascalDate   = 0;           // Apple Pascal's date word
     ProDosBootSystem   bootSystem   = ProDosBootSystem::AppleII;   // a bootable ProDOS volume
@@ -158,7 +159,7 @@ public:
     static bool                     CanHoldFlux (DiskFormat format) { return format == DiskFormat::Woz; }
 
     //  A fluxTrackMask with every whole track set.
-    static constexpr uint64_t       kAllFluxTracks = (1ull << NibblizationLayer::kTrackCount) - 1;
+    static constexpr uint64_t       kAllFluxTracks = (1ull << NibbleFormat::kTrackCount) - 1;
 
     //  Why the format / contents / bootable / volume-name combination
     //  cannot be written, or Ok. Does not assert: user input reaches it.

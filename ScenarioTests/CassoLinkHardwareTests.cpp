@@ -2,6 +2,8 @@
 
 #include "EhmTestHelper.h"
 #include "GuestSession.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "TestMachine.h"
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/CassoLinkHost.h"
@@ -994,7 +996,7 @@ public:
         AssertSucceeded (WozLoader::Load (captureBytes, captured));
         AssertSucceeded (VolumeImage::Load (poBytes, "boot.po", sectors, report));
 
-        for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+        for (int track = 0; track < NibbleFormat::kTrackCount; track++)
         {
             layouts.push_back (ReadLayout (captured, track));
         }
@@ -1107,13 +1109,13 @@ public:
     static std::vector<CassoLinkHost::TrackMeasure>  Measure (const std::vector<Byte> & woz)
     {
         std::vector<CassoLinkHost::TrackMeasure>  measures;
-        ProgramRig                                rig (std::vector<Byte> (NibblizationLayer::kImageByteSize, 0));
+        ProgramRig                                rig (std::vector<Byte> (NibbleFormat::kImageByteSize, 0));
 
 
 
         AssertSucceeded (rig.machine.GetDiskStore().MountFromBytes (ProgramRig::kSlot, 0, "", DiskFormat::Woz, woz));
 
-        for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+        for (int track = 0; track < NibbleFormat::kTrackCount; track++)
         {
             CassoLinkHost::TrackMeasure  measure;
             CassoLinkStatus              status;

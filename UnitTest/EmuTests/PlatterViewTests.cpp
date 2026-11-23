@@ -4,6 +4,7 @@
 #include "../Dxui/MockDxuiPainter.h"
 #include "../Dxui/MockDxuiTextRenderer.h"
 #include "Devices/Disk/Inspector/DiskAnalyzer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Ui/DiskInspector/PlatterView.h"
 
@@ -39,7 +40,7 @@ public:
 
     TEST_METHOD (TheAlignmentOverlayMarksEachWholeTrack)
     {
-        vector<Byte>          sectors (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>          sectors (NibbleFormat::kImageByteSize, 0);
         DiskImage             image;
         DiskAnalysis          analysis;
         InspectorViewModel    model;
@@ -132,7 +133,7 @@ public:
         static constexpr double  kHeadTurn  = 0.3;
         static constexpr int     kSide      = 6000;
 
-        vector<Byte>          sectors (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>          sectors (NibbleFormat::kImageByteSize, 0);
         DiskImage             image;
         DiskAnalysis          analysis;
         InspectorViewModel    model;

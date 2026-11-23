@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "Devices/Disk/Containers/DiskCopy42Container.h"
 #include "Devices/Disk/Archives/NuFxArchive.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "../EhmTestHelper.h"
 #include "FixtureProvider.h"
@@ -997,7 +998,7 @@ public:
         FakeDiskFileIo     io;
         DiskCommandRunner  runner (io);
         DiskCommandResult  result;
-        vector<Byte>       noise (NibblizationLayer::kImageByteSize, 0x55);
+        vector<Byte>       noise (NibbleFormat::kImageByteSize, 0x55);
 
         io.files[kImage]  = noise;
         io.stamps[kImage] = FileStamp { noise.size(), 1 };
@@ -1135,7 +1136,7 @@ public:
     {
         FileStamp  stamp;
 
-        io.files[path] = vector<Byte> ((size_t) NibblizationLayer::kImageByteSize, (Byte) 0x00);
+        io.files[path] = vector<Byte> ((size_t) NibbleFormat::kImageByteSize, (Byte) 0x00);
 
         stamp.sizeBytes   = (uint64_t) io.files[path].size();
         stamp.modifiedUnix = 1;
@@ -1153,7 +1154,7 @@ public:
     {
         FakeDiskFileIo     io;
         DiskCommandRunner  runner (io);
-        vector<Byte>       payload (NibblizationLayer::kSectorByteSize, (Byte) 0xA5);
+        vector<Byte>       payload (NibbleFormat::kSectorByteSize, (Byte) 0xA5);
         vector<Byte>       written;
         size_t             logicalAt = (size_t) (3 * 16 + 1) * 256;
         size_t             skewedAt  = 0;
@@ -1166,9 +1167,9 @@ public:
 
         AssertSucceeded (io.ReadAllBytes ("raw.dsk", written));
 
-        skewedAt = (size_t) ((3 * NibblizationLayer::kSectorsPerTrack
+        skewedAt = (size_t) ((3 * NibbleFormat::kSectorsPerTrack
                             + NibblizationLayer::GetDosFileIndexForPhysicalSector (1))
-                           * NibblizationLayer::kSectorByteSize);
+                           * NibbleFormat::kSectorByteSize);
 
         Assert::AreEqual ((Byte) 0xA5, written[logicalAt],
                           L"logical sector 1 of track 3 holds the bytes, at its own offset");
@@ -1188,7 +1189,7 @@ public:
     {
         FakeDiskFileIo     io;
         DiskCommandRunner  runner (io);
-        vector<Byte>       payload (NibblizationLayer::kSectorByteSize * 20, (Byte) 0x5A);
+        vector<Byte>       payload (NibbleFormat::kSectorByteSize * 20, (Byte) 0x5A);
         vector<Byte>       written;
         size_t             lastAt = 0;
 
@@ -1202,14 +1203,14 @@ public:
 
         //  Twenty sectors from track 1 sector 0 run to index 19, which is
         //  four sectors into track 2: logical sector 3, at its own offset.
-        lastAt = (size_t) ((2 * NibblizationLayer::kSectorsPerTrack + 3)
-                         * NibblizationLayer::kSectorByteSize);
+        lastAt = (size_t) ((2 * NibbleFormat::kSectorsPerTrack + 3)
+                         * NibbleFormat::kSectorByteSize);
 
         Assert::AreEqual ((Byte) 0x5A, written[lastAt], L"the last sector landed on track 2");
 
         Assert::AreEqual ((Byte) 0x00,
-                          written[(size_t) ((2 * NibblizationLayer::kSectorsPerTrack + 4)
-                                          * NibblizationLayer::kSectorByteSize)],
+                          written[(size_t) ((2 * NibbleFormat::kSectorsPerTrack + 4)
+                                          * NibbleFormat::kSectorByteSize)],
                           L"and the one after it was left alone");
     }
 
@@ -1229,7 +1230,7 @@ public:
 
         AssertSucceeded (io.ReadAllBytes ("raw.dsk", written));
 
-        Assert::AreEqual ((size_t) NibblizationLayer::kImageByteSize, written.size(),
+        Assert::AreEqual ((size_t) NibbleFormat::kImageByteSize, written.size(),
                           L"the image is still a whole disk");
         Assert::AreEqual ((Byte) 0xFF, written[0]);
         Assert::AreEqual ((Byte) 0x00, written[4],  L"the rest of the sector is untouched");
@@ -1264,7 +1265,7 @@ public:
         vector<Byte>       after;
 
         SeedBlankImage (io, "raw.dsk");
-        io.files["big.bin"] = vector<Byte> ((size_t) NibblizationLayer::kSectorByteSize * 40, (Byte) 0x5A);
+        io.files["big.bin"] = vector<Byte> ((size_t) NibbleFormat::kSectorByteSize * 40, (Byte) 0x5A);
 
         AssertSucceeded (io.ReadAllBytes ("raw.dsk", before));
 
@@ -1344,7 +1345,7 @@ public:
     {
         FakeDiskFileIo     io;
         DiskCommandRunner  runner (io);
-        vector<Byte>       payload (NibblizationLayer::kSectorByteSize, (Byte) 0xC3);
+        vector<Byte>       payload (NibbleFormat::kSectorByteSize, (Byte) 0xC3);
         DiskCommandResult  result;
 
         SeedBlankImage (io, "raw.dsk");
@@ -1371,7 +1372,7 @@ public:
         DiskCommandRunner     runner (io);
         vector<Byte>          woz;
         vector<Byte>          written;
-        vector<Byte>          payload (NibblizationLayer::kSectorByteSize, (Byte) 0x3C);
+        vector<Byte>          payload (NibbleFormat::kSectorByteSize, (Byte) 0x3C);
         DiskCommandResult     result;
         DiskImage             image;
         FramedTrack           track;
@@ -1418,7 +1419,7 @@ public:
     {
         FakeDiskFileIo     io;
         DiskCommandRunner  runner (io);
-        vector<Byte>       payload ((size_t) NibblizationLayer::kSectorByteSize * 3, (Byte) 0x7E);
+        vector<Byte>       payload ((size_t) NibbleFormat::kSectorByteSize * 3, (Byte) 0x7E);
         DiskCommandResult  result;
 
         SeedBlankImage (io, "raw.dsk");
@@ -1453,7 +1454,7 @@ public:
 
         result = runner.Run (MakeSectorRead ("raw.dsk", 0, 0, 1, kLogical));
 
-        Assert::AreEqual ((size_t) NibblizationLayer::kSectorByteSize, result.payload.size(),
+        Assert::AreEqual ((size_t) NibbleFormat::kSectorByteSize, result.payload.size(),
                           L"a whole sector, not the ten bytes that were written");
 
         Assert::IsTrue (std::equal (payload.begin(), payload.end(), result.payload.begin()),
@@ -1467,7 +1468,7 @@ public:
     {
         FakeDiskFileIo      io;
         DiskCommandRunner   runner (io);
-        vector<Byte>        payload (NibblizationLayer::kSectorByteSize, (Byte) 0x2D);
+        vector<Byte>        payload (NibbleFormat::kSectorByteSize, (Byte) 0x2D);
         CommandLineOptions  options = MakeSectorRead ("raw.dsk", 5, 0, 1, kLogical);
         DiskCommandResult   result;
 
@@ -1596,7 +1597,7 @@ public:
     {
         FakeDiskFileIo     io;
         DiskCommandRunner  runner (io);
-        vector<Byte>       payload (NibblizationLayer::kSectorByteSize, (Byte) 0xC3);
+        vector<Byte>       payload (NibbleFormat::kSectorByteSize, (Byte) 0xC3);
         vector<Byte>       written;
         size_t             mappedAt  = 0;
         size_t             literalAt = (size_t) (3 * 16 + 1) * 256;
@@ -1609,9 +1610,9 @@ public:
 
         AssertSucceeded (io.ReadAllBytes ("raw.dsk", written));
 
-        mappedAt = (size_t) ((3 * NibblizationLayer::kSectorsPerTrack
+        mappedAt = (size_t) ((3 * NibbleFormat::kSectorsPerTrack
                             + NibblizationLayer::GetDosFileIndexForPhysicalSector (1))
-                           * NibblizationLayer::kSectorByteSize);
+                           * NibbleFormat::kSectorByteSize);
 
         Assert::AreNotEqual (literalAt, mappedAt,
                              L"the two offsets must differ for this sector, or nothing below "
@@ -1665,7 +1666,7 @@ public:
     {
         FakeDiskFileIo     io;
         DiskCommandRunner  runner (io);
-        vector<Byte>       payload (NibblizationLayer::kSectorByteSize * 16, 0);
+        vector<Byte>       payload (NibbleFormat::kSectorByteSize * 16, 0);
         vector<Byte>       written;
         size_t             page = 0;
 
@@ -1686,9 +1687,9 @@ public:
 
         for (page = 0; page < 16; page++)
         {
-            size_t  at = (size_t) ((3 * NibblizationLayer::kSectorsPerTrack
+            size_t  at = (size_t) ((3 * NibbleFormat::kSectorsPerTrack
                                   + NibblizationLayer::GetDosFileIndexForPhysicalSector ((int) page))
-                                 * NibblizationLayer::kSectorByteSize);
+                                 * NibbleFormat::kSectorByteSize);
 
             Assert::AreEqual ((int) page, (int) written[at],
                 L"page N sits under address mark N, wherever the interleave keeps that");
@@ -1878,11 +1879,11 @@ public:
                           runner.Run (MakeDirectBoot ("boot.woz", "prog.bin")).exitStatus);
 
         AssertSucceeded (io.ReadAllBytes ("boot.po", written));
-        Assert::AreEqual ((size_t) NibblizationLayer::kImageByteSize, written.size(),
+        Assert::AreEqual ((size_t) NibbleFormat::kImageByteSize, written.size(),
                           L"a .po is the same sectors in ProDOS order");
 
         AssertSucceeded (io.ReadAllBytes ("boot.woz", written));
-        Assert::IsTrue (written.size() > (size_t) NibblizationLayer::kImageByteSize,
+        Assert::IsTrue (written.size() > (size_t) NibbleFormat::kImageByteSize,
                         L"and a .woz is a bit stream, which is larger");
     }
 
@@ -3326,7 +3327,7 @@ public:
 
     vector<Byte> MakeBlankDos33Image()
     {
-        vector<Byte>  buffer (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>  buffer (NibbleFormat::kImageByteSize, 0);
 
         AssertSucceeded (Dos33Skeleton::Write (buffer, kBlankVolumeNumber));
 
@@ -5254,7 +5255,7 @@ public:
     //  which is what a great deal of Apple II software actually is.
     static vector<Byte> MakeBootableImageWithNoFilesystem()
     {
-        vector<Byte>  image ((size_t) NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>  image ((size_t) NibbleFormat::kImageByteSize, 0);
         size_t        i     = 0;
 
         // Track 0 sector 0 is what the drive's ROM reads and jumps into.
@@ -5313,7 +5314,7 @@ public:
         DiskCommandRunner   runner (io);
         DiskCommandResult   result;
         const char *        path  = "C:\\disks\\blank.dsk";
-        vector<Byte>        image ((size_t) NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>        image ((size_t) NibbleFormat::kImageByteSize, 0);
 
         io.files[path]  = image;
         io.stamps[path] = FileStamp { image.size(), 100 };
@@ -5339,7 +5340,7 @@ public:
         DiskCommandRunner   runner (io);
         DiskCommandResult   result;
         std::string         path  = "C:\\disks\\Space Quarks (1981)(Br\xF8" "derbund).woz";
-        vector<Byte>        image ((size_t) NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>        image ((size_t) NibbleFormat::kImageByteSize, 0);
 
         io.files[path]  = image;
         io.stamps[path] = FileStamp { image.size(), 100 };
@@ -5379,7 +5380,7 @@ public:
 
         AssertSucceeded (WozLoader::Load (woz, image), L"the WOZ must load");
 
-        for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+        for (track = 0; track < NibbleFormat::kTrackCount; track++)
         {
             slot = image.ResolveQuarterTrack (track * DiskImage::kQuarterTracksPerWholeTrack);
 
@@ -5419,7 +5420,7 @@ public:
         result            = runner.Run (options);
 
         Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
-        Assert::AreEqual (NibblizationLayer::kTrackCount, CountFluxTracks (io.files["f.woz"]));
+        Assert::AreEqual (NibbleFormat::kTrackCount, CountFluxTracks (io.files["f.woz"]));
     }
 
     TEST_METHOD (CreateFlux_ABadTrackListIsRefused)
@@ -5567,11 +5568,11 @@ public:
 
         AssertSucceeded (WozLoader::Load (io.files[kImage], image));
 
-        for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+        for (int track = 0; track < NibbleFormat::kTrackCount; track++)
         {
             vector<Byte>  volumes = GetAddressVolumes (image, track);
 
-            Assert::AreEqual ((size_t) NibblizationLayer::kSectorsPerTrack, volumes.size());
+            Assert::AreEqual ((size_t) NibbleFormat::kSectorsPerTrack, volumes.size());
             Assert::IsTrue   (std::all_of (volumes.begin(), volumes.end(), [] (Byte v) { return v == 100; }), std::format (L"track {}", track).c_str());
         }
     }
@@ -5593,7 +5594,7 @@ public:
         Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
         AssertSucceeded (WozLoader::Load (io.files[kImage], image));
 
-        Assert::IsTrue (GetAddressVolumes (image, 0) == vector<Byte> ((size_t) NibblizationLayer::kSectorsPerTrack, NibblizationLayer::kDefaultVolume));
+        Assert::IsTrue (GetAddressVolumes (image, 0) == vector<Byte> ((size_t) NibbleFormat::kSectorsPerTrack, NibbleFormat::kDefaultVolume));
     }
 
 

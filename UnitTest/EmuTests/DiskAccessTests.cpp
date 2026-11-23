@@ -3,6 +3,7 @@
 #include "../EhmTestHelper.h"
 #include "Devices/Disk/Inspector/DiskAnalyzer.h"
 #include "Machines/Apple2/Common/DiskAccessLog.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Ui/DiskInspector/SectorAccess.h"
 
@@ -60,7 +61,7 @@ public:
 
     static void AnalyzeDsk (DiskAnalysis & out)
     {
-        vector<Byte>  sectors (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>  sectors (NibbleFormat::kImageByteSize, 0);
         DiskImage     image;
 
 

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 
 
 
@@ -16,8 +17,8 @@
 
 size_t Dos33Skeleton::GetSectorOffset (int track, int sector)
 {
-    return ((size_t) track  * NibblizationLayer::kSectorsPerTrack + (size_t) sector)
-         * (size_t) NibblizationLayer::kSectorByteSize;
+    return ((size_t) track  * NibbleFormat::kSectorsPerTrack + (size_t) sector)
+         * (size_t) NibbleFormat::kSectorByteSize;
 }
 
 
@@ -143,8 +144,8 @@ HRESULT Dos33Skeleton::InstallDos (vector<Byte> & buffer, const vector<Byte> & m
 
 
 
-    CBRA (bufferBytes == (size_t) NibblizationLayer::kImageByteSize);
-    CBRAEx (masterBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+    CBRA (bufferBytes == (size_t) NibbleFormat::kImageByteSize);
+    CBRAEx (masterBytes == (size_t) NibbleFormat::kImageByteSize, E_INVALIDARG);
 
     std::copy (masterSectors.begin(), masterSectors.begin() + dosBytes, buffer.begin());
 
@@ -199,7 +200,7 @@ HRESULT Dos33FileWriter::WriteHello (vector<Byte> & buffer)
 
 
 
-    CBRA (bufferBytes == (size_t) NibblizationLayer::kImageByteSize);
+    CBRA (bufferBytes == (size_t) NibbleFormat::kImageByteSize);
 
     catalog = Dos33Skeleton::GetSectorOffset (Dos33Skeleton::kVtocTrack,
                                               Dos33Skeleton::kCatalogFirstSector);

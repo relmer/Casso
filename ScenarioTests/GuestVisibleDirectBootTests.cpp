@@ -2,6 +2,7 @@
 #include "EhmTestHelper.h"
 #include "FakeDiskFileIo.h"
 #include "GuestSession.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "TestMachine.h"
 #include "Machines/Apple2/Common/DirectBootBuilder.h"
 #include "Devices/Disk/DiskCommandRunner.h"
@@ -333,7 +334,7 @@ public:
                    DirectBootBuilder::kFirstPayloadTrack,
                    NibblizationLayer::GetDosFileIndexForPhysicalSector (0));
 
-        span = (std::min) (payload.size(), (size_t) NibblizationLayer::kSectorByteSize);
+        span = (std::min) (payload.size(), (size_t) NibbleFormat::kSectorByteSize);
 
         for (i = 0; i < span; i++)
         {

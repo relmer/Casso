@@ -7,7 +7,7 @@
 #include "CassoLink/CassoLinkSearch.h"
 #include "CassoLink/CassoLinkSession.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -73,7 +73,7 @@ public:
 
         Rig()
         {
-            std::vector<Byte>  disk (NibblizationLayer::kImageByteSize, 0);
+            std::vector<Byte>  disk (NibbleFormat::kImageByteSize, 0);
 
             AssertSucceeded (Dos33Skeleton::Write (disk, 254));
 

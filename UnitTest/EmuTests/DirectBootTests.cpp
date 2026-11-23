@@ -2,6 +2,7 @@
 #include "../EhmTestHelper.h"
 #include "Machines/Apple2/Common/DirectBootBuilder.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
@@ -68,8 +69,8 @@ public:
         0x0E, 0x0C, 0x0A, 0x08, 0x06, 0x04, 0x02, 0x0F,
     };
 
-    static constexpr size_t  kSectorBytes  = (size_t) NibblizationLayer::kSectorByteSize;
-    static constexpr size_t  kSectorsTrack = (size_t) NibblizationLayer::kSectorsPerTrack;
+    static constexpr size_t  kSectorBytes  = (size_t) NibbleFormat::kSectorByteSize;
+    static constexpr size_t  kSectorsTrack = (size_t) NibbleFormat::kSectorsPerTrack;
 
     //  What the boot ROM finds in the first byte of the sector it reads: the
     //  number of sectors to fetch before jumping to $0801. One means "this
@@ -252,7 +253,7 @@ public:
 
         Assert::AreEqual (std::string(), refusal, L"and must be refused for nothing");
 
-        Assert::AreEqual (size_t (NibblizationLayer::kImageByteSize), built.size(),
+        Assert::AreEqual (size_t (NibbleFormat::kImageByteSize), built.size(),
             L"producing a whole 5.25-inch sector image");
 
         Assert::AreEqual ((int) DirectBootBuilder::kMostSectors, (int) built[kSectorsLeftAt],

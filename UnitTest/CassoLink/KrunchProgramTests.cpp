@@ -6,6 +6,7 @@
 #include "CassoLink/CassoLinkHost.h"
 #include "CassoLink/LinkProgram.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
@@ -63,7 +64,7 @@ public:
     //  those in `deleted` removed, so the free space is in pieces.
     static std::vector<Byte>  BuildDisk (std::span<const int> sizes, std::span<const int> deleted)
     {
-        std::vector<Byte>  image (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  image (NibbleFormat::kImageByteSize, 0);
         std::vector<Byte>  next;
 
 

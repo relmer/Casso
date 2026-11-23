@@ -5,7 +5,7 @@
 #include "../EmuTests/TestMachine.h"
 #include "Core/TextEncoding.h"
 #include "DiskCheck/BootProbe.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -211,7 +211,7 @@ public:
     {
         TestMachine        machine ("Apple2eEnhanced");
         BootReport         report;
-        std::vector<Byte>  image (NibblizationLayer::kImageByteSize, 0xE5);
+        std::vector<Byte>  image (NibbleFormat::kImageByteSize, 0xE5);
         BootProbe::Limits  limits;
 
 

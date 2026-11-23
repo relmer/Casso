@@ -3,6 +3,7 @@
 #include "../EhmTestHelper.h"
 #include "Devices/Disk/Inspector/DiskAnalyzer.h"
 #include "Devices/Disk/Inspector/FindingFormatter.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "InspectorTrackBuilder.h"
@@ -79,7 +80,7 @@ public:
 
     TEST_METHOD (AStandardDskHasNoFindings)
     {
-        vector<Byte>  sectors (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>  sectors (NibbleFormat::kImageByteSize, 0);
         DiskImage     image;
         DiskAnalysis  analysis;
         size_t        i        = 0;
@@ -94,7 +95,7 @@ public:
         AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, image));
         AnalyzeImage (image, analysis);
 
-        AssertStandardSixteenSector (analysis, NibblizationLayer::kDefaultVolume);
+        AssertStandardSixteenSector (analysis, NibbleFormat::kDefaultVolume);
     }
 
 
@@ -141,7 +142,7 @@ public:
 
     TEST_METHOD (AVolumeDifferenceIsFoundOncePerField)
     {
-        vector<Byte>  sectors (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>  sectors (NibbleFormat::kImageByteSize, 0);
         DiskImage     image;
         DiskAnalysis  analysis;
         int           count    = 0;
@@ -154,7 +155,7 @@ public:
             InspectorTrackBuilder  odd;
 
             odd.AppendStandardTrack (DiskFieldKind::Sixteen, 17, 5, InspectorTrackBuilder::FillPattern);
-            odd.PadToCells (NibblizationLayer::kTrackBitCapacity);
+            odd.PadToCells (NibbleFormat::kTrackBitCapacity);
             odd.PackBits (image.GetTrackBitsForWrite (5));
             image.SetTrackBitCount (5, odd.GetCellCount());
         }
@@ -163,14 +164,14 @@ public:
 
         count = static_cast<int> (std::count_if (analysis.findings.begin(), analysis.findings.end(), [] (const Finding & f) { return f.kind == FindingKind::VolumeDiffers; }));
         Assert::AreEqual (16, count);
-        Assert::AreEqual (static_cast<int> (NibblizationLayer::kDefaultVolume), analysis.summary.commonVolume);
+        Assert::AreEqual (static_cast<int> (NibbleFormat::kDefaultVolume), analysis.summary.commonVolume);
     }
 
 
 
     TEST_METHOD (ReanalyzeReplacesOnlyTheGivenRecords)
     {
-        vector<Byte>  sectors (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>  sectors (NibbleFormat::kImageByteSize, 0);
         DiskImage                             image;
         DiskAnalysis                          analysis;
         int                                   slot      = 0;
@@ -187,7 +188,7 @@ public:
         {
             InspectorTrackBuilder  blank;
 
-            blank.AppendZeros (static_cast<int> (NibblizationLayer::kTrackBitCapacity));
+            blank.AppendZeros (static_cast<int> (NibbleFormat::kTrackBitCapacity));
             blank.PackBits (image.GetTrackBitsForWrite (3));
             image.SetTrackBitCount (3, blank.GetCellCount());
         }
@@ -207,7 +208,7 @@ public:
 #ifdef _DEBUG
         Logger::WriteMessage (L"SC-003 is measured in Release only");
 #else
-        vector<Byte>  sectors (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>  sectors (NibbleFormat::kImageByteSize, 0);
         DiskImage                        image;
         DiskAnalysis                     analysis;
         LARGE_INTEGER                    frequency = {};

@@ -2,7 +2,7 @@
 
 #include "CassoLink/CassoLinkCodec.h"
 #include "Devices/Disk/DiskFieldFormat.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 
 
 
@@ -390,7 +390,7 @@ HRESULT CassoLinkCodec::ParseSectorNibbles (const CassoLinkPacket & packet, Byte
 {
     HRESULT                hr      = S_OK;
     bool                   room    = outData.size() == kSectorSize;
-    bool                   shaped  = packet.command == kSectorNibbles && packet.payload.size() == NibblizationLayer::kDataNibbleCount + 4;
+    bool                   shaped  = packet.command == kSectorNibbles && packet.payload.size() == NibbleFormat::kDataNibbleCount + 4;
     bool                   crcOk   = false;
     bool                   decoded = false;
     std::span<const Byte>  nibbles;
@@ -402,8 +402,8 @@ HRESULT CassoLinkCodec::ParseSectorNibbles (const CassoLinkPacket & packet, Byte
     CBRAEx (room, E_INVALIDARG);
     CBREx (shaped, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-    nibbles = std::span<const Byte> (packet.payload).subspan (2, NibblizationLayer::kDataNibbleCount);
-    crc     = (Word) (packet.payload[NibblizationLayer::kDataNibbleCount + 2] | (packet.payload[NibblizationLayer::kDataNibbleCount + 3] << 8));
+    nibbles = std::span<const Byte> (packet.payload).subspan (2, NibbleFormat::kDataNibbleCount);
+    crc     = (Word) (packet.payload[NibbleFormat::kDataNibbleCount + 2] | (packet.payload[NibbleFormat::kDataNibbleCount + 3] << 8));
     crcOk   = ComputeCrc (nibbles) == crc;
     CBREx (crcOk, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 

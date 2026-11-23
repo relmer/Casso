@@ -3,7 +3,7 @@
 #include "DamagedDisk.h"
 
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -261,7 +261,7 @@ void DamagedDisk::RewriteAddressFields (DiskImage & inOutImage, int track, Byte 
         at = FindAddressFieldFrom (bits, bitCount, at + 1);
     }
 
-    Assert::AreEqual (static_cast<size_t> (NibblizationLayer::kSectorsPerTrack), fields.size(), L"the track has sixteen address fields");
+    Assert::AreEqual (static_cast<size_t> (NibbleFormat::kSectorsPerTrack), fields.size(), L"the track has sixteen address fields");
 
     for (size_t field : fields)
     {

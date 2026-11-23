@@ -3,6 +3,7 @@
 #include "../EhmTestHelper.h"
 #include "../EmuTests/FixtureProvider.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "ProgramRig.h"
 
@@ -231,7 +232,7 @@ public:
     {
         ProgramRig         rig ({});
         std::vector<Byte>  blank (kTracks * kNibTrack, 0xFF);
-        std::vector<Byte>  disk (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  disk (NibbleFormat::kImageByteSize, 0);
         std::vector<Byte>  sectors  = AllSectors();
         std::vector<Byte>  track (16 * 256);
         std::vector<Byte>  data;

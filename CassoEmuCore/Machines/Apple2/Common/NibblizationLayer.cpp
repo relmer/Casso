@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Devices/Disk/DiskFieldFormat.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/NibbleFieldWriter.h"
@@ -79,16 +80,16 @@ static constexpr int kPo_PhysicalToFile[16] =
 
 static Byte GetAddressVolume (const vector<Byte> & raw, const int * interleave)
 {
-    size_t  vtoc   = static_cast<size_t> (Dos33Skeleton::kVtocTrack * NibblizationLayer::kSectorsPerTrack + interleave[0]) * NibblizationLayer::kSectorByteSize;
+    size_t  vtoc   = static_cast<size_t> (Dos33Skeleton::kVtocTrack * NibbleFormat::kSectorsPerTrack + interleave[0]) * NibbleFormat::kSectorByteSize;
     Byte    volume = raw[vtoc + Dos33Skeleton::kVtocOffVolumeNumber];
     bool    isVtoc = raw[vtoc + Dos33Skeleton::kVtocOffCatalogTrack] == Dos33Skeleton::kVtocTrack
                   && raw[vtoc + Dos33Skeleton::kVtocOffMaxTsPairs]   == Dos33Skeleton::kMaxTsPairs
-                  && raw[vtoc + Dos33Skeleton::kVtocOffTrackCount]   == NibblizationLayer::kTrackCount
-                  && raw[vtoc + Dos33Skeleton::kVtocOffSectorCount]  == NibblizationLayer::kSectorsPerTrack;
+                  && raw[vtoc + Dos33Skeleton::kVtocOffTrackCount]   == NibbleFormat::kTrackCount
+                  && raw[vtoc + Dos33Skeleton::kVtocOffSectorCount]  == NibbleFormat::kSectorsPerTrack;
 
 
 
-    return (isVtoc && volume != 0 && volume != 0xFF) ? volume : NibblizationLayer::kDefaultVolume;
+    return (isVtoc && volume != 0 && volume != 0xFF) ? volume : NibbleFormat::kDefaultVolume;
 }
 
 
@@ -132,20 +133,20 @@ static HRESULT NibblizeWithMap (
     // ERROR_BAD_LENGTH rather than a bare failure: the caller has to be able
     // to tell a wrong size from every other way a load can go wrong, or the
     // message it writes cannot say which one happened.
-    CBREx (rawSize == NibblizationLayer::kImageByteSize, HRESULT_FROM_WIN32 (ERROR_BAD_LENGTH));
+    CBREx (rawSize == NibbleFormat::kImageByteSize, HRESULT_FROM_WIN32 (ERROR_BAD_LENGTH));
 
     volume = GetAddressVolume (raw, interleave);
 
-    for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+    for (track = 0; track < NibbleFormat::kTrackCount; track++)
     {
         size_t   bitOffset = 0;
 
-        out.ResizeTrack (track, NibblizationLayer::kTrackBitCapacity);
+        out.ResizeTrack (track, NibbleFormat::kTrackBitCapacity);
 
-        for (physical = 0; physical < NibblizationLayer::kSectorsPerTrack; physical++)
+        for (physical = 0; physical < NibbleFormat::kSectorsPerTrack; physical++)
         {
-            offset = static_cast<size_t> (track * NibblizationLayer::kSectorsPerTrack + interleave[physical])
-                   * NibblizationLayer::kSectorByteSize;
+            offset = static_cast<size_t> (track * NibbleFormat::kSectorsPerTrack + interleave[physical])
+                   * NibbleFormat::kSectorByteSize;
 
             NibbleFieldWriter::AppendAddressField (out.GetTrackBitsForWrite (track), bitOffset,
                                                    volume,
@@ -206,7 +207,7 @@ HRESULT NibblizationLayer::RenibblizeTracks (
 
 
 
-    CBRAEx (rawSize == (size_t) kImageByteSize, E_INVALIDARG);
+    CBRAEx (rawSize == (size_t) NibbleFormat::kImageByteSize, E_INVALIDARG);
 
     switch (fmt)
     {
@@ -227,7 +228,7 @@ HRESULT NibblizationLayer::RenibblizeTracks (
 
         track = tracks[i];
 
-        if (track < 0 || track >= kTrackCount || track >= trackCount)
+        if (track < 0 || track >= NibbleFormat::kTrackCount || track >= trackCount)
         {
             continue;
         }
@@ -241,12 +242,12 @@ HRESULT NibblizationLayer::RenibblizeTracks (
             continue;
         }
 
-        inOutImage.ResizeTrack (track, kTrackBitCapacity);
+        inOutImage.ResizeTrack (track, NibbleFormat::kTrackBitCapacity);
 
-        for (physical = 0; physical < kSectorsPerTrack; physical++)
+        for (physical = 0; physical < NibbleFormat::kSectorsPerTrack; physical++)
         {
-            size_t  offset = static_cast<size_t> (track * kSectorsPerTrack + interleave[physical])
-                           * kSectorByteSize;
+            size_t  offset = static_cast<size_t> (track * NibbleFormat::kSectorsPerTrack + interleave[physical])
+                           * NibbleFormat::kSectorByteSize;
 
             NibbleFieldWriter::AppendAddressField (inOutImage.GetTrackBitsForWrite (track), bitOffset,
                                                    volume,
@@ -291,13 +292,13 @@ int NibblizationLayer::GetPoFileIndexForDosLogicalSector (int logicalSector)
     HRESULT  hr       = S_OK;
     int      physical = 0;
     int      found    = 0;
-    bool     inRange  = logicalSector >= 0 && logicalSector < kSectorsPerTrack;
+    bool     inRange  = logicalSector >= 0 && logicalSector < NibbleFormat::kSectorsPerTrack;
 
 
 
     CBRAEx (inRange, E_INVALIDARG);
 
-    for (physical = 0; physical < kSectorsPerTrack; physical++)
+    for (physical = 0; physical < NibbleFormat::kSectorsPerTrack; physical++)
     {
         if (kDsk_PhysicalToFile[physical] == logicalSector)
         {
@@ -334,7 +335,7 @@ int NibblizationLayer::GetDosFileIndexForPhysicalSector (int physicalSector)
 {
     HRESULT  hr      = S_OK;
     int      found   = 0;
-    bool     inRange = physicalSector >= 0 && physicalSector < kSectorsPerTrack;
+    bool     inRange = physicalSector >= 0 && physicalSector < NibbleFormat::kSectorsPerTrack;
 
 
 
@@ -358,11 +359,11 @@ Error:
 
 Byte NibblizationLayer::GetImageVolume (const vector<Byte> & sectors)
 {
-    bool  isWhole = sectors.size() >= (size_t) kImageByteSize;
+    bool  isWhole = sectors.size() >= (size_t) NibbleFormat::kImageByteSize;
 
 
 
-    return isWhole ? GetAddressVolume (sectors, kDsk_PhysicalToFile) : kDefaultVolume;
+    return isWhole ? GetAddressVolume (sectors, kDsk_PhysicalToFile) : NibbleFormat::kDefaultVolume;
 }
 
 
@@ -742,33 +743,33 @@ static HRESULT DecodeOneSector (
     size_t                              &  outFieldStart,
     size_t                              &  outDataFieldStart)
 {
-    HRESULT          hr                                         = S_OK;
-    Byte             n0                                         = 0;
-    Byte             n1                                         = 0;
-    Byte             n2                                         = 0;
-    Byte             vOdd                                       = 0;
-    Byte             vEven                                      = 0;
-    Byte             tOdd                                       = 0;
-    Byte             tEven                                      = 0;
-    Byte             sOdd                                       = 0;
-    Byte             sEven                                      = 0;
-    Byte             cOdd                                       = 0;
-    Byte             cEven                                      = 0;
-    Byte             foundProlog                                = 0;
-    Byte             field[NibblizationLayer::kDataNibbleCount] = {};
-    Byte             addrVolume                                 = 0;
-    Byte             addrTrack                                  = 0;
-    Byte             addrChecksum                               = 0;
+    HRESULT          hr                                    = S_OK;
+    Byte             n0                                    = 0;
+    Byte             n1                                    = 0;
+    Byte             n2                                    = 0;
+    Byte             vOdd                                  = 0;
+    Byte             vEven                                 = 0;
+    Byte             tOdd                                  = 0;
+    Byte             tEven                                 = 0;
+    Byte             sOdd                                  = 0;
+    Byte             sEven                                 = 0;
+    Byte             cOdd                                  = 0;
+    Byte             cEven                                 = 0;
+    Byte             foundProlog                           = 0;
+    Byte             field[NibbleFormat::kDataNibbleCount] = {};
+    Byte             addrVolume                            = 0;
+    Byte             addrTrack                             = 0;
+    Byte             addrChecksum                          = 0;
     DataFieldDecode  decode;
-    size_t           posBeforeProlog                            = 0;
-    bool             addrChecksumOk                             = false;
-    bool             dataFieldMissing                           = false;
-    bool             dataTrusted                                = false;
-    size_t           i                                          = 0;
-    size_t           trackBits                                  = src.bitCount;
-    size_t           startBitPos                                = bitPos;
-    size_t           bitsConsumed                               = 0;
-    size_t           addrFieldStart                             = 0;
+    size_t           posBeforeProlog                       = 0;
+    bool             addrChecksumOk                        = false;
+    bool             dataFieldMissing                      = false;
+    bool             dataTrusted                           = false;
+    size_t           i                                     = 0;
+    size_t           trackBits                             = src.bitCount;
+    size_t           startBitPos                           = bitPos;
+    size_t           bitsConsumed                          = 0;
+    size_t           addrFieldStart                        = 0;
 
 
 
@@ -880,7 +881,7 @@ static HRESULT DecodeOneSector (
     // the data field needs.
     outDataFieldStart = posBeforeProlog;
 
-    for (i = 0; i < NibblizationLayer::kDataNibbleCount; i++)
+    for (i = 0; i < NibbleFormat::kDataNibbleCount; i++)
     {
         field[i] = NibblizationLayer::ReadNibbleAt (src, bitPos);
     }
@@ -896,7 +897,7 @@ static HRESULT DecodeOneSector (
     dataTrusted = decode.isChecksumGood && decode.invalidNibbles.empty();
     outcome     = dataTrusted ? SectorOutcome::Verified : SectorOutcome::Recovered;
 
-    memcpy (outData, decode.bytes.data(), NibblizationLayer::kSectorByteSize);
+    memcpy (outData, decode.bytes.data(), NibbleFormat::kSectorByteSize);
 
 Error:
     return hr;
@@ -919,19 +920,19 @@ Error:
 
 static Byte FindSectorBase (const NibblizationLayer::TrackBits & src)
 {
-    size_t         bitPos                                     = 0;
-    size_t         field                                      = SIZE_MAX;
-    size_t         data                                       = SIZE_MAX;
-    Byte           sector                                     = 0;
-    Byte           lowest                                     = 0xFF;
-    Byte           highest                                    = 0;
-    Byte           base                                       = 0;
-    Byte           buffer[NibblizationLayer::kSectorByteSize] = {};
-    SectorOutcome  outcome                                    = SectorOutcome::Lost;
-    bool           low                                        = false;
-    bool           seen[256]                                  = {};
-    int            count                                      = 0;
-    bool           more                                       = src.bitCount != 0;
+    size_t         bitPos                                = 0;
+    size_t         field                                 = SIZE_MAX;
+    size_t         data                                  = SIZE_MAX;
+    Byte           sector                                = 0;
+    Byte           lowest                                = 0xFF;
+    Byte           highest                               = 0;
+    Byte           base                                  = 0;
+    Byte           buffer[NibbleFormat::kSectorByteSize] = {};
+    SectorOutcome  outcome                               = SectorOutcome::Lost;
+    bool           low                                   = false;
+    bool           seen[256]                             = {};
+    int            count                                 = 0;
+    bool           more                                  = src.bitCount != 0;
 
 
 
@@ -945,13 +946,13 @@ static Byte FindSectorBase (const NibblizationLayer::TrackBits & src)
         {
             count        += seen[sector] ? 0 : 1;
             seen[sector]  = true;
-            low           = low || sector < NibblizationLayer::kSectorsPerTrack;
+            low           = low || sector < NibbleFormat::kSectorsPerTrack;
             lowest        = std::min (lowest, sector);
             highest       = std::max (highest, sector);
         }
     }
 
-    if (!low && count == NibblizationLayer::kSectorsPerTrack && highest - lowest == NibblizationLayer::kSectorsPerTrack - 1)
+    if (!low && count == NibbleFormat::kSectorsPerTrack && highest - lowest == NibbleFormat::kSectorsPerTrack - 1)
     {
         base = lowest;
     }
@@ -1145,36 +1146,36 @@ HRESULT NibblizationLayer::DecodeTracks (
 {
     // Enough attempts to still find all sixteen good sectors when several
     // reads fail or repeat, without letting a hostile track spin forever.
-    constexpr int  kMaxAttemptsPerTrack = kSectorsPerTrack * 2;
-    constexpr int  kAllSectorsMask      = (1 << kSectorsPerTrack) - 1;
+    constexpr int  kMaxAttemptsPerTrack = NibbleFormat::kSectorsPerTrack * 2;
+    constexpr int  kAllSectorsMask      = (1 << NibbleFormat::kSectorsPerTrack) - 1;
 
 
 
-    HRESULT       hr                    = S_OK;
-    const int *   interleave            = nullptr;
-    int           track                 = 0;
-    int           attempt               = 0;
-    int           decoded               = 0;
-    uint16_t      mask                  = 0;
-    uint16_t      recovered             = 0;
-    uint16_t      lost                  = 0;
-    uint16_t      duplicated            = 0;
-    uint16_t      slotMask              = 0;
-    uint16_t      seenAtRevStart        = 0;
-    size_t        revolutionEnd         = 0;
-    Byte          outSector             = 0;
-    Byte          sectorBase            = 0;
-    Byte          data[kSectorByteSize] = {};
-    size_t        bitPos                = 0;
-    size_t        offset                = 0;
-    size_t        trackBits             = 0;
-    int           trackLimit            = img.GetTrackCount();
-    FluxBitView   fluxView;
-    TrackBits     src;
+    HRESULT        hr                                  = S_OK;
+    const int    * interleave                          = nullptr;
+    int            track                               = 0;
+    int            attempt                             = 0;
+    int            decoded                             = 0;
+    uint16_t       mask                                = 0;
+    uint16_t       recovered                           = 0;
+    uint16_t       lost                                = 0;
+    uint16_t       duplicated                          = 0;
+    uint16_t       slotMask                            = 0;
+    uint16_t       seenAtRevStart                      = 0;
+    size_t         revolutionEnd                       = 0;
+    Byte           outSector                           = 0;
+    Byte           sectorBase                          = 0;
+    Byte           data[NibbleFormat::kSectorByteSize] = {};
+    size_t         bitPos                              = 0;
+    size_t         offset                              = 0;
+    size_t         trackBits                           = 0;
+    int            trackLimit                          = img.GetTrackCount();
+    FluxBitView    fluxView;
+    TrackBits      src;
 
 
 
-    out.assign (kImageByteSize, 0);
+    out.assign (NibbleFormat::kImageByteSize, 0);
 
     report = DenibblizeReport();
 
@@ -1188,9 +1189,9 @@ HRESULT NibblizationLayer::DecodeTracks (
 
     CHR (hr);
 
-    if (trackLimit > kTrackCount)
+    if (trackLimit > NibbleFormat::kTrackCount)
     {
-        trackLimit = kTrackCount;
+        trackLimit = NibbleFormat::kTrackCount;
     }
 
     report.decodedSectorMask.assign (static_cast<size_t> (trackLimit), 0);
@@ -1270,7 +1271,7 @@ HRESULT NibblizationLayer::DecodeTracks (
 
             outSector = (outSector >= sectorBase) ? static_cast<Byte> (outSector - sectorBase) : outSector;
 
-            if (outSector >= kSectorsPerTrack)
+            if (outSector >= NibbleFormat::kSectorsPerTrack)
             {
                 continue;
             }
@@ -1291,10 +1292,10 @@ HRESULT NibblizationLayer::DecodeTracks (
                 }
             }
 
-            offset = static_cast<size_t> (track * kSectorsPerTrack + interleave[outSector])
-                   * kSectorByteSize;
+            offset = static_cast<size_t> (track * NibbleFormat::kSectorsPerTrack + interleave[outSector])
+                   * NibbleFormat::kSectorByteSize;
 
-            memcpy (&out[offset], data, kSectorByteSize);
+            memcpy (&out[offset], data, NibbleFormat::kSectorByteSize);
 
             if (outcome == SectorOutcome::Verified)
             {
@@ -1364,10 +1365,10 @@ HRESULT NibblizationLayer::DecodeTracks (
         {
             report.tracksUnformatted++;
         }
-        else if (decoded < kSectorsPerTrack)
+        else if (decoded < NibbleFormat::kSectorsPerTrack)
         {
             report.tracksPartial++;
-            report.sectorsMissing += kSectorsPerTrack - decoded;
+            report.sectorsMissing += NibbleFormat::kSectorsPerTrack - decoded;
         }
         else
         {
@@ -1439,30 +1440,30 @@ HRESULT NibblizationLayer::WriteFluxTrackSectors (
     int                    track,
     DiskImage           &  inOutImage)
 {
-    constexpr int     kMaxAttempts    = kSectorsPerTrack * 2;
+    constexpr int     kMaxAttempts    = NibbleFormat::kSectorsPerTrack * 2;
     constexpr size_t  kSyncNibbleBits = 8 + NibbleFieldWriter::kSyncTailZeros;
     constexpr size_t  kMaxLeadZeros   = 16;
 
 
 
-    HRESULT          hr                    = S_OK;
-    FluxBitView      view;
-    TrackBits        src                   = GetTrackBits (inOutImage, track, view);
-    size_t           bitPos                = 0;
-    size_t           start                 = 0;
-    size_t           fieldBits             = 0;
-    size_t           offset                = 0;
-    size_t           lead                  = 0;
-    int              attempt               = 0;
-    int              physical              = 0;
-    uint16_t         found                 = 0;
-    uint16_t         writeMask             = 0;
-    Byte             outSector             = 0;
-    Byte             data[kSectorByteSize] = {};
-    bool             changed               = false;
-    bool             located               = false;
-    vector<size_t>   dataStart (kSectorsPerTrack, SIZE_MAX);
-    vector<Byte>     priorData (static_cast<size_t> (kSectorsPerTrack) * kSectorByteSize, 0);
+    HRESULT      hr                                  = S_OK;
+    FluxBitView  view;
+    TrackBits    src                                 = GetTrackBits (inOutImage, track, view);
+    size_t       bitPos                              = 0;
+    size_t       start                               = 0;
+    size_t       fieldBits                           = 0;
+    size_t       offset                              = 0;
+    size_t       lead                                = 0;
+    int          attempt                             = 0;
+    int          physical                            = 0;
+    uint16_t     found                               = 0;
+    uint16_t     writeMask                           = 0;
+    Byte         outSector                           = 0;
+    Byte         data[NibbleFormat::kSectorByteSize] = {};
+    bool         changed                             = false;
+    bool         located                             = false;
+    vector<size_t>   dataStart (NibbleFormat::kSectorsPerTrack, SIZE_MAX);
+    vector<Byte>     priorData (static_cast<size_t> (NibbleFormat::kSectorsPerTrack) * NibbleFormat::kSectorByteSize, 0);
     vector<Byte>     field;
     vector<uint8_t>  bits;
 
@@ -1480,14 +1481,14 @@ HRESULT NibblizationLayer::WriteFluxTrackSectors (
             continue;
         }
 
-        if (outSector >= kSectorsPerTrack || (found & (1 << outSector)) != 0)
+        if (outSector >= NibbleFormat::kSectorsPerTrack || (found & (1 << outSector)) != 0)
         {
             continue;
         }
 
         found = static_cast<uint16_t> (found | (1 << outSector));
         dataStart[outSector] = dataAt;
-        memcpy (&priorData[static_cast<size_t> (outSector) * kSectorByteSize], data, kSectorByteSize);
+        memcpy (&priorData[static_cast<size_t> (outSector) * NibbleFormat::kSectorByteSize], data, NibbleFormat::kSectorByteSize);
     }
 
     if (found == 0)
@@ -1497,10 +1498,10 @@ HRESULT NibblizationLayer::WriteFluxTrackSectors (
 
     // Every changed sector is found before any is written, so a write that
     // cannot be completed leaves the track exactly as it was.
-    for (physical = 0; found != 0 && physical < kSectorsPerTrack; physical++)
+    for (physical = 0; found != 0 && physical < NibbleFormat::kSectorsPerTrack; physical++)
     {
-        offset  = static_cast<size_t> (track * kSectorsPerTrack + interleave[physical]) * kSectorByteSize;
-        changed = memcmp (&sectors[offset], &priorData[static_cast<size_t> (physical) * kSectorByteSize], kSectorByteSize) != 0;
+        offset  = static_cast<size_t> (track * NibbleFormat::kSectorsPerTrack + interleave[physical]) * NibbleFormat::kSectorByteSize;
+        changed = memcmp (&sectors[offset], &priorData[static_cast<size_t> (physical) * NibbleFormat::kSectorByteSize], NibbleFormat::kSectorByteSize) != 0;
         located = (dataStart[physical] != SIZE_MAX);
 
         CBREx (!changed || located, HRESULT_FROM_WIN32 (ERROR_SECTOR_NOT_FOUND));
@@ -1508,16 +1509,16 @@ HRESULT NibblizationLayer::WriteFluxTrackSectors (
         writeMask = static_cast<uint16_t> (writeMask | (changed ? (1 << physical) : 0));
     }
 
-    for (physical = 0; physical < kSectorsPerTrack; physical++)
+    for (physical = 0; physical < NibbleFormat::kSectorsPerTrack; physical++)
     {
         if ((writeMask & (1 << physical)) == 0)
         {
             continue;
         }
 
-        offset = static_cast<size_t> (track * kSectorsPerTrack + interleave[physical]) * kSectorByteSize;
+        offset = static_cast<size_t> (track * NibbleFormat::kSectorsPerTrack + interleave[physical]) * NibbleFormat::kSectorByteSize;
 
-        field.assign (kTrackBitCapacity / 8, 0);
+        field.assign (NibbleFormat::kTrackBitCapacity / 8, 0);
         fieldBits = 0;
         NibbleFieldWriter::AppendDataField (field, fieldBits, &sectors[offset]);
         UnpackBits (field, NibbleFieldWriter::kDataPrologueGap * kSyncNibbleBits, fieldBits, bits);
@@ -1576,7 +1577,7 @@ void NibblizationLayer::WriteBlankFluxTrack (
     int                    track,
     DiskImage           &  inOutImage)
 {
-    vector<Byte>     field (kTrackBitCapacity / 8, 0);
+    vector<Byte>     field (NibbleFormat::kTrackBitCapacity / 8, 0);
     vector<uint8_t>  bits;
     size_t           fieldBits = 0;
     size_t           offset    = 0;
@@ -1584,11 +1585,11 @@ void NibblizationLayer::WriteBlankFluxTrack (
 
 
 
-    for (physical = 0; physical < kSectorsPerTrack; physical++)
+    for (physical = 0; physical < NibbleFormat::kSectorsPerTrack; physical++)
     {
-        offset = static_cast<size_t> (track * kSectorsPerTrack + interleave[physical]) * kSectorByteSize;
+        offset = static_cast<size_t> (track * NibbleFormat::kSectorsPerTrack + interleave[physical]) * NibbleFormat::kSectorByteSize;
 
-        NibbleFieldWriter::AppendAddressField (field, fieldBits, kDefaultVolume, static_cast<Byte> (track), static_cast<Byte> (physical));
+        NibbleFieldWriter::AppendAddressField (field, fieldBits, NibbleFormat::kDefaultVolume, static_cast<Byte> (track), static_cast<Byte> (physical));
         NibbleFieldWriter::AppendDataField    (field, fieldBits, &sectors[offset]);
     }
 

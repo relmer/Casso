@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/VolumeImage.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/CpmVolume.h"
@@ -44,21 +45,21 @@
 
 void VolumeImage::ProDosFileToDosLogical (const vector<Byte> & fileBytes, vector<Byte> & outSectors)
 {
-    const size_t  kSectorBytes = (size_t) NibblizationLayer::kSectorByteSize;
+    const size_t  kSectorBytes = (size_t) NibbleFormat::kSectorByteSize;
     int           track        = 0;
     int           logical      = 0;
 
 
 
-    outSectors.assign ((size_t) NibblizationLayer::kImageByteSize, 0);
+    outSectors.assign ((size_t) NibbleFormat::kImageByteSize, 0);
 
-    for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+    for (track = 0; track < NibbleFormat::kTrackCount; track++)
     {
-        for (logical = 0; logical < NibblizationLayer::kSectorsPerTrack; logical++)
+        for (logical = 0; logical < NibbleFormat::kSectorsPerTrack; logical++)
         {
-            size_t  from = ((size_t) track * NibblizationLayer::kSectorsPerTrack
+            size_t  from = ((size_t) track * NibbleFormat::kSectorsPerTrack
                          + (size_t) NibblizationLayer::GetPoFileIndexForDosLogicalSector (logical)) * kSectorBytes;
-            size_t  to   = ((size_t) track * NibblizationLayer::kSectorsPerTrack
+            size_t  to   = ((size_t) track * NibbleFormat::kSectorsPerTrack
                          + (size_t) logical) * kSectorBytes;
 
             std::copy (fileBytes.begin() + (ptrdiff_t) from,
@@ -80,21 +81,21 @@ void VolumeImage::ProDosFileToDosLogical (const vector<Byte> & fileBytes, vector
 
 void VolumeImage::DosLogicalToProDosFile (const vector<Byte> & sectors, vector<Byte> & outFileBytes)
 {
-    const size_t  kSectorBytes = (size_t) NibblizationLayer::kSectorByteSize;
+    const size_t  kSectorBytes = (size_t) NibbleFormat::kSectorByteSize;
     int           track        = 0;
     int           logical      = 0;
 
 
 
-    outFileBytes.assign ((size_t) NibblizationLayer::kImageByteSize, 0);
+    outFileBytes.assign ((size_t) NibbleFormat::kImageByteSize, 0);
 
-    for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+    for (track = 0; track < NibbleFormat::kTrackCount; track++)
     {
-        for (logical = 0; logical < NibblizationLayer::kSectorsPerTrack; logical++)
+        for (logical = 0; logical < NibbleFormat::kSectorsPerTrack; logical++)
         {
-            size_t  from = ((size_t) track * NibblizationLayer::kSectorsPerTrack
+            size_t  from = ((size_t) track * NibbleFormat::kSectorsPerTrack
                          + (size_t) logical) * kSectorBytes;
-            size_t  to   = ((size_t) track * NibblizationLayer::kSectorsPerTrack
+            size_t  to   = ((size_t) track * NibbleFormat::kSectorsPerTrack
                          + (size_t) NibblizationLayer::GetPoFileIndexForDosLogicalSector (logical)) * kSectorBytes;
 
             std::copy (sectors.begin() + (ptrdiff_t) from,
@@ -233,7 +234,7 @@ HRESULT VolumeImage::Load (
         BAIL_OUT_IF (true, S_OK);
     }
 
-    sized = size == (size_t) NibblizationLayer::kImageByteSize;
+    sized = size == (size_t) NibbleFormat::kImageByteSize;
 
     // ERROR_BAD_LENGTH rather than E_INVALIDARG, which in this tree marks a
     // coding error and asserts. A file the user named is not a coding error
@@ -272,10 +273,10 @@ void VolumeImage::CollectChangedTracks (
     const vector<Byte>  & editedSectors,
     vector<int>         & outTracks)
 {
-    const size_t  kTrackBytes = (size_t) NibblizationLayer::kSectorsPerTrack
-                              * (size_t) NibblizationLayer::kSectorByteSize;
+    const size_t  kTrackBytes = (size_t) NibbleFormat::kSectorsPerTrack
+                              * (size_t) NibbleFormat::kSectorByteSize;
     int           track       = 0;
-    size_t        needed      = (size_t) NibblizationLayer::kImageByteSize;
+    size_t        needed      = (size_t) NibbleFormat::kImageByteSize;
 
 
 
@@ -286,7 +287,7 @@ void VolumeImage::CollectChangedTracks (
         return;
     }
 
-    for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+    for (track = 0; track < NibbleFormat::kTrackCount; track++)
     {
         size_t  base = (size_t) track * kTrackBytes;
         bool    same = std::equal (priorSectors.begin()  + (ptrdiff_t) base,
@@ -319,7 +320,7 @@ void VolumeImage::CollectSectorWrites (
     const vector<Byte>   & editedSectors,
     vector<SectorWrite>  & outWrites)
 {
-    size_t       needed   = static_cast<size_t> (NibblizationLayer::kImageByteSize);
+    size_t       needed   = static_cast<size_t> (NibbleFormat::kImageByteSize);
     int          track    = 0;
     int          physical = 0;
     size_t       base     = 0;
@@ -334,15 +335,15 @@ void VolumeImage::CollectSectorWrites (
         return;
     }
 
-    for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+    for (track = 0; track < NibbleFormat::kTrackCount; track++)
     {
-        for (physical = 0; physical < NibblizationLayer::kSectorsPerTrack; physical++)
+        for (physical = 0; physical < NibbleFormat::kSectorsPerTrack; physical++)
         {
-            base = (static_cast<size_t> (track) * NibblizationLayer::kSectorsPerTrack
+            base = (static_cast<size_t> (track) * NibbleFormat::kSectorsPerTrack
                  + static_cast<size_t> (NibblizationLayer::GetDosFileIndexForPhysicalSector (physical)))
-                 * NibblizationLayer::kSectorByteSize;
+                 * NibbleFormat::kSectorByteSize;
 
-            if (std::equal (priorSectors.begin() + base, priorSectors.begin() + base + NibblizationLayer::kSectorByteSize, editedSectors.begin() + base))
+            if (std::equal (priorSectors.begin() + base, priorSectors.begin() + base + NibbleFormat::kSectorByteSize, editedSectors.begin() + base))
             {
                 continue;
             }
@@ -350,7 +351,7 @@ void VolumeImage::CollectSectorWrites (
             write        = SectorWrite();
             write.track  = track;
             write.sector = static_cast<Byte> (physical);
-            std::copy (editedSectors.begin() + base, editedSectors.begin() + base + NibblizationLayer::kSectorByteSize, write.bytes.begin());
+            std::copy (editedSectors.begin() + base, editedSectors.begin() + base + NibbleFormat::kSectorByteSize, write.bytes.begin());
 
             outWrites.push_back (write);
         }
@@ -401,7 +402,7 @@ HRESULT VolumeImage::Save (
     HRESULT             hr       = S_OK;
     DiskFormat          format   = DiskFormat::Dsk;
     bool                thirteen = editedSectors.size() == ThirteenSectorCodec::kImageByteSize;
-    bool                sized    = thirteen || editedSectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool                sized    = thirteen || editedSectors.size() == (size_t) NibbleFormat::kImageByteSize;
     ImageContainerKind  kind     = ImageContainer::GetKind (path, originalFileBytes.size());
 
 
@@ -440,7 +441,7 @@ HRESULT VolumeImage::Save (
         BAIL_OUT_IF (true, S_OK);
     }
 
-    sized = !thirteen && originalFileBytes.size() == (size_t) NibblizationLayer::kImageByteSize;
+    sized = !thirteen && originalFileBytes.size() == (size_t) NibbleFormat::kImageByteSize;
     CBRAEx (sized, E_INVALIDARG);
 
     if (format == DiskFormat::Po)
@@ -867,7 +868,7 @@ AppleTextConvention VolumeImage::GetTextConvention (VolumeKind kind)
 
 VolumeKind VolumeImage::DetectFilesystem (const vector<Byte> & sectors)
 {
-    bool  sized = sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool  sized = sectors.size() == (size_t) NibbleFormat::kImageByteSize;
 
 
 
@@ -1094,7 +1095,7 @@ void VolumeImage::DetectFilesystems (const vector<Byte> & sectors, vector<Volume
         outKinds.push_back (first);
     }
 
-    if (first == VolumeKind::Dos33 && sectors.size() == (size_t) NibblizationLayer::kImageByteSize)
+    if (first == VolumeKind::Dos33 && sectors.size() == (size_t) NibbleFormat::kImageByteSize)
     {
         if (LooksLikeProDos (sectors))
         {
@@ -1224,7 +1225,7 @@ HRESULT VolumeImage::LoadContainer (
     }
 
     isDos    = twoImg.format == TwoImgHeader::kFormatDosOrder;
-    dosSized = payload.size() == (size_t) NibblizationLayer::kImageByteSize;
+    dosSized = payload.size() == (size_t) NibbleFormat::kImageByteSize;
 
     if (isDos)
     {
@@ -1363,7 +1364,7 @@ Error:
 HRESULT VolumeImage::LoadBlockPayload (const vector<Byte> & payload, vector<Byte> & outSectors)
 {
     HRESULT  hr       = S_OK;
-    bool     isFloppy = payload.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool     isFloppy = payload.size() == (size_t) NibbleFormat::kImageByteSize;
     bool     sizeOk   = ProDosSkeleton::IsValidVolumeSize (payload.size());
 
 
@@ -1395,7 +1396,7 @@ Error:
 
 void VolumeImage::SaveBlockPayload (const vector<Byte> & sectors, vector<Byte> & outPayload)
 {
-    if (sectors.size() == (size_t) NibblizationLayer::kImageByteSize)
+    if (sectors.size() == (size_t) NibbleFormat::kImageByteSize)
     {
         DosLogicalToProDosFile (sectors, outPayload);
     }
