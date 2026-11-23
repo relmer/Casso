@@ -5,6 +5,7 @@
 #include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/DiskFlusher.h"
 #include "Devices/Disk/Store/DiskSalvager.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/Nibblizer.h"
@@ -88,7 +89,7 @@ public:
         Assert::IsNotNull (mounted, L"the bay must hold the image it just mounted");
         mounted->MarkTrackDirty (20);
 
-        hr = store.Flush (6, 1);
+        hr = store.GetFlusher().Flush (6, 1);
 
         Assert::IsTrue (SUCCEEDED (hr), L"flushing a healthy dirty image must succeed");
         Assert::AreEqual (1, writes, L"and must write it back");
@@ -130,7 +131,7 @@ public:
         DamagedDisk::BreakSector (*mounted, 20, 5);
         mounted->MarkTrackDirty (20);
 
-        hr = store.Flush (6, 1);
+        hr = store.GetFlusher().Flush (6, 1);
 
         Assert::IsTrue (FAILED (hr), L"the flush must report that it could not persist");
 
@@ -214,7 +215,7 @@ public:
         Assert::IsNotNull (mounted, L"the bay must hold the image it just mounted");
         mounted->MarkTrackDirty (20);
 
-        hr = store.Flush (6, 1);
+        hr = store.GetFlusher().Flush (6, 1);
 
         Assert::IsTrue (SUCCEEDED (hr), L"a nibble flush needs no decode, so it succeeds");
         Assert::AreEqual (1, writes, L"and writes the stream back, damage and all");
@@ -246,7 +247,7 @@ public:
         DamagedDisk::BreakSector (*mounted, 20, 5);
         mounted->MarkTrackDirty (20);
 
-        hr = store.Flush (6, 1);
+        hr = store.GetFlusher().Flush (6, 1);
 
         Assert::IsTrue (FAILED (hr), L"the flush refuses, which is what forces the recovery copy");
 

@@ -17,6 +17,7 @@
 #include "Devices/BlockDevice/ScsiHardDisk.h"
 #include "Shell/StorageCardWiring.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/DiskFlusher.h"
 #include "Devices/Disk/Store/DiskBayTable.h"
 #include "Seams/Win32DiskFileIo.h"
 #include "Shell/DiskManager.h"
@@ -1029,7 +1030,7 @@ void MachineHost::SoftReset()
     // saved the guest's disk as a spare copy beside it.
     if (m_diskStore != nullptr)
     {
-        hrFlush = m_diskStore->FlushAll();
+        hrFlush = m_diskStore->GetFlusher().FlushAll();
         IGNORE_RETURN_VALUE (hrFlush, S_OK);
     }
 
@@ -1104,7 +1105,7 @@ void MachineHost::PowerCycle()
     // DiskImageStore::SoftReset semantics -- see the comment block on
     // DiskImageStore::PowerCycle, which is the unmount-everything variant
     // tests can opt into directly).
-    hrFlush = m_diskStore->FlushAll();
+    hrFlush = m_diskStore->GetFlusher().FlushAll();
     IGNORE_RETURN_VALUE (hrFlush, S_OK);
 
     m_memoryBus->PowerCycleAll (*m_prng);

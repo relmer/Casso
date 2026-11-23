@@ -14,8 +14,10 @@
 #include "BayChange.h"
 #include "Devices/Disk/Store/BayFileAccess.h"
 #include "Devices/Disk/Store/DiskBayTable.h"
+#include "Devices/Disk/Store/DiskFlusher.h"
 #include "Devices/Disk/Store/DiskSalvager.h"
 #include "Devices/Disk/Store/DiskStoreHooks.h"
+#include "Devices/Disk/Store/DiskStoreInterfaces.h"
 
 
 
@@ -61,7 +63,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DiskImageStore
+class DiskImageStore : private IBayRepoint
 {
 public:
     HRESULT       Mount             (int slot, int drive, const string & path);
@@ -79,30 +81,10 @@ public:
                                      DiskFormat fmt, const vector<Byte> & bytes,
                                      MountDiagnosis & outDiagnosis);
     void          Eject             (int slot, int drive);
-    HRESULT       Flush             (int slot, int drive);
-    HRESULT       FlushAll          ();
 
-    //  The same, for the last flush of the process, which can only ask through
-    //  a blocking dialog. Separate from FlushAll so the moment is explicit at
-    //  the call site rather than inferred from where it happens to be called.
-    HRESULT       FlushAllForShutdown ();
-
-    //  Sets a mounted WOZ's write-protect flag in its backing file by patching
-    //  the single byte that carries it -- read the file, set INFO's flag byte,
-    //  recompute the header CRC, write it back atomically -- rather than
-    //  re-serializing the image.
-    //
-    //  This replaced a ForceFlush that pushed the flag through the full
-    //  rebuild-from-model writer. That writer is correct for a flush, where
-    //  the track model IS the newer truth, and wrong for this, where the file
-    //  is: one menu click relaid out an entire image to carry one bit, and on
-    //  a preservation dump that was pure loss. Patching one byte cannot lose
-    //  what it never reads, which is a guarantee by construction rather than
-    //  one that depends on the writer retaining every field correctly.
-    //
-    //  Flushes pending guest writes first, so the patch lands on a file that
-    //  already holds them. That ordering used to be the caller's to get right.
-    HRESULT       SetImageWriteProtect (int slot, int drive, bool writeProtected);
+    //  Writing dirty images back to their files, and a WOZ's write-protect
+    //  flag into its file.
+    DiskFlusher & GetFlusher        () { return m_flusher; }
 
     //  The verdict reached at mount. Free to call: no decoding, no allocation.
     //  Use this to decide whether to OFFER salvage; use AssessSalvage when the
@@ -296,50 +278,7 @@ private:
     //
     //  THIS IS A SAVE-AS, NOT A MOUNT. Nothing is loaded, so a guest mid-write
     //  sees nothing at all.
-    HRESULT       RepointBayToFile  (int slot, int drive, const string & newPath);
-
-    //  How a flush failure can be put to the user, which differs by what is
-    //  still standing when it happens.
-    //
-    //  THE DISCRIMINATOR IS NOT WHICH FUNCTION FLUSHED. What matters is
-    //  whether there is a bay still holding the disk, a pump still running,
-    //  and a thread that can raise a file dialog -- and the three moments
-    //  below have different answers to those.
-    enum class FlushMoment
-    {
-        //  The machine is running and the bay stays: a spindown, an explicit
-        //  flush, a write-protect change, a machine switch, a soft reset. The
-        //  question goes to the shell and is answered later, and nothing is
-        //  lost while it stands.
-        Running,
-
-        //  The disk is coming out. The question goes the same way, but the
-        //  eject waits for it: emptying the bay is what would destroy a disk
-        //  whose copy could not be written, so it does not happen until the
-        //  user has said which way they want it.
-        Ejecting,
-
-        //  The process is on its way out. There is no pump left to deliver a
-        //  posted question and no CPU thread to act on the answer -- but this
-        //  runs on the UI thread with its apartment still up, so a blocking
-        //  file dialog still works. That is the one route left, and asking
-        //  through it is synchronous.
-        ShuttingDown,
-    };
-
-    HRESULT        FlushEntry    (DiskBay & entry, FlushMoment moment);
-    HRESULT        FlushEveryBay (FlushMoment moment);
-
-    //  Tells the user the guest's version could not be written beside the
-    //  file that displaced it -- as a question where one can still be
-    //  answered, and as a notice where it cannot.
-    void          ReportPreserveFailure (DiskBay & entry, FlushMoment moment,
-                                         const string & attemptedPath, HRESULT hrKeep,
-                                         const string & original);
-
-    //  Asks the shell where to put a disk on the way out and writes it there,
-    //  without returning until it is done. Only ever called at ShuttingDown.
-    bool          RescueOnTheWayOut (DiskBay & entry, const string & original);
+    HRESULT       RepointBayToFile  (int slot, int drive, const string & newPath) override;
 
     //  Everything one bay's settled change leads to.
     void           ApplyPendingReloadToBay (int slot, int drive);
@@ -393,5 +332,6 @@ private:
     DiskBayTable    m_bays;
     BayFileAccess   m_files     { m_hooks };
     DiskSalvager    m_salvager  { m_bays, m_hooks };
+    DiskFlusher     m_flusher   { m_bays, m_hooks, m_files, *this };
     string          m_emptyPath;
 };

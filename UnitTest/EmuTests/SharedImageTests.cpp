@@ -3,6 +3,7 @@
 #include "FakeImageWatcher.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/DiskFlusher.h"
 #include "Devices/Disk/Store/DiskFileCommit.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/Nibblizer.h"
@@ -350,7 +351,7 @@ public:
         rig.Stamp (wozPath);
 
         AssertSucceeded (rig.store.Mount (kSlot, kDrive, wozPath));
-        AssertSucceeded (rig.store.SetImageWriteProtect (kSlot, kDrive, true));
+        AssertSucceeded (rig.store.GetFlusher().SetImageWriteProtect (kSlot, kDrive, true));
 
         rig.FireAndSettle (wozPath);
 
@@ -587,7 +588,7 @@ public:
         rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
         rig.WriteImage (kImagePath, 0x33);
 
-        AssertSucceeded (rig.store.Flush (kSlot, kDrive));
+        AssertSucceeded (rig.store.GetFlusher().Flush (kSlot, kDrive));
 
         Assert::AreEqual ((size_t) 1, rig.PreservedPaths().size(),
                           L"the guest's version goes to a file of its own");
@@ -640,7 +641,7 @@ public:
         rig.wallClock     += 3600;
         rig.refusePreserve = false;
 
-        AssertSucceeded (rig.store.Flush (kSlot, kDrive));
+        AssertSucceeded (rig.store.GetFlusher().Flush (kSlot, kDrive));
 
         Assert::AreEqual ((size_t) 1, rig.PreservedPaths().size());
 
@@ -924,7 +925,7 @@ public:
         rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
         rig.WriteImage (kImagePath, 0x33);
 
-        AssertSucceeded (rig.store.Flush (kSlot, kDrive));
+        AssertSucceeded (rig.store.GetFlusher().Flush (kSlot, kDrive));
 
         Assert::AreEqual ((size_t) 1, rig.PreservedPaths().size());
 
@@ -1001,7 +1002,7 @@ public:
         //  flush changes the file, and a directory watcher reports that.
         rig.store.GetImage (kSlot, kDrive)->GetTrackBitsForWrite (0)[0] = 0x7F;
         rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
-        AssertSucceeded (rig.store.Flush (kSlot, kDrive));
+        AssertSucceeded (rig.store.GetFlusher().Flush (kSlot, kDrive));
 
         rig.FireAndSettle (kImagePath);
 
@@ -1023,14 +1024,14 @@ public:
 
         rig.store.GetImage (kSlot, kDrive)->GetTrackBitsForWrite (0)[0] = 0x7F;
         rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
-        AssertSucceeded (rig.store.Flush (kSlot, kDrive));
+        AssertSucceeded (rig.store.GetFlusher().Flush (kSlot, kDrive));
 
         //  Without the post-commit refresh this is where every ordinary
         //  session breaks: the first flush changes the file, nothing updates
         //  what was recorded, and the second flush refuses itself.
         rig.store.GetImage (kSlot, kDrive)->GetTrackBitsForWrite (0)[1] = 0x7E;
         rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
-        AssertSucceeded (rig.store.Flush (kSlot, kDrive));
+        AssertSucceeded (rig.store.GetFlusher().Flush (kSlot, kDrive));
     }
 
 
@@ -1057,7 +1058,7 @@ public:
         rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
         rig.WriteImage (kImagePath, 0x33);
 
-        AssertSucceeded (rig.store.Flush (kSlot, kDrive));
+        AssertSucceeded (rig.store.GetFlusher().Flush (kSlot, kDrive));
 
         Assert::AreEqual ((int) 0x33, (int) rig.files[kImagePath][0],
                           L"the original still holds what the other program wrote");
@@ -1092,7 +1093,7 @@ public:
 
         rig.refusePreserve = true;
 
-        hrFlush = rig.store.Flush (kSlot, kDrive);
+        hrFlush = rig.store.GetFlusher().Flush (kSlot, kDrive);
 
         //  The whole promise is that a version is never destroyed. A preserve
         //  that did not happen therefore stops the write that would have done
@@ -1127,7 +1128,7 @@ public:
 
         rig.refusePreserve = true;
 
-        hrFlush = rig.store.Flush (kSlot, kDrive);
+        hrFlush = rig.store.GetFlusher().Flush (kSlot, kDrive);
 
         Assert::IsTrue (FAILED (hrFlush));
         Assert::AreEqual ((size_t) 1, rig.questions.size(),
@@ -1285,7 +1286,7 @@ public:
         //  The flush itself still reports failure, and truthfully: the file it
         //  was asked to write keeps the other program's version. What changed
         //  is where the guest's disk went.
-        HRESULT  hrFlush = rig.store.FlushAllForShutdown();
+        HRESULT  hrFlush = rig.store.GetFlusher().FlushAllForShutdown();
 
         Assert::IsTrue (FAILED (hrFlush));
 
@@ -1319,7 +1320,7 @@ public:
         rig.refusePreserve = true;
 
         //  rescueChoice left empty: the user closed the picker.
-        rig.store.FlushAllForShutdown();
+        rig.store.GetFlusher().FlushAllForShutdown();
 
         Assert::AreEqual (1, rig.rescuesAsked);
         Assert::AreEqual ((size_t) 0, rig.PreservedPaths().size(),
@@ -1529,7 +1530,7 @@ public:
         rig.store.GetImage (kSlot, kDrive)->GetTrackBitsForWrite (0)[0] = 0x7F;
         rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
 
-        AssertSucceeded (rig.store.Flush (kSlot, kDrive));
+        AssertSucceeded (rig.store.GetFlusher().Flush (kSlot, kDrive));
 
         Assert::AreEqual ((size_t) 1, rig.PreservedPaths().size(),
                           L"the guest's version is written -- that part is not optional");
@@ -1765,7 +1766,7 @@ public:
         //  forever and strand the guest's work in memory for the session.
         rig.store.GetImage (kSlot, kDrive)->GetTrackBitsForWrite (0)[0] = 0x7F;
         rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
-        AssertSucceeded (rig.store.Flush (kSlot, kDrive));
+        AssertSucceeded (rig.store.GetFlusher().Flush (kSlot, kDrive));
     }
 
 
@@ -2260,7 +2261,7 @@ public:
         rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
         rig.WriteImage (kImagePath, 0x33);
 
-        AssertSucceeded (rig.store.Flush (kSlot, kDrive));
+        AssertSucceeded (rig.store.GetFlusher().Flush (kSlot, kDrive));
 
         Assert::AreEqual ((size_t) 1, rig.PreservedPaths().size(),
                           L"nothing was lost for want of a notification");
@@ -2415,7 +2416,7 @@ public:
 
         rig.store.GetImage (kSlot, kDrive)->GetTrackBitsForWrite (0)[0] = 0x7F;
         rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
-        AssertSucceeded (rig.store.Flush (kSlot, kDrive));
+        AssertSucceeded (rig.store.GetFlusher().Flush (kSlot, kDrive));
     }
 };
 

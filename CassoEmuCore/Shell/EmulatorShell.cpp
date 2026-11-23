@@ -78,6 +78,7 @@
 #include "Ui/Dialogs/SalvageDialogContent.h"
 #include "Ui/Settings/SettingsPanelState.h"
 #include "Ui/Settings/SettingsSheet.h"   // TEMP (T162 3a dev trigger)
+#include "Devices/Disk/Store/DiskFlusher.h"
 #include "Seams/Win32IntentChannel.h"
 #include "Devices/Disk/PreservedCopy.h"
 #include "Devices/BlockDevice/BlockDeviceAttachments.h"
@@ -283,7 +284,7 @@ EmulatorShell::~EmulatorShell()
     // be delivered and its answer would never be acted on. It runs on this
     // thread with OLE still initialized -- OleUninitialize is below -- so the
     // store asks through a blocking file dialog instead.
-    hrFlush = m_machine.GetDiskStore().FlushAllForShutdown();
+    hrFlush = m_machine.GetDiskStore().GetFlusher().FlushAllForShutdown();
     IGNORE_RETURN_VALUE (hrFlush, S_OK);
 
     // Same idea for a preference change still inside its debounce window:

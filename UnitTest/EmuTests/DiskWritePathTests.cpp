@@ -7,6 +7,7 @@
 #include "TestMachine.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/DiskFlusher.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Machines/Apple2/Common/Disk2NibbleEngine.h"
 #include "Devices/Disk/DiskImage.h"
@@ -532,7 +533,7 @@ public:
         img = store.GetImage (6, 0);
         Assert::IsNotNull (img);
 
-        AssertSucceeded (store.SetImageWriteProtect (6, 0, true));
+        AssertSucceeded (store.GetFlusher().SetImageWriteProtect (6, 0, true));
 
         AssertSucceeded (WozLoader::Load (file, reloaded));
         Assert::IsTrue (reloaded.GetWriteProtectInfo().imageFlag,
@@ -540,7 +541,7 @@ public:
         Assert::IsTrue (img->GetWriteProtectInfo().imageFlag,
             L"and the live image must agree with the file");
 
-        AssertSucceeded (store.SetImageWriteProtect (6, 0, false));
+        AssertSucceeded (store.GetFlusher().SetImageWriteProtect (6, 0, false));
 
         AssertSucceeded (WozLoader::Load (file, reloaded));
         Assert::IsFalse (reloaded.GetWriteProtectInfo().imageFlag,
@@ -581,7 +582,7 @@ public:
         });
 
         AssertSucceeded (store.MountFromBytes (6, 0, "t.woz", DiskFormat::Woz, file));
-        AssertSucceeded (store.SetImageWriteProtect (6, 0, true));
+        AssertSucceeded (store.GetFlusher().SetImageWriteProtect (6, 0, true));
 
         Assert::AreEqual (original.size(), file.size(),
             L"patching one flag must not resize the file");
@@ -649,7 +650,7 @@ public:
         img->WriteBit (0, 0, (uint8_t) (bit0 ^ 1));
         Assert::IsTrue (img->IsDirty(), L"precondition: there is a pending guest write");
 
-        AssertSucceeded (store.SetImageWriteProtect (6, 0, true));
+        AssertSucceeded (store.GetFlusher().SetImageWriteProtect (6, 0, true));
 
         AssertSucceeded (WozLoader::Load (file, reloaded));
 
@@ -687,7 +688,7 @@ public:
 
         // The gate the toggle's ordering exists for: a protected image's
         // regular flush drops the dirty content without writing.
-        AssertSucceeded (store.Flush (6, 0));
+        AssertSucceeded (store.GetFlusher().Flush (6, 0));
         Assert::AreEqual (0, sinkCalls, L"no write may happen through the gate");
         Assert::IsFalse (img->IsDirty(), L"the dirty bit is consumed");
     }

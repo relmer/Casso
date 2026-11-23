@@ -15,6 +15,7 @@
 #include "Seams/IntentReplyTracker.h"
 #include "Seams/Win32IntentChannel.h"
 #include "Shell/InspectorRequestQueue.h"
+#include "Devices/Disk/Store/DiskFlusher.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -103,7 +104,7 @@ public:
 
             savedMotion = GetMotion (drive);
             m_machine.GetDiskStore().SetFlushSink ([this] (const std::string &, const std::vector<Byte> & bytes) { saved = bytes; return S_OK; });
-            result.hr   = m_machine.GetDiskStore().Flush (kSlot, drive);
+            result.hr   = m_machine.GetDiskStore().GetFlusher().Flush (kSlot, drive);
             result.path = kImagePath;
 
             return result;

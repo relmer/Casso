@@ -8,6 +8,7 @@
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/DiskFlusher.h"
 #include "Devices/Disk/Store/DiskBayTable.h"
 #include "Devices/Disk/Store/DiskSourceFormat.h"
 #include "Devices/Disk/Win32ImageWatcher.h"
@@ -245,7 +246,7 @@ HRESULT DiskManager::ToggleImageWriteProtect (int drive)
 
     if (plan.changesAttribute && plan.protecting)
     {
-        hr = m_diskStore.Flush (6, drive);
+        hr = m_diskStore.GetFlusher().Flush (6, drive);
         CHR (hr);
     }
 
@@ -257,7 +258,7 @@ HRESULT DiskManager::ToggleImageWriteProtect (int drive)
 
     if (plan.changesImageFlag)
     {
-        hr = m_diskStore.SetImageWriteProtect (6, drive, plan.protecting);
+        hr = m_diskStore.GetFlusher().SetImageWriteProtect (6, drive, plan.protecting);
         CHR (hr);
     }
 

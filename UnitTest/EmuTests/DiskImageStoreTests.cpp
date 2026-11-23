@@ -2,6 +2,7 @@
 #include "../EhmTestHelper.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/DiskFlusher.h"
 #include "Devices/Disk/Store/DiskSalvager.h"
 #include "Devices/Disk/Store/BayFileAccess.h"
 #include "Devices/Disk/Store/DiskFileCommit.h"
@@ -276,7 +277,7 @@ public:
         store.GetImage (5, 0)->WriteBit (0, 0, 1);
         // (6,1) intentionally clean.
 
-        AssertSucceeded (store.FlushAll());
+        AssertSucceeded (store.GetFlusher().FlushAll());
         Assert::AreEqual (2, flushCount, L"FlushAll must flush exactly the dirty mounts");
 
         // Mounts persist after FlushAll.
@@ -312,7 +313,7 @@ public:
         AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "boom.dsk", DiskFormat::Dsk, raw));
         store.GetImage (kSlot, kDrive)->WriteBit (0, 0, 1);   // dirty
 
-        hr = store.Flush (kSlot, kDrive);
+        hr = store.GetFlusher().Flush (kSlot, kDrive);
 
         AssertFailed (hr);
         Assert::AreEqual (1, s_flushNotifyCount, L"a failed flush must be surfaced, not swallowed");
@@ -351,7 +352,7 @@ public:
         AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "boom.nib", DiskFormat::Nib, file));
         store.GetImage (kSlot, kDrive)->WriteBit (0, 0, 1);   // dirty
 
-        hr = store.Flush (kSlot, kDrive);
+        hr = store.GetFlusher().Flush (kSlot, kDrive);
 
         AssertFailed (hr);
         Assert::AreEqual (1, s_flushNotifyCount, L"a failed nibble flush must be surfaced");
@@ -375,7 +376,7 @@ public:
         // Dirty image that flushes successfully -> no notification.
         AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "ok.dsk", DiskFormat::Dsk, raw));
         store.GetImage (kSlot, kDrive)->WriteBit (0, 0, 1);
-        AssertSucceeded (store.Flush (kSlot, kDrive));
+        AssertSucceeded (store.GetFlusher().Flush (kSlot, kDrive));
         Assert::AreEqual (0, s_flushNotifyCount, L"a successful flush must not notify");
     }
 
@@ -408,7 +409,7 @@ public:
         store.GetImage (kSlot, kDrive)->WriteBit (0, 0, 1);
         Assert::IsTrue (store.GetImage (kSlot, kDrive)->IsDirty());
 
-        AssertSucceeded (store.FlushAll());
+        AssertSucceeded (store.GetFlusher().FlushAll());
         Assert::IsFalse (store.GetImage (kSlot, kDrive)->IsDirty(),
             L"FlushAll must clear dirty bits after successful sink write");
     }
@@ -476,7 +477,7 @@ public:
         AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "x.dsk", DiskFormat::Dsk, raw));
         store.GetImage (kSlot, kDrive)->WriteBit (0, 0, 1);
 
-        AssertSucceeded (store.Flush (kSlot, kDrive));
+        AssertSucceeded (store.GetFlusher().Flush (kSlot, kDrive));
         Assert::AreEqual (size_t (NibbleFormat::kImageByteSize), captured.size(),
             L"Flushed payload must be 143360 bytes for DSK");
     }
@@ -541,7 +542,7 @@ public:
         // reproduce the original image exactly.
         store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
 
-        AssertSucceeded (store.Flush (kSlot, kDrive));
+        AssertSucceeded (store.GetFlusher().Flush (kSlot, kDrive));
         Assert::IsTrue   (raw == captured,
             L"flushed bytes must faithfully round-trip the sector image");
     }
@@ -564,7 +565,7 @@ public:
         Assert::AreEqual (Byte (1), store.GetImage (kSlot, kDrive)->ReadBit (0, flippedBit));
 
         store.GetImage (kSlot, kDrive)->WriteBit (0, flippedBit, 0);   // real guest write -> dirty
-        AssertSucceeded (store.Flush (kSlot, kDrive));
+        AssertSucceeded (store.GetFlusher().Flush (kSlot, kDrive));
 
         // Reload the flushed bytes: the write must survive the full WOZ
         // serialize -> file -> reload cycle (DiskImage::Serialize dispatch).
@@ -595,7 +596,7 @@ public:
         store.GetImage (6, 0)->WriteBit (0, 0, 1);
         store.GetImage (6, 1)->WriteBit (0, 0, 1);
 
-        store.FlushAll();
+        store.GetFlusher().FlushAll();
         Assert::AreEqual (2, s_flushNotifyCount, L"FlushAll must notify for each dirty mount that fails");
     }
 
@@ -643,7 +644,7 @@ public:
         store->GetImage (6, 0)->WriteBit (0, flippedBit, 0);   // dirty guest write
 
         auto  ctrl = std::make_unique<Disk2Controller> (6);   // the controller and both stores are too big for the stack
-        ctrl->SetMotorOffFlushCallback ([&] () { store->FlushAll(); });
+        ctrl->SetMotorOffFlushCallback ([&] () { store->GetFlusher().FlushAll(); });
 
         ctrl->Write (0xC0E9, 0x00);    // motor on
         ctrl->Write (0xC0E8, 0x00);    // motor off (arm spindown)
@@ -709,7 +710,7 @@ public:
         store.GetImage (kSlot, kDrive)->WriteBit (0, 0,
             static_cast<uint8_t> (store.GetImage (kSlot, kDrive)->ReadBit (0, 0) ^ 1));
 
-        AssertSucceeded (store.Flush (kSlot, kDrive));
+        AssertSucceeded (store.GetFlusher().Flush (kSlot, kDrive));
 
         Assert::AreEqual (static_cast<size_t> (NibbleFormat::kImageByteSize), ReadBackAll (target).size(),
             L"a real-file flush must write a full-size image");
@@ -799,7 +800,7 @@ public:
         Assert::IsNotNull (img);
 
         img->WriteBit (0, 0, static_cast<uint8_t> (img->ReadBit (0, 0) ^ 1));
-        AssertSucceeded (store.Flush (kSlot, kDrive));
+        AssertSucceeded (store.GetFlusher().Flush (kSlot, kDrive));
 
         Assert::AreEqual (0, sinkCalls,
             L"a damaged image must never be written back -- the rewrite is what "
@@ -840,7 +841,7 @@ public:
         AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "suspect.woz",
                                                DiskFormat::Woz, file));
 
-        hr = store.SetImageWriteProtect (kSlot, kDrive, true);
+        hr = store.GetFlusher().SetImageWriteProtect (kSlot, kDrive, true);
 
         Assert::IsTrue (FAILED (hr), L"the toggle must refuse a damaged image");
         Assert::AreEqual (0, sinkCalls, L"and must not write anything on the way to refusing");
