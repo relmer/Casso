@@ -79,6 +79,7 @@ public:
 
         Assert::IsTrue (rows[2].support == CardLayoutModel::Support::Fails);
         Assert::IsTrue (rows[3].support == CardLayoutModel::Support::Step);
+        Assert::IsTrue (rows[3].note.starts_with (L"Set Partitions Dev0 to 13 "));
         Assert::IsTrue (rows[3].note.find (L"13") != std::wstring::npos);
     }
 
