@@ -2,11 +2,13 @@
 
 #include "FileTypes/DiskSaveTable.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/IDiskFileIo.h"
 #include "Machines/Apple2/Common/InfocomSave.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/Ultima3Save.h"
 #include "Machines/Apple2/Common/Ultima4Save.h"
 #include "Machines/Apple2/Common/Ultima5Save.h"
+#include "Machines/Apple2/Common/Ultima1Map.h"
 #include "Machines/Apple2/Common/Ultima1Save.h"
 #include "Machines/Apple2/Common/Ultima1981Save.h"
 #include "Machines/Apple2/Common/Ultima2Save.h"
@@ -22,7 +24,8 @@ static constexpr DiskSaveTable::Entry  s_kEntries[] =
     { &DiskSaveTable::IsUltima3Save, &DiskSaveTable::DecodeUltima3Save },
     { &DiskSaveTable::IsUltima4Save, &DiskSaveTable::DecodeUltima4Save },
     { &DiskSaveTable::IsUltima5Save, &DiskSaveTable::DecodeUltima5Save },
-    { &DiskSaveTable::IsUltima1Save, &DiskSaveTable::DecodeUltima1Save },
+    { &DiskSaveTable::IsUltima1Save, &DiskSaveTable::DecodeUltima1Save, &DiskSaveTable::IsUltima1GameDisk, &DiskSaveTable::DecodeUltima1WithMap },
+    { &DiskSaveTable::IsUltima1GameDisk, &DiskSaveTable::DecodeUltima1Game },
     { &DiskSaveTable::IsUltima1981Save, &DiskSaveTable::DecodeUltima1981Save },
     { &DiskSaveTable::IsUltima2Save, &DiskSaveTable::DecodeUltima2Save },
 };
@@ -59,18 +62,21 @@ const DiskSaveTable::Entry * DiskSaveTable::Find (const std::vector<Byte> & sect
 //  DiskSaveTable::DecodeImage
 //
 //  The image's sectors decoded by the entry that accepts them, with a flag
-//  for each sector the track layer couldn't read. Fails for an image that no
-//  entry accepts.
+//  for each sector the track layer couldn't read. When the entry tests for a
+//  companion and findCompanion finds one, the two are decoded together.
+//  Fails for an image that no entry accepts.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DiskSaveTable::DecodeImage (const std::vector<Byte> & bytes, const std::string & path, DecodedFile & outFile)
+HRESULT DiskSaveTable::DecodeImage (const std::vector<Byte> & bytes, const std::string & path, const FindCompanionFn & findCompanion, DecodedFile & outFile)
 {
-    HRESULT                  hr     = S_OK;
+    HRESULT                  hr           = S_OK;
     std::vector<Byte>        sectors;
+    std::vector<Byte>        companion;
+    bool                     hasCompanion = false;
     SectorDecodeReport       report;
-    const Entry            * entry  = nullptr;
-    size_t                   count  = 0;
+    const Entry            * entry        = nullptr;
+    size_t                   count        = 0;
     std::unique_ptr<bool[]>  lost;
 
 
@@ -80,6 +86,9 @@ HRESULT DiskSaveTable::DecodeImage (const std::vector<Byte> & bytes, const std::
 
     entry = Find (sectors);
     CBR (entry != nullptr);
+
+    hasCompanion = entry->isCompanion != nullptr && findCompanion && findCompanion (entry->isCompanion, companion);
+    BAIL_OUT_IF (hasCompanion, entry->decodeWithCompanion (sectors, companion, outFile));
 
     if (report.HasDataLoss())
     {
@@ -99,6 +108,97 @@ HRESULT DiskSaveTable::DecodeImage (const std::vector<Byte> & bytes, const std::
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskSaveTable::FindBeside
+//
+//  Each other file in path's folder, in name order, that loads as a disk
+//  image.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskSaveTable::FindBeside (IDiskFileIo & io, const std::string & path, IsFoundFn isCompanion, std::vector<Byte> & outSectors)
+{
+    HRESULT                   hr    = S_OK;
+    size_t                    slash = path.find_last_of ("\\/");
+    std::string               folder;
+    std::vector<std::string>  names;
+
+
+
+    if (slash == std::string::npos)
+    {
+        return false;
+    }
+
+    folder = path.substr (0, slash);
+    hr     = io.ListFiles (folder, names);
+
+    if (FAILED (hr))
+    {
+        return false;
+    }
+
+    std::sort (names.begin(), names.end());
+
+    for (const std::string & name : names)
+    {
+        std::string  candidate = folder + path[slash] + name;
+
+        if (_stricmp (candidate.c_str(), path.c_str()) != 0 && TryLoadImage (io, candidate, outSectors) && isCompanion (outSectors))
+        {
+            return true;
+        }
+    }
+
+    outSectors.clear();
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskSaveTable::TryLoadImage
+//
+//  The file's sectors when it loads as a disk image. A file larger than
+//  kMostBytes is passed over, since a floppy's image is far smaller and
+//  reading a hard disk's would stall the preview.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskSaveTable::TryLoadImage (IDiskFileIo & io, const std::string & path, std::vector<Byte> & outSectors)
+{
+    constexpr uint64_t  kMostBytes = 2 * 1024 * 1024;
+    HRESULT             hr         = S_OK;
+    FileStamp           stamp;
+    std::vector<Byte>   bytes;
+    SectorDecodeReport  report;
+
+
+
+    hr = io.Stat (path, stamp);
+    CHR (hr);
+
+    CBREx (stamp.sizeBytes <= kMostBytes, HRESULT_FROM_WIN32 (ERROR_FILE_TOO_LARGE));
+
+    hr = io.ReadAllBytes (path, bytes);
+    CHR (hr);
+
+    hr = VolumeImage::Load (bytes, path, outSectors, report);
+    CHR (hr);
+
+Error:
+    return SUCCEEDED (hr);
 }
 
 
@@ -314,6 +414,61 @@ HRESULT DiskSaveTable::DecodeUltima1Save (const std::vector<Byte> & sectors, std
 
 
     return Ultima1Save::Decode (sectors, unreadable, outFile, error);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskSaveTable::DecodeUltima1WithMap
+//
+//  The player disk's saved game, with its continent from the game disk.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskSaveTable::DecodeUltima1WithMap (const std::vector<Byte> & sectors, const std::vector<Byte> & game, DecodedFile & outFile)
+{
+    std::wstring  error;
+
+
+
+    return Ultima1Save::DecodeWithMap (sectors, &game, outFile, error);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskSaveTable::IsUltima1GameDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskSaveTable::IsUltima1GameDisk (const std::vector<Byte> & sectors)
+{
+    return Ultima1Map::IsGameDisk (sectors);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskSaveTable::DecodeUltima1Game
+//
+//  The game disk's four continents.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskSaveTable::DecodeUltima1Game (const std::vector<Byte> & sectors, std::span<const bool> unreadable, DecodedFile & outFile)
+{
+    UNREFERENCED_PARAMETER (unreadable);
+
+    return Ultima1Map::DecodeGameDisk (sectors, outFile);
 }
 
 

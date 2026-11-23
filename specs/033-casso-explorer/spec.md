@@ -4188,7 +4188,12 @@ as they arrive.
   with the party's position marked.
 - **FR-307**: A player disk of Ultima I: The Beginning, a ProDOS disk with
   `U1.VARS`, MUST be drawn as the character: name, race, class, sex, hit
-  points, the six stats, gold and position.
+  points, the six stats, gold, food, position, readied weapon and armor,
+  and inventory. When the game disk, a ProDOS disk whose `GEN` file has
+  the four continents, is in the same host folder, the player's continent
+  MUST be drawn with the player marked.
+- **FR-310**: The game disk of Ultima I: The Beginning MUST be drawn as its
+  four continents, each by name, with a legend of the tiles.
 - **FR-308**: An Ultima II player disk MUST be recognized by its character
   at track 4 sector 8, since it has no readable catalog, and MUST be drawn
   as the character: name, race, class, sex, hit points, food, gold, the
@@ -4198,7 +4203,7 @@ as they arrive.
   saves to track 26, and MUST be drawn as the character: name, race,
   class, hit points, food, gold, experience, the six stats and position.
 - **FR-242**: Every format and protocol in FR-190 to FR-241 and FR-304 to
-  FR-309 MUST be
+  FR-310 MUST be
   implemented by the rule FR-171 sets.
 
 ### Key Entities

@@ -362,6 +362,24 @@ public:
         Assert::AreEqual (std::wstring (L"dos33.dsk"), rig.browser.GetRows()[0].name);
     }
 
+
+    //  A filter label that already lists its masks is not given them again.
+    TEST_METHOD (Picker_FilterLabelWithMasksIsUsedAsWritten)
+    {
+        Rig            rig;
+        PickerRequest  request;
+
+
+
+        request.filters = { { L"Disk images (*.dsk, *.do)", L"*.dsk;*.do" }, { L"Notes (final)", L"*.txt" } };
+
+        rig.app.picker = &request;
+        rig.Open();
+
+        Assert::AreEqual (std::wstring (L"Disk images (*.dsk, *.do)"), rig.parts->pickerMode.GetFilterLabel (0));
+        Assert::AreEqual (std::wstring (L"Notes (final) (*.txt)"),     rig.parts->pickerMode.GetFilterLabel (1));
+    }
+
     //  The count field has how many files the scope left out, and an empty
     //  Casso node's list has where to browse from.
     TEST_METHOD (Picker_StatusCountsTheFilesItsScopeLeftOut)
