@@ -382,17 +382,6 @@ public:
     //  above, and public for the same reason.
     static HRESULT  ReadFileBytes (const string & path, vector<Byte> & bytes);
 
-    //  Why a mount failed, in the user's terms: the file named, then the
-    //  diagnosis worded as a sentence about it. Pure -- no filesystem access
-    //  -- and public because the wording is the observable half of a failed
-    //  mount, and the only half worth testing on its own.
-    //
-    //  It takes the diagnosis rather than re-deriving one from the path. The
-    //  path can only ever answer "is this an extension we read", which left
-    //  every other refusal sharing one sentence that named none of them.
-    static wstring  FormatMountFailureMessage (const string & path,
-                                               const MountDiagnosis & diagnosis);
-
 private:
     struct Entry
     {
@@ -482,12 +471,6 @@ private:
     //  without returning until it is done. Only ever called at ShuttingDown.
     bool          RescueOnTheWayOut (Entry & entry, const string & original);
 
-    //  Why a disk's changes are going, said where claiming they are safe would
-    //  be false.
-    static wstring FormatDiscardedWritesMessage (const string & path,
-                                                 const string & attemptedPath,
-                                                 HRESULT        reason);
-
     //  Whether some other bay already reads and writes this file, and which
     //  drive has it. The bay being mounted into is excluded, because putting
     //  the same file back into the same drive is how a re-mount works.
@@ -508,22 +491,6 @@ private:
     HRESULT       BuildSalvagedImage (Entry & entry, vector<Byte> & outBytes,
                                       DenibblizeReport & report);
 
-    // Builds the user-facing "could not save" message from the mount path;
-    // handed to CHRN/CBRN in FlushEntry on a genuine persist failure. When a
-    // recovery image was written, its path is named so the user can retrieve
-    // the session rather than only being told what was lost.
-    //
-    //  `reason` IS PRINTED, code and system text both. The notice used to name
-    //  no cause at all and then advise switching to .woz, which is wrong
-    //  advice for a folder that refused the write; the system's own words for
-    //  the failure are the useful part.
-    //
-    //  recoveryPath is optional: the write-protect path has no recovery copy
-    //  to name, and the message says something useful either way.
-    static wstring FormatFlushLossMessage (const string & path,
-                                           HRESULT        reason,
-                                           const string & recoveryPath = string());
-
     // Preserves an image that could not be serialized to its own format,
     // beside the original and losslessly. Leaves the original untouched.
     HRESULT        TryWriteRecoveryImage  (Entry & entry, string & outPath);
@@ -531,23 +498,9 @@ private:
     // Enough room to step past collisions without ever spinning.
     static constexpr int  kMaxRecoveryNameAttempts = 64;
 
-    // Why a damaged image will not be written to. A checksum mismatch
-    // write-protects the image for the session, so the file is never
-    // rewritten and the damage it carries stays detectable.
-    static wstring FormatDamagedImageMessage (const string & path, bool hasDamagedTracks);
-
-    // Why a salvaged copy could not be written. Names the copy, and says the
-    // original is untouched -- which is the thing the user will worry about.
-    static wstring FormatSalvageFailedMessage (const string & path);
-
     //  The identity `path` has right now: through the seam when one is
     //  installed, and from the filesystem when none is.
     ImageIdentity  ReadIdentity (const string & path) const;
-
-    //  Why a commit was refused because the file changed underneath it. Names
-    //  the image, and says the writes are still held rather than lost, which is
-    //  the part the user will worry about.
-    static wstring FormatExternalChangeMessage (const string & path);
 
     //  Everything one bay's settled change leads to.
     void           ApplyPendingReloadToBay (int slot, int drive);

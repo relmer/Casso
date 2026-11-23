@@ -2,6 +2,7 @@
 
 #include "Devices/Disk/DiskImage.h"
 #include "DiskImageStore.h"
+#include "Devices/Disk/Store/DiskStoreMessages.h"
 #include "Devices/Disk/Store/DiskSourceFormat.h"
 #include "Machines/Apple2/Common/Denibblizer.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
@@ -309,7 +310,7 @@ void DiskImageStore::ReportPreserveFailure (Entry & entry, FlushMoment moment,
             return;
         }
 
-        EhmNotifyUser (FormatDiscardedWritesMessage (original, attemptedPath, hrKeep).c_str());
+        EhmNotifyUser (DiskStoreMessages::FormatDiscardedWritesMessage (original, attemptedPath, hrKeep).c_str());
 
         return;
     }
@@ -321,12 +322,12 @@ void DiskImageStore::ReportPreserveFailure (Entry & entry, FlushMoment moment,
         //  says they are waiting.
         if (moment == FlushMoment::Ejecting)
         {
-            EhmNotifyUser (FormatDiscardedWritesMessage (original, attemptedPath,
+            EhmNotifyUser (DiskStoreMessages::FormatDiscardedWritesMessage (original, attemptedPath,
                                                          hrKeep).c_str());
         }
         else
         {
-            EhmNotifyUser (FormatExternalChangeMessage (original).c_str());
+            EhmNotifyUser (DiskStoreMessages::FormatExternalChangeMessage (original).c_str());
         }
 
         return;
@@ -401,47 +402,6 @@ bool DiskImageStore::RescueOnTheWayOut (Entry & entry, const string & original)
     entry.image->NoteSaved();
 
     return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskImageStore::FormatDiscardedWritesMessage
-//
-//  What is said when a disk's last chance to be written has gone.
-//
-//  IT DOES NOT CLAIM THE WRITES ARE SAFE. The message for a running machine
-//  says they are still in memory and still flushable, which is true there and
-//  is why a later attempt can succeed. Said as the drive empties or the process
-//  exits it was simply false: the memory it pointed at is released a few lines
-//  later.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-wstring DiskImageStore::FormatDiscardedWritesMessage (const string & path,
-                                                      const string & attemptedPath,
-                                                      HRESULT        reason)
-{
-    wstring  widePath  = fs::path (path).wstring();
-    wstring  wideTried = fs::path (attemptedPath).wstring();
-
-
-
-    if (widePath.empty())
-    {
-        widePath = L"(unknown path)";
-    }
-
-    return L"Casso could not save your changes to the disk image:\n\n" + widePath +
-           L"\n\nThe file was changed by something else since it was mounted, so your "
-           L"version could not be written over it. Casso tried to save it here "
-           L"instead:\n\n" + wideTried +
-           L"\n\nError: " + ChangePrompt::DescribeError (reason) +
-           L"\n\nThe disk is leaving the drive, so these changes cannot be recovered. "
-           L"The file on disk keeps the other program's version.";
 }
 
 
@@ -572,143 +532,6 @@ HRESULT DiskImageStore::Mount (int slot, int drive, const string & path,
 
 Error:
     return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  FormatMountFailureMessage
-//
-//  User-facing message for a mount that did not happen: the file named, then
-//  the diagnosis worded as a sentence about it.
-//
-//  IT USED TO GUESS. The mount reported every refusal as one generic HRESULT,
-//  so this re-derived what it could from the path -- an extension no loader
-//  claims, versus everything else -- and told everyone in the second group
-//  that their file "could not be read, or its contents are not a disk image
-//  this loader accepts", which is four different problems in one sentence and
-//  actionable for none of them. The reason now travels here, and the wording
-//  is the diagnosis's to give.
-//
-//  Deliberately says nothing about what happened to the drive. A rejected
-//  file leaves the bay empty, while a file that could not be read at all
-//  leaves the previous disk in place, and a message that guessed wrong about
-//  that is worse than one that stays quiet on it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-wstring DiskImageStore::FormatMountFailureMessage (const string & path,
-                                                   const MountDiagnosis & diagnosis)
-{
-    wstring  widePath = fs::path (path).wstring();
-
-
-
-    if (widePath.empty())
-    {
-        widePath = L"(unknown path)";
-    }
-
-    return L"Casso could not open this file as a disk image:\n\n" + widePath +
-           L"\n\n" + diagnosis.FormatSentence (L"This file") + L".";
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  FormatDamagedImageMessage
-//
-//  User-facing message for a disk this tool will not write back, because
-//  rewriting it would give damaged data a freshly computed checksum and
-//  leave nothing able to detect the damage again.
-//
-//  THE BANNER ABOVE THIS USED TO NAME THE FUNCTION BELOW IT, which was the
-//  next one down: this function was spliced in after the banner rather than
-//  before it, so both carried the same title and neither described what it
-//  sat on.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-wstring DiskImageStore::FormatDamagedImageMessage (const string & path, bool hasDamagedTracks)
-{
-    wstring  widePath = fs::path (path).wstring();
-
-
-
-    if (widePath.empty())
-    {
-        widePath = L"(unknown path)";
-    }
-
-    return L"This disk is damaged, so Casso will not write to it:\n\n" + widePath +
-           (hasDamagedTracks
-               ? L"\n\nRewriting it would replace the tracks that could not be read "
-                 L"with blank ones, hiding the damage. "
-               : L"\n\nRewriting it would give the file a newly computed checksum, "
-                 L"hiding the damage. ") +
-           L"The disk stays readable and the emulated machine sees it as "
-           L"write-protected. Work on a copy if you need to write to it.";
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  FormatFlushLossMessage
-//
-//  User-facing message for a flush that failed to persist a dirty image,
-//  built from the mount path (widened) the store already holds. Handed to
-//  the CHRN/CBRN notifications in FlushEntry.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-wstring DiskImageStore::FormatFlushLossMessage (const string & path,
-                                                HRESULT        reason,
-                                                const string & recoveryPath)
-{
-    wstring  widePath     = fs::path (path).wstring();
-    wstring  wideRecovery = fs::path (recoveryPath).wstring();
-    wstring  message;
-
-
-
-    if (widePath.empty())
-    {
-        widePath = L"(unknown path)";
-    }
-
-    //  The code and the system's own words for it, the same way every other
-    //  disk notice reports a failure. A notice that names no cause sends the
-    //  reader guessing, and this one used to guess for them -- wrongly.
-    message = L"Casso could not save changes to the disk image:\n\n" + widePath
-            + L"\n\nError: " + ChangePrompt::DescribeError (reason)
-            + L"\n\nThe file on disk is unchanged.";
-
-    // A refusal that leaves the user with no way back to their work is only
-    // half a fix, so say where the work went rather than only what failed.
-    if (!wideRecovery.empty())
-    {
-        message += L" Your session was preserved here instead:\n\n" + wideRecovery +
-                   L"\n\nThat copy is complete. It keeps the track that could not "
-                   L"be written back. Mount it to pick up where you left off.";
-    }
-    else
-    {
-        //  True and actionable, where the old text advised a format change
-        //  that cannot help a permission or disk-space failure.
-        message += L" Your recent writes have not been saved. The disk in the drive "
-                   L"still has them.";
-    }
-
-    return message;
 }
 
 
@@ -1008,12 +831,12 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry, FlushMoment moment)
         IGNORE_RETURN_VALUE (hrRecovery, S_OK);
     }
 
-    CHRN (hr, FormatFlushLossMessage (entry.path, hr, recoveryPath).c_str());
+    CHRN (hr, DiskStoreMessages::FormatFlushLossMessage (entry.path, hr, recoveryPath).c_str());
 
     if (m_flushSink)
     {
         hr = m_flushSink (entry.path, bytes);
-        CHRN (hr, FormatFlushLossMessage (entry.path, hr, recoveryPath).c_str());
+        CHRN (hr, DiskStoreMessages::FormatFlushLossMessage (entry.path, hr, recoveryPath).c_str());
     }
     else if (!entry.path.empty())
     {
@@ -1026,7 +849,7 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry, FlushMoment moment)
         // a flush that cannot land is exactly when the session's only
         // lossless copy of the disk is the one sitting beside the original.
         hr = WriteFileAtomically (entry.path, bytes);
-        CHRN (hr, FormatFlushLossMessage (entry.path, hr, recoveryPath).c_str());
+        CHRN (hr, DiskStoreMessages::FormatFlushLossMessage (entry.path, hr, recoveryPath).c_str());
     }
 
     // The file now carries a freshly computed CRC that matches it, so the
@@ -1250,7 +1073,7 @@ HRESULT DiskImageStore::SetImageWriteProtect (int slot, int drive, bool writePro
         // IS the damage report -- so the one write that is otherwise harmless
         // is the one write that would destroy the evidence.
         isDamaged = entry.image->IsDamaged();
-        CBRN (!isDamaged, FormatDamagedImageMessage (entry.path, entry.image->HasDamagedTracks()).c_str());
+        CBRN (!isDamaged, DiskStoreMessages::FormatDamagedImageMessage (entry.path, entry.image->HasDamagedTracks()).c_str());
 
         // Guest writes go out FIRST, while the image still accepts a flush.
         // Patching the flag byte afterwards edits a file that already holds
@@ -1260,10 +1083,10 @@ HRESULT DiskImageStore::SetImageWriteProtect (int slot, int drive, bool writePro
         CHR (hr);
 
         hr = ReadImageFile (entry.path, bytes);
-        CHRN (hr, FormatFlushLossMessage (entry.path, hr).c_str());
+        CHRN (hr, DiskStoreMessages::FormatFlushLossMessage (entry.path, hr).c_str());
 
         hr = WozLoader::SetWriteProtectFlag (bytes, writeProtected);
-        CHRN (hr, FormatFlushLossMessage (entry.path, hr).c_str());
+        CHRN (hr, DiskStoreMessages::FormatFlushLossMessage (entry.path, hr).c_str());
 
         if (m_flushSink)
         {
@@ -1274,7 +1097,7 @@ HRESULT DiskImageStore::SetImageWriteProtect (int slot, int drive, bool writePro
             hr = WriteFileAtomically (entry.path, bytes);
         }
 
-        CHRN (hr, FormatFlushLossMessage (entry.path, hr).c_str());
+        CHRN (hr, DiskStoreMessages::FormatFlushLossMessage (entry.path, hr).c_str());
 
         // The live image follows the file, and only once the file has
         // actually changed -- so a failed write leaves the two agreeing.
@@ -1518,7 +1341,7 @@ HRESULT DiskImageStore::SalvageToFile (
         CBRAEx (!isSource, E_INVALIDARG);
 
         hr = BuildSalvagedImage (entry, bytes, report);
-        CHRN (hr, FormatSalvageFailedMessage (path).c_str());
+        CHRN (hr, DiskStoreMessages::FormatSalvageFailedMessage (path).c_str());
 
         if (m_flushSink)
         {
@@ -1529,36 +1352,11 @@ HRESULT DiskImageStore::SalvageToFile (
             hr = WriteFileAtomically (path, bytes);
         }
 
-        CHRN (hr, FormatSalvageFailedMessage (path).c_str());
+        CHRN (hr, DiskStoreMessages::FormatSalvageFailedMessage (path).c_str());
     }
 
 Error:
     return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  FormatSalvageFailedMessage
-//
-////////////////////////////////////////////////////////////////////////////////
-
-wstring DiskImageStore::FormatSalvageFailedMessage (const string & path)
-{
-    wstring  widePath = fs::path (path).wstring();
-
-
-
-    if (widePath.empty())
-    {
-        widePath = L"(unknown path)";
-    }
-
-    return L"Casso could not write the salvaged copy:\n\n" + widePath +
-           L"\n\nThe original disk image was not changed.";
 }
 
 
@@ -2040,40 +1838,6 @@ const MountedImageState * DiskImageStore::GetSharedState (int slot, int drive) c
     }
 
     return state;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskImageStore::FormatExternalChangeMessage
-//
-//  Why a commit was refused because the file moved under it.
-//
-//  IT SAYS THE WRITES ARE STILL HELD, which is the difference between this and
-//  every other flush failure and the only thing the user actually wants to
-//  know. The image keeps its dirty bit, so the writes are in memory and a later
-//  flush still carries them.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-wstring DiskImageStore::FormatExternalChangeMessage (const string & path)
-{
-    wstring  widePath = fs::path (path).wstring();
-
-
-
-    if (widePath.empty())
-    {
-        widePath = L"(unknown path)";
-    }
-
-    return L"Casso did not save changes to the disk image:\n\n" + widePath +
-           L"\n\nThe file was changed by something else since it was mounted, and "
-           L"writing now would discard that change. Your writes are still held in "
-           L"memory and were not lost.";
 }
 
 

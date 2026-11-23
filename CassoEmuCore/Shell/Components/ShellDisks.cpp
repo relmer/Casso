@@ -70,6 +70,7 @@
 #include "Config/Win32FileSystem.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DamagedMountReport.h"
+#include "Devices/Disk/Store/DiskStoreMessages.h"
 
 
 
@@ -443,7 +444,7 @@ void ShellDisks::HandleMountCompletion (const MountCompletion & completion)
         return;
     }
 
-    message = DiskImageStore::FormatMountFailureMessage (completion.path, completion.diagnosis);
+    message = DiskStoreMessages::FormatMountFailureMessage (completion.path, completion.diagnosis);
 
     //  A tool that asked is told why instead; the dialog would sit behind the
     //  window the user is looking at.
