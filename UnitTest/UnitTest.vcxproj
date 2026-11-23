@@ -323,6 +323,7 @@
     <ClCompile Include="BasicCorpusTests.cpp" />
     <ClCompile Include="EmuTests\AppleFileNameTests.cpp" />
     <ClCompile Include="EmuTests\Dos33VolumeTests.cpp" />
+    <ClCompile Include="EmuTests\Dos33PayloadCodecTests.cpp" />
     <ClCompile Include="EmuTests\Dos33SectorAccessTests.cpp" />
     <ClCompile Include="EmuTests\PascalVolumeTests.cpp" />
     <ClCompile Include="EmuTests\CpmVolumeTests.cpp" />

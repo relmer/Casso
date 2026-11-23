@@ -176,10 +176,6 @@ private:
     static constexpr size_t  kTsOffFirstPair  = 0x0C;
     static constexpr int     kTsPairsPerList  = 122;
 
-    //  Payload headers DOS 3.3 stores inside the file's own data.
-    static constexpr size_t  kBinaryHeaderBytes    = 4;   // load address + length
-    static constexpr size_t  kTokenizedHeaderBytes = 2;   // length only
-
     //  Offset in the list of the first data sector it describes, so a walker
     //  that joins the chain partway knows where it is.
     static constexpr size_t  kTsOffSectorOffsetLo = 0x05;
@@ -225,11 +221,6 @@ private:
     //  30 bytes of high ASCII, space-padded. False when the name is one DOS
     //  could not open again.
     static bool  TryEncodeCatalogName (const std::string & name, vector<Byte> & outBytes);
-
-    //  Rebuilds whatever header the type stores inside the file's own data --
-    //  the exact inverse of ApplyTypeHeader, so a read followed by a write
-    //  reproduces the stored form.
-    static HRESULT  ComposeStoredBytes (const FilePayload & payload, vector<Byte> & outStored);
 
     void  ZeroUnits        (vector<Byte> & buffer, const vector<uint32_t> & units) const;
     void  PlaceFile        (vector<Byte>            & buffer,
@@ -296,10 +287,6 @@ private:
                               vector<uint32_t>         & outUnits,
                               vector<uint32_t>         & outListUnits,
                               ChainWalkGuard           & guard) const;
-
-    //  Strips whatever header the file type carries, and reports the load
-    //  address when the type records one.
-    static void  ApplyTypeHeader (Byte typeByte, vector<Byte> & inOutBytes, FilePayload & outPayload);
 
     Dos33SectorAccess  m_access;
 };
