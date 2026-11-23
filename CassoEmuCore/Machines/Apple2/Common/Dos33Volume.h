@@ -7,6 +7,7 @@
 #include "Machines/Apple2/Common/Dos33FreeMap.h"
 #include "Machines/Apple2/Common/Dos33IntegrityScanner.h"
 #include "Machines/Apple2/Common/Dos33SectorAccess.h"
+#include "Machines/Apple2/Common/Dos33StartupProgram.h"
 #include "Machines/Apple2/Common/Dos33VolumeRemover.h"
 #include "Machines/Apple2/Common/IVolume.h"
 
@@ -83,32 +84,6 @@ public:
     static constexpr Byte  kTypeSpecial     = 0x08;
     static constexpr Byte  kTypeRelocatable = 0x10;
 
-    //
-    //  Whether a booting DOS 3.3 would actually RUN this file.
-    //
-    //  Measured against the stock master rather than reasoned about: with a
-    //  binary named as the greeting the machine boots and the program never
-    //  runs, because the command DOS issues at boot is RUN. Anything RUN does
-    //  not understand is a greeting in name only.
-    //
-    //  A name that is not on the volume answers true, because the refusal for
-    //  that belongs to the layer that looked it up and one refusal per problem
-    //  is the rule.
-    //
-    //  IT LIVES HERE SO BOTH ROUTES TO A STARTUP PROGRAM SHARE IT. The disk
-    //  command that sets one and the assembler that writes one both have to
-    //  apply this, and a second copy is how two routes to one idea come to
-    //  accept different things.
-    //
-    static bool  IsRunnableAsGreeting (const VolumeListing & listing, const std::string & name);
-
-    //  Whether the tracks DOS occupies hold anything at all. A volume formatted
-    //  without an operating system reserves them and leaves them blank, and
-    //  patching a greeting name into blank space would report success for
-    //  something no boot could ever read. Public because a listing says the
-    //  same thing about the disk.
-    bool  HasDosImage() const;
-
     //  Set in the type byte when the file is locked. Placement over a locked
     //  file is refused, matching how the guest behaves.
     static constexpr Byte  kLockedBit       = 0x80;
@@ -116,20 +91,6 @@ public:
     static constexpr uint32_t  kUnitCount = 560;   // 35 tracks x 16 sectors
 
 private:
-    //  Where the name of the program a booted DOS runs is kept: inside the DOS
-    //  image on track 1, NOT in the catalog. Thirty bytes of high ASCII padded
-    //  with high-ASCII spaces, the same width a catalog name field has.
-    //
-    //  Measured rather than recalled. Scanning the stock System Master for the
-    //  high-ASCII spelling of its greeting name finds exactly two occurrences on
-    //  the whole disk: this one and the catalog entry naming the file. The
-    //  field's own end is not visible in the data -- the bytes after it are pad
-    //  bytes too -- so the width comes from the catalog name field, which the
-    //  DOS code reading it shares.
-    static constexpr int     kGreetingTrack  = 1;
-    static constexpr int     kGreetingSector = 9;
-    static constexpr size_t  kGreetingOffset = 0x75;
-
     //  Lays down a file whose name the catalog does not already hold, over the
     //  buffer this volume was constructed with. Replacement stages the removal
     //  into a working buffer and calls this on a volume over that, so one code
@@ -145,4 +106,5 @@ private:
     Dos33FreeMap           m_freeMap { m_access };
     Dos33IntegrityScanner  m_scanner { m_access };
     Dos33VolumeRemover     m_remover { m_access };
+    Dos33StartupProgram    m_startup { m_access };
 };

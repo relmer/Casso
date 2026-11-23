@@ -11,6 +11,7 @@
 #include "Cli/ImageArtifactSink.h"
 #include "Machines/Apple2/Common/AssembledFilePlacement.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
+#include "Machines/Apple2/Common/Dos33StartupProgram.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Devices/Disk/FilePath.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
@@ -624,16 +625,16 @@ namespace AssemblerToDiskTests
 
             listing.entries = { binary, applesoft, integer };
 
-            Assert::IsFalse (Dos33Volume::IsRunnableAsGreeting (listing, "PROG"),
+            Assert::IsFalse (Dos33StartupProgram::IsRunnableAsGreeting (listing, "PROG"),
                              L"a booting DOS 3.3 RUNs its greeting, and RUN cannot start a binary");
-            Assert::IsTrue (Dos33Volume::IsRunnableAsGreeting (listing, "HELLO"),
+            Assert::IsTrue (Dos33StartupProgram::IsRunnableAsGreeting (listing, "HELLO"),
                             L"Applesoft is what RUN understands");
-            Assert::IsTrue (Dos33Volume::IsRunnableAsGreeting (listing, "INTHELLO"),
+            Assert::IsTrue (Dos33StartupProgram::IsRunnableAsGreeting (listing, "INTHELLO"),
                             L"and Integer BASIC likewise");
 
             //  A name not on the volume answers true, because the refusal for
             //  that belongs to whichever layer looked it up.
-            Assert::IsTrue (Dos33Volume::IsRunnableAsGreeting (listing, "ABSENT"),
+            Assert::IsTrue (Dos33StartupProgram::IsRunnableAsGreeting (listing, "ABSENT"),
                             L"one refusal per problem");
         }
 

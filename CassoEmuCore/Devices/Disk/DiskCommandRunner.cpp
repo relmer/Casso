@@ -4,6 +4,7 @@
 #include "Seams/IIntentChannel.h"
 #include "DiskCommandText.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
+#include "Machines/Apple2/Common/Dos33StartupProgram.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "CassoExplorer/Model/FilesystemChoices.h"
 #include "Devices/Disk/DiskCollectionCommands.h"
@@ -340,7 +341,7 @@ Error:
 bool DiskCommandRunner::IsRunnableAsDos33Greeting (const VolumeListing  & listing,
                                                    const std::string    & name)
 {
-    return Dos33Volume::IsRunnableAsGreeting (listing, name);
+    return Dos33StartupProgram::IsRunnableAsGreeting (listing, name);
 }
 
 

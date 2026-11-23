@@ -6,6 +6,8 @@
 #include "DiskCommandText.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/CpmVolume.h"
+#include "Machines/Apple2/Common/Dos33SectorAccess.h"
+#include "Machines/Apple2/Common/Dos33StartupProgram.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/NativeListing.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
@@ -236,7 +238,7 @@ void DiskListCommand::RunList (const CommandLineOptions & options, DiskCommandRe
         // to 2; a ProDOS disk from the PRODOS file its block 0 loader loads.
         if (opened.kind == VolumeKind::Dos33)
         {
-            if (!Dos33Volume (opened.sectors).HasDosImage())
+            if (!Dos33StartupProgram (Dos33SectorAccess (opened.sectors)).HasDosImage())
             {
                 result.output += "\nNot bootable: no DOS on tracks 0 to 2\n";
             }
