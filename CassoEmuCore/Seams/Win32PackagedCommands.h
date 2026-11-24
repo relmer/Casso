@@ -51,9 +51,7 @@ public:
     //  The shell items the commands are asked about in place of the paths: Home's rows, whose commands answer for them as they are listed there.
     void                SetItemIds        (std::vector<std::wstring> ids) { m_itemIds = std::move (ids); }
 
-    HRESULT         Invoke         (HWND owner, const Win32ExplorerCommandEntries::Entry & entry, const std::vector<std::wstring> & paths);
-    static HRESULT  InvokeGuarded  (IExplorerCommand * command, IShellItemArray * items);
-    static HRESULT  SetSiteGuarded (IObjectWithSite * sited, IUnknown * site);
+    HRESULT  Invoke (HWND owner, const Win32ExplorerCommandEntries::Entry & entry, const std::vector<std::wstring> & paths);
 
 private:
     std::vector<std::wstring>  m_itemIds;
@@ -76,8 +74,10 @@ private:
     void     ReadAll        ();
     HRESULT  GetCommand     (const CLSID & clsid, IExplorerCommand ** outCommand);
 
-    static void  PrepareCommands (const std::vector<Registration> & registrations);
-    static bool  IsDisconnected  (HRESULT hr);
+    static void     PrepareCommands (const std::vector<Registration> & registrations);
+    static bool     IsDisconnected  (HRESULT hr);
+    static HRESULT  InvokeGuarded   (IExplorerCommand * command, IShellItemArray * items);
+    static HRESULT  SetSiteGuarded  (IObjectWithSite * sited, IUnknown * site);
 
     static HRESULT       OpenManifest      (const wchar_t * fullName, IStream ** outStream);
     static HRESULT       ReadManifest      (IStream * stream, const wchar_t * fullName, std::vector<Registration> & outRegistrations);
