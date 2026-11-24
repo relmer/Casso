@@ -18,6 +18,7 @@ class BlockInspectorPanel;
 class BlockInspectorTips;
 class BlockRepairController;
 class IDiskFileIo;
+struct InspectorRawTransfer;
 
 
 
@@ -66,6 +67,11 @@ public:
                    std::wstring        & outError);
 
     void                SetOnClosed     (std::function<void ()> fn) { m_onClosed = std::move (fn); }
+
+    //  Before Open: the host's save of blocks to a file and overwrite of them
+    //  from one. With it set, the File menu has commands for them.
+    void                SetOnTransferRaw (std::function<void (const InspectorRawTransfer &)> fn) { m_onTransferRaw = std::move (fn); }
+
     bool                HasUnsavedEdits () const                    { return m_model.IsOpen() && !m_model.GetEdits().IsEmpty(); }
     BlockFileSession  & GetFileSession  ()                          { return m_session; }
     void                ChangeTheme     (const IDxuiTheme * theme);
@@ -99,6 +105,7 @@ protected:
 
 private:
     void  CreateParts  ();
+    void  TransferRaw  (bool isSave);
 
     //  m_worker follows m_model, so it is destroyed first and its thread
     //  ends before the model goes away.
@@ -119,6 +126,7 @@ private:
     Win32ShellIcons                         m_icons;
     const IDxuiTheme                      * m_theme         = nullptr;
     std::function<void ()>                  m_onClosed;
+    std::function<void (const InspectorRawTransfer &)>  m_onTransferRaw;
     double                                  m_zoom          = 1.0;
     bool                                    m_isDirty       = true;
     bool                                    m_isClosed      = false;

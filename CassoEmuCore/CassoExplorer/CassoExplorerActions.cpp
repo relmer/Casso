@@ -2634,10 +2634,10 @@ CassoExplorerActions::ImageFacts & CassoExplorerActions::GetImageFacts (const st
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int CassoExplorerActions::GetTargetBlockCount() const
+int CassoExplorerActions::GetTargetBlockCount (const std::wstring & image) const
 {
     HRESULT             hr     = S_OK;
-    std::string         target = TextEncoding::WideToNarrow (GetFormatTarget());
+    std::string         target = TextEncoding::WideToNarrow (image.empty() ? GetFormatTarget() : image);
     int                 blocks = ProDosSkeleton::kTotalBlocks;
     vector<Byte>        bytes;
     vector<Byte>        sectors;

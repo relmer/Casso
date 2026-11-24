@@ -11,6 +11,29 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  InspectorRawTransfer
+//
+//  A save of the window's image's sectors or blocks to a file, or an
+//  overwrite of them from one, starting at `start` (a track or a block) and
+//  `sector`, the selection in the window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct InspectorRawTransfer
+{
+    bool  isSectors  = true;
+    bool  isSave     = true;
+    int   start      = 0;
+    int   sector     = 0;
+    bool  isPhysical = false;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  IDiskInspectorHost
 //
 //  What the inspector window needs from the program that opened it: a way
@@ -67,6 +90,12 @@ public:
     virtual bool  CanChooseFilesystem   () const                     { return false; }
     virtual bool  IsReadAsCpm           () const                     { return false; }
     virtual void  SetReadAsCpm          (bool isCpm)                 { (void) isCpm; }
+
+    //  UI thread, for a host that saves the window's image's sectors or
+    //  blocks to a file and overwrites them from one, as Casso Explorer
+    //  does: whether it does, and the transfer.
+    virtual bool  CanTransferRaw        () const                                { return false; }
+    virtual void  TransferRaw           (const InspectorRawTransfer & transfer) { (void) transfer; }
 };
 
 

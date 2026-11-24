@@ -1155,6 +1155,31 @@ void CassoExplorerShell::SelectInFolder (const std::wstring & path)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerShell::TransferRaw
+//
+//  Run by the first open window, which refreshes its list after an
+//  overwrite.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerShell::TransferRaw (HWND owner, const std::wstring & path, const InspectorRawTransfer & transfer)
+{
+    for (const std::unique_ptr<WindowSlot> & slot : m_windows)
+    {
+        if (!slot->closed)
+        {
+            slot->window->TransferRaw (owner, path, transfer);
+            break;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerShell::CloseWindow
 //
 //  The last window closed is written to the session; one closed while others

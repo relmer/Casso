@@ -69,6 +69,11 @@ public:
     void          SetReadAsCpm          (bool isCpm) override;
     void          SetFilesystemChoices  (FilesystemChoices * choices) { m_choices = choices; }
 
+    //  Casso Explorer runs the transfer on the window's image.
+    bool          CanTransferRaw        () const override                                { return static_cast<bool> (m_onTransferRaw); }
+    void          TransferRaw           (const InspectorRawTransfer & transfer) override { if (m_onTransferRaw) { m_onTransferRaw (transfer); } }
+    void          SetOnTransferRaw      (std::function<void (const InspectorRawTransfer &)> onTransferRaw) { m_onTransferRaw = std::move (onTransferRaw); }
+
     void                  SetOnClosed   (std::function<void ()> onClosed) { m_onClosed = std::move (onClosed); }
     void                  SetOnRepaired (std::function<void (const std::wstring &)> onRepaired) { m_onRepaired = std::move (onRepaired); }
     void                  SetIntents    (IIntentChannel * intents)        { m_intents = intents; }
@@ -119,6 +124,7 @@ private:
     bool                                 m_isRead     = false;
     std::function<void ()>         m_onClosed;
     std::function<void (const std::wstring &)>  m_onRepaired;
+    std::function<void (const InspectorRawTransfer &)>  m_onTransferRaw;
 
     //  An image in a gzip file or a ZIP is read and saved through this. It's
     //  empty for any other file.

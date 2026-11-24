@@ -1013,13 +1013,20 @@ void ActionsAppleDrive::GetAppleSingle (const std::string & image, const FileEnt
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ActionsTypes::Outcome ActionsAppleDrive::ReadSectors (int track, int sector, int count, const std::wstring & hostPath, DiskOperations::Numbering numbering)
+ActionsTypes::Outcome ActionsAppleDrive::ReadSectors (
+    int                          track,
+    int                          sector,
+    int                          count,
+    const std::wstring         & hostPath,
+    DiskOperations::Numbering    numbering,
+    const std::wstring         & target)
 {
     ActionsTypes::Outcome  outcome;
+    std::wstring           image   = target.empty() ? m_actions.GetFormatTarget() : target;
 
 
 
-    CassoExplorerActions::Append (outcome, m_actions.m_browser.GetOperations().SectorRead (TextEncoding::WideToNarrow (m_actions.GetFormatTarget()), numbering,
+    CassoExplorerActions::Append (outcome, m_actions.m_browser.GetOperations().SectorRead (TextEncoding::WideToNarrow (image), numbering,
                                                           track, sector, count, TextEncoding::WideToNarrow (hostPath)));
 
     return outcome;
@@ -1035,10 +1042,15 @@ ActionsTypes::Outcome ActionsAppleDrive::ReadSectors (int track, int sector, int
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ActionsTypes::Outcome ActionsAppleDrive::WriteSectors (int track, int sector, const std::wstring & hostPath, DiskOperations::Numbering numbering)
+ActionsTypes::Outcome ActionsAppleDrive::WriteSectors (
+    int                          track,
+    int                          sector,
+    const std::wstring         & hostPath,
+    DiskOperations::Numbering    numbering,
+    const std::wstring         & image)
 {
     ActionsTypes::Outcome  outcome;
-    std::wstring           target  = m_actions.GetFormatTarget();
+    std::wstring           target  = image.empty() ? m_actions.GetFormatTarget() : image;
 
 
 
@@ -1063,13 +1075,14 @@ ActionsTypes::Outcome ActionsAppleDrive::WriteSectors (int track, int sector, co
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ActionsTypes::Outcome ActionsAppleDrive::ReadBlocks (int block, int count, const std::wstring & hostPath)
+ActionsTypes::Outcome ActionsAppleDrive::ReadBlocks (int block, int count, const std::wstring & hostPath, const std::wstring & target)
 {
     ActionsTypes::Outcome  outcome;
+    std::wstring           image   = target.empty() ? m_actions.GetFormatTarget() : target;
 
 
 
-    CassoExplorerActions::Append (outcome, m_actions.m_browser.GetOperations().BlockRead (TextEncoding::WideToNarrow (m_actions.GetFormatTarget()), block, count,
+    CassoExplorerActions::Append (outcome, m_actions.m_browser.GetOperations().BlockRead (TextEncoding::WideToNarrow (image), block, count,
                                                          TextEncoding::WideToNarrow (hostPath)));
 
     return outcome;
@@ -1085,10 +1098,10 @@ ActionsTypes::Outcome ActionsAppleDrive::ReadBlocks (int block, int count, const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ActionsTypes::Outcome ActionsAppleDrive::WriteBlocks (int block, const std::wstring & hostPath)
+ActionsTypes::Outcome ActionsAppleDrive::WriteBlocks (int block, const std::wstring & hostPath, const std::wstring & image)
 {
     ActionsTypes::Outcome  outcome;
-    std::wstring           target  = m_actions.GetFormatTarget();
+    std::wstring           target  = image.empty() ? m_actions.GetFormatTarget() : image;
 
 
 

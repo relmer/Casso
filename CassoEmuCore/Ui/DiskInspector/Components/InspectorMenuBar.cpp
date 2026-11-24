@@ -99,6 +99,9 @@ vector<DxuiMenuBarItem> InspectorMenuBar::BuildItems (const InspectorCommands & 
     add (c.save);
     add (c.saveEditedCopy);
     separator();
+    add (c.saveRaw);
+    add (c.overwriteRaw);
+    separator();
     add (c.close);
     menu (L"&File");
 

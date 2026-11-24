@@ -8,6 +8,7 @@
 
 class CassoExplorerWindow;
 struct DxuiTheme;
+struct InspectorRawTransfer;
 
 
 
@@ -106,6 +107,10 @@ public:
     //  A file selected in its folder's tab of the first open window, such as
     //  a repaired copy the inspector wrote.
     virtual void  SelectInFolder    (const std::wstring & path) { (void) path; }
+
+    //  An inspector window's save of its image's sectors or blocks to a file,
+    //  or overwrite of them from one, with the dialogs over `owner`.
+    virtual void  TransferRaw       (HWND owner, const std::wstring & path, const InspectorRawTransfer & transfer) { (void) owner; (void) path; (void) transfer; }
 
     //  Called by a window when a disk image has been booted, or couldn't be
     //  for a machine's missing ROMs: those ROMs are offered once in a run,

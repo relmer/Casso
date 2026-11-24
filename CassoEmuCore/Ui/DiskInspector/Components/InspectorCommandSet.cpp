@@ -96,6 +96,15 @@ void InspectorCommandSet::Build()
     c.save->isEnabled           = [this] () { return m_parts.GetEditing().GetState().canApply && m_session.edits.GetCounts().sectors > 0; };
     c.saveEditedCopy            = make (L"Save &as...", L"", [this] () { m_parts.GetEditing().SaveEditedCopy(); });
     c.saveEditedCopy->isEnabled = [this] () { return m_session.edits.GetCounts().sectors > 0; };
+
+    if (m_session.host->CanTransferRaw())
+    {
+        c.saveRaw                 = make (L"Save sec&tors to a file...", L"", [this] () { TransferRaw (true); });
+        c.saveRaw->isEnabled      = hasDisk;
+        c.overwriteRaw            = make (L"&Overwrite sectors from a file...", L"", [this] () { TransferRaw (false); });
+        c.overwriteRaw->isEnabled = hasDisk;
+    }
+
     c.close                     = make (L"&Close", L"Alt+F4", [this] () { m_frame.CloseWindow(); });
 
     //  Edit
@@ -447,4 +456,38 @@ int InspectorCommandSet::StepRecording (int quarterTrack, int step) const
     }
 
     return next;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorCommandSet::TransferRaw
+//
+//  The host's save or overwrite of sectors, starting at the selected track
+//  and the selected sector by its physical number, or sector 0 with none
+//  selected.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorCommandSet::TransferRaw (bool isSave)
+{
+    static constexpr int  kPerTrack = DiskImage::kQuarterTracksPerWholeTrack;
+
+
+
+    InspectorRawTransfer     transfer;
+    const AnalyzedSector   * sector   = m_session.model.GetSector();
+
+
+
+    transfer.isSectors  = true;
+    transfer.isSave     = isSave;
+    transfer.start      = m_session.model.GetQuarterTrack() / kPerTrack;
+    transfer.sector     = (sector != nullptr) ? sector->sector : 0;
+    transfer.isPhysical = sector != nullptr;
+
+    m_session.host->TransferRaw (transfer);
 }

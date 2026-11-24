@@ -66,10 +66,10 @@ public:
     //  A host file as the payload a put plan makes of it.
     static HRESULT  MakePayload (const std::wstring & hostPath, const ActionsTypes::PutPlan & plan, const std::vector<Byte> & bytes, VolumeKind kind, FilePayload & outPayload);
 
-    ActionsTypes::Outcome  ReadSectors  (int track, int sector, int count, const std::wstring & hostPath, DiskOperations::Numbering numbering = DiskOperations::Numbering::Logical);
-    ActionsTypes::Outcome  WriteSectors (int track, int sector, const std::wstring & hostPath, DiskOperations::Numbering numbering = DiskOperations::Numbering::Logical);
-    ActionsTypes::Outcome  ReadBlocks   (int block, int count, const std::wstring & hostPath);
-    ActionsTypes::Outcome  WriteBlocks  (int block, const std::wstring & hostPath);
+    ActionsTypes::Outcome  ReadSectors  (int track, int sector, int count, const std::wstring & hostPath, DiskOperations::Numbering numbering = DiskOperations::Numbering::Logical, const std::wstring & target = {});
+    ActionsTypes::Outcome  WriteSectors (int track, int sector, const std::wstring & hostPath, DiskOperations::Numbering numbering = DiskOperations::Numbering::Logical, const std::wstring & target = {});
+    ActionsTypes::Outcome  ReadBlocks   (int block, int count, const std::wstring & hostPath, const std::wstring & target = {});
+    ActionsTypes::Outcome  WriteBlocks  (int block, const std::wstring & hostPath, const std::wstring & target = {});
 
     ActionsTypes::Outcome  ReadDiskToImage  (const std::wstring & imagePath, bool blankUnreadable, ActionsTypes::UnreadableFn onUnreadable);
     ActionsTypes::Outcome  ReadDiskToImage  (const std::string & link, int drive, const std::wstring & imagePath, bool blankUnreadable, bool forceVerify, ActionsTypes::UnreadableFn onUnreadable,

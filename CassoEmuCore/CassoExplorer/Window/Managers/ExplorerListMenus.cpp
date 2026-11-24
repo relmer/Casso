@@ -715,31 +715,6 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
         {
             m_context.menus.AddOpenRows (items, opened, false);
         }
-
-        if (verb == CassoExplorerActions::Verb::Format)
-        {
-            std::vector<DxuiPopupMenuItem>  advanced;
-            std::shared_ptr<DxuiCommand>    parent = std::make_shared<DxuiCommand>();
-
-            for (CassoExplorerActions::Verb raw : { CassoExplorerActions::Verb::ReadSectors, CassoExplorerActions::Verb::WriteSectors,
-                                              CassoExplorerActions::Verb::ReadBlocks,  CassoExplorerActions::Verb::WriteBlocks })
-            {
-                std::shared_ptr<DxuiCommand>  child = std::make_shared<DxuiCommand>();
-
-                child->id       = (int) raw;
-                child->label    = ExplorerMenus::GetVerbLabel (raw);
-                child->dispatch = [this, raw]() { m_context.verbs.RunRawVerb (raw); };
-
-                advanced.push_back (DxuiPopupMenuItem::ForCommand (child));
-                m_context.menus.GetMenuCommands().push_back (std::move (child));
-            }
-
-            parent->label     = L"&Advanced";
-            parent->menuGlyph = s_kpszMdl2Setting;
-            parent->menuSvg   = m_context.menus.GetMenuSvg (L"windows.otheractionsflyout");
-            items.push_back (DxuiPopupMenuItem::ForSubmenu (parent, std::move (advanced)));
-            m_context.menus.GetMenuCommands().push_back (std::move (parent));
-        }
     }
 
     //  The later submenu first, so the earlier one's place stays where it was.

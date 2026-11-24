@@ -239,14 +239,14 @@ public:
     std::wstring  GetFormatTarget() const;
 
     //  The blocks the format target has, for a raw block read or write.
-    int           GetTargetBlockCount() const;
+    int           GetTargetBlockCount (const std::wstring & target = {}) const;
 
     //  Raw access through the runner's sector and block verbs. Sectors are
     //  numbered as DOS 3.3 numbers them.
-    Outcome  ReadSectors  (int track, int sector, int count, const std::wstring & hostPath, DiskOperations::Numbering numbering = DiskOperations::Numbering::Logical) { return m_appleDrive.ReadSectors (track, sector, count, hostPath, numbering); }
-    Outcome  WriteSectors (int track, int sector, const std::wstring & hostPath, DiskOperations::Numbering numbering = DiskOperations::Numbering::Logical) { return m_appleDrive.WriteSectors (track, sector, hostPath, numbering); }
-    Outcome  ReadBlocks   (int block, int count, const std::wstring & hostPath) { return m_appleDrive.ReadBlocks (block, count, hostPath); }
-    Outcome  WriteBlocks  (int block, const std::wstring & hostPath) { return m_appleDrive.WriteBlocks (block, hostPath); }
+    Outcome  ReadSectors  (int track, int sector, int count, const std::wstring & hostPath, DiskOperations::Numbering numbering = DiskOperations::Numbering::Logical, const std::wstring & target = {}) { return m_appleDrive.ReadSectors (track, sector, count, hostPath, numbering, target); }
+    Outcome  WriteSectors (int track, int sector, const std::wstring & hostPath, DiskOperations::Numbering numbering = DiskOperations::Numbering::Logical, const std::wstring & target = {}) { return m_appleDrive.WriteSectors (track, sector, hostPath, numbering, target); }
+    Outcome  ReadBlocks   (int block, int count, const std::wstring & hostPath, const std::wstring & target = {}) { return m_appleDrive.ReadBlocks (block, count, hostPath, target); }
+    Outcome  WriteBlocks  (int block, const std::wstring & hostPath, const std::wstring & target = {}) { return m_appleDrive.WriteBlocks (block, hostPath, target); }
 
     //  The open drive's disk, or the given link's drive, so a second read
     //  goes to the drive the first one did, wherever the window is by then.

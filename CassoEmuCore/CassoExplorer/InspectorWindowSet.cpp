@@ -251,6 +251,14 @@ HRESULT InspectorWindowSet::Open (HINSTANCE hInstance, HWND anchor, const std::w
 
     entry->host->SetFilesystemChoices (m_seams.filesystemChoices);
 
+    if (m_seams.explorer != nullptr)
+    {
+        entry->host->SetOnTransferRaw ([this, raw = entry.get()] (const InspectorRawTransfer & transfer)
+        {
+            m_seams.explorer->TransferRaw (raw->window->GetHwnd(), raw->host->GetPath(), transfer);
+        });
+    }
+
     hr = entry->window->Create (hInstance, anchor, m_theme, entry->host.get());
     CHR (hr);
 

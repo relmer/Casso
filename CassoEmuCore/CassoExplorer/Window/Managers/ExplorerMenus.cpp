@@ -105,10 +105,10 @@ const wchar_t * ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb verb)
         case CassoExplorerActions::Verb::NewFolder:      return L"&Folder";
         case CassoExplorerActions::Verb::Format:         return L"&Format disk image...";
         case CassoExplorerActions::Verb::Krunch:         return L"&Krunch disk";
-        case CassoExplorerActions::Verb::ReadSectors:    return L"Read &sectors to file...";
-        case CassoExplorerActions::Verb::WriteSectors:   return L"&Write sectors from file...";
-        case CassoExplorerActions::Verb::ReadBlocks:     return L"Read &blocks to file...";
-        case CassoExplorerActions::Verb::WriteBlocks:    return L"Write b&locks from file...";
+        case CassoExplorerActions::Verb::ReadSectors:    return L"Save &sectors to a file...";
+        case CassoExplorerActions::Verb::WriteSectors:   return L"&Overwrite sectors from a file...";
+        case CassoExplorerActions::Verb::ReadBlocks:     return L"Save &blocks to a file...";
+        case CassoExplorerActions::Verb::WriteBlocks:    return L"Overwrite b&locks from a file...";
         case CassoExplorerActions::Verb::Refresh:        return L"&Refresh";
         case CassoExplorerActions::Verb::OpenWith:       return L"Open wit&h";
         case CassoExplorerActions::Verb::MoreOptions:    return L"Show more &options";

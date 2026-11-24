@@ -196,6 +196,7 @@ public:
     void                   RepairDiskImage     (HWND hwnd, const std::wstring & path, const DxuiTheme & theme) override;
     void                   SetInspectorTheme   (const DxuiTheme & theme) override;
     void                   SelectInFolder      (const std::wstring & path) override;
+    void                   TransferRaw         (HWND owner, const std::wstring & path, const InspectorRawTransfer & transfer) override;
     void                   OfferBootRoms       (HWND hwnd, const DxuiTheme * theme) override;
 
     static constexpr const wchar_t *  kAppName       = L"Casso Explorer";

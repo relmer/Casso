@@ -24,6 +24,8 @@ struct InspectorCommands
     Command  exportFile;
     Command  save;
     Command  saveEditedCopy;
+    Command  saveRaw;
+    Command  overwriteRaw;
     Command  close;
 
     //  Edit
