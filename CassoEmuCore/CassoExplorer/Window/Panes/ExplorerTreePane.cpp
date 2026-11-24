@@ -1511,11 +1511,12 @@ void ExplorerTreePane::AddTreeIconRow (std::vector<DxuiPopupMenuItem> & items, c
             command->isEnabled = [this]() { return m_context.shellVerbs.ClipboardHasFiles(); };
         }
 
-        command->id       = (int) verb;
-        command->label    = ExplorerMenus::GetVerbLabel (verb);
-        command->glyph    = ExplorerMenus::GetVerbGlyph (verb);
-        command->menuSvg  = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (verb));
-        command->dispatch = [this, verb, folder, id]()
+        command->id        = (int) verb;
+        command->label     = ExplorerMenus::GetVerbLabel (verb);
+        command->glyph     = ExplorerMenus::GetVerbGlyph (verb);
+        command->menuSvg   = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (verb));
+        command->menuImage = m_context.menus.GetVerbMenuImage (verb);
+        command->dispatch  = [this, verb, folder, id]()
         {
             HRESULT  hr = S_OK;
 

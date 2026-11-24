@@ -126,6 +126,7 @@ public:
     void                                    ApplyMenuSvgs          ();
     const std::string                     * GetMenuSvg             (const wchar_t * name);
     std::shared_ptr<const DxuiIconImage>    GetOpenMenuImage       (bool browsable, const std::wstring & path);
+    std::shared_ptr<const DxuiIconImage>    GetVerbMenuImage       (CassoExplorerActions::Verb verb);
     std::shared_ptr<const DxuiIconImage>    GetStockMenuImage      (SHSTOCKICONID id);
     std::shared_ptr<const DxuiIconImage>    GetIconFileMenuImage   (const std::wstring & file, int index);
 

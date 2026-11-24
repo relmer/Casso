@@ -644,6 +644,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
         command->label     = ExplorerMenus::GetVerbLabel (verb);
         command->menuGlyph = ExplorerMenus::GetVerbMenuGlyph (verb);
         command->menuSvg   = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (verb));
+        command->menuImage = m_context.menus.GetVerbMenuImage (verb);
         command->dispatch  = [this, verb]() { m_context.verbs.RunVerb (verb); };
 
         if (verb == CassoExplorerActions::Verb::Open)

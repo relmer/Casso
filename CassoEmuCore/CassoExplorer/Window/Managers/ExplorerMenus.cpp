@@ -278,6 +278,28 @@ const wchar_t * ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb ve
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerMenus::GetVerbMenuImage
+//
+//  The insert rows have the icon of a disk image file, as the list draws it;
+//  null for every other verb, which has an SVG or a glyph instead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<const DxuiIconImage> ExplorerMenus::GetVerbMenuImage (CassoExplorerActions::Verb verb)
+{
+    bool  isInsert = verb == CassoExplorerActions::Verb::InsertDrive1 || verb == CassoExplorerActions::Verb::InsertDrive2;
+
+
+
+    return isInsert ? m_context.shellIcons.GetForKind (IShellIcons::Kind::DiskImage) : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerMenus::GetOpenMenuImage
 //
 //  Explorer's Open row carries the icon of the program that will open the
