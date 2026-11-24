@@ -14,11 +14,7 @@
 //  ImageRecordStore
 //
 //  Image records as JSON files in a cache folder. Each file's name is the
-//  SHA-256 of the image file, and a copy is in the image file's alternate
-//  data stream. The stream goes with the file through a move or a copy on
-//  an NTFS volume; the cache serves an image on a FAT volume, a read-only
-//  one, and a copy of its bytes alone. A stream's record has the hash it
-//  was made for, and is used only while the file has that hash.
+//  SHA-256 of the image file. The image file itself is never written.
 //
 //  Only an image up to kMaxImageBytes has a record, since its whole file is
 //  read for the hash.
@@ -32,8 +28,7 @@
 class ImageRecordStore : public IImageRecords
 {
 public:
-    static constexpr const wchar_t *  kStreamName   = L":casso.record.json";
-    static constexpr uint64_t         kMaxImageBytes = 1024 * 1024;
+    static constexpr uint64_t  kMaxImageBytes = 1024 * 1024;
 
     explicit ImageRecordStore (std::filesystem::path folder);
 
@@ -61,7 +56,6 @@ private:
     std::filesystem::path  GetCachePath (const std::string & hash) const;
     static bool            ReadText     (const std::wstring & path, std::string & outText);
     static HRESULT         WriteText    (const std::wstring & path, const std::string & text);
-    static HRESULT         WriteStream  (const std::wstring & image, const std::string & text);
 
     std::filesystem::path                 m_folder;
     std::mutex                            m_lock;

@@ -207,9 +207,8 @@ Error:
 //
 //  ImageRecordStore::Load
 //
-//  The record for the image's bytes: from memory, then the cache folder,
-//  then the image's stream. A record found only in the stream is copied
-//  into the cache. On false, outRecord is empty except for its hash.
+//  The record for the image's bytes: from memory, then the cache folder.
+//  On false, outRecord is empty except for its hash.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -241,17 +240,6 @@ bool ImageRecordStore::Load (const std::wstring & path, Record & outRecord)
     isInCache = ReadText (GetCachePath (hash).wstring(), text);
     isFound   = isInCache && ImageRecordCodec::Parse (text, outRecord) && outRecord.hash == hash;
 
-    if (!isFound)
-    {
-        isFound = ReadText (path + kStreamName, text) && ImageRecordCodec::Parse (text, outRecord) && outRecord.hash == hash;
-
-        if (isFound)
-        {
-            hr = WriteText (GetCachePath (hash).wstring(), text);
-            IGNORE_RETURN_VALUE (hr, S_OK);
-        }
-    }
-
     if (isFound)
     {
         std::lock_guard  lock (m_lock);
@@ -277,7 +265,7 @@ Error:
 //
 //  ImageRecordStore::Save
 //
-//  The record into memory, the cache folder and the image's stream. A
+//  The record into memory and the cache folder. A
 //  record of the path's earlier bytes is deleted from the cache, so each
 //  image has the one record for what it contains now.
 //
@@ -313,9 +301,6 @@ void ImageRecordStore::Save (const std::wstring & path, const Record & record)
     }
 
     hr = WriteText (GetCachePath (record.hash).wstring(), text);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    hr = WriteStream (path, text);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
 Error:
@@ -392,83 +377,5 @@ HRESULT ImageRecordStore::WriteText (const std::wstring & path, const std::strin
     CBREx (isGood, HRESULT_FROM_WIN32 (ERROR_WRITE_FAULT));
 
 Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ImageRecordStore::WriteStream
-//
-//  The record into the image's stream, with the file's times and read-only
-//  attribute as they were: a write to any stream of a file sets its last
-//  write time, by which a backup or a sync would take the image for a
-//  changed one. A stream with the same text isn't written again, and a
-//  drive with no streams isn't touched.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT ImageRecordStore::WriteStream (const std::wstring & image, const std::string & text)
-{
-    HRESULT                    hr               = S_OK;
-    WIN32_FILE_ATTRIBUTE_DATA  before           = {};
-    BOOL                       hasTimes         = ::GetFileAttributesExW (image.c_str(), GetFileExInfoStandard, &before);
-    std::wstring               stream           = image + kStreamName;
-    wchar_t                    volume[MAX_PATH] = {};
-    DWORD                      flags            = 0;
-    BOOL                       hasVolume        = ::GetVolumePathNameW (image.c_str(), volume, MAX_PATH);
-    bool                       isReadOnly       = hasTimes && (before.dwFileAttributes & FILE_ATTRIBUTE_READONLY) != 0;
-    bool                       isCleared        = false;
-    bool                       isTouched        = false;
-    std::string                existing;
-    HANDLE                     file             = INVALID_HANDLE_VALUE;
-    HANDLE                     whole            = INVALID_HANDLE_VALUE;
-    DWORD                      written          = 0;
-    BOOL                       isDone           = FALSE;
-
-
-
-    CBREx (hasTimes, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
-
-    hasVolume = hasVolume && ::GetVolumeInformationW (volume, nullptr, 0, nullptr, nullptr, &flags, nullptr, 0);
-    BAIL_OUT_IF (!hasVolume || (flags & FILE_NAMED_STREAMS) == 0, S_OK);
-
-    BAIL_OUT_IF (ReadText (stream, existing) && existing == text, S_OK);
-
-    if (isReadOnly)
-    {
-        isCleared = ::SetFileAttributesW (image.c_str(), before.dwFileAttributes & ~FILE_ATTRIBUTE_READONLY) != FALSE;
-        CBREx (isCleared, HRESULT_FROM_WIN32 (::GetLastError()));
-    }
-
-    file = ::CreateFileW (stream.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-    CBREx (file != INVALID_HANDLE_VALUE, HRESULT_FROM_WIN32 (::GetLastError()));
-
-    isTouched = true;
-    isDone    = ::WriteFile (file, text.data(), (DWORD) text.size(), &written, nullptr) && written == (DWORD) text.size();
-    ::CloseHandle (file);
-
-    CBREx (isDone, HRESULT_FROM_WIN32 (ERROR_WRITE_FAULT));
-
-Error:
-    if (isTouched)
-    {
-        whole = ::CreateFileW (image.c_str(), FILE_WRITE_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-    }
-
-    if (whole != INVALID_HANDLE_VALUE)
-    {
-        ::SetFileTime (whole, &before.ftCreationTime, &before.ftLastAccessTime, &before.ftLastWriteTime);
-        ::CloseHandle (whole);
-    }
-
-    if (isCleared)
-    {
-        ::SetFileAttributesW (image.c_str(), before.dwFileAttributes);
-    }
-
     return hr;
 }

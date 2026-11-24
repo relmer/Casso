@@ -244,14 +244,15 @@ void DiskImagePreviewer::PreviewImageCatalog (const std::wstring & imagePath)
 
 bool DiskImagePreviewer::TryDecodeDiskSave (const std::wstring & imagePath, DecodedFile & outFile)
 {
-    HRESULT                    hr      = S_OK;
-    std::string                narrow  = TextEncoding::WideToNarrow (imagePath);
+    HRESULT                    hr       = S_OK;
+    std::string                narrow   = TextEncoding::WideToNarrow (imagePath);
     std::vector<Byte>          bytes;
-    IImageRecords            * records = m_parts.catalog.GetRecords();
-    IImageRecords::SavedGame   known   = (records != nullptr) ? records->FindSavedGame (imagePath) : IImageRecords::SavedGame::Unknown;
-    bool                       isRead  = false;
-    bool                       isFound = false;
-    bool                       isReady = false;
+    IImageRecords            * records  = m_parts.catalog.GetRecords();
+    IImageRecords::SavedGame   known    = (records != nullptr) ? records->FindSavedGame (imagePath) : IImageRecords::SavedGame::Unknown;
+    bool                       isRead   = false;
+    bool                       isFound  = false;
+    bool                       isReady  = false;
+    bool                       isBeside = false;
 
 
 
@@ -267,15 +268,18 @@ bool DiskImagePreviewer::TryDecodeDiskSave (const std::wstring & imagePath, Deco
 
     isRead = true;
 
-    hr = DiskSaveTable::DecodeImage (bytes, narrow, [this, &narrow] (DiskSaveTable::IsFoundFn isCompanion, std::vector<Byte> & outSectors)
+    hr = DiskSaveTable::DecodeImage (bytes, narrow, [this, &narrow, &isBeside] (DiskSaveTable::IsFoundFn isCompanion, std::vector<Byte> & outSectors)
                                      {
+                                         isBeside = true;
                                          return DiskSaveTable::FindBeside (m_parts.operations.GetFileIo(), narrow, isCompanion, outSectors);
                                      }, outFile);
 
     isFound = SUCCEEDED (hr);
 
 Error:
-    if (isRead && records != nullptr)
+    //  A disk whose save is on a companion disk may have one once the
+    //  companion is copied beside it, so no saved game isn't stored for it.
+    if (isRead && records != nullptr && (isFound || !isBeside))
     {
         records->StoreSavedGame (imagePath, isFound);
     }
