@@ -367,7 +367,7 @@ private:
         { kNewTab,            Menu::File, L"&New tab",            L"Ctrl+T",   false },
         { kCloseTab,          Menu::File, L"&Close tab",          L"Ctrl+W",   false },
         { kSeparator,         Menu::File, nullptr,                nullptr,     false },
-        { kInspectDiskImage,  Menu::File, L"&Inspect disk image", nullptr,     false },
+        { kInspectDiskImage,  Menu::File, L"&Inspect / repair",   nullptr,     false },
         { kCompareDiskImages, Menu::File, L"Co&mpare disk images", nullptr,    false },
         { kSeparator,         Menu::File, nullptr,                nullptr,     false },
         { kExit,              Menu::File, L"E&xit",               nullptr,     false },

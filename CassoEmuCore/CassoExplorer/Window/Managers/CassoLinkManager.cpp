@@ -1264,18 +1264,6 @@ void CassoLinkManager::AddConnectionRows (std::vector<DxuiPopupMenuItem> & items
 #if defined (_DEBUG)
         m_context.menus.AddMenuCommand (items, L"Arm link fa&ults...",        [this]() { ArmLinkFaults(); });
 #endif
-
-        if (TreeModel::TryParseLinkId (location.path, link, slot, drive) && m_context.actions.CanChooseDriveFilesystem (TextEncoding::WideToNarrow (link), drive))
-        {
-            std::string  name   = TextEncoding::WideToNarrow (link);
-            bool         chosen = m_context.app.links->GetChosenKind (name, drive) != VolumeKind::Unknown;
-
-            m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (chosen ? CassoExplorerActions::Verb::DetectFilesystem : CassoExplorerActions::Verb::ReadAsCpm), [this, name, drive, chosen]()
-            {
-                m_context.actions.ChooseDriveFilesystem (name, drive, chosen ? VolumeKind::Unknown : VolumeKind::Cpm);
-                m_context.listPane.FillList();
-            });
-        }
     }
 
     if (m_context.app.links != nullptr && hasLocation && location.kind == Location::Kind::Root && location.path == TreeModel::kCassoLinkRootId)
