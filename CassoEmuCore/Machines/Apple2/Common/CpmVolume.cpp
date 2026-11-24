@@ -222,15 +222,61 @@ bool CpmVolume::IsFoundLenient (const vector<Byte> & sectors)
 //
 //  CpmVolume::IsReadOnly
 //
-//  A disk that only the lenient read finds. A disk read as CP/M by choice,
-//  which neither read finds, can be changed, since its invalid slots are
-//  never reused.
+//  A disk that only the lenient read finds, or one read as CP/M by choice
+//  whose directory has invalid entries. A disk read by choice with no
+//  invalid entries can be changed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool CpmVolume::IsReadOnly() const
 {
+    return !IsFound (m_sectors) && (IsFoundLenient (m_sectors) || HasInvalidEntry (m_sectors));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CpmVolume::IsLenientRead
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CpmVolume::IsLenientRead() const
+{
     return !IsFound (m_sectors) && IsFoundLenient (m_sectors);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CpmVolume::HasInvalidEntry
+//
+//  An entry in use that isn't valid, counted as CollectFiles counts it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CpmVolume::HasInvalidEntry (const vector<Byte> & sectors)
+{
+    vector<Byte>     directory;
+    vector<RawFile>  files;
+    int              invalid   = 0;
+
+
+
+    if (sectors.size() != (size_t) NibbleFormat::kImageByteSize)
+    {
+        return false;
+    }
+
+    CopyDirectory (sectors, directory);
+    CollectFiles  (directory, files, invalid);
+
+    return invalid != 0;
 }
 
 
@@ -698,7 +744,7 @@ void CpmVolume::CollectVolumeFiles (const vector<Byte> & directory, vector<RawFi
 
 
 
-    if (IsReadOnly())
+    if (IsLenientRead())
     {
         skipped = CollectSkippedSlots (directory, inUse);
     }

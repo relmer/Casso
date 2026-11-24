@@ -710,7 +710,6 @@ public:
     TEST_METHOD (BlocksInAnInvalidEntryWithAUserNumberAreUsed)
     {
         std::vector<Byte>  image = BuildBlank();
-        std::vector<Byte>  edited;
         VolumeListing      listing;
 
         PutGarbage (image, 0, 0x09);
@@ -723,11 +722,6 @@ public:
         AssertSucceeded (CpmVolume (image).Enumerate (listing));
 
         Assert::AreEqual ((uint32_t) 125, listing.freeUnits);
-
-        AssertSucceeded (CpmVolume (image).Write (FilePath::Parse ("BIG.COM"), MakePayload (39 * kBlockBytes, 0), edited));
-        
-        //  With 125 blocks free, one more than that doesn't fit.
-        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_DISK_FULL), CpmVolume (image).Write (FilePath::Parse ("FULL.COM"), MakePayload (126 * kBlockBytes, 0), edited));
     }
 
     TEST_METHOD (WritesNeverAllocateTheBootTracksAndTotalsCountWhatIsClaimedThere)
@@ -780,13 +774,13 @@ public:
 
 
 
-    TEST_METHOD (WriteNeverReusesAnInvalidSlot)
+    TEST_METHOD (AChosenDiskWithAnInvalidEntryIsReadOnly)
     {
         std::vector<Byte>  image = BuildBlank();
         std::vector<Byte>  edited;
+        VolumeListing      listing;
 
-        //  Two entries beside one bad one: a disk read as CP/M by choice, which
-        //  can be changed.
+        //  Two entries beside one bad one: a disk only the choice reads as CP/M.
         PutEntry (image, 0, 0, "ONE     COM", 0, 8, { 2 });
         PutEntry (image, 1, 0, "TWO     COM", 0, 8, { 3 });
 
@@ -795,10 +789,29 @@ public:
             image[GetOffset (0, 2 * kEntryBytes + i)] = (Byte) (0x30 + i);
         }
 
-        AssertSucceeded (CpmVolume (image).Write (FilePath::Parse ("NEW.COM"), MakePayload (10, 0), edited));
+        Assert::IsFalse (CpmVolume::IsFound (image));
+        Assert::IsFalse (CpmVolume::IsFoundLenient (image));
+        Assert::IsTrue  (CpmVolume (image).IsReadOnly());
 
-        Assert::AreEqual ((int) 0x30, (int) edited[GetOffset (0, 2 * kEntryBytes)], L"The bad entry stays");
-        Assert::AreEqual ((int) 'N', (int) edited[GetOffset (0, 3 * kEntryBytes + 1)]);
+        AssertSucceeded (CpmVolume (image).Enumerate (listing));
+        Assert::AreEqual ((size_t) 2, listing.entries.size());
+        Assert::AreEqual (std::string ("There is 1 directory entry that isn't a valid CP/M entry, so the disk is read-only"), listing.damage[0]);
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT), CpmVolume (image).Write  (FilePath::Parse ("NEW.COM"), MakePayload (10, 0), edited));
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT), CpmVolume (image).Delete (FilePath::Parse ("ONE.COM"), edited));
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT), CpmVolume (image).Rename (FilePath::Parse ("ONE.COM"), "UNO.COM", edited));
+    }
+
+
+
+    TEST_METHOD (AChosenDiskWithNoInvalidEntryCanBeChanged)
+    {
+        std::vector<Byte>  image = BuildDamaged();
+        std::vector<Byte>  edited;
+
+        Assert::IsFalse (CpmVolume::IsFound (image));
+        Assert::IsFalse (CpmVolume (image).IsReadOnly());
+        AssertSucceeded (CpmVolume (image).Write (FilePath::Parse ("NEW.COM"), MakePayload (10, 0), edited));
     }
 
 

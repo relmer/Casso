@@ -89,8 +89,8 @@ public:
     //  of the slots in use. The others are skipped, and the disk is read-only.
     static bool  IsFoundLenient (const vector<Byte> & sectors);
 
-    //  Whether the disk is read that way, so that every change fails with
-    //  ERROR_WRITE_PROTECT.
+    //  Whether the disk is read that way, or its directory has invalid entries,
+    //  so that every change fails with ERROR_WRITE_PROTECT.
     bool  IsReadOnly () const;
 
     //  A blank disk as CP/M's FORMAT leaves it: $E5 in every byte.
@@ -155,6 +155,7 @@ private:
     static std::string  MakeName         (const ParsedName & parsed);
     static bool         IsPlausibleEntry (std::span<const Byte> entry);
     static bool         IsFreeSlot       (std::span<const Byte> entry);
+    static bool         HasInvalidEntry  (const vector<Byte> & sectors);
 
     void  ReadDirectory (vector<Byte> & outDirectory) const;
     void  ReadBlock     (int block, std::span<Byte> outBytes) const;
@@ -173,6 +174,9 @@ private:
 
     //  The same, with the slots a read-only disk skips left out.
     void  CollectVolumeFiles (const vector<Byte> & directory, vector<RawFile> & outFiles, int & outInvalid) const;
+
+    //  Whether only the lenient read finds the disk.
+    bool  IsLenientRead() const;
 
     //  The slots in use that a lenient read skips, and how many slots are in
     //  use: an entry that isn't plausible, has a user other than 0 to 15 or the
