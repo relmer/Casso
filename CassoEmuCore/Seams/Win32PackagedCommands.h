@@ -15,18 +15,12 @@
 //  Win32PackagedCommands
 //
 //  The commands installed apps add to File Explorer's first-level context
-//  menu: Open with Code, Edit in Notepad, PowerRename and the like, and the
-//  commands Windows lists there itself: Send to My Phone, Run with
-//  PowerShell, Add to Favorites, Compress to.
+//  menu: Open with Code, Edit in Notepad, PowerRename and the like.
 //
 //  EACH APP DECLARES ITS COMMANDS IN ITS PACKAGE MANIFEST, by item type and
 //  COM class, and File Explorer reads them from there, as this class does.
 //  A command is an IExplorerCommand: GetTitle, GetIcon and GetState are
 //  called against the items, and Invoke runs it on them.
-//
-//  Windows' own commands are either IExplorerCommand handlers in the shell's
-//  command store or static verbs registered for the item's type, of which
-//  only Windows' own few appear on File Explorer's first level.
 //
 //  The manifests are read on a worker thread at startup, and again whenever
 //  a package is installed, updated or removed, or a file association
@@ -56,9 +50,6 @@ public:
     //  Returns the commands that apply to the items; empty until the
     //  manifests are read.
     std::vector<Win32ExplorerCommandEntries::Entry>  GetEntries (const std::vector<std::wstring> & paths, Win32ExplorerCommandEntries::ItemKind kind);
-
-    //  Returns Windows' own commands for the items, in File Explorer's order.
-    std::vector<Win32ExplorerCommandEntries::Entry>  GetWindowsEntries (const std::vector<std::wstring> & paths, Win32ExplorerCommandEntries::ItemKind kind);
 
     //  The shell items the commands are asked about in place of the paths: Home's rows, whose commands answer for them as they are listed there.
     void                SetItemIds        (std::vector<std::wstring> ids) { m_itemIds = std::move (ids); }
@@ -105,12 +96,6 @@ private:
     static bool          Applies           (const Registration & registration, const std::vector<std::wstring> & paths, Win32ExplorerCommandEntries::ItemKind kind);
     static bool          IsInSyncRootOf    (const std::wstring & package, const std::wstring & path);
     static void          AddPackageEntries (const Registration & package, size_t applies, std::vector<Win32ExplorerCommandEntries::Entry> & own, std::vector<Win32ExplorerCommandEntries::Entry> & outEntries);
-    static void          AddStoreEntry     (const wchar_t * name, const wchar_t * explorerIcon, IShellItemArray * items, std::vector<Win32ExplorerCommandEntries::Entry> & outEntries);
-    static void          AddStaticVerbs    (const std::wstring & path, IShellItemArray * items, std::vector<Win32ExplorerCommandEntries::Entry> & outEntries);
-    static HRESULT       AddStaticVerb     (const std::wstring & classKey, const wchar_t * verb, IShellItemArray * items, std::vector<Win32ExplorerCommandEntries::Entry> & outEntries);
-    static HRESULT       AddStoreVerb      (const wchar_t * name, IShellItemArray * items, std::vector<Win32ExplorerCommandEntries::Entry> & outEntries);
-    static HRESULT       ReadString        (HKEY root, const std::wstring & key, const wchar_t * value, std::wstring & outText);
-    static bool          HasValue          (const std::wstring & key, const wchar_t * value);
 
     std::thread                 m_reader;
     std::mutex                  m_lock;

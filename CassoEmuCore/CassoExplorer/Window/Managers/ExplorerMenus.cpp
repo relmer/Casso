@@ -998,7 +998,7 @@ void ExplorerMenus::AddPackagedCommands (std::vector<DxuiPopupMenuItem> & items)
 
 bool ExplorerMenus::AddWindowsCommands (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32ExplorerCommandEntries::ItemKind kind)
 {
-    std::vector<Win32ExplorerCommandEntries::Entry>  entries = m_packagedCommands.GetWindowsEntries (paths, kind);
+    std::vector<Win32ExplorerCommandEntries::Entry>  entries = m_windowsCommands.GetWindowsEntries (paths, kind);
 
 
 

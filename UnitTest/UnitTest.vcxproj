@@ -696,6 +696,7 @@
     <ClCompile Include="CassoExplorer\AppleDriveActionsTests.cpp" />
     <ClCompile Include="CassoExplorer\FileAssociationsTests.cpp" />
     <ClCompile Include="CassoExplorer\Win32ShellMenuHandlersTests.cpp" />
+    <ClCompile Include="CassoExplorer\Win32WindowsCommandsTests.cpp" />
     <ClCompile Include="CassoExplorer\AppleFilePropertiesTests.cpp" />
     <ClCompile Include="CassoExplorer\BasicConversionTests.cpp" />
     <ClCompile Include="CassoExplorer\BasicListingOutputTests.cpp" />

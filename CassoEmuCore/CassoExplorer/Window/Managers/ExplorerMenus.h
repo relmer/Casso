@@ -6,7 +6,9 @@
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
 #include "Seams/Win32ExplorerCommandEntries.h"
 #include "Seams/Win32PackagedCommands.h"
+#include "Seams/Win32RegistryReader.h"
 #include "Seams/Win32ShellMenuHandlers.h"
+#include "Seams/Win32WindowsCommands.h"
 
 struct ExplorerContext;
 
@@ -108,7 +110,7 @@ public:
     void                            AddMenuEnd             (std::vector<DxuiPopupMenuItem> & items, std::function<void()> showMore);
     void                            AddPackagedEntry       (std::vector<DxuiPopupMenuItem> & items, const Win32ExplorerCommandEntries::Entry & entry, const std::vector<std::wstring> & paths);
     bool                            AddWindowsCommands     (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32ExplorerCommandEntries::ItemKind kind);
-    void                            SetCommandItemIds      (std::vector<std::wstring> ids) { m_packagedCommands.SetItemIds (std::move (ids)); }
+    void                            SetCommandItemIds      (std::vector<std::wstring> ids) { m_packagedCommands.SetItemIds (ids); m_windowsCommands.SetItemIds (std::move (ids)); }
     void                            AddShellMenuCommands   (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths);
     static const wchar_t *          GetShellVerbSvgName    (const std::string & verb);
     bool                            GetSelectionKind       (std::vector<std::wstring> & outPaths, Win32ExplorerCommandEntries::ItemKind & outKind) const;
@@ -137,6 +139,8 @@ private:
     std::vector<std::shared_ptr<DxuiCommand>>  m_menuCommands;
     Win32PackagedCommands                      m_packagedCommands;
     Win32ShellMenuHandlers                     m_shellMenuHandlers;
+    Win32RegistryReader                        m_registryReader;
+    Win32WindowsCommands                       m_windowsCommands { m_registryReader };
     std::map<std::wstring, std::unique_ptr<std::string>>  m_menuSvgs;
     std::map<std::wstring, std::shared_ptr<const DxuiIconImage>>  m_openMenuImages;
 };
