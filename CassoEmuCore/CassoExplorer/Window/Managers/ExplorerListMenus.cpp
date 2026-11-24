@@ -689,6 +689,11 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
         //  where the first of them is.
         if (verb == CassoExplorerActions::Verb::InsertDrive1 || verb == CassoExplorerActions::Verb::InsertDrive2 || verb == CassoExplorerActions::Verb::OpenInNewCasso)
         {
+            if (verb == CassoExplorerActions::Verb::OpenInNewCasso)
+            {
+                command->menuImage = m_context.shellIcons.GetForKind (IShellIcons::Kind::Casso);
+            }
+
             cassoAt = cassoChoices.empty() ? items.size() : cassoAt;
             cassoChoices.push_back (DxuiPopupMenuItem::ForCommand (command));
             m_context.menus.GetMenuCommands().push_back (std::move (command));
@@ -738,8 +743,8 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
     }
 
     //  The later submenu first, so the earlier one's place stays where it was.
-    InsertSubmenu (items, convertAt, L"Con&vert", L"Windows.Zip.Action", std::move (convertChoices));
-    InsertSubmenu (items, cassoAt,   L"C&asso",   L"casso.floppy525",    std::move (cassoChoices));
+    InsertSubmenu (items, convertAt, L"Con&vert", L"Windows.Zip.Action", nullptr,                                                   std::move (convertChoices));
+    InsertSubmenu (items, cassoAt,   L"C&asso",   nullptr,               m_context.shellIcons.GetForKind (IShellIcons::Kind::Casso), std::move (cassoChoices));
 
     //  Casso's known folders, from a folder row or from the background of the
     //  folder being shown, as the tree offers them from a node.
@@ -1097,7 +1102,13 @@ void ExplorerListMenus::RemoveExtraSeparators (std::vector<DxuiPopupMenuItem> & 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerListMenus::InsertSubmenu (std::vector<DxuiPopupMenuItem> & items, size_t at, const wchar_t * label, const wchar_t * svg, std::vector<DxuiPopupMenuItem> choices)
+void ExplorerListMenus::InsertSubmenu (
+    std::vector<DxuiPopupMenuItem>        & items,
+    size_t                                  at,
+    const wchar_t                         * label,
+    const wchar_t                         * svg,
+    std::shared_ptr<const DxuiIconImage>    image,
+    std::vector<DxuiPopupMenuItem>          choices)
 {
     std::shared_ptr<DxuiCommand>  parent;
 
@@ -1108,9 +1119,10 @@ void ExplorerListMenus::InsertSubmenu (std::vector<DxuiPopupMenuItem> & items, s
         return;
     }
 
-    parent          = std::make_shared<DxuiCommand>();
-    parent->label   = label;
-    parent->menuSvg = m_context.menus.GetMenuSvg (svg);
+    parent            = std::make_shared<DxuiCommand>();
+    parent->label     = label;
+    parent->menuSvg   = (svg != nullptr) ? m_context.menus.GetMenuSvg (svg) : nullptr;
+    parent->menuImage = image;
 
     items.insert (items.begin() + (std::ptrdiff_t) std::min (at, items.size()), DxuiPopupMenuItem::ForSubmenu (parent, std::move (choices)));
     m_context.menus.GetMenuCommands().push_back (std::move (parent));

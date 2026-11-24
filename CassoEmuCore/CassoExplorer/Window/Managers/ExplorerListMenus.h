@@ -69,7 +69,7 @@ private:
     void  AddCopyAsMenu   (std::vector<DxuiPopupMenuItem> & items);
     void  AddConvertMenu  (std::vector<DxuiPopupMenuItem> & items);
     void  AddCardRows     (std::vector<DxuiPopupMenuItem> & items, const Location & card);
-    void  InsertSubmenu   (std::vector<DxuiPopupMenuItem> & items, size_t at, const wchar_t * label, const wchar_t * svg, std::vector<DxuiPopupMenuItem> choices);
+    void  InsertSubmenu   (std::vector<DxuiPopupMenuItem> & items, size_t at, const wchar_t * label, const wchar_t * svg, std::shared_ptr<const DxuiIconImage> image, std::vector<DxuiPopupMenuItem> choices);
 
     ExplorerListPane  & m_pane;
     ExplorerContext   & m_context;

@@ -35,6 +35,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerOpen.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
 #include "Seams/IDiskPictures.h"
+#include "Seams/IShellIcons.h"
 #include "CassoExplorer/Window/Managers/ExplorerListMenus.h"
 
 
@@ -1305,11 +1306,14 @@ void ExplorerTreePane::AddCassoSubmenu (std::vector<DxuiPopupMenuItem> & items, 
 
 
     m_context.menus.AddMenuCommand (choices, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::InsertDrive1),   [this, image]() { m_context.cassoTarget.InsertIntoDrive (image, 1); });
+    m_context.menus.GetMenuCommands().back()->menuSvg   = m_context.menus.GetMenuSvg (L"casso.floppy525");
     m_context.menus.AddMenuCommand (choices, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::InsertDrive2),   [this, image]() { m_context.cassoTarget.InsertIntoDrive (image, 2); });
+    m_context.menus.GetMenuCommands().back()->menuSvg   = m_context.menus.GetMenuSvg (L"casso.floppy525");
     m_context.menus.AddMenuCommand (choices, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::OpenInNewCasso), [this, image]() { m_context.cassoTarget.OpenInNewCasso (image); });
+    m_context.menus.GetMenuCommands().back()->menuImage = m_context.shellIcons.GetForKind (IShellIcons::Kind::Casso);
 
-    parent->label   = L"C&asso";
-    parent->menuSvg = m_context.menus.GetMenuSvg (L"casso.floppy525");
+    parent->label     = L"C&asso";
+    parent->menuImage = m_context.shellIcons.GetForKind (IShellIcons::Kind::Casso);
 
     items.push_back (DxuiPopupMenuItem::ForSubmenu (parent, std::move (choices)));
     m_context.menus.GetMenuCommands().push_back (std::move (parent));
