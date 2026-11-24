@@ -197,10 +197,12 @@ bool ExplorerListBars::FillCardBar()
     {
         m_context.verbs.ReportOutcome (m_context.actions.GetA2retroNet().AddArrived (arrived, replaced), L"Add to A2retroNET drives");
 
-        //  Undoing the copy of an image replaced with a .po removes the .po.
+        //  Undoing the copy of an image replaced with a .po removes the .po,
+        //  and the tree lists the .po in its folder.
         for (const auto & [from, to] : replaced)
         {
             m_context.undo.ReplacePath (from, to);
+            m_context.folderSync.RefreshTreeFolder (std::filesystem::path (to).parent_path().wstring());
         }
 
         m_context.folderSync.RefreshAfterHostChange();
