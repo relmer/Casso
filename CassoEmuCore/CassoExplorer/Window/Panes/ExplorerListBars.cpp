@@ -10,6 +10,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerVerbs.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
+#include "CassoExplorer/Window/Managers/ExplorerUndo.h"
 #include "CassoExplorer/Window/Managers/ExplorerOpen.h"
 
 
@@ -163,19 +164,20 @@ bool ExplorerListBars::FillSearchBar()
 
 bool ExplorerListBars::FillCardBar()
 {
-    const Location             & location  = m_context.browser.GetLocation();
-    std::wstring                 root      = std::filesystem::path (location.path).root_path().wstring();
-    std::vector<std::wstring>    labels;
-    std::vector<std::wstring>    arrived;
-    std::wstring                 text;
-    HRESULT                      hr        = S_OK;
-    bool                         visible   = m_cardBar->IsVisible();
-    bool                         onCard    = false;
-    bool                         atRoot    = false;
-    bool                         problem   = false;
-    bool                         show      = false;
-    bool                         relabeled = false;
-    bool                         isOne     = false;
+    const Location                                      & location  = m_context.browser.GetLocation();
+    std::wstring                                          root      = std::filesystem::path (location.path).root_path().wstring();
+    std::vector<std::wstring>                             labels;
+    std::vector<std::wstring>                             arrived;
+    std::vector<std::pair<std::wstring, std::wstring>>    replaced;
+    std::wstring                                          text;
+    HRESULT                                               hr        = S_OK;
+    bool                                                  visible   = m_cardBar->IsVisible();
+    bool                                                  onCard    = false;
+    bool                                                  atRoot    = false;
+    bool                                                  problem   = false;
+    bool                                                  show      = false;
+    bool                                                  relabeled = false;
+    bool                                                  isOne     = false;
 
 
 
@@ -193,7 +195,14 @@ bool ExplorerListBars::FillCardBar()
 
     if (!arrived.empty())
     {
-        m_context.verbs.ReportOutcome (m_context.actions.GetA2retroNet().AddArrived (arrived), L"Add to A2retroNET drives");
+        m_context.verbs.ReportOutcome (m_context.actions.GetA2retroNet().AddArrived (arrived, replaced), L"Add to A2retroNET drives");
+
+        //  Undoing the copy of an image replaced with a .po removes the .po.
+        for (const auto & [from, to] : replaced)
+        {
+            m_context.undo.ReplacePath (from, to);
+        }
+
         m_context.folderSync.RefreshAfterHostChange();
     }
 

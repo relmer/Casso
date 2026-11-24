@@ -68,6 +68,44 @@ void ExplorerUndo::Push (ExplorerUndoStep step)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerUndo::ReplacePathIn
+//
+//  A moved file goes back under the replacement's extension, since the
+//  file there now is the replacement.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerUndo::ReplacePathIn (std::vector<ExplorerUndoStep> & ioSteps, const std::wstring & from, const std::wstring & to)
+{
+    std::wstring  extension = std::filesystem::path (to).extension().wstring();
+
+
+
+    for (ExplorerUndoStep & step : ioSteps)
+    {
+        for (size_t i = 0; i < step.paths.size(); i++)
+        {
+            if (_wcsicmp (step.paths[i].c_str(), from.c_str()) != 0)
+            {
+                continue;
+            }
+
+            step.paths[i] = to;
+
+            if (step.kind == ExplorerUndoStep::Kind::HostMove && i < step.sources.size() && !step.sources[i].empty())
+            {
+                step.sources[i] = std::filesystem::path (step.sources[i]).replace_extension (extension).wstring();
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerUndo::GetLabel
 //
 ////////////////////////////////////////////////////////////////////////////////

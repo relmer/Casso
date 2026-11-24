@@ -91,8 +91,10 @@ public:
     //  Each disk image copied to an A2Pico card set as a free drive. One in
     //  DOS order with a ProDOS volume is replaced with a .po first. One the
     //  firmware can't mount, or one that arrives when each drive is set, is
-    //  left on the card and reported in the outcome's warning.
-    ActionsTypes::Outcome  AddArrived (const std::vector<std::wstring> & paths);
+    //  left on the card and reported in the outcome's warning. Each image
+    //  replaced is listed in outReplaced with its .po, so an undo step for
+    //  the copy can be changed to the .po.
+    ActionsTypes::Outcome  AddArrived (const std::vector<std::wstring> & paths, std::vector<std::pair<std::wstring, std::wstring>> & outReplaced);
 
     //  The drive, from 1, that Add sets the image as. False for an image
     //  the firmware doesn't read, one that is a drive already, or a card

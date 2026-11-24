@@ -961,7 +961,7 @@ void ActionsA2retroNet::TakeArrived (std::vector<std::wstring> & outArrived)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ActionsTypes::Outcome ActionsA2retroNet::AddArrived (const std::vector<std::wstring> & paths)
+ActionsTypes::Outcome ActionsA2retroNet::AddArrived (const std::vector<std::wstring> & paths, std::vector<std::pair<std::wstring, std::wstring>> & outReplaced)
 {
     ActionsTypes::Outcome  outcome;
     ActionsTypes::Outcome  step;
@@ -971,6 +971,8 @@ ActionsTypes::Outcome ActionsA2retroNet::AddArrived (const std::vector<std::wstr
     bool                   isNote = false;
 
 
+
+    outReplaced.clear();
 
     for (const std::wstring & path : paths)
     {
@@ -991,6 +993,7 @@ ActionsTypes::Outcome ActionsA2retroNet::AddArrived (const std::vector<std::wstr
                 continue;
             }
 
+            outReplaced.emplace_back (path, image);
             ActionsCopy::AppendMessage (outcome, outcome.hr, step.message);
         }
 
