@@ -411,9 +411,7 @@ public:
         Assert::AreEqual (std::wstring (L"E:\\games\\zork.po"), replaced[0].second);
         Assert::AreEqual (std::string ("[drives]\nnumber=2\n1=system.po\n2=games/zork.po\n"), std::string (host.io.files["E:\\A2retroNET.txt"].begin(), host.io.files["E:\\A2retroNET.txt"].end()));
 
-        Assert::IsTrue   (outcome.warning.find (L"dos33.dsk wasn't added.") != std::wstring::npos, outcome.warning.c_str());
-        Assert::IsTrue   (outcome.warning.find (L"so late.po wasn't added.") != std::wstring::npos, outcome.warning.c_str());
-        Assert::IsTrue   (outcome.warning.find (L"notes.txt") == std::wstring::npos, outcome.warning.c_str());
+        Assert::IsTrue   (outcome.warning.empty(), L"an image that isn't added is no warning: the copy succeeded");
         Assert::IsTrue   (host.io.files.contains ("E:\\games\\dos33.dsk"), L"an image the firmware can't mount is left as copied");
     }
 

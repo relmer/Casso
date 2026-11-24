@@ -955,9 +955,10 @@ void ActionsA2retroNet::TakeArrived (std::vector<std::wstring> & outArrived)
 //
 //  ActionsA2retroNet::AddArrived
 //
-//  A file that isn't a disk image is passed over. An image that isn't added
-//  is a note, so the copy is reported as a success; a file that can't be
-//  read or written is a failure.
+//  A file that isn't a disk image is passed over, and so is an image that
+//  can't be added, as one the firmware can't mount or one past a full drive
+//  list: the copy succeeded, so there is nothing to report. A file that
+//  can't be read or written is a failure.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -966,9 +967,8 @@ ActionsTypes::Outcome ActionsA2retroNet::AddArrived (const std::vector<std::wstr
     ActionsTypes::Outcome  outcome;
     ActionsTypes::Outcome  step;
     std::wstring           image;
-    std::wstring           notes;
     Layout                 layout;
-    bool                   isNote = false;
+    bool                   isPassed = false;
 
 
 
@@ -997,24 +997,16 @@ ActionsTypes::Outcome ActionsA2retroNet::AddArrived (const std::vector<std::wstr
             ActionsCopy::AppendMessage (outcome, outcome.hr, step.message);
         }
 
-        step   = Add (image);
-        isNote = step.hr == HRESULT_FROM_WIN32 (ERROR_INVALID_DATA) || step.hr == HRESULT_FROM_WIN32 (ERROR_DISK_FULL);
+        step     = Add (image);
+        isPassed = step.hr == HRESULT_FROM_WIN32 (ERROR_INVALID_DATA) || step.hr == HRESULT_FROM_WIN32 (ERROR_DISK_FULL);
 
-        if (isNote)
+        if (isPassed)
         {
-            notes += (notes.empty() ? L"" : L"\n") + step.message;
             continue;
         }
 
         ActionsCopy::AppendMessage (outcome, step.Succeeded() ? outcome.hr : step.hr, step.message);
         outcome.written += step.written;
-    }
-
-    outcome.warning = notes;
-
-    if (!outcome.Succeeded() && !notes.empty())
-    {
-        outcome.message += L"\n" + notes;
     }
 
     return outcome;
