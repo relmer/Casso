@@ -316,6 +316,7 @@
     <ClCompile Include="EmuTests\DiskStampCommandTests.cpp" />
     <ClCompile Include="EmuTests\FormatStampBuilderTests.cpp" />
     <ClCompile Include="EmuTests\FormatStampChunkTests.cpp" />
+    <ClCompile Include="EmuTests\FormatStampInspectorTests.cpp" />
     <ClCompile Include="EmuTests\MarkDiscoveryTests.cpp" />
     <ClCompile Include="EmuTests\StampDiskFixtures.cpp" />
     <ClCompile Include="EmuTests\StampedDecodeTests.cpp" />

@@ -90,6 +90,8 @@ void InspectorCommandSet::Build()
     c.exportFile                = make (L"&Export...", L"", [this] () { m_parts.GetDialogs().OpenExport(); });
     c.exportFile->isEnabled     = hasDisk;
     c.exportFile->glyph         = kpszGlyphExport;
+    c.stampFormat               = make (L"Stamp &format", L"", [this] () { m_parts.GetDialogs().StampFormat(); });
+    c.stampFormat->isEnabled    = [this] () { return m_parts.GetDialogs().CanStampFormat(); };
     c.save                      = make (L"&Save...", L"Ctrl+S", [this] () { m_parts.GetEditing().ApplyEdits(); });
     c.save->isEnabled           = [this] () { return m_parts.GetEditing().GetState().canApply && m_session.edits.GetCounts().sectors > 0; };
     c.saveEditedCopy            = make (L"Save &as...", L"", [this] () { m_parts.GetEditing().SaveEditedCopy(); });

@@ -64,6 +64,8 @@ public:
     static vector<int>  GetStampPositions (const DiskCopy & copy);
     static std::string  GetWriter         ();
     static uint32_t     ComputeTrackCrc   (const TrackCopy & track);
+    static void         KeepCaptureFacts  (const FormatStamp & earlier, FormatStamp & ioStamp);
+    static std::string  FormatUtc         (std::chrono::system_clock::time_point when);
 
 private:
     static StampEncoding  GetEncoding     (const TrackAnalysis & analysis);

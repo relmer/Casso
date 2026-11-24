@@ -212,6 +212,10 @@ public:
     //  dirty ones otherwise sees a rewritten track as untouched.
     void             MarkTrackDirty      (int track);
 
+    // Marks the image as changed when no track did, as after its WOZ
+    // metadata is replaced, so the next flush writes it.
+    void             MarkDirty           () { m_dirty = true; }
+
     //  A slot the shared sector writer changed, apart from guest writes
     //  through the drive. A save clears both. A slot only the writer changed
     //  can be saved in place where a guest-written one is rebuilt.

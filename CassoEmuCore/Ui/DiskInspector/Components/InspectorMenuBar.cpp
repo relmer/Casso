@@ -96,6 +96,7 @@ vector<DxuiMenuBarItem> InspectorMenuBar::BuildItems (const InspectorCommands & 
         rows.clear();
     };
     add (c.exportFile);
+    add (c.stampFormat);
     add (c.save);
     add (c.saveEditedCopy);
     separator();

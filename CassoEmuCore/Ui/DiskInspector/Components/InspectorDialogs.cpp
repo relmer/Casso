@@ -1,6 +1,10 @@
 #include "Pch.h"
 
 #include "Ui/DiskInspector/Components/InspectorDialogs.h"
+#include "Devices/Disk/Stamp/FormatStamp.h"
+#include "Devices/Disk/Stamp/FormatStampBuilder.h"
+#include "Devices/Disk/Stamp/StampedTrackMarks.h"
+#include "Shell/InspectorRequestQueue.h"
 #include "Ui/DiskInspector/Components/IInspectorComponentHost.h"
 #include "Ui/DiskInspector/Components/InspectorSession.h"
 #include "Core/TextEncoding.h"
@@ -133,6 +137,114 @@ void InspectorDialogs::OpenRepair (const std::set<std::wstring> & chosen)
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorDialogs::CanStampFormat
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool InspectorDialogs::CanStampFormat() const
+{
+    const DiskCopy  * copy = m_session.analysis.copy.get();
+
+
+
+    return m_session.context.hasDisk
+        && copy != nullptr
+        && copy->format == DiskFormat::Woz
+        && !copy->isReadOnly
+        && !m_session.is35
+        && !m_session.IsWriteProtected()
+        && m_stampRequest == 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorDialogs::StampFormat
+//
+//  The stamp is built from the window's copy of the disk with its decode
+//  settings, then put in the drive's disk and saved with it, so a mounted
+//  disk and its file have the same stamp.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorDialogs::StampFormat()
+{
+    auto              stamp   = std::make_shared<FormatStamp>();
+    FormatStamp       earlier;
+    InspectorRequest  request;
+
+
+
+    if (!CanStampFormat())
+    {
+        return;
+    }
+
+    FormatStampBuilder::Build (*m_session.analysis.copy, m_session.analysis.settings, StampSource::Inspector, nullptr,
+                               FormatStampBuilder::FormatUtc (std::chrono::system_clock::now()), *stamp);
+
+    if (StampedTrackMarks::TryLoadStamp (m_session.analysis.copy->woz, earlier))
+    {
+        FormatStampBuilder::KeepCaptureFacts (earlier, *stamp);
+    }
+
+    request.kind    = InspectorRequestKind::Stamp;
+    request.drive   = m_session.drive;
+    request.mediaId = m_session.analysis.mediaId;
+    request.stamp   = stamp;
+
+    m_stampRequest = m_session.host->PostInspectorRequest (request);
+    m_host.SetStatusNote (L"Saving the format stamp");
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorDialogs::TakeReply
+//
+//  The answer to Stamp format: a note in the status band, and the disk read
+//  again so the Image tab lists the stamp.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool InspectorDialogs::TakeReply (const InspectorReply & reply)
+{
+    bool  isOurs = m_stampRequest != 0 && reply.requestId == m_stampRequest;
+
+
+
+    if (!isOurs)
+    {
+        return false;
+    }
+
+    m_stampRequest = 0;
+
+    if (reply.reason.empty())
+    {
+        m_host.SetStatusNote (L"Saved the format stamp");
+        m_host.RequestCopy();
+    }
+    else
+    {
+        m_host.SetStatusNote (reply.reason);
+    }
+
+    return true;
 }
 
 

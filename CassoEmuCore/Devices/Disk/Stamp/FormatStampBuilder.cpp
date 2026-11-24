@@ -37,9 +37,14 @@ void FormatStampBuilder::Build (
     outStamp.written = written;
     outStamp.source  = source;
 
-    if (!settings.IsStandard())
+    //  Ranges made from a stamp are facts about the disk, not a choice of
+    //  the user's, so they are left out.
+    for (const DecodeRange & range : settings.GetRanges())
     {
-        outStamp.decodeRanges = settings.GetRanges();
+        if (!range.isFromStamp)
+        {
+            outStamp.decodeRanges.push_back (range);
+        }
     }
 
     for (int position : GetStampPositions (copy))
@@ -205,6 +210,58 @@ uint32_t FormatStampBuilder::ComputeTrackCrc (const TrackCopy & track)
 
     return track.kind == TrackKind::Flux ? ZipArchive::ComputeCrc32 (track.fluxBytes)
                                          : ZipArchive::ComputeCrc32 (std::span<const Byte> (track.bits.data(), bytes));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FormatStampBuilder::KeepCaptureFacts
+//
+//  An earlier stamp's capture facts in a new one: the disk's, and each
+//  track's whose bits are the ones the earlier stamp had, with whether it
+//  changed after the capture.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FormatStampBuilder::KeepCaptureFacts (const FormatStamp & earlier, FormatStamp & ioStamp)
+{
+    ioStamp.hasCapture = earlier.hasCapture;
+    ioStamp.capture    = earlier.capture;
+
+    for (StampTrack & track : ioStamp.tracks)
+    {
+        for (const StampTrack & old : earlier.tracks)
+        {
+            bool  isSame = old.position == track.position && old.hasBitsCrc && track.hasBitsCrc && old.bitsCrc == track.bitsCrc;
+
+            if (isSame)
+            {
+                track.hasCapture            = old.hasCapture;
+                track.capture               = old.capture;
+                track.isChangedAfterCapture = old.isChangedAfterCapture;
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FormatStampBuilder::FormatUtc
+//
+//  A time as ISO 8601 UTC to the second, as a stamp's date is written.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string FormatStampBuilder::FormatUtc (std::chrono::system_clock::time_point when)
+{
+    return std::format ("{:%FT%TZ}", std::chrono::floor<std::chrono::seconds> (when));
 }
 
 

@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Ui/DiskInspector/Components/HostLink.h"
+#include "Devices/Disk/Stamp/FormatStamp.h"
+#include "Devices/Disk/Stamp/StampedTrackMarks.h"
 #include "Devices/Disk/Inspector/DiskAnalyzer.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Ui/DiskInspector/Components/IInspectorComponentHost.h"
@@ -176,6 +178,35 @@ void HostLink::TakeReplies()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HostLink::GetStartSettings
+//
+//  The decode settings a disk starts with: a range for each run of tracks
+//  whose format stamp lists marks other than the standard ones, or the
+//  standard settings.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DecodeSettings HostLink::GetStartSettings (const std::shared_ptr<const DiskCopy> & copy)
+{
+    DecodeSettings  settings = DecodeSettings::MakeStandard();
+    FormatStamp     stamp;
+
+
+
+    if (copy != nullptr && StampedTrackMarks::TryLoadStamp (copy->woz, stamp))
+    {
+        StampedTrackMarks::ToDecodeSettings (stamp, settings);
+    }
+
+    return settings;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HostLink::StartDisk
 //
 //  A new disk for side A starts the view over; every record waits for its
@@ -185,7 +216,7 @@ void HostLink::TakeReplies()
 
 void HostLink::StartDisk (std::shared_ptr<const DiskCopy> copy, const std::wstring & reason)
 {
-    DecodeSettings  settings  = m_session.comparison.IsComparing() ? m_session.analysis.settings : DecodeSettings::MakeStandard();
+    DecodeSettings  settings  = m_session.comparison.IsComparing() ? m_session.analysis.settings : GetStartSettings (copy);
     int             slot      = 0;
     uint64_t        lastMedia = m_session.analysis.mediaId;
     std::string     lastFile  = (m_session.analysis.copy != nullptr) ? m_session.analysis.copy->fileName : std::string();
