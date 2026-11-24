@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/TrackBitReader.h"
+#include "Machines/Apple2/Common/TrackMarks.h"
 
 
 
@@ -52,20 +53,29 @@ class TrackSectorDecoder
 {
 public:
     //  The next sector from bitPos on: its address field's sector number,
-    //  256 bytes into outData, and where its fields start.
+    //  256 bytes into outData, and where its fields start. With marks, only
+    //  their 16-sector address prologs and their data prologs are matched.
     static HRESULT  DecodeOneSector (const TrackBitReader::TrackBits  &  src,
                                      size_t                           &  bitPos,
                                      Byte                             &  outSector,
                                      Byte                             *  outData,
                                      SectorOutcome                    &  outcome,
                                      size_t                           &  outFieldStart,
-                                     size_t                           &  outDataFieldStart);
+                                     size_t                           &  outDataFieldStart,
+                                     const TrackMarks                 *  marks = nullptr);
 
-    static bool     HasDataField    (const TrackBitReader::TrackBits & src);
-    static Byte     FindSectorBase  (const TrackBitReader::TrackBits & src);
+    static bool     HasDataField    (const TrackBitReader::TrackBits & src, const TrackMarks * marks = nullptr);
+    static Byte     FindSectorBase  (const TrackBitReader::TrackBits & src, const TrackMarks * marks = nullptr);
     static int      PopCount        (uint16_t mask);
 
 private:
+    static bool     IsAddressStart  (Byte n0, const TrackMarks * marks);
+    static bool     IsAddressProlog (Byte n0, Byte n1, Byte n2, const TrackMarks * marks);
+    static bool     IsDataStart     (Byte n0, const TrackMarks * marks);
+    static bool     IsDataProlog    (Byte n0, Byte n1, Byte n2, const TrackMarks * marks);
+    static bool     IsInList        (Byte n0, Byte n1, Byte n2, const vector<TrackMarks::Prolog> & prologs);
+    static bool     IsStartInList   (Byte n0, const vector<TrackMarks::Prolog> & prologs);
+
     static constexpr Byte  kAddrProlog0    = 0xD5;
     static constexpr Byte  kAltAddrProlog0 = 0xD4;   // Ultima I's address fields
     static constexpr Byte  kAddrProlog1    = 0xAA;

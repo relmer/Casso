@@ -14,8 +14,8 @@
 //  FormatStampJson::Write
 //
 //  The stamp as pretty-printed JSON, with every key the format defines. An
-//  empty list is written as [], so a reader never has to distinguish a missing key
-//  from an empty one.
+//  empty list is written as [], so a reader never has to distinguish a
+//  missing key from an empty one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

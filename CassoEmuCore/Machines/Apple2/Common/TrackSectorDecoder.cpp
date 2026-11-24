@@ -42,11 +42,12 @@ int TrackSectorDecoder::PopCount (uint16_t mask)
 //
 //  TrackSectorDecoder::HasDataField
 //
-//  Whether one revolution of the track has a data field's prolog, D5 AA AD.
+//  Whether one revolution of the track has a data field's prolog: D5 AA AD,
+//  or with marks, one of their data prologs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TrackSectorDecoder::HasDataField (const TrackBitReader::TrackBits & src)
+bool TrackSectorDecoder::HasDataField (const TrackBitReader::TrackBits & src, const TrackMarks * marks)
 {
     size_t  bitPos = 0;
     Byte    n0     = 0;
@@ -61,7 +62,7 @@ bool TrackSectorDecoder::HasDataField (const TrackBitReader::TrackBits & src)
         n0    = n1;
         n1    = n2;
         n2    = TrackBitReader::ReadNibbleAt (src, bitPos);
-        found = n0 == kAddrProlog0 && n1 == kAddrProlog1 && n2 == kDataProlog2;
+        found = IsDataProlog (n0, n1, n2, marks);
     }
 
     return found;
@@ -104,7 +105,8 @@ HRESULT TrackSectorDecoder::DecodeOneSector (
     Byte                                *  outData,
     SectorOutcome                       &  outcome,
     size_t                              &  outFieldStart,
-    size_t                              &  outDataFieldStart)
+    size_t                              &  outDataFieldStart,
+    const TrackMarks                    *  marks)
 {
     HRESULT          hr                                    = S_OK;
     Byte             n0                                    = 0;
@@ -148,7 +150,7 @@ HRESULT TrackSectorDecoder::DecodeOneSector (
         addrFieldStart = bitPos;
         n0             = TrackBitReader::ReadNibbleAt (src, bitPos);
 
-        if (n0 != kAddrProlog0 && n0 != kAltAddrProlog0)
+        if (!IsAddressStart (n0, marks))
         {
             bitsConsumed = (bitPos - startBitPos);
             CBR (bitsConsumed <= trackBits + 8);
@@ -158,7 +160,7 @@ HRESULT TrackSectorDecoder::DecodeOneSector (
         n1 = TrackBitReader::ReadNibbleAt (src, bitPos);
         n2 = TrackBitReader::ReadNibbleAt (src, bitPos);
 
-        if (n1 == kAddrProlog1 && n2 == kAddrProlog2)
+        if (IsAddressProlog (n0, n1, n2, marks))
         {
             foundProlog = 1;
         }
@@ -207,7 +209,7 @@ HRESULT TrackSectorDecoder::DecodeOneSector (
         posBeforeProlog = bitPos;
         n0              = TrackBitReader::ReadNibbleAt (src, bitPos);
 
-        if (n0 != kAddrProlog0 && n0 != kAltAddrProlog0)
+        if (!IsDataStart (n0, marks) && !IsAddressStart (n0, marks))
         {
             bitsConsumed = (bitPos - startBitPos);
             CBR (bitsConsumed <= trackBits + 8);
@@ -217,11 +219,11 @@ HRESULT TrackSectorDecoder::DecodeOneSector (
         n1 = TrackBitReader::ReadNibbleAt (src, bitPos);
         n2 = TrackBitReader::ReadNibbleAt (src, bitPos);
 
-        if (n0 == kAddrProlog0 && n1 == kAddrProlog1 && n2 == kDataProlog2)
+        if (IsDataProlog (n0, n1, n2, marks))
         {
             foundProlog = 1;
         }
-        else if (n1 == kAddrProlog1 && n2 == kAddrProlog2)
+        else if (IsAddressProlog (n0, n1, n2, marks))
         {
             // The NEXT sector's address field, reached without ever finding
             // this one's data field. Running on to take that sector's data
@@ -281,7 +283,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte TrackSectorDecoder::FindSectorBase (const TrackBitReader::TrackBits & src)
+Byte TrackSectorDecoder::FindSectorBase (const TrackBitReader::TrackBits & src, const TrackMarks * marks)
 {
     size_t         bitPos                                = 0;
     size_t         field                                 = SIZE_MAX;
@@ -301,7 +303,7 @@ Byte TrackSectorDecoder::FindSectorBase (const TrackBitReader::TrackBits & src)
 
     while (more && bitPos < src.bitCount)
     {
-        HRESULT  hr = DecodeOneSector (src, bitPos, sector, buffer, outcome, field, data);
+        HRESULT  hr = DecodeOneSector (src, bitPos, sector, buffer, outcome, field, data, marks);
 
         more = SUCCEEDED (hr) && field < src.bitCount;
 
@@ -323,6 +325,105 @@ Byte TrackSectorDecoder::FindSectorBase (const TrackBitReader::TrackBits & src)
     return base;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackSectorDecoder::IsAddressStart
+//
+//  Whether a nibble can begin an address prolog: D5 or D4, or with marks,
+//  the first nibble of one of their 16-sector address prologs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TrackSectorDecoder::IsAddressStart (Byte n0, const TrackMarks * marks)
+{
+    return marks != nullptr ? IsStartInList (n0, marks->address16) : (n0 == kAddrProlog0 || n0 == kAltAddrProlog0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackSectorDecoder::IsAddressProlog
+//
+//  D5 AA 96 or D4 AA 96, or with marks, one of their 16-sector address
+//  prologs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TrackSectorDecoder::IsAddressProlog (Byte n0, Byte n1, Byte n2, const TrackMarks * marks)
+{
+    return marks != nullptr ? IsInList (n0, n1, n2, marks->address16)
+                            : (IsAddressStart (n0, nullptr) && n1 == kAddrProlog1 && n2 == kAddrProlog2);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackSectorDecoder::IsDataStart
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TrackSectorDecoder::IsDataStart (Byte n0, const TrackMarks * marks)
+{
+    return marks != nullptr ? IsStartInList (n0, marks->data) : n0 == kAddrProlog0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackSectorDecoder::IsDataProlog
+//
+//  D5 AA AD, or with marks, one of their data prologs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TrackSectorDecoder::IsDataProlog (Byte n0, Byte n1, Byte n2, const TrackMarks * marks)
+{
+    return marks != nullptr ? IsInList (n0, n1, n2, marks->data)
+                            : (n0 == kAddrProlog0 && n1 == kAddrProlog1 && n2 == kDataProlog2);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackSectorDecoder::IsInList
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TrackSectorDecoder::IsInList (Byte n0, Byte n1, Byte n2, const vector<TrackMarks::Prolog> & prologs)
+{
+    return std::ranges::any_of (prologs, [&] (const TrackMarks::Prolog & prolog) { return prolog[0] == n0 && prolog[1] == n1 && prolog[2] == n2; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackSectorDecoder::IsStartInList
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TrackSectorDecoder::IsStartInList (Byte n0, const vector<TrackMarks::Prolog> & prologs)
+{
+    return std::ranges::any_of (prologs, [n0] (const TrackMarks::Prolog & prolog) { return prolog[0] == n0; });
+}
 
 
 
