@@ -1,7 +1,7 @@
-# Contract: `casso disk stamp`
+# Contract: `casso disk get-stamp`
 
 ```
-casso disk stamp <image> [--json]
+casso disk get-stamp <image> [--json]
 ```
 
 | Case | Output | Exit |

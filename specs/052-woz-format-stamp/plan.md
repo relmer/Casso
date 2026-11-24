@@ -4,13 +4,13 @@
 
 ## Summary
 
-Write a `CSSO` chunk of JSON into every 5.25" WOZ that a CassoLink capture
+Write a `CASS` chunk of JSON into every 5.25" WOZ that a CassoLink capture
 produces, and on demand from the disk inspector. The chunk lists each track's
 encoding, marks, sector and volume numbers and checksum results, plus the
 capture's facts. Host-side readers decode a track with its stamped marks when
 detection does not verify every sector, and use the better result per sector. The
 inspector seeds its decode settings from the stamp. Every save reanalyzes the
-tracks that changed. `casso disk stamp` prints the chunk.
+tracks that changed. `casso disk get-stamp` prints the chunk.
 
 ## Technical Context
 
@@ -57,10 +57,10 @@ specs/052-woz-format-stamp/
 ├── data-model.md
 ├── quickstart.md
 ├── contracts/
-│   ├── csso-chunk.md
-│   └── cli-disk-stamp.md
+│   ├── cass-chunk.md
+│   └── cli-disk-get-stamp.md
 └── tasks.md
-docs/file-formats/woz-format-stamp.md     (published form of contracts/csso-chunk.md)
+docs/file-formats/woz-format-stamp.md     (published form of contracts/cass-chunk.md)
 ```
 
 ### Source Code
@@ -71,7 +71,7 @@ CassoEmuCore/Devices/Disk/Stamp/
 ├── FormatStampJson.h/.cpp        FormatStamp <-> JSON text, version checks, size limit
 ├── FormatStampBuilder.h/.cpp     DiskAnalysis (+ CaptureFacts) -> FormatStamp
 ├── MarkDiscovery.h/.cpp          finds prologs missing from every mark list (research R4)
-├── FormatStampChunk.h/.cpp       finds, parses, replaces and removes CSSO in WozMetadata
+├── FormatStampChunk.h/.cpp       finds, parses, replaces and removes CASS in WozMetadata
 ├── FormatStampRefresher.h/.cpp   reanalyzes dirty tracks on save (research R7)
 ├── StampedTrackMarks.h/.cpp      FormatStamp -> per-track decoder marks and DecodeSettings
 └── FormatStampText.h/.cpp        the CLI table
@@ -86,7 +86,7 @@ CassoEmuCore/Machines/Apple2/Common/
 CassoEmuCore/CassoLink/Session/CassoLinkCapture.cpp   BuildWoz stamps the image
 CassoEmuCore/Devices/Disk/Inspector/ImageDetails.*    stamp section
 CassoEmuCore/Ui/DiskInspector/...                     Stamp command, seeded decode settings
-CassoEmuCore/Devices/Disk/DiskStampCommand.h/.cpp     `disk stamp`
+CassoEmuCore/Devices/Disk/DiskGetStampCommand.h/.cpp     `disk get-stamp`
 
 UnitTest/EmuTests/FormatStamp*Tests.cpp
 ScenarioTests/FormatStampRealDiskTests.cpp

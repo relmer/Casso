@@ -198,7 +198,7 @@ compare the output with a known table and JSON.
 
 **Format**
 
-- **FR-001**: The stamp MUST be stored in a WOZ chunk with the id `CSSO`, so readers that do not recognize it skip it, as the WOZ reference requires.
+- **FR-001**: The stamp MUST be stored in a WOZ chunk with the id `CASS`, so readers that do not recognize it skip it, as the WOZ reference requires.
 - **FR-002**: The chunk payload MUST be UTF-8 JSON with a top-level format version number. A reader MUST ignore a stamp whose major version is newer than the one it understands and MUST accept fields it does not recognize within a version it does understand.
 - **FR-003**: The format MUST be documented in the repository with a schema description and an example, so that other tools can read and write it without reading Casso's source.
 - **FR-004**: Each track entry MUST record: its quarter-track position; its encoding (16-sector, 13-sector, both, unformatted or nonstandard); the address prolog, address epilog, data prolog and data epilog nibbles actually found, as a list when several were found; the sector numbers found; the volume numbers found; the address and data checksum behavior (standard, not checked or failing); the number of sectors found and the number that decoded with good checksums; whether every sector found decoded with good checksums; and whether the track changed after it was captured.

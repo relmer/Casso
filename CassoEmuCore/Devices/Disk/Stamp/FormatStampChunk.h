@@ -13,7 +13,7 @@ struct WozMetadata;
 //
 //  FormatStampChunk
 //
-//  The CSSO chunk that has a format stamp: in a loaded image's WOZ metadata,
+//  The CASS chunk that has a format stamp: in a loaded image's WOZ metadata,
 //  where it is one of the chunks a save writes back, and in a WOZ file's
 //  bytes, for an edit that moves no other chunk. A file with more than one
 //  uses the first.
@@ -31,7 +31,7 @@ enum class StampState
 class FormatStampChunk
 {
 public:
-    static constexpr Byte  kId[4] = { 'C', 'S', 'S', 'O' };
+    static constexpr Byte  kId[4] = { 'C', 'A', 'S', 'S' };
 
     static StampState  GetStamp          (const WozMetadata & meta, FormatStamp & outStamp);
     static HRESULT     SetStamp          (WozMetadata & ioMeta, const FormatStamp & stamp);

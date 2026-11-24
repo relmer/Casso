@@ -17,7 +17,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  FormatStampChunkTests
 //
-//  The CSSO chunk in a loaded image's WOZ metadata and in a WOZ file's
+//  The CASS chunk in a loaded image's WOZ metadata and in a WOZ file's
 //  bytes, on synthetic images built in memory.
 //
 ////////////////////////////////////////////////////////////////////////////////

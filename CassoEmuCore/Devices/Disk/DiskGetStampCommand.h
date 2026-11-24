@@ -12,16 +12,16 @@ class IDiskFileIo;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskStampCommand
+//  DiskGetStampCommand
 //
-//  The disk tool's `stamp`: a WOZ image's format stamp as a table, or with
+//  The disk tool's `get-stamp`: a WOZ image's format stamp as a table, or with
 //  --json as the JSON the file stores. Exits with 0 for an image with a
 //  stamp, kNoStamp for a WOZ without one, kUnreadable for a stamp this build
 //  can't read, and 1 for a file that is not a WOZ or can't be read.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DiskStampCommand
+class DiskGetStampCommand
 {
 public:
     static constexpr int  kNoStamp    = DiskCommandResult::kNoOutput;

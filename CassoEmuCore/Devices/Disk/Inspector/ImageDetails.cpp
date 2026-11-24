@@ -192,7 +192,7 @@ void ImageDetails::CheckMeta (const WozFileLayout & layout, vector<Finding> & in
 void ImageDetails::CheckChunks (const WozFileLayout & layout, vector<Finding> & inOut)
 {
     static constexpr std::string_view  kpszOrdered[] = { "INFO", "TMAP", "TRKS", "FLUX" };
-    static constexpr std::string_view  kpszOnce[]    = { "INFO", "TMAP", "TRKS", "FLUX", "WRIT", "META", "CSSO" };
+    static constexpr std::string_view  kpszOnce[]    = { "INFO", "TMAP", "TRKS", "FLUX", "WRIT", "META", "CASS" };
 
 
 

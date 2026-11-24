@@ -9,7 +9,7 @@
 #include "CassoExplorer/Model/FilesystemChoices.h"
 #include "Devices/Disk/DiskCollectionCommands.h"
 #include "Devices/Disk/DiskInspectCommand.h"
-#include "Devices/Disk/DiskStampCommand.h"
+#include "Devices/Disk/DiskGetStampCommand.h"
 #include "Devices/Disk/DiskRepairCommand.h"
 #include "Devices/Disk/DiskThumbnailCommand.h"
 #include "DiskCheck/ThumbnailStore.h"
@@ -450,8 +450,8 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
             DiskInspectCommand::Run (m_fileIo, options.disk.imagePath, result);
             break;
 
-        case CommandLineOptions::DiskOptions::Command::Stamp:
-            DiskStampCommand::Run (m_fileIo, options.disk.imagePath, options.disk.isJson, result);
+        case CommandLineOptions::DiskOptions::Command::GetStamp:
+            DiskGetStampCommand::Run (m_fileIo, options.disk.imagePath, options.disk.isJson, result);
             break;
 
         case CommandLineOptions::DiskOptions::Command::Repair:

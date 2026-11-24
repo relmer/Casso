@@ -5,7 +5,7 @@
 #include "Core/TextEncoding.h"
 
 #include "Devices/Disk/DiskCommandResult.h"
-#include "Devices/Disk/DiskStampCommand.h"
+#include "Devices/Disk/DiskGetStampCommand.h"
 #include "Devices/Disk/Stamp/FormatStamp.h"
 #include "Devices/Disk/Stamp/FormatStampChunk.h"
 #include "Devices/Disk/Stamp/FormatStampText.h"
@@ -20,13 +20,13 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskStampCommandTests
+//  DiskGetStampCommandTests
 //
-//  `disk stamp` on WOZ files in a fake filesystem.
+//  `disk get-stamp` on WOZ files in a fake filesystem.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_CLASS (DiskStampCommandTests)
+TEST_CLASS (DiskGetStampCommandTests)
 {
 public:
 
@@ -80,7 +80,7 @@ public:
 
     static void RunStamp (FakeDiskFileIo & io, bool isJson, DiskCommandResult & result)
     {
-        DiskStampCommand::Run (io, kPath, isJson, result);
+        DiskGetStampCommand::Run (io, kPath, isJson, result);
     }
 
 
@@ -140,7 +140,7 @@ public:
 
         RunStamp (io, false, result);
 
-        Assert::AreEqual (DiskStampCommand::kNoStamp, result.exitStatus);
+        Assert::AreEqual (DiskGetStampCommand::kNoStamp, result.exitStatus);
         Assert::AreEqual (std::string ("disk.woz has no format stamp.\n"), result.output);
     }
 
@@ -163,12 +163,12 @@ public:
         io.files[kPath] = woz;
 
         RunStamp (io, false, result);
-        Assert::AreEqual (DiskStampCommand::kUnreadable, result.exitStatus);
+        Assert::AreEqual (DiskGetStampCommand::kUnreadable, result.exitStatus);
         Assert::IsTrue   (result.output.empty());
 
         result = DiskCommandResult();
         RunStamp (io, true, result);
-        Assert::AreEqual (DiskStampCommand::kUnreadable, result.exitStatus);
+        Assert::AreEqual (DiskGetStampCommand::kUnreadable, result.exitStatus);
         Assert::AreEqual (text + "\n", result.output);
     }
 

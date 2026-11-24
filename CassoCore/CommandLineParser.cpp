@@ -77,7 +77,7 @@ static constexpr CommandLineParser::DiskCommandName  s_kDiskCommands[] =
     { "dupes",            CommandLineOptions::DiskOptions::Command::Dupes           },
     { "search",           CommandLineOptions::DiskOptions::Command::Search          },
     { "inspect",          CommandLineOptions::DiskOptions::Command::Inspect         },
-    { "stamp",            CommandLineOptions::DiskOptions::Command::Stamp           },
+    { "get-stamp",        CommandLineOptions::DiskOptions::Command::GetStamp        },
     { "repair",           CommandLineOptions::DiskOptions::Command::Repair          },
     { "set-thumbnail",    CommandLineOptions::DiskOptions::Command::SetThumbnail    },
     { "get-thumbnail",    CommandLineOptions::DiskOptions::Command::GetThumbnail    },
@@ -1034,7 +1034,7 @@ int CommandLineParser::GetDiskOperandCount (CommandLineOptions::DiskOptions::Com
         case CommandLineOptions::DiskOptions::Command::Test:
         case CommandLineOptions::DiskOptions::Command::Dupes:
         case CommandLineOptions::DiskOptions::Command::Inspect:
-        case CommandLineOptions::DiskOptions::Command::Stamp:
+        case CommandLineOptions::DiskOptions::Command::GetStamp:
         case CommandLineOptions::DiskOptions::Command::RemoveThumbnail:
             count = 1;
             break;

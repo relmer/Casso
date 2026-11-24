@@ -2,7 +2,7 @@
 
 ## R1. Where the stamp is stored
 
-- **Decision**: a WOZ chunk with the id `CSSO`, placed after every chunk Casso writes today, payload UTF-8 JSON.
+- **Decision**: a WOZ chunk with the id `CASS`, placed after every chunk Casso writes today, payload UTF-8 JSON.
 - **Rationale**: the WOZ reference requires readers to skip unknown chunk ids, so Applesauce and other emulators load a stamped file. `WozLoader` already reads unknown chunks into `WozMetadata::passThrough` and writes them back in `Serialize`, so the chunk survives saves by every Casso build, including builds before this feature.
 - **Alternatives considered**: META keys (flat tab-separated text meant for catalog fields; no room for per-track lists, and other tools display META); a sidecar file (separates from the image on copy); a binary chunk (not readable by a person, and every other tool would require a custom parser).
 
@@ -57,5 +57,5 @@ The 16-sector decoder (`TrackSectorDecoder`) compares against constants; the 13-
 
 ## R10. Command line
 
-- **Decision**: a `disk stamp <image>` subcommand in the existing disk command set, printing a table by default and the stored JSON with `--json`. Exit 0 with a stamp, 2 for a WOZ without one, 1 for an error.
+- **Decision**: a `disk get-stamp <image>` subcommand in the existing disk command set, printing a table by default and the stored JSON with `--json`. Exit 0 with a stamp, 2 for a WOZ without one, 1 for an error.
 - **Rationale**: fits the `DiskCommandRunner` family (`DiskInspectCommand` is the nearest neighbor) and doesn't require a new parser.

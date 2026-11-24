@@ -7,7 +7,7 @@ Tests are required by the constitution: every component gets unit tests with in-
 ## Phase 1: Setup
 
 - [x] T001 Create `CassoEmuCore/Devices/Disk/Stamp/` and add it to `CassoEmuCore/CassoEmuCore.vcxproj` and its `.filters`
-- [x] T002 Publish the chunk format from `contracts/csso-chunk.md` as `docs/file-formats/woz-format-stamp.md`
+- [x] T002 Publish the chunk format from `contracts/cass-chunk.md` as `docs/file-formats/woz-format-stamp.md`
 
 ## Phase 2: Foundational
 
@@ -15,9 +15,9 @@ Tests are required by the constitution: every component gets unit tests with in-
 - [x] T004 Write `FormatStampJson::Write` and `FormatStampJson::Parse` in `CassoEmuCore/Devices/Disk/Stamp/FormatStampJson.h/.cpp`: nibble lists as `"D5 AA 96"` strings, positions 0 to 159, `ERROR_INVALID_DATA` for another `format`, a major version other than 1, or text over 1,048,576 bytes; unknown keys ignored; unknown note kinds kept with their params
 - [x] T005 [P] Unit tests for T004 in `UnitTest/EmuTests/FormatStampJsonTests.cpp`: every field round-trips; each rejection case; a 1.5 stamp with an unknown key parses
 - [x] T006 Add `std::optional<FormatStamp> stamp` and `vector<Byte> stampBytes` to `WozMetadata` in `CassoEmuCore/Machines/Apple2/Common/WozMetadata.h`, cleared by `Clear`
-- [x] T007 Write `FormatStampChunk` in `CassoEmuCore/Devices/Disk/Stamp/FormatStampChunk.h/.cpp`: find the first `CSSO` in `passThrough`, parse it into `WozMetadata`, replace it with new text, remove it
+- [x] T007 Write `FormatStampChunk` in `CassoEmuCore/Devices/Disk/Stamp/FormatStampChunk.h/.cpp`: find the first `CASS` in `passThrough`, parse it into `WozMetadata`, replace it with new text, remove it
 - [x] T008 Call `FormatStampChunk` from `WozLoader::Load` in `CassoEmuCore/Machines/Apple2/Common/WozLoader.cpp`
-- [x] T009 [P] Unit tests in `UnitTest/EmuTests/FormatStampChunkTests.cpp`: a synthetic WOZ with a stamp loads it; an unreadable stamp leaves `stamp` empty and the chunk in `passThrough`; two `CSSO` chunks use the first; a save of an unmodified image writes the chunk byte for byte
+- [x] T009 [P] Unit tests in `UnitTest/EmuTests/FormatStampChunkTests.cpp`: a synthetic WOZ with a stamp loads it; an unreadable stamp leaves `stamp` empty and the chunk in `passThrough`; two `CASS` chunks use the first; a save of an unmodified image writes the chunk byte for byte
 
 ## Phase 3: User Story 1, a captured image records its format (P1)
 
@@ -63,11 +63,11 @@ Tests are required by the constitution: every component gets unit tests with in-
 - [x] T029 [US4] Add a Format stamp section to `ImageDetails` (`CassoEmuCore/Devices/Disk/Inspector/ImageDetails.h/.cpp`): present or absent, source, writer, date, capture facts
 - [x] T030 [P] [US4] Unit tests in `UnitTest/EmuTests/StampedDecodeSettingsTests.cpp` and `ImageDetailsTests`: a D4 AA 96 stamped image analyzes as 16-sector, not Nonstandard; turning the stamp ranges off returns Nonstandard; the details section lists the stamp
 
-## Phase 8: User Story 6, `casso disk stamp` (P3)
+## Phase 8: User Story 6, `casso disk get-stamp` (P3)
 
-- [x] T031 [US6] Write `FormatStampText::FormatTable` in `CassoEmuCore/Devices/Disk/Stamp/FormatStampText.h/.cpp` per `contracts/cli-disk-stamp.md`
-- [x] T032 [US6] Add `DiskStampCommand` in `CassoEmuCore/Devices/Disk/DiskStampCommand.h/.cpp`, register `stamp` with `--json` in the disk command parser and `--help`, exit codes 0, 1, 2, 3
-- [x] T033 [P] [US6] Unit tests in `UnitTest/EmuTests/DiskStampCommandTests.cpp`: table output, JSON byte for byte, no stamp, unreadable stamp, not a WOZ
+- [x] T031 [US6] Write `FormatStampText::FormatTable` in `CassoEmuCore/Devices/Disk/Stamp/FormatStampText.h/.cpp` per `contracts/cli-disk-get-stamp.md`
+- [x] T032 [US6] Add `DiskGetStampCommand` in `CassoEmuCore/Devices/Disk/DiskGetStampCommand.h/.cpp`, register `get-stamp` with `--json` in the disk command parser and `--help`, exit codes 0, 1, 2, 3
+- [x] T033 [P] [US6] Unit tests in `UnitTest/EmuTests/DiskGetStampCommandTests.cpp`: table output, JSON byte for byte, no stamp, unreadable stamp, not a WOZ
 
 ## Phase 9: Polish
 

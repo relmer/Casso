@@ -291,7 +291,7 @@ public:
     TEST_METHOD (Parse_NotJson_IsInvalidData)
     {
         FormatStamp  read;
-        HRESULT      hr = FormatStampJson::Parse ("CSSO but not JSON", read);
+        HRESULT      hr = FormatStampJson::Parse ("CASS but not JSON", read);
 
 
 

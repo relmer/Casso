@@ -314,15 +314,15 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
     },
 
     {
-        CommandLineOptions::DiskOptions::Command::Stamp,
-        "stamp",
-        "Write a WOZ image's format stamp",
-        "CassoCli disk stamp <image> [%Ljson]",
-        "  %Ljson                  Write the stamp's JSON as the image stores it\n",
-        "Writes the format stamp of the WOZ <image>: the encoding, the address and data prologs, the sectors found and good,"
+        CommandLineOptions::DiskOptions::Command::GetStamp,
+        "get-stamp",
+        "Show a WOZ image's format stamp",
+        "CassoCli disk get-stamp <image> [%Ljson]",
+        "  %Ljson                  Show the stamp's JSON as the image stores it\n",
+        "Shows the format stamp of the WOZ <image>: the encoding, the address and data prologs, the sectors found and good,"
         " and the volumes of each track, as Casso found them when the disk was captured or stamped, and the capture's notes."
         " Exits with 2 when <image> has no format stamp, and with 3 when its stamp was written by a later version of Casso.",
-        "CassoCli disk stamp Capture.woz"
+        "CassoCli disk get-stamp Capture.woz"
     },
 
     {

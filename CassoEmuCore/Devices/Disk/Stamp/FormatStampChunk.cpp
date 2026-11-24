@@ -15,7 +15,7 @@
 //
 //  FormatStampChunk::GetStamp
 //
-//  The stamp in the image's first CSSO chunk. Unreadable when the chunk is
+//  The stamp in the image's first CASS chunk. Unreadable when the chunk is
 //  there and its text is not a stamp this build reads; outStamp is then
 //  empty.
 //
@@ -68,7 +68,7 @@ bool FormatStampChunk::HasStampChunk (const WozMetadata & meta)
 //
 //  FormatStampChunk::SetStamp
 //
-//  Replaces the first CSSO chunk's text with the stamp's, or appends a CSSO
+//  Replaces the first CASS chunk's text with the stamp's, or appends a CASS
 //  chunk to an image without one.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -115,7 +115,7 @@ Error:
 //
 //  FormatStampChunk::RemoveStamp
 //
-//  Removes every CSSO chunk.
+//  Removes every CASS chunk.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -151,7 +151,7 @@ bool FormatStampChunk::IsWozFile (std::span<const Byte> file)
 //
 //  FormatStampChunk::GetStampFromFile
 //
-//  The first CSSO chunk of a WOZ file: its text as stored, and the stamp
+//  The first CASS chunk of a WOZ file: its text as stored, and the stamp
 //  when the text is one this build reads. ERROR_INVALID_DATA for bytes that
 //  are not a WOZ file.
 //
@@ -200,7 +200,7 @@ Error:
 //
 //  FormatStampChunk::SetStampInFile
 //
-//  Puts the stamp in a WOZ file's bytes: removes the CSSO chunk it has,
+//  Puts the stamp in a WOZ file's bytes: removes the CASS chunk it has,
 //  appends the new one after the last chunk, and computes the header CRC
 //  again. Every other byte stays where it is. Fails, leaving the bytes as
 //  they were, with ERROR_CRC for a file whose CRC doesn't match, since a new

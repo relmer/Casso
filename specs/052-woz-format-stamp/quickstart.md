@@ -26,7 +26,7 @@ For each image in the scenario disk set: stamp it, then compare a full read with
 
 ## By hand
 
-1. Capture a disk with CassoLink, then run `casso disk stamp <file>.woz`: one row per track.
+1. Capture a disk with CassoLink, then run `casso disk get-stamp <file>.woz`: one row per track.
 2. Open the image in Casso Explorer's disk inspector: Image details lists the stamp; Decode settings lists the stamped ranges.
-3. Open an older WOZ, run Stamp format in the inspector, save, and run `casso disk stamp` again.
-4. Copy a file onto the stamped image and run `casso disk stamp`: the touched tracks list `changedAfterCapture`.
+3. Open an older WOZ, run Stamp format in the inspector, save, and run `casso disk get-stamp` again.
+4. Copy a file onto the stamped image and run `casso disk get-stamp`: the touched tracks list `changedAfterCapture`.

@@ -313,7 +313,7 @@
     <ClCompile Include="EmuTests\NibbleImageCodecTests.cpp" />
     <ClCompile Include="EmuTests\DenibblizerTests.cpp" />
     <ClCompile Include="EmuTests\NibbleFieldWriterTests.cpp" />
-    <ClCompile Include="EmuTests\DiskStampCommandTests.cpp" />
+    <ClCompile Include="EmuTests\DiskGetStampCommandTests.cpp" />
     <ClCompile Include="EmuTests\FormatStampBuilderTests.cpp" />
     <ClCompile Include="EmuTests\FormatStampChunkTests.cpp" />
     <ClCompile Include="EmuTests\FormatStampInspectorTests.cpp" />

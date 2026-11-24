@@ -1,10 +1,10 @@
-# Contract: the CSSO chunk
+# Contract: the CASS chunk
 
 This contract is published as `docs/file-formats/woz-format-stamp.md` (FR-003).
 
 ## Chunk
 
-- id: the four bytes `43 53 53 4F` (`CSSO`)
+- id: the four bytes `43 41 53 53` (`CASS`)
 - size: the payload length, little-endian, as for every WOZ chunk
 - payload: UTF-8 JSON, no byte order mark, at most 1,048,576 bytes
 - position: after every other chunk in the file. A reader finds it by walking chunks and must not assume a position.

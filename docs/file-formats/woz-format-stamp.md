@@ -1,4 +1,4 @@
-# WOZ format stamp (`CSSO` chunk)
+# WOZ format stamp (`CASS` chunk)
 
 Casso writes a format stamp into the 5.25" WOZ files it captures over CassoLink, and into any WOZ the disk inspector's **Stamp format** command saves. The stamp lists, for each track, the encoding, the address and data prologs and epilogs, the sector and volume numbers and the checksum results Casso found, and, for a capture, facts about the reads that can't be recovered from the bits alone.
 
@@ -10,7 +10,7 @@ Other tools skip the chunk, as the WOZ reference requires for an id they don't r
 
 | Field | Value |
 |---|---|
-| id | `43 53 53 4F` (`CSSO`) |
+| id | `43 41 53 53` (`CASS`) |
 | size | the payload length, 32-bit little-endian, as for every WOZ chunk |
 | payload | UTF-8 JSON, with no byte order mark, at most 1,048,576 bytes |
 | place | after every other chunk. Find it by walking the chunks; don't assume an offset. |

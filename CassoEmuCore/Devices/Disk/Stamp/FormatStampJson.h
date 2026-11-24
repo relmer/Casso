@@ -12,7 +12,7 @@
 //
 //  FormatStampJson
 //
-//  A FormatStamp as the JSON text of a CSSO chunk, and back. Parse fails with
+//  A FormatStamp as the JSON text of a CASS chunk, and back. Parse fails with
 //  ERROR_INVALID_DATA for text that is not a version 1 stamp, so a caller
 //  treats it as an unreadable chunk and writes its bytes back unmodified.
 //

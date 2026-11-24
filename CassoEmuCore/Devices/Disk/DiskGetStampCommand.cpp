@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Devices/Disk/DiskStampCommand.h"
+#include "Devices/Disk/DiskGetStampCommand.h"
 
 #include "Devices/Disk/IDiskFileIo.h"
 #include "Devices/Disk/Stamp/FormatStamp.h"
@@ -13,14 +13,14 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskStampCommand::Run
+//  DiskGetStampCommand::Run
 //
-//  Reads the image's bytes and its first CSSO chunk. With --json the
+//  Reads the image's bytes and its first CASS chunk. With --json the
 //  chunk's text is printed as stored, even when this build can't read it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskStampCommand::Run (IDiskFileIo & io, const std::string & imagePath, bool isJson, DiskCommandResult & result)
+void DiskGetStampCommand::Run (IDiskFileIo & io, const std::string & imagePath, bool isJson, DiskCommandResult & result)
 {
     HRESULT            hr       = S_OK;
     std::vector<Byte>  bytes;

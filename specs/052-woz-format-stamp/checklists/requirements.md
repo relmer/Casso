@@ -31,5 +31,5 @@
 
 ## Notes
 
-- The chunk id `CSSO` and the JSON payload are part of the file format other tools read, so the spec states them as requirements, not as implementation choices.
+- The chunk id `CASS` and the JSON payload are part of the file format other tools read, so the spec states them as requirements, not as implementation choices.
 - The stories are prioritized, but the feature ships whole: no story is a stopping point.

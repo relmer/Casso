@@ -13,7 +13,7 @@ struct StampTrack;
 //
 //  FormatStampText
 //
-//  A format stamp as the table `disk stamp` prints: a line for the stamp's
+//  A format stamp as the table `disk get-stamp` prints: a line for the stamp's
 //  source, writer and date, a line for the capture's facts when it has them,
 //  then a row per track with its position, encoding, address and data
 //  prologs, sectors found and good, volumes and notes.
