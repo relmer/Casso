@@ -51,6 +51,7 @@ public:
     bool            RefreshOpenTreeFolders      (const std::vector<std::wstring> & folders);
     static bool     IsSameFolder                (const std::wstring & a, const std::wstring & b);
     void            RefreshAfterHostChange      (const std::wstring & select = std::wstring());
+    void            RefreshTreeFolder           (const std::wstring & folder);
     void            ReloadKnownFolders          ();
     void            ReloadKnownFoldersIfChanged ();
     void            RefreshQuickAccessIfChanged ();

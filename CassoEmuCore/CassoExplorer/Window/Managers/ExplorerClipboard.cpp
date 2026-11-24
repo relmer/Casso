@@ -306,6 +306,7 @@ void ExplorerClipboard::PasteHere (const std::wstring & folder)
     }
 
     m_context.folderSync.RefreshAfterHostChange();
+    m_context.folderSync.RefreshTreeFolder (folder);
 }
 
 

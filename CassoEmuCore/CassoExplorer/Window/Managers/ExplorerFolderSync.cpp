@@ -77,6 +77,27 @@ void ExplorerFolderSync::RefreshAfterHostChange (const std::wstring & select)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerFolderSync::RefreshTreeFolder
+//
+//  The tree's nodes for the folder read again now, as a settled burst of
+//  changes reads them, for a copy whose watcher notice can arrive while the
+//  copy's progress dialog is up.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFolderSync::RefreshTreeFolder (const std::wstring & folder)
+{
+    if (RefreshOpenTreeFolders ({ folder }))
+    {
+        UpdateWatchedFolders();
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerFolderSync::ChangeKnownFolder
 //
 //  The shared file is changed under its lock, then read back whole, so a

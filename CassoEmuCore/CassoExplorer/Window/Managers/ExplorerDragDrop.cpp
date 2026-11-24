@@ -1314,6 +1314,7 @@ bool ExplorerDragDrop::TryDropStreamless (IDataObject * data, const std::wstring
 
     m_context.actions.GetA2retroNet().ExpectArrivals (pasted.created);
     m_context.folderSync.RefreshAfterHostChange();
+    m_context.folderSync.RefreshTreeFolder (folder);
 
     return true;
 }
