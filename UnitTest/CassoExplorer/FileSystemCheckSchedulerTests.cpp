@@ -235,8 +235,8 @@ public:
     {
         Assert::AreEqual (std::wstring (L"The catalog's file count differs from the VTOC's.\nClick Inspect for more information."),
                           FileSystemCheckScheduler::FormatInfobar ({ FileSystemVerdict::Bad, L"the catalog's file count differs from the VTOC's" }));
-        Assert::AreEqual (std::wstring (L"7 blocks in use are marked free.\nClick Inspect for more information."),
-                          FileSystemCheckScheduler::FormatInfobar ({ FileSystemVerdict::Suspect, L"7 blocks in use are marked free" }));
+        Assert::AreEqual (std::wstring (L"There are 7 blocks in use that are marked free.\nClick Inspect for more information."),
+                          FileSystemCheckScheduler::FormatInfobar ({ FileSystemVerdict::Suspect, L"There are 7 blocks in use that are marked free" }));
         Assert::AreEqual (std::wstring (L"Bad.\nClick Inspect for more information."),
                           FileSystemCheckScheduler::FormatInfobar ({ FileSystemVerdict::Bad, L"" }));
         Assert::AreEqual (std::wstring (L"No standard file system was found."),

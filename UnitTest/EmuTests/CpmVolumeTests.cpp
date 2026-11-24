@@ -348,7 +348,7 @@ public:
         AssertSucceeded (CpmVolume (image).Enumerate (listing));
         Assert::AreEqual ((size_t) 4, listing.entries.size());
         Assert::AreEqual ((size_t) 1, listing.damage.size());
-        Assert::AreEqual (std::string ("2 directory entries aren't valid CP/M entries, so the disk is read-only"), listing.damage[0]);
+        Assert::AreEqual (std::string ("There are 2 directory entries that aren't valid CP/M entries, so the disk is read-only"), listing.damage[0]);
 
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT), CpmVolume (image).Write  (FilePath::Parse ("NEW.COM"), MakePayload (10, 0), edited));
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT), CpmVolume (image).Delete (FilePath::Parse ("ONE.COM"), edited));
@@ -704,7 +704,7 @@ public:
         PutGarbage (image, 10, 0xAA);
 
         AssertSucceeded (CpmVolume (image).Enumerate (listing));
-        Assert::AreEqual (std::string ("1 directory entry isn't a valid CP/M entry, so the disk is read-only"), listing.damage[0], L"A bad entry below 48 is reported");
+        Assert::AreEqual (std::string ("There is 1 directory entry that isn't a valid CP/M entry, so the disk is read-only"), listing.damage[0], L"A bad entry below 48 is reported");
     }
 
     TEST_METHOD (BlocksInAnInvalidEntryWithAUserNumberAreUsed)
@@ -759,7 +759,7 @@ public:
         AssertSucceeded (CpmVolume (image).Enumerate (listing));
 
         PreviewDecoder::RenderCatalog (listing, VolumeKind::Cpm, content);
-        Assert::AreEqual (std::wstring (L"1 directory entry isn't a valid CP/M entry, so the disk is read-only"), content.warning);
+        Assert::AreEqual (std::wstring (L"There is 1 directory entry that isn't a valid CP/M entry, so the disk is read-only"), content.warning);
 
         BrowserCells::DescribeVolumeSpace (L"C:\\disks\\cpm.dsk", listing, VolumeKind::Cpm, status);
         Assert::IsTrue (status.freeSpace.find (L"isn't a valid CP/M entry") != std::wstring::npos);

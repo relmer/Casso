@@ -1188,7 +1188,7 @@ HRESULT GutenbergVolume::Delete (const FilePath & path, vector<Byte> & outBuffer
 
     if (!outOutcome.leakedUnits.empty())
     {
-        outOutcome.warnings.push_back (std::format ("{} sectors of {} are also in another file and stay allocated", outOutcome.leakedUnits.size(), files[index].name));
+        outOutcome.warnings.push_back (std::format ("{} has {} sectors that are also in another file and stay allocated", files[index].name, outOutcome.leakedUnits.size()));
     }
 
     ClearEntry (result, files[index].entryAt);

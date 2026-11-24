@@ -305,7 +305,7 @@ public:
 
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT), media.Attach (io, "d.woz", 65535, {}, error));
         Assert::IsFalse (media.IsAttached());
-        Assert::IsTrue (error.find (L"12 of the WOZ image's blocks") != std::wstring::npos, error.c_str());
+        Assert::IsTrue (error.find (L"The WOZ image has 12 blocks") != std::wstring::npos, error.c_str());
         Assert::IsTrue (error.find (L"12, 13") != std::wstring::npos, error.c_str());
     }
 

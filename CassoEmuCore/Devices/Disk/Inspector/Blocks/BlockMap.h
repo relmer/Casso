@@ -204,7 +204,7 @@ struct BlockMap
     static LPCWSTR     GetRoleName (SectorRole role);
 
     //  A damage role as a finding's sentence, for `count` blocks or sectors,
-    //  as "7 blocks in use are marked free", and for the one block a header
+    //  as "There are 7 blocks in use that are marked free", and for the one block a header
     //  describes, as "This block is in two or more files". Empty for any
     //  other role.
     static std::wstring  FormatRoleFinding  (SectorRole role, size_t count, bool isSectors = false);

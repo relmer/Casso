@@ -131,12 +131,12 @@ public:
 
 
         plan.canRepair = true;
-        Assert::AreEqual (std::wstring (L"7 blocks in use are marked free."),
-                          BlockRepairController::FormatNotice (FileSystemVerdict::Bad, L"7 blocks in use are marked free", plan));
+        Assert::AreEqual (std::wstring (L"There are 7 blocks in use that are marked free."),
+                          BlockRepairController::FormatNotice (FileSystemVerdict::Bad, L"There are 7 blocks in use that are marked free", plan));
 
         plan.canRepair = false;
         plan.reason    = L"The card is read-only.";
-        Assert::AreEqual (std::wstring (L"7 blocks in use are marked free. Repair isn't available. The card is read-only."),
-                          BlockRepairController::FormatNotice (FileSystemVerdict::Bad, L"7 blocks in use are marked free", plan));
+        Assert::AreEqual (std::wstring (L"There are 7 blocks in use that are marked free. Repair isn't available. The card is read-only."),
+                          BlockRepairController::FormatNotice (FileSystemVerdict::Bad, L"There are 7 blocks in use that are marked free", plan));
     }
 };

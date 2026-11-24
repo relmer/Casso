@@ -898,8 +898,8 @@ HRESULT CpmVolume::Enumerate (VolumeListing & outListing) const
 
     if (invalid != 0)
     {
-        outListing.damage.push_back ((invalid == 1) ? std::string ("1 directory entry isn't a valid CP/M entry")
-                                                    : std::format ("{} directory entries aren't valid CP/M entries", invalid));
+        outListing.damage.push_back ((invalid == 1) ? std::string ("There is 1 directory entry that isn't a valid CP/M entry")
+                                                    : std::format ("There are {} directory entries that aren't valid CP/M entries", invalid));
         outListing.damage.back() += IsReadOnly() ? ", so the disk is read-only" : "";
     }
 

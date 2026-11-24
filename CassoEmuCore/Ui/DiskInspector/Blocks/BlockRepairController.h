@@ -48,7 +48,7 @@ public:
     //  Worked out again only when the map or the volume changes.
     std::wstring  GetNotice (bool & outIsBad, bool & outCanRepair);
 
-    //  "Bad: 7 blocks in use are marked free.", and when Repair isn't
+    //  "Bad: There are 7 blocks in use that are marked free.", and when Repair isn't
     //  available, its reason after.
     static std::wstring  FormatNotice (FileSystemVerdict verdict, const std::wstring & finding, const RepairPlan & plan);
 
