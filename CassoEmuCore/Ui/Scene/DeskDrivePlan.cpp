@@ -133,12 +133,20 @@ std::vector<DeskDrivePlacement> DeskDrivePlan::Place (const std::vector<DeskDriv
 
 
 
+    hasBody = std::any_of (drives.begin(), drives.end(), [] (const DeskDrive & drive) { return drive.model == DeskDriveModel::Apple3Body; });
+
     for (const DeskDrive & drive : drives)
     {
+        // The Apple /// goes under the monitor, and it stands in for its
+        // built-in drive.
         if (drive.model == DeskDriveModel::Apple3Body)
         {
             out.push_back ({ drive, DeskDriveSpot::UnderMonitor, 0 });
-            hasBody = true;
+            continue;
+        }
+
+        if (hasBody && drive.builtIn)
+        {
             continue;
         }
 

@@ -2503,11 +2503,13 @@ bool ShellDeskScene::TryMakeHoverLabelQuad (const DeskSceneComposition & comp, c
         world = comp.extraWorld[m_hoverExtra];
 
         // The Apple /// is drawn for its built-in drive, so the name goes
-        // under that drive's slot rather than across the whole machine.
+        // under that drive's slot rather than across the whole machine, and
+        // on the face rather than the front of the keyboard.
         if (m_deskScene.GetExtraDrive (m_hoverExtra).model == DeskDriveModel::Apple3Body)
         {
             boundsMin[0] = s_kApple3DriveMinXMm;
             boundsMax[0] = s_kApple3DriveMaxXMm;
+            boundsMin[1] = 0.0f;
         }
     }
     else if (m_hoverDiskIi >= 0 && m_hoverDiskIi < comp.driveCount)

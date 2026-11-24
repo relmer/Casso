@@ -270,7 +270,10 @@ public:
         Assert::IsFalse (DeskDrivePlan::HasDiskIiPairUnderMonitor (plan));
         Assert::IsTrue  (plan[0].drive.model == M::Apple3Body);
         Assert::IsTrue  (plan[0].spot == DeskDriveSpot::UnderMonitor);
+        Assert::AreEqual ((size_t) 2, plan.size(), L"the body stands in for drive 1");
+        Assert::AreEqual (1, plan[1].drive.drive);
         Assert::IsTrue  (plan[1].spot == DeskDriveSpot::RightStack);
+        Assert::AreEqual (0, plan[1].level);
     }
 
 

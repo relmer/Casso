@@ -822,6 +822,25 @@ void DeskSceneLayout::GrowDock (std::vector<DockItem>                     & item
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskSceneLayout::HideDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneLayout::HideDrive (DeskSceneComposition & out, int drive)
+{
+    memset (out.driveWorld[drive], 0, sizeof (out.driveWorld[drive]));
+    memset (out.driveLabelWorld[drive], 0, sizeof (out.driveLabelWorld[drive]));
+
+    out.driveRectPx[drive]  = {};
+    out.driveLabelPx[drive] = {};
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskSceneLayout::ProjectDeviceRects
 //
 //  The drives' and the recorder's screen bounds, which are the tooltip
@@ -843,6 +862,12 @@ void DeskSceneLayout::ProjectDeviceRects (DeskSceneComposition   & out,
         float  px[2]      = {};
 
 
+
+        if (i < 2 && metrics.driveHidden[i] != 0)
+        {
+            HideDrive (out, i);
+            continue;
+        }
 
         ProjectModelBox (out.driveWorld[i], metrics.driveMin, metrics.driveMax, out.viewProj, viewportPx, out.driveRectPx[i]);
 
@@ -2142,6 +2167,12 @@ HRESULT DeskSceneLayout::ComputeStrip (const RECT             & viewportPx,
         float   pxMin[2] = { FLT_MAX, FLT_MAX };
         float   pxMax[2] = { -FLT_MAX, -FLT_MAX };
         bool    all      = true;
+
+        if (i < 2 && metrics.driveHidden[i] != 0)
+        {
+            HideDrive (out, i);
+            continue;
+        }
 
         for (int corner = 0; corner < 8; corner++)
         {

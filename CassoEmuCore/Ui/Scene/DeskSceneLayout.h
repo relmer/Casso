@@ -117,6 +117,11 @@ struct DeskSceneMetrics
     DeskExtraMetrics      extras[kMaxDeskExtras];
     DeskDriveSpot         driveSpot           = DeskDriveSpot::UnderMonitor;
     int                   driveLevel[2]       = {};
+
+    // Nonzero for a floppy of the pair that is not drawn: the Apple ///'s
+    // drive 1, which its body stands in for. Ints for the same memcmp
+    // reason as the composition's flags.
+    int                   driveHidden[2]      = {};
 };
 
 
@@ -664,6 +669,10 @@ private:
                                       float                                           pointerX,
                                       float                                           strength,
                                       float                                           reach);
+
+    // Collapses a drive of the pair that is not drawn: a zero world matrix
+    // and empty screen rects, so it is neither drawn nor hit.
+    static void     HideDrive          (DeskSceneComposition & out, int drive);
 
     // The drives' and recorder's screen rects and the drives' label anchors.
     static void     ProjectDeviceRects (DeskSceneComposition     & out,

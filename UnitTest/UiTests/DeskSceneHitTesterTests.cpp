@@ -299,6 +299,31 @@ public:
         }
     }
 
+    TEST_METHOD (Hidden_Drive_Is_Neither_Drawn_Nor_Hit)
+    {
+        DeskSceneMetrics      metrics = MakeMetrics();
+        RECT                  vp      = { 0, 0, 1120, 768 };
+        DeskSceneComposition  comp;
+        float                 screen[2] = {};
+        SceneHitResult        hit;
+
+
+
+        metrics.driveHidden[0] = 1;
+
+        AssertSucceeded (DeskSceneLayout::Compute (vp, 96, 2, metrics, comp));
+
+        Assert::IsTrue (IsRectEmpty (&comp.driveRectPx[0]) != FALSE, L"no screen rect for the hidden drive");
+        Assert::AreEqual (0.0f, comp.driveWorld[0][15], L"a zero world matrix");
+        Assert::IsFalse (IsRectEmpty (&comp.driveRectPx[1]) != FALSE);
+
+        ScreenAt (comp, comp.driveWorld[1], 77.5f, -5.0f, 20.0f, screen);
+
+        hit = DeskSceneHitTester::Classify (comp, metrics.glass, MakeDriveRegions(), screen[0], screen[1], 560, 384);
+
+        Assert::AreEqual (1, hit.driveIndex, L"the drive drawn in its place takes the click");
+    }
+
     TEST_METHOD (Dead_Space_Resolves_To_None)
     {
         DeskSceneMetrics      metrics = MakeMetrics();

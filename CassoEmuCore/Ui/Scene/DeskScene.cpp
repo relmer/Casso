@@ -313,6 +313,10 @@ DeskSceneMetrics DeskScene::Metrics() const
     metrics.driveLevel[0] = m_driveLevel[0];
     metrics.driveLevel[1] = m_driveLevel[1];
 
+    // The Apple ///'s body stands in for its drive 1.
+    metrics.driveHidden[0] = std::any_of (m_extras.begin(), m_extras.end(),
+                                          [] (const ExtraDrive & extra) { return extra.drive.model == DeskDriveModel::Apple3Body; }) ? 1 : 0;
+
     for (int i = 0; i < metrics.extraCount; i++)
     {
         const ExtraDrive  & extra = m_extras[(size_t) i];
