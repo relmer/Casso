@@ -599,6 +599,7 @@
     <ClCompile Include="Seams\Win32ShellItemVerbs.cpp" />
     <ClCompile Include="Seams\ShellVerbs\Win32FileContents.cpp" />
     <ClCompile Include="Seams\ShellVerbs\Win32FilterHost.cpp" />
+    <ClCompile Include="Seams\ShellVerbs\FileSystemBindData.cpp" />
     <ClCompile Include="Seams\ShellVerbs\Win32RecycleBin.cpp" />
     <ClCompile Include="Seams\ShellVerbs\Win32ShellMenus.cpp" />
     <ClCompile Include="Seams\ShellVerbs\Win32ShellNamespace.cpp" />
@@ -1854,6 +1855,7 @@
     <ClInclude Include="Seams\Win32ShellItemVerbs.h" />
     <ClInclude Include="Seams\ShellVerbs\Win32FileContents.h" />
     <ClInclude Include="Seams\ShellVerbs\Win32FilterHost.h" />
+    <ClInclude Include="Seams\ShellVerbs\FileSystemBindData.h" />
     <ClInclude Include="Seams\ShellVerbs\Win32RecycleBin.h" />
     <ClInclude Include="Seams\ShellVerbs\Win32ShellMenus.h" />
     <ClInclude Include="Seams\ShellVerbs\Win32ShellNamespace.h" />
