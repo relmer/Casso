@@ -246,7 +246,7 @@ public:
         Assert::IsTrue   (host.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Shell);
         Assert::AreEqual (std::wstring (L"C:\\Disks\\report.pdf"), host.browser.GetPreviewer().GetPreview().hostPath);
 
-        host.browser.GetPreviewer().ShowShellPreviewBytes();
+        host.browser.GetPreviewer().GetShellItems().ShowShellPreviewBytes();
         Assert::IsTrue (host.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Hex, L"A failed shell preview is replaced by the bytes");
 
         shell.previewExtension = L".txt";

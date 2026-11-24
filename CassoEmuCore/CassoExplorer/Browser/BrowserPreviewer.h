@@ -9,6 +9,7 @@
 #include "CassoExplorer/Browser/Preview/PictureMonitorChoice.h"
 #include "CassoExplorer/Browser/Preview/PreviewParts.h"
 #include "CassoExplorer/Browser/Preview/PreviewViewState.h"
+#include "CassoExplorer/Browser/Preview/ShellItemPreviewer.h"
 #include "CassoExplorer/Model/BrowserModel.h"
 
 #include "CassoExplorer/Model/PreviewDecoder.h"
@@ -39,24 +40,8 @@ class BrowserPreviewer : private IPreviewRefresh
 public:
     BrowserPreviewer (const BrowserParts & parts, const BrowserSelection & selection, BrowserSearchMatches & searchMatches, const BrowserArchives & archives, IBrowserPreviewHost & host);
 
-    //  How much of a file with no file of its own, such as one inside a zip,
-    //  is read for its preview.
-    static constexpr size_t  s_kShellPreviewMaxBytes = 16 * 1024 * 1024;
-
-    //  An archive's preview as the file list would show it opened: the list's
-    //  first columns, with its icons.
-    static constexpr size_t                    s_kArchivePreviewColumns = 4;
-    static std::vector<DxuiListView::Column>   GetArchivePreviewColumns ();
-    std::vector<DxuiListView::Cell>            GetArchivePreviewCells   (const CatalogRow & row) const;
-
     //  The largest host file that previews as text rather than in the hex view.
     static constexpr size_t  s_kTextPreviewMaxBytes = 1024 * 1024;
-    void  PreviewShellItem (const CatalogRow & row);
-    void  PreviewArchive   (const std::wstring & path);
-
-    //  A shell preview that failed or took too long is replaced by the file's
-    //  bytes.
-    void  ShowShellPreviewBytes ();
 
     const PreviewContent  & GetPreview () const { return m_preview; }
 
@@ -70,7 +55,6 @@ public:
     void     AttachHostViews       (const FileEntry & entry, const FilePayload & payload, bool loaded, PreviewDecoder::HexForm hexForm);
     void     ReadTextPreview       (const std::wstring & path, const std::wstring & name);
 
-    void  PreviewEntry       (const std::wstring & imagePath, const std::string & entryPath, const FileEntry & entry, VolumeKind kind, std::span<const Byte> diskSectors = {}, std::span<const std::vector<Byte>> otherDisks = {});
     void  PreviewSearchMatch (const CatalogRow & row);
 
     //  The preview made again for the selection, as when a slow read arrives,
@@ -84,6 +68,10 @@ public:
     //  The monitor a picture preview is drawn for.
     PictureMonitorChoice        & GetMonitorChoice ()       { return m_monitor; }
     const PictureMonitorChoice  & GetMonitorChoice () const { return m_monitor; }
+
+    //  The preview of a file or archive the shell lists.
+    ShellItemPreviewer        & GetShellItems ()       { return m_shellItems; }
+    const ShellItemPreviewer  & GetShellItems () const { return m_shellItems; }
 
 private:
     Location  GetLocation () const { return m_parts.model.HasTabs() ? m_parts.model.GetActiveTab().location : Location(); }
@@ -100,4 +88,5 @@ private:
     PictureMonitorChoice                m_monitor        { m_preview, m_bus };
     PreviewParts                        m_previewParts   { m_preview, m_bus, m_viewState, m_monitor };
     DiskImagePreviewer                  m_diskImages     { m_parts, m_previewParts };
+    ShellItemPreviewer                  m_shellItems     { m_parts, m_previewParts, m_archives, m_diskImages };
 };

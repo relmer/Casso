@@ -484,6 +484,7 @@
     <ClCompile Include="CassoExplorer\Browser\Preview\DiskImagePreviewer.cpp" />
     <ClCompile Include="CassoExplorer\Browser\Preview\PictureMonitorChoice.cpp" />
     <ClCompile Include="CassoExplorer\Browser\Preview\PreviewViewState.cpp" />
+    <ClCompile Include="CassoExplorer\Browser\Preview\ShellItemPreviewer.cpp" />
     <ClCompile Include="CassoExplorer\Browser\BrowserRowOrder.cpp" />
     <ClCompile Include="CassoExplorer\Browser\BrowserRowPaths.cpp" />
     <ClCompile Include="CassoExplorer\Browser\BrowserSearchMatches.cpp" />
@@ -1754,6 +1755,7 @@
     <ClInclude Include="CassoExplorer\Browser\Preview\PictureMonitorChoice.h" />
     <ClInclude Include="CassoExplorer\Browser\Preview\PreviewParts.h" />
     <ClInclude Include="CassoExplorer\Browser\Preview\PreviewViewState.h" />
+    <ClInclude Include="CassoExplorer\Browser\Preview\ShellItemPreviewer.h" />
     <ClInclude Include="CassoExplorer\Browser\BrowserRowOrder.h" />
     <ClInclude Include="CassoExplorer\Browser\BrowserRowPaths.h" />
     <ClInclude Include="CassoExplorer\Browser\BrowserSearchMatches.h" />

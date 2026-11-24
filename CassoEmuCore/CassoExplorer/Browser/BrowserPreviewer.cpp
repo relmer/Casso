@@ -295,7 +295,7 @@ void BrowserPreviewer::UpdatePreview()
     }
     else if (!m_parts.list.isImage && (location.kind == Location::Kind::ShellFolder || m_host.IsHomeLocation()) && m_parts.list.selectedRows.size() == 1)
     {
-        PreviewShellItem (m_parts.list.rows[m_parts.list.selectedRows[0]]);
+        m_shellItems.PreviewShellItem (m_parts.list.rows[m_parts.list.selectedRows[0]]);
         return;
     }
     else if (m_parts.list.isPartitionList && m_parts.list.selectedRows.size() == 1 && !m_parts.list.rows[m_parts.list.selectedRows[0]].containerPath.empty())
@@ -318,7 +318,7 @@ void BrowserPreviewer::UpdatePreview()
     //  An archive previews as what it holds, as a disk image does.
     if (m_parts.list.rows[m_parts.list.selectedRows[0]].isArchive)
     {
-        PreviewArchive (BrowserRowPaths::JoinPath (folder, m_parts.list.rows[m_parts.list.selectedRows[0]].name));
+        m_shellItems.PreviewArchive (BrowserRowPaths::JoinPath (folder, m_parts.list.rows[m_parts.list.selectedRows[0]].name));
         return;
     }
 
@@ -347,154 +347,6 @@ void BrowserPreviewer::UpdatePreview()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BrowserPreviewer::ShowShellPreviewBytes
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BrowserPreviewer::ShowShellPreviewBytes()
-{
-    if (m_preview.kind == PreviewContent::Kind::Shell)
-    {
-        m_preview.kind = PreviewContent::Kind::Hex;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BrowserPreviewer::PreviewArchive
-//
-//  What an archive holds, folders first, in the columns a catalog uses.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BrowserPreviewer::PreviewArchive (const std::wstring & path)
-{
-    HRESULT                                        hr = S_OK;
-    std::vector<IShellItemVerbs::ShellFolderItem>  items;
-
-
-
-    if (m_parts.sources.shellVerbs == nullptr)
-    {
-        return;
-    }
-
-    //  One on a network share is read on a thread of its own, with a working
-    //  message meanwhile, so an unreachable share never blocks the window.
-    if (!PathResolver::IsNetworkPath (path))
-    {
-        hr = m_parts.sources.shellVerbs->ListShellFolder (path, items);
-    }
-    else if (!m_parts.shellListings.TryTake (CassoExplorerBrowser::s_kPreviewKey + path, path, items, hr))
-    {
-        m_preview.kind    = PreviewContent::Kind::Error;
-        m_preview.message = CassoExplorerBrowser::s_kWorkingText;
-        return;
-    }
-
-    if (FAILED (hr))
-    {
-        m_preview.kind    = PreviewContent::Kind::Error;
-        m_preview.message = PathResolver::IsNetworkPath (path) ? path.substr (path.find_last_of (L"\\/") + 1) + L" is unavailable." : m_archives.DescribeEmptyArchive (path);
-        m_preview.message = m_preview.message.empty() ? L"The archive could not be read" : m_preview.message;
-        return;
-    }
-
-    if (items.empty() && !m_archives.DescribeEmptyArchive (path).empty())
-    {
-        m_preview.kind    = PreviewContent::Kind::Error;
-        m_preview.message = m_archives.DescribeEmptyArchive (path);
-        return;
-    }
-
-    m_preview.kind    = PreviewContent::Kind::Catalog;
-    m_preview.archive = true;
-
-    for (const IShellItemVerbs::ShellFolderItem & item : items)
-    {
-        CatalogRow  row;
-
-        row.name         = item.name;
-        row.typeText     = item.typeText;
-        row.sizeBytes    = item.sizeBytes;
-        row.modifiedUnix = item.modifiedUnix;
-        row.hasModified  = item.hasModified;
-        row.isDirectory  = item.isFolder;
-        row.shellId      = item.id;
-
-        m_preview.rows.push_back (std::move (row));
-    }
-
-    std::stable_sort (m_preview.rows.begin(), m_preview.rows.end(), [] (const CatalogRow & a, const CatalogRow & b)
-    {
-        return (a.isDirectory != b.isDirectory) ? a.isDirectory : StrCmpLogicalW (a.name.c_str(), b.name.c_str()) < 0;
-    });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BrowserPreviewer::GetArchivePreviewColumns
-//
-//  The file list's first columns in their default order: Name, Date
-//  modified, Type and Size.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<DxuiListView::Column> BrowserPreviewer::GetArchivePreviewColumns()
-{
-    std::vector<DxuiListView::Column>  columns = BrowserCells::GetColumns();
-
-
-
-    columns.resize ((std::min) (columns.size(), s_kArchivePreviewColumns));
-
-    //  Fitted to what the archive holds, so the narrow pane shows them all.
-    for (DxuiListView::Column & column : columns)
-    {
-        column.widthDip = 0;
-        column.stretch  = false;
-    }
-
-    return columns;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BrowserPreviewer::GetArchivePreviewCells
-//
-//  A row as the file list draws it inside the archive, icon and all.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<DxuiListView::Cell> BrowserPreviewer::GetArchivePreviewCells (const CatalogRow & row) const
-{
-    std::vector<DxuiListView::Cell>  cells = BrowserCells::ToCells (row, Location::MakeShellFolder (row.shellId, row.name), m_parts.sources.shellIcons);
-
-
-
-    cells.resize ((std::min) (cells.size(), s_kArchivePreviewColumns));
-
-    return cells;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  BrowserPreviewer::ReadTextPreview
 //
 //  The host file read, for TryPreviewText. One that cannot be read stays the
@@ -513,67 +365,6 @@ void BrowserPreviewer::ReadTextPreview (const std::wstring & path, const std::ws
     {
         HostTextPreview::TryPreviewText (name, std::span<const Byte> ((const Byte *) content.data(), content.size()), m_preview);
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BrowserPreviewer::PreviewShellItem
-//
-//  A file the shell lists shows its bytes: one on a disk from the file, as in
-//  its own folder, and one with no file of its own, such as one inside a zip,
-//  read through the shell up to a limit.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BrowserPreviewer::PreviewShellItem (const CatalogRow & row)
-{
-    HRESULT  hr = S_OK;
-
-
-
-    if (row.isDirectory)
-    {
-        return;
-    }
-
-    //  A disk image previews as its catalog, as it does in its folder, one in
-    //  a zip by its path through the zip.
-    if (row.isDiskImage)
-    {
-        m_diskImages.PreviewImageCatalog (BrowserLoader::GetImagePath (row));
-        return;
-    }
-
-    if (!row.hostPath.empty())
-    {
-        m_preview.kind     = PreviewContent::Kind::Hex;
-        m_preview.hostPath = row.hostPath;
-        return;
-    }
-
-    if (m_parts.sources.shellVerbs == nullptr || row.shellId.empty())
-    {
-        return;
-    }
-
-    hr = m_parts.sources.shellVerbs->ReadItemBytes (row.shellId, s_kShellPreviewMaxBytes, m_preview.bytes);
-
-    if (FAILED (hr))
-    {
-        m_preview.kind    = PreviewContent::Kind::Error;
-        m_preview.message = L"The file could not be read";
-        return;
-    }
-
-    m_preview.kind        = PreviewContent::Kind::Hex;
-    m_preview.hostCharset = HostTextPreview::GetHostCharset (std::span<const Byte> (m_preview.bytes.data(), (std::min) (m_preview.bytes.size(), HostTextPreview::kTextSampleBytes)));
-    m_preview.textFile    = m_preview.hostCharset != HostCharset::None && m_preview.hostCharset != HostCharset::Utf8;
-
-    HostTextPreview::TryPreviewText (row.name, m_preview.bytes, m_preview);
 }
 
 
