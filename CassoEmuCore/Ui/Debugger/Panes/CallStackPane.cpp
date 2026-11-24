@@ -157,8 +157,9 @@ std::vector<DxuiListView::Cell> CallStackPane::GetCells (const Row & row, const 
         return cells;
     }
 
-    //  A dimmed frame is unverified, or the last return, which has left the
-    //  stack; the tip over it says which, and for an unverified frame, why.
+    //  A dimmed frame is unverified, its call is no longer in memory, or it
+    //  is the last return, which has left the stack; the tip over it is which,
+    //  and for an unverified frame or one no longer in memory, why.
     for (DxuiListView::Cell & cell : cells)
     {
         cell.tip = !row.isDim   ? L""
@@ -253,8 +254,9 @@ bool CallStackPane::IsSameText (const std::vector<Row> & a, const std::vector<Ro
 //  and what broke the chain in the second. Where recording began or began
 //  again, and where the history a rebuilt record replayed starts, is a note
 //  across the row instead; while the record is being rebuilt, the note shows
-//  that. An unverified frame is dimmed, as is the note on the last return,
-//  which is about a frame no longer on the stack.
+//  that. An unverified frame is dimmed, as is a frame whose call is no longer
+//  in memory, and the note on the last return, which is about a frame no
+//  longer on the stack. A call site has its nearest symbol, as main_loop+6.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -268,12 +270,14 @@ std::vector<CallStackPane::Row> CallStackPane::GetRows (const CallStackData & da
     {
         Row  made;
 
-        made.site           = std::format (L"${:04X}", frame.callSite);
+        made.site           = frame.siteSymbol.empty() ? std::format (L"${:04X}", frame.callSite)
+                                                       : std::format (L"${:04X} {}", frame.callSite, TextEncoding::NarrowToWide (frame.siteSymbol));
         made.routine        = std::format (L"{} ${:04X}", TextEncoding::NarrowToWide (CallStack::GetKindName (frame.kind)), frame.target);
         made.foundBy        = (frame.provenance == CallProvenance::Recorded) ? L"found during execution" : L"found by stack walk";
-        made.isDim          = !frame.isVerified;
+        made.isDim          = !frame.isVerified || frame.site != CallSiteState::Present;
         made.address        = frame.callSite;
         made.routineAddress = frame.target;
+        made.stackLevel     = frame.stackLevel;
         made.routineSymbol  = frame.symbol;
 
         if (!frame.symbol.empty())
@@ -284,6 +288,20 @@ std::vector<CallStackPane::Row> CallStackPane::GetRows (const CallStackData & da
         if (!frame.isVerified)
         {
             made.foundBy += L", unverified";
+        }
+
+        if (frame.site == CallSiteState::SwitchedOut)
+        {
+            made.foundBy += L", switched out";
+            made.tip      = L"The memory that made this call is switched out, as $C800 firmware is when another card's ROM is selected. "
+                            L"The disassembly at the call site has the bytes mapped there now. The frame returns here only if that "
+                            L"memory is switched back in first.";
+        }
+        else if (frame.site == CallSiteState::Overwritten)
+        {
+            made.foundBy += L", call written over";
+            made.tip      = std::format (L"The JSR to ${:04X} at the call site has been written over since the call, so the frame is "
+                                         L"probably stale. Its return address is on the stack.", frame.target);
         }
 
         return made;
@@ -341,7 +359,9 @@ std::vector<CallStackPane::Row> CallStackPane::GetRows (const CallStackData & da
         else if (each.frame.has_value())
         {
             row     = frameRow (*each.frame);
-            row.tip = each.frame->isVerified ? std::wstring() : GetUnverifiedTip (above);
+            row.tip = each.frame->isVerified ? row.tip
+                    : row.tip.empty()        ? GetUnverifiedTip (above)
+                    :                          GetUnverifiedTip (above) + L"\n\n" + row.tip;
             rows.push_back (row);
         }
     }

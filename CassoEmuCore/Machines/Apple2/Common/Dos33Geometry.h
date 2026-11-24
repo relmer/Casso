@@ -20,8 +20,7 @@
 //  track's last sector, so sector S is bit S + width - sectorsPerTrack, where
 //  width is 32 or 16.
 //
-//  The VTOC fields are from CiderPress II's DOS notes, under its Apache
-//  license.
+//  The VTOC fields are from CiderPress II's DOS notes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

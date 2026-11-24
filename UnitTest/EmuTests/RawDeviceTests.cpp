@@ -212,7 +212,7 @@ public:
 
         void Start()
         {
-            InProcessByteStream::CreatePair (clientEnd, serverEnd);
+            InProcessByteStream::CreateVirtualPair (clientEnd, serverEnd);
 
             connection = std::make_unique<RawDeviceConnection> (*clientEnd);
 

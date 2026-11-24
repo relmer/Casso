@@ -9,6 +9,7 @@
 #include "CassoExplorer/Model/KnownFolderStore.h"
 #include "CassoExplorer/Picker/ExplorerPickerHost.h"
 #include "CassoExplorer/Picker/PickerPrefs.h"
+#include "CassoExplorer/Picker/PickerShellRoots.h"
 #include "Seams/Win32FolderWatcher.h"
 
 
@@ -168,6 +169,7 @@ CassoExplorerWindowContext ExplorerPickerHost::MakeContext()
     context.picker            = &m_request;
     context.outcome           = &m_outcome;
     context.request.owner     = m_owner;
+    context.request.isOwned   = m_isModal;
     context.request.placement = m_prefs.placement;
     context.request.cascade   = m_cascade;
 
@@ -191,13 +193,27 @@ CassoExplorerWindowContext ExplorerPickerHost::MakeContext()
 
 HRESULT ExplorerPickerHost::Open (HINSTANCE instance)
 {
-    HRESULT  hr         = S_OK;
-    HWND     foreground = GetForegroundWindow();
-    bool     isInFront  = m_owner == nullptr || (foreground != nullptr && GetAncestor (foreground, GA_ROOTOWNER) == m_owner);
+    HRESULT                    hr         = S_OK;
+    HWND                       foreground = GetForegroundWindow();
+    bool                       isInFront  = m_owner == nullptr || (foreground != nullptr && GetAncestor (foreground, GA_ROOTOWNER) == m_owner);
+    PickerShellRoots::Folders  navRoots;
+    PickerShellRoots::Folders  pinned;
 
 
 
     CBRAEx (m_browser != nullptr && m_window == nullptr, E_UNEXPECTED);
+
+    //  The shell's roots read ahead of time, so the window doesn't wait on
+    //  the shell. They are read again for the next picker.
+    if (m_services.shellRoots != nullptr)
+    {
+        if (m_services.shellRoots->TryGet (navRoots, pinned))
+        {
+            m_browser->GetTreeModel().SetShellRoots (std::move (navRoots), std::move (pinned));
+        }
+
+        m_services.shellRoots->Refresh();
+    }
 
     m_watcher = std::make_unique<Win32FolderWatcher>();
 
@@ -246,6 +262,8 @@ HRESULT ExplorerPickerHost::RunModal (HINSTANCE instance)
     BOOL     got     = TRUE;
 
 
+
+    m_isModal = true;
 
     hr = Open (instance);
     CHR (hr);

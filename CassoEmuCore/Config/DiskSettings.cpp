@@ -6,6 +6,7 @@
 #include "Config/UserConfigStore.h"
 #include "Core/JsonParser.h"
 #include "Core/JsonValue.h"
+#include "Core/MachineConfigSource.h"
 #include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
 
@@ -53,13 +54,10 @@ HRESULT DiskSettings::LoadMachineDefaultJson (const std::wstring  & machineName,
     std::vector<fs::path> searchPaths;
     fs::path              configRelPath;
     fs::path              configPath;
-    std::ifstream         configFile;
-    std::stringstream     ss;
     std::string           jsonText;
     JsonParseError        parseErr;
     HRESULT               hr            = S_OK;
     bool                  wasFound      = false;
-    bool                  isOpen        = false;
 
 
 
@@ -72,13 +70,8 @@ HRESULT DiskSettings::LoadMachineDefaultJson (const std::wstring  & machineName,
 
     CBREx (wasFound, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
 
-    configFile.open (configPath);
-    isOpen = configFile.good();
-
-    CBREx (isOpen, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
-
-    ss << configFile.rdbuf();
-    jsonText = ss.str();
+    hr = MachineConfigSource::ReadConfigText (GetModuleHandleW (nullptr), machineName, configPath, jsonText);
+    CHR (hr);
 
     hr = JsonParser::Parse (jsonText, outDefault, parseErr);
     CHR (hr);

@@ -4,6 +4,7 @@
 
 #include "CassoLink/Session/CassoLinkSessionTypes.h"
 #include "CassoLink/LinkBootstrap.h"
+#include "Seams/ByteStreamSettings.h"
 
 class IByteStream;
 class CassoLinkSession;
@@ -62,7 +63,12 @@ public:
     //  Connect, and with no reply from an Apple on a serial line, the probe:
     //  an Apple waiting at a prompt with IN# set to the port is bootstrapped.
     HRESULT  ConnectOrBootstrap (std::stop_token stop);
-    HRESULT  ProbeForPrompt     (std::stop_token stop, bool & outWaiting);    void     ServeUntilRetry    (std::stop_token stop);
+    HRESULT  ProbeForPrompt     (std::stop_token stop, bool & outWaiting);
+    void     ServeUntilRetry    (std::stop_token stop);
+
+    //  Whether a failed connect is followed by the prompt probe: only on a
+    //  line a bootstrap can be typed on, and never for an ADTPro server.
+    static bool  IsProbed (LinkTransport transport, bool adtPro, bool stopRequested);
 
     //  An ADTPro-compatible server's whole run: the line opened at the
     //  link's speed and ADTPro's client served on it, opened again after

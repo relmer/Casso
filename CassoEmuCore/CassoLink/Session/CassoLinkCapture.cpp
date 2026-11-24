@@ -62,6 +62,7 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
         bool      unstable   = false;
         bool      made       = false;
         bool      isStandard = false;
+        bool      unsure     = false;
 
         //  Each whole track after the first waits on a marker on the one
         //  before, so the tracks can be placed relative to each other. The
@@ -89,6 +90,15 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
 
         hr = Analyze (run, [&] () { isStandard = IsStandardTrack (read); });
         CHR (hr);
+
+        hr = Analyze (run, [&] () { unsure = IsUnsure (read, isStandard); });
+        CHR (hr);
+
+        if (unsure)
+        {
+            hr = ReadUnsure (run, isStandard, read);
+            CHR (hr);
+        }
 
         standard.push_back (isStandard);
         positions.push_back (std::move (read));
@@ -137,11 +147,24 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
 
         if (separate)
         {
+            bool  unsure     = false;
+            bool  isStandard = false;
+
+
+
             run.planned += kWholeReads;
 
             hr = ReadPosition (run, position, kWholeReads, read);
             CHR (hr);
 
+            hr = Analyze (run, [&] () { isStandard = IsStandardTrack (read); unsure = IsUnsure (read, isStandard); });
+            CHR (hr);
+
+            if (unsure)
+            {
+                hr = ReadUnsure (run, isStandard, read);
+                CHR (hr);
+            }
         }
 
         positions.push_back (std::move (read));
@@ -564,6 +587,48 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkCapture::ReadMore
+//
+//  `reads` more reads of a position, at 8, 12 and 8 cycles as a whole
+//  track's are, waiting on no marker,
+//  after the reads it has.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkCapture::ReadMore (Run & run, int reads, Position & ioPosition)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    run.position = ioPosition.position;
+
+    for (int read = 0; read < reads; read++)
+    {
+        std::vector<Byte>  bytes;
+        bool               stopped = run.stop && run.stop();
+        bool               missed  = false;
+
+        CBREx (!stopped, HRESULT_FROM_WIN32 (ERROR_CANCELLED));
+
+        hr = ReadOnce (run, ioPosition.position, kWholeDelays[read % kWholeReads], read + 1, reads, CassoLinkHost::kNoSync, {}, bytes, missed);
+        CHR (hr);
+
+        ioPosition.reads.push_back (std::move (bytes));
+        ioPosition.delays.push_back (kWholeDelays[read % kWholeReads]);
+        ioPosition.writeProtected = run.writeProtected;
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkCapture::Analyze
 //
 //  `work`, the PC's analysis between reads, on another thread, with a busy
@@ -645,6 +710,118 @@ bool CassoLinkCapture::IsStandardTrack (const Position & position)
     }
 
     return hasStream && addressed == (thirteen ? 13 : 16);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::IsUnsure
+//
+//  Whether a position has zero bits its reads don't settle, so it is read
+//  again: bytes whose zero bits the reads don't settle, as a protection's
+//  timing bytes or a run of FF that is data can be; on a standard track,
+//  only bytes in its data fields count, as the bytes after a field's epilog
+//  are often followed by zero bits. So is a track aligned as noisy, read
+//  with a quiet baseline, even with a read that doesn't align, and a track
+//  whose reads don't align but whose first read repeats in part: a track
+//  with stretches the drive reads as noise can frame most reads otherwise
+//  than the first, and more reads align it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkCapture::IsUnsure (const Position & position, bool isStandard)
+{
+    Stream  stream;
+    bool    unstable = false;
+    size_t  start    = 0;
+    size_t  length   = 0;
+
+
+
+    if (!MakeStream (position, stream, unstable, true))
+    {
+        return !position.reads.empty() && FindNoisyStart (position.reads[0], start, length);
+    }
+
+    return (stream.noisy && stream.quiet) || (isStandard ? stream.unsureData : stream.unsure) >= s_kUnsureBytes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::IsTimed
+//
+//  Whether a position's zero bits are timed (TimeZeros), or its reads don't
+//  align though its first read repeats in part, so a timing awaits reads
+//  that align.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkCapture::IsTimed (const Position & position)
+{
+    Stream  stream;
+    bool    unstable = false;
+    size_t  start    = 0;
+    size_t  length   = 0;
+
+
+
+    if (!MakeStream (position, stream, unstable, true))
+    {
+        return !position.reads.empty() && FindNoisyStart (position.reads[0], start, length);
+    }
+
+    return !stream.timed.empty();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::ReadUnsure
+//
+//  s_kTimingReads more reads of an unsure position, and s_kTimingReads more
+//  for a whole track other than a standard one whose zero bits are then
+//  timed (IsTimed): with fewer reads, a timing can fit every read and be
+//  wrong. A position between tracks isn't read the second time, as the reads
+//  of one with no sync bytes match a neighbor's bytes,
+//  and most such positions read a neighbor or nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkCapture::ReadUnsure (Run & run, bool isStandard, Position & ioPosition)
+{
+    HRESULT  hr    = S_OK;
+    bool     timed = false;
+
+
+
+    run.planned += s_kTimingReads;
+
+    hr = ReadMore (run, s_kTimingReads, ioPosition);
+    CHR (hr);
+
+    hr = Analyze (run, [&] () { timed = !isStandard && ioPosition.position % 4 == 0 && IsTimed (ioPosition); });
+    CHR (hr);
+
+    if (timed)
+    {
+        run.planned += s_kTimingReads;
+
+        hr = ReadMore (run, s_kTimingReads, ioPosition);
+        CHR (hr);
+    }
+
+Error:
+    return hr;
 }
 
 
@@ -1085,8 +1262,9 @@ HRESULT CassoLinkCapture::BuildWoz (const std::vector<Position> & positions, int
     for (const Position & position : positions)
     {
         Stream  stream;
-        bool    unstable = false;
-        bool    hasWeak  = false;
+        bool    unstable  = false;
+        bool    hasWeak   = false;
+        size_t  weakBytes = 0;
 
         read.insert (position.position);
 
@@ -1095,13 +1273,15 @@ HRESULT CassoLinkCapture::BuildWoz (const std::vector<Position> & positions, int
             continue;
         }
 
-        hasWeak = std::find (stream.weak.begin(), stream.weak.end(), true) != stream.weak.end();
+        weakBytes = (size_t) std::count (stream.weak.begin(), stream.weak.end(), true);
+        hasWeak   = weakBytes > 0;
 
         //  A head between two tracks reads both at once: its reads differ, or
         //  it has a neighbor's address fields with data fields that don't
         //  decode. Such a stream is dropped, and the position has a standard
-        //  disk's entry. A stream a protection wrote there repeats cleanly.
-        if (position.position % 4 != 0 && (unstable || hasWeak || IsCrosstalk (stream.bytes, position.position)))
+        //  disk's entry. A stream a protection wrote there repeats cleanly,
+        //  but for its stretches with no flux, which the drive reads as noise.
+        if (position.position % 4 != 0 && (unstable || (!stream.noisy && weakBytes * s_kCrosstalkShare > stream.bytes.size()) || IsCrosstalk (stream.bytes, position.position)))
         {
             read.erase (position.position);
             continue;

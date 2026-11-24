@@ -54,7 +54,7 @@ public:
     //  Moves a code view so `address` is on its middle line, or as near the
     //  middle as the top of memory allows. Every navigation goes through
     //  here, so what was asked for is never on an edge.
-    void  CenterCodeOn     (Word address, int view = 0) { m_code[(size_t) view].centerOn = address; m_code[(size_t) view].scrollLines = 0; }
+    void  CenterCodeOn     (Word address, int view = 0) { m_code[(size_t) view].centerOn = address; m_code[(size_t) view].navigatedTo = address; m_code[(size_t) view].scrollLines = 0; }
     void  SelectCodeAt     (Word address, int view = 0) { CenterCodeOn (address, view); m_code[(size_t) view].selectOn = address; m_code[(size_t) view].selectSerial++; }
 
     //  The line list's known starts besides the debug file's and the fetch
@@ -74,7 +74,7 @@ public:
     //  Show next statement: the view follows the PC again AND brings it to
     //  the middle, where following alone would leave a PC already on screen
     //  wherever it sat.
-    void  ShowPcIn         (int view)                   { CodeView & v = m_code[(size_t) view]; v.address.reset(); v.pinnedAtPc.reset(); v.scrollLines = 0; v.scrolledAtMs.reset(); v.centerOnPc = true; }
+    void  ShowPcIn         (int view)                   { CodeView & v = m_code[(size_t) view]; v.address.reset(); v.pinnedAtPc.reset(); v.navigatedTo.reset(); v.scrollLines = 0; v.scrolledAtMs.reset(); v.centerOnPc = true; }
 
     //  How many lines a code view has room for. The window measures it and
     //  sets it; the default is what fits the smallest pane worth having.
@@ -132,6 +132,7 @@ private:
         bool                     centerOnPc   = false;
         std::optional<Word>      centerOn;
         std::optional<Word>      selectOn;
+        std::optional<Word>      navigatedTo;   // the last address the view was sent to, a line's start
         uint32_t                 selectSerial = 0;
         int                      scrollLines  = 0;
         std::optional<uint64_t>  scrolledAtMs;

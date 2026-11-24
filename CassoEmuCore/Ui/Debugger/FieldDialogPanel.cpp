@@ -114,7 +114,7 @@ void FieldDialogPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & sca
 {
     int  row   = scaler.ToPx (kRowDip);
     int  gap   = scaler.ToPx (kGapDip);
-    int  split = boundsDip.left + scaler.ToPx (GetLabelDip());
+    int  split = boundsDip.left + scaler.ToPx (GetLabelDip() + kGapDip);
     int  y     = boundsDip.top;
 
 

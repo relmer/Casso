@@ -1153,8 +1153,8 @@ void DxuiTooltip::ShowPopup()
 //  AssertPopupShown
 //
 //  Debug builds only. Asserts that a balloon just opened or moved is on
-//  screen: visible, not fading out, and above its owner window in the
-//  z-order. A test-mode popup has no window and is not checked.
+//  screen: visible or about to be shown from the message loop, not fading
+//  out, and above its owner window in the z-order. A test-mode popup has no window and is not checked.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1171,8 +1171,9 @@ void DxuiTooltip::AssertPopupShown() const
 
     BAIL_OUT_IF (hwnd == nullptr || owner == nullptr, S_OK);
 
-    isUp = IsWindowVisible (hwnd) != FALSE && !m_activePopup->IsFadingOut();
+    isUp = (IsWindowVisible (hwnd) != FALSE || m_activePopup->IsShowPending()) && !m_activePopup->IsFadingOut();
     CBRA (isUp);
+    BAIL_OUT_IF (m_activePopup->IsShowPending(), S_OK);
 
     //  The owner comes after the balloon in the z-order.
     while (next != nullptr && next != owner)
@@ -1348,10 +1349,10 @@ bool DxuiTooltip::MeasureBoxPx (
     widthPx  = std::ceil (textWPx) + margins.left + margins.right;
     heightPx = std::ceil (textHPx) + margins.top  + margins.bottom;
 
-    if (body.HasGradient())
+    if (body.HasBars())
     {
-        widthPx   = std::max (widthPx, body.GetGradientWidthPx() + margins.left + margins.right);
-        heightPx += body.GetGradientExtraPx();
+        widthPx   = std::max (widthPx, body.GetBarsWidthPx (measure) + margins.left + margins.right);
+        heightPx += body.GetBarsHeightPx();
     }
 
     if (body.HasFrame())
@@ -1745,10 +1746,10 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
         body.DrawFrame (painter, text, width, height);
     }
 
-    if (body.HasGradient())
+    if (body.HasBars())
     {
-        body.DrawGradient (painter, margins.left, width - margins.left - margins.right, height - margins.bottom);
-        height -= body.GetGradientExtraPx();
+        body.DrawBars (painter, text, margins.left, width - margins.left - margins.right, height - margins.bottom);
+        height -= body.GetBarsHeightPx();
     }
 
     if (body.IsTableTip())

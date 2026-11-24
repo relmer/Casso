@@ -211,13 +211,14 @@ void BlockMapBuilder::ApplyReport (const VolumeIntegrityReport & report, BlockMa
         {
             entry.role = (allocated && claims == 0) ? SectorRole::AllocatedUnowned : SectorRole::Free;
         }
-        else if (isUnit && !allocated && !entry.owners.empty())
+        else if (isUnit && !allocated && (!entry.owners.empty() || claims > 0))
         {
             entry.role = SectorRole::OwnedMarkedFree;
         }
     }
 
     ioMap.isCatalogComplete = ioMap.isCatalogComplete && report.IsCatalogFullyParsed();
+    ioMap.hasBrokenChains   = !report.GetUnfollowableChains().empty();
 }
 
 

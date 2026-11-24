@@ -1103,7 +1103,7 @@ bool RegistersPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & 
 
     if (name == "PC")
     {
-        items.push_back ({ L"Show in code", [this] { m_paneNavigator.GoToCode (std::nullopt); } });
+        items.push_back ({ L"Go to PC", [this] { m_paneNavigator.GoToCode (std::nullopt); } });
     }
 
     if (!DebuggerViewState::IsReadOnlyRegister (name))

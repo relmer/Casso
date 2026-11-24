@@ -9,6 +9,7 @@
 #include "Core/JsonParser.h"
 #include "Core/JsonValue.h"
 #include "Core/MachineConfig.h"
+#include "Core/MachineConfigSource.h"
 #include "Core/MachineConfigUpgrade.h"
 #include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
@@ -879,7 +880,7 @@ HRESULT AssetBootstrap::EnsureMachineConfigs (
     }
 #endif
 
-    // Embedded machine JSONs always extract under %LOCALAPPDATA%\Casso\,
+    // Embedded machine JSONs always extract under the data folder,
     // not into whichever exe-adjacent Machines/ a dev happens to have
     // lying around.
     machinesDir = GetAssetBaseDirectory() / L"Machines";
@@ -1095,7 +1096,7 @@ HRESULT AssetBootstrap::EnsureThemes (
 
 
 
-    // Same logic as EnsureMachineConfigs: extract to %LOCALAPPDATA%\Casso\,
+    // Same logic as EnsureMachineConfigs: extract to the data folder,
     // not into an exe-adjacent Themes/ dir.
     themesDir = GetAssetBaseDirectory() / L"Themes";
     fs::create_directories (themesDir, ec);
@@ -1196,7 +1197,7 @@ HRESULT AssetBootstrap::EnsureThemes (
 //  EnsureImageWriterSounds
 //
 //  Extract the embedded ImageWriter II mechanical sound grains to
-//  %LOCALAPPDATA%\Casso\ImageWriter II Sounds\ so PrinterAudioSource can decode
+//  <data folder>\ImageWriter II Sounds\ so PrinterAudioSource can decode
 //  them by path (Media Foundation needs a file). Unlike machine configs /
 //  themes there is no user-edit or versioning story: the grains are read-only
 //  assets, so a missing file is (re)written and an existing one is left alone.
@@ -1389,7 +1390,7 @@ Error:
 //
 //  GetAssetBaseDirectory
 //
-//  Returns %LOCALAPPDATA%\Casso\ -- the single, user-writable root for
+//  Returns the data folder -- the single, user-writable root for
 //  every file Casso reads or writes at runtime (Machines/, Themes/,
 //  Disks/, UserPrefs.json, schema backups, downloaded ROMs,
 //  captured audio, etc.). Created on first launch if missing.
@@ -1406,7 +1407,7 @@ Error:
 
 fs::path AssetBootstrap::GetAssetBaseDirectory()
 {
-    return PathResolver::GetLocalAppDataDir (L"Casso");
+    return PathResolver::GetDataFolder();
 }
 
 
@@ -1417,7 +1418,7 @@ fs::path AssetBootstrap::GetAssetBaseDirectory()
 //
 //  GetDiskDirectory
 //
-//  Returns <localAppData>\Casso\Disks\ -- downloaded disk images land
+//  Returns <data folder>\Disks\ -- downloaded disk images land
 //  here regardless of where the EXE was invoked from. Created on
 //  demand.
 //
@@ -1854,7 +1855,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static const EmbeddedConfig * FindEmbeddedConfig (const wstring & machineName)
+const EmbeddedConfig * AssetBootstrap::FindEmbeddedConfig (const wstring & machineName)
 {
     const EmbeddedConfig  * result = nullptr;
     wstring                 wide;
@@ -1873,6 +1874,21 @@ static const EmbeddedConfig * FindEmbeddedConfig (const wstring & machineName)
     }
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssetBootstrap::HasEmbeddedConfig
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AssetBootstrap::HasEmbeddedConfig (const wstring & machineName)
+{
+    return FindEmbeddedConfig (machineName) != nullptr;
 }
 
 
@@ -1907,7 +1923,7 @@ static HRESULT LoadEmbeddedJson (
     outNarrowName.clear();
     outNarrowName = TextEncoding::WideToUtf8 (machineName);
 
-    cfg = FindEmbeddedConfig (machineName);
+    cfg = AssetBootstrap::FindEmbeddedConfig (machineName);
     CBRF (cfg != nullptr,
           outError = format ("No embedded config for machine '{}'", outNarrowName));
 
@@ -3024,10 +3040,11 @@ HRESULT AssetBootstrap::OfferMachineRoms (
             continue;
         }
 
-        {
-            std::ifstream  in (configPath, std::ios::binary);
+        hrRoms = MachineConfigSource::ReadConfigText (hInst, machineName, configPath, jsonText);
 
-            jsonText.assign (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
+        if (FAILED (hrRoms))
+        {
+            continue;
         }
 
         hrRoms = MachineConfigLoader::CollectRomFiles (jsonText, romFiles, ignored);

@@ -62,7 +62,7 @@ struct ProgramRig
             AssertSucceeded (machine.GetDiskStore().MountFromBytes (kSlot, 1, "", DiskFormat::Dsk, drive2));
         }
 
-        InProcessByteStream::CreatePair (machineEnd, pcEnd);
+        InProcessByteStream::CreateVirtualPair (machineEnd, pcEnd);
         AssertSucceeded (machine.GetConnectors().AttachSerialStream (kPort, machineEnd));
 
         stream = std::make_shared<SteppedByteStream> (machine, pcEnd);

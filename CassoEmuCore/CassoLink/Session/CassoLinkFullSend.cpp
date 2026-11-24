@@ -696,9 +696,9 @@ std::string CassoLinkFullSend::GetModelName()
 //
 //  CassoLinkFullSend::AwaitBoot
 //
-//  The result arrives from the thread that boots the image. With none by the
-//  time limit, the session goes on, and the result is in the window when it
-//  arrives.
+//  The result arrives from the thread that boots the image, and the wait ends
+//  as it does; the slices are for a stop. With none by the time limit, the
+//  session goes on, and the result is in the window when it arrives.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -714,7 +714,7 @@ HRESULT CassoLinkFullSend::AwaitBoot (const std::string & file)
         hr = CheckStop();
         CHR (hr);
 
-        Sleep (s_kBootPollMs);
+        (void) m_status.WaitForBoot (file, s_kBootPollMs);
     }
 
 Error:

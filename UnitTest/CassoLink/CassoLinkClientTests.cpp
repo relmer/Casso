@@ -34,9 +34,9 @@ public:
         std::unique_ptr<CassoLinkHost>        host;
         std::vector<Byte>                     buffer;
 
-        Client()
+        explicit Client (bool isOneThread = false)
         {
-            InProcessByteStream::CreatePair (hostEnd, clientEnd);
+            InProcessByteStream::CreateVirtualPair (hostEnd, clientEnd, isOneThread);
 
             host = std::make_unique<CassoLinkHost> (hostEnd, folder, [] () { return std::array<Byte, 4> {}; });
             host->SetOperationTimeout (5000);
@@ -80,11 +80,11 @@ public:
 
         bool  Fill (size_t count)
         {
-            Byte    chunk[4096];
-            size_t  got   = 0;
-            auto    until = std::chrono::steady_clock::now() + std::chrono::seconds (5);
+            Byte      chunk[4096];
+            size_t    got         = 0;
+            uint64_t  until       = clientEnd->GetTickMs() + 5000;
 
-            while (buffer.size() < count && std::chrono::steady_clock::now() < until)
+            while (buffer.size() < count && clientEnd->GetTickMs() < until && !clientEnd->IsClosed())
             {
                 Assert::AreEqual (S_OK, clientEnd->Read (chunk, sizeof (chunk), 50, got));
                 buffer.insert (buffer.end(), chunk, chunk + got);
@@ -124,9 +124,26 @@ public:
             }
         }
 
+        //  The result of a host call on another thread. While it runs, the
+        //  time moves forward a second whenever the host waits on the line,
+        //  so a call that ends on a timeout ends at once.
+        HRESULT  Finish (std::future<HRESULT> & call)
+        {
+            while (call.wait_for (std::chrono::milliseconds (0)) != std::future_status::ready)
+            {
+                if (clientEnd->IsFarBlocked())
+                {
+                    clientEnd->Advance (1000);
+                }
+
+                std::this_thread::yield();
+            }
+
+            return call.get();
+        }
+
         bool  IsQuiet()
         {
-            std::this_thread::sleep_for (std::chrono::milliseconds (200));
             return buffer.empty() && clientEnd->GetReadableCount() == 0;
         }
     };
@@ -176,11 +193,12 @@ public:
     //  end; a Ready within the notice time isn't.
     TEST_METHOD (ALongWaitForReady_IsReportedToTheWaitObserver)
     {
-        Client             client;
-        std::vector<bool>  events;
-        std::mutex         lock;
+        Client                   client;
+        std::vector<bool>        events;
+        std::mutex               lock;
+        std::condition_variable  changed;
 
-        client.host->SetWaitObserver ([&] (bool waiting) { std::lock_guard guard (lock); events.push_back (waiting); }, 100);
+        client.host->SetWaitObserver ([&] (bool waiting) { std::lock_guard guard (lock); events.push_back (waiting); changed.notify_all(); }, 100);
 
         client.SendReady (LinkProgram::kProgramVersion);
         Assert::AreEqual (S_OK, client.host->SendLabel ("QUICK"));
@@ -188,7 +206,7 @@ public:
 
         auto  sending = std::async (std::launch::async, [&] () { return client.host->SendLabel ("SLOW"); });
 
-        std::this_thread::sleep_for (std::chrono::milliseconds (400));
+        client.clientEnd->AdvanceWhenBlocked (400);
         client.SendReady (LinkProgram::kProgramVersion);
 
         Assert::AreEqual (S_OK, sending.get());
@@ -242,6 +260,30 @@ public:
     }
 
 
+
+
+    //  An older 6551 shim, from a boot disk written before the shim changed,
+    //  is sent the current shim in place of the program.
+    TEST_METHOD (Ready_FromAnOlderShim_IsSentTheCurrentShim)
+    {
+        Client             client;
+        std::vector<Byte>  update;
+        CassoLinkPacket    packet;
+        auto               serving = std::async (std::launch::async, [&] () { return client.host->ServeOne (1000); });
+
+
+
+        AssertSucceeded (LinkProgram::BuildShimUpdate (update));
+
+        client.SendPacket (CassoLinkCodec::kReady, { 0, 0, (Byte) (LinkProgram::kShimVersion - 1), 0x03 });
+
+        packet = client.ReceivePacket();
+        Assert::AreEqual<int> (CassoLinkCodec::kLoadProgram, packet.command);
+        Assert::AreEqual ((update.size() + 255) / 256, (size_t) packet.payload.at (0), L"the updater's pages, not the program's");
+
+        client.hostEnd->Close();
+        serving.wait();
+    }
 
 
     TEST_METHOD (Ready_FromAnotherProgram_ReturnsItToTheShim)
@@ -308,7 +350,7 @@ public:
         wire[wire.size() - 3] ^= 0xFF;
         client.Send (wire);
 
-        HRESULT  hr = reading.get();
+        HRESULT  hr = client.Finish (reading);
 
         Assert::IsTrue (FAILED (hr));
     }
@@ -419,6 +461,12 @@ public:
         Assert::AreEqual (std::wstring (L"Apple //c (ROM 4)"),  client.GetModelName());
         client.romId    = { 0x06, 0x00, 0x05, 0x00, 0 };
         Assert::AreEqual (std::wstring (L"Apple //c Plus"),     client.GetModelName());
+
+        //  The SOS program sends zeros for the bytes.
+        client.isSos    = true;
+        client.romId    = { 0, 0, 0, 0, 0 };
+        Assert::AreEqual (std::wstring (L"Apple ///"),          client.GetModelName());
+        Assert::IsTrue (client.HasLowercase(), L"the Apple ///'s console has small letters");
     }
 
 

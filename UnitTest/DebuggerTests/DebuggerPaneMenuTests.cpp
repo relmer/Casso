@@ -393,8 +393,9 @@ namespace DebuggerPaneMenuTests
             window.TakeSnapshot (MakeSnapshot (false));
 
             items = GetMenu (window, GetInstructionPoint (window, theme, 0));
-            Assert::AreEqual ((size_t) 2, items.size());
+            Assert::AreEqual ((size_t) 3, items.size());
             Assert::AreEqual (std::wstring (L"Go to definition"), items[0].first, L"first on the menu over DRAW");
+            Assert::AreEqual (std::wstring (L"Go to definition in disassembly"), items[1].first);
 
             items = GetMenu (window, GetInstructionPoint (window, theme, 1));
             Assert::AreEqual ((size_t) 1, items.size(), L"BAR is a constant, which has no definition to go to");

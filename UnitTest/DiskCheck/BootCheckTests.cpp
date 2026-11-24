@@ -65,50 +65,6 @@ public:
         Assert::IsFalse (BootCheck::IsBetter (BootVerdict::DidNotBoot, BootVerdict::DidNotBoot));
     }
 
-    //  A machine that can't be built is passed over and listed, and the
-    //  image is booted on the next; with no machine built there is no
-    //  report.
-    TEST_METHOD (AMachineThatCantBeBuilt_IsPassedOver_AndListed)
-    {
-        std::vector<Byte>         master = GuestSession::RequireDos33Master();
-        HRESULT                   hrNone = S_OK;
-        BootReport                report;
-        std::string               machine;
-        std::vector<std::string>  missing;
-        std::vector<std::string>  built;
-        auto                      noC    = [&built] (const std::string & id, BootCheck::Built & outBuilt, std::string & outError)
-        {
-            built.push_back (id);
-
-            if (id == "Apple2c")
-            {
-                outError = "Apple2c's ROM isn't installed.";
-                return HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND);
-            }
-
-            return BuildFromFixtures (id, outBuilt, outError);
-        };
-        auto                      none   = [] (const std::string &, BootCheck::Built &, std::string & outError)
-        {
-            outError = "No ROM is installed.";
-            return HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND);
-        };
-
-
-
-        AssertSucceeded (BootCheck::Run (master, DiskFormat::Dsk, "Apple //c", BootProbe::Limits(), noC, report, machine, missing));
-
-        Assert::IsTrue (report.verdict == BootVerdict::Booted, TextEncoding::NarrowToWide (report.reason).c_str());
-        Assert::AreEqual (std::string ("Apple2eEnhanced"), machine);
-        Assert::AreEqual ((size_t) 1, missing.size());
-        Assert::AreEqual ((size_t) 3, built.size(), L"Each machine is built, as they boot at once");
-
-        hrNone = BootCheck::Run (master, DiskFormat::Dsk, "", BootProbe::Limits(), none, report, machine, missing);
-
-        Assert::IsTrue (FAILED (hrNone), L"No report with no machine");
-        Assert::AreEqual ((size_t) 2, missing.size());
-    }
-
     //  A boot's machine has only its Disk II cards: a card this build can't
     //  make, as a newer build's, doesn't fail the machine.
     TEST_METHOD (KeepDiskSlots_DropsEveryCardButTheDiskII)

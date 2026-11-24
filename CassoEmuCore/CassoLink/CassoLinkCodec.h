@@ -295,7 +295,7 @@ public:
     static HRESULT   Encode            (Byte command, std::span<const Byte> payload, std::vector<Byte> & out);
     static HRESULT   EncodeImageData   (Word startBlock, std::span<const Byte> data, std::vector<Byte> & out);
     static HRESULT   EncodeSectorData  (Byte track, Byte sector, std::span<const Byte> data, std::vector<Byte> & out);
-    static HRESULT   EncodeSectorBlank (Byte track, Byte sector, std::vector<Byte> & out);
+    static HRESULT   EncodeSectorBlank (Byte track, Byte sector, Byte value, std::vector<Byte> & out);
     static HRESULT   EncodeAcknowledge (Byte kind, Word block, std::vector<Byte> & out);
 
     // One packet from the front of `in`: with outComplete set, the packet and

@@ -25,6 +25,10 @@ static constexpr int  s_kSides = 2;
 
 HRESULT Sony35BlockDisk::Attach (IDiskFileIo & fileIo, const std::string & path, const WriteProtectInfo & hostProtect, std::wstring & outError)
 {
+    constexpr uint32_t  kBlocks525 = 280;      // a 140K 5.25-inch disk
+
+
+
     HRESULT   hr     = S_OK;
     uint32_t  blocks = 0;
     bool      isFit  = false;
@@ -42,7 +46,8 @@ HRESULT Sony35BlockDisk::Attach (IDiskFileIo & fileIo, const std::string & path,
         hr = m_media.Detach();
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        outError = std::format (L"A 3.5-inch disk is 800 or 1,600 blocks, and the image has {}.", blocks);
+        outError = (blocks == kBlocks525) ? std::wstring (L"Cannot mount a 5.25-inch image in a 3.5-inch drive.")
+                                          : std::format (L"A 3.5-inch disk is 800 or 1,600 blocks, and the image has {}.", blocks);
         CBREx (false, HRESULT_FROM_WIN32 (ERROR_BAD_FORMAT));
     }
 

@@ -30,7 +30,18 @@ class ActionsTape
 public:
     explicit ActionsTape (CassoExplorerActions & actions) : m_actions (actions) {}
 
-    ActionsTypes::Outcome  MakeRecording (const std::wstring & target);
+    ActionsTypes::Outcome  MakeRecording     (const std::wstring & target);
+
+    //  The leader and gap lengths MakeRecording renders with.
+    void  SetTiming (const TapeRecordingTiming & timing) { m_timing = timing; }
+
+    //  Convert to disk audio: the image's disk as a DiskAudioRecording in
+    //  target's format, the monitor command that starts it, and its length.
+    ActionsTypes::Outcome  MakeDiskRecording (const std::wstring & imagePath, const std::wstring & target, std::string & outCommand, double & outSeconds);
+
+    //  Whether the image is one Convert to disk audio takes: a 5.25-inch
+    //  image, by its extension.
+    static bool  CanMakeDiskRecording (const std::wstring & imagePath);
 
     //  How a file of this type on this volume is saved to tape, or false
     //  for a type a tape doesn't save.
@@ -48,4 +59,5 @@ public:
 
 private:
     CassoExplorerActions & m_actions;
+    TapeRecordingTiming    m_timing;
 };

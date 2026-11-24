@@ -40,11 +40,12 @@ public:
 
     //  The file a tape recording of the selected files is written to, beside
     //  the image by default. False when canceled.
-    bool  PickTapeRecording   (std::wstring & outTarget);
+    bool  PickTapeRecording   (std::wstring & outTarget, bool disk = false);
 
     //  Convert to tape audio, a tape recording of the selected files to the
     //  file picked, or Add to A2retroNET drives for the selected image.
     void  RunFileVerb         (ActionsTypes::Verb verb);
+    void  MakeDiskRecording   ();
 
     void  SetCardWriteConfirmed (bool confirmed);
 

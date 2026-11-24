@@ -53,6 +53,7 @@ HeatMapPane::HeatMapPane (const DebuggerPaneParts & parts, Ranges ranges) :
     m_paneFocus     (parts.focus),
     m_paneNavigator (parts.navigator),
     m_look          (parts.look),
+    m_latest        (parts.latest),
     m_ranges        (std::move (ranges)),
     m_bar           (parts, DebuggerLayout::kHeatMap, L"Heat map commands")
 {
@@ -173,7 +174,19 @@ void HeatMapPane::Configure()
 
     SetBarMenus();
 
-    m_view->SetOnPickAddress ([this] (Word address) { m_paneNavigator.ShowMemoryAddress (address); });
+    //  A byte the CPU fetched an opcode from goes to the disassembly; any
+    //  other byte, to memory.
+    m_view->SetOnPickAddress ([this] (Word address)
+    {
+        if (IsFetched (address))
+        {
+            m_paneNavigator.GoToCode (address);
+        }
+        else
+        {
+            m_paneNavigator.ShowMemoryAddress (address);
+        }
+    });
 
     m_view->SetOnPickAccess ([this] (Word address, HeatMapView::PickAction action)
     {
@@ -1027,7 +1040,7 @@ bool HeatMapPane::TryGetTipAt (POINT clientPx, DxuiTip & tip)
         return false;
     }
 
-    if (!isShown || !DxuiDockSite::Contains (m_view->GetBounds(), clientPx) || !m_view->TryGetTipAt (clientPx, tip.anchor, tip.text, tip.lineSwatches, tip.gradient, tip.gradientMark))
+    if (!isShown || !DxuiDockSite::Contains (m_view->GetBounds(), clientPx) || !m_view->TryGetTipAt (clientPx, tip.anchor, tip.text, tip.lineSwatches, tip.bars))
     {
         return false;
     }
@@ -1069,8 +1082,31 @@ void HeatMapPane::AddContentMenuItems (POINT clientPx, PaneMenuItems & items)
 
     if (byte.has_value())
     {
+        items.push_back ({ L"Show in disassembly", [this, address = *byte] { m_paneNavigator.GoToCode (address); } });
         AddAccessItems (*byte, m_view->GetShownBank(), items);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapPane::IsFetched
+//
+//  Whether the CPU fetched an opcode from an address, by the latest
+//  snapshot's memory image.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HeatMapPane::IsFetched (Word address) const
+{
+    const DebuggerViewSnapshot  * snapshot = m_latest.Get();
+
+
+
+    return snapshot != nullptr && snapshot->memoryImage != nullptr && snapshot->memoryImage->fetched[address];
 }
 
 

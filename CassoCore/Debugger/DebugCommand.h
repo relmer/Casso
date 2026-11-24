@@ -306,6 +306,7 @@ struct DebugCommand
     std::string              text;
     std::string              symbolTable;
     std::string              symbol;   // BP: the symbol its address was given as
+    std::string              space;    // the memory space a bank prefix selected ("AUX"), or empty for the current view
     bool                     isTypedWatch       = false;   // W: text is the watch as typed, resolved once to its kind
     bool                     isDuplicateAllowed = false;   // BP: set even over the same breakpoint, for an undo's rebuild
     uint32_t                 count              = 0;

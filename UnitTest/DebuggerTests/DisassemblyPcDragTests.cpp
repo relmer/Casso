@@ -202,6 +202,68 @@ namespace DisassemblyPcDragTests
 
 
 
+        //  NOPs from irst, count of them, with the PC on the one at pc.
+        static std::shared_ptr<const DebuggerViewSnapshot> MakeNops (Word first, int count, Word pc)
+        {
+            auto  snapshot = std::make_shared<DebuggerViewSnapshot>();
+
+
+
+            for (int i = 0; i < count; i++)
+            {
+                DebuggerViewSnapshot::CodeLine  nop;
+
+                nop.address     = (Word) (first + i);
+                nop.bytes       = "EA";
+                nop.instruction = "NOP";
+                nop.isCurrent   = nop.address == pc;
+
+                snapshot->codeViews[0].push_back (nop);
+            }
+
+            snapshot->pc           = pc;
+            snapshot->isPaused     = true;
+            snapshot->code         = snapshot->codeViews[0];
+            snapshot->codeOpen[0]  = true;
+
+            return snapshot;
+        }
+
+
+
+        //  A list taller than its pane scrolls the PC's row into view when
+        //  the PC moves, not on every build: a scroll up goes on after the
+        //  PC's row is at the bottom.
+        TEST_METHOD (AScrollUpGoesOnPastThePcAtTheBottom)
+        {
+            CassoTheme      theme = CassoTheme::MakeSkeuomorphic();
+            ViewingHost     host;
+            DxuiDpiScaler   scaler;
+            ViewingWindow   window (theme, host);
+            DxuiListView  * list  = nullptr;
+            int             top   = 0;
+
+
+
+            scaler.SetDpi (96);
+
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            list = window.GetCodeList (0);
+
+            window.ApplyCodeSnapshot (MakeNops (0x0300, 200, 0x0300 + 190), 0);
+            top = list->GetTopRow();
+
+            Assert::IsTrue (top > 0, L"the PC's row was scrolled into view");
+
+            //  Three lines further up, the PC unmoved.
+            window.ApplyCodeSnapshot (MakeNops (0x0300 - 3, 203, 0x0300 + 190), 0);
+
+            Assert::AreEqual (top, list->GetTopRow(), L"the list doesn't scroll back to the PC");
+        }
+
+
+
         TEST_METHOD (TheLineNumbersTipSaysHowToGetThem)
         {
             std::wstring  noFile   = DisassemblyOptions::GetLineNumbersTip (false, false);

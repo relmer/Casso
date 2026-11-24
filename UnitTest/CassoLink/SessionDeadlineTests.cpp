@@ -131,7 +131,7 @@ public:
 
         AssertSucceeded (LinkProgram::BuildBootDisk (CassoLinkSettings::kDefaultBaud, boot));
 
-        InProcessByteStream::CreatePair (machineEnd, pcEnd);
+        InProcessByteStream::CreateVirtualPair (machineEnd, pcEnd);
         AssertSucceeded (machine.GetConnectors().AttachSerialStream (2, machineEnd));
         GuestSession::Mount (machine, boot);
 

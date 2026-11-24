@@ -22,6 +22,7 @@ CallRecordKeeper::CallRecordKeeper (IDebugTarget & target, WatchpointTable & wat
 {
     m_recorder.SetPeek             ([this] (Word address) { return PeekByte (address); });
     m_recorder.SetWriterLocator    ([this] { return FindStoreInProgress(); });
+    m_recorder.SetSourceLocator    ([this] (Word address) { return GetSourceKey (m_target, address); });
     m_recorder.SetClock            ([this] { return m_target.GetHistoryCycleCount(); });
     CallStackRecorder::MarkOpcodes (m_opcodes.data());
 }
@@ -213,7 +214,9 @@ CallStackData CallRecordKeeper::GetCallStack (const SymbolTable & symbols, const
     {
         if (row.frame.has_value())
         {
-            symbols.TryFindName (row.frame->target, row.frame->symbol, table);
+            symbols.TryFindName        (row.frame->target, row.frame->symbol, table);
+            symbols.TryFindNearestName (row.frame->callSite, kSiteSymbolReach, row.frame->siteSymbol);
+            row.frame->site = GetSiteState (m_target, *row.frame);
         }
     }
 
@@ -510,4 +513,79 @@ Word CallRecordKeeper::FindStoreInProgress() const
 {
     return CallStackRecorder::FindStoreInProgress (m_target.GetInstructionSet(), m_target.GetRegisters().pc,
                                                    [this] (Word address) { return PeekByte (address); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CallRecordKeeper::GetSourceKey
+//
+//  The region mapped at the address, and for slot ROM in $C800-$CFFF the
+//  slot whose expansion ROM is selected, so the internal firmware, each
+//  card's ROM and none have different keys. Never 0, which is unknown.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint16_t CallRecordKeeper::GetSourceKey (const IDebugTarget & target, Word address)
+{
+    MemoryRegion  region = target.GetRegion (address);
+    int           slot   = 0;
+
+
+
+    if (region == MemoryRegion::SlotRom && address >= kExpansionRomFirst && !target.TryGetExpansionRomSlot (slot))
+    {
+        slot = 0;
+    }
+
+    return (uint16_t) (((int) region + 1) | ((region == MemoryRegion::SlotRom && address >= kExpansionRomFirst) ? (slot + 1) << 8 : 0));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CallRecordKeeper::GetSiteState
+//
+//  A recorded frame has the key for what was mapped at its call site; where
+//  that differs now, the call was switched out. Otherwise a JSR's frame is in
+//  memory only with the JSR to its target at the call site, and anything else
+//  there was written over. An interrupt's frame has no instruction to check.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CallSiteState CallRecordKeeper::GetSiteState (const IDebugTarget & target, const CallStackFrame & frame)
+{
+    static constexpr Byte  kJsr     = 0x20;
+    Byte                   bytes[3] = {};
+    bool                   isRead   = true;
+
+
+
+    if (frame.source != 0 && GetSourceKey (target, frame.callSite) != frame.source)
+    {
+        return CallSiteState::SwitchedOut;
+    }
+
+    if (frame.kind != CallFrameKind::Call)
+    {
+        return CallSiteState::Present;
+    }
+
+    for (Word i = 0; i < 3; i++)
+    {
+        isRead = target.TryPeek ((Word) (frame.callSite + i), bytes[i]) && isRead;
+    }
+
+    if (isRead && (bytes[0] != kJsr || bytes[1] != (Byte) frame.target || bytes[2] != (Byte) (frame.target >> 8)))
+    {
+        return CallSiteState::Overwritten;
+    }
+
+    return CallSiteState::Present;
 }

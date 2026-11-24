@@ -295,7 +295,7 @@ void DebuggerWindow::SetWindowMenus()
     row            = MakeKeyedMenuCommand (DebuggerCommands::kTrace, L"Trace");
     row->isChecked = [this] { return m_latest.Get() != nullptr && m_latest.Get()->trace.isOn; };
     add (debug, row);
-    add (debug, DebuggerMenuCommand::Make (L"Step filters...", [this] { EditStepFilters(); }));
+    add (debug, DebuggerMenuCommand::Make (L"Step filters", [this] { ShowPane (DebuggerLayout::kStepFilters); }));
 
     //  Machine: the machine's own restarts. The main window's Restart under
     //  debugger is not here: with the debugger open, it is Power cycle.

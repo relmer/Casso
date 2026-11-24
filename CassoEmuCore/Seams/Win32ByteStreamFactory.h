@@ -14,7 +14,8 @@
 //
 //  COM ports are listed from the system's serial device map, the list
 //  Device Manager's Ports section is drawn from; TCP streams are
-//  Win32TcpStream, bound for the transport by ByteStreamSettings.
+//  Win32TcpStream, bound for the transport by ByteStreamSettings, and UDP
+//  streams Win32UdpStream.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,6 +27,7 @@ public:
     HRESULT  ListenTcp    (uint16_t port, LinkTransport transport, std::unique_ptr<IByteStream> & outStream) override;
     HRESULT  ConnectTcp   (const std::string & host, uint16_t port, std::unique_ptr<IByteStream> & outStream) override;
     HRESULT  ConnectTcp   (const std::string & host, uint16_t port, std::stop_token stop, std::unique_ptr<IByteStream> & outStream) override;
+    HRESULT  OpenUdp      (const std::string & host, uint16_t port, std::unique_ptr<IByteStream> & outStream) override;
     HRESULT  OpenCassette (const std::wstring & outputId, const std::wstring & inputId, std::unique_ptr<IByteStream> & outStream) override;
 
 private:

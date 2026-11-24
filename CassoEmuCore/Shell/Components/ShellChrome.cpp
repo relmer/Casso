@@ -908,6 +908,7 @@ void ShellChrome::SyncChromeBands()
     inputs.hasCaseSwitches     = m_shell.MachineHasCaseSwitches();
     inputs.driveBarThicknessDp = m_driveBarThicknessDp;
     inputs.chromeSceneScale    = m_chromeSceneScale;
+    inputs.driveBarZoom        = GetDriveBarZoom();
     inputs.toolbarBandDp       = m_toolbar.GetBandDp();
 
     // Measured against the CLIENT width, which is what the band will be given.
@@ -1663,6 +1664,24 @@ void ShellChrome::AdoptDriveBar (DxuiPanel & root)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShellChrome::AdoptDriveBarZoomReadout
+//
+//  After the drive bar and its Disk II widgets, so the readout is drawn over
+//  them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellChrome::AdoptDriveBarZoomReadout (DxuiPanel & root)
+{
+    root.Adopt (m_driveBarZoomReadout);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TickDriveBar
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2243,6 +2262,7 @@ void ShellChrome::TickTooltips (int64_t nowMs)
 bool ShellChrome::WantsAnimationTick() const
 {
     return m_tooltip.WantsTick()          ||
+           IsDriveBarZoomReadoutUp()      ||
            m_captionTooltip.WantsTick()   ||
            m_mainMenu.WantsTick()         ||
            m_toolbar.WantsTick();

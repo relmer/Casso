@@ -83,7 +83,7 @@ std::vector<DebuggerViewSnapshot::CodeLine> CodeViews::BuildCode (DebugSession &
     //  As many lines as the pane has room for, stopping at $FFFF rather than
     //  wrapping below the start.
     (void) DataDirectiveHandlers::Disassemble (session, ChooseCodeStart (session, snapshot.pc, view, !snapshot.isPaused), std::nullopt, v.lines, code,
-                                               snapshot.isPaused ? std::optional<Word> (snapshot.pc) : std::nullopt);
+                                               snapshot.isPaused ? std::optional<Word> (snapshot.pc) : std::nullopt, v.navigatedTo);
 
     v.shown.clear();
 
@@ -666,6 +666,18 @@ void CodeViews::RefreshLineList (DebugSession & session, bool isPaused, const Ca
     inputs.labels = GetCodeLabels (session);
     inputs.pc     = pc;
 
+    //  An address a view was sent to starts a line, so it has its row even
+    //  inside an instruction decoded from the bytes before it.
+    for (int view = 0; view < kMaxCodeViews; view++)
+    {
+        const std::optional<Word> & navigatedTo = m_code[(size_t) view].navigatedTo;
+
+        if (IsCodeViewOpen (view) && navigatedTo.has_value() && !std::ranges::contains (inputs.starts, *navigatedTo))
+        {
+            inputs.starts.push_back (*navigatedTo);
+        }
+    }
+
     for (Word start : inputs.starts)
     {
         mix (start);
@@ -855,8 +867,9 @@ std::shared_ptr<const std::vector<DebuggerViewSnapshot::CodeLine>> CodeViews::Ma
 //
 //  CodeViews::GetKnownStarts
 //
-//  A call frame's call site is a start only where memory has a JSR there,
-//  so an interrupt's frame or a JSR overwritten since isn't one.
+//  A call frame's call site is a start only where its call is in memory and
+//  memory has a JSR there, so an interrupt's frame, a JSR overwritten since
+//  or one switched out isn't one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -869,7 +882,7 @@ std::vector<Word> CodeViews::GetKnownStarts (const CallStackData & calls, Word p
 
     for (const CallStackRow & row : calls.rows)
     {
-        bool  isJsr = row.frame.has_value() && row.frame->kind == CallFrameKind::Call && image.bytes[row.frame->callSite] == kJsr;
+        bool  isJsr = row.frame.has_value() && row.frame->kind == CallFrameKind::Call && row.frame->site == CallSiteState::Present && image.bytes[row.frame->callSite] == kJsr;
 
         if (isJsr && !std::ranges::contains (starts, row.frame->callSite))
         {

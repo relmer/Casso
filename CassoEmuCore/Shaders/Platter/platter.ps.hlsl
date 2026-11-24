@@ -212,33 +212,39 @@ float4 SampleField (uint ring, float at, float turn, float radiusPx, float2 posi
     uint    d      = 0;
     bool    isOut  = false;
     bool    isIn   = false;
+    float4  result = nothingColor;
+    bool    isDirect = IsCenterRing (ring) || (flags != kStateData && flags != kStateNothing);
 
 
-    if (IsCenterRing (ring) || (flags != kStateData && flags != kStateNothing))
+    if (isDirect)
     {
-        return SampleRing (ring, turn, radiusPx, position, scale);
+        result = SampleRing (ring, turn, radiusPx, position, scale);
     }
-
-    for (d = 1; d <= kFieldReach; d++)
+    else
     {
-        if (!isOut && ring >= d && IsCenterRing (ring - d))
+        for (d = 1; d <= kFieldReach; d++)
         {
-            isOut   = true;
-            share   = GetFieldShare (max (at - (float) (ring - d + 1), 0.0));
-            sum    += share * SampleRing (ring - d, turn, radiusPx, position, scale);
-            weight += share;
+            if (!isOut && ring >= d && IsCenterRing (ring - d))
+            {
+                isOut   = true;
+                share   = GetFieldShare (max (at - (float) (ring - d + 1), 0.0));
+                sum    += share * SampleRing (ring - d, turn, radiusPx, position, scale);
+                weight += share;
+            }
+
+            if (!isIn && ring + d < (uint) ringCount && IsCenterRing (ring + d))
+            {
+                isIn    = true;
+                share   = GetFieldShare (max ((float) (ring + d) - at, 0.0));
+                sum    += share * SampleRing (ring + d, turn, radiusPx, position, scale);
+                weight += share;
+            }
         }
 
-        if (!isIn && ring + d < (uint) ringCount && IsCenterRing (ring + d))
-        {
-            isIn    = true;
-            share   = GetFieldShare (max ((float) (ring + d) - at, 0.0));
-            sum    += share * SampleRing (ring + d, turn, radiusPx, position, scale);
-            weight += share;
-        }
+        result = (weight > 0.0) ? lerp (nothingColor, sum / weight, saturate (weight)) : nothingColor;
     }
 
-    return (weight > 0.0) ? lerp (nothingColor, sum / weight, saturate (weight)) : nothingColor;
+    return result;
 }
 
 

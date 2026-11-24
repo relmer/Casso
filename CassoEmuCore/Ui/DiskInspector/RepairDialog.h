@@ -69,10 +69,20 @@ public:
     static constexpr int  kWidthDip  = 600;
     static constexpr int  kChromeDip = 108;
 
+    using PlanFn = std::function<RepairPlan (const std::set<std::wstring> & chosen)>;
+
     //  The analysis is the caller's and outlives the dialog. The changes
     //  whose keys are in `chosen` start checked, or every change when it's
     //  empty.
     void  Configure (const IDxuiTheme * theme, const std::wstring & fileName, const DiskAnalysis & analysis, const std::set<std::wstring> & chosen);
+
+    //  The same for any volume: the intro and its lines, the plan with every
+    //  change, the plan of the checked changes, and the changes that start
+    //  checked, which can be none.
+    void  Configure (const IDxuiTheme * theme, const std::wstring & intro, int introLines, const RepairPlan & fullPlan, PlanFn planChosen, const std::set<std::wstring> & chosen);
+
+    //  The dialog created over `owner` and run until it closes.
+    HRESULT  ShowModal (HWND owner, const IDxuiTheme * theme);
 
     bool                            IsConfirmed () const { return m_isConfirmed; }
     const RepairPlan              & GetPlan     () const { return m_plan; }
@@ -118,8 +128,9 @@ private:
     void  Replan ();
 
     const IDxuiTheme                       * m_theme       = nullptr;   // non-owning
-    const DiskAnalysis                     * m_analysis    = nullptr;   // non-owning
-    std::wstring                             m_fileName;
+    PlanFn                                   m_planChosen;
+    std::wstring                             m_introText;
+    int                                      m_introLines  = 3;
     RepairPlan                               m_fullPlan;
     RepairPlan                               m_plan;
     std::set<std::wstring>                   m_chosen;

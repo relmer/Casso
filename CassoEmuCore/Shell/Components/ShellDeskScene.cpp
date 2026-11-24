@@ -8,6 +8,7 @@
 #include "Devices/Floppy35/Apple35ControllerCard.h"
 #include "Devices/Floppy35/LironCard.h"
 #include "Shell/Components/ShellDeskScene.h"
+#include "Shell/Layout/DriveLabel.h"
 #include "Shell/Components/ShellDrivePickers.h"
 #include "Shell/EmulatorShell.h"
 #include "Shell/Components/ShellRenderer.h"
@@ -4328,6 +4329,7 @@ bool ShellDeskScene::OnRButtonUp (int x, int y)
     // drag that began there turns the scene instead.
     if (device >= 0)
     {
+        m_shell.m_chrome->MarkDriveBarRecent (POINT { x, y });
         m_shell.ShowStorageContextMenu (device, x, y);
         m_sceneOrbitTapMs = 0;
     }
@@ -4594,6 +4596,21 @@ void ShellDeskScene::GetDriveTooltip (int x, int y, std::wstring & outTip, RECT 
                             std::filesystem::path (m_shell.m_machine.GetDiskStore().GetSourcePath (6, i)).filename().wstring(),
                             states[i].writeProtect);
         }
+    }
+
+    //  A 3.5-inch drive or hard disk on the desk has a tip with the drive's
+    //  name and size above its image's name.
+    if (outTip.empty() && m_hoverExtra >= 0 && m_hoverExtra < m_deskScene.Composition().extraCount && m_hoverExtra < m_deskScene.GetExtraCount())
+    {
+        const DeskDrive  & drive = m_deskScene.GetExtraDrive (m_hoverExtra);
+        std::string        path  = GetDriveImagePath (drive);
+
+        outAnchor = m_deskScene.Composition().extraRectPx[m_hoverExtra];
+        outTip    = DriveLabel::GetTip (GetDriveTitle (drive),
+                                        DriveLabel::GetDetail (drive.model, GetDriveDiskBlocks (drive), GetDriveCapacityBlocks (drive)),
+                                        path.empty() ? std::wstring() : std::filesystem::path (path).filename().wstring(),
+                                        IsHardDisk (drive),
+                                        !path.empty() && IsDriveWriteProtected (drive));
     }
 }
 
@@ -5489,8 +5506,8 @@ void ShellDeskScene::PlanDrives()
             case DeskDriveModel::HardDisk20SC: meshId = IDR_MODEL_HARDDISK20SC_MESH; break;
             case DeskDriveModel::ProFile:      meshId = IDR_MODEL_PROFILE_MESH;      break;
             case DeskDriveModel::UniDisk35:    meshId = IDR_MODEL_UNIDISK35_MESH;    break;
-            case DeskDriveModel::Apple35Drive: meshId = IDR_MODEL_APPLE35_MESH;      break;
-            case DeskDriveModel::Apple35Plus:  meshId = IDR_MODEL_APPLE35PLUS_MESH;  break;
+            case DeskDriveModel::Apple35Drive:
+            case DeskDriveModel::Apple35Plus:  meshId = IDR_MODEL_APPLE35_MESH;      break;
             case DeskDriveModel::Apple3Body:   meshId = IDR_MODEL_APPLE3_MESH;       break;
             default:                           break;
         }
@@ -5536,6 +5553,33 @@ void ShellDeskScene::ReplanIfDrivesChanged()
     {
         PlanDrives();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::HasDriveClass
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::HasDriveClass (DeskDriveClass driveClass) const
+{
+    bool  has = false;
+
+
+
+    for (const DeskDrivePlacement & placed : m_drivePlan)
+    {
+        if (DeskDrivePlan::GetClass (placed.drive.model) == driveClass)
+        {
+            has = true;
+        }
+    }
+
+    return has;
 }
 
 

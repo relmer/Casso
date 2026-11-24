@@ -93,6 +93,7 @@ const wchar_t * ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb verb)
     {
         case CassoExplorerActions::Verb::Open:           return L"&Open";
         case CassoExplorerActions::Verb::Get:            return L"&Copy to folder...";
+        case CassoExplorerActions::Verb::GetWithOptions: return L"Copy to folder with opt&ions...";
         case CassoExplorerActions::Verb::Put:            return L"&Put file...";
         case CassoExplorerActions::Verb::Delete:         return L"&Delete";
         case CassoExplorerActions::Verb::Rename:         return L"Re&name...";
@@ -125,6 +126,7 @@ const wchar_t * ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb verb)
         case CassoExplorerActions::Verb::Unlock:         return L"&Unlock";
         case CassoExplorerActions::Verb::ConvertTo:      return L"Con&vert to";
         case CassoExplorerActions::Verb::ConvertToTapeAudio: return L"Convert to tap&e audio...";
+        case CassoExplorerActions::Verb::ConvertToDiskAudio: return L"Convert to dis&k audio...";
         case CassoExplorerActions::Verb::AddToA2retroNet: return L"Add to A2&retroNET drives";
         case CassoExplorerActions::Verb::MakeArchive:    return L"Add to &ShrinkIt archive";
         case CassoExplorerActions::Verb::MakeShrinkItDisk: return L"Make a ShrinkIt &disk";

@@ -305,11 +305,11 @@ public:
     //  address and what touched it, "$C65E  executed 120/s, read 3/s"; false
     //  off the map and while a button is down. The tip's first line is the
     //  meaning of the cell's color (GetTipLead) and `swatches` has the cell's
-    //  color for that line, zero for the rest. `gradient` and `mark` are the
-    //  cell's scale and its level on it (TryGetCellScale), or empty and -1.
+    //  color for that line, zero for the rest. `bars` are the cell's scales
+    //  with its levels on them (HeatMapCells::GetCellBars), or none.
     bool                 TryGetTipAt  (POINT point, RECT & anchor, std::wstring & text, std::vector<uint32_t> & swatches) const;
     bool                 TryGetTipAt  (POINT point, RECT & anchor, std::wstring & text, std::vector<uint32_t> & swatches,
-                                       std::vector<uint32_t> & gradient, float & mark) const;
+                                       std::vector<DxuiTipBar> & bars) const;
 
     CellKind         GetCellKind (Word address) const { return m_cells.GetCellKind (address); }
 

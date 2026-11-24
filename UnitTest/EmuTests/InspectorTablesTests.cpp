@@ -33,8 +33,9 @@ TEST_CLASS (InspectorTablesTests)
 public:
 
     //  A DSK with track 5 replaced: volume 17 instead of 254, and sector 3's
-    //  data checksum broken.
-    static void AnalyzePlanted (DiskAnalysis & out, const DecodeSettings & settings = DecodeSettings::MakeStandard())
+    //  data checksum broken. Without the whole disk, track 5 is the only
+    //  track with data.
+    static void AnalyzePlanted (DiskAnalysis & out, const DecodeSettings & settings = DecodeSettings::MakeStandard(), bool isWholeDisk = true)
     {
         vector<Byte>           sectors (NibblizationLayer::kImageByteSize, 0);
         DiskImage                                        image;
@@ -44,7 +45,10 @@ public:
 
 
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, image));
+        if (isWholeDisk)
+        {
+            AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, image));
+        }
 
         odd.AppendSync (48);
 
@@ -66,6 +70,32 @@ public:
 
 
 
+    //  The analysis is built once for the class. Each test copies it.
+    static const DiskAnalysis & GetPlanted()
+    {
+        static DiskAnalysis  s_analysis;
+        static bool          s_isBuilt  = false;
+
+
+
+        if (!s_isBuilt)
+        {
+            AnalyzePlanted (s_analysis);
+            s_isBuilt = true;
+        }
+
+        return s_analysis;
+    }
+
+
+
+    TEST_CLASS_INITIALIZE (BuildSharedInput)
+    {
+        (void) GetPlanted();
+    }
+
+
+
     TEST_METHOD (FindingsComeInDiskOrderWithCounts)
     {
         DiskAnalysis      analysis;
@@ -73,7 +103,7 @@ public:
 
 
 
-        AnalyzePlanted (analysis);
+        analysis = GetPlanted();
         rows = InspectorTables::BuildFindings (analysis, InspectorTables::GetAllCategories(), -1, false);
 
         Assert::AreEqual (analysis.findings.size(), rows.size());
@@ -100,7 +130,7 @@ public:
 
 
 
-        AnalyzePlanted (analysis);
+        analysis = GetPlanted();
 
         rows = InspectorTables::BuildFindings (analysis, 1u << static_cast<int> (FindingCategory::Track), -1, false);
         Assert::AreEqual (static_cast<size_t> (0), rows.size(), L"no track findings on this disk");
@@ -150,7 +180,7 @@ public:
 
 
 
-        AnalyzePlanted (analysis);
+        analysis = GetPlanted();
         rows = InspectorTables::BuildTracks (analysis);
 
         Assert::AreEqual (static_cast<size_t> (DiskImage::kQuarterTrackCount), rows.size());
@@ -176,7 +206,7 @@ public:
 
 
 
-        AnalyzePlanted (analysis);
+        analysis = GetPlanted();
         drive.recordWriteCounts.assign (analysis.tracks.size(), 0);
         drive.recordWriteCounts[analysis.entries[68].slot] = 3;
         drive.nibblesTaken[0]  = 1;
@@ -205,7 +235,7 @@ public:
 
 
 
-        AnalyzePlanted (analysis);
+        analysis = GetPlanted();
         rows = InspectorTables::BuildFields (analysis, 20);
 
         Assert::AreEqual (static_cast<size_t> (16), rows.size());
@@ -232,7 +262,7 @@ public:
 
 
 
-        AnalyzePlanted (analysis);
+        analysis = GetPlanted();
         sections = NibbleSections::Build (analysis, 20);
 
         Assert::IsFalse  (sections.empty());
@@ -274,7 +304,7 @@ public:
 
         range.checks.isDataChecksumOn = false;
         settings.AddRange (range);
-        AnalyzePlanted (analysis, settings);
+        AnalyzePlanted (analysis, settings, false);
         rows = InspectorTables::BuildFields (analysis, 20);
 
         Assert::IsTrue   (rows[3].cells[9].starts_with (L"Not checked ($") && rows[3].cells[9].find (L", computed $") != std::wstring::npos, L"both values still show");
@@ -292,7 +322,7 @@ public:
 
 
 
-        AnalyzePlanted (analysis);
+        analysis = GetPlanted();
 
         query.text = L"D5 AA 96";
         hits       = InspectorSearch::Find (analysis, 20, query);
@@ -322,7 +352,7 @@ public:
 
 
 
-        AnalyzePlanted (analysis);
+        analysis = GetPlanted();
 
         hit.quarterTrack = 20;
         hit.track        = analysis.tracks[analysis.entries[20].slot].get();
@@ -374,7 +404,7 @@ public:
 
 
 
-        AnalyzePlanted (analysis);
+        analysis = GetPlanted();
         track = analysis.tracks[analysis.entries[20].slot].get();
 
         query.text = L"D5 AA 96";
@@ -458,7 +488,7 @@ public:
 
 
 
-        AnalyzePlanted (analysis);
+        analysis = GetPlanted();
         query.text = L"D5 AA 96";
 
         Assert::IsTrue   (find.Run (analysis, 20, query, false));
@@ -492,7 +522,7 @@ public:
 
 
 
-        AnalyzePlanted (analysis);
+        analysis = GetPlanted();
         query.text = L"D5 AA 96";
 
         Assert::IsTrue  (find.Run (analysis, 20, query, true));

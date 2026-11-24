@@ -56,10 +56,10 @@ const McpTools::Tool McpTools::s_kTools[] =
       R"({"type":"object","properties":{}})", &McpTools::Registers },
 
     { "read_memory", "Read bytes of memory.",
-      R"({"type":"object","properties":{"address":{"type":"string","description":"Hex address or symbol, such as 0300 or $C000"},"length":{"type":"integer","description":"Bytes; 16 by default, at most 4096"}},"required":["address"]})", &McpTools::ReadMemory },
+      R"({"type":"object","properties":{"address":{"type":"string","description":"Hex address or symbol, such as 0300 or $C000"},"bank":{"type":"string","description":"MAIN or AUX to read that memory; the bank the CPU has switched in by default"},"length":{"type":"integer","description":"Bytes; 16 by default, at most 4096"}},"required":["address"]})", &McpTools::ReadMemory },
 
     { "write_memory", "Write bytes to memory.",
-      R"({"type":"object","properties":{"address":{"type":"string"},"bytes":{"type":"array","items":{"type":"integer","minimum":0,"maximum":255}}},"required":["address","bytes"]})", &McpTools::WriteMemory },
+      R"({"type":"object","properties":{"address":{"type":"string"},"bank":{"type":"string","description":"MAIN or AUX to write that memory; the bank the CPU has switched in by default"},"bytes":{"type":"array","items":{"type":"integer","minimum":0,"maximum":255}}},"required":["address","bytes"]})", &McpTools::WriteMemory },
 
     { "disassemble", "Disassemble memory, at the PC by default.",
       R"({"type":"object","properties":{"address":{"type":"string"},"length":{"type":"integer","description":"Bytes to disassemble"}}})", &McpTools::Disassemble },
@@ -841,6 +841,28 @@ void McpTools::BreakpointMessages (const JsonValue & arguments, McpToolResult & 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  McpTools::GetBankPrefix
+//
+//  The bank argument as an address prefix ("AUX:"), or empty when the
+//  argument is absent.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string McpTools::GetBankPrefix (const JsonValue & arguments)
+{
+    std::string  bank = GetString (arguments, "bank");
+
+
+
+    return bank.empty() ? std::string() : bank + ":";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  McpTools::ReadMemory
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -858,7 +880,7 @@ void McpTools::ReadMemory (const JsonValue & arguments, McpToolResult & result)
         return;
     }
 
-    RunLine (std::format ("D {},{:X}", address, length), result);
+    RunLine (std::format ("D {}{},{:X}", GetBankPrefix (arguments), address, length), result);
 }
 
 
@@ -885,7 +907,7 @@ void McpTools::WriteMemory (const JsonValue & arguments, McpToolResult & result)
         return;
     }
 
-    line = "MEB " + address;
+    line = "MEB " + GetBankPrefix (arguments) + address;
 
     for (size_t i = 0; i < bytes->GetArraySize(); i++)
     {

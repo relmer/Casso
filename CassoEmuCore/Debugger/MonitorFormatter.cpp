@@ -193,9 +193,13 @@ void MonitorFormatter::FormatCompare (const CompareData & data, Lines & lines)
 
 void MonitorFormatter::FormatSearchHits (const SearchHitsData & data, Lines & lines)
 {
-    for (Word address : data.addresses)
+    for (size_t i = 0; i < data.addresses.size(); ++i)
     {
-        lines.push_back (std::format ("{:04X}", address));
+        MemoryRegion  region = (i < data.regions.size()) ? data.regions[i] : MemoryRegion::MainRam;
+
+
+
+        lines.push_back (std::format ("{}{:04X}", AppleWinFormatter::GetBankPrefix (region, '/'), data.addresses[i]));
     }
 }
 

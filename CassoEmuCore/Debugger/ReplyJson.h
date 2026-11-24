@@ -57,6 +57,7 @@ private:
     static JsonValue    MakeRegisters       (const Cpu6502Registers & registers);
     static JsonValue    MakeData            (const ReplyData & data);
     static JsonValue    MakeMemory          (const MemoryData & data);
+    static JsonValue    MakeRegionSpans     (const std::vector<RegionSpan> & spans);
     static JsonValue    MakeDisassembly     (const DisassemblyData & data);
     static JsonValue    MakeBreakpoint      (const BreakpointInfo & breakpoint);
     static JsonValue    MakeWatchList       (const WatchListData & data);

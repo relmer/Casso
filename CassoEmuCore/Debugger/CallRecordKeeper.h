@@ -63,10 +63,18 @@ public:
     void                           TakeView           (DebugSessionView & out) const;
     void                           InstallView        (const DebugSessionView & view);
 
+    //  A key for the memory mapped at an address now, and whether a frame's
+    //  call is in memory now (CallSiteState).
+    static uint16_t                GetSourceKey       (const IDebugTarget & target, Word address);
+    static CallSiteState           GetSiteState       (const IDebugTarget & target, const CallStackFrame & frame);
+
     // IOpcodeWatcher: the record's instructions, from the CPU.
     void                           OnWatchedFetch     (Word pc, Byte sp, Byte opcode) override;
 
 private:
+    static constexpr Word  kExpansionRomFirst = 0xC800;
+    static constexpr Word  kSiteSymbolReach   = 0x100;   // how far below a call site its symbol may be
+
     Byte                           PeekByte            (Word address) const;
     Word                           FindStoreInProgress () const;
 

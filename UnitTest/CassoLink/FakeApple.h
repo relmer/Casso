@@ -28,6 +28,8 @@
 //  As a shim, it reports program version 0 and loads the program it is
 //  sent before answering as the program.
 //
+//  As an Apple /// (appleIII), its replies are the SOS program's.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class FakeApple
@@ -42,10 +44,18 @@ public:
     //  until the host sends it something.
     std::atomic<bool>                 readySentEarly { false };
 
+    //  As the SOS program on an Apple ///: Ready with the SOS flag, no
+    //  drives and the SOS build's CRC; the block module reported as loaded,
+    //  and a chunk of one NAKed; the block device listed as SOS device 1,
+    //  unit 0, with its name, .D1; and Set speed NAKed for the external
+    //  clock's rate.
+    std::atomic<bool>                 appleIII       { false };
+    std::atomic<int>                  moduleChunks   { 0 };   // chunks of a module sent to the Apple ///
+
     //  As a boot disk still starting when the host prompts: that many of the
     //  first prompts are lost, and it stays silent through them.
     std::atomic<int>                  promptsMissed  { 0 };
-    std::atomic<int>                  sectorDelayMs  { 0 };
+    std::atomic<int>                  holdAt         { -1 };   // with this many sectors read, reads stop until Release
     std::atomic<int>                  sectorsRead    { 0 };
     std::atomic<int>                  catalogReads   { 0 };   // read requests on drive 1's track 17, a DOS 3.3 catalog's
     std::atomic<int>                  quietReads     { 0 };   // read requests marked as checks the PC reports itself
@@ -114,23 +124,73 @@ public:
     std::vector<std::string>          logs;
     std::mutex                        lock;
 
+    //  The host's last packet can be read here after its operation is done,
+    //  so a test waits for the label rather than reading the list at once.
+    bool  WaitForLabel (const std::string & text, DWORD timeoutMs = 10000)
+    {
+        auto  deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds (timeoutMs);
+        auto  isSent   = [this, &text] () { std::lock_guard<std::mutex>  guard (lock); return std::find (labels.begin(), labels.end(), text) != labels.end(); };
+        bool  found    = isSent();
+
+
+
+        while (!found && std::chrono::steady_clock::now() < deadline)
+        {
+            std::this_thread::sleep_for (std::chrono::milliseconds (10));
+            found = isSent();
+        }
+
+        return found;
+    }
+
+
+
+
     ~FakeApple()
     {
         Detach();
     }
 
-    //  Serves a new connection's Apple end.
+    //  Serves a new connection's Apple end. The session's thread attaches as
+    //  it opens a line while a test's thread may detach, so both are under
+    //  one lock.
     void  Attach (std::shared_ptr<InProcessByteStream> end)
     {
+        std::lock_guard<std::recursive_mutex>  guard (m_attachLock);
+
         Detach();
 
+        end->SetOneThread (false);
         m_end    = end;
         m_thread = std::jthread ([this, end] (std::stop_token stop) { Serve (stop, *end); });
+    }
+
+    //  Waits until reads stop at holdAt sectors, so a test can act during a
+    //  read.
+    void  WaitHeld()
+    {
+        std::unique_lock<std::mutex>  guard (m_holdLock);
+
+        m_holdChanged.wait_for (guard, std::chrono::seconds (10), [this] () { return m_held; });
+    }
+
+    //  Lets the reads that stopped at holdAt go on.
+    void  Release()
+    {
+        {
+            std::lock_guard<std::mutex>  guard (m_holdLock);
+
+            holdAt = -1;
+        }
+
+        m_holdChanged.notify_all();
     }
 
     //  Drops the line, as a cable pulled.
     void  Detach()
     {
+        std::lock_guard<std::recursive_mutex>  guard (m_attachLock);
+
         if (m_end)
         {
             m_end->Close();
@@ -175,13 +235,13 @@ private:
     //  False on a timeout or a closed line.
     static bool  Receive (std::stop_token stop, Line & line, CassoLinkPacket & outPacket, DWORD timeoutMs)
     {
-        Byte    chunk[4096];
-        size_t  got      = 0;
-        size_t  consumed = 0;
-        bool    complete = false;
-        auto    until    = std::chrono::steady_clock::now() + std::chrono::milliseconds (timeoutMs);
+        Byte      chunk[4096];
+        size_t    got         = 0;
+        size_t    consumed    = 0;
+        bool      complete    = false;
+        uint64_t  until       = line.stream.GetTickMs() + timeoutMs;
 
-        while (!stop.stop_requested() && std::chrono::steady_clock::now() < until)
+        while (!stop.stop_requested() && line.stream.GetTickMs() < until)
         {
             if (!line.buffer.empty())
             {
@@ -257,7 +317,7 @@ private:
     //  Applesoft's prompt, as the loader does.
     bool  RunLoader (std::stop_token stop, Line & line)
     {
-        static constexpr std::string_view  kRun = "3A50G\r";
+        static constexpr std::string_view  kRun = "3950G\r";
         Byte                               chunk[4096];
         size_t                             got  = 0;
         size_t                             need = 0;
@@ -373,7 +433,7 @@ private:
 
             if (!silent)
             {
-                SendPacket (line, CassoLinkCodec::kReady, { (Byte) (version & 0xFF), (Byte) (version >> 8), LinkProgram::kShimVersion, 0x03 });
+                SendPacket (line, CassoLinkCodec::kReady, appleIII ? MakeSosReady() : std::vector<Byte> { (Byte) (version & 0xFF), (Byte) (version >> 8), LinkProgram::kShimVersion, 0x03 });
             }
 
             silent = false;
@@ -401,7 +461,7 @@ private:
             {
                 case CassoLinkCodec::kIdle:
                     shimIdles += (version == 0) ? 1 : 0;
-                    std::this_thread::sleep_for (std::chrono::milliseconds (2));
+                    line.stream.Advance (2);
                     break;
 
                 case CassoLinkCodec::kLoadProgram:
@@ -414,7 +474,7 @@ private:
                 //  is silent at the new speed.
                 case CassoLinkCodec::kSetSpeed:
                     speedSet = true;
-                    SendPacket (line, CassoLinkCodec::kAcknowledge, { CassoLinkCodec::kAck, 0, 0 });
+                    SendPacket (line, CassoLinkCodec::kAcknowledge, { (appleIII && (packet.payload.at (0) & 0x0F) == 0) ? CassoLinkCodec::kNak : CassoLinkCodec::kAck, 0, 0 });
                     break;
 
                 case CassoLinkCodec::kReadSectors:
@@ -438,7 +498,7 @@ private:
                 case CassoLinkCodec::kTimeDrive:
                     for (Byte pass = 0; pass < packet.payload.at (2) && !stop.stop_requested(); pass++)
                     {
-                        std::this_thread::sleep_for (std::chrono::milliseconds (revolutionMs));
+                        line.stream.Advance (revolutionMs);
                         Send (line, std::vector<Byte> { CassoLinkCodec::kTimeMark });
                     }
 
@@ -519,11 +579,44 @@ private:
         }
     }
 
+    //  The SOS program's Ready, with the CRC of the SOS build as the host
+    //  assembles it.
+    static std::vector<Byte>  MakeSosReady()
+    {
+        std::vector<Byte>  program;
+        std::string        errors;
+        Word               crc     = 0;
+
+        AssertSucceeded (LinkProgram::AssembleProgram (program, errors, LinkChip::Sos));
+
+        crc = CassoLinkCodec::ComputeCrc (program);
+
+        return { (Byte) (LinkProgram::kProgramVersion & 0xFF), (Byte) (LinkProgram::kProgramVersion >> 8), LinkProgram::kSosReadyFlag, 0,
+                 0, 0, 0, 0, 0, (Byte) (crc & 0xFF), (Byte) (crc >> 8) };
+    }
+
     //  Load module: its id and version, a chunk at its offset, or the check.
     void  LoadModule (Line & line, const std::vector<Byte> & payload)
     {
         std::lock_guard<std::mutex>  guard (lock);
         size_t                       at    = payload.size() >= 2 ? (size_t) (payload[0] | (payload[1] << 8)) : 0;
+
+        if (appleIII)
+        {
+            bool  query = payload.empty() || (payload.size() == 2 && payload[0] == 0xFF && payload[1] == 0xFF);
+
+            if (query)
+            {
+                SendPacket (line, CassoLinkCodec::kLoadModule, { LinkProgram::kBlockModuleId, LinkProgram::kBlockModuleVersion });
+            }
+            else
+            {
+                moduleChunks++;
+                SendPacket (line, CassoLinkCodec::kAcknowledge, { CassoLinkCodec::kNak, payload[0], payload[1] });
+            }
+
+            return;
+        }
 
         if (payload.size() == 2 && payload[0] == 0xFF && payload[1] == 0xFF)
         {
@@ -549,7 +642,15 @@ private:
         std::vector<Byte>            reply  = { (Byte) (blockDisk.empty() ? 0 : 1) };
         uint32_t                     blocks = (uint32_t) (blockDisk.size() / CassoLinkCodec::kBlockSize);
 
-        if (!blockDisk.empty())
+        if (!blockDisk.empty() && appleIII)
+        {
+            static constexpr Byte  kDevice[16] = { 3, '.', 'D', '1' };
+
+            reply.insert (reply.end(), { 1, 0, 0, (Byte) blocks, (Byte) (blocks >> 8), 0, 0xFF, (Byte) (blockDisk[2 * 512 + 4] & 0x0F) });
+            reply.insert (reply.end(), blockDisk.begin() + 2 * 512 + 5, blockDisk.begin() + 2 * 512 + 20);
+            reply.insert (reply.end(), std::begin (kDevice), std::end (kDevice));
+        }
+        else if (!blockDisk.empty())
         {
             reply.insert (reply.end(), { 7, 1, 1, (Byte) blocks, (Byte) (blocks >> 8), (Byte) (blocks >> 16), 2, (Byte) (blockDisk[2 * 512 + 4] & 0x0F) });
             reply.insert (reply.end(), blockDisk.begin() + 2 * 512 + 5, blockDisk.begin() + 2 * 512 + 20);
@@ -640,7 +741,7 @@ private:
             }
 
             SendPacket (line, CassoLinkCodec::kWaitForKey, { CassoLinkCodec::kKeyNone });
-            std::this_thread::sleep_for (std::chrono::milliseconds (5));
+            line.stream.Advance (5);
         }
     }
 
@@ -767,14 +868,32 @@ private:
                 continue;
             }
 
-            std::this_thread::sleep_for (std::chrono::milliseconds (sectorDelayMs.load()));
+            if (holdAt >= 0 && sectorsRead >= holdAt)
+            {
+                std::unique_lock<std::mutex>  guard (m_holdLock);
+
+                m_held = true;
+                m_holdChanged.notify_all();
+                m_holdChanged.wait (guard, [this, &stop] () { return holdAt < 0 || stop.stop_requested(); });
+                m_held = false;
+            }
 
             {
                 std::lock_guard<std::mutex>  guard (lock);
                 auto                         at = drives[(size_t) drive - 1].begin() + (ptrdiff_t) Index (track, physical);
 
+                //  A sector of one value goes as Sector blank, as the program
+                //  sends it.
                 wire.clear();
-                CassoLinkCodec::EncodeSectorData ((Byte) track, physical, std::span<const Byte> (at, at + 256), wire);
+
+                if (std::all_of (at, at + 256, [at] (Byte b) { return b == *at; }))
+                {
+                    CassoLinkCodec::EncodeSectorBlank ((Byte) track, physical, *at, wire);
+                }
+                else
+                {
+                    CassoLinkCodec::EncodeSectorData ((Byte) track, physical, std::span<const Byte> (at, at + 256), wire);
+                }
             }
 
             Send (line, wire);
@@ -834,7 +953,7 @@ private:
             }
             else if (packet.command == CassoLinkCodec::kSectorBlank)
             {
-                std::fill (data.begin(), data.end(), (Byte) 0);
+                CassoLinkCodec::ParseSectorData (packet, gotTrack, gotSector, data);
                 blanksReceived++;
             }
             else
@@ -880,6 +999,10 @@ private:
 
     std::shared_ptr<InProcessByteStream>  m_end;
     std::jthread                          m_thread;
+    std::recursive_mutex                  m_attachLock;
+    std::mutex                            m_holdLock;
+    std::condition_variable_any           m_holdChanged;
+    bool                                  m_held          = false;
     std::vector<Byte>                     m_module;
     Byte                                  m_moduleId      = 0;
     Byte                                  m_moduleVersion = 0;
@@ -904,6 +1027,18 @@ class FakeAppleFactory : public IByteStreamFactory
 {
 public:
     explicit FakeAppleFactory (FakeApple & apple) : m_apple (apple) {}
+
+    //  The lines' shared virtual time.
+    uint64_t  GetTickMs () override { return m_clock->nowMs; }
+
+    //  A wait with no line open costs nothing: the time moves on at once.
+    void  WaitIdle (std::condition_variable_any &, std::unique_lock<std::mutex> &, std::stop_token stop, DWORD ms, const std::function<bool ()> & isReady) override
+    {
+        if (!stop.stop_requested() && !isReady())
+        {
+            m_clock->nowMs += ms;
+        }
+    }
 
     std::atomic<int>  connections { 0 };
 
@@ -934,6 +1069,12 @@ public:
     //  How many reads of DSR on a line just opened report it off, as a USB
     //  serial adapter does until its driver polls the line.
     int                           peerLagReads  = 0;
+
+    //  The reads of DSR so far, and, when nonzero, every this many reads
+    //  report it off for that one read, as the glitches a USB serial adapter
+    //  reports.
+    std::atomic<int>  peerReads       { 0 };
+    int               peerGlitchEvery = 0;
 
     bool  ArePortsClosed() const
     {
@@ -973,14 +1114,16 @@ public:
             comOverlapped = comOverlapped || !end->IsClosed();
         }
 
-        InProcessByteStream::CreatePair (pcEnd, appleEnd);
+        DWORD  replies  = (m_apple.speedSet && appleBaudAfterSpeed != 0) ? appleBaudAfterSpeed : appleBaud;
+        bool   answered = found->second == Port::Apple && (replies == 0 || replies == settings.baud);
+
+        //  A line with no Apple has no reader at its far end.
+        CreateLine (pcEnd, appleEnd, !answered);
         comOpened.push_back (port);
         comBauds.push_back (settings.baud);
         m_ends.push_back (pcEnd);
 
-        DWORD  replies = (m_apple.speedSet && appleBaudAfterSpeed != 0) ? appleBaudAfterSpeed : appleBaud;
-
-        if (found->second == Port::Apple && (replies == 0 || replies == settings.baud))
+        if (answered)
         {
             m_apple.Attach (appleEnd);
         }
@@ -989,7 +1132,7 @@ public:
             m_silent.push_back (appleEnd);
         }
 
-        outStream = std::make_unique<SharedStream> (pcEnd, peerReady, peerLagReads);
+        outStream = std::make_unique<SharedStream> (pcEnd, peerReady, peerLagReads, peerReads, peerGlitchEvery);
         return S_OK;
     }
 
@@ -1002,12 +1145,12 @@ public:
         std::shared_ptr<InProcessByteStream>  pcEnd;
         std::shared_ptr<InProcessByteStream>  appleEnd;
 
-        InProcessByteStream::CreatePair (pcEnd, appleEnd);
+        CreateLine (pcEnd, appleEnd, true);
         listened.push_back (transport);
         m_ends.push_back (pcEnd);
         m_silent.push_back (appleEnd);
 
-        outStream = std::make_unique<SharedStream> (pcEnd, peerReady, peerLagReads);
+        outStream = std::make_unique<SharedStream> (pcEnd, peerReady, peerLagReads, peerReads, peerGlitchEvery);
         return S_OK;
     }
 
@@ -1016,7 +1159,7 @@ public:
         std::shared_ptr<InProcessByteStream>  pcEnd;
         std::shared_ptr<InProcessByteStream>  appleEnd;
 
-        InProcessByteStream::CreatePair (pcEnd, appleEnd);
+        CreateLine (pcEnd, appleEnd, !answer);
         connections++;
 
         if (answer)
@@ -1025,31 +1168,50 @@ public:
         }
 
         m_unanswered = appleEnd;
-        outStream    = std::make_unique<SharedStream> (pcEnd, peerReady, peerLagReads);
+        outStream    = std::make_unique<SharedStream> (pcEnd, peerReady, peerLagReads, peerReads, peerGlitchEvery);
         return S_OK;
     }
 
 private:
+    void  CreateLine (std::shared_ptr<InProcessByteStream> & outPcEnd, std::shared_ptr<InProcessByteStream> & outAppleEnd, bool isUnanswered)
+    {
+        InProcessByteStream::CreateVirtualPair (outPcEnd, outAppleEnd, isUnanswered, m_clock);
+    }
+
     //  An owned handle on a shared in-process end.
     class SharedStream : public IByteStream
     {
     public:
-        SharedStream (std::shared_ptr<InProcessByteStream> end, const std::atomic<int> & peerReady, int lagReads) : m_end (std::move (end)), m_peerReady (peerReady), m_lagReads (lagReads) {}
+        SharedStream (std::shared_ptr<InProcessByteStream> end, const std::atomic<int> & peerReady, int lagReads, std::atomic<int> & reads, const int & glitchEvery) : m_end (std::move (end)), m_peerReady (peerReady), m_lagReads (lagReads), m_reads (reads), m_glitchEvery (glitchEvery) {}
 
         HRESULT  Write            (const Byte * data, size_t count) override                          { return m_end->Write (data, count); }
         HRESULT  Read             (Byte * buffer, size_t capacity, DWORD timeoutMs, size_t & outRead) override { return m_end->Read (buffer, capacity, timeoutMs, outRead); }
         size_t   GetReadableCount () override                                                           { return m_end->GetReadableCount(); }
         bool     IsClosed         () const override                                                     { return m_end->IsClosed(); }
         void     Close            () override                                                           { m_end->Close(); }
-        bool     TryGetPeerReady  (bool & outReady) override                                            { outReady = m_peerReady == 1 && m_lagReads <= 0; m_lagReads--; return m_peerReady >= 0; }
+        bool     TryGetPeerReady  (bool & outReady) override
+        {
+            int  read     = ++m_reads;
+            bool glitched = m_glitchEvery > 0 && read % m_glitchEvery == 0;
+
+            outReady = m_peerReady == 1 && m_lagReads <= 0 && !glitched;
+            m_lagReads--;
+            return m_peerReady >= 0;
+        }
+
+        uint64_t GetTickMs        () override                                                           { return m_end->GetTickMs(); }
+        void     Pause            (uint64_t microseconds) override                                      { m_end->Pause (microseconds); }
 
     private:
         std::shared_ptr<InProcessByteStream>  m_end;
         const std::atomic<int>              & m_peerReady;
         int                                   m_lagReads = 0;
+        std::atomic<int>                    & m_reads;
+        const int                           & m_glitchEvery;
     };
 
     FakeApple                                          & m_apple;
+    std::shared_ptr<InProcessByteStream::VirtualClock>   m_clock = std::make_shared<InProcessByteStream::VirtualClock>();
     std::shared_ptr<InProcessByteStream>                 m_unanswered;
     std::vector<std::shared_ptr<InProcessByteStream>>    m_ends;
     std::vector<std::shared_ptr<InProcessByteStream>>    m_silent;

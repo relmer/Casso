@@ -791,6 +791,11 @@ bool ShellRenderer::TryPresentUiFrame()
 
         m_shell.m_chrome->TickTooltips (nowMs);
 
+        if (m_shell.m_chrome->TickDriveBarZoomReadout (nowMs))
+        {
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
+
         // The update indicator's shimmer asks for frames only while it sweeps;
         // between sweeps the idle loop sleeps until the next one is due.
         if (m_shell.m_updater->TickUpdateIndicator ((int64_t) GetTickCount64()))

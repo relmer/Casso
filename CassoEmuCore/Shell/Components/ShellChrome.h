@@ -65,11 +65,12 @@ public:
     // that order across components: the menu bar and the drive band's background
     // under the drive row; the frame rate readout after it; the toolbar and
     // the //c switch bar; and last the capture bar and the notices.
-    void                     AdoptMenuBar        (DxuiPanel & root);
-    void                     AdoptDriveBar       (DxuiPanel & root);
-    ShellFrameRateReadout  & GetFrameRateReadout () { return m_frameRate; }
-    void                     AdoptToolbar        (DxuiPanel & root);
-    void                     AdoptBanners        (DxuiPanel & root);
+    void                     AdoptMenuBar             (DxuiPanel & root);
+    void                     AdoptDriveBar            (DxuiPanel & root);
+    void                     AdoptDriveBarZoomReadout (DxuiPanel & root);
+    ShellFrameRateReadout  & GetFrameRateReadout      () { return m_frameRate; }
+    void                     AdoptToolbar             (DxuiPanel & root);
+    void                     AdoptBanners             (DxuiPanel & root);
 
     // The host popup pool for the menu bar's drop-downs and the tooltips, and
     // the tooltips' theme and Visual Studio frame.
@@ -197,6 +198,7 @@ public:
     void    HideDriveBar           ();
     bool    UpdateDriveBarHover    (POINT pt);
     bool    HandleDriveBarClick    (POINT pt);
+    void    MarkDriveBarRecent     (POINT pt);
     bool    SyncDriveBarViews      ();
     bool    AnimateDriveBarFan     ();
 
@@ -207,6 +209,14 @@ public:
     // is on the bar or on its fan.
     void    SlideDriveBar          (float progress);
     bool    IsPointOnDriveBar      (POINT pt) const;
+
+    // Ctrl+wheel over the bar zooms every widget on it together, and the
+    // row stays centered. Returns false when the pointer is not on the bar.
+    bool   ZoomDriveBar            (POINT pt, float notches);
+    float  GetDriveBarZoom         () const;
+    float  GetDriveBarFitZoom      () const;
+    bool   TickDriveBarZoomReadout (int64_t nowMs);
+    bool   IsDriveBarZoomReadoutUp () const { return m_driveBarZoomReadoutEndMs != 0; }
 
     void    LayoutSwitchBar        (UINT dpi);
     void    SyncSwitchBarState     ();
@@ -345,7 +355,28 @@ private:
     int                        m_driveBarHoverClass    = -1;
     int                        m_driveBarHoverEntry    = -1;
 
+    // The DPI the bar is drawn at: the window's times the bar's zoom.
+    UINT                       m_driveBarZoomedDpi     = 96;
+
+    // The last drive clicked in each class, drawn in the class's widget
+    // while the class is closed (DriveBarFan::PutFirst). A click while the fan is open takes effect
+    // when it closes, so the fan isn't rearranged under the pointer.
+    std::vector<DeskDrive>     m_driveBarRecent;
+    bool                       m_driveBarRecentPending = false;
+
     static constexpr uint64_t  s_kDriveBarFanSlideMs = 160;
+
+    // A class's box round its widget: the margin on each side and the arrow's
+    // room at the right, at a zoom of 100%. The row starts this far in from
+    // the window's sides, with at least the minimum gap between boxes.
+    static constexpr int       s_kDriveBarPadDp       = 6;
+    static constexpr int       s_kDriveBarArrowDp     = 14;
+    static constexpr int       s_kDriveBarEdgeDp      = 8;
+    static constexpr int       s_kDriveBarMinBoxGapDp = 6;
+
+    // One class box's width at a zoom of 100%, measured at the last layout,
+    // which caps the zoom so every box fits in the window.
+    int                        m_driveBarBoxWidthPx   = 0;
 
     // The drive bar's label column, wide enough for two lines such as
     // "Drive 1 - Disk ][" and "3.5" (800K), 400K disk".
@@ -379,6 +410,17 @@ private:
     IDxuiControl::TipFn  m_driveTipFn;
     DxuiPanel            m_driveTipArea;
     DxuiPanel            m_tipRoot;
+
+    // The drive bar's zoom as a percent in shadowed text, up for a moment
+    // after each Ctrl+wheel step over the bar and then faded out. It is
+    // centered across the window, its middle this fraction of the window's
+    // height above the bottom edge, and larger than the desk's drive labels.
+    static constexpr int64_t  s_kDriveBarZoomReadoutMs     = 1000;
+    static constexpr int64_t  s_kDriveBarZoomReadoutFadeMs = 300;
+    static constexpr float    s_kDriveBarZoomReadoutRise   = 0.18f;
+    static constexpr float    s_kDriveBarZoomReadoutFontDp = 20.0f;
+    DxuiShadowedText          m_driveBarZoomReadout;
+    int64_t                   m_driveBarZoomReadoutEndMs   = 0;
 
     // Hover tooltip for the caption's minimize, maximize and close buttons.
     // The stock system tooltip for those is suppressed at the host, so this

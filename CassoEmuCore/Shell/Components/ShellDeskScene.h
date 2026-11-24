@@ -85,6 +85,7 @@ public:
     const std::vector<DeskDrivePlacement> &  GetDrivePlan           () const { return m_drivePlan; }
     void                                     PlanDrives             ();
     void                                     ReplanIfDrivesChanged  ();
+    bool                                     HasDriveClass          (DeskDriveClass driveClass) const;
     bool                                     IsClassOnDesk          (DeskDriveClass driveClass) const;
     void                                     ToggleClassOnDesk      (DeskDriveClass driveClass);
     void                                     ToggleFloppyPairBeside ();

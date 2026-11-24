@@ -31,8 +31,10 @@ public:
     // Lines from first, until last or count lines, whichever comes first
     // when both are given. The end address of the listing is returned. With
     // pc, an instruction that would run over it stops short of it, as bytes,
-    // so the PC always starts a line.
-    static Word  Disassemble (DebugSession & session, Word first, std::optional<Word> last, int count, DisassemblyData & data, std::optional<Word> pc = std::nullopt);
+    // so the PC always starts a line; the same for start, an address a view
+    // was sent to.
+    static Word  Disassemble (DebugSession & session, Word first, std::optional<Word> last, int count, DisassemblyData & data, std::optional<Word> pc = std::nullopt,
+                              std::optional<Word> start = std::nullopt);
 
     // The symbol put in a line's operand: for an I/O address, the one for the
     // direction the opcode accesses it in.

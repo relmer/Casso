@@ -102,8 +102,8 @@ namespace DebuggerToolPanesTests
     //
     //  ToolWindow
     //
-    //  The debugger window with its controls built and no HWND; the step
-    //  filters dialog returns what the test put in `filters`.
+    //  The debugger window with its controls built and no HWND; a text dialog
+    //  returns what the test put in `typed`.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -119,7 +119,6 @@ namespace DebuggerToolPanesTests
         using DebuggerWindow::OnCreate;
         using DebuggerWindow::Layout;
         using DebuggerWindow::TakeSnapshot;
-        using DebuggerWindow::EditStepFilters;
         using DebuggerWindow::OnMappedCommand;
         using DebuggerWindow::IsPaneShown;
         using DebuggerWindow::GetProfilerPane;
@@ -143,24 +142,6 @@ namespace DebuggerToolPanesTests
         }
 
         std::wstring  typed;
-
-        std::optional<std::vector<std::wstring>> RunStepFiltersDialog (const std::vector<std::wstring> & shown,
-                                                                       std::function<bool (const std::wstring &, std::wstring &)> check) override
-        {
-            std::wstring  error;
-
-
-
-            opened   = shown;
-            accepted = check (L"COUT", error);
-            rejected = !check (L"NOSUCH", error);
-            return filters;
-        }
-
-        std::vector<std::wstring>  opened;
-        std::vector<std::wstring>  filters;
-        bool                       accepted = false;
-        bool                       rejected = false;
     };
 
 
@@ -172,7 +153,7 @@ namespace DebuggerToolPanesTests
     //  ToolPanesTests
     //
     //  The Symbols, Bookmarks, Profiler and data ranges panes, the bookmark
-    //  keys and Debug > Step filters... (FR-182 to FR-184, FR-189, FR-193).
+    //  keys and the Step filters pane (FR-182 to FR-184, FR-189, FR-193).
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -579,16 +560,18 @@ namespace DebuggerToolPanesTests
 
 
 
-        //  The dialog opens with the filters as SKIP writes them; one taken
-        //  out is removed, and each new one is added by its range or by its
-        //  symbol, which must be one.
-        TEST_METHOD (StepFiltersAddAndRemoveWhatTheDialogChanged)
+        //  The pane lists the filters, a routine by its name and a range by
+        //  its range. Add step filter... adds a range as typed and a name only
+        //  when it is a symbol; Delete removes the rows chosen.
+        TEST_METHOD (TheStepFiltersPaneListsAddsAndDeletesFilters)
         {
             CassoTheme         theme    = CassoTheme::MakeSkeuomorphic();
             QuietDebuggerHost  host;
             ToolWindow         window   (theme, host);
             DxuiDpiScaler      scaler;
             auto               snapshot = std::make_shared<DebuggerViewSnapshot>();
+            StepFiltersPane  * pane     = nullptr;
+            PaneMenuItems      items;
 
 
 
@@ -600,12 +583,28 @@ namespace DebuggerToolPanesTests
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
             window.TakeSnapshot (snapshot);
 
-            window.filters = { L"LOOP", L"FC00.FCFF", L"COUT" };
-            window.EditStepFilters();
+            pane = dynamic_cast<StepFiltersPane *> (window.FindPaneForTest (DebuggerLayout::kStepFilters));
+            Assert::IsNotNull (pane);
+            Assert::AreEqual  (std::wstring (L"$F800-$F8FF"), pane->GetList()->GetCellsOfRow (0)[0].text, L"a range by its range");
+            Assert::AreEqual  (std::wstring (L"LOOP"),        pane->GetList()->GetCellsOfRow (1)[0].text, L"a routine by its name");
 
-            Assert::IsTrue (window.opened == std::vector<std::wstring> { L"F800.F8FF", L"LOOP" });
-            Assert::IsTrue (window.accepted && window.rejected, L"a symbol is taken, another name is not");
-            Assert::IsTrue (host.commands == std::vector<std::string> { "SKIP -F800.F8FF", "SKIP FC00.FCFF", "SKIP COUT" });
+            for (const wchar_t * typed : { L"FC00.FCFF", L"COUT", L"NOSUCH" })
+            {
+                window.typed = typed;
+                pane->AddFilter();
+            }
+
+            (void) pane->AddMenuItems (pane->GetList(), 0, items);
+
+            for (const auto & [label, run] : items)
+            {
+                if (label == L"Delete")
+                {
+                    run();
+                }
+            }
+
+            Assert::IsTrue (host.commands == std::vector<std::string> { "SKIP FC00.FCFF", "SKIP COUT", "SKIP -F800.F8FF" }, L"NOSUCH is no symbol");
         }
 
 

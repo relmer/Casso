@@ -36,8 +36,14 @@
     <CassoAppleSource Include="$(MSBuildThisFileDirectory)VirtualDrive.s">
       <Symbol>s_kVirtualDriveSource</Symbol>
     </CassoAppleSource>
+    <CassoAppleSource Include="$(MSBuildThisFileDirectory)SosInterp.s">
+      <Symbol>s_kSosInterpSource</Symbol>
+    </CassoAppleSource>
     <CassoAppleSource Include="$(MSBuildThisFileDirectory)SlotFinder.s">
       <Symbol>s_kSlotFinderSource</Symbol>
+    </CassoAppleSource>
+    <CassoAppleSource Include="$(MSBuildThisFileDirectory)NetStack.s">
+      <Symbol>s_kNetStackSource</Symbol>
     </CassoAppleSource>
   </ItemGroup>
 

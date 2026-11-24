@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Core/DxuiTip.h"
+
 
 class DxuiDpiScaler;
 class IDxuiPainter;
@@ -15,8 +17,8 @@ class IDxuiTextRenderer;
 //
 //  DxuiTooltipLook
 //
-//  What a tip draws besides its text: line colors, swatches and scales, a
-//  gradient with its mark, a labeled frame, a corner tag, the face and the
+//  What a tip draws besides its text: line colors, swatches and scales,
+//  labeled scales with their marks, a labeled frame, a corner tag, the face and the
 //  wrap width. A tooltip has two: the look set for its next request, and the
 //  look of the tip that is up.
 //
@@ -27,8 +29,7 @@ struct DxuiTooltipLook
     std::vector<uint32_t>               lineArgbs;
     std::vector<uint32_t>               lineSwatches;
     std::vector<std::vector<uint32_t>>  lineScales;
-    std::vector<uint32_t>               gradient;
-    float                               gradientMark    = -1.0f;
+    std::vector<DxuiTipBar>             bars;
     std::wstring                        frameLabel;
     uint32_t                            frameArgb       = 0;
     std::wstring                        cornerTag;
@@ -110,13 +111,13 @@ public:
 
     bool             IsTableTip          () const;
     bool             HasFrame            () const { return !m_look.frameLabel.empty(); }
-    bool             HasGradient         () const { return !m_look.gradient.empty(); }
+    bool             HasBars             () const { return !m_look.bars.empty(); }
     const wchar_t  * GetFace             () const { return GetFace (m_look); }
     float            GetMaxTextWidthDip  () const { return GetMaxTextWidthDip (m_look); }
     float            GetFontPx           () const;
     Margins          GetContentMargins   (float padXPx, float padYPx) const;
-    float            GetGradientExtraPx  () const;
-    float            GetGradientWidthPx  () const;
+    float            GetBarsHeightPx     () const;
+    float            GetBarsWidthPx      (const TextMeasure & measure) const;
     float            GetFrameWidthPx     (const TextMeasure & measure) const;
     float            GetCornerTagPx      (const TextMeasure & measure) const;
     float            GetSwatchIndentPx   (float lineHeight) const;
@@ -127,7 +128,7 @@ public:
     void             DrawTable           (IDxuiPainter & painter, IDxuiTextRenderer & text, const TableLayout & table, float left, float top) const;
     void             DrawCornerTag       (IDxuiTextRenderer & text, float right, float top, float lineHeight) const;
     void             DrawFrame           (IDxuiPainter & painter, IDxuiTextRenderer & text, float width, float height) const;
-    void             DrawGradient        (IDxuiPainter & painter, float left, float width, float bottom) const;
+    void             DrawBars            (IDxuiPainter & painter, IDxuiTextRenderer & text, float left, float width, float bottom) const;
 
 private:
     //  A fixed-width tip's lines are columns, broken where the caller broke
@@ -140,6 +141,16 @@ private:
     static constexpr float  kGradientArrowDip  = 6.0f;
     static constexpr float  kGradientWidthDip  = 200.0f;
     static constexpr int    kGradientSlices    = 64;
+
+    //  A scale's rows: the gap between them, the gap after the widest label,
+    //  the size of the percentage written on a scale against the tip's text,
+    //  the scale's height against that text's, and the room between the text
+    //  and the scale's ends.
+    static constexpr float  kBarRowGapDip      = 4.0f;
+    static constexpr float  kBarLabelGapDip    = 8.0f;
+    static constexpr float  kBarTextScale      = 0.85f;
+    static constexpr float  kBarTextLineEm     = 1.3f;
+    static constexpr float  kBarTextPadDip     = 3.0f;
 
     //  The frame: its label's size, its inset from the tip's edge on every
     //  side, the gap between it and the content, and the lowest contrast of
@@ -164,6 +175,10 @@ private:
     float  GetFrameLabelPx  () const;
     float  GetFrameLabelHPx () const;
     float  GetFrameEdgePx   () const;
+    float  GetBarPx         () const;
+    float  GetBarTextPx     () const;
+    float  GetBarLabelPx    (const TextMeasure & measure) const;
+    void   DrawBar          (IDxuiPainter & painter, IDxuiTextRenderer & text, const DxuiTipBar & bar, float labelPx, float left, float width, float top) const;
     void   DrawLineScale    (IDxuiPainter & painter, const std::vector<uint32_t> & stops, float left, float top, float heightPx) const;
 
     const DxuiTooltipLook  & m_look;

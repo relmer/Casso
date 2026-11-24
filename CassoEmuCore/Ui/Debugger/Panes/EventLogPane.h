@@ -832,6 +832,7 @@ public:
         {
             case DebugLogRowKind::Event:
                 MakeCells (*row, out);
+                SetRowTips (index, out);
                 break;
 
             case DebugLogRowKind::Gap:
@@ -852,8 +853,63 @@ public:
         }
     }
 
+    //  Every cell of an event's row has the row's tip: the event and its
+    //  detail, its cycle and the cycles since the event before it, and the
+    //  row's other columns, ahead of any tip the cell has.
+    void  SetRowTips (int index, Cells & out) const
+    {
+        const ColumnSpecs  & specs    = GetSpecs();
+        const Row          & row      = m_rows.GetRows()[(size_t) index];
+        const Row          * previous = nullptr;
+        std::wstring         tip;
+        std::wstring         missing  = GetMissingText();
+
+
+
+        for (int i = index - 1; i >= 0 && previous == nullptr; i--)
+        {
+            previous = (m_rows.GetRows()[(size_t) i].kind == DebugLogRowKind::Event) ? &m_rows.GetRows()[(size_t) i] : nullptr;
+        }
+
+        tip = out[GetLabelColumn()].text;
+
+        if (!out[GetTextColumn()].text.empty())
+        {
+            tip += L": " + out[GetTextColumn()].text;
+        }
+
+        tip += L"\nCycle " + EventLogText::FormatCycle (row.cycle);
+
+        if (previous != nullptr && row.cycle >= previous->cycle)
+        {
+            tip += L", " + EventLogText::FormatCycle (row.cycle - previous->cycle) + L" cycles after the event before it";
+        }
+
+        for (size_t c = 0; c < specs.size() && c < out.size(); c++)
+        {
+            if (c != kCycleColumn && c != GetLabelColumn() && c != GetTextColumn() && !out[c].text.empty())
+            {
+                tip += L"\n" + std::wstring (specs[c].title) + L": " + out[c].text;
+            }
+        }
+
+        if (!missing.empty())
+        {
+            tip += L"\n" + missing;
+        }
+
+        for (DxuiListView::Cell & cell : out)
+        {
+            cell.tip = cell.tip.empty() ? tip : tip + L"\n\n" + cell.tip;
+        }
+    }
+
 protected:
     using ColumnSpecs = std::vector<ColumnSpec>;
+
+    //  A line for a row's tip about what the events of this log lack, or
+    //  none.
+    virtual std::wstring  GetMissingText () const { return std::wstring(); }
 
     virtual ColumnSpecs  GetColumnSpecs () const = 0;
 

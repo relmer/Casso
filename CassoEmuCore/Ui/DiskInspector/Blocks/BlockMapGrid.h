@@ -66,9 +66,6 @@ public:
     //  gap right of or below a cell is in that cell.
     int64_t   FindCellAt (int xPx, int yPx) const;
 
-    //  A role's name in the map's pointer text and status line.
-    static LPCWSTR     GetRoleName (SectorRole role);
-
 private:
     void  Arrange (double blockPx, uint32_t group);
 

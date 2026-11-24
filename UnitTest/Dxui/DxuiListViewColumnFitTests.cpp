@@ -568,4 +568,48 @@ public:
 
         Assert::AreEqual (90, list.GetColumnEffectiveWidthPx (0), L"the width the user set");
     }
+
+
+    //  A cell cut short by its column has its whole text as its tip in a
+    //  list set to SetCutTextTips, and no tip otherwise; a cell that fits
+    //  never has one.
+    TEST_METHOD (ACutCellsTipIsItsWholeTextWhenAsked)
+    {
+        static constexpr const wchar_t * kpszLong = L"$0300: A9 41 8D 00 04 60 EA EA EA EA EA EA";
+
+        MockDxuiPainter                               painter;
+        MockDxuiTextRenderer                          text;
+        MockDxuiTheme                                 theme;
+        DxuiListView                                  list;
+        DxuiDpiScaler                                 scaler;
+        std::vector<DxuiListView::Column>             cols;
+        std::vector<std::vector<DxuiListView::Cell>>  data;
+        DxuiTip                                       tip;
+        POINT                                         over    = {};
+        RECT                                          cell    = {};
+
+
+
+        scaler.SetDpi (96);
+        cols.push_back (DxuiListView::Column { L"Value", 60 });
+        cols.push_back (DxuiListView::Column { L"Type",  300 });
+        data.push_back ({ DxuiListView::Cell { kpszLong, false }, DxuiListView::Cell { L"Pointer", false } });
+
+        list.SetColumns (std::move (cols));
+        list.SetRows    (std::move (data));
+        list.Layout     (RECT { 0, 0, 600, 400 }, scaler);
+        list.Paint      (painter, text, theme);
+
+        Assert::IsTrue (list.GetCellTextRectPx (0, 0, cell));
+        over = POINT { (cell.left + cell.right) / 2, (cell.top + cell.bottom) / 2 };
+
+        Assert::IsFalse (list.TryGetTip (over, tip), L"no tip with SetCutTextTips off");
+
+        list.SetCutTextTips (true);
+        Assert::IsTrue   (list.TryGetTip (over, tip), L"the cut cell's tip");
+        Assert::AreEqual (std::wstring (kpszLong), tip.text);
+
+        Assert::IsTrue  (list.GetCellTextRectPx (0, 1, cell));
+        Assert::IsFalse (list.TryGetTip (POINT { (cell.left + cell.right) / 2, (cell.top + cell.bottom) / 2 }, tip), L"no tip for a cell that fits");
+    }
 };

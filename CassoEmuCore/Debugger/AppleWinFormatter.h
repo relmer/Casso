@@ -27,6 +27,10 @@ public:
     static std::string  FormatFlags     (Byte p);
     static std::string  FormatAddress   (const BreakpointInfo & breakpoint);
 
+    // "AUX" and the separator for an address read from aux RAM, and empty
+    // for any other region.
+    static std::string  GetBankPrefix   (MemoryRegion region, char separator);
+
     // One HISTORY line, as the trace pane and HISTORY SAVE show it too.
     static std::string  FormatTraceLine  (const TraceRecord & record);
 

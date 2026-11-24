@@ -6,7 +6,7 @@
 
 struct BreakpointDefinition;
 struct DiskBreakSpec;
-struct DiskMarkPattern;
+class DiskMarkPattern;
 
 
 

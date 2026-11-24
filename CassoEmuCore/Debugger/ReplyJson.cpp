@@ -596,6 +596,7 @@ JsonValue ReplyJson::MakeData (const ReplyData & data)
     if (auto * v = std::get_if<SearchHitsData> (&data))
     {
         std::vector<JsonValue>  addresses;
+        std::vector<JsonValue>  regions;
 
 
 
@@ -604,7 +605,14 @@ JsonValue ReplyJson::MakeData (const ReplyData & data)
             addresses.push_back (MakeNumber (address));
         }
 
-        return JsonValue (Members { { "kind", MakeString ("searchHits") }, { "addresses", JsonValue (std::move (addresses)) } });
+        for (MemoryRegion region : v->regions)
+        {
+            regions.push_back (MakeString (GetRegionName (region)));
+        }
+
+        return JsonValue (Members { { "kind",      MakeString ("searchHits") },
+                                    { "addresses", JsonValue (std::move (addresses)) },
+                                    { "regions",   JsonValue (std::move (regions)) } });
     }
 
     if (auto * v = std::get_if<CyclesData> (&data))
@@ -632,6 +640,11 @@ JsonValue ReplyJson::MakeData (const ReplyData & data)
         if (!v->companion.empty())
         {
             members.emplace_back ("companion", MakeString (v->companion));
+        }
+
+        if (!v->regions.empty())
+        {
+            members.emplace_back ("regions", MakeRegionSpans (v->regions));
         }
 
         return JsonValue (std::move (members));
@@ -1067,6 +1080,32 @@ JsonValue ReplyJson::MakeMemory (const MemoryData & data)
     }
 
     return JsonValue (Members { { "kind", MakeString ("memory") }, { "rows", JsonValue (std::move (rows)) } });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReplyJson::MakeRegionSpans
+//
+////////////////////////////////////////////////////////////////////////////////
+
+JsonValue ReplyJson::MakeRegionSpans (const std::vector<RegionSpan> & spans)
+{
+    std::vector<JsonValue>  items;
+
+
+
+    for (const RegionSpan & span : spans)
+    {
+        items.push_back (JsonValue (Members { { "first",  MakeNumber (span.first) },
+                                              { "last",   MakeNumber (span.last) },
+                                              { "region", MakeString (GetRegionName (span.region)) } }));
+    }
+
+    return JsonValue (std::move (items));
 }
 
 

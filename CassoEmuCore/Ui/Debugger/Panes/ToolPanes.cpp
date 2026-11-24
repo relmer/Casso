@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/ToolPanes.h"
+#include "Ui/Debugger/RunActions.h"
 #include "Ui/Debugger/SymbolActions.h"
 #include "Ui/Debugger/WatchActions.h"
 
@@ -1407,4 +1408,324 @@ std::vector<std::vector<DxuiListView::Cell>> DataBlocksPane::GetCells (const std
     }
 
     return cells;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StepFiltersPane::StepFiltersPane
+//
+////////////////////////////////////////////////////////////////////////////////
+
+StepFiltersPane::StepFiltersPane (const DebuggerPaneParts & parts) :
+    ToolListPane (parts, DebuggerLayout::kStepFilters, L"Step filters"),
+    m_paneNavigator (parts.navigator),
+    m_paneCommands (parts.commands),
+    m_latest (parts.latest)
+{
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StepFiltersPane::Configure
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void StepFiltersPane::Configure()
+{
+    m_list->SetColumns ({ { L"Routine", 0, false, DxuiTextHAlign::Left },
+                          { L"Address", 0, true,  DxuiTextHAlign::Left } });
+
+    m_list->SetMultiSelect           (true);
+    m_list->SetActivateOnDoubleClick (true);
+
+    m_list->SetOnActivateRow ([this] (int row)
+    {
+        std::optional<StepFilterEntry>  entry = GetEntry (row);
+
+
+
+        if (entry.has_value())
+        {
+            m_paneNavigator.GoToCode (entry->first);
+        }
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StepFiltersPane::Apply
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void StepFiltersPane::Apply (const DebuggerViewSnapshot & snapshot)
+{
+    m_entries = snapshot.stepFilters;
+    m_list->SetRows (GetCells (m_entries));
+    ShowNewListRow();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StepFiltersPane::GetEntry
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<StepFilterEntry> StepFiltersPane::GetEntry (int row) const
+{
+    if (row < 0 || row >= (int) m_entries.size())
+    {
+        return std::nullopt;
+    }
+
+    return m_entries[(size_t) row];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StepFiltersPane::AddMenuItems
+//
+//  Below the rows, Add step filter... alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool StepFiltersPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & items)
+{
+    std::optional<StepFilterEntry>  entry = GetEntry (row);
+
+
+
+    if (list != m_list)
+    {
+        return false;
+    }
+
+    if (entry.has_value())
+    {
+        items.push_back ({ L"Go to",  [this, at = entry->first] { m_paneNavigator.GoToCode (at); } });
+        items.push_back ({ L"Delete", [this, rows = GetActedRows (row)] { DeleteRows (rows); } });
+        AddCopyItem (items);
+    }
+
+    items.push_back ({ L"Add step filter...", [this] { AddFilter(); } });
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StepFiltersPane::RouteEditKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool StepFiltersPane::RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focused)
+{
+    if (focused != m_list || ev.kind != DxuiKeyEventKind::Down || ev.ctrl || ev.alt || ev.vk != VK_DELETE)
+    {
+        return false;
+    }
+
+    DeleteRows (GetActedRows (-1));
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StepFiltersPane::AddFilter
+//
+//  A range is added as it is typed, and a name by the symbol's name, which
+//  SKIP finds again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void StepFiltersPane::AddFilter()
+{
+    std::optional<std::wstring>  typed;
+    std::optional<Word>          address;
+    Word                         first   = 0;
+    Word                         last    = 0;
+
+
+
+    typed = m_paneDialogs.RunTextDialog (L"Add step filter", L"Routine", L"COUT or FC00.FCFF", [this] (const std::wstring & text, std::wstring & error)
+    {
+        Word  from = 0;
+        Word  to   = 0;
+        bool  isOk = TryParseRange (text, from, to) || FindSymbol (text).has_value();
+
+
+
+        error = isOk ? std::wstring() : std::format (L"{} is not a symbol, an address or a range.", text);
+        return isOk;
+    });
+
+    if (!typed.has_value())
+    {
+        return;
+    }
+
+    if (TryParseRange (*typed, first, last))
+    {
+        m_paneCommands.RunAction (RunActions::GetSkipRange (first, last, m_latest.GetMode()));
+    }
+    else if (address = FindSymbol (*typed); address.has_value())
+    {
+        m_paneCommands.RunAction (RunActions::GetSkipRoutine (TextEncoding::WideToNarrow (*typed), *address, m_latest.GetMode()));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StepFiltersPane::FindSymbol
+//
+//  A symbol's address by its name, ignoring case.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<Word> StepFiltersPane::FindSymbol (const std::wstring & name) const
+{
+    const DebuggerViewSnapshot  * snapshot = m_latest.Get();
+    std::string                   narrow   = TextEncoding::WideToNarrow (name);
+
+
+
+    if (snapshot == nullptr || snapshot->symbols == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    for (const SymbolInfo & symbol : snapshot->symbols->symbols)
+    {
+        if (_stricmp (symbol.name.c_str(), narrow.c_str()) == 0)
+        {
+            return symbol.address;
+        }
+    }
+
+    return std::nullopt;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StepFiltersPane::DeleteRows
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void StepFiltersPane::DeleteRows (const std::vector<int> & rows)
+{
+    std::vector<StepFilterEntry>  removed;
+
+
+
+    for (int row : rows)
+    {
+        std::optional<StepFilterEntry>  entry = GetEntry (row);
+
+        if (entry.has_value())
+        {
+            removed.push_back (*entry);
+        }
+    }
+
+    for (const StepFilterEntry & entry : removed)
+    {
+        m_paneCommands.RunAction (RunActions::GetRemoveSkip (entry, m_latest.GetMode()));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StepFiltersPane::GetCells
+//
+//  A routine's name, or for a range the range; then its first address, or
+//  its first and last.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::vector<DxuiListView::Cell>> StepFiltersPane::GetCells (const std::vector<StepFilterEntry> & entries)
+{
+    std::vector<std::vector<DxuiListView::Cell>>  cells;
+
+
+
+    if (entries.empty())
+    {
+        cells.push_back (MakeNote (L"No step filters. Right-click to add one."));
+        return cells;
+    }
+
+    for (const StepFilterEntry & entry : entries)
+    {
+        std::wstring  range = (entry.first == entry.last) ? std::format (L"${:04X}", entry.first) : std::format (L"${:04X}-${:04X}", entry.first, entry.last);
+
+        cells.push_back ({ { entry.name.empty() ? range : TextEncoding::NarrowToWide (entry.name) }, { range } });
+    }
+
+    return cells;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StepFiltersPane::TryParseRange
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool StepFiltersPane::TryParseRange (const std::wstring & text, Word & first, Word & last)
+{
+    static const std::wregex  s_kRange (LR"(^\$?([0-9A-Fa-f]{1,4})(\.\$?([0-9A-Fa-f]{1,4}))?$)");
+    std::wsmatch              match;
+
+
+
+    if (!std::regex_match (text, match, s_kRange))
+    {
+        return false;
+    }
+
+    first = (Word) std::stoul (match[1].str(), nullptr, 16);
+    last  = match[3].matched ? (Word) std::stoul (match[3].str(), nullptr, 16) : first;
+
+    return last >= first;
 }

@@ -168,12 +168,28 @@ RepairPlan DiskRepair::Plan (const DiskAnalysis & analysis, const RepairOptions 
 
 RepairPlan DiskRepair::PlanChosen (const DiskAnalysis & analysis, const RepairOptions & options, const std::set<std::wstring> & chosen)
 {
+    return Narrow ([&analysis] (const RepairOptions & narrowed) { return Plan (analysis, narrowed); }, options, chosen, analysis.verdict);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskRepair::Narrow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RepairPlan DiskRepair::Narrow (const std::function<RepairPlan (const RepairOptions &)> & planner, const RepairOptions & options, const std::set<std::wstring> & chosen,
+                               FileSystemVerdict before)
+{
     static constexpr int  kMaxPasses = 8;
 
 
 
     RepairOptions  narrowed = options;
-    RepairPlan     plan     = Plan (analysis, narrowed);
+    RepairPlan     plan     = planner (narrowed);
     bool           isExtra  = true;
 
 
@@ -193,14 +209,14 @@ RepairPlan DiskRepair::PlanChosen (const DiskAnalysis & analysis, const RepairOp
 
         if (isExtra)
         {
-            plan = Plan (analysis, narrowed);
+            plan = planner (narrowed);
         }
     }
 
     if (isExtra && plan.canRepair)
     {
         plan = RepairPlan();
-        plan.before = analysis.verdict;
+        plan.before = before;
         plan.reason = L"The chosen changes can't be made without others.";
     }
 
@@ -747,9 +763,11 @@ void DiskRepair::CheckChains (Work & work, const FileMap & map)
         bool  isBlocking = finding.kind == FindingKind::FileChainBroken || finding.kind == FindingKind::FileCrossLinked || finding.kind == FindingKind::PascalEntryOutOfRange ||
                             finding.kind == FindingKind::FileUsesStructure;
 
+        std::wstring  detail = TextEncoding::Utf8ToWide (finding.detail) + (finding.detail.ends_with ('.') ? L"" : L".");
+
         if (work.plan.reason.empty() && isBlocking)
         {
-            work.plan.reason = L"Repairing this would change a file's data: " + TextEncoding::Utf8ToWide (finding.detail) + (finding.detail.ends_with ('.') ? L"" : L".");
+            work.plan.reason = finding.kind == FindingKind::FileCrossLinked ? detail + L" " + kCrossLinkReason : L"Repairing this would change a file's data: " + detail;
         }
     }
 }

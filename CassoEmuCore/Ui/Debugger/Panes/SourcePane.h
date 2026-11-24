@@ -129,6 +129,10 @@ public:
     //  double click toggles a breakpoint on the line.
     std::optional<Word>  GetAddressAt    (POINT atDip) const;
 
+    //  The address of the line under a point, or of the next line with code
+    //  below it, as a label, comment or blank line comes ahead of its code.
+    std::optional<Word>  GetAddressAtOrBelow (POINT atDip) const;
+
     //  The address of the line the keyboard is on, when it has code.
     std::optional<Word>  GetFocusAddress () const;
     void                 OnDoubleClick   (POINT atDip);

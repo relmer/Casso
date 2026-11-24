@@ -47,7 +47,7 @@ public:
         //  The ACIA neither receives nor sends without them.
         explicit Line (Byte control)
         {
-            InProcessByteStream::CreatePair (machineEnd, pcEnd);
+            InProcessByteStream::CreateVirtualPair (machineEnd, pcEnd);
 
             bridge = std::make_unique<AciaBridgeEndpoint> (&acia, machineEnd);
             acia.SetEndpoint (bridge.get());

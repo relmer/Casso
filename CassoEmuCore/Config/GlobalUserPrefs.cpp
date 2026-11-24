@@ -56,6 +56,7 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "deskFloppies",
     "deskHardDisks",
     "deskFloppyPairBeside",
+    "driveBarZoom",
     "showFrameRate",
     "showSceneView",
     "sceneAntiAliasing",
@@ -1224,6 +1225,7 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("deskFloppies",          JsonValue (deskFloppies));
     root.emplace_back ("deskHardDisks",         JsonValue (deskHardDisks));
     root.emplace_back ("deskFloppyPairBeside",  JsonValue (deskFloppyPairBeside));
+    root.emplace_back ("driveBarZoom",          JsonValue ((double) driveBarZoom));
     root.emplace_back ("showFrameRate",         JsonValue (showFrameRate));
     root.emplace_back ("showSceneView",         JsonValue (showSceneView));
     root.emplace_back ("sceneAntiAliasing",     JsonValue ((double) sceneAntiAliasing));
@@ -1465,6 +1467,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     deskFloppies          = GetStringOpt    (v, "deskFloppies",            deskFloppies);
     deskHardDisks         = GetStringOpt    (v, "deskHardDisks",           deskHardDisks);
     deskFloppyPairBeside  = TryGetBoolOpt   (v, "deskFloppyPairBeside",    deskFloppyPairBeside);
+    driveBarZoom          = (float) GetNumberOpt (v, "driveBarZoom", driveBarZoom);
     showFrameRate         = TryGetBoolOpt   (v, "showFrameRate",           showFrameRate);
     showSceneView         = TryGetBoolOpt   (v, "showSceneView",           showSceneView);
 

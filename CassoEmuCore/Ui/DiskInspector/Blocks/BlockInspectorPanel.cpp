@@ -924,7 +924,7 @@ void BlockInspectorPanel::BuildCapsules()
 
     if (!isFree)
     {
-        m_capsules.push_back ({ label != nullptr ? label : BlockMapGrid::GetRoleName (role), isBad });
+        m_capsules.push_back ({ label != nullptr ? label : BlockMap::GetRoleName (role), isBad });
     }
 
     while (start < owners.size())

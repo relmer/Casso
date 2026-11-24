@@ -268,3 +268,51 @@ private:
     int                            m_sort          = -1;
     bool                           m_isReverse     = false;
 };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StepFiltersPane
+//
+//  The step filter: the routines and ranges a step into goes over rather
+//  than into, each a routine's name or a range, then its addresses. Add step
+//  filter... adds a symbol or a range the user types; Delete removes the
+//  rows selected. Activating one moves the disassembly to its first address.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class StepFiltersPane : public ToolListPane
+{
+public:
+    explicit StepFiltersPane (const DebuggerPaneParts & parts);
+
+    void  Configure    () override;
+    void  Apply        (const DebuggerViewSnapshot & snapshot) override;
+    bool  AddMenuItems (DxuiListView * list, int row, PaneMenuItems & items) override;
+    bool  RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focused) override;
+
+    //  Add step filter...: SKIP for a symbol's name, an address or a range the
+    //  user types; a name must be a symbol.
+    void  AddFilter    ();
+
+    //  The entry a row has, none for no such row.
+    std::optional<StepFilterEntry>  GetEntry (int row) const;
+
+    static std::vector<std::vector<DxuiListView::Cell>>  GetCells (const std::vector<StepFilterEntry> & entries);
+
+    //  An address in hex, or two apart at a period, as SKIP takes a range;
+    //  false for anything else.
+    static bool  TryParseRange (const std::wstring & text, Word & first, Word & last);
+
+private:
+    void                 DeleteRows (const std::vector<int> & rows);
+    std::optional<Word>  FindSymbol (const std::wstring & name) const;
+
+    IPaneNavigator                & m_paneNavigator;
+    IPaneCommands                 & m_paneCommands;
+    const LatestSnapshot          & m_latest;
+    std::vector<StepFilterEntry>    m_entries;
+};

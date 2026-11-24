@@ -11,10 +11,13 @@
 //  LinkChip
 //
 //  What the Apple side talks to the PC through: a 6551, the //c's or a Super
-//  Serial Card's; an Uthernet II's W5100; or the cassette ports of a ][+ or
-//  //e. Each has a build of the program, and the 6551 and W5100 also have
-//  builds of the shim. The cassette build is loaded from tape by the
-//  monitor, with no shim.
+//  Serial Card's; an Uthernet II's W5100; an original Uthernet's CS8900A or
+//  a LANceGS's LAN91C96, through the network shim's UDP; the cassette ports
+//  of a ][+ or //e; or an Apple ///'s serial port, through SOS's .RS232
+//  driver. Each has a build of the program, and the 6551, the W5100 and the
+//  network also have builds of the shim. The cassette build is loaded from
+//  tape by the monitor, with no shim, and the SOS build is SOS.INTERP on the
+//  CassoLink SOS disk.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,6 +26,8 @@ enum class LinkChip
     Acia,
     W5100,
     Cassette,
+    Sos,
+    Network,
 };
 
 
@@ -48,6 +53,10 @@ struct LinkNetworkConfig
     std::array<Byte, 4>  gateway = {};
     std::array<Byte, 6>  mac     = { 0x02, 'C', 'A', 'S', 'S', 0x01 };
     uint16_t             port    = 6502;
+
+    //  The network shim's chip, LinkProgram::kNetChipCs8900a or
+    //  kNetChipLan91c96, or 0 for a universal boot disk to find.
+    Byte                 netChip = 0;
 };
 
 
@@ -81,7 +90,7 @@ struct LinkShimOptions
 //  LinkProgram
 //
 //  The Apple side of Casso's link, built from the 6502 sources compiled into
-//  the core: the shim, resident at $3B00, and the program it loads at $0800.
+//  the core: the shim, resident at $3A00, and the program it loads at $0800.
 //  Both are assembled here with CassoCore's assembler, in the AS65 dialect,
 //  for the NMOS 6502.
 //
@@ -94,12 +103,19 @@ struct LinkShimOptions
 class LinkProgram
 {
 public:
-    static constexpr Word    kProgramVersion    = 98;
-    static constexpr Byte    kShimVersion       = 8;
-    static constexpr Word    kShimAddress       = 0x3B00;
-    static constexpr Word    kZeroPageSave      = 0x3A00;   // the shim's copy of the machine's zero page, below it
+    static constexpr Word    kProgramVersion    = 105;
+    static constexpr Byte    kShimVersion       = 12;
+    static constexpr Word    kShimAddress       = 0x3A00;
+
+    //  A IIgs's ports alone run at kIIgsBaud; on any other interface the
+    //  program sends a NAK for it, and the link runs at kFallbackBaud.
+    static constexpr DWORD   kIIgsBaud          = 230400;
+    static constexpr DWORD   kFallbackBaud      = 115200;
+    static constexpr Word    kZeroPageSave      = 0x3900;   // the shim's copy of the machine's zero page, below it
     static constexpr Word    kProgramAddress    = 0x0800;
-    static constexpr size_t  kShimLimit         = 0x500;   // $3B00-$3FFF, below the program's tables
+    static constexpr Word    kUpdateImage       = 0x0900;
+    static constexpr size_t  kShimLimit         = 0xA00;   // $3A00-$43FF, the shim and its startup part
+    static constexpr Word    kShimResidentEnd   = 0x4000;  // the program's tables, over the startup part
 
     //  Where the host writes the shim's starting speed: the 6551 control
     //  byte, and its text, padded with spaces.
@@ -123,32 +139,56 @@ public:
     //  The slot of the 6551 or the W5100: for a 6551 on a //c, the port.
     static constexpr size_t  kSlotOffset        = 0x38;
 
-    //  Set by the W5100 builds, and by the cassette build, in Ready's shim
-    //  version byte.
+    //  Set by the W5100 builds, the cassette build and the SOS build in
+    //  Ready's shim version byte.
     static constexpr Byte    kW5100ReadyFlag    = 0x80;
     static constexpr Byte    kCassetteReadyFlag = 0x40;
+    static constexpr Byte    kNetworkReadyFlags = 0xC0;
+    static constexpr Byte    kSosReadyFlag      = 0x20;
+
+    //  The SOS build: its code from kSosAddress, then the 6551 control byte
+    //  for the link's speed, then its buffers from kSosBufferBase to kSosEnd,
+    //  all in the bytes SOS.INTERP loads.
+    static constexpr Word    kSosAddress        = 0x8000;
+    static constexpr Word    kSosBufferBase     = 0x9000;
+    static constexpr Word    kSosEnd            = 0x9E00;
+
+    //  The block module's id and version in its header. The SOS build
+    //  reports them as loaded, as the block requests are in it.
+    static constexpr Byte    kBlockModuleId      = 2;
+    static constexpr Byte    kBlockModuleVersion = 1;
 
     //  The universal boot disk's payload: the first stage, which finds the
     //  machine's interfaces and waits for the PC on all of them, then each
     //  shim as built for its own address, which the stage copies there.
     static constexpr Word    kUniversalAddress  = 0x2000;
-    static constexpr size_t  kUniversalLimit    = 0xC00;
-    static constexpr Word    kUniversalAcia     = 0x2C00;
-    static constexpr Word    kUniversalW5100    = 0x3100;
+    static constexpr size_t  kUniversalLimit    = 0xE00;
+    static constexpr Word    kUniversalAcia     = 0x2E00;
+    static constexpr Word    kUniversalW5100    = 0x4400;
+    static constexpr Word    kUniversalNetwork  = 0x4A00;
 
     //  The UDP port a universal disk's W5100 broadcasts its announcements to.
     static constexpr uint16_t  kAnnouncePort  = 6510;
 
+    //  The network shim, with its stack, from kNetShimAddress below its frames'
+    //  end at $C000. The byte at kNetChipOffset is the chip:
+    //  kNetChipCs8900a or kNetChipLan91c96.
+    static constexpr Word    kNetShimAddress    = 0xB000;
+    static constexpr size_t  kNetShimLimit      = 0x1000;
+    static constexpr size_t  kNetChipOffset     = 0x39;
+    static constexpr Byte    kNetChipCs8900a    = 1;
+    static constexpr Byte    kNetChipLan91c96   = 2;
+
     //  The slot finder, which runs ahead of a 6551 shim typed in or read from
     //  tape, in the page the shim's copy of the zero page later fills.
-    static constexpr Word    kSlotFinderAddress = 0x3AA0;
+    static constexpr Word    kSlotFinderAddress = 0x39A0;
 
     //  The seed of the XOR that Apple's monitor reads and writes a tape with.
     static constexpr Byte    kTapeChecksumSeed  = 0xFF;
 
     //  The slot finder built to read the shim from the 6551 itself, the only
     //  part of a serial bootstrap that is typed.
-    static constexpr Word    kSerialLoaderAddress = 0x3A50;
+    static constexpr Word    kSerialLoaderAddress = 0x3950;
 
     static HRESULT      AssembleShim     (std::vector<Byte> & outBytes, std::string & outErrors, LinkChip chip = LinkChip::Acia);
     //  With faults, the build has the Fault command, for a Debug build's tests
@@ -176,6 +216,13 @@ public:
     //  assembler's errors.
     static HRESULT      BuildVirtualDrive  (Byte speedControl, std::vector<Byte> & outFile, std::string & outErrors);
 
+    //  The CassoLink SOS disk's SOS.INTERP, as SOS loads it: the header
+    //  Apple's SOS Reference Manual specifies, then the SOS build, its speed
+    //  and its buffers. speedControl is the 6551's control byte for the
+    //  link's speed; ERROR_NOT_SUPPORTED for the external clock's rate,
+    //  which .RS232 doesn't have.
+    static HRESULT      BuildSosInterpreter (Byte speedControl, std::vector<Byte> & outFile, std::string & outErrors);
+
     static constexpr Word    kInstallerAddress = 0x2000;
     static constexpr Word    kDriverAddress    = 0x9200;
     static constexpr size_t  kDriverLimit      = 0x200;
@@ -189,6 +236,11 @@ public:
     //  The shim, starting at the given speed. A boot disk and an emulated
     //  link use the link's speed; the typed bootstrap uses its own.
     static HRESULT      BuildShim        (const LinkShimOptions & options, std::vector<Byte> & outShim);
+
+    //  The program an older 6551 shim is sent in place of the program: the
+    //  current shim, given the old one's settings and started over it. The
+    //  updater is at kProgramAddress and the shim's image at kUpdateImage.
+    static HRESULT      BuildShimUpdate  (std::vector<Byte> & outBytes);
     static HRESULT      BuildShim        (DWORD baud, std::vector<Byte> & outShim, const std::string & dial = std::string());
 
     //  A boot disk, as a .dsk's bytes, whose boot sector loads the shim at its
@@ -205,6 +257,9 @@ public:
     static HRESULT      AssembleUniversal      (std::vector<Byte> & outBytes, std::string & outErrors);
     static HRESULT      BuildUniversalBootDisk (const LinkShimOptions & options, std::vector<Byte> & outDisk);
 
+    //  The disk's payload, as it is loaded from kUniversalAddress.
+    static HRESULT      BuildUniversalPayload  (const LinkShimOptions & options, std::vector<Byte> & outPayload);
+
     //  What a bootstrap loads, typed in or from tape, and where it starts:
     //  for a 6551, the slot finder at kSlotFinderAddress, zeros to the shim,
     //  then the shim, so the shim takes its slot from the Apple; for a
@@ -217,18 +272,22 @@ public:
 
     static std::string  GetShimSource                 ();
     static std::string  GetProgramSource              ();
+    static std::string  GetNetStackSource             ();
     static std::string  GetUniversalSource            ();
     static std::string  GetSlotFinderSource           ();
     static std::string  GetCaptureModuleSource        ();
     static std::string  GetBlockModuleSource          ();
     static std::string  GetThirteenSectorModuleSource ();
     static std::string  GetVirtualDriveSource         ();
+    static std::string  GetSosInterpSource            ();
 
     //  The 6551 control byte for a speed: 8 data bits, 1 stop bit and the
     //  rate. False for a speed the //c's port does not have.
     static bool         GetSpeedControl  (DWORD baud, Byte & outControl);
 
 private:
-    static std::string  GetCommandLines ();
-    static HRESULT      Assemble        (const std::string & source, Word origin, LinkChip chip, std::vector<Byte> & outBytes, std::string & outErrors, bool faults = false, std::unordered_map<std::string, Word> * outSymbols = nullptr);
+    static std::string  GetCommandLines    ();
+    static std::string  GetChipLines       (LinkChip chip);
+    static void         MakeSosBlockModule (std::vector<Byte> & outModule);
+    static HRESULT      Assemble           (const std::string & source, Word origin, LinkChip chip, std::vector<Byte> & outBytes, std::string & outErrors, bool faults = false, std::unordered_map<std::string, Word> * outSymbols = nullptr);
 };

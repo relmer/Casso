@@ -162,8 +162,9 @@ public:
     bool                   CanMerge            () const;
     int                    GetMergeLength      (Word address) const;
 
-    bool                   TryGetCellScale     (Word address, std::vector<uint32_t> & gradient, float & mark) const;
-    std::vector<uint32_t>  GetScaleStops       (CellKind kind) const;
+    bool                     TryGetCellScale (Word address, std::vector<uint32_t> & gradient, float & mark) const;
+    std::vector<DxuiTipBar>  GetCellBars     (Word address) const;
+    std::vector<uint32_t>    GetScaleStops   (CellKind kind) const;
 
 private:
     void                   BuildCells          ();

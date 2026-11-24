@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "../EhmTestHelper.h"
-#include "../EmuTests/FixtureProvider.h"
+
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/CassoLinkHost.h"
 #include "CassoLink/LinkProgram.h"
@@ -15,7 +15,6 @@
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskFieldFormat.h"
 #include "Devices/Disk/DiskImage.h"
-#include "ProgramRig.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -27,122 +26,15 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  CaptureProgramTests
 //
-//  The capture module on an emulated //c: a track of a DOS 3.3 disk read
-//  raw, cut to one revolution, and compared bit for bit with the track the
-//  emulated drive reads.
+//  The capture's encoding and the analysis of its reads, on reads built in
+//  memory. The capture module on an emulated //c is tested in
+//  CaptureProgramScenarioTests.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (CaptureProgramTests)
 {
 public:
-
-    static std::vector<Byte>  LoadFixture()
-    {
-        FixtureProvider    fixtures;
-        std::vector<Byte>  bytes;
-
-
-
-        AssertSucceeded (fixtures.OpenFixture ("CassoExplorer/dos33.dsk", bytes));
-
-        return bytes;
-    }
-
-    //  The drive's track at a quarter-track position, one bit to a byte.
-    static std::vector<uint8_t>  GetTrackBits (ProgramRig & rig, int quarterTrack)
-    {
-        DiskImage             * image = rig.machine.GetDiskStore().GetImage (ProgramRig::kSlot, 0);
-        int                     slot  = image->ResolveQuarterTrack (quarterTrack);
-        std::vector<uint8_t>    bits;
-
-
-
-        for (size_t at = 0; at < image->GetTrackBitCount (slot); at++)
-        {
-            bits.push_back (image->ReadBit (slot, at));
-        }
-
-        return bits;
-    }
-
-    //  A disk byte as a drive's latch takes it, and the zero bits after it.
-    struct TrackByte
-    {
-        Byte  value = 0;
-        int   zeros = 0;
-    };
-
-    //  A track's bytes in one revolution. The bits are taken twice round, so
-    //  the second revolution's bytes are framed in step.
-    static std::vector<TrackByte>  GetTrackBytes (const std::vector<uint8_t> & bits)
-    {
-        std::vector<TrackByte>  bytes;
-        Byte                    shift = 0;
-        size_t                  n     = bits.size();
-
-
-
-        for (size_t at = 0; at < 2 * n; at++)
-        {
-            uint8_t  bit = bits[at % n];
-
-            if (shift == 0 && bit == 0)
-            {
-                if (!bytes.empty() && at >= n)
-                {
-                    bytes.back().zeros++;
-                }
-
-                continue;
-            }
-
-            shift = (Byte) ((shift << 1) | bit);
-
-            if ((shift & 0x80) != 0)
-            {
-                if (at >= n)
-                {
-                    bytes.push_back ({ shift, 0 });
-                }
-
-                shift = 0;
-            }
-        }
-
-        return bytes;
-    }
-
-    //  Whether `captured` is `track` started at some bit.
-    static bool  IsRotationOf (const std::vector<uint8_t> & captured, const std::vector<uint8_t> & track)
-    {
-        size_t  n = track.size();
-
-
-
-        if (captured.size() != n)
-        {
-            return false;
-        }
-
-        for (size_t start = 0; start < n; start++)
-        {
-            size_t  at = 0;
-
-            while (at < n && track[(start + at) % n] == captured[at])
-            {
-                at++;
-            }
-
-            if (at == n)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
 
     //  Each token: values as they are, a repeat, and a copy of a revolution
     //  before, then the marks, with the padding after the last ignored. The
@@ -169,155 +61,6 @@ public:
     }
 
 
-    //  A 13-sector disk written over the link by Write nibble track, track by
-    //  track: the emulated drive's disk decodes to its sectors, and read
-    //  back over the link, it has them too.
-    TEST_METHOD (AThirteenSectorDisk_IsWrittenAndReadBack_OverTheLink)
-    {
-        ProgramRig          rig (LoadFixture());
-        std::vector<Byte>   module;
-        std::vector<Byte>   sectors (ThirteenSectorCodec::kImageByteSize);
-        std::vector<Byte>   onDisk;
-        std::vector<Byte>   read;
-        SectorDecodeReport  diskReport;
-        SectorDecodeReport  readReport;
-        CassoLinkStatus     status;
-
-
-
-        for (size_t at = 0; at < sectors.size(); at++)
-        {
-            sectors[at] = (Byte) (at * 7 + at / 256);
-        }
-
-        AssertSucceeded (LinkProgram::BuildThirteenSectorModule (module));
-        AssertSucceeded (rig.host->EnsureModule (module));
-        AssertSucceeded (CassoLinkThirteenSector::WriteDisk (*rig.host, 1, sectors, nullptr, nullptr, status));
-        Assert::AreEqual ((Byte) 0, status.error);
-
-        ThirteenSectorCodec::Denibblize (*rig.machine.GetDiskStore().GetImage (ProgramRig::kSlot, 0), onDisk, diskReport);
-        Assert::IsTrue (onDisk == sectors, L"The drive's disk has the sectors written");
-
-        AssertSucceeded (CassoLinkThirteenSector::ReadDisk (*rig.host, 1, nullptr, nullptr, read, readReport, status));
-        Assert::AreEqual ((Byte) 0, status.error);
-        Assert::IsTrue (read == sectors, L"The sectors read back over the link");
-    }
-
-
-    //  The DOS 3.2 master read over the link: the sectors and tracks Casso
-    //  decodes from the image.
-    TEST_METHOD (TheDos32Master_IsReadOverTheLink_AsItDecodes)
-    {
-        FixtureProvider     fixtures;
-        ProgramRig          rig (LoadFixture());
-        std::vector<Byte>   woz;
-        std::vector<Byte>   module;
-        std::vector<Byte>   expected;
-        std::vector<Byte>   read;
-        SectorDecodeReport  expectedReport;
-        SectorDecodeReport  readReport;
-        CassoLinkStatus     status;
-
-
-
-        AssertSucceeded (fixtures.OpenFixture ("CiderPress/woz/dos32master_2.woz", woz));
-        AssertSucceeded (rig.machine.GetDiskStore().MountFromBytes (ProgramRig::kSlot, 0, "", DiskFormat::Woz, woz));
-
-        ThirteenSectorCodec::Denibblize (*rig.machine.GetDiskStore().GetImage (ProgramRig::kSlot, 0), expected, expectedReport);
-
-        AssertSucceeded (LinkProgram::BuildThirteenSectorModule (module));
-        AssertSucceeded (rig.host->EnsureModule (module));
-        AssertSucceeded (CassoLinkThirteenSector::ReadDisk (*rig.host, 1, nullptr, nullptr, read, readReport, status));
-        Assert::AreEqual ((Byte) 0, status.error);
-        Assert::IsTrue (read == expected, L"The sectors read over the link");
-
-        for (int track = 0; track < ThirteenSectorCodec::kTrackCount; track++)
-        {
-            Assert::AreEqual ((int) expectedReport.GetOutcome (track), (int) readReport.GetOutcome (track), std::format (L"track {}", track).c_str());
-        }
-    }
-
-
-    //  A track with two sectors that have no data field, as on a track DOS
-    //  3.2's INIT formatted: the two are zeros in the read, and the track is
-    //  whole. The first two whole data fields in the stream are each self-sync
-    //  bytes of the same bits, as a longer track would overwrite its start.
-    TEST_METHOD (SectorsWithNoDataField_ReadAsZeros_OverTheLink)
-    {
-        static constexpr int     kTrack        = 5;
-        static constexpr size_t  kFieldNibbles = 3 + CassoLinkCodec::kThirteenField + 3;
-
-        ProgramRig          rig (LoadFixture());
-        std::vector<Byte>   module;
-        std::vector<Byte>   sectors (ThirteenSectorCodec::kImageByteSize);
-        std::vector<Byte>   expected;
-        std::vector<Byte>   stream;
-        std::vector<Byte>   read;
-        DiskImage           image;
-        SectorDecodeReport  report;
-        CassoLinkStatus     status;
-        int                 blanked = 0;
-
-
-
-        for (size_t at = 0; at < sectors.size(); at++)
-        {
-            sectors[at] = (Byte) (at * 5 + at / 256 + 1);
-        }
-
-        AssertSucceeded (LinkProgram::BuildThirteenSectorModule (module));
-        AssertSucceeded (rig.host->EnsureModule (module));
-        AssertSucceeded (CassoLinkThirteenSector::WriteDisk (*rig.host, 1, sectors, nullptr, nullptr, status));
-
-        AssertSucceeded (ThirteenSectorCodec::Nibblize (sectors, CassoLinkThirteenSector::kVolume, image));
-        CassoLinkThirteenSector::MakeStream (image, image.ResolveWholeTrack (kTrack), stream);
-
-        expected = sectors;
-
-        for (size_t at = 0; at + 9 < stream.size() && blanked < 2; at++)
-        {
-            Byte  sector = 0;
-            bool  erased = false;
-
-            if (stream[at] != 0xD5 || stream[at + 1] != 0xAA || stream[at + 2] != 0xB5)
-            {
-                continue;
-            }
-
-            sector = DiskFieldFormat::Decode44 (stream[at + 7], stream[at + 8]);
-
-            for (size_t data = at + 9; !erased && data + kFieldNibbles <= stream.size(); data++)
-            {
-                if (stream[data] == 0xD5 && stream[data + 1] == 0xAA && stream[data + 2] == 0xAD)
-                {
-                    stream.erase  (stream.begin() + (ptrdiff_t) data, stream.begin() + (ptrdiff_t) (data + kFieldNibbles));
-                    stream.insert (stream.begin() + (ptrdiff_t) data, kFieldNibbles * 8 / 10, (Byte) 0);
-                    erased = true;
-                }
-            }
-
-            if (!erased)
-            {
-                continue;
-            }
-
-            std::fill_n (expected.begin() + (ptrdiff_t) ((kTrack * ThirteenSectorCodec::kSectorsPerTrack + sector) * ThirteenSectorCodec::kSectorByteSize),
-                         ThirteenSectorCodec::kSectorByteSize, (Byte) 0);
-            blanked++;
-        }
-
-        Assert::AreEqual (2, blanked);
-
-        AssertSucceeded (rig.host->WriteNibbleTrack (1, (Byte) kTrack, stream, status));
-        Assert::AreEqual ((Byte) 0, status.error);
-
-        AssertSucceeded (CassoLinkThirteenSector::ReadDisk (*rig.host, 1, nullptr, nullptr, read, report, status));
-        Assert::AreEqual ((Byte) 0, status.error);
-        Assert::IsTrue (read == expected, L"The sectors with no data field are zeros");
-        Assert::AreEqual ((int) TrackDecodeOutcome::Complete, (int) report.GetOutcome (kTrack));
-    }
-
-
     //  The module fits below the loop's copies, which capbuild writes from
     //  CAPCODE.
     TEST_METHOD (TheCaptureModule_FitsBelowItsLoopsCopies)
@@ -333,44 +76,6 @@ public:
         hr = LinkProgram::AssembleModule (LinkProgram::GetCaptureModuleSource(), module, errors);
         Assert::IsTrue (SUCCEEDED (hr), TextEncoding::NarrowToWide (errors).c_str());
         Assert::IsTrue (module.size() <= kRoom, std::format (L"{} bytes", module.size()).c_str());
-    }
-
-
-    //  A whole track read at 8 cycles, whose revolutions mark different
-    //  bytes, as a read that finds each byte at another moment in each
-    //  revolution does: after the first revolution, the values are copies, so
-    //  the encoding is the first revolution, the marks and a few tokens.
-    TEST_METHOD (ARead_WhoseMarksDifferFromTheRevolutionBefore_IsSentAsCopies)
-    {
-        static constexpr size_t  kTokenBytes = 512;
-
-        ProgramRig         rig (LoadFixture());
-        std::vector<Byte>  module;
-        std::vector<Byte>  bytes;
-        CassoLinkStatus    status;
-        CaptureTiming      timing;
-        size_t             length   = 0;
-        size_t             differ   = 0;
-        size_t             limit    = 0;
-
-
-
-        AssertSucceeded (LinkProgram::BuildCaptureModule (module));
-        AssertSucceeded (rig.host->EnsureModule (module));
-        AssertSucceeded (rig.host->CaptureQuarterTrack (1, 0, 0, 0, 100, CassoLinkHost::kNoSync, {}, bytes, status, timing));
-        Assert::IsTrue  (CaptureStream::FindRevolution (bytes, length), L"The read repeats");
-
-        for (size_t at = 0; at + length < bytes.size(); at++)
-        {
-            differ += (CaptureStream::IsSync (bytes[at]) != CaptureStream::IsSync (bytes[at + length])) ? 1 : 0;
-        }
-
-        limit = length + bytes.size() / 8 + kTokenBytes;
-
-        Logger::WriteMessage (std::format ("{} bytes stored, {} sent, revolution {}, {} marks differ from the revolution before\n", bytes.size(), timing.sentBytes, length, differ).c_str());
-
-        Assert::IsTrue (differ > 0, L"The revolutions mark different bytes");
-        Assert::IsTrue (timing.sentBytes <= limit, std::format (L"{} sent, at most {}", timing.sentBytes, limit).c_str());
     }
 
 
@@ -663,6 +368,7 @@ public:
         }
     }
 
+
     //  A track whose second read waited on the track's sector 15 address field, so
     //  the revolution is timed from bits that are all data: the track is made
     //  that long by its gap's sync bytes, and the sectors' bytes are those
@@ -747,6 +453,7 @@ public:
         Assert::AreEqual ((size_t) std::llround (result.revolutionCycles / 4.0), bits, L"The track is a revolution long");
         Assert::AreNotEqual (revolution.size() * 8, bits, L"The gap's sync bytes changed");
     }
+
 
     //  A track whose first read starts just after the D5 of sector 4's
     //  address field, and latches the AA after it from the middle of the
@@ -842,6 +549,7 @@ public:
         Assert::AreEqual ((size_t) kSectors, addressed.size(), L"Every sector's address field");
     }
 
+
     //  A track with all 16 address fields is a standard track whether or not
     //  its data fields decode, so the positions between two of them aren't
     //  read; one with an address field whose checksum is wrong isn't.
@@ -915,6 +623,7 @@ public:
                               variant == 0 ? L"Data fields that decode" : variant == 1 ? L"Data fields that don't decode" : L"An address field with a wrong checksum");
         }
     }
+
 
     //  A sector whose data prolog one read has as D5 BB BF, on a track whose
     //  other data fields begin D5 AA AD, is taken from a read with D5 AA AD.
@@ -1020,34 +729,107 @@ public:
         Assert::IsTrue (usual >= kSectors, L"Every data field begins D5 AA AD");
     }
 
-    //  A write-protected disk's capture is a write-protected WOZ, as a
-    //  program that writes to the disk it runs from takes another path when the write
-    //  fails; an unprotected disk's isn't; and the reads file has it.
-    TEST_METHOD (AWriteProtectedDisk_IsAWriteProtectedWoz)
+
+    //  A revolution that starts at an address field, the first after the first
+    //  read's start, followed by a gap that the other reads have a byte longer,
+    //  as reads of a write splice can:
+    //  each read is aligned from its copy of that address field, not a byte
+    //  past it, so every address field is in the result and no byte is weak.
+    TEST_METHOD (AReadWithALongerGapAfterTheFirstField_IsAlignedFromIt)
     {
-        static constexpr size_t  kInfoProtected = 22;
+        static constexpr int     kSectors   = 16;
+        static constexpr int     kTrack     = 1;
+        static constexpr size_t  kSyncs     = 8;
+        static constexpr size_t  kReadBytes = 14000;
+        static constexpr Byte    kVolume    = 254;
+        static constexpr size_t  kBefore    = 100;
+        static constexpr size_t  kStarts[]  = { 0, 1000, 3000 };
 
-        for (bool protect : { true, false })
+        std::vector<CassoLinkCapture::Position>  positions (1);
+        CassoLinkCapture::Result                 result;
+        DiskImage                                image;
+        std::vector<Byte>                        framed;
+        std::set<int>                            addressed;
+
+
+
+        positions[0].position = kTrack * 4;
+
+        for (size_t read = 0; read < CassoLinkCapture::kWholeReads; read++)
         {
-            ProgramRig                               rig (LoadFixture());
-            std::vector<Byte>                        module;
-            std::vector<Byte>                        file;
-            std::vector<CassoLinkCapture::Position>  parsed;
-            CassoLinkCapture::Result                 result;
+            std::vector<Byte>  revolution;
+            std::vector<Byte>  bytes;
+            uint32_t           seed = 1357;
 
-            rig.machine.GetDiskStore().GetImage (ProgramRig::kSlot, 0)->SetWriteProtected (protect);
+            auto  oddEven = [&revolution] (Byte value)
+            {
+                revolution.push_back ((Byte) ((value >> 1) | 0xAA));
+                revolution.push_back ((Byte) (value | 0xAA));
+            };
 
-            AssertSucceeded (LinkProgram::BuildCaptureModule (module));
-            AssertSucceeded (CassoLinkCapture::Capture (*rig.host, 1, module, "2026-11-12T00:00:00Z", {}, result, 0));
+            for (int number = 0; number < kSectors; number++)
+            {
+                std::vector<Byte>  data (NibblizationLayer::kSectorByteSize);
+                std::vector<Byte>  nibbles;
 
-            Assert::AreEqual (protect, result.writeProtected, L"The capture found the disk's protection");
-            Assert::AreEqual ((Byte) (protect ? 1 : 0), result.woz[kInfoProtected], L"The WOZ's INFO has it");
+                revolution.insert (revolution.end(), { 0xD5, 0xAA, 0x96 });
+                oddEven (kVolume);
+                oddEven (kTrack);
+                oddEven ((Byte) number);
+                oddEven ((Byte) (kVolume ^ kTrack ^ number));
+                revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
 
-            CassoLinkCapture::SerializeReads (result.positions, file);
-            AssertSucceeded (CassoLinkCapture::ParseReads (file, parsed));
-            Assert::AreEqual (protect, parsed[0].writeProtected, L"The reads file has it");
+                //  Sector 0's gap begins with two bytes in the first read, and
+                //  in each of the others with six, each set different, in
+                //  place of those two and three sync bytes.
+                if (number == 0)
+                {
+                    revolution.insert (revolution.end(), read == 0 ? std::initializer_list<Byte> { 0xD7, 0xF3 } :
+                                                         read == 1 ? std::initializer_list<Byte> { 0x9B, 0xC9, 0xBF, 0xCF, 0xF3, 0xFC } :
+                                                                     std::initializer_list<Byte> { 0xAB, 0xF9, 0xBF, 0xCF, 0xF3, 0xFC });
+                }
+
+                revolution.insert (revolution.end(), number == 0 && read > 0 ? kSyncs - 3 : kSyncs, 0xFF);
+                revolution.insert (revolution.end(), { 0xD5, 0xAA, 0xAD });
+
+                for (Byte & value : data)
+                {
+                    seed  = seed * 1103515245u + 12345u;
+                    value = (Byte) (seed >> 16);
+                }
+
+                NibblizationLayer::EncodeDataNibbles (data.data(), nibbles);
+                revolution.insert (revolution.end(), nibbles.begin(), nibbles.end());
+                revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
+                revolution.insert (revolution.end(), kSyncs, 0xFF);
+            }
+
+            for (size_t at = 0; at < kReadBytes; at++)
+            {
+                bytes.push_back (revolution[(kStarts[read] + revolution.size() - kBefore + at) % revolution.size()]);
+            }
+
+            positions[0].reads.push_back (bytes);
+            positions[0].delays.push_back (CassoLinkCapture::kWholeDelays[read]);
         }
+
+        AssertSucceeded (CassoLinkCapture::BuildWoz (positions, kTrack * 4, "2026-11-18T00:00:00Z", 1, result));
+        AssertSucceeded (WozLoader::Load (result.woz, image));
+
+        FrameTrack (image, image.ResolveQuarterTrack (kTrack * 4), framed);
+
+        for (size_t at = 0; at + 9 < framed.size(); at++)
+        {
+            if (framed[at] == 0xD5 && framed[at + 1] == 0xAA && framed[at + 2] == 0x96)
+            {
+                addressed.insert (((framed[at + 7] << 1) | 1) & framed[at + 8]);
+            }
+        }
+
+        Assert::AreEqual ((size_t) kSectors, addressed.size(), L"Every sector's address field");
+        Assert::IsTrue (result.weak.empty(), L"No weak bytes");
     }
+
 
     //  A track's bytes as a controller frames them from its bits.
     static void  FrameTrack (DiskImage & image, int slot, std::vector<Byte> & outBytes)
@@ -1073,310 +855,9 @@ public:
         }
     }
 
-    //  A program just loaded has the arm's place as unknown: a first read of
-    //  track 30 takes the arm to track 0 first and reads track 30, not the
-    //  track the arm stops at.
-    TEST_METHOD (AFirstRead_WithTheArmUnknown_ReadsItsTrack)
-    {
-        static constexpr Byte  kTrack = 30;
-
-        ProgramRig         rig (LoadFixture());
-        std::vector<Byte>  module;
-        std::vector<Byte>  bytes;
-        CassoLinkStatus    status;
-        CaptureTiming      timing;
-        int                track    = -1;
-
-
-
-        AssertSucceeded (LinkProgram::BuildCaptureModule (module));
-        AssertSucceeded (rig.host->EnsureModule (module));
-        AssertSucceeded (rig.host->CaptureQuarterTrack (1, kTrack * 4, 0, 0, 0, CassoLinkHost::kNoSync, {}, bytes, status, timing));
-
-        for (size_t at = 0; track < 0 && at + 7 <= bytes.size(); at++)
-        {
-            bool  prolog = (bytes[at] | 0x80) == 0xD5 && (bytes[at + 1] | 0x80) == 0xAA && (bytes[at + 2] | 0x80) == 0x96;
-
-            if (prolog)
-            {
-                track = (((bytes[at + 5] | 0x80) << 1) | 1) & (bytes[at + 6] | 0x80);
-            }
-        }
-
-        Assert::AreEqual ((int) kTrack, track);
-    }
-
-
-    //  A whole track read once: every byte of it, in order, and every sync
-    //  byte marked. A read marks a byte when the latch has it again 8 cycles
-    //  after the loop finds it, so a byte found the cycle it finishes can be
-    //  marked too; the PC sorts those out across reads.
-    TEST_METHOD (WholeTrack_IsReadByteForByte_WithEverySyncMarked)
-    {
-        ProgramRig              rig (LoadFixture());
-        std::vector<Byte>       module;
-        std::vector<Byte>       bytes;
-        std::vector<uint8_t>    bits;
-        std::vector<uint8_t>    track;
-        std::vector<TrackByte>  trackBytes;
-        CassoLinkStatus         status;
-        CaptureTiming           timing;
-        size_t                  length  = 0;
-        size_t                  syncs   = 0;
-        size_t                  start   = 0;
-        size_t                  missed  = 0;
-        bool                    aligned = false;
-
-
-
-        AssertSucceeded (LinkProgram::BuildCaptureModule (module));
-        AssertSucceeded (rig.host->EnsureModule (module));
-        AssertSucceeded (rig.host->CaptureQuarterTrack (1, 0, 0, 0, 100, CassoLinkHost::kNoSync, {}, bytes, status, timing));
-
-        Assert::AreEqual ((Byte) 0, status.error);
-
-        for (Byte b : bytes)
-        {
-            syncs += CaptureStream::IsSync (b) ? 1 : 0;
-        }
-
-        Assert::IsTrue (syncs > 100, L"Sync bytes are marked");
-        Assert::IsTrue (CaptureStream::FindRevolution (bytes, length), L"The read repeats");
-
-        CaptureStream::BuildRevolution (bytes, length, bits);
-        track      = GetTrackBits (rig, 0);
-        trackBytes = GetTrackBytes (track);
-
-        Logger::WriteMessage (std::format ("revolution {} bytes, {} bits; the track has {} bytes, {} bits; {} syncs\n", length, bits.size(), trackBytes.size(), track.size(), syncs).c_str());
-
-        Assert::AreEqual (trackBytes.size(), length, L"A revolution has the track's bytes");
-
-        for (start = 0; start < length && !aligned; start++)
-        {
-            size_t  at = 0;
-
-            while (at < length && (Byte) (bytes[at] | 0x80) == trackBytes[(start + at) % length].value)
-            {
-                at++;
-            }
-
-            aligned = at == length;
-        }
-
-        Assert::IsTrue (aligned, L"The read has every byte of the track, in order");
-
-        start--;
-
-        for (size_t at = 0; at < length; at++)
-        {
-            if (trackBytes[(start + at) % length].zeros >= 2)
-            {
-                missed += CaptureStream::IsSync (bytes[at]) ? 0 : 1;
-            }
-        }
-
-        Assert::AreEqual ((size_t) 0, missed, L"Every byte followed by two zero bits is marked");
-    }
-
-    //  A read that waits on a marker the track doesn't have ends with the
-    //  Status's not-found error, and a read after it, with no marker, works.
-    TEST_METHOD (AMarkerThatDoesntPass_FailsTheRead_AndTheNextReadWorks)
-    {
-        ProgramRig         rig (LoadFixture());
-        std::vector<Byte>  module;
-        std::vector<Byte>  bytes;
-        CassoLinkStatus    status;
-        CaptureTiming      timing;
-        const Byte         marker[] = { 0xD5, 0xAA, 0x96, 0xFF, 0xFE, 0xAA, 0xAA, 0xAA, 0xAA, 0xFF, 0xFE };
-
-
-
-        AssertSucceeded (LinkProgram::BuildCaptureModule (module));
-        AssertSucceeded (rig.host->EnsureModule (module));
-        AssertSucceeded (rig.host->CaptureQuarterTrack (1, 4, 0, 0, 100, 0, marker, bytes, status, timing));
-        Assert::AreEqual (CassoLinkHost::kErrorNotFound, status.error, L"The marker didn't pass");
-
-        AssertSucceeded (rig.host->EnsureModule (module));
-        AssertSucceeded (rig.host->CaptureQuarterTrack (1, 4, 0, 0, 100, CassoLinkHost::kNoSync, {}, bytes, status, timing));
-        Assert::AreEqual ((Byte) 0, status.error);
-        Assert::IsFalse (bytes.empty());
-    }
-
-    //  Where in `track` a window of `captured` is, as a share of a
-    //  revolution: the angle of the captured track's bit 0 in the track's
-    //  frame. -1 when the window isn't there once.
-    static double  FindAngle (const std::vector<uint8_t> & captured, const std::vector<uint8_t> & track)
-    {
-        static constexpr uint8_t  kProlog[] = { 1,1,0,1,0,1,0,1, 1,0,1,0,1,0,1,0, 1,0,0,1,0,1,1,0 };
-        size_t                    n         = track.size();
-        size_t                    window    = 0;
-        size_t                    found     = SIZE_MAX;
-        int                       count     = 0;
-
-
-
-        //  The window starts at the first address field, which has its sector's
-        //  number, so it is in the track once.
-        while (window + kWindowBits < captured.size() && !std::equal (std::begin (kProlog), std::end (kProlog), captured.begin() + (ptrdiff_t) window))
-        {
-            window++;
-        }
-
-        for (size_t start = 0; start < n && window + kWindowBits < captured.size(); start++)
-        {
-            size_t  at = 0;
-
-            while (at < kWindowBits && track[(start + at) % n] == captured[window + at])
-            {
-                at++;
-            }
-
-            if (at == kWindowBits)
-            {
-                found = start;
-                count++;
-            }
-        }
-
-        return (count == 1) ? (double) ((found + n - window % n) % n) / (double) n : -1.0;
-    }
-
-    //  Six tracks captured with each waiting on a marker on the one before:
-    //  every track's bit 0 is at the same angle of the drive's tracks, as an
-    //  index-synchronized capture's are, within a few bytes.
-    TEST_METHOD (SixTracks_ArePlacedAsTheDrivesTracksAre)
-    {
-        ProgramRig                 rig (LoadFixture());
-        std::vector<Byte>          module;
-        CassoLinkCapture::Result   result;
-        DiskImage                  woz;
-        std::vector<double>        angles;
-        std::string                log;
-
-
-
-        AssertSucceeded (LinkProgram::BuildCaptureModule (module));
-        AssertSucceeded (CassoLinkCapture::Capture (*rig.host, 1, module, "2026-11-11T00:00:00Z", {}, result, 5));
-        AssertSucceeded (WozLoader::Load (result.woz, woz));
-
-        Assert::IsTrue (result.synchronized, L"Every track waited on its marker");
-
-        for (int track = 0; track <= 5; track++)
-        {
-            std::vector<uint8_t>  captured;
-            int                   slot  = woz.ResolveQuarterTrack (track * 4);
-            double                angle = 0.0;
-
-            for (size_t at = 0; at < woz.GetTrackBitCount (slot); at++)
-            {
-                captured.push_back (woz.ReadBit (slot, at));
-            }
-
-            angle = FindAngle (captured, GetTrackBits (rig, track * 4));
-            Assert::IsTrue (angle >= 0.0, std::format (L"Track {} is found in the drive's track", track).c_str());
-            angles.push_back (angle);
-            log  += std::format ("track {}: angle {:.5f}, {:+.5f} from track 0\n", track, angle, angle - angles[0]);
-        }
-
-        Logger::WriteMessage (log.c_str());
-
-        for (int track = 1; track <= 5; track++)
-        {
-            double  drift = std::abs (angles[(size_t) track] - angles[0]);
-
-            Assert::IsTrue (std::min (drift, 1.0 - drift) < kAngleTolerance, std::format (L"Track {}", track).c_str());
-        }
-    }
 
     static constexpr size_t  kWindowBits     = 200;
-    static constexpr double  kAngleTolerance = 0.005;    // about 30 bytes
 
-
-    //  A capture stopped after its first read ends with ERROR_CANCELLED and
-    //  no image, and the program takes the next request.
-    TEST_METHOD (ACaptureStopped_EndsCanceled_AndTheLinkGoesOn)
-    {
-        ProgramRig                rig (LoadFixture());
-        std::vector<Byte>         module;
-        CassoLinkCapture::Result  result;
-        int                       checks   = 0;
-        const Byte                sector[] = { 0 };
-        std::vector<Byte>         data;
-        CassoLinkStatus           status;
-
-
-
-        AssertSucceeded (LinkProgram::BuildCaptureModule (module));
-
-        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_CANCELLED),
-                          CassoLinkCapture::Capture (*rig.host, 1, module, "2026-11-11T00:00:00Z", {}, result, 1, [&checks] () { return ++checks > 1; }));
-        Assert::IsTrue (result.woz.empty(), L"No image");
-
-        AssertSucceeded (rig.host->ReadSectors (1, 0, sector, data, status));
-        Assert::AreEqual ((Byte) 0, status.error);
-    }
-
-    //  Tracks 0 and 1 captured into a WOZ: both are standard, so the
-    //  positions between them aren't read; each quarter track reads what the
-    //  emulated drive reads there, and the half track has no stream, as a
-    //  standard WOZ's doesn't.
-    TEST_METHOD (TwoTracks_CaptureToAWozOfTheSameTracks)
-    {
-        ProgramRig                               rig (LoadFixture());
-        std::vector<Byte>                        module;
-        CassoLinkCapture::Result                 result;
-        DiskImage                                woz;
-        std::vector<CassoLinkCapture::Progress>  reports;
-        std::vector<Byte>                        file;
-        std::vector<CassoLinkCapture::Position>  parsed;
-
-
-
-        AssertSucceeded (LinkProgram::BuildCaptureModule (module));
-        AssertSucceeded (CassoLinkCapture::Capture (*rig.host, 1, module, "2026-11-11T00:00:00Z", [&reports] (const CassoLinkCapture::Progress & where) { reports.push_back (where); }, result, 1));
-        AssertSucceeded (WozLoader::Load (result.woz, woz));
-
-        Assert::AreEqual ((size_t) 6, reports.size(),  L"Three reads of each whole track");
-        Assert::AreEqual (99, reports.back().percent,  L"The share stops short of 100 until the capture ends");
-        Assert::AreEqual (0, result.betweenRead,       L"Nothing between two standard tracks is read");
-        Assert::AreEqual (3, result.betweenTotal);
-        Assert::IsTrue   (result.sentBytes < result.storedBytes, L"The encoding is shorter");
-        Assert::AreEqual ((size_t) 2, result.streams.size(), L"The two whole tracks");
-        Assert::IsTrue   (result.unstable.empty());
-        Assert::IsTrue   (result.weak.empty());
-        Assert::AreEqual (-1, woz.ResolveQuarterTrack (2), L"The half track");
-
-        //  Casso's drive turns a bit in 4 cycles, so the revolution track 0's
-        //  second read timed is its bits at 4 cycles each.
-        double  expected = 4.0 * (double) woz.GetTrackBitCount (woz.ResolveQuarterTrack (0));
-
-        Logger::WriteMessage (std::format ("revolution {:.1f} cycles, expected {:.1f}\n", result.revolutionCycles, expected).c_str());
-        Assert::IsTrue (std::abs (result.revolutionCycles - expected) <= s_kRevolutionTolerance * expected, L"The drive's revolution is measured");
-
-        CassoLinkCapture::SerializeReads (result.positions, file);
-        AssertSucceeded (CassoLinkCapture::ParseReads (file, parsed));
-        Assert::AreEqual (result.positions.size(), parsed.size(), L"The reads round-trip");
-        Assert::IsTrue   (parsed[1].reads == result.positions[1].reads);
-
-        for (int quarter : { 0, 1, 3, 4 })
-        {
-            std::vector<uint8_t>  captured;
-            int                   slot = woz.ResolveQuarterTrack (quarter);
-
-            Assert::IsTrue (slot >= 0);
-
-            for (size_t at = 0; at < woz.GetTrackBitCount (slot); at++)
-            {
-                captured.push_back (woz.ReadBit (slot, at));
-            }
-
-            //  A WOZ has a quarter track as its nearer whole track; Casso's image
-            //  has quarter tracks 0 to 3 as track 0.
-            Assert::IsTrue (IsRotationOf (captured, GetTrackBits (rig, (quarter + 1) / 4 * 4)), std::format (L"Quarter track {}", quarter).c_str());
-        }
-    }
-
-    static constexpr double  s_kRevolutionTolerance = 0.002;
 
     //  The disk bytes a 16-sector track's data fields use.
     static constexpr Byte  s_kDiskBytes[] =
@@ -1386,7 +867,6 @@ public:
         0xD6, 0xD7, 0xD9, 0xDA, 0xDB, 0xDC, 0xDD, 0xDE, 0xDF, 0xE5, 0xE6, 0xE7, 0xE9, 0xEA, 0xEB, 0xEC,
         0xED, 0xEE, 0xEF, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF,
     };
-
 
 
     //  An earlier capture's reads go after the reads a position has, and a
@@ -1413,5 +893,125 @@ public:
         Assert::AreEqual ((size_t) 3, positions[1].reads.size());
         Assert::IsTrue (positions[1].reads[0] == std::vector<Byte> { 1 } && positions[1].reads[2] == std::vector<Byte> { 3 }, L"The reads it had first");
         Assert::IsTrue (positions[1].delays == std::vector<Byte> { 0, 1, 0 });
+    }
+
+
+    //  A whole track's reads of a standard 16-sector track, each read a
+    //  revolution and a half, starting at another byte.
+    static CassoLinkCapture::Position  MakeStandardPosition (int track)
+    {
+        static constexpr int     kSectors = 16;
+        static constexpr size_t  kSyncs   = 8;
+        static constexpr Byte    kVolume  = 254;
+
+        CassoLinkCapture::Position  position;
+        std::vector<Byte>           revolution;
+        uint32_t                    seed = (uint32_t) (track * 7919 + 1);
+
+
+
+        auto  oddEven = [&revolution] (Byte value)
+        {
+            revolution.push_back ((Byte) ((value >> 1) | 0xAA));
+            revolution.push_back ((Byte) (value | 0xAA));
+        };
+
+        for (int number = 0; number < kSectors; number++)
+        {
+            std::vector<Byte>  data (NibblizationLayer::kSectorByteSize);
+            std::vector<Byte>  nibbles;
+
+            revolution.insert (revolution.end(), kSyncs, 0xFF);
+            revolution.insert (revolution.end(), { 0xD5, 0xAA, 0x96 });
+            oddEven (kVolume);
+            oddEven ((Byte) track);
+            oddEven ((Byte) number);
+            oddEven ((Byte) (kVolume ^ track ^ number));
+            revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
+            revolution.insert (revolution.end(), kSyncs, 0xFF);
+            revolution.insert (revolution.end(), { 0xD5, 0xAA, 0xAD });
+
+            for (Byte & value : data)
+            {
+                seed  = seed * 1103515245u + 12345u;
+                value = (Byte) (seed >> 16);
+            }
+
+            NibblizationLayer::EncodeDataNibbles (data.data(), nibbles);
+            revolution.insert (revolution.end(), nibbles.begin(), nibbles.end());
+            revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
+        }
+
+        position.position = track * 4;
+
+        for (size_t read = 0; read < CassoLinkCapture::kWholeReads; read++)
+        {
+            std::vector<Byte>  bytes;
+            size_t             first = read * 997;
+
+            for (size_t at = 0; at < revolution.size() * 3 / 2; at++)
+            {
+                bytes.push_back (revolution[(first + at) % revolution.size()]);
+            }
+
+            position.reads.push_back (bytes);
+            position.delays.push_back (CassoLinkCapture::kWholeDelays[read]);
+        }
+
+        return position;
+    }
+
+
+    //  A capture whose reads found the disk write-protected is a
+    //  write-protected WOZ, and the reads file has it; one whose reads didn't
+    //  isn't.
+    TEST_METHOD (AWriteProtectedDisksReads_AreAWriteProtectedWoz)
+    {
+        static constexpr size_t  kInfoProtected = 22;
+
+        for (bool protect : { true, false })
+        {
+            std::vector<CassoLinkCapture::Position>  positions { MakeStandardPosition (0) };
+            std::vector<CassoLinkCapture::Position>  parsed;
+            std::vector<Byte>                        file;
+            CassoLinkCapture::Result                 result;
+
+
+
+            positions[0].writeProtected = protect;
+
+            AssertSucceeded (CassoLinkCapture::BuildWoz (positions, 0, "2026-11-12T00:00:00Z", 1, result));
+
+            Assert::AreEqual (protect, result.writeProtected, L"The result has the protection");
+            Assert::AreEqual ((Byte) (protect ? 1 : 0), result.woz[kInfoProtected], L"The WOZ's INFO has it");
+
+            CassoLinkCapture::SerializeReads (positions, file);
+            AssertSucceeded (CassoLinkCapture::ParseReads (file, parsed));
+            Assert::AreEqual (protect, parsed[0].writeProtected, L"The reads file has it");
+        }
+    }
+
+
+    //  Two standard whole tracks' reads build a WOZ with a stream for each,
+    //  nothing weak or unstable. The quarter tracks next to each whole track
+    //  are its stream, and the half track between them doesn't have a stream.
+    TEST_METHOD (TwoStandardTracksReads_AreAWozOfTwoStreams)
+    {
+        std::vector<CassoLinkCapture::Position>  positions { MakeStandardPosition (0), MakeStandardPosition (1) };
+        CassoLinkCapture::Result                 result;
+        DiskImage                                woz;
+
+
+
+        AssertSucceeded (CassoLinkCapture::BuildWoz (positions, 4, "2026-11-12T00:00:00Z", 1, result));
+        AssertSucceeded (WozLoader::Load (result.woz, woz));
+
+        Assert::AreEqual ((size_t) 2, result.streams.size(), L"The two whole tracks");
+        Assert::IsTrue   (result.unstable.empty());
+        Assert::IsTrue   (result.weak.empty());
+        Assert::AreEqual (woz.ResolveQuarterTrack (0), woz.ResolveQuarterTrack (1), L"Quarter track 1 is track 0's stream");
+        Assert::AreEqual (woz.ResolveQuarterTrack (4), woz.ResolveQuarterTrack (3), L"Quarter track 3 is track 1's stream");
+        Assert::AreNotEqual (woz.ResolveQuarterTrack (0), woz.ResolveQuarterTrack (4));
+        Assert::AreEqual (-1, woz.ResolveQuarterTrack (2), L"The half track");
     }
 };

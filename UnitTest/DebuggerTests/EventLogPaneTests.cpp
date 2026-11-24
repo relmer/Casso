@@ -317,6 +317,7 @@ namespace EventLogPaneTests
             pane.ProvideRow (1, cells);
 
             dump = cells[DiskLogPane::kDetail].tip;
+            dump = dump.substr (dump.rfind (L"\n\n") + 2);
 
             Assert::AreEqual (std::wstring (L"256 bytes 00 01 02 03 04 05 06 07 ..."), cells[DiskLogPane::kDetail].text);
             Assert::IsTrue   (dump.starts_with (L"00: 00 01 02 03"), dump.c_str());
@@ -325,6 +326,43 @@ namespace EventLogPaneTests
             Assert::AreEqual ((size_t) 16, (size_t) std::ranges::count (dump, L'\n') + 1, L"sixteen lines of sixteen");
             Assert::IsNotNull (pane.GetRowData (1).get());
             Assert::IsNull    (pane.GetRowData (0).get(), L"the start row has none");
+        }
+
+
+        //  Every cell of an event's row has the event in full, its cycle and
+        //  the cycles since the event before it, its other columns, and what
+        //  the log lacks.
+        TEST_METHOD (EveryCellOfARowHasTheRowsTip)
+        {
+            DxuiListView                      list;
+            DiskLogPane                       pane (&list, [] (const DebugLogRequest &) {});
+            DiskLogDelta                      delta;
+            DiskLogRow                        first  = MakeDiskRow (10, Disk2EventType::DataRead, 0, 0);
+            DiskLogRow                        second = MakeDiskRow (11, Disk2EventType::DataRead, 0, 0);
+            std::vector<DxuiListView::Cell>   cells;
+            std::wstring                      tip;
+
+
+
+            second.cycle = first.cycle + 1500;
+
+            pane.Configure();
+
+            delta.isReset   = true;
+            delta.isAtStart = true;
+            delta.newer     = { first, second };
+
+            pane.Apply   (delta);
+            pane.Refresh();
+            pane.ProvideRow (2, cells);
+
+            tip = cells[DiskLogPane::kDrive].tip;
+
+            Assert::IsTrue (tip.starts_with (cells[DiskLogPane::kEvent].text), tip.c_str());
+            Assert::IsTrue (tip.find (L"1,500 cycles after the event before it") != std::wstring::npos, tip.c_str());
+            Assert::IsTrue (tip.find (L"\nDrive: 1") != std::wstring::npos, tip.c_str());
+            Assert::IsTrue (tip.find (L"Not in the log: the PC") != std::wstring::npos, tip.c_str());
+            Assert::AreEqual (tip, cells[DiskLogPane::kSeverity].tip);
         }
 
 

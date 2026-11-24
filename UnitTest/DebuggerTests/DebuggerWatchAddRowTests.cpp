@@ -457,6 +457,37 @@ namespace DebuggerWatchAddRowTests
             Assert::IsFalse  (window.GetWatchesPane().GetList()->GetCellsOfRow (2)[1].check != DxuiListView::Cell::Check::None, L"nor on the pointer");
         }
 
+
+        //  Below the rows, and on the add row, the menu has Add pointer
+        //  watch... and the pane's undo rows.
+        TEST_METHOD (TheMenuBelowTheRowsAddsAPointerWatch)
+        {
+            CassoTheme            theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost     host;
+            WatchWindow           window   (theme, host);
+            DxuiDpiScaler         scaler;
+            auto                  snapshot = std::make_shared<DebuggerViewSnapshot>();
+            PaneMenuItems         items;
+
+
+
+            snapshot->watches = { { 0, 0x0300, "0000", true } };
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
+            window.TakeSnapshot (snapshot);
+
+            for (int row : { -1, window.GetWatchesPane().GetList()->GetRowCount() - 1 })
+            {
+                items.clear();
+                (void) window.GetWatchesPane().AddMenuItems (window.GetWatchesPane().GetList(), row, items);
+
+                Assert::IsFalse (items.empty(), L"a menu opens");
+                Assert::AreEqual (std::wstring (L"Add pointer watch..."), items.front().first);
+            }
+        }
+
         //  Stopped in a BASIC statement, its variables are Auto rows at the top
         //  of the pane, also with the PC in a slot's firmware, as during a
         //  PRINT on a //c.

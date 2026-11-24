@@ -185,15 +185,21 @@ DxuiTooltipBody::Margins DxuiTooltipBody::GetContentMargins (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiTooltipBody::GetGradientExtraPx
+//  DxuiTooltipBody::GetBarsHeightPx
 //
-//  The height a scale adds under the text: a gap, the scale, and the arrow.
+//  The height the scales add under the text: a gap, then for each scale its
+//  row and its arrow, with a gap between rows.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float DxuiTooltipBody::GetGradientExtraPx() const
+float DxuiTooltipBody::GetBarsHeightPx() const
 {
-    return std::ceil (m_scaler.ToPxf (kGradientGapDip + kGradientHeightDip + kGradientArrowDip));
+    float  rows = (float) m_look.bars.size();
+
+
+
+    return std::ceil (m_scaler.ToPxf (kGradientGapDip) + rows * (GetBarPx() + m_scaler.ToPxf (kGradientArrowDip)) +
+                      (rows - 1.0f) * m_scaler.ToPxf (kBarRowGapDip));
 }
 
 
@@ -202,15 +208,90 @@ float DxuiTooltipBody::GetGradientExtraPx() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiTooltipBody::GetGradientWidthPx
+//  DxuiTooltipBody::GetBarsWidthPx
 //
-//  The width of the scale under the text, which the content is at least.
+//  The width of the scales' rows, which the content is at least: the widest
+//  label and its gap, then the scale.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float DxuiTooltipBody::GetGradientWidthPx() const
+float DxuiTooltipBody::GetBarsWidthPx (const TextMeasure & measure) const
 {
-    return std::ceil (m_scaler.ToPxf (kGradientWidthDip));
+    return std::ceil (GetBarLabelPx (measure) + m_scaler.ToPxf (kGradientWidthDip));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTooltipBody::GetBarPx
+//
+//  A scale is tall enough for the percentage written on it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiTooltipBody::GetBarPx() const
+{
+    return std::ceil ((std::max) (m_scaler.ToPxf (kGradientHeightDip), GetBarTextPx() * kBarTextLineEm));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTooltipBody::GetBarTextPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiTooltipBody::GetBarTextPx() const
+{
+    return GetFontPx() * kBarTextScale;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTooltipBody::GetBarLabelPx
+//
+//  The widest label and the gap after it, so every scale starts at the same
+//  place; none when no scale has a label. Estimated where a label cannot be
+//  measured.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiTooltipBody::GetBarLabelPx (const TextMeasure & measure) const
+{
+    float  widest = 0.0f;
+
+
+
+    for (const DxuiTipBar & bar : m_look.bars)
+    {
+        float    width  = (float) bar.label.size() * GetFontPx() * kEstCharWidthEm;
+        float    height = 0.0f;
+        HRESULT  hr     = S_OK;
+
+
+
+        if (bar.label.empty())
+        {
+            continue;
+        }
+
+        hr = measure (bar.label.c_str(), GetFontPx(), kNoWrapPx, width, height);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        widest = (std::max) (widest, std::ceil (width));
+    }
+
+    return (widest > 0.0f) ? widest + m_scaler.ToPxf (kBarLabelGapDip) : 0.0f;
 }
 
 
@@ -280,42 +361,100 @@ uint32_t DxuiTooltipBody::GetGradientColor (const std::vector<uint32_t> & stops,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiTooltipBody::DrawGradient
+//  DxuiTooltipBody::DrawBars
 //
-//  The scale in thin slices across the width, and under it an arrow whose
-//  point touches the scale at the mark, in the tip's text color.
+//  The scales' rows from the top of their room down to `bottom`.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTooltipBody::DrawGradient (IDxuiPainter & painter, float left, float width, float bottom) const
+void DxuiTooltipBody::DrawBars (IDxuiPainter & painter, IDxuiTextRenderer & text, float left, float width, float bottom) const
 {
-    float  arrowPx = m_scaler.ToPxf (kGradientArrowDip);
-    float  barPx   = m_scaler.ToPxf (kGradientHeightDip);
-    float  top     = bottom - arrowPx - barPx;
-    float  slice   = width / (float) kGradientSlices;
-    float  tipX    = left + width * m_look.gradientMark;
+    auto   measure = [this, &text] (const wchar_t * what, float sizePx, float wrapPx, float & w, float & h) -> HRESULT
+    {
+        return text.MeasureStringWrapped (what, sizePx, GetFace(), wrapPx, w, h);
+    };
+    float  labelPx = GetBarLabelPx (measure);
+    float  top     = bottom - GetBarsHeightPx() + m_scaler.ToPxf (kGradientGapDip);
 
 
+
+    for (const DxuiTipBar & bar : m_look.bars)
+    {
+        DrawBar (painter, text, bar, labelPx, left, width, top);
+        top += GetBarPx() + m_scaler.ToPxf (kGradientArrowDip) + m_scaler.ToPxf (kBarRowGapDip);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTooltipBody::DrawBar
+//
+//  The label, then the scale in thin slices across the rest of the width,
+//  and under it an arrow whose point touches the scale at the mark, in the
+//  tip's text color. The mark's percentage is written on the scale over the
+//  arrow, moved in from an end it would run past, in an ink that reads on
+//  the scale's color there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltipBody::DrawBar (IDxuiPainter & painter, IDxuiTextRenderer & text, const DxuiTipBar & bar, float labelPx, float left, float width, float top) const
+{
+    float         arrowPx  = m_scaler.ToPxf (kGradientArrowDip);
+    float         barPx    = GetBarPx();
+    float         barLeft  = left + labelPx;
+    float         barWidth = width - labelPx;
+    float         slice    = barWidth / (float) kGradientSlices;
+    float         tipX     = barLeft + barWidth * bar.mark;
+    float         padPx    = m_scaler.ToPxf (kBarTextPadDip);
+    float         textW    = 0.0f;
+    float         textH    = 0.0f;
+    float         textX    = 0.0f;
+    std::wstring  percent;
+    HRESULT       hr       = S_OK;
+
+
+
+    if (!bar.label.empty())
+    {
+        hr = text.DrawString (bar.label.c_str(), left, top, labelPx, barPx, m_ink.textArgb, GetFontPx(), GetFace(),
+                              DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
 
     for (int i = 0; i < kGradientSlices; i++)
     {
         float  at = ((float) i + 0.5f) / (float) kGradientSlices;
 
-        painter.FillRect (left + slice * (float) i, top, slice + 0.5f, barPx, GetGradientColor (m_look.gradient, at));
+        painter.FillRect (barLeft + slice * (float) i, top, slice + 0.5f, barPx, GetGradientColor (bar.stops, at));
     }
 
-    painter.OutlineRect (left, top, width, barPx, 1.0f, m_ink.borderArgb);
+    painter.OutlineRect (barLeft, top, barWidth, barPx, 1.0f, m_ink.borderArgb);
 
-    if (m_look.gradientMark < 0.0f || m_look.gradientMark > 1.0f)
+    if (bar.mark < 0.0f || bar.mark > 1.0f)
     {
         return;
     }
 
     painter.FillConvexQuad (tipX,           top + barPx,
-                            tipX + arrowPx, bottom,
-                            tipX - arrowPx, bottom,
+                            tipX + arrowPx, top + barPx + arrowPx,
+                            tipX - arrowPx, top + barPx + arrowPx,
                             tipX,           top + barPx,
                             m_ink.textArgb);
+
+    percent = std::format (L"{}%", std::lround (bar.mark * 100.0f));
+    hr      = text.MeasureStringWrapped (percent.c_str(), GetBarTextPx(), GetFace(), kNoWrapPx, textW, textH);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    textX = std::clamp (tipX - textW / 2.0f, barLeft + padPx, (std::max) (barLeft + padPx, barLeft + barWidth - padPx - textW));
+
+    hr = text.DrawString (percent.c_str(), textX, top, textW + 1.0f, barPx,
+                          DxuiColor::ComputeInkForContrast (m_ink.textArgb, GetGradientColor (bar.stops, (textX + textW / 2.0f - barLeft) / barWidth), kMinTextContrast) | 0xFF000000u,
+                          GetBarTextPx(), GetFace(), DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 

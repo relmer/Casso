@@ -105,7 +105,7 @@ public:
     void  SetAutoSaveMachineState (bool isEnabled);
     void  OpenSettingsFolder      ();
 
-    // %LOCALAPPDATA%\Casso, where the preferences files live.
+    // The data folder, where the preferences files live.
     static std::wstring  GetSettingsFolder ();
 
     // The Settings dialog, shown modeless so the emulator keeps running

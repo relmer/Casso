@@ -169,9 +169,8 @@ DxuiListView::Cell HeatStrip::GetCell (const DebuggerViewSnapshot::HeatColumnLev
     {
         Tip  tip = GetTip (levels, first, count, isTokens);
 
-        cell.tip             = std::move (tip.text);
-        cell.tipGradient     = std::move (tip.gradient);
-        cell.tipGradientMark = tip.mark;
+        cell.tip     = std::move (tip.text);
+        cell.tipBars = std::move (tip.bars);
     }
 
     return cell;
@@ -211,7 +210,6 @@ DxuiListView::Cell HeatStrip::GetLineCell (const DebuggerViewSnapshot::HeatColum
 
 DxuiListView::Cell HeatStrip::GetLineCell (const DebuggerViewSnapshot::HeatColumnLevels & levels, const std::vector<Word> & firstTokens, const HeatMapView::Palette & palette)
 {
-    constexpr float     kTop    = 255.0f;
     DxuiListView::Cell  cell;
     Byte                level   = 0;
     uint32_t            count   = 0;
@@ -247,16 +245,10 @@ DxuiListView::Cell HeatStrip::GetLineCell (const DebuggerViewSnapshot::HeatColum
         return cell;
     }
 
-    cell.background      = GetScaleColor (Kind::Run, level, palette);
-    cell.tip             = std::format (L"{} ran {} {} since counting began.\n\n{}, from least to most. This one is {}% of the way up.",
-                                        subject, TextEncoding::NarrowToWide (HeatAccessJump::GroupDigits (count)), (count == 1) ? L"time" : L"times",
-                                        GetScaleName (Kind::Run), std::lround ((float) level * 100.0f / kTop));
-    cell.tipGradientMark = (float) level / kTop;
-
-    for (uint32_t stop : GetScaleStops (Kind::Run))
-    {
-        cell.tipGradient.push_back (stop);
-    }
+    cell.background = GetScaleColor (Kind::Run, level, palette);
+    cell.tip        = std::format (L"{} ran {} {} since counting began.", subject, TextEncoding::NarrowToWide (HeatAccessJump::GroupDigits (count)),
+                                   (count == 1) ? L"time" : L"times");
+    cell.tipBars    = { GetBar (Kind::Run, level) };
 
     return cell;
 }
@@ -310,17 +302,19 @@ bool HeatStrip::TryGetDataRange (const DebuggerViewSnapshot::HeatColumnLevels & 
 //
 //  HeatStrip::GetTip
 //
-//  A table of the bytes' counts, a row a byte, with a blank line and the
-//  scale's meaning under it. A BASIC line's token reads are its runs, so
-//  they are listed as runs.
+//  A table of the bytes' counts, a row a byte, and a scale for each kind
+//  of access with heat. A BASIC line's token reads are its runs, so they
+//  are listed as runs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HeatStrip::Tip HeatStrip::GetTip (const DebuggerViewSnapshot::HeatColumnLevels & levels, Word first, size_t count, bool isTokens)
 {
-    constexpr float  kTop  = 255.0f;
     Tip              tip;
     Strip            strip;
+    Byte             run   = 0;
+    Byte             read  = 0;
+    Byte             write = 0;
     auto             group = [] (uint64_t value) { return TextEncoding::NarrowToWide (HeatAccessJump::GroupDigits (value)); };
     uint64_t         runs  = 0;
     uint64_t         reads = 0;
@@ -363,12 +357,21 @@ HeatStrip::Tip HeatStrip::GetTip (const DebuggerViewSnapshot::HeatColumnLevels &
         return tip;
     }
 
-    tip.text    += std::format (L"\n\n{}, from least to most. This one is {}% of the way up.", GetScaleName (strip.hottestKind), std::lround ((float) strip.hottestLevel * 100.0f / kTop));
-    tip.mark     = (float) strip.hottestLevel / kTop;
-
-    for (uint32_t stop : GetScaleStops (strip.hottestKind))
+    for (size_t i = 0; i < count; i++)
     {
-        tip.gradient.push_back (stop);
+        Word  address = (Word) (first + i);
+
+        run   = (std::max) (run,   isTokens ? levels.read[address] : levels.execute[address]);
+        read  = (std::max) (read,  isTokens ? (Byte) 0 : levels.read[address]);
+        write = (std::max) (write, levels.write[address]);
+    }
+
+    for (const auto & [kind, level] : { std::pair { Kind::Run, run }, std::pair { Kind::Read, read }, std::pair { Kind::Write, write } })
+    {
+        if (level != 0)
+        {
+            tip.bars.push_back (GetBar (kind, level));
+        }
     }
 
     return tip;
@@ -392,6 +395,56 @@ std::wstring HeatStrip::GetScaleName (Kind kind)
     case Kind::Write:  return L"Written: purple to pink";
     default:           return L"Run: yellow to red";
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatStrip::GetBarLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring HeatStrip::GetBarLabel (Kind kind)
+{
+    switch (kind)
+    {
+    case Kind::Read:   return L"Read";
+    case Kind::Write:  return L"Write";
+    default:           return L"Run";
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatStrip::GetBar
+//
+//  Level 1 marks the scale's low end and level 255 its high end.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiTipBar HeatStrip::GetBar (Kind kind, Byte level)
+{
+    constexpr float  kTop = 255.0f;
+    DxuiTipBar       bar;
+
+
+
+    bar.label = GetBarLabel (kind);
+    bar.mark  = (float) level / kTop;
+
+    for (uint32_t stop : GetScaleStops (kind))
+    {
+        bar.stops.push_back (stop);
+    }
+
+    return bar;
 }
 
 

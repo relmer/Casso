@@ -48,8 +48,9 @@ public:
     int              GetMinWidthPx (bool labeled, const DxuiDpiScaler & scaler, IDxuiTextRenderer * text) const override { (void) labeled; (void) text; return scaler.ToPx (kMinWidthDip); }
     int              GetLeadPx     (const DxuiDpiScaler & scaler) const override { return scaler.ToPx (DxuiTextInput::kPadLeftDip); }
 
-    static constexpr int  kWidthDip    = 180;
-    static constexpr int  kMinWidthDip = 80;
+    static constexpr int  kWidthDip     = 180;
+    static constexpr int  kMinWidthDip  = 80;
+    static constexpr int  kHintSlackDip = 6;   // italics run wider than the upright face measured
 
 private:
     static bool  IsInside (const RECT & rc, int x, int y);

@@ -575,6 +575,17 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
     // card itself. With a shadow margin the window's corners are transparent
     // surround, and DWM's corner clip would cut the shadow off there.
     DxuiDwm::ApplyRoundedCorners (m_hwnd, m_shadowMarginPx == 0 && !m_params.squareCorners);
+
+    // DWM's fade on ShowWindow and SW_HIDE is off, since the popup animates
+    // itself. DWM's fade drew the menu's last picture, fully open, over the
+    // first frames of the slide.
+    {
+        BOOL     isDisabled = TRUE;
+        HRESULT  hrDwm      = DwmSetWindowAttribute (m_hwnd, DWMWA_TRANSITIONS_FORCEDISABLED, &isDisabled, sizeof (isDisabled));
+
+        IGNORE_RETURN_VALUE (hrDwm, S_OK);
+    }
+
     ApplyAcrylic();
 
     // PAINT BEFORE SHOWING. These popups come from a pool and are handed
@@ -585,6 +596,20 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
     // flickering through the old one's rows on the way from one title to the
     // next. The HWND and swap chain are live from CreateHwndAndComposition;
     // visibility was never what they needed.
+    //
+    // A slide down starts from its first frame in the same commit. Without
+    // this, the pooled window's visual is fully open, where the last slide
+    // ended, and the commit that moves it to the start can land after
+    // ShowWindow.
+    if (m_params.revealMs > 0 && !m_params.revealFade && m_comp && placedRect.top >= m_params.anchorRectScreen.top)
+    {
+        float        distance = (float) (placedRect.bottom - placedRect.top) * kSlideFraction;
+        D2D1_RECT_F  clip     = { 0.0f, (float) m_shadowMarginPx + distance,
+                                  (float) (windowRect.right - windowRect.left), (float) (windowRect.bottom - windowRect.top) };
+
+        SetSlide (-distance, &clip);
+    }
+
     RenderNow();
 
     // SHOWN FROM THE MESSAGE LOOP, after the composition has committed the
@@ -594,6 +619,7 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
     // opened. The serial tells a message for this show from one posted for
     // an earlier show of the same pooled window.
     m_showSerial++;
+    m_isShowPending = true;
     PostMessageW (m_hwnd, s_kShowMessage, (WPARAM) m_showSerial, 0);
 
 Error:
@@ -694,6 +720,7 @@ void DxuiPopupHost::Close (int resultCode)
         }
 
         SetSlideCloaked (false);
+        m_isShowPending = false;
         ShowWindow (m_hwnd, SW_HIDE);
 
         //  A submenu took the mouse from the menu it opened from; closing hands
@@ -1617,6 +1644,8 @@ Error:
 
 void DxuiPopupHost::ShowDrawn()
 {
+    m_isShowPending = false;
+
     // Arm the open animation and put the window into its FIRST frame before
     // it is ever shown. Starting the reveal after ShowWindow let the popup
     // appear full size for one frame and then jump back to the start of the
@@ -2381,12 +2410,16 @@ void DxuiPopupHost::ApplyReveal (float t)
     //  window stays cloaked until the next tick, by when they have landed.
     if (!m_revealUpward && m_comp)
     {
+        //  The window is uncloaked once the commit that starts the slide has
+        //  completed. A timer tick can come first, and uncloaking on it drew
+        //  the menu fully open for a frame. A commit that never reports is
+        //  given up on a quarter of the way in.
         if (t <= 0.0f)
         {
             StartCompositorSlide (fullW, fullH);
             SetSlideCloaked (true);
         }
-        else
+        else if (m_slideLanded == nullptr || m_slideLanded->load() || t >= kSlideUncloakLimit)
         {
             SetSlideCloaked (false);
         }
@@ -2480,6 +2513,8 @@ void DxuiPopupHost::StartCompositorSlide (int fullW, int fullH)
 
     (void) fullW;
 
+    m_slideLanded = nullptr;
+
     SetWindowPos (m_hwnd, nullptr,
                   m_windowRectScreenPx.left,
                   m_windowRectScreenPx.top,
@@ -2510,6 +2545,14 @@ void DxuiPopupHost::StartCompositorSlide (int fullW, int fullH)
         clip.TopInset (margin + distance);
         clip.StartAnimation (L"TopInset", clipTop);
         m_comp->slide.StartAnimation (L"Offset.Y", offset);
+
+        {
+            std::shared_ptr<std::atomic<bool>>                        landed = std::make_shared<std::atomic<bool>> (false);
+            winrt::Windows::UI::Composition::CompositionCommitBatch   batch  = compositor.GetCommitBatch (winrt::Windows::UI::Composition::CompositionBatchTypes::Animation);
+
+            m_slideLanded = landed;
+            batch.Completed ([landed] (auto &&, auto &&) { landed->store (true); });
+        }
     }
     catch (...)
     {

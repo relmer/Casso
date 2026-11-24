@@ -2,7 +2,9 @@
 
 #include "Pch.h"
 
+#include "Core/TextEncoding.h"
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
+#include "Devices/Disk/Inspector/Repair/RepairCopy.h"
 #include "Seams/Win32Clipboard.h"
 #include "Seams/Win32HostDialogs.h"
 #include "Seams/Win32ShellIcons.h"
@@ -45,10 +47,13 @@ class IDiskFileIo;
 class BlockInspectorWindow : public DxuiWindow
 {
 public:
-    static constexpr int  kOpeningWidthDip  = 1280;
-    static constexpr int  kOpeningHeightDip = 800;
-    static constexpr int  kMinWidthDip      = 960;
-    static constexpr int  kMinHeightDip     = 640;
+    static constexpr int       kOpeningWidthDip  = 1280;
+    static constexpr int       kOpeningHeightDip = 800;
+    static constexpr int       kMinWidthDip      = 960;
+    static constexpr int       kMinHeightDip     = 640;
+    static constexpr int       kRepairIntroLines = 3;
+    static constexpr int       kCautionLines     = 3;
+    static constexpr uint64_t  kRoomMarginBytes  = 1024 * 1024;
 
     BlockInspectorWindow  ();
     ~BlockInspectorWindow () override;
@@ -118,6 +123,14 @@ private:
     void                                  UpdateTitle         ();
     bool                                  HandleEditKey       (const DxuiKeyEvent & ev);
     void                                  Discard             ();
+    int                                   GetRepairVolume     () const;
+    void                                  Repair              ();
+    bool                                  PickRepairTarget    (const std::wstring & why, uint64_t bytes, fs::path & ioTarget);
+    void                                  QueueRepairCopy     (int volume, const RepairPlan & plan, bool isCard, const fs::path & target);
+    static std::wstring                   FormatCardIntro     (const std::wstring & fileName);
+    static std::wstring                   FormatCaution       (bool isDos);
+    static bool                           IsOnRemovableDrive  (const fs::path & path);
+    static bool                           HasRoomFor          (const fs::path & folder, uint64_t bytes);
     void                                  CopyBlock           ();
     void                                  PasteIntoBlock      ();
     void                                  GoToBlock           ();
@@ -130,6 +143,10 @@ private:
     void                                  CloseWindow         ();
     void                                  ShowMessage         (const std::wstring & text);
     std::wstring                          GetFileName         () const { return m_displayName.empty() ? fs::path (m_path).filename().wstring() : m_displayName; }
+
+    //  The name of the file a repaired copy is of: for an image in a ZIP,
+    //  the ZIP's.
+    std::wstring                          GetHostFileName     () const { return IsOnCard() ? GetFileName() : fs::path (TextEncoding::Utf8ToWide (RepairCopy::GetHostPath (TextEncoding::WideToUtf8 (m_path)))).filename().wstring(); }
     bool                                  IsOnCard            () const;
 
     //  m_worker follows m_model, so it is destroyed first and its thread

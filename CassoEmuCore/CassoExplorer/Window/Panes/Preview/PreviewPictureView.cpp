@@ -363,7 +363,7 @@ const ThemeCrtDefaults * PreviewPictureView::GetCrtDefaults()
     {
         m_crtThemeName  = name;
         m_crtTheme      = LoadedTheme();
-        dir             = (PathResolver::GetLocalAppDataDir (L"Casso") / L"Themes" / TextEncoding::Utf8ToWide (name)).wstring();
+        dir             = (PathResolver::GetDataFolder() / L"Themes" / TextEncoding::Utf8ToWide (name)).wstring();
         hr              = ThemeLoader::Load (fs, dir, m_crtTheme, error);
         m_crtThemeValid = SUCCEEDED (hr);
     }
@@ -468,7 +468,7 @@ void PreviewPictureView::SelectMonitor (PicturePreview::Monitor monitor)
 
 void PreviewPictureView::ShowForm (bool color)
 {
-    if ((m_context.browser.GetPreview().pictureMode == PicturePreview::Mode::DoubleHiRes) != color && m_context.browser.TogglePictureColor())
+    if ((m_context.browser.GetPreview().pictureMode != PicturePreview::Mode::DoubleHiResMono) != color && m_context.browser.TogglePictureColor())
     {
         m_manager.FillPreview();
         m_context.window.Invalidate();
@@ -491,7 +491,7 @@ void PreviewPictureView::ShowForm (bool color)
 void PreviewPictureView::ShowContextMenu (int x, int y)
 {
     std::vector<DxuiPopupMenuItem>  items;
-    bool                            color = m_context.browser.GetPreview().pictureMode == PicturePreview::Mode::DoubleHiRes;
+    bool                            color = m_context.browser.GetPreview().pictureMode != PicturePreview::Mode::DoubleHiResMono;
 
 
 

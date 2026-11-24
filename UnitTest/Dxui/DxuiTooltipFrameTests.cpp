@@ -243,6 +243,38 @@ public:
 
 
 
+    //  Each scale's percentage is written on the scale, inside it at both
+    //  ends: a mark at 0 or 100% moves the text in rather than past the end.
+    TEST_METHOD (AScalesPercentageStaysOnTheScaleAtBothEnds)
+    {
+        static constexpr float  kLeft  = 10.0f;
+        static constexpr float  kWidth = 220.0f;
+
+        DxuiTooltipLook         look;
+        std::wstring            text   = L"$0400";
+        DxuiDpiScaler           scaler = GetScaler (96);
+        MockDxuiPainter         painter;
+        MockDxuiTextRenderer    renderer;
+        DxuiTooltipBody::Ink    ink    = { 0xFF202020u, 0xFF808080u, 0xFFF0F0F0u };
+        DxuiTooltipBody         body   (look, text, scaler, 12.0f, ink);
+
+
+
+        look.bars = { { L"Run", { 0xFF000000u, 0xFFFFFFFFu }, 0.0f }, { L"Write", { 0xFF000000u, 0xFFFFFFFFu }, 1.0f } };
+
+        body.DrawBars (painter, renderer, kLeft, kWidth, 200.0f);
+
+        for (const wchar_t * percent : { L"0%", L"100%" })
+        {
+            auto  found = std::ranges::find_if (renderer.Calls(), [percent] (const RecordedTextCall & call) { return call.text == percent; });
+
+            Assert::IsTrue (found != renderer.Calls().end(), percent);
+            Assert::IsTrue (found->x >= kLeft && found->x + found->width <= kLeft + kWidth + 1.0f, percent);
+        }
+    }
+
+
+
     //  An instant tip moved to the next cell takes that cell's gradient, and
     //  stays at the largest size it has had: a heat map cell with no heat after
     //  one with heat is as tall as the one with its scale.
@@ -261,17 +293,17 @@ public:
         tip.SetTheme       (theme);
         tip.ApplyVisualStudioLook();
 
-        tip.SetGradient    ({ 0xFF000000u, 0xFFFFFFFFu }, 0.5f);
+        tip.SetBars        ({ { L"Run", { 0xFF000000u, 0xFFFFFFFFu }, 0.5f } });
         tip.RequestShowNow (RECT { 100, 200, 101, 201 }, L"$0400", 0);
         popup = tip.GetActivePopup();
         Assert::IsNotNull (popup);
         withScale = popup->GetParams().sizePx.cy;
 
-        tip.SetGradient    ({}, -1.0f);
+        tip.SetBars        ({});
         tip.RequestShowNow (RECT { 110, 200, 111, 201 }, L"$0401", 1);
         Assert::AreEqual (withScale, tip.GetActivePopup()->GetParams().sizePx.cy, L"the cell without heat is as tall as the one with its scale, so the tip does not shrink as it moves");
 
-        tip.SetGradient    ({ 0xFF000000u, 0xFFFFFFFFu }, 0.25f);
+        tip.SetBars        ({ { L"Run", { 0xFF000000u, 0xFFFFFFFFu }, 0.25f } });
         tip.RequestShowNow (RECT { 120, 200, 121, 201 }, L"$0402", 2);
         Assert::AreEqual (withScale, tip.GetActivePopup()->GetParams().sizePx.cy, L"the scale again for the next hot cell");
 

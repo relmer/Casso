@@ -17,25 +17,38 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HarteReader
+//
+//  The bytes of one opcode's vectors, and the offset of the next byte to read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct HarteReader
+{
+    std::span<const Byte>  bytes;
+    size_t                 offset = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ReadByte
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static HRESULT ReadByte (std::ifstream & f, Byte & out)
+static HRESULT ReadByte (HarteReader & f, Byte & out)
 {
-    HRESULT hr = S_OK;
+    HRESULT  hr      = S_OK;
+    bool     inRange = f.offset < f.bytes.size();
 
 
 
-    char    c;
-    bool    fRead;
+    CBRA (inRange);
 
-
-
-    fRead = (bool) f.get (c);
-    CBRA (fRead);
-
-    out = static_cast<Byte> (c);
+    out = f.bytes[f.offset++];
 
 Error:
     return hr;
@@ -51,7 +64,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static HRESULT ReadWord (std::ifstream & f, Word & out)
+static HRESULT ReadWord (HarteReader & f, Word & out)
 {
     HRESULT hr = S_OK;
 
@@ -100,7 +113,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static HRESULT ReadCpuState (std::ifstream & f, HarteCpuState & state)
+static HRESULT ReadCpuState (HarteReader & f, HarteCpuState & state)
 {
     HRESULT hr = S_OK;
 
@@ -167,20 +180,42 @@ Error:
 
 HRESULT LoadHarteTestFile (const std::string & path, HarteTestFile & outFile)
 {
-    HRESULT  hr       = S_OK;
-    Word     count;
-    Byte     version;
-    bool     fOk;
-    bool     isOpen   = false;
+    HRESULT            hr     = S_OK;
+    std::ifstream      f (path, std::ios::binary);
+    std::vector<Byte>  bytes;
+    bool               isOpen = f.is_open();
 
 
 
-    std::ifstream f (path, std::ios::binary);
-
-
-
-    isOpen = f.is_open();
     CBREx (isOpen, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+
+    bytes.assign (std::istreambuf_iterator<char> (f), std::istreambuf_iterator<char>());
+
+    hr = ParseHarteTestBytes (bytes, outFile);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ParseHarteTestBytes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ParseHarteTestBytes (std::span<const Byte> bytes, HarteTestFile & outFile)
+{
+    HRESULT      hr      = S_OK;
+    HarteReader  f       = { bytes };
+    Word         count   = 0;
+    Byte         version = 0;
+
+
 
     // Header: vector_count (uint16), opcode (uint8), format_version (uint8)
     hr = ReadWord (f, count);             CHR (hr);
@@ -204,12 +239,14 @@ HRESULT LoadHarteTestFile (const std::string & path, HarteTestFile & outFile)
         hr = ReadByte (f, nameLen);
         CHR (hr);
 
+        bool  nameFits = f.offset + nameLen <= f.bytes.size();
+
         CBRA (nameLen < sizeof (v.name));
+        CBRA (nameFits);
 
-        fOk = (bool) f.read (v.name, nameLen);
-        CBRA (fOk);
-
-        v.name[nameLen] = '\0';
+        memcpy (v.name, f.bytes.data() + f.offset, nameLen);
+        f.offset        += nameLen;
+        v.name[nameLen]  = '\0';
 
         // Cycle count, then the initial and final states
         hr = ReadByte (f, v.cycles);         CHR (hr);
@@ -233,70 +270,23 @@ Error:
 
 std::string GetHarteTestDataDir (const char * cpuType)
 {
-    // Two locations, checked in order of depth: whichever set is richest wins.
-    //
-    // The reduced set (200 vectors/opcode, ~4 MB) is checked in, so a fresh
-    // clone, a new worktree, and CI all have real opcode coverage with no
-    // setup. The full set (10,000/opcode, ~186 MB) is not checked in -- it
-    // costs a 1.7 GB download to produce -- so it lives in the machine-wide
-    // cache under %LOCALAPPDATA%\Casso\, the same user-writable root
-    // AssetBootstrap already uses, where one copy serves every checkout.
-    //
-    // This used to resolve from __FILE__ alone, which bakes in the path of
-    // the tree the binary was compiled in. Combined with the vectors being
-    // untracked, that meant any checkout where nobody had run the generator
-    // -- every worktree, and CI on every run since the suite was written --
-    // found an empty directory and passed 409 opcode tests in under a
-    // millisecond each without executing a single vector. HarteVectorDepth
-    // below now reports what was actually loaded, so that cannot recur
-    // silently. See docs/testing.md.
+    // Only an explicit CASSO_HARTE_DIR selects vectors on disk, which
+    // scripts/RunHarteTests.ps1 sets for a full run. Otherwise the result is
+    // empty and the opcode tests run the subset compiled into this DLL, so a
+    // unit test run reads no files. See docs/testing.md.
     std::string  dir;
+    char       * env = nullptr;
+    size_t       len = 0;
 
 
 
-    // 1. Explicit override, for CI or a scratch data set.
+    if (_dupenv_s (&env, &len, "CASSO_HARTE_DIR") == 0 && env != nullptr)
     {
-        char  * env = nullptr;
-        size_t  len = 0;
-
-        if (_dupenv_s (&env, &len, "CASSO_HARTE_DIR") == 0 && env != nullptr)
-        {
-            dir = std::string (env) + "\\" + cpuType;
-            free (env);
-
-            return dir;
-        }
+        dir = std::string (env) + "\\" + cpuType;
+        free (env);
     }
 
-    // 2. The full-depth set, if this machine has generated one. Preferred
-    //    over the checked-in set precisely because it is deeper.
-    {
-        char  * env = nullptr;
-        size_t  len = 0;
-
-        if (_dupenv_s (&env, &len, "LOCALAPPDATA") == 0 && env != nullptr)
-        {
-            std::string  cached = std::string (env) + "\\Casso\\HarteTests\\" + cpuType;
-
-            free (env);
-
-            if (std::filesystem::exists (cached))
-            {
-                return cached;
-            }
-        }
-    }
-
-    // 3. The checked-in reduced set. __FILE__ is sound here, unlike above:
-    //    these vectors are tracked, so they exist in whichever tree this
-    //    binary was built from.
-    {
-        std::string  thisFile (__FILE__);
-
-        dir = thisFile.substr (0, thisFile.find_last_of ("\\/"));
-    }
-
-    return dir + "\\HarteVectors\\" + cpuType;
+    return dir;
 }
 
 
@@ -594,10 +584,11 @@ static int RunHarteTestFile (const HarteTestFile & file, bool compareCycles, std
 //
 //  RunHarteOpcode
 //
-//  Loads the vector file for one opcode from UnitTest/<cpuDir>/ and runs it
-//  against CpuT. Missing files are skipped (opcode not generated).
+//  Runs one opcode's vectors against CpuT: the subset compiled into this DLL,
+//  or, for a full run, the file in CASSO_HARTE_DIR. An opcode with no
+//  vectors is skipped (opcode not generated).
 //
-//  ONLY a missing file is skipped. A file that is present but unreadable --
+//  ONLY a missing opcode is skipped. A file that is present but unreadable --
 //  wrong format version, truncated, corrupt -- fails the test and says so.
 //  Skipping those too would let a whole stale fixture set report as a clean
 //  run of an opcode set nobody executed, which is the exact failure
@@ -619,8 +610,17 @@ static void RunHarteOpcode (const char * cpuDir, Byte opcode, bool compareCycles
 
     sprintf_s (hex, "%02x", opcode);
 
-    std::string   path = dir + "\\" + hex + ".bin";
-    hrLoad = LoadHarteTestFile (path, file);
+    std::string            path   = dir.empty() ? std::string ("embedded ") + cpuDir + " " + hex : dir + "\\" + hex + ".bin";
+    std::span<const Byte>  subset = FindHarteSubset (cpuDir, opcode);
+
+    if (dir.empty())
+    {
+        hrLoad = subset.empty() ? HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND) : ParseHarteTestBytes (subset, file);
+    }
+    else
+    {
+        hrLoad = LoadHarteTestFile (path, file);
+    }
 
     if (hrLoad == HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND))
     {
@@ -779,7 +779,26 @@ namespace HarteTests
             std::string      firstBad;
             std::error_code  ec;
 
-            for (const auto & entry : std::filesystem::directory_iterator (dir, ec))
+            //  The subset compiled into this DLL, unless a full run selected
+            //  a directory.
+            for (int opcode = 0; dir.empty() && opcode < 256; opcode++)
+            {
+                std::span<const Byte>  subset = FindHarteSubset (cpuDir, (Byte) opcode);
+                int                    depth  = 0;
+
+                if (subset.size() < 4)
+                {
+                    continue;
+                }
+
+                depth    = subset[0] | (subset[1] << 8);
+                files++;
+                vectors += depth;
+                minDepth = (files == 1) ? depth : (std::min) (minDepth, depth);
+                maxDepth = (std::max) (maxDepth, depth);
+            }
+
+            for (const auto & entry : dir.empty() ? std::filesystem::directory_iterator() : std::filesystem::directory_iterator (dir, ec))
             {
                 int  depth   = 0;
                 int  version = 0;
@@ -826,11 +845,11 @@ namespace HarteTests
             {
                 std::string  message =
                     "No Harte vectors found for '" + std::string (cpuDir) +
-                    "' at " + dir + ". Every opcode test for this CPU is "
-                    "passing without executing anything. The reduced set is "
-                    "checked in under UnitTest/HarteVectors/, so an empty "
-                    "directory means the checkout is incomplete. See "
-                    "docs/testing.md.";
+                    "' in " + (dir.empty() ? std::string ("the subset compiled into this DLL") : dir) +
+                    ". Every opcode test for this CPU is passing without "
+                    "executing anything. Regenerate the subset with "
+                    "scripts/EmbedHarteVectors.py, or check the directory a "
+                    "full run selected. See docs/testing.md.";
 
                 Assert::Fail (ToWide (message).c_str());
             }
@@ -844,8 +863,8 @@ namespace HarteTests
                 " (" + std::to_string (vectors) + " total, final state and cycle count) -- " +
                 (maxDepth >= kFullDepth ? "FULL depth." : "REDUCED set.") +
                 " Upstream publishes " + std::to_string (kFullDepth) +
-                "/opcode; scripts/RunHarteTests.ps1 fetches and runs it. " +
-                "Source: " + dir + "\n";
+                "/opcode; scripts/RunHarteTests.ps1 runs it. " +
+                "Source: " + (dir.empty() ? std::string ("compiled into this DLL") : dir) + "\n";
 
             Logger::WriteMessage (summary.c_str());
         }

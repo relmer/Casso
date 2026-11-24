@@ -70,6 +70,27 @@ struct TapeRecordingFile
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TapeRecordingTiming
+//
+//  How long each record's leader is and how far apart the files are. A real
+//  Apple II waits about 3.5 s on a leader before it reads, so a recording
+//  for one uses the defaults. A test sets shorter ones to render less audio;
+//  TapeRecordScanner finds a leader of a third of a second.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct TapeRecordingTiming
+{
+    double  leaderSeconds = 10.0;
+    double  gapSeconds    = 2.0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TapeRecordingWriter
 //
 //  Renders files as the Apple II's cassette output writes them, at 44.1 kHz
@@ -99,8 +120,6 @@ class TapeRecordingWriter
 public:
     static constexpr uint32_t  kSampleRate       = 44100;
     static constexpr double    kLeadInSeconds    = 0.5;
-    static constexpr double    kLeaderSeconds    = 10.0;
-    static constexpr double    kGapSeconds       = 2.0;
     static constexpr float     kLevel            = 0.8f;
     static constexpr double    kLeaderHalfUs     = 650.0;
     static constexpr double    kSyncFirstHalfUs  = 200.0;
@@ -114,7 +133,10 @@ public:
     //  The records a file is saved as, without their checksums.
     static void     GetRecords (const TapeRecordingFile & file, std::vector<std::vector<Byte>> & outRecords);
 
-    static void     Render     (const std::vector<TapeRecordingFile> & files, TapeAudio & outAudio, std::string & outSidecar);
+    static void     Render     (const std::vector<TapeRecordingFile> & files,
+                                TapeAudio                            & outAudio,
+                                std::string                          & outSidecar,
+                                const TapeRecordingTiming            & timing = TapeRecordingTiming());
 
     static HRESULT  Encode     (const TapeAudio        & audio,
                                 TapeRecordingFormat      format,
@@ -142,6 +164,6 @@ private:
 
     static void         AddHalf     (Synth & synth, double us);
     static void         AddSilence  (Synth & synth, double seconds);
-    static void         AddRecord   (Synth & synth, std::span<const Byte> bytes);
+    static void         AddRecord   (Synth & synth, std::span<const Byte> bytes, double leaderSeconds);
     static std::string  Describe    (const TapeRecordingFile & file, double startSeconds);
 };

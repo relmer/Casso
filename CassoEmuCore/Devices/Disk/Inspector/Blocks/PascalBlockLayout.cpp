@@ -94,20 +94,30 @@ bool PascalBlockLayout::IsFound (const BlockImage & image, uint32_t & outBlocks)
 //
 //  PascalBlockLayout::Walk
 //
+//  An entry with a name of 1 to 15 characters counts toward the directory's
+//  file count, and one of them whose blocks don't fit in the volume can't
+//  be followed.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void PascalBlockLayout::Walk (const BlockImage & image, BlockMap & outMap)
 {
-    size_t    directory = kDirectoryBlock * kBlockBytes;
-    uint32_t  count     = (uint32_t) (image.size() / kBlockBytes);
-    uint32_t  last      = std::min<uint32_t> (GetWord (image, directory + kLastBlock), kDirectoryBlock + kMaxDirectoryBlocks);
-    uint32_t  files     = std::min<uint32_t> (GetWord (image, directory + kFileCount), kMaxFiles);
-    uint32_t  block     = 0;
-    uint32_t  i         = 0;
-    size_t    at        = 0;
-    uint32_t  first     = 0;
-    uint32_t  end       = 0;
-    int       owner     = 0;
+    size_t      directory = kDirectoryBlock * kBlockBytes;
+    uint32_t    count     = (uint32_t) (image.size() / kBlockBytes);
+    uint32_t    last      = std::min<uint32_t> (GetWord (image, directory + kLastBlock), kDirectoryBlock + kMaxDirectoryBlocks);
+    uint32_t    recorded  = GetWord (image, directory + kFileCount);
+    uint32_t    files     = std::min<uint32_t> (recorded, kMaxFiles);
+    uint32_t    total     = GetWord (image, directory + kVolumeBlocks);
+    uint32_t    block     = 0;
+    uint32_t    i         = 0;
+    size_t      at        = 0;
+    uint32_t    first     = 0;
+    uint32_t    next      = 0;
+    uint32_t    end       = 0;
+    Byte        length    = 0;
+    int         owner     = 0;
+    int         entries   = 0;
+    BlockCount  mismatch;
 
 
 
@@ -132,10 +142,18 @@ void PascalBlockLayout::Walk (const BlockImage & image, BlockMap & outMap)
 
     for (i = 1; i <= files; i++)
     {
-        at    = directory + (size_t) i * kEntryBytes;
-        first = GetWord (image, at + kFirstBlock);
-        end   = std::min<uint32_t> (GetWord (image, at + kLastBlock), count);
-        owner = (int) outMap.files.size();
+        at     = directory + (size_t) i * kEntryBytes;
+        first  = GetWord (image, at + kFirstBlock);
+        next   = GetWord (image, at + kLastBlock);
+        end    = std::min<uint32_t> (next, count);
+        length = GetByte (image, at + kFileName);
+        owner  = (int) outMap.files.size();
+
+        if (length >= 1 && length <= kFileNameMax)
+        {
+            entries++;
+            outMap.hasBrokenChains = outMap.hasBrokenChains || next <= first || next > total;
+        }
 
         outMap.files.push_back (GetName (image, at + kFileName, kFileNameMax));
 
@@ -152,6 +170,18 @@ void PascalBlockLayout::Walk (const BlockImage & image, BlockMap & outMap)
 
             entry.owners.push_back (owner);
         }
+    }
+
+    if ((uint32_t) entries != recorded)
+    {
+        mismatch.keyBlock = kDirectoryBlock;
+        mismatch.offset   = kFileCount;
+        mismatch.recorded = (int) recorded;
+        mismatch.actual   = entries;
+        mismatch.what     = L"the directory's file count";
+        mismatch.finding  = L"The directory's file count is " + NumberFormat::FormatInteger (recorded) + L", but it has " + NumberFormat::FormatInteger (entries) + (entries == 1 ? L" file" : L" files");
+
+        outMap.counts.push_back (std::move (mismatch));
     }
 }
 

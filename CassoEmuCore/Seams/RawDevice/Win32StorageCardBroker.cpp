@@ -3,6 +3,7 @@
 #include "Seams/RawDevice/Win32StorageCardBroker.h"
 #include "Seams/RawDevice/RawDeviceServer.h"
 #include "Seams/RawDevice/Win32RawDevice.h"
+#include "Core/PathResolver.h"
 #include "Update/AuthenticodeVerifier.h"
 
 
@@ -468,30 +469,25 @@ Error:
 //
 //  Win32StorageCardBroker::AppendLog
 //
-//  A line with the time, in StorageCardBroker.log in Casso's log folder
-//  under the user's local application data. A line that cannot be written
-//  is dropped.
+//  A line with the time, in StorageCardBroker.log in the Logs folder under
+//  the data folder. A line that cannot be written is dropped.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Win32StorageCardBroker::AppendLog (const std::wstring & line)
 {
-    wchar_t                * appData = nullptr;
-    HRESULT                  hr      = SHGetKnownFolderPath (FOLDERID_LocalAppData, 0, nullptr, &appData);
     SYSTEMTIME               now     = {};
     std::error_code          ignore;
-    std::filesystem::path    folder;
+    std::filesystem::path    folder  = PathResolver::GetDataFolder();
 
 
 
-    if (FAILED (hr))
+    if (folder.empty())
     {
-        CoTaskMemFree (appData);
         return;
     }
 
-    folder = std::filesystem::path (appData) / L"Casso" / L"Logs";
-    CoTaskMemFree (appData);
+    folder /= L"Logs";
 
     std::filesystem::create_directories (folder, ignore);
     GetLocalTime (&now);

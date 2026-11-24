@@ -202,6 +202,38 @@ namespace DebuggerViewStateTests
         }
 
 
+        //  An address a view is sent to inside an instruction, as a call
+        //  frame's call site in memory overwritten since is: the instruction
+        //  before it is cut short, so the address starts a row.
+        TEST_METHOD (ANavigatedAddressStartsARowInsideAnInstruction)
+        {
+            static constexpr Byte  kCode[] = { 0x4C, 0x04, 0x60, 0x2C, 0xA9, 0x01, 0x60 };   // JMP $6004, BIT $01A9, RTS
+
+            std::unique_ptr<MachineRig>   held     = std::make_unique<MachineRig>();
+            MachineRig                  & rig      = *held;
+            DebuggerViewSnapshot          shown;
+            bool                          isRow    = false;
+
+
+
+            for (size_t i = 0; i < sizeof (kCode); i++)
+            {
+                rig.machine.GetMemoryBus().WriteByte ((Word) (0x6000 + i), kCode[i]);
+            }
+
+            rig.view.GetCodeViews().SetCodeLines (10);
+            rig.view.GetCodeViews().CenterCodeOn (0x6004);
+            shown = rig.view.Build (rig.controller.GetSession());
+
+            for (const DebuggerViewSnapshot::CodeLine & line : shown.code)
+            {
+                isRow = isRow || line.address == 0x6004;
+            }
+
+            Assert::IsTrue (isRow, L"a row starts at the address");
+        }
+
+
         TEST_METHOD (TheWheelScrollsTheCodePaneThroughMemory)
         {
             std::unique_ptr<MachineRig>   held     = std::make_unique<MachineRig>();

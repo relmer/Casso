@@ -108,11 +108,11 @@ void PickerPrefs::Load (const std::wstring & baseDir, IFileSystem & fs, const Pi
         outPrefs.theme = theme;
     }
 
-    //  The Casso node is open in the tree, where its folders and the stock
-    //  disks are.
+    //  A drive's picker lists every image under the Casso node, so the node
+    //  starts closed.
     if (request.IsForDrive())
     {
-        outPrefs.treeCassoOpen = true;
+        outPrefs.treeCassoOpen = false;
     }
 }
 

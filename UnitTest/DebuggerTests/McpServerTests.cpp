@@ -582,6 +582,27 @@ namespace DebuggerTests
 
 
 
+        //  A resume doesn't send a resumed notification, so the run's reply
+        //  ends the pause.
+        TEST_METHOD (AResumedMachineIsNotReportedAsPaused)
+        {
+            Rig        rig;
+            JsonValue  result;
+
+
+
+            rig.directory.instances[100].isPaused     = true;
+            rig.directory.instances[100].isRunEndless = true;
+
+            (void) rig.Call ("type_text", R"({"text":"A"})");
+            (void) rig.Call ("resume");
+
+            result = rig.Call ("type_text", R"({"text":"B"})");
+            Assert::IsTrue (GetText (result).find ("paused") == std::string::npos, TextEncoding::NarrowToWide (GetText (result)).c_str());
+        }
+
+
+
         TEST_METHOD (Base64AndPasteEscapes)
         {
             Assert::AreEqual (std::string ("TWFu"), McpTools::EncodeBase64 ({ 'M', 'a', 'n' }));

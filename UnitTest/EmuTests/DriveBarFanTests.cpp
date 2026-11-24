@@ -218,4 +218,76 @@ public:
         Assert::AreEqual (0, c);
         Assert::AreEqual (2, entry);
     }
+
+
+    TEST_METHOD (PutFirst_MovesTheRecentDriveToTheBottomOfItsClass)
+    {
+        std::vector<DeskDrivePlacement>      plan;
+        std::vector<std::vector<DeskDrive>>  classes;
+
+
+
+        plan.push_back (OnBar (DeskDriveModel::DiskII,       6, 0, 0));
+        plan.push_back (OnBar (DeskDriveModel::Apple35Drive, 4, 0, 1));
+        plan.push_back (OnBar (DeskDriveModel::UniDisk35,    5, 0, 2));
+        plan.push_back (OnBar (DeskDriveModel::HardDisk20SC, 7, 6, 0));
+        plan.push_back (OnBar (DeskDriveModel::ProFile,      2, 0, 1));
+
+        classes = DriveBarFan::Group (plan);
+        DriveBarFan::PutFirst (classes, { DeskDrive { DeskDriveModel::UniDisk35, 5, 0 }, DeskDrive { DeskDriveModel::ProFile, 2, 0 } });
+
+        Assert::IsTrue (classes[0][0].model == DeskDriveModel::UniDisk35, L"the last floppy clicked is shown while the stack is closed");
+        Assert::IsTrue (classes[0][1].model == DeskDriveModel::DiskII);
+        Assert::IsTrue (classes[0][2].model == DeskDriveModel::Apple35Drive);
+        Assert::IsTrue (classes[1][0].model == DeskDriveModel::ProFile);
+        Assert::IsTrue (classes[1][1].model == DeskDriveModel::HardDisk20SC);
+    }
+
+
+    TEST_METHOD (PutFirst_DriveNotOnTheBar_ChangesNothing)
+    {
+        std::vector<DeskDrivePlacement>      plan;
+        std::vector<std::vector<DeskDrive>>  classes;
+
+
+
+        plan.push_back (OnBar (DeskDriveModel::DiskII,       6, 0, 0));
+        plan.push_back (OnBar (DeskDriveModel::Apple35Drive, 4, 0, 1));
+
+        classes = DriveBarFan::Group (plan);
+        DriveBarFan::PutFirst (classes, { DeskDrive { DeskDriveModel::UniDisk35, 5, 0 } });
+
+        Assert::IsTrue (classes[0][0].model == DeskDriveModel::DiskII);
+        Assert::IsTrue (classes[0][1].model == DeskDriveModel::Apple35Drive);
+    }
+
+
+    TEST_METHOD (GetFittingZoom_KeepsEveryBoxInTheWindow)
+    {
+        // Three 200 px boxes, 10 px in from each edge and 5 px apart, across
+        // 1000 px: 970 px of room for 600 px of boxes.
+        Assert::AreEqual (970.0f / 600.0f, DriveBarFan::GetFittingZoom (3, 200, 1000, 10, 5), 0.001f);
+        Assert::AreEqual (DriveBarFan::kMaxZoom, DriveBarFan::GetFittingZoom (0, 200, 1000, 10, 5), 0.001f, L"no boxes");
+    }
+
+
+    TEST_METHOD (GetFittingGap_NarrowsTheGapsBeforeTheZoom)
+    {
+        // Three 180 px widgets with 20 px of margin and arrow each.
+        Assert::AreEqual (300, DriveBarFan::GetFittingGap (3, 180, 20, 300, 2000, 10, 5), L"room for the full gap");
+        Assert::AreEqual (85,  DriveBarFan::GetFittingGap (3, 180, 20, 300, 750,  10, 5), L"the boxes 65 px apart");
+        Assert::AreEqual (25,  DriveBarFan::GetFittingGap (3, 180, 20, 300, 600,  10, 5), L"no closer than the minimum");
+        Assert::AreEqual (300, DriveBarFan::GetFittingGap (1, 180, 20, 300, 100,  10, 5), L"one widget has no gap");
+    }
+
+
+    TEST_METHOD (GetZoomAfterWheel_StepsByANotchAndStopsAtTheLimits)
+    {
+        Assert::AreEqual (1.1f, DriveBarFan::GetZoomAfterWheel (1.0f, 1.0f), 0.001f);
+        Assert::AreEqual (0.9f, DriveBarFan::GetZoomAfterWheel (1.0f, -1.0f), 0.001f);
+        Assert::AreEqual (DriveBarFan::kMaxZoom, DriveBarFan::GetZoomAfterWheel (DriveBarFan::kMaxZoom, 3.0f), 0.001f);
+        Assert::AreEqual (DriveBarFan::kMinZoom, DriveBarFan::GetZoomAfterWheel (DriveBarFan::kMinZoom, -3.0f), 0.001f);
+        Assert::AreEqual (1.0f, DriveBarFan::GetZoomAfterWheel (0.9f, 1.0f), 0.001f, L"100% is one of the stops");
+        Assert::AreEqual (1.0f, DriveBarFan::GetZoomAfterWheel (1.04f, 0.0f), 0.001f, L"a zoom off the steps lands back on one");
+    }
 };

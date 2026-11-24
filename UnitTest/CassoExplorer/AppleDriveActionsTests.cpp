@@ -4,7 +4,6 @@
 #include "../CassoLink/FakeApple.h"
 #include "../CassoLink/InMemoryCassoLinkFolder.h"
 #include "../EmuTests/FakeDiskFileIo.h"
-#include "../EmuTests/GuestSession.h"
 #include "../UiTests/InMemoryFileSystem.h"
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/CassoExplorerDragOut.h"
@@ -97,11 +96,23 @@ public:
                     return;
                 }
 
-                std::this_thread::sleep_for (std::chrono::milliseconds (10));
+                std::this_thread::yield();
             }
             while (std::chrono::steady_clock::now() < until);
 
             Assert::Fail (L"the catalog arrives");
+        }
+
+        //  Waits until no operation is queued or running, so a read that an
+        //  action started has finished and been counted.
+        void  Settle()
+        {
+            auto  until = std::chrono::steady_clock::now() + std::chrono::seconds (20);
+
+            while (!links->GetPendingJobs().empty() && std::chrono::steady_clock::now() < until)
+            {
+                std::this_thread::yield();
+            }
         }
 
         //  Waits for the queued operations, runs their completions, and
@@ -113,7 +124,7 @@ public:
 
             while (!links->GetPendingJobs().empty() && std::chrono::steady_clock::now() < until)
             {
-                std::this_thread::sleep_for (std::chrono::milliseconds (10));
+                std::this_thread::yield();
             }
 
             messages = links->RunCompletions();
@@ -224,12 +235,12 @@ public:
 
         rig.Open (1);
         rig.Open (2);
-        std::this_thread::sleep_for (std::chrono::milliseconds (500));
+        rig.Settle();
         reads = rig.apple.catalogReads;
 
-        //  A read would start on the session's thread, so it is given time.
+        //  A read would run on the session's thread, so it is waited for.
         rig.Open (1);
-        std::this_thread::sleep_for (std::chrono::milliseconds (500));
+        rig.Settle();
         AssertSucceeded (rig.browser->Refresh());
         Assert::AreEqual (reads, (int) rig.apple.catalogReads, L"no catalog read for a drive read moments ago");
 
@@ -238,7 +249,7 @@ public:
 
         while (rig.apple.catalogReads == reads && std::chrono::steady_clock::now() < until)
         {
-            std::this_thread::sleep_for (std::chrono::milliseconds (10));
+            std::this_thread::yield();
             AssertSucceeded (rig.browser->Refresh());
         }
 
@@ -260,11 +271,11 @@ public:
         rig.browser->OpenInNewTab (Location::MakeAppleDrive (TreeModel::MakeLinkDriveId (L"Test", 6, 2), std::string()));
         rig.Reload();
         rig.browser->ForgetLinkVisit();
-        std::this_thread::sleep_for (std::chrono::milliseconds (500));
+        rig.Settle();
         reads = rig.apple.catalogReads;
 
         Assert::IsTrue (rig.browser->SwitchTab (0));
-        std::this_thread::sleep_for (std::chrono::milliseconds (500));
+        rig.Settle();
         AssertSucceeded (rig.browser->Refresh());
 
         Assert::AreEqual (reads, (int) rig.apple.catalogReads, L"no catalog read on returning to the tab");
@@ -631,7 +642,7 @@ public:
 
             while (!rig.links->GetPendingJobs().empty() && std::chrono::steady_clock::now() < until)
             {
-                std::this_thread::sleep_for (std::chrono::milliseconds (10));
+                std::this_thread::yield();
             }
         }
 
@@ -692,7 +703,7 @@ public:
         {
             refreshed = rig.browser->Refresh();
             IGNORE_RETURN_VALUE (refreshed, S_OK);
-            std::this_thread::sleep_for (std::chrono::milliseconds (10));
+            std::this_thread::yield();
         }
         while (rig.browser->GetListError() == CassoExplorerBrowser::s_kWorkingText && std::chrono::steady_clock::now() < until);
 
@@ -745,20 +756,28 @@ public:
 
 
 
-    //  The CassoLink ProDOS disk made from the ProDOS Users Disk has its
+    //  The CassoLink ProDOS disk made from a user's ProDOS disk has its
     //  PRODOS and BASIC.SYSTEM, the installer and the STARTUP that runs it;
-    //  a ProDOS disk with neither is turned down with the reason.
+    //  a ProDOS disk with neither is turned down with the reason. The user's
+    //  disk is made here, with small files in place of the two.
     TEST_METHOD (SaveLinkProDosDisk_WritesADiskWithTheUsersProDos)
     {
+        static constexpr Byte  kSystemType = 0xFF;
+
         Rig                rig;
         CassoLinkSettings  serial;
+        std::vector<Byte>  users (NibblizationLayer::kImageByteSize, 0);
         std::vector<Byte>  blank (NibblizationLayer::kImageByteSize, 0);
         std::vector<Byte>  file;
         Byte               fileType = 0;
         Word               auxType  = 0;
 
-        rig.io.files["C:/Disks/Users.dsk"]  = GuestSession::RequireProDosUsersDisk();
-        rig.io.stamps["C:/Disks/Users.dsk"] = FileStamp { rig.io.files["C:/Disks/Users.dsk"].size(), 1 };
+        AssertSucceeded (ProDosSkeleton::Write (users, "USERS"));
+        AssertSucceeded (ProDosFileWriter::WriteFile (users, "PRODOS", kSystemType, 0x0000, std::vector<Byte> (3000, 0x4C)));
+        AssertSucceeded (ProDosFileWriter::WriteFile (users, "BASIC.SYSTEM", kSystemType, 0x2000, std::vector<Byte> (10240, 0x60)));
+
+        rig.io.files["C:/Disks/Users.dsk"]  = users;
+        rig.io.stamps["C:/Disks/Users.dsk"] = FileStamp { users.size(), 1 };
 
         AssertSucceeded (rig.actions->SaveLinkProDosDisk (L"C:/Disks/Users.dsk", L"C:/Disks/Link.dsk", serial).hr);
 

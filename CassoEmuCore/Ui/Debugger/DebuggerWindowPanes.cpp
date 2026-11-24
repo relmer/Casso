@@ -28,7 +28,6 @@
 #include "Ui/Debugger/Panes/WatchesPane.h"
 #include "Ui/Debugger/Panes/ToolPanes.h"
 #include "Ui/Debugger/Panes/ProfilerPane.h"
-#include "Ui/Debugger/StepFiltersDialog.h"
 
 
 
@@ -100,7 +99,7 @@ void DebuggerWindow::CreatePanes()
     m_panes.push_back (std::move (watches));
     m_panes.push_back (std::move (stack));
     m_panes.push_back (std::move (bps));
-    m_panes.push_back (std::make_unique<CallStackController> (parts));
+    m_panes.push_back (std::make_unique<CallStackController> (parts, *m_memoryGroup));
     m_panes.push_back (std::move (trace));
     m_panes.push_back (std::move (basic));
 
@@ -122,6 +121,7 @@ void DebuggerWindow::CreatePanes()
     m_panes.push_back (std::make_unique<SymbolsPane>    (parts, SymbolsPane::Kind::User));
     m_panes.push_back (std::make_unique<SymbolsPane>    (parts, SymbolsPane::Kind::Machine));
     m_panes.push_back (std::make_unique<BookmarksPane>  (parts));
+    m_panes.push_back (std::make_unique<StepFiltersPane> (parts));
     m_panes.push_back (std::move (profiler));
     m_panes.push_back (std::make_unique<DataBlocksPane> (parts));
 
@@ -929,127 +929,6 @@ void DebuggerWindow::ApplyHeatMap()
 {
     m_heatMapPane->Apply    (*m_latest.Get());
     m_heatRangesPane->Apply (*m_latest.Get());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::RunStepFiltersDialog
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::optional<std::vector<std::wstring>> DebuggerWindow::RunStepFiltersDialog (const std::vector<std::wstring> & filters,
-                                                                               std::function<bool (const std::wstring &, std::wstring &)> check)
-{
-    return StepFiltersDialog::RunModal (GetHwnd(), m_look.GetTheme(), filters, std::move (check));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::EditStepFilters
-//
-//  Debug > Step filters... (FR-184): the dialog's list against the one it
-//  opened with, each filter taken out run as SKIP - and each new one as
-//  SKIP. A name must be a symbol, and the filter is added by that name.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::EditStepFilters()
-{
-    std::vector<std::wstring>                  before;
-    std::optional<std::vector<std::wstring>>   after;
-    std::vector<DebuggerAction>                actions;
-    auto                                       findSymbol = [this] (const std::wstring & name) -> std::optional<Word>
-    {
-        std::string  narrow = TextEncoding::WideToNarrow (name);
-
-
-
-        if (m_latest.Get() == nullptr || m_latest.Get()->symbols == nullptr)
-        {
-            return std::nullopt;
-        }
-
-        for (const SymbolInfo & symbol : m_latest.Get()->symbols->symbols)
-        {
-            if (_stricmp (symbol.name.c_str(), narrow.c_str()) == 0)
-            {
-                return symbol.address;
-            }
-        }
-
-        return std::nullopt;
-    };
-
-
-
-    if (m_latest.Get() == nullptr)
-    {
-        return;
-    }
-
-    for (const StepFilterEntry & entry : m_latest.Get()->stepFilters)
-    {
-        before.push_back (TextEncoding::NarrowToWide (RunActions::GetRemoveSkip (entry, GetMode()).command.text));
-    }
-
-    after = RunStepFiltersDialog (before, [&findSymbol] (const std::wstring & text, std::wstring & error)
-    {
-        bool  isSymbol = findSymbol (text).has_value();
-
-
-
-        error = isSymbol ? std::wstring() : std::format (L"{} is not a symbol, an address or a range.", text);
-        return isSymbol;
-    });
-
-    if (!after.has_value())
-    {
-        return;
-    }
-
-    for (size_t i = 0; i < m_latest.Get()->stepFilters.size(); i++)
-    {
-        if (std::ranges::find (*after, before[i]) == after->end())
-        {
-            actions.push_back (RunActions::GetRemoveSkip (m_latest.Get()->stepFilters[i], GetMode()));
-        }
-    }
-
-    for (const std::wstring & text : *after)
-    {
-        Word                 first   = 0;
-        Word                 last    = 0;
-        std::optional<Word>  address;
-
-
-
-        if (std::ranges::find (before, text) != before.end())
-        {
-            continue;
-        }
-
-        if (StepFiltersDialog::TryParseRange (text, first, last))
-        {
-            actions.push_back (RunActions::GetSkipRange (first, last, GetMode()));
-        }
-        else if (address = findSymbol (text); address.has_value())
-        {
-            actions.push_back (RunActions::GetSkipRoutine (TextEncoding::WideToNarrow (text), *address, GetMode()));
-        }
-    }
-
-    for (const DebuggerAction & action : actions)
-    {
-        RunAction (action);
-    }
 }
 
 

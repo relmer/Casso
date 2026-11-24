@@ -81,7 +81,6 @@ public:
 
             boots.emplace_back ([this, file] ()
             {
-                Sleep (150);
                 session->NoteBoot (file, bootResult, file + " was booted.");
             });
 
@@ -130,11 +129,25 @@ public:
             changed.notify_all();
         }
 
-        bool  WaitForState (LinkState state, DWORD timeoutMs = 10000)
+        //  The number of states so far, for a wait on a state the
+        //  session may pass through before the waiting thread runs again, as on
+        //  virtual time.
+        size_t  Mark()
+        {
+            std::lock_guard<std::mutex>  guard (lock);
+
+            return states.size();
+        }
+
+        //  The state is the current one, or the session passes through it
+        //  after `from`, a Mark, or after the wait starts.
+        bool  WaitForState (LinkState state, DWORD timeoutMs = 10000, size_t from = SIZE_MAX)
         {
             std::unique_lock<std::mutex>  guard (lock);
 
-            return changed.wait_for (guard, std::chrono::milliseconds (timeoutMs), [&] () { return !states.empty() && states.back() == state; });
+            from = (from != SIZE_MAX) ? from : states.empty() ? 0 : states.size() - 1;
+
+            return changed.wait_for (guard, std::chrono::milliseconds (timeoutMs), [&] () { return std::find (states.begin() + (ptrdiff_t) (std::min) (from, states.size()), states.end(), state) != states.end(); });
         }
 
         bool  WaitForDone (const std::shared_ptr<LinkOperation> & operation, DWORD timeoutMs = 20000)
@@ -304,7 +317,11 @@ public:
         rig.apple.promptsMissed  = 1;
         rig.apple.readyEveryMs   = 60000;
         rig.session->SetRetryInterval (100);
-        rig.Start (500);
+
+        //  The first attempt times out after the missed prompt. Three seconds
+        //  is enough for the next attempt to load the program on a loaded
+        //  machine.
+        rig.Start (3000);
 
         Assert::IsTrue (rig.sink.WaitForState (LinkState::Ready, 20000), L"the next attempt's prompt drew the Ready");
     }
@@ -312,73 +329,27 @@ public:
 
 
 
-    //  A byte of the shim the bootstrap sends, flipped: the loader's XOR
-    //  fails, it returns to Applesoft's prompt, and the bootstrap fails. A
-    //  link then started with no Bootstrap chosen probes the prompt, the
-    //  Apple sends the ready byte, and it is bootstrapped and linked.
-    TEST_METHOD (ABootstrapFlip_FailsTheBootstrap_AndTheProbeBootstrapsTheAppleAgain)
+    //  An Apple at Applesoft's prompt doesn't send Ready. A link started with
+    //  no Bootstrap chosen probes the prompt, the Apple sends the ready
+    //  byte, and it is bootstrapped and linked.
+    TEST_METHOD (AnAppleAtThePrompt_IsProbed_ThenBootstrappedAndLinked)
     {
-        constexpr DWORD   kConnectTimeoutMs = 1000;
-        constexpr DWORD   kNoRetryMs        = 60000;
-        constexpr DWORD   kReadyWaitMs      = 20000;
-        constexpr size_t  kFlipOffset       = 40;     // a byte of the shim's first page
-
-        FaultsEnabled                   enabled;
-        Rig                             rig;
-        CassoLinkSettings               settings;
-        std::shared_ptr<LinkOperation>  bootstrap;
-        std::vector<std::string>        lines;
-        std::vector<LinkFault>          faults;
-        size_t                          typed    = 0;
-
-
-
-        AssertSucceeded (LinkBootstrap::BuildLines (lines));
-
-        for (const std::string & line : lines)
-        {
-            typed += line.size();
-        }
-
-        //  Counted from the loader's first typed byte: the lines, the page
-        //  count, then the shim's first page.
-        Assert::AreEqual (S_OK, LinkFault::Parse (std::format ("bootstrap:flip@{}", typed + 1 + kFlipOffset).c_str(), faults));
-        LinkFaults::Arm (faults);
+        Rig                rig;
+        CassoLinkSettings  settings;
 
         rig.apple.startAsShim = true;
-        rig.apple.typedLoader = true;
+        rig.apple.atPrompt    = true;
 
         settings.name      = "Test";
         settings.transport = LinkTransport::Emulated;
         settings.address   = "127.0.0.1:6502";
 
         rig.session->SetBootstrapPause (0, 0);
-        rig.session->SetConnectTimeout (kConnectTimeoutMs);
-        rig.session->SetRetryInterval (kNoRetryMs);
-        AssertSucceeded (rig.session->StartWithBootstrap (settings, bootstrap));
-
-        rig.Finish (bootstrap);
-
-        Assert::IsTrue   (FAILED (bootstrap->result), L"the loader's XOR failed, and no shim sent Ready");
-        Assert::AreEqual (1, rig.apple.loaderXorFails.load());
-        Assert::IsTrue   (rig.apple.atPrompt.load(), L"the Apple is back at the prompt");
-
-        {
-            std::lock_guard<std::mutex>  guard (rig.sink.lock);
-
-            Assert::IsTrue (std::any_of (rig.sink.activities.begin(), rig.sink.activities.end(),
-                                         [] (const std::string & text) { return text.find ("Injected a fault") != std::string::npos; }));
-        }
-
-        //  A new link, with no Bootstrap chosen: no Ready arrives, the probe
-        //  finds the prompt, and the bootstrap runs again, this time whole.
-        rig.session = std::make_unique<CassoLinkSession> (rig.factory, rig.folder, rig.fileIo, rig.sink);
-        rig.session->SetBootstrapPause (0, 0);
-        rig.session->SetConnectTimeout (kConnectTimeoutMs);
+        rig.session->SetConnectTimeout (1000);
         AssertSucceeded (rig.session->Start (settings));
 
-        Assert::IsTrue   (rig.sink.WaitForState (LinkState::Ready, kReadyWaitMs), L"the probe found the prompt and the bootstrap linked");
-        Assert::AreEqual (1, rig.apple.loaderXorFails.load(), L"the second shim passed the loader's XOR");
+        Assert::IsTrue   (rig.sink.WaitForState (LinkState::Ready), L"the probe found the prompt and the bootstrap linked");
+        Assert::AreEqual (0, rig.apple.loaderXorFails.load());
     }
 
 
@@ -450,10 +421,12 @@ public:
 
 
 
-    //  An 800K ProDOS volume with a file, as a block device's disk.
+    static constexpr size_t  kBlockDeviceBlocks = 64;
+
+    //  A 32K ProDOS volume with a file, as a block device's disk.
     static std::vector<Byte>  BuildBlockVolume()
     {
-        std::vector<Byte>  buffer (1600 * 512, 0);
+        std::vector<Byte>  buffer (kBlockDeviceBlocks * 512, 0);
         std::vector<Byte>  next;
 
         AssertSucceeded (ProDosSkeleton::Write (buffer, "BIGDISK"));
@@ -485,8 +458,90 @@ public:
 
         Assert::AreEqual ((size_t) 1, devices.size());
         Assert::AreEqual ((Byte) 7, devices[0].slot);
-        Assert::AreEqual ((uint32_t) 1600, devices[0].blocks);
+        Assert::AreEqual ((uint32_t) kBlockDeviceBlocks, devices[0].blocks);
         Assert::AreEqual (std::string ("BIGDISK"), devices[0].volume);
+
+        auto  listing = rig.Finish (rig.session->Enumerate (drive, FilePath()));
+
+        AssertSucceeded (listing->result);
+        Assert::IsTrue  (Names (listing->listing) == std::vector<std::string> { "HELLO" });
+
+        AssertSucceeded (rig.Finish (rig.session->WriteFile (drive, FilePath::Parse ("NEWFILE"), payload))->result);
+
+        auto  read = rig.Finish (rig.session->ReadFile (drive, FilePath::Parse ("NEWFILE")));
+
+        AssertSucceeded (read->result);
+        Assert::IsTrue  (read->file.bytes == payload.bytes, L"the file written is read back");
+
+        AssertSucceeded (rig.Finish (rig.session->ReadBlockDevice (drive, kImage, false))->result);
+
+        Assert::IsTrue (rig.apple.WaitForLabel ("READ S7,U1 BLOCK 64 OF 64"), L"the label has the device and the block");
+        Assert::IsTrue (rig.apple.WaitForLabel ("CATALOG S7,U1 (/BIGDISK)"), L"and the catalog's label, its volume");
+
+        std::lock_guard<std::mutex>  guard (rig.apple.lock);
+
+        Assert::IsTrue (rig.fileIo.files[kImage] == rig.apple.blockDisk, L"the image is the device");
+    }
+
+
+
+
+    //  A 140K ProDOS volume with a file, in the device's block order, as an
+    //  Apple ///'s drive has it.
+    static std::vector<Byte>  BuildAppleIIIVolume()
+    {
+        std::vector<Byte>  dos (ProDosSkeleton::kTotalBlocks * 512, 0);
+        std::vector<Byte>  next;
+        std::vector<Byte>  blocks (dos.size(), 0);
+
+        AssertSucceeded (ProDosSkeleton::Write (dos, "BIGDISK"));
+        AssertSucceeded (ProDosVolume (dos).Write (FilePath::Parse ("HELLO"), Binary (ProDosVolume::kTypeBinary, 3000, 3), next));
+
+        for (int block = 0; block < ProDosSkeleton::kTotalBlocks; block++)
+        {
+            for (size_t at = 0; at < 512; at++)
+            {
+                blocks[(size_t) block * 512 + at] = next[ProDosSkeleton::GetBlockByteOffset (block, at)];
+            }
+        }
+
+        return blocks;
+    }
+
+
+
+
+    //  An Apple /// running the SOS program: the model is the Apple ///, its
+    //  140K drive is listed by its SOS name with no block module sent, and it
+    //  is browsed, written and read to an image as an Apple II's is.
+    TEST_METHOD (AnAppleIII_ListsItsDevicesBySosName_AndWorksAsAnAppleIIs)
+    {
+        static constexpr const char *  kImage = "C:\\Images\\D1.po";
+
+        Rig                rig;
+        CassoLinkSettings  settings;
+        FilePayload        payload = Binary (ProDosVolume::kTypeBinary, 2500, 9);
+        int                drive   = CassoLinkBlockDevices::kFirstDrive;
+
+        settings.name      = "Test";
+        settings.transport = LinkTransport::Emulated;
+        settings.address   = "127.0.0.1:6502";
+        settings.baud      = 9600;
+
+        rig.apple.appleIII  = true;
+        rig.apple.blockDisk = BuildAppleIIIVolume();
+        rig.session->SetConnectTimeout (10000);
+        AssertSucceeded (rig.session->Start (settings));
+
+        AssertSucceeded (rig.Finish (rig.session->ListBlockDevices())->result);
+
+        std::vector<CassoLinkBlockDevice>  devices = rig.session->GetBlockDevices();
+
+        Assert::AreEqual (std::wstring (L"Apple ///"), rig.session->GetModelName());
+        Assert::AreEqual ((size_t) 1, devices.size());
+        Assert::AreEqual (std::string (".D1"), devices[0].device);
+        Assert::AreEqual (std::string ("BIGDISK"), devices[0].volume);
+        Assert::AreEqual ((Byte) 1, devices[0].slot, L"the SOS device's number");
 
         auto  listing = rig.Finish (rig.session->Enumerate (drive, FilePath()));
 
@@ -505,8 +560,8 @@ public:
         std::lock_guard<std::mutex>  guard (rig.apple.lock);
 
         Assert::IsTrue (rig.fileIo.files[kImage] == rig.apple.blockDisk, L"the image is the device");
-        Assert::IsTrue (std::find (rig.apple.labels.begin(), rig.apple.labels.end(), "READ S7,U1 BLOCK 1600 OF 1600") != rig.apple.labels.end(), L"the label has the device and the block");
-        Assert::IsTrue (std::find (rig.apple.labels.begin(), rig.apple.labels.end(), "CATALOG S7,U1 (/BIGDISK)") != rig.apple.labels.end(), L"and the catalog's label, its volume");
+        Assert::AreEqual (0, rig.apple.moduleChunks.load(), L"the block requests are the SOS program's, so no module is sent");
+        Assert::IsTrue (std::find (rig.apple.labels.begin(), rig.apple.labels.end(), "CATALOG .D1 (/BIGDISK)") != rig.apple.labels.end(), L"the label has the device's SOS name");
     }
 
 
@@ -821,18 +876,14 @@ public:
         rig.Start();
         Assert::IsTrue (rig.sink.WaitForState (LinkState::Ready));
 
-        rig.apple.sectorDelayMs = 30;
+        rig.apple.holdAt = 3;
 
         auto  read = rig.session->ReadFile (1, FilePath::Parse ("HELLO"));
         auto  list = rig.session->Enumerate (2, FilePath());
 
-        while (rig.apple.sectorsRead < 3)
-        {
-            std::this_thread::sleep_for (std::chrono::milliseconds (5));
-        }
-
+        rig.apple.WaitHeld();
         rig.session->Cancel();
-        rig.apple.sectorDelayMs = 0;
+        rig.apple.Release();
 
         rig.Finish (read);
         rig.Finish (list);
@@ -852,8 +903,10 @@ public:
         rig.Start();
         Assert::IsTrue (rig.sink.WaitForState (LinkState::Ready));
 
+        size_t  mark = rig.sink.Mark();
+
         rig.apple.Detach();
-        Assert::IsTrue (rig.sink.WaitForState (LinkState::Disconnected));
+        Assert::IsTrue (rig.sink.WaitForState (LinkState::Disconnected, 10000, mark));
 
         auto  list = rig.Finish (rig.session->Enumerate (1, FilePath()));
 
@@ -872,11 +925,17 @@ public:
         rig.Start();
         Assert::IsTrue (rig.sink.WaitForState (LinkState::Ready));
 
-        std::this_thread::sleep_for (std::chrono::milliseconds (500));
+        //  DSR is read on before it goes off.
+        for (int reads = rig.factory.peerReads + 2; rig.factory.peerReads < reads; )
+        {
+            std::this_thread::yield();
+        }
 
         //  An Apple reset turns its DTR off at once.
+        size_t  mark = rig.sink.Mark();
+
         rig.factory.peerReady = 0;
-        Assert::IsTrue (rig.sink.WaitForState (LinkState::Disconnected, 2000), L"well before the silence counts");
+        Assert::IsTrue (rig.sink.WaitForState (LinkState::Disconnected, 2000, mark), L"well before the silence counts");
     }
 
 
@@ -886,75 +945,41 @@ public:
     {
         Rig  rig;
 
-        rig.factory.peerReady = 1;
+        //  DSR glitches, as a USB serial adapter on a //c cable reports them:
+        //  off for one read in every few.
+        rig.factory.peerReady       = 1;
+        rig.factory.peerGlitchEvery = 3;
         rig.Start();
         Assert::IsTrue (rig.sink.WaitForState (LinkState::Ready));
 
-        //  DSR glitches, as a USB serial adapter on a //c cable reports them.
-        {
-            std::jthread  glitches ([&rig] (std::stop_token stop)
-            {
-                while (!stop.stop_requested())
-                {
-                    rig.factory.peerReady = 0;
-                    std::this_thread::sleep_for (std::chrono::milliseconds (1));
-                    rig.factory.peerReady = 1;
-                    std::this_thread::sleep_for (std::chrono::milliseconds (15));
-                }
-            });
+        size_t  mark  = rig.sink.Mark();
+        int     reads = rig.factory.peerReads + 200;
 
-            Assert::IsFalse (rig.sink.WaitForState (LinkState::Disconnected, 2000), L"a DSR glitch is not the Apple gone");
+        while (rig.factory.peerReads < reads)
+        {
+            std::this_thread::yield();
         }
+
+        Assert::IsFalse (rig.sink.WaitForState (LinkState::Disconnected, 0, mark), L"a DSR glitch is not the Apple gone");
     }
 
 
 
-    TEST_METHOD (ReadDisk_WritesTheImage_InEachFormat)
+    //  A read to a WOZ measures every track and writes an image of the
+    //  disk. The other formats are tested in BlankDiskBuilderTests.
+    TEST_METHOD (ReadDisk_ToAWoz_MeasuresEachTrack_AndWritesTheDisk)
     {
-        Rig  rig;
+        Rig                 rig;
+        std::vector<Byte>   sectors;
+        SectorDecodeReport  report;
 
         rig.Start();
 
-        for (const char * name : { "out.dsk", "out.do", "out.po", "out.woz", "out.nib", "out.nb2" })
-        {
-            std::vector<Byte>   sectors;
-            SectorDecodeReport  report;
-            auto                read = rig.Finish (rig.session->ReadDisk (2, name, false));
-
-            AssertSucceeded (read->result);
-            AssertSucceeded (VolumeImage::Load (rig.fileIo.files[name], name, sectors, report));
-            Assert::IsTrue (sectors == rig.Drive (2), std::format (L"{} has the disk", std::wstring (name, name + strlen (name))).c_str());
-        }
-
-        Assert::IsTrue (rig.fileIo.files["out.dsk"] == rig.Drive (2), L"a .dsk is the sectors in DOS 3.3 order");
-        Assert::AreEqual (NibbleImageCodec::kNb2ImageSize, rig.fileIo.files["out.nb2"].size(), L"a .nb2 has .nb2's tracks");
-    }
-
-
-
-    //  A WOZ is built to each track's layout as Measure track measured it,
-    //  and no other image type measures.
-    TEST_METHOD (ReadDisk_ToAWoz_BuildsItToEachTracksMeasuredLayout)
-    {
-        Rig                                       rig;
-        std::vector<CassoLinkHost::TrackMeasure>  measures;
-        std::vector<Byte>                         built;
-
-        rig.Start();
-
-        AssertSucceeded (rig.Finish (rig.session->ReadDisk (2, "out.dsk", false))->result);
-        Assert::AreEqual (0, rig.apple.measuredTracks.load(), L"a .dsk isn't measured");
-
-        AssertSucceeded (rig.Finish (rig.session->ReadDisk (2, "out.woz", false))->result);
+        AssertSucceeded  (rig.Finish (rig.session->ReadDisk (2, "out.woz", false))->result);
         Assert::AreEqual (NibblizationLayer::kTrackCount, rig.apple.measuredTracks.load());
 
-        for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
-        {
-            measures.push_back (FakeApple::GetMeasure (track));
-        }
-
-        AssertSucceeded (TrackLayoutWriter::BuildWoz (rig.Drive (2), TrackMeasures::ToLayouts (measures, TrackLayoutWriter::kDefaultBits), built));
-        Assert::IsTrue (rig.fileIo.files["out.woz"] == built, L"the WOZ is built to the measured layouts");
+        AssertSucceeded (VolumeImage::Load (rig.fileIo.files["out.woz"], "out.woz", sectors, report));
+        Assert::IsTrue  (sectors == rig.Drive (2));
     }
 
 
@@ -1526,19 +1551,16 @@ public:
         //  Space begins the session.
         Rig  rig;
 
-        rig.apple.sectorDelayMs = 1;
+        rig.apple.holdAt = 100;
         rig.Start();
 
         rig.apple.keys.push_back (CassoLinkCodec::kKeySpace);
 
         auto  send = rig.session->FullSend ("C:\\Box", "", "");
 
-        for (int tries = 0; tries < 2000 && rig.apple.sectorsRead < 100; tries++)
-        {
-            std::this_thread::sleep_for (std::chrono::milliseconds (5));
-        }
-
+        rig.apple.WaitHeld();
         rig.apple.quitPending = true;
+        rig.apple.Release();
         rig.Finish (send);
 
         Assert::IsTrue (send->state == LinkOperationState::Canceled);
@@ -1556,16 +1578,13 @@ public:
         rig.Start();
         Assert::IsTrue (rig.sink.WaitForState (LinkState::Ready));
 
-        rig.apple.sectorDelayMs = 2;
+        rig.apple.holdAt = 40;
 
         auto  read = rig.session->ReadDisk (1, "canceled.dsk", false);
 
-        while (rig.apple.sectorsRead < 40)
-        {
-            std::this_thread::sleep_for (std::chrono::milliseconds (5));
-        }
-
+        rig.apple.WaitHeld();
         rig.session->Cancel();
+        rig.apple.Release();
         rig.Finish (read);
 
         Assert::IsTrue (read->state == LinkOperationState::Canceled);

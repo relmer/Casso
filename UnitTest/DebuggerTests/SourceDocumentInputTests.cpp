@@ -19,6 +19,7 @@
 #include "Ui/Debugger/SourceLineText.h"
 #include "Ui/Debugger/SourceRows.h"
 #include "Ui/Debugger/SourceRowStyle.h"
+#include "Ui/Debugger/WatchActions.h"
 
 #include "CppUnitTest.h"
 
@@ -328,10 +329,64 @@ namespace SourceDocumentInputTests
         }
 
 
+        //  The comment line ahead of LDA has no code, so its menu goes to and
+        //  bookmarks LDA's address, the next line with code.
+        TEST_METHOD (ALineWithNoCodeUsesTheNextLineWithCode)
+        {
+            CassoTheme             theme    = CassoTheme::MakeSkeuomorphic();
+            SourceHost             host;
+            SourceWindow           window   (theme, host);
+            DxuiDpiScaler          scaler;
+            SourceDocumentPane   * document = nullptr;
+            RECT                   bounds   = {};
+            PaneMenuItems          items;
+            auto                   snapshot = MakeSnapshot();
+
+
+
+            scaler.SetDpi (96);
+            window.TakeSnapshot (snapshot);
+            window.GetSourceGroup().Activate (0);
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+
+            document = &window.GetSourceGroup().GetDocument (0);
+            document->GetView()->SetCellSize (8, kCellPx);
+            bounds = document->GetView()->GetBounds();
+            document->ApplyDocument (*snapshot, 0, 0, L"main.a65");
+
+            document->AddContentMenuItems (POINT { bounds.left + kMenuX, bounds.top + GetRowY (0) }, items);
+            Assert::IsTrue (GetLabels (items) == std::vector<std::wstring> { L"Go to disassembly", L"Add bookmark" }, JoinLabels (items).c_str());
+
+            Run (items, L"Add bookmark");
+            Assert::AreEqual (WatchActions::GetAddBookmark (0x0300, snapshot->mode).echo, host.echoes.back());
+        }
+
+
+        //  A debug file the user loads while the machine runs opens its
+        //  document and brings it to the front, without waiting for a stop.
+        TEST_METHOD (ALoadedDebugFileOpensItsDocumentWhileRunning)
+        {
+            CassoTheme    theme    = CassoTheme::MakeSkeuomorphic();
+            SourceHost    host;
+            SourceWindow  window   (theme, host);
+            auto          snapshot = MakeSnapshot();
+
+
+
+            snapshot->isPaused = false;
+
+            window.GetSourceGroup().ShowNextLoad();
+            window.TakeSnapshot (snapshot);
+
+            Assert::IsTrue (window.GetSourceGroup().IsOpen (0), L"the document opens");
+            Assert::IsTrue (window.GetSourceGroup().GetDocument (0).IsShown(), L"in front of its group");
+        }
+
+
         //  The document's menu over a line has its breakpoint rows: Set
         //  breakpoint on a line with code and none, Disable breakpoint or
         //  Enable breakpoint then Remove breakpoint on a line with one, and
-        //  none on a line with no code.
+        //  no breakpoint rows on a line with no code.
         TEST_METHOD (TheDocumentsMenuHasTheLinesBreakpointRows)
         {
             CassoTheme             theme    = CassoTheme::MakeSkeuomorphic();
@@ -361,13 +416,13 @@ namespace SourceDocumentInputTests
             document->ApplyDocument (*snapshot, 0, 0, L"main.a65");
 
             document->AddContentMenuItems (POINT { bounds.left + kMenuX, bounds.top + GetRowY (1) }, items);
-            Assert::IsTrue (GetLabels (items) == std::vector<std::wstring> { L"Go to disassembly", L"Set breakpoint" }, (L"LDA's line has no breakpoint: " + JoinLabels (items)).c_str());
+            Assert::IsTrue (GetLabels (items) == std::vector<std::wstring> { L"Go to disassembly", L"Add bookmark", L"Set breakpoint" }, (L"LDA's line has no breakpoint: " + JoinLabels (items)).c_str());
             Run (items, L"Set breakpoint");
             Assert::AreEqual (BreakpointActions::GetSourceBreakpoint ("main.a65", 2, snapshot->mode).echo, host.echoes.back());
 
             items.clear();
             document->AddContentMenuItems (POINT { bounds.left + kMenuX, bounds.top + GetRowY (2) }, items);
-            Assert::IsTrue (GetLabels (items) == std::vector<std::wstring> { L"Go to disassembly", L"Disable breakpoint", L"Remove breakpoint" }, L"RTS's line has one");
+            Assert::IsTrue (GetLabels (items) == std::vector<std::wstring> { L"Go to disassembly", L"Add bookmark", L"Disable breakpoint", L"Remove breakpoint" }, L"RTS's line has one");
             Run (items, L"Disable breakpoint");
             Assert::AreEqual (BreakpointActions::GetEnableBreakpoint (kBreakpointId, false, snapshot->mode).echo, host.echoes.back());
             Run (items, L"Remove breakpoint");
@@ -379,11 +434,11 @@ namespace SourceDocumentInputTests
 
             items.clear();
             document->AddContentMenuItems (POINT { bounds.left + kMenuX, bounds.top + GetRowY (2) }, items);
-            Assert::IsTrue (GetLabels (items) == std::vector<std::wstring> { L"Go to disassembly", L"Enable breakpoint", L"Remove breakpoint" }, L"a disabled one");
+            Assert::IsTrue (GetLabels (items) == std::vector<std::wstring> { L"Go to disassembly", L"Add bookmark", L"Enable breakpoint", L"Remove breakpoint" }, L"a disabled one");
 
             items.clear();
             document->AddContentMenuItems (POINT { bounds.left + kMenuX, bounds.top + GetRowY (0) }, items);
-            Assert::IsTrue (GetLabels (items).empty(), L"the comment has no code");
+            Assert::IsTrue (GetLabels (items) == std::vector<std::wstring> { L"Go to disassembly", L"Add bookmark" }, L"the comment has no breakpoint rows");
         }
 
 

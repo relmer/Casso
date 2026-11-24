@@ -113,6 +113,7 @@ struct DebugSessionView
     std::optional<float>                      callRebuild;
     uint64_t                                  cycleMarker     = 0;
     std::vector<Word>                         searchResults;
+    std::vector<MemoryRegion>                 searchRegions;
     uint64_t                                  searchSerial    = 0;
     std::vector<CompareDifference>            compareResults;
     uint64_t                                  compareSerial   = 0;

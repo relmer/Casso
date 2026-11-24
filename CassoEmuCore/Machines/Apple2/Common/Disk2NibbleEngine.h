@@ -75,7 +75,8 @@ public:
     // The read amplifier's window: with no transition in this many cells it
     // has no signal to hold its gain on and turns noise into random bits. The
     // disk inspector marks the same stretches, so the two share the number.
-    static constexpr int    kHeadWindowCells      = 4;
+    static constexpr int       kHeadWindowCells = 4;
+    static constexpr uint32_t  kFakeBitSeed     = 0x2545F491u;
 
     Disk2NibbleEngine();
     ~Disk2NibbleEngine() override;
@@ -250,7 +251,7 @@ private:
 
     void     StepLss            ();
     uint8_t  ApplyHeadWindow    (uint8_t inBit);
-    uint8_t  NextWeakBit        ();
+    uint8_t  NextFakeBit        ();
     void     ResolveSlot        ();
     void     RefreshSlot        ();
     void     PlaceHead          (double angle);
@@ -301,17 +302,11 @@ protected:
     uint8_t      m_bus           = 0;
     bool         m_latchIsFresh  = false;
 
-    // MC3470 read-amplifier model (mirrors AppleWin's FloppyDrive::
-    // m_headWindow). Sliding 4-bit window of the most-recent bit cells
-    // read off the surface. When all four are zero (unformatted region
-    // or intentional weak-bit gap), the amplifier "floats" and the
-    // output bit is randomized (~30% chance of a 1). Otherwise the
-    // output is the bit read on the previous call -- a one-bit pipeline
-    // delay through the head. Both behaviors are required for fidelity
-    // with WOZ protection schemes that key off unformatted-region read
-    // variability (Karateka RWTS18, Lode Runner, etc.).
+    // The MC3470 read amplifier's window of the last 4 bit cells, and the
+    // generator state for the fake bits read when all 4 are empty.
+    // ApplyHeadWindow has the model.
     uint8_t      m_headWindow     = 0;
-    uint32_t     m_weakRngState   = 0xDEADBEEFu;
+    uint32_t     m_fakeBitState   = kFakeBitSeed;
 
     // Lifetime nibble I/O counters (increment on CPU read of $C0EC
     // when MSB-set, and on CPU write of $C0ED in write mode). Surfaced

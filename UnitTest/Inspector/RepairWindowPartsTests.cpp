@@ -466,26 +466,26 @@ public:
     {
         for (UINT dpi : { 96u, 144u })
         {
-            InspectorSession  session;
-            IssuesView        issues  { session.context };
+            auto              session = std::make_unique<InspectorSession>();
+            auto              issues  = std::make_unique<IssuesView> (session->context);
             DxuiDpiScaler     scaler;
             DxuiMouseEvent    ev;
             RECT              before  = {};
             RECT              after   = {};
             POINT             divider = {};
 
-            Images::Analyze (RepairFixtures::MakeDos33Bitmap().damaged, false, session.analysis);
-            session.context.hasDisk = true;
+            Images::Analyze (RepairFixtures::MakeDos33Bitmap().damaged, false, session->analysis);
+            session->context.hasDisk = true;
             scaler.SetDpi (dpi);
 
-            issues.Refresh();
-            issues.Layout ({ 0, 0, scaler.ToPx (900), scaler.ToPx (400) }, scaler);
+            issues->Refresh();
+            issues->Layout ({ 0, 0, scaler.ToPx (900), scaler.ToPx (400) }, scaler);
 
             //  The divider at the Category column's right edge, in the header.
-            Assert::IsTrue (issues.GetList().GetCellRectPx (0, 2, before));
-            divider = { issues.GetList().GetBounds().left + before.right - 1, issues.GetList().GetBounds().top + issues.GetList().GetHeaderHeightPx() / 2 };
+            Assert::IsTrue (issues->GetList().GetCellRectPx (0, 2, before));
+            divider = { issues->GetList().GetBounds().left + before.right - 1, issues->GetList().GetBounds().top + issues->GetList().GetHeaderHeightPx() / 2 };
 
-            Assert::IsTrue (issues.GetCursorForPoint (divider) == IDC_SIZEWE, std::format (L"the resize arrows over the divider at {} dpi", dpi).c_str());
+            Assert::IsTrue (issues->GetCursorForPoint (divider) == IDC_SIZEWE, std::format (L"the resize arrows over the divider at {} dpi", dpi).c_str());
 
             ev.button = DxuiMouseButton::Left;
 
@@ -493,10 +493,10 @@ public:
             {
                 ev.kind        = step.first;
                 ev.positionDip = { divider.x + scaler.ToPx (step.second), divider.y };
-                (void) issues.OnMouse (ev);
+                (void) issues->OnMouse (ev);
             }
 
-            Assert::IsTrue   (issues.GetList().GetCellRectPx (0, 2, after));
+            Assert::IsTrue   (issues->GetList().GetCellRectPx (0, 2, after));
             Assert::AreEqual (static_cast<long> (scaler.ToPx (40)), (after.right - after.left) - (before.right - before.left), L"the column is as much wider as the drag");
         }
     }

@@ -119,6 +119,7 @@ private:
     void  SaveOptions    (const HeatMapOptions & options);
     void  SetBarEntries  (bool isCumulative);
     void  ApplyGoTo      (const DebuggerViewSnapshot & snapshot);
+    bool  IsFetched      (Word address) const;
 
     IDebuggerWindowHost * const                & m_windowHost;
     const DxuiDpiScaler                        & m_paneScaler;
@@ -131,6 +132,7 @@ private:
     IPaneFocus                                 & m_paneFocus;
     IPaneNavigator                             & m_paneNavigator;
     const DebuggerPaneLook                     & m_look;
+    const LatestSnapshot                       & m_latest;
     Ranges                                       m_ranges;
     PaneBarSlot                                  m_bar;
     HeatMapView                                * m_view           = nullptr;
