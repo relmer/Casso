@@ -553,6 +553,17 @@ void ExplorerPreviewManager::FillText (const PreviewContent & preview)
 
 
 
+    //  A catalog's damage is shown in the thumbnail's infobar, not below the
+    //  catalog.
+    if (preview.kind == PreviewContent::Kind::Catalog && m_thumbnail.IsShown() && !preview.warning.empty())
+    {
+        found         = preview;
+        found.warning.clear();
+
+        m_text.Fill (found);
+        return;
+    }
+
     if (preview.kind != PreviewContent::Kind::Details || system.empty())
     {
         m_text.Fill (preview);
