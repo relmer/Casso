@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "ExplorerWindowPartsRig.h"
+#include "CassoExplorer/Window/Panes/Preview/PreviewDiskThumbnail.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -177,6 +178,19 @@ public:
         }
     }
 
+
+    //  The damage a disk's listing reports, such as a CP/M directory's entries
+    //  that aren't valid, is the infobar's finding, with the pointer to
+    //  Inspect... under it.
+    TEST_METHOD (ListingDamage_IsTheInfobarsWarningText)
+    {
+        std::wstring  damage = L"There are 6 directory entries that aren't valid CP/M entries, so the disk is treated as read-only to prevent further damage";
+
+
+
+        Assert::AreEqual (damage + L".\nClick Inspect for more information.", PreviewDiskThumbnail::FormatListingWarning (damage));
+        Assert::AreEqual (std::wstring(), PreviewDiskThumbnail::FormatListingWarning (L""), L"no damage, no infobar");
+    }
 
     //  The preview of a disk image has its file-system verdict at the top, at
     //  100% and at 150%: Bad as an error infobar with its first finding of

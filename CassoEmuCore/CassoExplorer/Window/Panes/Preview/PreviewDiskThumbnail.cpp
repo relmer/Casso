@@ -784,10 +784,8 @@ bool PreviewDiskThumbnail::ShowCheck()
 void PreviewDiskThumbnail::ApplyResult()
 {
     const DiskCopy  * copy    = (m_result.analysis != nullptr) ? m_result.analysis->copy.get() : nullptr;
-    const Finding   * finding = nullptr;
     int               qt      = 0;
     int               slot    = 0;
-    std::wstring      text;
 
 
 
@@ -843,13 +841,88 @@ void PreviewDiskThumbnail::ApplyResult()
     m_chips->SetChips (GetChips());
     m_platter->SetVisible (m_chips->IsVisible());
 
-    finding          = FileSystemCheck::GetVerdictFinding (*m_result.analysis);
-    text             = FormatVerdict (m_result.analysis->verdict, finding != nullptr ? FindingFormatter::Format (*finding) : std::wstring());
+    ApplyVerdict();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::ApplyVerdict
+//
+//  The analysis's verdict in the infobar, or with none to show, the
+//  listing's damage as a warning.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewDiskThumbnail::ApplyVerdict()
+{
+    const Finding            * finding  = FileSystemCheck::GetVerdictFinding (*m_result.analysis);
+    std::wstring               text     = FormatVerdict (m_result.analysis->verdict, finding != nullptr ? FindingFormatter::Format (*finding) : std::wstring());
+    DxuiInfoBanner::Severity   severity = (m_result.analysis->verdict == FileSystemVerdict::Bad) ? DxuiInfoBanner::Severity::Error : DxuiInfoBanner::Severity::Info;
+
+
+
+    if (text.empty() && !m_listingWarning.empty())
+    {
+        text     = FormatListingWarning (m_listingWarning);
+        severity = DxuiInfoBanner::Severity::Warning;
+    }
+
     m_isVerdictShown = !text.empty();
 
     m_verdict->SetText     (text);
     m_verdict->SetActions  ({});
-    m_verdict->SetSeverity ((m_result.analysis->verdict == FileSystemVerdict::Bad) ? DxuiInfoBanner::Severity::Error : DxuiInfoBanner::Severity::Info);
+    m_verdict->SetSeverity (severity);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::FormatListingWarning
+//
+//  The listing's damage as the infobar of a damaged file system has its
+//  finding, with the pointer to Inspect... on the next line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring PreviewDiskThumbnail::FormatListingWarning (const std::wstring & warning)
+{
+    return warning.empty() ? std::wstring() : FileSystemCheckScheduler::FormatInfobar ({ FileSystemVerdict::Suspect, warning });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::SetListingWarning
+//
+//  The damage the image's listing reports, such as a CP/M directory's
+//  entries that aren't valid. A disk analyzed already has its infobar
+//  updated.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewDiskThumbnail::SetListingWarning (const std::wstring & warning)
+{
+    if (warning == m_listingWarning)
+    {
+        return;
+    }
+
+    m_listingWarning = warning;
+
+    if (m_state == State::Ready && !IsBlocks() && m_result.analysis != nullptr)
+    {
+        ApplyVerdict();
+    }
 }
 
 

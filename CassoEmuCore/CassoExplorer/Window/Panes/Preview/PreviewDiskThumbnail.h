@@ -269,6 +269,11 @@ public:
     //  OK or a disk with no standard file system.
     static std::wstring  FormatVerdict (FileSystemVerdict verdict, const std::wstring & finding);
 
+    //  The damage the image's listing reports, shown as a warning infobar when
+    //  the analysis has no verdict to show, and its text there.
+    void                 SetListingWarning    (const std::wstring & warning);
+    static std::wstring  FormatListingWarning (const std::wstring & warning);
+
     //  The file system the analysis found and its verdict, as "DOS 3.3,
     //  damaged", for the preview's details of an image that doesn't mount,
     //  as one with a lost VTOC header; empty before the analysis or for an
@@ -304,6 +309,7 @@ private:
     void  StartCheck         ();
     void  ArmCheckTimer      (int64_t delayMs);
     bool  ShowCheck          ();
+    void  ApplyVerdict       ();
 
     //  The result's chips, and the chip of a disk read as CP/M by the
     //  user's choice.
@@ -336,6 +342,7 @@ private:
     DxuiButton                            * m_inspect           = nullptr;   // Inspect..., at the platter area's bottom right
     ThumbnailScrollbar                    * m_scrollbar         = nullptr;   // a window child after the views, so it's offered the mouse first
     bool                                    m_isVerdictShown    = false;
+    std::wstring                            m_listingWarning;
     bool                                    m_isVerdictReserved = false;     // the last image's infobar space is reserved while the next is read
     bool                                    m_isChipTipShown    = false;
 

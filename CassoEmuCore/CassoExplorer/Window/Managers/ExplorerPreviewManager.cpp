@@ -387,6 +387,7 @@ void ExplorerPreviewManager::FillPreview()
 
         m_headerScroll = (InspectorWindowSet::CanInspect (path) && path == m_thumbnail.GetPath()) ? m_headerScroll : 0;
         m_thumbnail.SetPath (InspectorWindowSet::CanInspect (path) ? path : std::wstring());
+        m_thumbnail.SetListingWarning (preview.kind == PreviewContent::Kind::Catalog ? preview.warning : std::wstring());
 
         if (m_thumbnail.IsShown() != wasShown || m_thumbnail.IsShown())
         {
