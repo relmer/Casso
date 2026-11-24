@@ -311,7 +311,7 @@ namespace DebuggerTests
             rig.target.auxMemory[0x0300] = 0x5A;
 
             reply = rig.session.ExecuteLine ("AUX/300", CommandMode::Monitor);
-            Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, std::wstring (reply.error.detail.begin(), reply.error.detail.end()).c_str());
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, TextEncoding::NarrowToWide (reply.error.detail).c_str());
             Assert::IsTrue   (std::get<MemoryData> (reply.data).rows.at (0).bytes.at (0) == std::optional<Byte> (0x5A));
         }
 
@@ -646,11 +646,11 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("Saved 3 bytes from $0300 to C:\\Work\\out.bin"),         rig.RunOk ("BSAVE \"out.bin\" 300:302").text.at (0));
 
             reply = rig.session.ExecuteLine ("save \"out.bin\" 300.302", CommandMode::GSSquared);
-            Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, std::wstring (reply.error.detail.begin(), reply.error.detail.end()).c_str());
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, TextEncoding::NarrowToWide (reply.error.detail).c_str());
             Assert::AreEqual (std::string ("out.bin"), std::get<FileIoData> (reply.data).path);
 
             reply = rig.session.ExecuteLine ("load \"prog.bin\" 300", CommandMode::GSSquared);
-            Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, std::wstring (reply.error.detail.begin(), reply.error.detail.end()).c_str());
+            Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, TextEncoding::NarrowToWide (reply.error.detail).c_str());
             Assert::AreEqual (std::string ("prog.bin (raw)"), std::get<FileIoData> (reply.data).path);
         }
 
