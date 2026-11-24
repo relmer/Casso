@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Panes/Preview/PreviewHexSources.h"
-#include "CassoExplorer/Browser/BrowserPreviewer.h"
+#include "CassoExplorer/Model/HostTextPreview.h"
 #include "Seams/Win32DiskFileIo.h"
 
 
@@ -130,7 +130,7 @@ HostCharset PreviewFileBytes::GetCharset() const
 
     ReadAt (0, sample);
 
-    return BrowserPreviewer::GetHostCharset (sample);
+    return HostTextPreview::GetHostCharset (sample);
 }
 
 

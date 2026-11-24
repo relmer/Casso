@@ -1575,7 +1575,6 @@ public:
 
         host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"readme.txt") });
         Assert::IsTrue (host.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Hex, L"ASCII text draws in the hex view");
-        Assert::IsTrue (BrowserPreviewer::IsSourceName (L"STAGE2.S") && !BrowserPreviewer::IsSourceName (L"readme.txt"));
     }
 
 
@@ -1594,10 +1593,6 @@ public:
 
         host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"readme.txt") });
         Assert::IsTrue (host.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Hex, L"ASCII without an export suffix opens in the hex view");
-
-        Assert::IsTrue  (BrowserPreviewer::IsAppleExportName (L"GAME.Integer BASIC.txt"));
-        Assert::IsTrue  (BrowserPreviewer::IsAppleExportName (L"NOTES.Text.txt"));
-        Assert::IsFalse (BrowserPreviewer::IsAppleExportName (L"readme.txt"));
     }
 
 

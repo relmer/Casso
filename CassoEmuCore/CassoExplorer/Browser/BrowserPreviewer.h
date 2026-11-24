@@ -42,25 +42,6 @@ public:
     static std::vector<DxuiListView::Column>   GetArchivePreviewColumns ();
     std::vector<DxuiListView::Cell>            GetArchivePreviewCells   (const CatalogRow & row) const;
 
-    //  Which character set a file's first bytes are text in, if any, and how
-    //  many are looked at.
-    static constexpr size_t  s_kTextSampleBytes      = 64 * 1024;
-    static constexpr Byte    s_kFormFeed             = 0x0C;
-    static constexpr Byte    s_kDosEndOfFile         = 0x1A;
-    static constexpr Byte    s_kDosDrawingFirst      = 0xB0;    // code page 437's shades and box drawing
-    static constexpr Byte    s_kDosDrawingLast       = 0xDF;
-    static constexpr size_t  s_kTextControlRatio     = 100;     // at most one byte in this many a DOS symbol
-    static HostCharset       GetHostCharset (std::span<const Byte> sample);
-    static bool              IsUtf8         (std::span<const Byte> sample);
-
-    //  Whether a file is an assembler's source by its extension, which
-    //  previews as text with its line numbers.
-    static bool              IsSourceName   (const std::wstring & name);
-
-    //  Whether a file is a BASIC listing or text Casso Explorer exported, by
-    //  its suffix, which previews as lines of text even in plain ASCII.
-    static bool              IsAppleExportName (const std::wstring & name);
-
     //  The largest host file that previews as text rather than in the hex view.
     static constexpr size_t  s_kTextPreviewMaxBytes = 1024 * 1024;
     void  PreviewShellItem   (const CatalogRow & row);
@@ -142,13 +123,7 @@ public:
     bool     TryReadHostPayload    (const std::wstring & path, const CatalogRow & row, FilePayload & outPayload, FileEntry & outEntry, bool & outTyped);
     void     AttachHostViews       (const FileEntry & entry, const FilePayload & payload, bool loaded, PreviewDecoder::HexForm hexForm);
     void     ReadTextPreview       (const std::wstring & path, const std::wstring & name);
-    bool     TryPreviewText        (const std::wstring & name, std::span<const Byte> bytes);
 
-    static constexpr const wchar_t *  s_kpszSourceExtensions[] = { L".a65", L".asm", L".s", L".inc", L".a", L".src", L".mac", L".ca65" };
-    static constexpr unsigned         s_kDosCodePage           = 437;
-    static constexpr unsigned         s_kWindowsCodePage       = 1252;
-    static constexpr wchar_t          s_kByteOrderMark         = 0xFEFF;
-    static constexpr size_t           s_kTabStop               = 8;
     void  PreviewEntry       (const std::wstring & imagePath, const std::string & entryPath, const FileEntry & entry, VolumeKind kind, std::span<const Byte> diskSectors = {}, std::span<const std::vector<Byte>> otherDisks = {});
     void  SetSavedGameShown  (bool shown);
     void  PreviewSearchMatch (const CatalogRow & row);

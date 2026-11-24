@@ -592,6 +592,7 @@
     <ClCompile Include="CassoExplorer\Model\CopyOutConversion.cpp" />
     <ClCompile Include="CassoExplorer\Model\DragPayload.cpp" />
     <ClCompile Include="CassoExplorer\Model\HostFileNaming.cpp" />
+    <ClCompile Include="CassoExplorer\Model\HostTextPreview.cpp" />
     <ClCompile Include="CassoExplorer\Model\HostFolderNames.cpp" />
     <ClCompile Include="CassoExplorer\Model\KnownFolderStore.cpp" />
     <ClCompile Include="CassoExplorer\Model\LaunchCommand.cpp" />
@@ -1863,6 +1864,7 @@
     <ClInclude Include="CassoExplorer\Model\CopyOutConversion.h" />
     <ClInclude Include="CassoExplorer\Model\DragPayload.h" />
     <ClInclude Include="CassoExplorer\Model\HostFileNaming.h" />
+    <ClInclude Include="CassoExplorer\Model\HostTextPreview.h" />
     <ClInclude Include="CassoExplorer\Model\HostFolderNames.h" />
     <ClInclude Include="CassoExplorer\Model\KnownFolderStore.h" />
     <ClInclude Include="CassoExplorer\Model\LaunchCommand.h" />
