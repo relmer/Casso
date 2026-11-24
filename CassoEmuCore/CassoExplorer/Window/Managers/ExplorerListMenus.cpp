@@ -228,9 +228,7 @@ void ExplorerListMenus::ShowHomeItemMenu (int x, int y, int row)
         }
     }
 
-    items.push_back (DxuiPopupMenuItem::ForSeparator());
-
-    m_context.menus.AddMenuCommand (items, L"Show more options", [this, id]()
+    m_context.menus.AddMenuEnd (items, [this, id]()
     {
         POINT    screen = {};
         BOOL     got    = GetCursorPos (&screen);
@@ -238,7 +236,7 @@ void ExplorerListMenus::ShowHomeItemMenu (int x, int y, int row)
 
         IGNORE_RETURN_VALUE (got, TRUE);
         IGNORE_RETURN_VALUE (shown, S_OK);
-    }, L"Shift+F10");
+    });
 
     DxuiContextMenu::Show (*m_context.window.GetPopupHost(), x, y, std::move (items));
 }
@@ -722,16 +720,13 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
         //  on, as File Explorer's menu there asks them with none.
         m_context.menus.AddPackagedCommandsFor (items, onDisk ? std::vector<std::wstring> { shellId } : std::vector<std::wstring>(), Win32PackagedCommands::ItemKind::Background);
 
-        items.push_back (DxuiPopupMenuItem::ForSeparator());
-        m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::MoreOptions), [this, shellId, screen]()
+        m_context.menus.AddMenuEnd (items, [this, shellId, screen]()
         {
             HRESULT  hr = m_context.shellVerbs.ShowBackgroundMenu (m_context.window.GetHwnd(), shellId, screen);
 
             IGNORE_RETURN_VALUE (hr, S_OK);
             m_context.folderSync.RefreshAfterHostChange();
         });
-        m_context.menus.GetMenuCommands().back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
-        m_context.menus.GetMenuCommands().back()->menuSvg   = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::MoreOptions));
     }
 
     //  A deleted item has no path to copy, and the bin itself describes it.
@@ -909,8 +904,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
         ClientToScreen (m_context.window.GetHwnd(), &screen);
 
-        items.push_back (DxuiPopupMenuItem::ForSeparator());
-        m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::MoreOptions), [this, screen]()
+        m_context.menus.AddMenuEnd (items, [this, screen]()
         {
             std::vector<std::wstring>  paths;
             HRESULT                    hr = S_OK;
@@ -928,8 +922,6 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
             IGNORE_RETURN_VALUE (hr, S_OK);
         });
-        m_context.menus.GetMenuCommands().back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
-        m_context.menus.GetMenuCommands().back()->menuSvg   = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::MoreOptions));
     }
 
     //  The menu takes the focus look from the list while it is open, as

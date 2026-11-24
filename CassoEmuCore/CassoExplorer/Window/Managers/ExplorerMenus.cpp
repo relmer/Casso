@@ -963,8 +963,8 @@ HRESULT ExplorerMenus::RunAskCopilot (const std::wstring & path)
 //
 //  ExplorerMenus::AddPackagedCommands
 //
-//  After a separator, each command an installed app adds for the selected
-//  files or folders, with the app's own title and icon. A selection of files
+//  After a separator, an App extensions submenu with each command an installed
+//  app adds for the selected files or folders. A selection of files
 //  and folders together has none, as no registration covers both.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1171,8 +1171,19 @@ bool ExplorerMenus::GetSelectionKind (std::vector<std::wstring> & outPaths, Win3
 
 void ExplorerMenus::AddPackagedCommandsFor (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind)
 {
-    std::vector<Win32PackagedCommands::Entry>  entries = m_packagedCommands.GetEntries (paths, kind);
+    std::vector<Win32PackagedCommands::Entry>  entries;
+    std::vector<DxuiPopupMenuItem>             children;
+    std::shared_ptr<DxuiCommand>               flyout  = std::make_shared<DxuiCommand>();
 
+
+
+    //  Settings' Context menu page can hide the submenu.
+    if (!m_packagedCommands.GetMenuLayout().showExtensions)
+    {
+        return;
+    }
+
+    entries = m_packagedCommands.GetEntries (paths, kind);
 
 
     //  On the background of a folder not on the disk, File Explorer doesn't list
@@ -1194,10 +1205,67 @@ void ExplorerMenus::AddPackagedCommandsFor (std::vector<DxuiPopupMenuItem> & ite
     items.push_back (DxuiPopupMenuItem::ForSeparator());
 
     //  A sync client's commands, as OneDrive's, are among the rest in the order
-    //  Windows lists them, as in File Explorer.
+    //  Windows lists them, under App extensions, as in File Explorer.
     for (const Win32PackagedCommands::Entry & entry : entries)
     {
-        AddPackagedEntry (items, entry, paths);
+        AddPackagedEntry (children, entry, paths);
+    }
+
+    AddMenuCommand (children, L"Manage extensions", []()
+    {
+        ShellExecuteW (nullptr, L"open", L"ms-settings:personalization-contextmenu-extensions", nullptr, nullptr, SW_SHOWNORMAL);
+    });
+
+    flyout->label   = L"App extensions";
+    flyout->menuSvg = GetMenuSvg (L"windows.extensionsflyout");
+
+    items.push_back (DxuiPopupMenuItem::ForSubmenu (flyout, std::move (children)));
+    m_menuCommands.push_back (std::move (flyout));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerMenus::AddMenuEnd
+//
+//  The bottom of File Explorer's menu, after a separator: Show more options,
+//  which runs showMore, when Settings' Context menu page turns it on, and
+//  Customize menu, which opens that page.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerMenus::AddMenuEnd (std::vector<DxuiPopupMenuItem> & items, std::function<void()> showMore)
+{
+    Win32PackagedCommands::MenuLayout  layout = m_packagedCommands.GetMenuLayout();
+
+
+
+    showMore = layout.showMore ? std::move (showMore) : std::function<void()>();
+
+    if (!showMore && !layout.showCustomize)
+    {
+        return;
+    }
+
+    items.push_back (DxuiPopupMenuItem::ForSeparator());
+
+    if (showMore)
+    {
+        AddMenuCommand (items, GetVerbLabel (CassoExplorerActions::Verb::MoreOptions), std::move (showMore), L"Shift+F10");
+        m_menuCommands.back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
+        m_menuCommands.back()->menuSvg   = GetMenuSvg (GetVerbMenuSvgName (CassoExplorerActions::Verb::MoreOptions));
+    }
+
+    if (layout.showCustomize)
+    {
+        AddMenuCommand (items, L"Customize menu", []()
+        {
+            ShellExecuteW (nullptr, L"open", L"ms-settings:personalization-contextmenu", nullptr, nullptr, SW_SHOWNORMAL);
+        });
+        m_menuCommands.back()->menuSvg = GetMenuSvg (L"windows.customizemenu");
     }
 }
 

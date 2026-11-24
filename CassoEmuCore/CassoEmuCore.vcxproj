@@ -634,6 +634,7 @@
     <ClCompile Include="Seams\ShellVerbs\Win32ShellSearch.cpp" />
     <ClCompile Include="Seams\ShellVerbs\Win32ShareSheet.cpp" />
     <ClCompile Include="Seams\ShellVerbs\Win32ShellTransfers.cpp" />
+    <ClCompile Include="Seams\Win32ContextMenuLayout.cpp" />
     <ClCompile Include="Seams\Win32PackagedCommands.cpp" />
     <ClCompile Include="Seams\Win32PackageWatcher.cpp" />
     <ClCompile Include="Seams\Win32PreviewHelper.cpp" />
@@ -1936,6 +1937,7 @@
     <ClInclude Include="Seams\ShellVerbs\Win32ShareSheet.h" />
     <ClInclude Include="Seams\ShellVerbs\Win32ShellTransfers.h" />
     <ClInclude Include="Seams\ShellVerbs\Win32ShellVerbsTypes.h" />
+    <ClInclude Include="Seams\Win32ContextMenuLayout.h" />
     <ClInclude Include="Seams\Win32PackagedCommands.h" />
     <ClInclude Include="Seams\Win32PackageWatcher.h" />
     <ClInclude Include="Seams\Win32PreviewHelper.h" />

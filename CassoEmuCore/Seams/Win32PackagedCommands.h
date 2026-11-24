@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Seams/Win32ContextMenuLayout.h"
 #include "Seams/Win32PackageWatcher.h"
 
 
@@ -67,6 +68,8 @@ public:
         std::wstring  verb;
     };
 
+    using MenuLayout = Win32ContextMenuLayout;
+
     static constexpr const wchar_t *  kNewFolderVerb = L"NewFolder";
     static constexpr const wchar_t *  kNewLinkVerb   = L"NewLink";
 
@@ -90,6 +93,10 @@ public:
 
     //  The shell items the commands are asked about in place of the paths: Home's rows, whose commands answer for them as they are listed there.
     void                SetItemIds        (std::vector<std::wstring> ids) { m_itemIds = std::move (ids); }
+
+    //  Returns the Context menu page's choices, read from the registry for
+    //  each menu once Start has run, and the defaults before then.
+    MenuLayout  GetMenuLayout () const { return (m_notify != nullptr) ? Win32ContextMenuLayout::Read() : MenuLayout(); }
 
     //  Returns Start's Pin or Unpin command for one item, with the title from
     //  the shell's handler; false when the handler has neither.

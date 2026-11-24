@@ -1223,15 +1223,12 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
 
         m_context.menus.AddPackagedCommandsFor (items, { location.path }, (location.path.size() <= 3) ? Win32PackagedCommands::ItemKind::Drive : Win32PackagedCommands::ItemKind::Folder);
 
-        items.push_back (DxuiPopupMenuItem::ForSeparator());
-        m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::MoreOptions), [this, location, screen]()
+        m_context.menus.AddMenuEnd (items, [this, location, screen]()
         {
             HRESULT  hr = m_context.shellVerbs.ShowShellMenu (m_context.window.GetHwnd(), { location.path }, screen, {});
 
             IGNORE_RETURN_VALUE (hr, S_OK);
         });
-        m_context.menus.GetMenuCommands().back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
-        m_context.menus.GetMenuCommands().back()->menuSvg   = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::MoreOptions));
     }
 
     if (!items.empty())
@@ -1287,7 +1284,8 @@ void ExplorerTreePane::AddPartitionRows (std::vector<DxuiPopupMenuItem> & items,
 //  ExplorerTreePane::AddRootRows
 //
 //  File Explorer's rows for This PC's node: the network commands and
-//  Properties; and for This PC and Home, Show more options.
+//  Properties; and for This PC and Home, Customize menu and, when Settings
+//  turns it on, Show more options.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1347,14 +1345,12 @@ void ExplorerTreePane::AddRootRows (std::vector<DxuiPopupMenuItem> & items, cons
         m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.properties");
     }
 
-    items.push_back (DxuiPopupMenuItem::ForSeparator());
-    m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::MoreOptions), [this, owner, shellId, screen]()
+    m_context.menus.AddMenuEnd (items, [this, owner, shellId, screen]()
     {
         HRESULT  hr = m_context.shellVerbs.ShowShellMenu (owner, { shellId }, screen, {});
 
         IGNORE_RETURN_VALUE (hr, S_OK);
     });
-    m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::MoreOptions));
 }
 
 
