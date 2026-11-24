@@ -484,7 +484,7 @@ void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     chipsPx = FitChips (text, titleWidthPx - m_scaler.ToPxf (kMinTitleDip), chipWidthsPx);
     drawnPx = PaintTitle (painter, text, theme, RECT { std::lround (textLeftPx), std::lround (yPx), std::lround (textLeftPx + titleWidthPx - chipsPx), std::lround (yPx + hPx) }, fontPx);
 
-    PaintChips (painter, text, theme, textLeftPx + drawnPx, yPx, hPx, chipWidthsPx);
+    PaintChips (painter, text, theme, textLeftPx + drawnPx, yPx, hPx, fontPx, chipWidthsPx);
 
     DxuiPanel::Paint (painter, text, theme);
 }
@@ -598,21 +598,64 @@ float DxuiCaptionBar::FitChips (IDxuiTextRenderer & text, float roomPx, std::vec
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetChipTopPx
+//
+//  The chip's top in the caption: the chip's text is centered in the chip,
+//  and the chip is placed so that text's baseline is on the baseline of the
+//  title, which is centered in the caption. A chip that would cross the
+//  caption's edge is moved inside it, and with no font metrics the chip is
+//  centered.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiCaptionBar::GetChipTopPx (IDxuiTextRenderer & text, float topPx, float heightPx, float titleFontPx, float chipPx, float chipFontPx)
+{
+    HRESULT  hr             = S_OK;
+    float    titleLinePx    = 0.0f;
+    float    titleBasePx    = 0.0f;
+    float    chipLinePx     = 0.0f;
+    float    chipBasePx     = 0.0f;
+    float    baselinePx     = 0.0f;
+    float    chipTopPx      = topPx + (heightPx - chipPx) / 2.0f;
+
+
+
+    hr = text.GetLineMetrics (titleFontPx, kTitleFamily, DxuiFontWeight::Normal, titleLinePx, titleBasePx);
+    CHR (hr);
+
+    hr = text.GetLineMetrics (chipFontPx, kTitleFamily, DxuiFontWeight::Normal, chipLinePx, chipBasePx);
+    CHR (hr);
+
+    baselinePx = topPx + (heightPx - titleLinePx) / 2.0f + titleBasePx;
+    chipTopPx  = baselinePx - chipBasePx - (chipPx - chipLinePx) / 2.0f;
+    chipTopPx  = std::clamp (chipTopPx, topPx, std::max (topPx, topPx + heightPx - chipPx));
+
+Error:
+    return chipTopPx;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PaintChips
 //
 //  Each chip that fits, after the gap that follows the title: a rounded
 //  button fill, outlined and lettered in the accent for an Info chip, as
-//  the disk inspector's status bar draws its chips.
+//  the disk inspector's status bar draws its chips. The chips sit where
+//  their text's baseline is on the title's baseline, inside the caption.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiCaptionBar::PaintChips (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float leftPx, float topPx, float heightPx, const std::vector<float> & widthsPx)
+void DxuiCaptionBar::PaintChips (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float leftPx, float topPx, float heightPx, float titleFontPx, const std::vector<float> & widthsPx)
 {
     float     gapPx   = m_scaler.ToPxf (kChipGapDip);
     float     chipPx  = m_scaler.ToPxf (kChipHeightDip);
     float     fontPx  = m_scaler.ToPxf (kChipTextDip);
     float     xPx     = leftPx;
-    float     yPx     = topPx + (heightPx - chipPx) / 2.0f;
+    float     yPx     = GetChipTopPx (text, topPx, heightPx, titleFontPx, chipPx, fontPx);
     bool      isInfo  = false;
     uint32_t  ink     = 0;
     uint32_t  outline = 0;

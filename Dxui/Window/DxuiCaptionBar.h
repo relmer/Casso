@@ -143,7 +143,8 @@ private:
 
     float                PaintTitle   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & areaPx, float fontPx);
     float                FitChips     (IDxuiTextRenderer & text, float roomPx, std::vector<float> & outWidthsPx) const;
-    void                 PaintChips   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float leftPx, float topPx, float heightPx, const std::vector<float> & widthsPx);
+    void                 PaintChips   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float leftPx, float topPx, float heightPx, float titleFontPx, const std::vector<float> & widthsPx);
+    static float         GetChipTopPx (IDxuiTextRenderer & text, float topPx, float heightPx, float titleFontPx, float chipPx, float chipFontPx);
     static float         MeasureTitle (IDxuiTextRenderer & text, const std::wstring & value, float fontPx);
     static std::wstring  FitTitle     (IDxuiTextRenderer & text, const std::wstring & value, float fontPx, float roomPx);
 

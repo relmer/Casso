@@ -167,6 +167,32 @@ public:
     }
 
 
+    TEST_METHOD (Chip_TextSitsOnTheTitlesBaseline)
+    {
+        Fixture                  f;
+        const RecordedTextCall * title = nullptr;
+        const RecordedTextCall * chip  = nullptr;
+
+        f.caption.SetTitleChips ({ MakeChip() });
+        f.PaintAt (L"Short", 800);
+
+        title = FindDrawn (f, L"Short");
+        chip  = FindDrawn (f, L"Read as CP/M");
+
+        Assert::IsNotNull (title);
+        Assert::IsNotNull (chip);
+        Assert::IsTrue    (chip->fontSizeDip < title->fontSizeDip, L"the chip's text is smaller than the title's");
+        Assert::AreEqual  (GetBaseline (*title), GetBaseline (*chip), 0.01f, L"the chip's text is on the title's baseline");
+        Assert::IsTrue    (chip->y >= title->y && chip->y + chip->height <= title->y + title->height, L"the chip is inside the caption");
+    }
+
+
+    //  The baseline of a line centered in a call's box, by the mock's metrics.
+    static float  GetBaseline (const RecordedTextCall & call)
+    {
+        return call.y + (call.height - call.fontSizeDip * MockDxuiTextRenderer::kLineFactor) / 2.0f + call.fontSizeDip * MockDxuiTextRenderer::kBaselineFactor;
+    }
+
     TEST_METHOD (Chip_IsCaptionToHitTesting)
     {
         Fixture                  f;
