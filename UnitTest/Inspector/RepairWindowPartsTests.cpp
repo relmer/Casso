@@ -305,7 +305,7 @@ public:
 
         text = IssuesView::FormatBanner (analysis, plan);
 
-        Assert::AreEqual (std::wstring (L"Track 18, sector $E is used by HELLO but marked free. Repair isn't available. The image is read-only."), text);
+        Assert::AreEqual (std::wstring (L"Track 18, sector $2 is used by HELLO but marked free. Repair isn't available. The image is read-only."), text);
     }
 
 
@@ -391,7 +391,7 @@ public:
         Assert::AreEqual (static_cast<size_t> (2), dialog.GetFullPlan().changes.size());
 
         //  Each change has the problem it sets right, and its repair under it.
-        Assert::AreEqual (std::wstring (L"Track 18, sector $E is used by HELLO but marked free"), dialog.GetFullPlan().changes[0].problem);
+        Assert::AreEqual (std::wstring (L"Track 18, sector $2 is used by HELLO but marked free"), dialog.GetFullPlan().changes[0].problem);
         Assert::AreEqual (std::wstring (L"Repair: Mark 1 sector of HELLO as used in the bitmap"), RepairDialog::FormatRepair (dialog.GetFullPlan().changes[0]));
         Assert::IsFalse  (dialog.GetFullPlan().changes[1].problem.empty());
         Assert::IsTrue   (dialog.GetChosen() == DiskRepair::GetKeys (dialog.GetFullPlan()), L"none chosen checks every change");

@@ -343,7 +343,7 @@ void IssuesView::UpdateBanner()
 //
 //  IssuesView::FormatBanner
 //
-//  "Track 18, sector $E is used by HELLO but marked free.", and when
+//  "Track 18, sector $2 is used by HELLO but marked free.", and when
 //  Repair isn't available, its reason after.
 //
 ////////////////////////////////////////////////////////////////////////////////

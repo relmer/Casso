@@ -637,6 +637,10 @@ bool FileMapWriter::IsOneByte (const vector<Byte> & bytes, size_t count)
 //
 //  FileMapWriter::DescribeCell
 //
+//  A sector by the number in its address field, as the inspector's sector
+//  buttons and the findings' Sector column have it, not the file system's
+//  own numbering.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring FileMapWriter::DescribeCell (int cell) const
@@ -655,8 +659,7 @@ std::wstring FileMapWriter::DescribeCell (int cell) const
     }
     else
     {
-        text = std::format (L"track {}, {}sector {}", m_map.GetTrack (cell), m_map.fileSystem == MapFileSystem::Cpm ? L"CP/M " : L"",
-                            InspectorFormat::FormatSector (m_map.GetColumn (cell)));
+        text = std::format (L"track {}, sector {}", m_map.GetTrack (cell), InspectorFormat::FormatSector (GetPhysical (cell)));
     }
 
     return text;

@@ -438,7 +438,7 @@ void DiskRepair::PlanRelink (Work & work, const FileMap & map)
     if (!map.isCatalogComplete && map.unreadableCell >= 0 && !IsReadable (work, map.unreadableCell / s_kSectors, map.unreadableCell % s_kSectors))
     {
         work.plan.reason = std::format (L"Track {}, sector ${:X} of the catalog can't be read.",
-                                        map.unreadableCell / s_kSectors, map.unreadableCell % s_kSectors);
+                                        map.unreadableCell / s_kSectors, SectorSource::GetDos33Physical (map.unreadableCell % s_kSectors));
         return;
     }
 
@@ -877,7 +877,7 @@ void DiskRepair::CollectSectors (Work & work)
 
         if (!work.isReadable[index] && work.plan.reason.empty())
         {
-            work.plan.reason = std::format (L"Track {}, sector ${:X} can't be read.", index / s_kSectors, index % s_kSectors);
+            work.plan.reason = std::format (L"Track {}, sector ${:X} can't be read.", index / s_kSectors, SectorSource::GetDos33Physical (index % s_kSectors));
         }
 
         out.track  = index / s_kSectors;

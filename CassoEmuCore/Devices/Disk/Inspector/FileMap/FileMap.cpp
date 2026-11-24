@@ -90,7 +90,7 @@ static std::wstring LikelyCause (const SectorSource & source)
     {
         if (!SectorSource::IsReadable (source.GetCpm (CpmMapReader::kDirectoryTrack, s).result))
         {
-            cause = std::format (L"Track 3, CP/M sector {}, where a CP/M volume keeps its directory, could not be read", InspectorFormat::FormatSector (s));
+            cause = std::format (L"Track 3, sector {}, where a CP/M volume keeps its directory, could not be read", InspectorFormat::FormatSector (SectorSource::GetCpmPhysical (s)));
         }
     }
 
