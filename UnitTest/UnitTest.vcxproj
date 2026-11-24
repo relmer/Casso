@@ -553,6 +553,10 @@
     <ClCompile Include="CassoExplorer\CassoExplorerShellIconsTests.cpp" />
     <ClCompile Include="CassoExplorer\FocusRingTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerBrowserTests.cpp" />
+    <ClCompile Include="CassoExplorer\CassoExplorerShellFolderTests.cpp" />
+    <ClCompile Include="CassoExplorer\CassoExplorerSearchResultTests.cpp" />
+    <ClCompile Include="CassoExplorer\CassoExplorerSortAndGroupTests.cpp" />
+    <ClCompile Include="CassoExplorer\CassoExplorerTabsTests.cpp" />
     <ClCompile Include="CassoExplorer\BrowserCellsStatusTests.cpp" />
     <ClCompile Include="CassoExplorer\BrowserColumnFiltersTests.cpp" />
     <ClCompile Include="CassoExplorer\BrowserRowOrderTests.cpp" />
@@ -633,6 +637,7 @@
     <ClCompile Include="CassoExplorer\InspectorWindowSetTests.cpp" />
     <ClCompile Include="CassoExplorer\RefreshAnchorTests.cpp" />
     <ClInclude Include="CassoExplorer\FakeExplorerWindow.h" />
+    <ClInclude Include="CassoExplorer\BrowserTestHost.h" />
     <ClInclude Include="CassoExplorer\FakeRecycleBin.h" />
     <ClInclude Include="CassoExplorer\RecordingExplorerServices.h" />
     <ClInclude Include="CassoExplorer\ExplorerWindowPartsRig.h" />
