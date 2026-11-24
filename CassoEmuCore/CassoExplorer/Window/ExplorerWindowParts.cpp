@@ -84,6 +84,7 @@ ExplorerWindowParts::ExplorerWindowParts (IExplorerWindow             & window,
                  .folderSync       = folderSync,
                  .cassoLinkManager = cassoLinkManager,
                  .linkDrives       = linkDrives,
+                 .linkListActions  = linkListActions,
                  .fullSendWindows  = fullSendWindows,
                  .linkJobs         = linkJobs,
                  .dragDrop         = dragDrop,
@@ -158,7 +159,7 @@ void ExplorerWindowParts::CreateControls()
 
     treePane.Create();
     listPane.Create();
-    cassoLinkManager.CreateListActions();
+    linkListActions.CreateListActions();
     preview.Create();
     treeSplitter    = window.CreateChild<CassoExplorerNamedControl<DxuiSplitter>>();
     previewSplitter = window.CreateChild<CassoExplorerNamedControl<DxuiSplitter>>();
@@ -524,7 +525,7 @@ bool ExplorerWindowParts::HandleTimer (UINT_PTR timerId)
     if (timerId == (UINT_PTR) AppTimerId::ExplorerDrive)
     {
         folderSync.PollDrives();
-        cassoLinkManager.PollFirewall();
+        linkListActions.PollFirewall();
 
         //  An announcement since the last look is listed, on the same poll
         //  as a drive.

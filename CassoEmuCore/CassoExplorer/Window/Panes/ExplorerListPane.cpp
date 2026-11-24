@@ -19,6 +19,7 @@
 #include "CassoExplorer/Window/ExplorerTextStyles.h"
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
+#include "CassoExplorer/Window/Managers/CassoLinkListActions.h"
 #include "CassoExplorer/Window/Managers/ExplorerDragDrop.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
@@ -1384,7 +1385,7 @@ void ExplorerListPane::FillList()
     m_listMessage->SetVisible (!message.empty());
     m_list->SetVisible (message.empty());
 
-    m_context.cassoLinkManager.FillListAction (!message.empty());
+    m_context.linkListActions.FillListAction (!message.empty());
 
     m_context.tabManager.FillTabs();
     m_context.addressBar.FillAddress();
@@ -1642,7 +1643,7 @@ RECT ExplorerListPane::GetListMessageRect() const
     //  The firewall's message runs to several lines, so it ends at the
     //  pane's middle, with the actions below it, as does a message with the
     //  virtual drives' links below it.
-    if (m_context.cassoLinkManager.IsMessageAboveActions())
+    if (m_context.linkListActions.IsMessageAboveActions())
     {
         rect.bottom = (rect.top + rect.bottom) / 2;
     }

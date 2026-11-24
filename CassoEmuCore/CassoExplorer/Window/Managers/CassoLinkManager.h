@@ -19,8 +19,7 @@ struct LinkTreeEntry;
 //  CassoLinkManager
 //
 //  The CassoLink connections in the window: adding, editing and removing
-//  them, bootstrapping an Apple, the firewall's remedies, the list's link
-//  buttons and the status bar's activity log.
+//  them, bootstrapping an Apple and the status bar's activity log.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,14 +29,6 @@ public:
     explicit CassoLinkManager (ExplorerContext & context);
     ~CassoLinkManager();
 
-    //  The list's Bootstrap button's size.
-    static constexpr int  kListActionWidthDip   = 160;
-    static constexpr int  kListActionWideDip    = 200;   // the firewall's actions, whose labels are longer
-    static constexpr int  kListActionHeightDip  = 32;
-    static constexpr int  kDriveLinkWidthDip    = 360;   // a virtual drive's image name, as a link
-    static constexpr int  kDriveLabelWidthDip   = 120;   // "Drive 1:", ending at the message's middle
-    static constexpr int  kDriveLabelGapDip     = 6;
-    static constexpr int  kDriveLinkHeightDip   = 26;
     static constexpr int  kActivityShownMinutes = 15;
     static constexpr int  kFaultTextMax         = 400;
 
@@ -77,25 +68,10 @@ public:
     void          HandleCassetteTimer     ();
     void          NoteListFilled          ();
 
-    void          CreateListActions       ();
-    void          LayoutListActions       ();
-    bool          IsFirewallMessage       () const { return m_listActionFirewall; }
-    bool          IsMessageAboveActions   () const { return m_listActionFirewall || m_driveLinksShown; }
-
     //  The status bar's detail has the pending operations, until they finish.
-    void         MarkJobsShown          () { m_linkJobsShown = true; }
-    RECT         GetListActionRect      () const;
-    RECT         GetListActionAltRect   () const;
-    RECT         GetDriveLinkRect       (int drive) const;
-    RECT         GetDriveLabelRect      (int drive) const;
-    bool         IsUsingVirtualDrives   (const std::string & name, std::vector<std::wstring> & outDrives) const;
-    std::string  GetBootstrapConnection () const;
-    void         FillListAction         (bool hasMessage);
-    bool         IsStoppedServer        (const std::string & name) const;
-    void         PollFirewall           ();
-    void         FixFirewall            (bool markPrivate);
-    bool         TryGetConnectionEntry  (const std::wstring & name, LinkTreeEntry & outEntry) const;
-    uint32_t     GetAnnouncedChanges    () const { return m_announcedChanges; }
+    void      MarkJobsShown         () { m_linkJobsShown = true; }
+    bool      TryGetConnectionEntry (const std::wstring & name, LinkTreeEntry & outEntry) const;
+    uint32_t  GetAnnouncedChanges   () const { return m_announcedChanges; }
 
     void  HandleConnectionChanged ();
     void  HandleRunningChanged    ();
@@ -117,24 +93,10 @@ private:
     bool  HasCassetteStarted   () const;
 
     ExplorerContext  & m_context;
-    bool               m_transferTimer        = false;
-    int                m_pulseFrame           = 0;
-    uint32_t           m_announcedChanges     = 0;   // ILinkAnnouncements::GetChangeCount at the last look
-    uint32_t           m_firewallVersion      = 0;   // FirewallMonitor::GetVersion the views were drawn from
-    HANDLE             m_firewallHelper       = nullptr;   // the elevated helper, until it exits
-    DxuiButton       * m_listAction           = nullptr;
-    DxuiButton       * m_listActionAlt        = nullptr;
-    bool               m_listActionFirewall   = false;
-    bool               m_linkJobsShown        = false;
-    std::string        m_listActionConnection;
-    bool               m_listActionConnects   = false;
-
-    //  The virtual drives' images under the message while the CassoLink
-    //  ProDOS disk's driver uses them; each opens its image.
-    std::array<DxuiButton *, 2>  m_driveLinks      = {};
-    std::array<DxuiLabel *, 2>   m_driveLabels     = {};
-    std::array<std::wstring, 2>  m_driveLinkPaths;
-    bool                         m_driveLinksShown = false;
+    bool               m_transferTimer    = false;
+    int                m_pulseFrame       = 0;
+    uint32_t           m_announcedChanges = 0;   // ILinkAnnouncements::GetChangeCount at the last look
+    bool               m_linkJobsShown    = false;
 
     //  The cassette bootstrap's audio, while PlaySound sends it from memory,
     //  the link it starts, and how many times it was sent.
