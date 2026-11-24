@@ -474,9 +474,47 @@ void CassoExplorerWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
                           DxuiColor::Mix (theme.Background(), theme.Foreground(), s_kSavePickerBarTint));
     }
 
+    PaintResizeEdge (painter, theme);
     m_parts->preview.PaintBackground (painter, theme);
 
     DxuiWindow::Paint (painter, text, theme);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::PaintResizeEdge
+//
+//  The panes stop short of the resize band along the right edge, and along
+//  the bottom under an expanded preview. That band gets the color of the
+//  pane beside it, so no lighter stripe runs down the window's edge.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::PaintResizeEdge (IDxuiPainter & painter, const IDxuiTheme & theme) const
+{
+    RECT      body    = m_parts->layout.GetBodyBand().GetBounds();
+    RECT      pane    = m_parts->preview.GetRect();
+    bool      preview = m_parts->preview.IsShown() && pane.right > pane.left;
+    uint32_t  color   = preview ? ExplorerPreviewManager::GetBackground (theme) : theme.ContentBackground();
+    int       edgePx  = GetPopupHost() != nullptr ? GetPopupHost()->GetResizeBorderPx() : 0;
+
+
+
+    if (edgePx <= 0 || body.right <= body.left || body.bottom <= body.top)
+    {
+        return;
+    }
+
+    painter.FillRect ((float) (body.right - edgePx), (float) body.top, (float) edgePx, (float) (body.bottom - body.top), color);
+
+    if (preview && pane.bottom < body.bottom)
+    {
+        painter.FillRect ((float) body.left, (float) pane.bottom, (float) (body.right - body.left), (float) (body.bottom - pane.bottom), color);
+    }
 }
 
 
