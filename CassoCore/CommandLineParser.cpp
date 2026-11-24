@@ -77,6 +77,7 @@ static constexpr CommandLineParser::DiskCommandName  s_kDiskCommands[] =
     { "dupes",            CommandLineOptions::DiskOptions::Command::Dupes           },
     { "search",           CommandLineOptions::DiskOptions::Command::Search          },
     { "inspect",          CommandLineOptions::DiskOptions::Command::Inspect         },
+    { "stamp",            CommandLineOptions::DiskOptions::Command::Stamp           },
     { "repair",           CommandLineOptions::DiskOptions::Command::Repair          },
     { "set-thumbnail",    CommandLineOptions::DiskOptions::Command::SetThumbnail    },
     { "get-thumbnail",    CommandLineOptions::DiskOptions::Command::GetThumbnail    },
@@ -272,6 +273,7 @@ static constexpr const char *  s_kpszDiskOptions[] =
     "yes",
     "no-free-unowned",
     "list",
+    "json",
 
     //  Here so `/on-change` is matched as one word rather than shredded into
     //  the single-character flags -o -n -c -h ...
@@ -1032,6 +1034,7 @@ int CommandLineParser::GetDiskOperandCount (CommandLineOptions::DiskOptions::Com
         case CommandLineOptions::DiskOptions::Command::Test:
         case CommandLineOptions::DiskOptions::Command::Dupes:
         case CommandLineOptions::DiskOptions::Command::Inspect:
+        case CommandLineOptions::DiskOptions::Command::Stamp:
         case CommandLineOptions::DiskOptions::Command::RemoveThumbnail:
             count = 1;
             break;
@@ -1369,6 +1372,12 @@ void CommandLineParser::ParseDiskOptions (
         if (arg == "--list")
         {
             options.disk.listOnly = true;
+            continue;
+        }
+
+        if (arg == "--json")
+        {
+            options.disk.isJson = true;
             continue;
         }
 
