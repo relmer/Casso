@@ -1045,6 +1045,28 @@ bool PreviewDiskThumbnail::IsOverPlatter (POINT pointPx) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PreviewDiskThumbnail::IsOverVerdict
+//
+//  Whether a point is on the file system's infobar, which opens the
+//  inspector on a click, as Inspect... does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PreviewDiskThumbnail::IsOverVerdict (POINT pointPx) const
+{
+    RECT  verdict = m_verdict->GetBounds();
+
+
+
+    return HasVerdict() && m_verdict->IsVisible() && PtInRect (&verdict, pointPx) != FALSE;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PreviewDiskThumbnail::HandleHeaderMouse
 //
 //  The platter's and the picture's clicks, then the infobar's action. The
@@ -1151,13 +1173,14 @@ void PreviewDiskThumbnail::SetHot (bool isHot)
 //
 //  PreviewDiskThumbnail::HandlePlatterMouse
 //
-//  A click on the small platter or the block map opens the inspector.
+//  A click on the small platter, the block map or the file system's infobar
+//  opens the inspector.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool PreviewDiskThumbnail::HandlePlatterMouse (const DxuiMouseEvent & ev)
 {
-    if (!IsOverPlatter (ev.positionDip))
+    if (!IsOverPlatter (ev.positionDip) && !IsOverVerdict (ev.positionDip))
     {
         return false;
     }

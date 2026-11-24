@@ -238,6 +238,7 @@ public:
     bool                  IsReady       () const { return m_state == State::Ready; }
     int                   GetHeightPx   (int widthPx) const;
     bool                  IsOverPlatter (POINT pointPx) const;
+    bool                  IsOverVerdict (POINT pointPx) const;
     const std::wstring  & GetPath       () const { return m_path; }
 
     //  The screen's picture as it is laid out, empty when it isn't drawn, and

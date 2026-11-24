@@ -1146,8 +1146,9 @@ bool ExplorerPreviewManager::HandleWheel (const DxuiMouseEvent & ev)
 //  The preview's text -- a listing, a catalog, a hex dump -- selects as text
 //  does, so the cursor over it is the I-beam, except over its scrollbars.
 //  The pane's bar beside a disk image's thumbnail is drawn over the view, so
-//  the bar is checked first. Over the thumbnail's platter or block map,
-//  which opens the inspector on a click, the cursor is IDC_HAND.
+//  the bar is checked first. Over the thumbnail's platter, block map or file
+//  system infobar, which open the inspector on a click, the cursor is
+//  IDC_HAND.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1157,7 +1158,7 @@ LPCWSTR ExplorerPreviewManager::GetCursorForPoint (POINT clientPx) const
 
 
 
-    cursor = (cursor != nullptr) ? cursor : (m_thumbnail.IsShown() && m_thumbnail.IsOverPlatter (clientPx) ? IDC_HAND : nullptr);
+    cursor = (cursor != nullptr) ? cursor : (m_thumbnail.IsShown() && (m_thumbnail.IsOverPlatter (clientPx) || m_thumbnail.IsOverVerdict (clientPx)) ? IDC_HAND : nullptr);
     cursor = (cursor != nullptr) ? cursor : m_text.GetCursorForPoint (clientPx);
     cursor = (cursor != nullptr) ? cursor : m_hex.GetCursorForPoint (clientPx);
     cursor = (cursor != nullptr) ? cursor : m_listing.GetCursorForPoint (clientPx);
