@@ -652,6 +652,7 @@
     <ClCompile Include="CassoExplorer\HostTextPreviewTests.cpp" />
     <ClCompile Include="CassoExplorer\PreviewViewStateTests.cpp" />
     <ClCompile Include="CassoExplorer\PictureMonitorChoiceTests.cpp" />
+    <ClCompile Include="CassoExplorer\DiskImagePreviewerTests.cpp" />
     <ClCompile Include="CassoExplorer\ContentSnifferTests.cpp" />
     <ClCompile Include="CassoExplorer\CatalogModelTests.cpp" />
     <ClCompile Include="CassoExplorer\PickerColumnTests.cpp" />
@@ -701,6 +702,7 @@
     <ClCompile Include="CassoExplorer\InspectorWindowSetTests.cpp" />
     <ClCompile Include="CassoExplorer\RefreshAnchorTests.cpp" />
     <ClInclude Include="CassoExplorer\FakeExplorerWindow.h" />
+    <ClInclude Include="CassoExplorer\BrowserPartsFixture.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerBrowserTestHost.h" />
     <ClInclude Include="CassoExplorer\FakeRecycleBin.h" />
     <ClInclude Include="CassoExplorer\RecordingExplorerServices.h" />

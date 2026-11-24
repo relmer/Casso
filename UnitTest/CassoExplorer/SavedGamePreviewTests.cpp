@@ -3,8 +3,8 @@
 #include "../EmuTests/FakeDiskFileIo.h"
 #include "../EmuTests/InfocomSaveBuilder.h"
 #include "../FileTypes/WizardryScenarioBuilder.h"
-#include "../UiTests/InMemoryFileSystem.h"
-#include "CassoExplorer/CassoExplorerBrowser.h"
+#include "BrowserPartsFixture.h"
+#include "CassoExplorer/Browser/Preview/DiskImagePreviewer.h"
 #include "Core/TextEncoding.h"
 #include "FileTypes/WizardryRoster.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
@@ -19,8 +19,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  SavedGamePreviewTests
 //
-//  A Wizardry disk selected in a folder previews as the saved game in its
-//  SCENARIO.DATA or PLAYER.DATA, without opening the disk.
+//  A Wizardry disk previews as the saved game in its SCENARIO.DATA or
+//  PLAYER.DATA, without opening the disk.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,51 +28,29 @@ TEST_CLASS (SavedGamePreviewTests)
 {
 public:
 
-    static constexpr const wchar_t *  kDisks     = L"C:\\Disks";
-    static constexpr size_t           kDiskBytes = 143360;
+    static constexpr const char *  kScenarioPath = "C:\\Disks\\scenario.dsk";
+    static constexpr size_t        kDiskBytes    = 143360;
 
 
     struct Host
     {
-        InMemoryFileSystem    fs;
-        FakeDiskFileIo        io;
-        CassoExplorerBrowser  browser { fs, io };
-
-        Host()
-        {
-            browser.GetTreeModel().SetKnownFolders ({ kDisks });
-            browser.GetTreeModel().SetDrives ({});
-            browser.GetTreeModel().SetDirectoryProbe ([] (const std::wstring & path) { return _wcsicmp (path.c_str(), kDisks) == 0; });
-        }
+        BrowserPartsFixture  fixture;
+        DiskImagePreviewer   previewer { fixture.parts, fixture.previewParts };
 
         void Seed (const std::vector<Byte> & bytes, const char * path)
         {
-            AssertSucceeded (fs.WriteAllText (TextEncoding::NarrowToWide (path), std::string (bytes.begin(), bytes.end())));
-
-            io.files[path]  = bytes;
-            io.stamps[path] = FileStamp { bytes.size(), 100 };
+            fixture.Seed (path, bytes);
         }
 
-        //  The preview of the file in the folder, selected alone.
-        const PreviewContent & Select (const wchar_t * name)
+        //  The preview of the image at the path, made afresh.
+        const PreviewContent & Select (const char * path)
         {
-            const std::vector<CatalogRow> &  rows = browser.GetRows();
-            int                              row  = -1;
+            fixture.preview      = PreviewContent();
+            fixture.preview.kind = PreviewContent::Kind::Text;
 
-            browser.GetNavigator().NavigateToLocation (Location::MakeHostFolder (kDisks));
+            previewer.PreviewImageCatalog (TextEncoding::NarrowToWide (path));
 
-            for (size_t i = 0; i < rows.size(); i++)
-            {
-                if (rows[i].name == name)
-                {
-                    row = (int) i;
-                }
-            }
-
-            Assert::AreNotEqual (-1, row, name);
-            browser.GetSelection().SetSelectedRows ({ row });
-
-            return browser.GetPreviewer().GetPreview();
+            return fixture.preview;
         }
     };
 
@@ -124,7 +102,7 @@ public:
 
         host.Seed (MakeDisk ("SCENARIO.DATA", WizardryScenarioBuilder::MakeScenario()), "C:\\Disks\\scenario.dsk");
 
-        const PreviewContent &  preview = host.Select (L"scenario.dsk");
+        const PreviewContent &  preview = host.Select (kScenarioPath);
 
         Assert::IsTrue (preview.kind == PreviewContent::Kind::Document, L"The disk previews as its saved game");
         Assert::IsTrue (HasText (preview, L"GANDALF"), L"with the roster");
@@ -137,18 +115,18 @@ public:
         Host  host;
 
         host.Seed (MakeDisk ("SCENARIO.DATA", WizardryScenarioBuilder::MakeScenario()), "C:\\Disks\\scenario.dsk");
-        host.Select (L"scenario.dsk");
+        host.Select (kScenarioPath);
 
-        host.browser.GetPreviewer().GetViewState().SetSavedGameShown (false);
+        host.fixture.viewState.SetSavedGameShown (false);
 
-        const PreviewContent &  preview = host.browser.GetPreviewer().GetPreview();
+        const PreviewContent &  preview = host.Select (kScenarioPath);
 
         Assert::IsTrue  (preview.kind == PreviewContent::Kind::Catalog, L"The disk previews as its catalog");
         Assert::IsTrue  (preview.hasSavedGame, L"with the saved game a choice");
         Assert::IsFalse (preview.savedGameShown);
 
-        host.browser.GetPreviewer().GetViewState().SetSavedGameShown (true);
-        Assert::IsTrue  (host.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Document, L"and back");
+        host.fixture.viewState.SetSavedGameShown (true);
+        Assert::IsTrue  (host.Select (kScenarioPath).kind == PreviewContent::Kind::Document, L"and back");
     }
 
 
@@ -167,7 +145,7 @@ public:
 
         host.Seed (MakeDisk ("PLAYER.DATA", roster), "C:\\Disks\\wizardry5.dsk");
 
-        const PreviewContent &  preview = host.Select (L"wizardry5.dsk");
+        const PreviewContent &  preview = host.Select ("C:\\Disks\\wizardry5.dsk");
 
         Assert::IsTrue (preview.kind == PreviewContent::Kind::Document, L"The disk previews as its saved game");
         Assert::IsTrue (HasText (preview, L"ALDRIC   Level 0 Dwarf Fighter, Unaligned"));
@@ -183,17 +161,19 @@ public:
 
         host.Seed (InfocomSaveBuilder::MakeDisk (InfocomSaveBuilder::MakeMemory (0), 2), "C:\\Disks\\zork-save.dsk");
 
-        const PreviewContent &  preview = host.Select (L"zork-save.dsk");
+        const PreviewContent &  preview = host.Select ("C:\\Disks\\zork-save.dsk");
 
         Assert::IsTrue (preview.kind == PreviewContent::Kind::Document, L"The disk previews as its saved game");
         Assert::IsTrue (HasText (preview, L"Room\thall"));
         Assert::IsTrue (preview.hasSavedGame && preview.savedGameShown);
 
-        host.browser.GetPreviewer().GetViewState().SetSavedGameShown (false);
+        host.fixture.viewState.SetSavedGameShown (false);
 
-        Assert::IsTrue  (host.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Details, L"The disk previews as its details");
-        Assert::IsTrue  (host.browser.GetPreviewer().GetPreview().hasSavedGame);
-        Assert::IsFalse (host.browser.GetPreviewer().GetPreview().savedGameShown);
+        const PreviewContent &  details = host.Select ("C:\\Disks\\zork-save.dsk");
+
+        Assert::IsTrue  (details.kind == PreviewContent::Kind::Details, L"The disk previews as its details");
+        Assert::IsTrue  (details.hasSavedGame);
+        Assert::IsFalse (details.savedGameShown);
     }
 
 
@@ -203,8 +183,8 @@ public:
 
         host.Seed (MakeDisk ("NOTES.DATA", WizardryScenarioBuilder::MakeScenario()), "C:\\Disks\\notes.dsk");
 
-        Assert::IsTrue  (host.Select (L"notes.dsk").kind == PreviewContent::Kind::Catalog);
-        Assert::IsFalse (host.browser.GetPreviewer().GetPreview().hasSavedGame, L"with no saved game to choose");
+        Assert::IsTrue  (host.Select ("C:\\Disks\\notes.dsk").kind == PreviewContent::Kind::Catalog);
+        Assert::IsFalse (host.fixture.preview.hasSavedGame, L"with no saved game to choose");
     }
 
 
@@ -214,6 +194,6 @@ public:
 
         host.Seed (MakeDisk ("SCENARIO.DATA", std::vector<Byte> (1024, 0xFF)), "C:\\Disks\\damaged.dsk");
 
-        Assert::IsTrue (host.Select (L"damaged.dsk").kind == PreviewContent::Kind::Catalog, L"A SCENARIO.DATA that doesn't decode leaves the catalog");
+        Assert::IsTrue (host.Select ("C:\\Disks\\damaged.dsk").kind == PreviewContent::Kind::Catalog, L"A SCENARIO.DATA that doesn't decode is previewed as the catalog");
     }
 };

@@ -239,7 +239,7 @@ void BrowserPreviewer::UpdatePreview()
         }
         else
         {
-            PreviewEntry (location.path, BrowserRowPaths::GetEntryPath (GetLocation(), *entry), *entry, m_parts.list.kind);
+            m_diskImages.PreviewEntry (location.path, BrowserRowPaths::GetEntryPath (GetLocation(), *entry), *entry, m_parts.list.kind);
         }
 
         return;
@@ -296,7 +296,7 @@ void BrowserPreviewer::UpdatePreview()
     else if (m_parts.list.isPartitionList && m_parts.list.selectedRows.size() == 1 && !m_parts.list.rows[m_parts.list.selectedRows[0]].containerPath.empty())
     {
         //  A partition of a card or a card image previews as its volume's catalog.
-        PreviewImageCatalog (m_parts.list.rows[m_parts.list.selectedRows[0]].containerPath);
+        m_diskImages.PreviewImageCatalog (m_parts.list.rows[m_parts.list.selectedRows[0]].containerPath);
         return;
     }
     else if (!m_parts.list.isImage && location == Location::MakeRoot (TreeModel::kCassoRootId) && m_parts.list.selectedRows.size() == 1
@@ -333,309 +333,7 @@ void BrowserPreviewer::UpdatePreview()
 
     imagePath += m_parts.list.rows[m_parts.list.selectedRows[0]].name;
 
-    PreviewImageCatalog (imagePath);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BrowserPreviewer::PreviewImageCatalog
-//
-//  The image's catalog, cached; its details when it has no file system.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BrowserPreviewer::PreviewImageCatalog (const std::wstring & imagePath)
-{
-    ImageContents  contents;
-    VolumeListing  listing;
-    VolumeKind     kind     = VolumeKind::Unknown;
-    DecodedFile    diskSave;
-    bool           hasSave  = false;
-
-
-
-    if (!m_parts.model.TryGetCachedCatalog (imagePath, listing, kind))
-    {
-        HRESULT  hrDescribe = m_parts.catalog.Describe (imagePath, std::string(), contents);
-
-        IGNORE_RETURN_VALUE (hrDescribe, S_OK);
-
-        listing = std::move (contents.listing);
-        kind    = contents.kind;
-
-        //  A disk with no file system may be a game's saved game, such as an
-        //  Infocom save disk.
-        hasSave = !contents.result.Succeeded() && TryDecodeDiskSave (imagePath, diskSave);
-
-        if (hasSave && m_viewState.IsSavedGameShown())
-        {
-            PreviewDecoder::FromDecoded (diskSave, m_preview);
-            m_preview.hasSavedGame   = true;
-            m_preview.savedGameShown = true;
-            m_preview.savedGameName  = diskSave.viewName;
-            return;
-        }
-
-        if (!contents.result.Succeeded() && PreviewPartitions (imagePath, contents.layout, contents.partitions))
-        {
-            return;
-        }
-
-        if (!contents.result.Succeeded() && PreviewDecoder::ParseDetails (contents.result.message, m_preview.details))
-        {
-            m_preview.kind         = PreviewContent::Kind::Details;
-            m_preview.hasSavedGame  = hasSave;
-            m_preview.savedGameName = diskSave.viewName;
-            AddWozDetails (imagePath);
-            return;
-        }
-
-        if (!contents.result.Succeeded())
-        {
-            m_preview.kind    = PreviewContent::Kind::Error;
-            m_preview.message = contents.error;
-            return;
-        }
-
-        m_parts.model.CacheCatalog (imagePath, listing, kind);
-    }
-
-    if (m_viewState.IsSavedGameShown() && PreviewSavedGame (imagePath, listing, kind))
-    {
-        m_preview.hasSavedGame   = true;
-        m_preview.savedGameShown = true;
-        return;
-    }
-
-    //  A DOS 3.3 or ProDOS disk may also be a game's saved game, such as an
-    //  Ultima IV or Ultima V save disk, whose map is in sectors outside its
-    //  files.
-    hasSave = (kind == VolumeKind::Dos33 || kind == VolumeKind::ProDos) && TryDecodeDiskSave (imagePath, diskSave);
-
-    if (hasSave && m_viewState.IsSavedGameShown())
-    {
-        PreviewDecoder::FromDecoded (diskSave, m_preview);
-        m_preview.hasSavedGame   = true;
-        m_preview.savedGameShown = true;
-        m_preview.savedGameName  = diskSave.viewName;
-        return;
-    }
-
-    PreviewDecoder::RenderCatalog (listing, kind, m_preview);
-    AddWozDetails (imagePath);
-
-    m_preview.hasSavedGame  = hasSave || FindSavedGame (listing, kind) != nullptr;
-    m_preview.savedGameName = diskSave.viewName;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BrowserPreviewer::TryDecodeDiskSave
-//
-//  The image decoded by DiskSaveTable::DecodeImage, with a companion disk
-//  looked for in the same folder. False for an image that can't be read or
-//  that no entry accepts.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool BrowserPreviewer::TryDecodeDiskSave (const std::wstring & imagePath, DecodedFile & outFile)
-{
-    HRESULT            hr     = S_OK;
-    std::string        narrow = TextEncoding::WideToNarrow (imagePath);
-    std::vector<Byte>  bytes;
-
-
-
-    hr = m_parts.operations.GetFileIo().ReadAllBytes (narrow, bytes);
-    CHR (hr);
-
-    hr = DiskSaveTable::DecodeImage (bytes, narrow, [this, &narrow] (DiskSaveTable::IsFoundFn isCompanion, std::vector<Byte> & outSectors)
-                                     {
-                                         return DiskSaveTable::FindBeside (m_parts.operations.GetFileIo(), narrow, isCompanion, outSectors);
-                                     }, outFile);
-    CHR (hr);
-
-Error:
-    return SUCCEEDED (hr);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BrowserPreviewer::FindSavedGame
-//
-//  A Wizardry scenario disk's SCENARIO.DATA, Wizardry IV's WERDNA.DATA or
-//  Wizardry V's PLAYER.DATA, or null for any other disk.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const FileEntry * BrowserPreviewer::FindSavedGame (const VolumeListing & listing, VolumeKind kind)
-{
-    auto  scenario = std::find_if (listing.entries.begin(), listing.entries.end(),
-                                   [] (const FileEntry & entry)
-                                   {
-                                       return !entry.isDirectory && (_stricmp (entry.name.c_str(), "SCENARIO.DATA") == 0 || _stricmp (entry.name.c_str(), "PLAYER.DATA") == 0
-                                                                   || _stricmp (entry.name.c_str(), "WERDNA.DATA") == 0);
-                                   });
-
-
-
-    return (kind == VolumeKind::Pascal && scenario != listing.entries.end()) ? &*scenario : nullptr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BrowserPreviewer::PreviewSavedGame
-//
-//  A Wizardry disk previews as the saved game in its SCENARIO.DATA or
-//  PLAYER.DATA: the roster, and the map of the level the party is on. False,
-//  with the preview cleared, for any other disk or a file that doesn't decode.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool BrowserPreviewer::PreviewSavedGame (const std::wstring & imagePath, const VolumeListing & listing, VolumeKind kind)
-{
-    const FileEntry                 * scenario = FindSavedGame (listing, kind);
-    std::vector<Byte>                 bytes;
-    std::vector<Byte>                 sectors;
-    std::vector<std::vector<Byte>>    sides;
-    SectorDecodeReport                report;
-    std::string                       narrow   = TextEncoding::WideToNarrow (imagePath);
-
-
-
-    if (scenario == nullptr)
-    {
-        return false;
-    }
-
-    //  Wizardry V's roster has item numbers, and the text for them is
-    //  elsewhere on the disk. Its maze is on the other disks.
-    if (_stricmp (scenario->name.c_str(), "PLAYER.DATA") == 0)
-    {
-        HRESULT  read = m_parts.operations.GetFileIo().ReadAllBytes (narrow, bytes);
-
-        IGNORE_RETURN_VALUE (read, S_OK);
-        WizardryMaze::FindSides (m_parts.operations.GetFileIo(), narrow, sides);
-    }
-
-    if (!bytes.empty())
-    {
-        HRESULT  loaded = VolumeImage::Load (bytes, narrow, sectors, report);
-
-        IGNORE_RETURN_VALUE (loaded, S_OK);
-    }
-
-    PreviewEntry (imagePath, scenario->name, *scenario, kind, sectors, sides);
-
-    if (m_preview.kind != PreviewContent::Kind::Document)
-    {
-        m_preview = PreviewContent();
-        return false;
-    }
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BrowserPreviewer::PreviewPartitions
-//
-//  An image of partitions previews as its partition map and a line for
-//  each partition: its label, and its volume and size. False for an image
-//  with no partitions.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool BrowserPreviewer::PreviewPartitions (const std::wstring & imagePath, PartitionLayoutKind layout, const std::vector<PartitionEntry> & entries)
-{
-    if (layout == PartitionLayoutKind::None || entries.empty())
-    {
-        return false;
-    }
-
-    m_preview.details.clear();
-    m_preview.details.emplace_back (L"Partition map", TextEncoding::NarrowToWide (PartitionLayout::GetLayoutName (layout)));
-
-    for (const PartitionEntry & entry : entries)
-    {
-        m_preview.details.emplace_back (DiskImageCatalog::GetPartitionLabel (imagePath, entry, false),
-                                        TextEncoding::NarrowToWide (PartitionAccess::GetVolumeLabel (entry) + ", " + PartitionAccess::FormatSize (entry.byteCount)));
-    }
-
-    m_preview.kind = PreviewContent::Kind::Details;
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BrowserPreviewer::AddWozDetails
-//
-//  A WOZ image's path, for Edit metadata, and for a catalog, the image's WOZ
-//  info and metadata as an image with no file system has them in its
-//  details, to list above the catalog. Any other image, or a file that can't
-//  be read, has neither.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BrowserPreviewer::AddWozDetails (const std::wstring & imagePath)
-{
-    HRESULT                 hr     = S_OK;
-    bool                    isWoz  = _wcsicmp (fs::path (imagePath).extension().wstring().c_str(), L".woz") == 0;
-    std::vector<Byte>       bytes;
-    WozLoader::Description  woz;
-    bool                    parsed = false;
-    DetailIterator          analysis;
-
-
-
-    CBR (isWoz);
-
-    hr = m_parts.operations.GetFileIo().ReadAllBytes (TextEncoding::WideToNarrow (imagePath), bytes);
-    CHR (hr);
-
-    WozLoader::Describe (bytes, woz);
-    CBR (woz.isWoz);
-
-    m_preview.wozPath = imagePath;
-
-    //  The analysis after the WOZ sections is about an image with no catalog,
-    //  so a catalog has only the WOZ sections.
-    if (m_preview.kind == PreviewContent::Kind::Catalog)
-    {
-        parsed   = PreviewDecoder::ParseDetails (DiskImageSession::DescribeWozChunks (bytes) + DiskImageSession::DescribeContainerHeader (bytes), m_preview.details);
-        analysis = std::find_if (m_preview.details.begin(), m_preview.details.end(), [] (const std::pair<std::wstring, std::wstring> & d) { return d.first == kAnalysisHeading && d.second.empty(); });
-
-        m_preview.details.erase (analysis, m_preview.details.end());
-        IGNORE_RETURN_VALUE (parsed, false);
-    }
-
-Error:
-    return;
+    m_diskImages.PreviewImageCatalog (imagePath);
 }
 
 
@@ -948,7 +646,7 @@ void BrowserPreviewer::PreviewShellItem (const CatalogRow & row)
     //  a zip by its path through the zip.
     if (row.isDiskImage)
     {
-        PreviewImageCatalog (BrowserLoader::GetImagePath (row));
+        m_diskImages.PreviewImageCatalog (BrowserLoader::GetImagePath (row));
         return;
     }
 
@@ -986,63 +684,6 @@ void BrowserPreviewer::PreviewShellItem (const CatalogRow & row)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BrowserPreviewer::PreviewEntry
-//
-//  One file in an image, read and rendered: its contents, the details of a
-//  file that cannot be read, or why not.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BrowserPreviewer::PreviewEntry (const std::wstring & imagePath, const std::string & entryPath, const FileEntry & entry, VolumeKind kind, std::span<const Byte> diskSectors, std::span<const std::vector<Byte>> otherDisks)
-{
-    DiskOperations::Result  result;
-    FilePayload             payload;
-    HRESULT                 hr          = S_OK;
-    PreviewDecoder::HexForm hexForm     = PreviewDecoder::HexForm::Auto;
-    DecodeOptions           options     = m_viewState.GetDecodeOptions (imagePath, entryPath);
-
-
-
-    result = m_parts.operations.Read (TextEncoding::WideToNarrow (imagePath), entryPath, payload, entry.catalogIndex);
-
-    if (!result.Succeeded() && PreviewDecoder::ParseDetails (result.message, m_preview.details))
-    {
-        m_preview.kind = PreviewContent::Kind::Details;
-        return;
-    }
-
-    if (!result.Succeeded())
-    {
-        m_preview.kind    = PreviewContent::Kind::Error;
-        m_preview.message = DiskMessageText::FormatImageError (imagePath, result.message);
-        return;
-    }
-
-    hexForm = m_viewState.GetHexForm (imagePath + L"|" + TextEncoding::NarrowToWide (entryPath));
-    options.diskSectors = diskSectors;
-    options.otherDisks  = otherDisks;
-    hr                  = PreviewViewChoices::Render (m_viewState.GetViewAs(), entry, kind, payload, hexForm, m_bus, m_preview, m_monitor.GetPreviewMonitor(), m_monitor.GetCustomArgb(), options);
-
-    //  A double hi-res picture's monitor follows its form, which is known once
-    //  it is decoded.
-    if (SUCCEEDED (hr))
-    {
-        hr = m_monitor.RedrawForForm();
-    }
-
-    if (FAILED (hr) && m_preview.message.empty())
-    {
-        m_preview.kind    = PreviewContent::Kind::Error;
-        m_preview.message = L"This file could not be previewed.";
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  BrowserPreviewer::PreviewSearchMatch
 //
 //  A search's match inside a disk image, found again in its image's catalog
@@ -1071,7 +712,7 @@ void BrowserPreviewer::PreviewSearchMatch (const CatalogRow & row)
         return;
     }
 
-    PreviewEntry (match.imagePath, match.directory.empty() ? match.entry.name : match.directory + "/" + match.entry.name, match.entry, match.kind);
+    m_diskImages.PreviewEntry (match.imagePath, match.directory.empty() ? match.entry.name : match.directory + "/" + match.entry.name, match.entry, match.kind);
 }
 
 

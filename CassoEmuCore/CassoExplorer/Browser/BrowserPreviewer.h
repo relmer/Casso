@@ -4,6 +4,7 @@
 
 #include "CassoExplorer/Browser/BrowserParts.h"
 #include "CassoExplorer/Browser/BrowserTypes.h"
+#include "CassoExplorer/Browser/Preview/DiskImagePreviewer.h"
 #include "CassoExplorer/Browser/Preview/IPreviewRefresh.h"
 #include "CassoExplorer/Browser/Preview/PictureMonitorChoice.h"
 #include "CassoExplorer/Browser/Preview/PreviewParts.h"
@@ -54,17 +55,7 @@ public:
 
     //  Why an archive the shell lists nothing in is empty, by its name;
     //  empty when it has nothing in it.
-    std::wstring              DescribeEmptyArchive (const std::wstring & path) const;
-    void                      AddWozDetails        (const std::wstring & imagePath);
-    void                      PreviewImageCatalog  (const std::wstring & imagePath);
-    bool                      PreviewPartitions    (const std::wstring & imagePath, PartitionLayoutKind layout, const std::vector<PartitionEntry> & entries);
-    bool                      PreviewSavedGame     (const std::wstring & imagePath, const VolumeListing & listing, VolumeKind kind);
-    static const FileEntry  * FindSavedGame        (const VolumeListing & listing, VolumeKind kind);
-    bool                      TryDecodeDiskSave    (const std::wstring & imagePath, DecodedFile & outFile);
-
-    using DetailIterator = std::vector<std::pair<std::wstring, std::wstring>>::iterator;
-
-    static constexpr const wchar_t *  kAnalysisHeading = L"Casso analysis";
+    std::wstring  DescribeEmptyArchive (const std::wstring & path) const;
 
     //  The largest archive read whole for the reason it lists nothing.
     static constexpr uintmax_t  s_kArchiveProbeMaxBytes = 64ull * 1024 * 1024;
@@ -118,4 +109,5 @@ private:
     PreviewViewState                    m_viewState      { *this };
     PictureMonitorChoice                m_monitor        { m_preview, m_bus };
     PreviewParts                        m_previewParts   { m_preview, m_bus, m_viewState, m_monitor };
+    DiskImagePreviewer                  m_diskImages     { m_parts, m_previewParts };
 };
