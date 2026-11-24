@@ -633,7 +633,7 @@ void CassoLinkDriveManager::SaveLinkToDisk (const Location & drive)
         return;
     }
 
-    outcome = m_context.actions.SaveLinkToDisk (TextEncoding::WideToNarrow (link), number);
+    outcome = m_context.actions.GetLinkDisks().SaveLinkToDisk (TextEncoding::WideToNarrow (link), number);
 
     if (!outcome.Succeeded())
     {
@@ -796,7 +796,7 @@ void CassoLinkDriveManager::SaveLinkDiskImage (const std::string & name)
     CHR (hr);
     BAIL_OUT_IF (!chosen, S_OK);
 
-    outcome = m_context.actions.SaveLinkDiskImage (picked.wstring(), link);
+    outcome = m_context.actions.GetLinkDisks().SaveLinkDiskImage (picked.wstring(), link);
 
     if (!outcome.Succeeded())
     {
@@ -854,7 +854,7 @@ void CassoLinkDriveManager::SaveLinkProDosDisk (const std::string & name)
     CHR (hr);
     BAIL_OUT_IF (!chosen, S_OK);
 
-    outcome = m_context.actions.SaveLinkProDosDisk (users.wstring(), picked.wstring(), link);
+    outcome = m_context.actions.GetLinkDisks().SaveLinkProDosDisk (users.wstring(), picked.wstring(), link);
 
     if (!outcome.Succeeded())
     {
@@ -1019,7 +1019,7 @@ void CassoLinkDriveManager::SaveLinkProDosToDisk (const Location & drive)
 
     BAIL_OUT_IF (!ChooseProDosDisk (L"Write CassoLink virtual drives disk", GetProDosDiskNote(), title, true, users), S_OK);
 
-    outcome = m_context.actions.SaveLinkProDosToDisk (TextEncoding::WideToNarrow (link), number, users.wstring());
+    outcome = m_context.actions.GetLinkDisks().SaveLinkProDosToDisk (TextEncoding::WideToNarrow (link), number, users.wstring());
 
     if (!outcome.Succeeded())
     {
@@ -1088,7 +1088,7 @@ void CassoLinkDriveManager::SaveLinkSosDisk (const std::string & name)
     CHR (hr);
     BAIL_OUT_IF (!chosen, S_OK);
 
-    outcome = m_context.actions.SaveLinkSosDisk (users.wstring(), picked.wstring(), link);
+    outcome = m_context.actions.GetLinkDisks().SaveLinkSosDisk (users.wstring(), picked.wstring(), link);
 
     if (!outcome.Succeeded())
     {

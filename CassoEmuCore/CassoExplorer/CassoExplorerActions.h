@@ -8,6 +8,7 @@
 #include "CassoExplorer/Actions/ActionsArchive.h"
 #include "CassoExplorer/Actions/ActionsCopy.h"
 #include "CassoExplorer/Actions/ActionsGoTo.h"
+#include "CassoExplorer/Actions/ActionsLinkDisk.h"
 #include "CassoExplorer/Actions/ActionsPartition.h"
 #include "CassoExplorer/Actions/ActionsTape.h"
 #include "Devices/Disk/IDiskFileIo.h"
@@ -86,6 +87,9 @@ public:
 
     //  The A2Pico card actions, for A2retroNET drives.
     ActionsA2retroNet & GetA2retroNet () { return m_a2retroNet; }
+
+    //  The CassoLink boot disks and the cassette bootstrap.
+    ActionsLinkDisk   & GetLinkDisks  () { return m_linkDisks; }
 
     //  One partition of a card image: the one selected or open, its copy as
     //  an image file beside the card image, and an image file written over it
@@ -267,11 +271,6 @@ public:
 
     HRESULT  CheckLinkDisk (const std::string & link, int drive, LinkDiskFn then) { return m_appleDrive.CheckLinkDisk (link, drive, then); }
 
-    //  The link's boot disk written to the open Apple drive over the link,
-    //  through an image in tempFolder: its boot sector loads the shim at the
-    //  link's speed.
-    Outcome  SaveLinkToDisk   (const std::string & link, int drive) { return m_appleDrive.SaveLinkToDisk (link, drive); }
-
     //  The open Apple drive formatted as DOS 3.3 or ProDOS, bootable or not,
     //  by writing it a new disk built in tempFolder from the request.
     Outcome  FormatAppleDrive (const DiskOperations::NewDiskRequest & request, const std::wstring & tempFolder) { return m_appleDrive.FormatAppleDrive (request, tempFolder); }
@@ -280,19 +279,6 @@ public:
     //  A linked drive's Apple Pascal disk krunched by the program on the Apple.
     bool     IsDrivePascal    (const std::string & link, int drive) const                                                 { return m_appleDrive.IsDrivePascal (link, drive); }
     Outcome  KrunchAppleDrive (const std::string & link, int drive, std::shared_ptr<LinkOperation> * outOperation = nullptr) { return m_appleDrive.KrunchAppleDrive (link, drive, outOperation); }
-
-    //  The same boot disk as an image file on the PC, for an emulator or to
-    //  write to a disk some other way. A Wi-Fi modem link's disk dials this
-    //  PC before its first Ready.
-    Outcome  SaveLinkDiskImage    (const std::wstring & imagePath, const CassoLinkSettings & settings) { return m_appleDrive.SaveLinkDiskImage (imagePath, settings); }
-    Outcome  SaveLinkProDosDisk   (const std::wstring & usersDisk, const std::wstring & imagePath, const CassoLinkSettings & settings) { return m_appleDrive.SaveLinkProDosDisk (usersDisk, imagePath, settings); }
-    Outcome  SaveLinkProDosToDisk (const std::string & link, int drive, const std::wstring & usersDisk) { return m_appleDrive.SaveLinkProDosToDisk (link, drive, usersDisk); }
-    Outcome  SaveLinkSosDisk      (const std::wstring & usersDisk, const std::wstring & imagePath, const CassoLinkSettings & settings) { return m_appleDrive.SaveLinkSosDisk (usersDisk, imagePath, settings); }
-
-    //  The cassette bootstrap for a link as a WAV file on the PC, to send into
-    //  a ][+ or //e's cassette input from another device, or to insert in
-    //  Casso's own tape deck. outCommand is the monitor command that reads it.
-    Outcome  SaveCassetteBootstrap (const std::wstring & wavPath, const CassoLinkSettings & settings, std::string & outCommand) { return m_appleDrive.SaveCassetteBootstrap (wavPath, settings, outCommand); }
 
     //  The open Apple drive as the menus and confirmations name it: its slot,
     //  its drive and its volume, as "Slot 6, Drive 1 (DOS 3.3 volume 254)".
@@ -399,5 +385,6 @@ private:
     ActionsPartition   m_partitions      { *this };
     ActionsTape        m_tapes           { *this };
     ActionsA2retroNet  m_a2retroNet      { *this };
+    ActionsLinkDisk    m_linkDisks       { m_browser };
 };
 

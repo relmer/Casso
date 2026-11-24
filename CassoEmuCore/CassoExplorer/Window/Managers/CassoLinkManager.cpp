@@ -621,7 +621,7 @@ void CassoLinkManager::SaveCassetteBootstrap (const std::string & name)
     CHR (hr);
     BAIL_OUT_IF (!chosen, S_OK);
 
-    outcome = m_context.actions.SaveCassetteBootstrap (picked.wstring(), link, command);
+    outcome = m_context.actions.GetLinkDisks().SaveCassetteBootstrap (picked.wstring(), link, command);
 
     if (!outcome.Succeeded())
     {

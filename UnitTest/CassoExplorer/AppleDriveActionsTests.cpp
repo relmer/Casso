@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "AppleDriveRig.h"
 #include "../EhmTestHelper.h"
 #include "../CassoLink/FakeApple.h"
 #include "../CassoLink/InMemoryCassoLinkFolder.h"
@@ -39,188 +40,7 @@ TEST_CLASS (AppleDriveActionsTests)
 {
 public:
 
-    struct Rig
-    {
-        InMemoryFileSystem                     fs;
-        FakeDiskFileIo                         io;
-        FakeApple                              apple;
-        FakeAppleFactory                       factory { apple };
-        InMemoryCassoLinkFolder                folder;
-        std::unique_ptr<CassoLinkConnections>  links;
-        std::unique_ptr<CassoExplorerBrowser>  browser;
-        std::unique_ptr<CassoExplorerActions>  actions;
-
-        Rig()
-        {
-            CassoLinkSettings  settings;
-
-            apple.drives[0] = BuildDos33();
-            apple.drives[1] = BuildProDos();
-
-            settings.name      = "Test";
-            settings.transport = LinkTransport::Emulated;
-            settings.address   = "127.0.0.1:6502";
-
-            links   = std::make_unique<CassoLinkConnections> (factory, folder, io);
-            browser = std::make_unique<CassoExplorerBrowser> (fs, io);
-            actions = std::make_unique<CassoExplorerActions> (*browser, fs);
-
-            links->SetLinks ({ settings });
-            browser->SetLinks (links.get());
-        }
-
-        ~Rig()
-        {
-            actions.reset();
-            browser.reset();
-            links.reset();
-        }
-
-        //  Opens a drive and waits for its catalog.
-        void  Open (int drive)
-        {
-            browser->GetNavigator().NavigateToLocation (Location::MakeAppleDrive (TreeModel::MakeLinkDriveId (L"Test", 6, drive), std::string()));
-            Reload();
-        }
-
-        //  Refreshes until the list has the drive's catalog as read now.
-        void  Reload()
-        {
-            auto  until = std::chrono::steady_clock::now() + std::chrono::seconds (20);
-
-            do
-            {
-                AssertSucceeded (browser->Refresh());
-
-                if (browser->GetListError().empty() && !browser->IsListingKept())
-                {
-                    return;
-                }
-
-                std::this_thread::yield();
-            }
-            while (std::chrono::steady_clock::now() < until);
-
-            Assert::Fail (L"the catalog arrives");
-        }
-
-        //  Waits until no operation is queued or running, so a read that an
-        //  action started has finished and been counted.
-        void  Settle()
-        {
-            auto  until = std::chrono::steady_clock::now() + std::chrono::seconds (20);
-
-            while (!links->GetPendingJobs().empty() && std::chrono::steady_clock::now() < until)
-            {
-                std::this_thread::yield();
-            }
-        }
-
-        //  Waits for the queued operations, runs their completions, and
-        //  lists the drive again.
-        std::vector<std::wstring>  Finish()
-        {
-            std::vector<std::wstring>  messages;
-            auto                       until = std::chrono::steady_clock::now() + std::chrono::seconds (20);
-
-            while (!links->GetPendingJobs().empty() && std::chrono::steady_clock::now() < until)
-            {
-                std::this_thread::yield();
-            }
-
-            messages = links->RunCompletions();
-            Reload();
-
-            return messages;
-        }
-
-        void  Select (const std::wstring & name)
-        {
-            const std::vector<CatalogRow> &  rows = browser->GetRows();
-
-            for (size_t i = 0; i < rows.size(); i++)
-            {
-                if (rows[i].name == name)
-                {
-                    browser->GetSelection().SetSelectedRows ({ (int) i });
-                    return;
-                }
-            }
-
-            Assert::Fail (L"the row is listed");
-        }
-
-        std::vector<Byte>  Drive (int drive)
-        {
-            std::lock_guard<std::mutex>  guard (apple.lock);
-
-            return apple.drives[(size_t) drive - 1];
-        }
-    };
-
-    static FilePayload  Binary (Byte type, size_t length, Byte seed)
-    {
-        FilePayload  payload;
-
-        payload.type           = type;
-        payload.loadAddress    = 0x6000;
-        payload.hasLoadAddress = true;
-        payload.bytes.resize (length);
-
-        for (size_t i = 0; i < length; i++)
-        {
-            payload.bytes[i] = (Byte) (seed + i * 3);
-        }
-
-        return payload;
-    }
-
-    static std::vector<Byte>  BuildDos33()
-    {
-        std::vector<Byte>  buffer (NibbleFormat::kImageByteSize, 0);
-        std::vector<Byte>  next;
-
-        AssertSucceeded (Dos33Skeleton::Write (buffer, 254));
-        AssertSucceeded (Dos33Volume (buffer).Write (FilePath::Parse ("HELLO"), Binary (Dos33Volume::kTypeBinary, 900, 1), next));
-
-        return next;
-    }
-
-    static std::vector<Byte>  BuildProDos()
-    {
-        std::vector<Byte>  buffer (NibbleFormat::kImageByteSize, 0);
-
-        AssertSucceeded (ProDosSkeleton::Write (buffer, "LINKED"));
-
-        return buffer;
-    }
-
-    static bool  HasEntry (const IVolume & volume, const std::string & name)
-    {
-        VolumeListing  listing;
-
-        AssertSucceeded (volume.Enumerate (listing));
-
-        return std::any_of (listing.entries.begin(), listing.entries.end(), [&name] (const FileEntry & entry) { return entry.name == name; });
-    }
-
-    static bool  FindEntry (const IVolume & volume, const std::string & name, FileEntry & outEntry)
-    {
-        VolumeListing  listing;
-
-        AssertSucceeded (volume.Enumerate (listing));
-
-        for (const FileEntry & entry : listing.entries)
-        {
-            if (entry.name == name)
-            {
-                outEntry = entry;
-                return true;
-            }
-        }
-
-        return false;
-    }
+    using Rig = AppleDriveRig;
 
 
 
@@ -336,12 +156,12 @@ public:
         rig.Select (L"HELLO");
         AssertSucceeded (rig.actions->RenameSelected (L"GREETING").hr);
         Assert::IsTrue (rig.Finish().empty());
-        Assert::IsTrue (HasEntry (Dos33Volume (rig.Drive (1)), "GREETING"));
+        Assert::IsTrue (Rig::HasEntry (Dos33Volume (rig.Drive (1)), "GREETING"));
 
         rig.Select (L"GREETING");
         AssertSucceeded (rig.actions->DeleteSelected().hr);
         Assert::IsTrue (rig.Finish().empty());
-        Assert::IsFalse (HasEntry (Dos33Volume (rig.Drive (1)), "GREETING"));
+        Assert::IsFalse (Rig::HasEntry (Dos33Volume (rig.Drive (1)), "GREETING"));
     }
 
 
@@ -384,7 +204,7 @@ public:
         rig.Select (L"HELLO");
         AssertSucceeded (rig.actions->SetLockedSelected (true).hr);
         Assert::IsTrue (rig.Finish().empty());
-        Assert::IsTrue (FindEntry (Dos33Volume (rig.Drive (1)), "HELLO", hello) && hello.isLocked);
+        Assert::IsTrue (Rig::FindEntry (Dos33Volume (rig.Drive (1)), "HELLO", hello) && hello.isLocked);
 
         //  A listing put on the drive is tokenized into a program, which
         //  converts to a text listing beside it.
@@ -417,8 +237,8 @@ public:
         AssertSucceeded (rig.actions->PutFiles ({ L"C:\\In\\Games" }).hr);
         Assert::IsTrue (rig.Finish().empty());
 
-        Assert::IsTrue (HasEntry (ProDosVolume (rig.Drive (2)), "STUFF"));
-        Assert::IsTrue (HasEntry (ProDosVolume (rig.Drive (2)), "GAMES"));
+        Assert::IsTrue (Rig::HasEntry (ProDosVolume (rig.Drive (2)), "STUFF"));
+        Assert::IsTrue (Rig::HasEntry (ProDosVolume (rig.Drive (2)), "GAMES"));
 
         {
             std::vector<Byte>  disk = rig.Drive (2);
@@ -458,7 +278,7 @@ public:
         FilePayload  source;
         FilePayload  copied;
 
-        rig.io.files["C:\\Disks\\source.dsk"] = BuildDos33();
+        rig.io.files["C:\\Disks\\source.dsk"] = Rig::BuildDos33();
         AssertSucceeded (Dos33Volume (rig.io.files["C:\\Disks\\source.dsk"]).Read (FilePath::Parse ("HELLO"), source));
 
         rig.Open (2);
@@ -577,7 +397,7 @@ public:
     {
         Rig  rig;
 
-        rig.io.files["C:\\Images\\in.dsk"] = BuildProDos();
+        rig.io.files["C:\\Images\\in.dsk"] = Rig::BuildProDos();
 
         rig.Open (1);
         Assert::AreEqual (std::wstring (L"Slot 6, Drive 1 (DOS 3.3 volume 254)"), rig.actions->DescribeAppleDrive());
@@ -622,37 +442,6 @@ public:
         job->fullSendWaiting = true;
         Assert::AreEqual (std::wstring (L"Full Send: waiting for a disk on the Apple"), CassoLinkConnectionText::DescribeJobs ({ job }));
     }
-
-
-
-    TEST_METHOD (SaveLinkToDisk_WritesTheBootDiskToTheDrive)
-    {
-        Rig                rig;
-        std::vector<Byte>  disk;
-        LinkShimOptions    options;
-
-        options.baud = CassoLinkSettings::kDefaultBaud;
-        AssertSucceeded (LinkProgram::BuildUniversalBootDisk (options, disk));
-
-        rig.Open (2);
-        AssertSucceeded (rig.actions->SaveLinkToDisk ("Test", 2).hr);
-
-        //  No catalog to list afterward: the disk has no file system.
-        {
-            auto  until = std::chrono::steady_clock::now() + std::chrono::seconds (20);
-
-            while (!rig.links->GetPendingJobs().empty() && std::chrono::steady_clock::now() < until)
-            {
-                std::this_thread::yield();
-            }
-        }
-
-        Assert::IsTrue (rig.links->RunCompletions().empty());
-
-        Assert::IsTrue (rig.Drive (2) == disk, L"the drive is the universal boot disk");
-        Assert::IsTrue (rig.io.files.empty(), L"the disk is made in memory, with no file");
-    }
-
 
 
 
@@ -737,63 +526,6 @@ public:
         Assert::IsTrue (rig.Drive (1) == before, L"the disk is untouched");
     }
 
-
-
-
-    TEST_METHOD (SaveLinkDiskImage_WritesTheImageOnThePc)
-    {
-        Rig                rig;
-        std::vector<Byte>  disk;
-        CassoLinkSettings  serial;
-        LinkShimOptions    options;
-
-        serial.baud  = 9600;
-        options.baud = 9600;
-
-        AssertSucceeded (LinkProgram::BuildUniversalBootDisk (options, disk));
-        AssertSucceeded (rig.actions->SaveLinkDiskImage (L"C:\\Disks\\link.dsk", serial).hr);
-
-        Assert::IsTrue (rig.io.files["C:\\Disks\\link.dsk"] == disk);
-    }
-
-
-
-    //  The CassoLink ProDOS disk made from a user's ProDOS disk has its
-    //  PRODOS and BASIC.SYSTEM, the installer and the STARTUP that runs it;
-    //  a ProDOS disk with neither is turned down with the reason. The user's
-    //  disk is made here, with small files in place of the two.
-    TEST_METHOD (SaveLinkProDosDisk_WritesADiskWithTheUsersProDos)
-    {
-        static constexpr Byte  kSystemType = 0xFF;
-
-        Rig                rig;
-        CassoLinkSettings  serial;
-        std::vector<Byte>  users (NibbleFormat::kImageByteSize, 0);
-        std::vector<Byte>  blank (NibbleFormat::kImageByteSize, 0);
-        std::vector<Byte>  file;
-        Byte               fileType = 0;
-        Word               auxType  = 0;
-
-        AssertSucceeded (ProDosSkeleton::Write (users, "USERS"));
-        AssertSucceeded (ProDosFileWriter::WriteFile (users, "PRODOS", kSystemType, 0x0000, std::vector<Byte> (3000, 0x4C)));
-        AssertSucceeded (ProDosFileWriter::WriteFile (users, "BASIC.SYSTEM", kSystemType, 0x2000, std::vector<Byte> (10240, 0x60)));
-
-        rig.io.files["C:/Disks/Users.dsk"]  = users;
-        rig.io.stamps["C:/Disks/Users.dsk"] = FileStamp { users.size(), 1 };
-
-        AssertSucceeded (rig.actions->SaveLinkProDosDisk (L"C:/Disks/Users.dsk", L"C:/Disks/Link.dsk", serial).hr);
-
-        for (const char * name : { "PRODOS", "BASIC.SYSTEM", "CASSOLINK", "STARTUP" })
-        {
-            AssertSucceeded (ProDosReader::ExtractFile (rig.io.files["C:/Disks/Link.dsk"], name, file, fileType, auxType));
-        }
-
-        AssertSucceeded (ProDosSkeleton::Write (blank, "EMPTY"));
-        rig.io.files["C:/Disks/Empty.dsk"]  = blank;
-        rig.io.stamps["C:/Disks/Empty.dsk"] = FileStamp { blank.size(), 1 };
-
-        Assert::IsFalse (rig.actions->SaveLinkProDosDisk (L"C:/Disks/Empty.dsk", L"C:/Disks/Link2.dsk", serial).Succeeded(), L"A disk without PRODOS is turned down");
-    }
 
 
 

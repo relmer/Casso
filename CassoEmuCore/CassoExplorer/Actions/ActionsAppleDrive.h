@@ -22,8 +22,7 @@ struct AppleSingleFile;
 //
 //  Operations on a linked Apple's drives: files put, got, deleted,
 //  renamed and made, whole disks read into images and written back, raw
-//  sectors and blocks, the link disk, formatting, and the cassette
-//  bootstrap.
+//  sectors and blocks, and formatting.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,10 +93,6 @@ public:
     //  from the drive's number before a catalog is read.
     static std::wstring  GetDriveImageName (CassoLinkConnections * links, const std::string & link, int slot, int drive);
 
-    //  The link's boot disk, made in memory and written to the linked
-    //  Apple's drive.
-    ActionsTypes::Outcome  SaveLinkToDisk   (const std::string & link, int drive);
-
     ActionsTypes::Outcome  FormatAppleDrive (const DiskOperations::NewDiskRequest & request, const std::wstring & tempFolder);
     ActionsTypes::Outcome  FormatAppleDrive (const std::string & link, int drive, const DiskOperations::NewDiskRequest & request, const std::wstring & tempFolder);
 
@@ -106,21 +101,6 @@ public:
     //  queued krunch.
     bool                   IsDrivePascal    (const std::string & link, int drive) const;
     ActionsTypes::Outcome  KrunchAppleDrive (const std::string & link, int drive, std::shared_ptr<LinkOperation> * outOperation = nullptr);
-
-    ActionsTypes::Outcome  SaveLinkDiskImage (const std::wstring & imagePath, const CassoLinkSettings & settings);
-
-    //  The CassoLink ProDOS disk (CassoLinkProDosDisk), from the user's ProDOS
-    //  disk at usersDisk, for the link's speed.
-    ActionsTypes::Outcome  SaveLinkProDosDisk (const std::wstring & usersDisk, const std::wstring & imagePath, const CassoLinkSettings & settings);
-
-    //  The same disk, made in memory and written to the linked Apple's drive.
-    ActionsTypes::Outcome  SaveLinkProDosToDisk (const std::string & link, int drive, const std::wstring & usersDisk);
-
-    //  The CassoLink SOS disk (CassoLinkSosDisk), from the user's SOS disk at
-    //  usersDisk, for the link's speed.
-    ActionsTypes::Outcome  SaveLinkSosDisk    (const std::wstring & usersDisk, const std::wstring & imagePath, const CassoLinkSettings & settings);
-
-    ActionsTypes::Outcome  SaveCassetteBootstrap (const std::wstring & wavPath, const CassoLinkSettings & settings, std::string & outCommand);
 
     std::wstring  DescribeAppleDrive () const;
 
@@ -142,7 +122,8 @@ public:
     ActionsTypes::Outcome  CreateFolderOnAppleDrive    (const std::string & name);
     void     PutItemsOnAppleDrive     (const std::string & link, int drive, const std::string & directory, std::vector<std::string> taken,
                                        const std::vector<std::wstring> & hostPaths, const ActionsTypes::AddressFn & askAddress, ActionsTypes::Outcome & inOutOutcome);
-    void     SubmitWrite              (const std::string & link, int drive, CassoLinkConnections::Queuer queue, ActionsTypes::Outcome & inOutOutcome);
+
+    static void  SubmitWrite (CassoLinkConnections & links, const std::string & link, int drive, CassoLinkConnections::Queuer queue, ActionsTypes::Outcome & inOutOutcome);
 
     //  A completion that does nothing once this object is gone. Jobs are in
     //  the shell's connections, which every window shares, and can finish
@@ -151,9 +132,6 @@ public:
 
 private:
     friend class CassoExplorerActions;
-
-    CassoLinkSettings      FindLinkSettings   (const std::string & link) const;
-    ActionsTypes::Outcome  MakeLinkProDosDisk (const std::wstring & usersDisk, const CassoLinkSettings & settings, std::vector<Byte> & outDisk);
 
     CassoExplorerActions  & m_actions;
 
