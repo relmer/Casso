@@ -13,7 +13,7 @@
 //
 //  FormatStamp and its parts
 //
-//  The format of each track of a 5.25" WOZ image as Casso analyzed it, kept
+//  The format of each track of a 5.25" WOZ image as Casso analyzed it, stored
 //  in the file's CSSO chunk as JSON. A read of the image decodes a track with
 //  its stamped marks only where they produce better sectors than detection,
 //  so a stale or wrong stamp slows a read and never changes its result. The

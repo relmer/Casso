@@ -313,7 +313,10 @@
     <ClCompile Include="EmuTests\NibbleImageCodecTests.cpp" />
     <ClCompile Include="EmuTests\DenibblizerTests.cpp" />
     <ClCompile Include="EmuTests\NibbleFieldWriterTests.cpp" />
+    <ClCompile Include="EmuTests\FormatStampBuilderTests.cpp" />
     <ClCompile Include="EmuTests\FormatStampChunkTests.cpp" />
+    <ClCompile Include="EmuTests\MarkDiscoveryTests.cpp" />
+    <ClCompile Include="EmuTests\StampDiskFixtures.cpp" />
     <ClCompile Include="EmuTests\FormatStampJsonTests.cpp" />
     <ClCompile Include="EmuTests\NibblizationTests.cpp" />
     <ClCompile Include="EmuTests\SectorInterleaveTests.cpp" />
@@ -1077,6 +1080,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="EmuTests\FakeTapeAudioDecoder.h" />
+    <ClInclude Include="EmuTests\StampDiskFixtures.h" />
     <ClInclude Include="EmuTests\TapeTestEncoder.h" />
     <ClInclude Include="EmuTests\DamagedDisk.h" />
     <ClInclude Include="EmuTests\FakeExpansionRomCard.h" />

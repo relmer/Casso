@@ -14,7 +14,7 @@
 //  FormatStampJson::Write
 //
 //  The stamp as pretty-printed JSON, with every key the format defines. An
-//  empty list is written as [], so a reader never has to tell a missing key
+//  empty list is written as [], so a reader never has to distinguish a missing key
 //  from an empty one.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -163,7 +163,7 @@ Error:
 //  FormatStampJson::ReadHeader
 //
 //  The format, version, writer, date and source. The writer and the date
-//  are informational, so a stamp without them still reads.
+//  are informational, so a stamp without them reads.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

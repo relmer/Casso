@@ -15,6 +15,8 @@
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskFieldFormat.h"
 #include "Devices/Disk/DiskImage.h"
+#include "Devices/Disk/Stamp/FormatStamp.h"
+#include "Devices/Disk/Stamp/FormatStampChunk.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -1105,6 +1107,40 @@ public:
         return position;
     }
 
+
+    //  A capture's WOZ has a format stamp, with each track's marks and the
+    //  capture's facts.
+    TEST_METHOD (ACapturesWoz_HasAFormatStamp)
+    {
+        static constexpr int  kTracks  = 3;
+        static constexpr int  kSectors = 16;
+
+        std::vector<CassoLinkCapture::Position>  positions;
+        CassoLinkCapture::Result                 result;
+        std::string                              text;
+        StampState                               state = StampState::Absent;
+        FormatStamp                              stamp;
+
+
+
+        for (int track = 0; track < kTracks; track++)
+        {
+            positions.push_back (MakeStandardPosition (track));
+        }
+
+        AssertSucceeded (CassoLinkCapture::BuildWoz (positions, (kTracks - 1) * 4, "2026-11-12T00:00:00Z", 1, result));
+        AssertSucceeded (FormatStampChunk::GetStampFromFile (result.woz, text, state, stamp));
+
+        Assert::IsTrue   (state == StampState::Readable);
+        Assert::IsTrue   (stamp.source == StampSource::Capture);
+        Assert::IsTrue   (stamp.hasCapture);
+        Assert::AreEqual (kTracks * (int) CassoLinkCapture::kWholeReads, stamp.capture.reads);
+        Assert::AreEqual (std::string ("2026-11-12T00:00:00Z"), stamp.written);
+        Assert::IsTrue   (stamp.tracks.size() >= (size_t) kTracks);
+        Assert::IsTrue   (stamp.tracks[1].addressPrologs == std::vector<std::vector<Byte>> { { 0xD5, 0xAA, 0x96 } });
+        Assert::AreEqual (kSectors, stamp.tracks[1].sectorsGood);
+        Assert::IsTrue   (stamp.tracks[1].hasCapture);
+    }
 
     //  A capture whose reads found the disk write-protected is a
     //  write-protected WOZ, and the reads file has it; one whose reads didn't

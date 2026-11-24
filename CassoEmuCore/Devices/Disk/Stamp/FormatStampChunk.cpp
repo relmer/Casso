@@ -69,7 +69,7 @@ bool FormatStampChunk::HasStampChunk (const WozMetadata & meta)
 //  FormatStampChunk::SetStamp
 //
 //  Replaces the first CSSO chunk's text with the stamp's, or appends a CSSO
-//  chunk when the image has none.
+//  chunk to an image without one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

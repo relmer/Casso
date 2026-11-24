@@ -15,8 +15,8 @@ struct WozMetadata;
 //
 //  The CSSO chunk that has a format stamp: in a loaded image's WOZ metadata,
 //  where it is one of the chunks a save writes back, and in a WOZ file's
-//  bytes, for an edit that leaves every other chunk where it is. A file with
-//  more than one uses the first.
+//  bytes, for an edit that moves no other chunk. A file with more than one
+//  uses the first.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -11,7 +11,7 @@
 //  WozChunkSpan / WozChunkWalker
 //
 //  A WOZ file's chunks, from the header to the first id that isn't a chunk's,
-//  which in a version 2 file is the track data after TRKS. A span is a chunk's
+//  which in a WOZ2 image is the track data after TRKS. A span is a chunk's
 //  header offset, and its payload's offset and size.
 //
 ////////////////////////////////////////////////////////////////////////////////
