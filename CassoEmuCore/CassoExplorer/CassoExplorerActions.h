@@ -197,6 +197,16 @@ public:
     bool  CanInspect () const;
     bool  CanCompare () const;
 
+    //  The image picked by Select for compare, for a later Compare to.
+    void                  SetComparePick    (const std::wstring & imagePath) { m_comparePick = imagePath; }
+    void                  ClearComparePick  ()                               { m_comparePick.clear(); }
+    const std::wstring  & GetComparePick    () const                         { return m_comparePick; }
+    bool                  CanCompareToPick  (const std::wstring & imagePath) const;
+
+    //  Separators with nothing on one side of them, or beside another one,
+    //  taken out of a verb list.
+    static void  RemoveExtraSeparators (std::vector<Verb> & inOutVerbs);
+
     //  A new directory in the ProDOS location the list shows. The name is the
     //  volume's to accept, so an illegal one comes back as a refusal.
     Outcome  CreateFolder (const std::wstring & name);
@@ -356,6 +366,7 @@ private:
 
     static constexpr size_t  kMaxImageFacts = 256;
 
+    void                      AddImageVerbs (bool onDisk, std::vector<Verb> & inOutVerbs) const;
     std::vector<std::string>  GetEntryNames (const std::string & image, const std::string & directory) const;
     Outcome                   ConvertOne    (const FileEntry & entry, BasicConversion::Kind kind, const std::vector<std::string> & made, std::string & outNewName);
     ImageFacts              & GetImageFacts (const std::wstring & image) const;
@@ -368,6 +379,7 @@ private:
     IFileSystem                                 & m_fs;
     WrittenFn                                     m_onWritten;
     mutable std::map<std::wstring, ImageFacts>    m_imageFacts;
+    std::wstring                                  m_comparePick;
 
     //  The actions' parts, each with the state it uses.
     friend class       ActionsA2retroNet;

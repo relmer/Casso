@@ -126,15 +126,17 @@ const wchar_t * ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb verb)
         case CassoExplorerActions::Verb::Unlock:         return L"&Unlock";
         case CassoExplorerActions::Verb::ConvertTo:      return L"Con&vert to";
         case CassoExplorerActions::Verb::ConvertToTapeAudio: return L"Convert to tap&e audio...";
-        case CassoExplorerActions::Verb::ConvertToDiskAudio: return L"Convert to dis&k audio...";
+        case CassoExplorerActions::Verb::ConvertToDiskAudio: return L"Convert to Apple &cassette tape...";
         case CassoExplorerActions::Verb::AddToA2retroNet: return L"Add to A2&retroNET drives";
-        case CassoExplorerActions::Verb::MakeArchive:    return L"Add to &ShrinkIt archive";
-        case CassoExplorerActions::Verb::MakeShrinkItDisk: return L"Make a ShrinkIt &disk";
+        case CassoExplorerActions::Verb::MakeArchive:    return L"Compress to &ShrinkIt archive (.shk)";
+        case CassoExplorerActions::Verb::MakeShrinkItDisk: return L"Compress to &ShrinkIt archive (.shk)";
         case CassoExplorerActions::Verb::Test:           return L"&Test";
         case CassoExplorerActions::Verb::CopyPartitionToImage: return L"Create ima&ge from partition...";
-        case CassoExplorerActions::Verb::ReplacePartition: return L"Replace &partition...";
-        case CassoExplorerActions::Verb::InspectDiskImage: return L"&Inspect disk image";
-        case CassoExplorerActions::Verb::CompareDiskImages: return L"Co&mpare disk images";
+        case CassoExplorerActions::Verb::ReplacePartition: return L"Replace &partition with image...";
+        case CassoExplorerActions::Verb::InspectDiskImage: return L"&Inspect / repair";
+        case CassoExplorerActions::Verb::CompareDiskImages: return L"Co&mpare";
+        case CassoExplorerActions::Verb::SelectForCompare: return L"Se&lect for compare";
+        case CassoExplorerActions::Verb::CompareToPick:  return L"Co&mpare to";
         default:                                   return L"";
     }
 }

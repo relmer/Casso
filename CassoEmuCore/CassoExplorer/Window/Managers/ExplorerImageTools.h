@@ -43,6 +43,7 @@ public:
     void  InspectDiskImages         (const std::vector<std::wstring> & paths);
     void  RepairDiskImage           (const std::wstring & path);
     void  CompareSelectedDiskImages ();
+    void  CompareToPick             (const std::wstring & image);
 
 private:
     ExplorerContext  & m_context;

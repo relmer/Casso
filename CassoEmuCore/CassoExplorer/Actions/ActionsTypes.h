@@ -102,6 +102,14 @@ struct ActionsTypes
 
         //  Copy to folder, its conversion options chosen first.
         GetWithOptions,
+
+        //  The selected image stored as the first of a later comparison, and
+        //  the selected image compared with the stored one.
+        SelectForCompare,
+        CompareToPick,
+
+        //  A break between groups of a menu's rows, not a command.
+        Separator,
     };
 
     //  What a put does with the bytes. ByContent is the rule a left-drag

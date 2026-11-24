@@ -102,6 +102,34 @@ void ExplorerImageTools::CompareSelectedDiskImages()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerImageTools::CompareToPick
+//
+//  The image picked by Select for compare is A and this one is B. Once the
+//  comparison opens, the pick is cleared.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerImageTools::CompareToPick (const std::wstring & image)
+{
+    std::wstring  pick = m_context.actions.GetComparePick();
+
+
+
+    if (m_context.app.host == nullptr || m_context.theme == nullptr || !m_context.actions.CanCompareToPick (image))
+    {
+        return;
+    }
+
+    m_context.app.host->CompareDiskImages (m_context.window.GetHwnd(), pick, image, *m_context.theme);
+    m_context.actions.ClearComparePick();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerImageTools::ExtractImageFiles
 //
 //  The image's files go into a folder beside it, which is then selected in

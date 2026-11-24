@@ -58,7 +58,6 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
 {
     std::vector<Verb>          verbs;
     std::vector<FileEntry>     entries;
-    std::vector<std::wstring>  imagePaths;
     std::wstring               wrapped;
     size_t                     selected    = m_browser.GetSelectedRows().size();
     Location                   location    = m_browser.GetLocation();
@@ -66,6 +65,7 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
     bool                       onDisk      = location.kind == Location::Kind::HostFolder || m_browser.GetSelection().AreSelectedRowsSearchFiles();
     std::wstring               partition;
     bool                       isPartition = m_partitions.TryGetTarget (partition);
+    bool                       imageMenu   = false;
 
 
 
@@ -82,7 +82,9 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
                 verbs.push_back (Verb::InspectDiskImage);
             }
 
+            verbs.push_back (Verb::Separator);
             ActionsPartition::AddVerbs (!m_browser.IsWriteProtected(), verbs);
+            verbs.push_back (Verb::Separator);
         }
     }
     else if (m_browser.IsImageLocation())
@@ -120,7 +122,6 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
         if (!entries.empty() && writable)
         {
             verbs.push_back (Verb::Rename);
-            AddFileVerbs (entries, verbs);
         }
 
         if (entries.size() == 1 && writable)
@@ -132,6 +133,13 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
                 verbs.push_back (Verb::Boot);
             }
         }
+
+        if (!entries.empty() && writable)
+        {
+            AddFileVerbs (entries, verbs);
+        }
+
+        verbs.push_back (Verb::Separator);
 
         if (writable)
         {
@@ -159,6 +167,7 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
 
         if (isPartition)
         {
+            verbs.push_back (Verb::Separator);
             ActionsPartition::AddVerbs (writable, verbs);
         }
     }
@@ -178,46 +187,13 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
             AddFileVerbs (entries, verbs);
         }
 
+        verbs.push_back (Verb::Separator);
         verbs.push_back (Verb::Put);
     }
     else if (m_browser.GetSelection().AreSelectedRowsImages() && selected == 1)
     {
-        verbs.push_back (Verb::Open);
-        verbs.push_back (Verb::InsertDrive1);
-        verbs.push_back (Verb::InsertDrive2);
-        verbs.push_back (Verb::OpenInNewCasso);
-
-        if (CanInspectSelected())
-        {
-            verbs.push_back (Verb::InspectDiskImage);
-        }
-
-        verbs.push_back (Verb::ExtractFiles);
-        verbs.push_back (Verb::Format);
-
-        if (IsTargetPascal())
-        {
-            verbs.push_back (Verb::Krunch);
-        }
-
-        m_browser.GetSelection().GetSelectedHostPaths (imagePaths);
-
-        if (imagePaths.size() == 1 && ActionsArchive::CanMakeShrinkItDisk (imagePaths[0]))
-        {
-            verbs.push_back (Verb::MakeShrinkItDisk);
-        }
-
-        if (imagePaths.size() == 1 && ActionsTape::CanMakeDiskRecording (imagePaths[0]))
-        {
-            verbs.push_back (Verb::ConvertToDiskAudio);
-        }
-
-        if (imagePaths.size() == 1 && m_a2retroNet.CanAdd (imagePaths[0]))
-        {
-            verbs.push_back (Verb::AddToA2retroNet);
-        }
-
-        verbs.push_back (Verb::Test);
+        AddImageVerbs (onDisk, verbs);
+        imageMenu = true;
     }
     else if (m_browser.GetSelection().AreSelectedRowsImages() && CanInspectSelected())
     {
@@ -227,9 +203,9 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
         {
             verbs.push_back (Verb::CompareDiskImages);
         }
-    }
 
-    AddFilesystemVerbs (verbs);
+        verbs.push_back (Verb::Separator);
+    }
 
     //  A real file opens in its own program, and anything real has the shell's
     //  own menu. A folder or an image opens here instead. A search's file has
@@ -245,7 +221,7 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
             verbs.push_back (Verb::Open);
             verbs.push_back (Verb::OpenWith);
         }
-        else if (selected == 1 && row.isDiskImage)
+        else if (selected == 1 && row.isDiskImage && !imageMenu)
         {
             verbs.push_back (Verb::OpenWith);
         }
@@ -265,6 +241,7 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
             verbs.push_back (Verb::Open);
         }
 
+        verbs.push_back (Verb::Separator);
         verbs.push_back (Verb::Cut);
         verbs.push_back (Verb::Copy);
 
@@ -279,7 +256,8 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
         //  Rename takes the focused item, so any selection offers it.
         verbs.push_back (Verb::Rename);
 
-        if (location.kind == Location::Kind::HostFolder)
+        //  A single image's ShrinkIt disk is under Convert instead.
+        if (location.kind == Location::Kind::HostFolder && !imageMenu)
         {
             verbs.push_back (Verb::MakeArchive);
         }
@@ -362,8 +340,136 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
     }
 
     verbs.push_back (Verb::Refresh);
+    RemoveExtraSeparators (verbs);
 
     return verbs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::AddImageVerbs
+//
+//  One disk image in a folder: Open and Casso's commands, then the commands
+//  that make something from it or change it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerActions::AddImageVerbs (bool onDisk, std::vector<Verb> & inOutVerbs) const
+{
+    std::vector<std::wstring>  imagePaths;
+    bool                       one        = false;
+
+
+
+    m_browser.GetSelection().GetSelectedHostPaths (imagePaths);
+    one = imagePaths.size() == 1;
+
+    inOutVerbs.push_back (Verb::Open);
+
+    if (onDisk)
+    {
+        inOutVerbs.push_back (Verb::OpenWith);
+    }
+
+    inOutVerbs.push_back (Verb::InsertDrive1);
+    inOutVerbs.push_back (Verb::InsertDrive2);
+    inOutVerbs.push_back (Verb::OpenInNewCasso);
+
+    if (CanInspectSelected())
+    {
+        inOutVerbs.push_back (Verb::InspectDiskImage);
+    }
+
+    //  The comparison opens in the disk inspector, so only an image it opens
+    //  can be picked or compared.
+    if (one && CanInspectSelected())
+    {
+        inOutVerbs.push_back (Verb::SelectForCompare);
+    }
+
+    if (one && CanInspectSelected() && CanCompareToPick (imagePaths[0]))
+    {
+        inOutVerbs.push_back (Verb::CompareToPick);
+    }
+
+    inOutVerbs.push_back (Verb::Separator);
+
+    if (one && ActionsTape::CanMakeDiskRecording (imagePaths[0]))
+    {
+        inOutVerbs.push_back (Verb::ConvertToDiskAudio);
+    }
+
+    if (one && ActionsArchive::CanMakeShrinkItDisk (imagePaths[0]))
+    {
+        inOutVerbs.push_back (Verb::MakeShrinkItDisk);
+    }
+
+    inOutVerbs.push_back (Verb::ExtractFiles);
+
+    if (IsTargetPascal())
+    {
+        inOutVerbs.push_back (Verb::Krunch);
+    }
+
+    inOutVerbs.push_back (Verb::Format);
+    inOutVerbs.push_back (Verb::Separator);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::CanCompareToPick
+//
+//  An image other than the one picked, once one is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerActions::CanCompareToPick (const std::wstring & imagePath) const
+{
+    return !m_comparePick.empty() && !imagePath.empty() && _wcsicmp (m_comparePick.c_str(), imagePath.c_str()) != 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::RemoveExtraSeparators
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerActions::RemoveExtraSeparators (std::vector<Verb> & inOutVerbs)
+{
+    std::vector<Verb>  kept;
+
+
+
+    for (Verb verb : inOutVerbs)
+    {
+        bool  afterBreak = kept.empty() || kept.back() == Verb::Separator;
+
+        if (verb == Verb::Separator && afterBreak)
+        {
+            continue;
+        }
+
+        kept.push_back (verb);
+    }
+
+    while (!kept.empty() && kept.back() == Verb::Separator)
+    {
+        kept.pop_back();
+    }
+
+    inOutVerbs = std::move (kept);
 }
 
 

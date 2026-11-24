@@ -362,6 +362,14 @@ void ExplorerVerbs::RunVerb (CassoExplorerActions::Verb verb)
             m_context.imageTools.CompareSelectedDiskImages();
             break;
 
+        case CassoExplorerActions::Verb::SelectForCompare:
+            m_context.actions.SetComparePick (m_context.cassoTarget.GetSelectedImagePath());
+            break;
+
+        case CassoExplorerActions::Verb::CompareToPick:
+            m_context.imageTools.CompareToPick (m_context.cassoTarget.GetSelectedImagePath());
+            break;
+
         case CassoExplorerActions::Verb::Paste:
             if (m_context.browser.IsVolumeLocation())
             {

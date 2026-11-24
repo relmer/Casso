@@ -513,6 +513,113 @@ public:
     }
 
 
+    TEST_METHOD (AnImage_ListsCassosCommandsThenTheConversions)
+    {
+        Host                                     host;
+        std::vector<CassoExplorerActions::Verb>  verbs;
+        auto                                     at    = [&verbs] (CassoExplorerActions::Verb verb) { return std::find (verbs.begin(), verbs.end(), verb) - verbs.begin(); };
+        auto                                     has   = [&verbs] (CassoExplorerActions::Verb verb) { return std::find (verbs.begin(), verbs.end(), verb) != verbs.end(); };
+
+
+
+        host.OpenImage();
+        host.browser.GetNavigator().GoUp();
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"dos33.dsk") });
+        verbs = host.actions.GetListVerbs();
+
+        Assert::AreEqual ((ptrdiff_t) 0, at (CassoExplorerActions::Verb::Open), L"Open is first");
+        Assert::IsTrue   (at (CassoExplorerActions::Verb::Open)             < at (CassoExplorerActions::Verb::OpenWith));
+        Assert::IsTrue   (at (CassoExplorerActions::Verb::OpenWith)         < at (CassoExplorerActions::Verb::InsertDrive1));
+        Assert::IsTrue   (at (CassoExplorerActions::Verb::OpenInNewCasso)   < at (CassoExplorerActions::Verb::InspectDiskImage));
+        Assert::IsTrue   (at (CassoExplorerActions::Verb::InspectDiskImage) < at (CassoExplorerActions::Verb::SelectForCompare));
+        Assert::IsTrue   (at (CassoExplorerActions::Verb::SelectForCompare) < at (CassoExplorerActions::Verb::Separator));
+        Assert::IsTrue   (at (CassoExplorerActions::Verb::Separator)        < at (CassoExplorerActions::Verb::ExtractFiles));
+        Assert::IsTrue   (at (CassoExplorerActions::Verb::ExtractFiles)     < at (CassoExplorerActions::Verb::Format));
+        Assert::IsTrue   (at (CassoExplorerActions::Verb::Format)           < at (CassoExplorerActions::Verb::MoreOptions));
+
+        Assert::IsFalse  (has (CassoExplorerActions::Verb::Test));
+        Assert::IsFalse  (has (CassoExplorerActions::Verb::AddToA2retroNet));
+        Assert::IsFalse  (has (CassoExplorerActions::Verb::ReadAsCpm));
+        Assert::IsFalse  (has (CassoExplorerActions::Verb::DetectFilesystem));
+        Assert::IsFalse  (has (CassoExplorerActions::Verb::MakeArchive),   L"An image has its ShrinkIt disk under Convert");
+        Assert::IsFalse  (has (CassoExplorerActions::Verb::CompareToPick), L"Nothing is picked yet");
+    }
+
+
+    TEST_METHOD (ComparePick_OffersCompareToOnAnyOtherImage)
+    {
+        Host                                     host;
+        std::vector<CassoExplorerActions::Verb>  verbs;
+        auto                                     has   = [&verbs] (CassoExplorerActions::Verb verb) { return std::find (verbs.begin(), verbs.end(), verb) != verbs.end(); };
+
+
+
+        host.SeedBytes (ScratchImages::GetDos33 (false), L"C:\\Disks\\second.dsk");
+        host.OpenImage();
+        host.browser.GetNavigator().GoUp();
+
+        host.actions.SetComparePick (L"C:\\Disks\\dos33.dsk");
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\dos33.dsk"), host.actions.GetComparePick());
+
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"second.dsk") });
+        verbs = host.actions.GetListVerbs();
+        Assert::IsTrue  (has (CassoExplorerActions::Verb::CompareToPick),    L"another image");
+        Assert::IsTrue  (has (CassoExplorerActions::Verb::SelectForCompare), L"and it can replace the pick");
+
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"dos33.dsk") });
+        verbs = host.actions.GetListVerbs();
+        Assert::IsFalse (has (CassoExplorerActions::Verb::CompareToPick), L"the picked image itself");
+        Assert::IsFalse (host.actions.CanCompareToPick (L"c:\\disks\\DOS33.DSK"), L"paths that differ only in case match");
+
+        host.actions.SetComparePick (L"C:\\Disks\\second.dsk");
+        verbs = host.actions.GetListVerbs();
+        Assert::IsTrue  (has (CassoExplorerActions::Verb::CompareToPick), L"a new pick replaces the old one");
+
+        host.actions.ClearComparePick();
+        verbs = host.actions.GetListVerbs();
+        Assert::IsFalse (has (CassoExplorerActions::Verb::CompareToPick), L"cleared once a comparison opens");
+    }
+
+
+    TEST_METHOD (AFileInAnImage_ListsOpenAndCopyBeforeAddingFiles)
+    {
+        Host                                     host;
+        std::vector<CassoExplorerActions::Verb>  verbs;
+        auto                                     at    = [&verbs] (CassoExplorerActions::Verb verb) { return std::find (verbs.begin(), verbs.end(), verb) - verbs.begin(); };
+
+
+
+        host.OpenImage();
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"HELLO") });
+        verbs = host.actions.GetListVerbs();
+
+        Assert::IsTrue (at (CassoExplorerActions::Verb::Open)           < at (CassoExplorerActions::Verb::Get));
+        Assert::IsTrue (at (CassoExplorerActions::Verb::Get)            < at (CassoExplorerActions::Verb::GetWithOptions));
+        Assert::IsTrue (at (CassoExplorerActions::Verb::GetWithOptions) < at (CassoExplorerActions::Verb::Boot));
+        Assert::IsTrue (at (CassoExplorerActions::Verb::Boot)           < at (CassoExplorerActions::Verb::Lock));
+        Assert::IsTrue (at (CassoExplorerActions::Verb::Lock)           < at (CassoExplorerActions::Verb::Separator));
+        Assert::IsTrue (at (CassoExplorerActions::Verb::Separator)      < at (CassoExplorerActions::Verb::Put));
+    }
+
+
+    TEST_METHOD (RemoveExtraSeparators_KeepsOnlySeparatorsBetweenRows)
+    {
+        using Verb = CassoExplorerActions::Verb;
+
+        std::vector<Verb>  verbs    = { Verb::Separator, Verb::Open, Verb::Separator, Verb::Separator, Verb::Format, Verb::Separator };
+        std::vector<Verb>  expected = { Verb::Open, Verb::Separator, Verb::Format };
+
+
+
+        CassoExplorerActions::RemoveExtraSeparators (verbs);
+        Assert::IsTrue (verbs == expected);
+
+        verbs = { Verb::Separator };
+        CassoExplorerActions::RemoveExtraSeparators (verbs);
+        Assert::IsTrue (verbs.empty());
+    }
+
+
     TEST_METHOD (CanInspectAndCanCompare_FollowTheSelectionAndTheOpenImage)
     {
         Host  host;
