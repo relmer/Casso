@@ -90,6 +90,7 @@ bool InspectorText::HasCustomMark (const vector<vector<Byte>> & prologs)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  InspectorText::BuildChips
