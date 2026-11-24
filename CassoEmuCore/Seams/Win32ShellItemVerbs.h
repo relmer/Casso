@@ -46,7 +46,8 @@ public:
     HRESULT      RunItemVerbByLabel     (HWND owner, const std::vector<std::wstring> & paths, const std::wstring & label) override { return m_menus.RunItemVerbByLabel (owner, paths, label); }
     HRESULT      ListItemVerbs          (const std::vector<std::wstring> & paths, const std::vector<std::string> & verbs, std::vector<ItemVerb> & outFound) override { return m_menus.ListItemVerbs (paths, verbs, outFound); }
     bool         HasShellPreview        (const std::wstring & path) override { return Win32ShellPreview::HasPreview (path); }
-    HRESULT      Recycle                (HWND owner, const std::vector<std::wstring> & paths) override { return m_recycleBin.Recycle (owner, paths); }
+    HRESULT      Recycle                (HWND owner, const std::vector<std::wstring> & paths) override { return m_recycleBin.Recycle (owner, paths, true); }
+    HRESULT      RecycleCopies          (HWND owner, const std::vector<std::wstring> & paths) override { return m_recycleBin.Recycle (owner, paths, false); }
     HRESULT      RestoreRecycled        (HWND owner, const std::vector<std::wstring> & paths) override { return m_recycleBin.RestoreRecycled (owner, paths); }
     HRESULT      ListRecycled           (std::vector<RecycledItem> & outItems) override { return m_recycleBin.ListRecycled (outItems); }
     HRESULT      RunRecycledVerb        (HWND owner, const std::vector<std::wstring> & ids, RecycledVerb verb) override { return m_recycleBin.RunRecycledVerb (owner, ids, verb); }

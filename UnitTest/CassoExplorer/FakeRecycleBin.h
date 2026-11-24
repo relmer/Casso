@@ -66,6 +66,7 @@ public:
     HRESULT  ShowBackgroundMenu  (HWND, const std::wstring &, POINT) override                                     { return E_NOTIMPL; }
     HRESULT  RunItemVerb         (HWND, const std::vector<std::wstring> &, const char *) override       { return E_NOTIMPL; }
     HRESULT  Recycle             (HWND, const std::vector<std::wstring> &) override                     { return E_NOTIMPL; }
+    HRESULT  RecycleCopies       (HWND, const std::vector<std::wstring> &) override                     { return E_NOTIMPL; }
     HRESULT  RestoreRecycled     (HWND, const std::vector<std::wstring> &) override                     { return E_NOTIMPL; }
     HRESULT  ListRecycled        (std::vector<RecycledItem> & outItems) override                        { outItems = items; return S_OK; }
     HRESULT  RunRecycledVerb     (HWND, const std::vector<std::wstring> &, RecycledVerb) override       { return E_NOTIMPL; }

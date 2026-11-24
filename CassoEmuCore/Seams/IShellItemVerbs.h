@@ -158,6 +158,10 @@ public:
     //  paste through the clipboard other programs share.
     virtual HRESULT  Recycle           (HWND owner, const std::vector<std::wstring> & paths) = 0;
 
+    //  The copies a paste, drop or new item made, to the Recycle Bin with no
+    //  prompt, as in File Explorer's undo.
+    virtual HRESULT  RecycleCopies     (HWND owner, const std::vector<std::wstring> & paths) = 0;
+
     //  The latest deleted copy of each path back out of the Recycle Bin, as
     //  Explorer's undo restores a deletion.
     virtual HRESULT  RestoreRecycled   (HWND owner, const std::vector<std::wstring> & paths) = 0;

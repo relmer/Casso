@@ -1,7 +1,6 @@
 #include "Pch.h"
 
 #include "Seams/ShellVerbs/Win32RecycleBin.h"
-#include "Seams/ShellVerbs/FileSystemBindData.h"
 #include "Seams/Win32ShellItemVerbs.h"
 
 
@@ -27,12 +26,8 @@ Win32RecycleBin::Win32RecycleBin (Win32ShellItemVerbs & verbs)
 //
 //  Win32RecycleBin::GetItemArray
 //
-//  Each path is parsed with the file's find data from FindFirstFileW in the
-//  bind context, so its IDList has the file's size, attributes and times as
-//  the volume has them now. On a FAT volume, such as a memory card, an IDList
-//  parsed from a path alone has a size of zero, and the shell's delete
-//  confirmation then has "0 bytes" for its size. A file that can't be found is parsed
-//  without the data and read again from its volume.
+//  Each item is read again from its volume before its IDList is taken, so
+//  its size and times are current.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,29 +46,15 @@ HRESULT Win32RecycleBin::GetItemArray (const std::vector<std::wstring> & paths, 
     for (const std::wstring & path : paths)
     {
         ComPtr<IShellItem2>  item;
-        ComPtr<IBindCtx>     context;
-        WIN32_FIND_DATAW     found   = {};
-        HANDLE               find    = FindFirstFileW (path.c_str(), &found);
         PIDLIST_ABSOLUTE     pidl    = nullptr;
         HRESULT              updated = S_OK;
 
-        if (find != INVALID_HANDLE_VALUE)
-        {
-            FindClose (find);
-
-            hr = FileSystemBindData::CreateBindContext (found, &context);
-            CHR (hr);
-        }
-
-        hr = SHCreateItemFromParsingName (path.c_str(), context.Get(), IID_PPV_ARGS (&item));
+        hr = SHCreateItemFromParsingName (path.c_str(), nullptr, IID_PPV_ARGS (&item));
         CHR (hr);
 
         //  When the item can't be read again, the parsed data is used.
-        if (context == nullptr)
-        {
-            updated = item->Update (nullptr);
-            IGNORE_RETURN_VALUE (updated, S_OK);
-        }
+        updated = item->Update (nullptr);
+        IGNORE_RETURN_VALUE (updated, S_OK);
 
         hr = SHGetIDListFromObject (item.Get(), &pidl);
         CHR (hr);
@@ -162,11 +143,38 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32RecycleBin::GetRecycleFlags
+//
+//  With no prompt, the items on a volume with no Recycle Bin are deleted
+//  at once, as in File Explorer's undo of a copy.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DWORD Win32RecycleBin::GetRecycleFlags (bool hasPrompt)
+{
+    DWORD  flags = FOF_ALLOWUNDO | FOFX_RECYCLEONDELETE | FOFX_ADDUNDORECORD;
+
+
+
+    if (!hasPrompt)
+    {
+        flags |= FOF_NOCONFIRMATION;
+    }
+
+    return flags;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32RecycleBin::Recycle
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Win32RecycleBin::Recycle (HWND owner, const std::vector<std::wstring> & paths)
+HRESULT Win32RecycleBin::Recycle (HWND owner, const std::vector<std::wstring> & paths, bool hasPrompt)
 {
     Win32ShellVerbsTypes::CenterDialogsOver  centered (owner);
     HRESULT                  hr = S_OK;
@@ -181,7 +189,7 @@ HRESULT Win32RecycleBin::Recycle (HWND owner, const std::vector<std::wstring> & 
     hr = CreateOperation (owner, &operation);
     CHR (hr);
 
-    hr = operation->SetOperationFlags (FOF_ALLOWUNDO | FOFX_RECYCLEONDELETE | FOFX_ADDUNDORECORD);
+    hr = operation->SetOperationFlags (GetRecycleFlags (hasPrompt));
     CHR (hr);
 
     hr = operation->DeleteItems (items.Get());

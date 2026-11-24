@@ -614,6 +614,7 @@
     <ClCompile Include="CassoExplorer\PickerColumnTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoImagesListingTests.cpp" />
     <ClCompile Include="CassoExplorer\FileSystemBindDataTests.cpp" />
+    <ClCompile Include="CassoExplorer\Win32RecycleBinTests.cpp" />
     <ClCompile Include="CassoExplorer\FileSystemCheckSchedulerTests.cpp" />
     <ClCompile Include="CassoExplorer\ImageVolumeFactsTests.cpp" />
     <ClCompile Include="CassoExplorer\FileMaskSetTests.cpp" />

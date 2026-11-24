@@ -250,13 +250,14 @@ HRESULT ExplorerUndo::UndoHostRename (const ExplorerUndoStep & step)
 //
 //  ExplorerUndo::UndoHostCreate
 //
-//  A new folder, a new item or a copy goes to the Recycle Bin.
+//  A new folder, a new item or a copy goes to the Recycle Bin with no prompt,
+//  as File Explorer's undo of a copy removes it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ExplorerUndo::UndoHostCreate (const ExplorerUndoStep & step)
 {
-    return m_context.shellVerbs.Recycle (m_context.window.GetHwnd(), step.paths);
+    return m_context.shellVerbs.RecycleCopies (m_context.window.GetHwnd(), step.paths);
 }
 
 
