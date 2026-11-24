@@ -42,6 +42,131 @@ public:
     }
 
 
+    //  The player is the object in the room that a global variable has, its
+    //  tree is what it carries, and the rest of the room's tree is what's
+    //  there. Every object is named "hall" by the builder's one name table.
+    TEST_METHOD (TryReadPosition_ReadsWhatIsCarriedAndWhatIsHere)
+    {
+        constexpr size_t       kEntries = InfocomSaveBuilder::kObjects + 31 * 2;
+        constexpr size_t       kSize    = 9;
+        std::vector<Byte>      memory   = InfocomSaveBuilder::MakeMemory (0);
+        InfocomSave::Position  position;
+
+
+
+        for (size_t n = 1; n <= 4; n++)
+        {
+            InfocomSaveBuilder::PutWord (memory, kEntries + (n - 1) * kSize + 7, (int) InfocomSaveBuilder::kNameTable);
+        }
+
+        memory[kEntries + 0 * kSize + 6] = 2;      // the hall has the player
+        memory[kEntries + 1 * kSize + 4] = 1;
+        memory[kEntries + 1 * kSize + 5] = 4;      // and the box after it
+        memory[kEntries + 1 * kSize + 6] = 3;      // the player has the lamp
+        memory[kEntries + 2 * kSize + 4] = 2;
+        memory[kEntries + 3 * kSize + 4] = 1;
+        InfocomSaveBuilder::PutWord (memory, InfocomSaveBuilder::kGlobals + 3 * 2, 2);
+
+        Assert::IsTrue (InfocomSave::TryReadPosition (InfocomSaveBuilder::MakeDisk (memory, 0), 0, position));
+        Assert::IsTrue (position.carried == std::vector<InfocomSave::Item> ({ { 0, L"hall" } }), L"The lamp");
+        Assert::IsTrue (position.here    == std::vector<InfocomSave::Item> ({ { 0, L"hall" } }), L"The box, and not the player");
+    }
+
+    //  The player can be in something in the room, such as a bed, and a
+    //  lower global can have another character: the object with something
+    //  in it is the player. Objects 2 to 5 are a bed, a character, the
+    //  player in the bed, and a lamp the player has.
+    TEST_METHOD (TryReadPosition_FindsThePlayerInABed)
+    {
+        constexpr size_t       kEntries = InfocomSaveBuilder::kObjects + 31 * 2;
+        constexpr size_t       kSize    = 9;
+        std::vector<Byte>      memory   = InfocomSaveBuilder::MakeMemory (0);
+        InfocomSave::Position  position;
+
+
+
+        for (size_t n = 1; n <= 5; n++)
+        {
+            InfocomSaveBuilder::PutWord (memory, kEntries + (n - 1) * kSize + 7, (int) InfocomSaveBuilder::kNameTable);
+        }
+
+        memory[kEntries + 0 * kSize + 6] = 2;      // the hall has the bed
+        memory[kEntries + 1 * kSize + 4] = 1;
+        memory[kEntries + 1 * kSize + 5] = 3;      // and the character after it
+        memory[kEntries + 1 * kSize + 6] = 4;      // the bed has the player
+        memory[kEntries + 2 * kSize + 4] = 1;
+        memory[kEntries + 3 * kSize + 4] = 2;
+        memory[kEntries + 3 * kSize + 6] = 5;      // the player has the lamp
+        memory[kEntries + 4 * kSize + 4] = 4;
+        InfocomSaveBuilder::PutWord (memory, InfocomSaveBuilder::kGlobals + 3 * 2, 3);
+        InfocomSaveBuilder::PutWord (memory, InfocomSaveBuilder::kGlobals + 4 * 2, 4);
+
+        Assert::IsTrue (InfocomSave::TryReadPosition (InfocomSaveBuilder::MakeDisk (memory, 0), 0, position));
+        Assert::IsTrue (position.carried == std::vector<InfocomSave::Item> ({ { 0, L"hall" } }), L"The lamp");
+        Assert::IsTrue (position.here    == std::vector<InfocomSave::Item> ({ { 0, L"hall" }, { 0, L"hall" } }), L"The bed and the character, and not the player");
+    }
+
+
+    //  A later interpreter numbers positions from 1, in slots of 136 pages
+    //  for a version 4 story that fits them and 184 for a version 5 story.
+    //  Its status line isn't in the globals.
+    TEST_METHOD (FindPositions_ReadsALaterInterpretersSlots)
+    {
+        std::vector<Byte>                   memory = InfocomSaveBuilder::MakeMemory (0);
+        std::vector<InfocomSave::Position>  positions;
+
+
+
+        memory[0] = 4;
+        InfocomSave::FindPositions (InfocomSaveBuilder::MakeLateDisk (memory, 1, InfocomSave::kSmallSlotPages), positions);
+
+        Assert::AreEqual ((size_t) 1, positions.size());
+        Assert::AreEqual (2, positions[0].number, L"The second slot is position 2");
+        Assert::AreEqual (4, positions[0].version);
+        Assert::IsFalse  (positions[0].hasStatus);
+
+        memory[0] = 5;
+        InfocomSave::FindPositions (InfocomSaveBuilder::MakeLateDisk (memory, 2, InfocomSave::kLargeSlotPages), positions);
+
+        Assert::AreEqual ((size_t) 1, positions.size());
+        Assert::AreEqual (3, positions[0].number);
+
+        InfocomSave::FindPositions (InfocomSaveBuilder::MakeLateDisk (memory, 1, InfocomSave::kSmallSlotPages), positions);
+        Assert::IsTrue (positions.empty(), L"A version 5 story is never in the small slots");
+    }
+
+
+    //  A later story in the table has its moves, or its clock in minutes,
+    //  from the table's global, and no score.
+    TEST_METHOD (FindPositions_ReadsALaterStorysMovesOrClock)
+    {
+        std::vector<Byte>                   memory = InfocomSaveBuilder::MakeMemory (0);
+        std::vector<InfocomSave::Position>  positions;
+
+
+
+        memory.resize (0x300, 0);
+        memory[0] = 4;
+        InfocomSaveBuilder::PutWord (memory, 0x0E, 0x300);
+        InfocomSaveBuilder::PutWord (memory, 0x02, 77);
+        memcpy (&memory[0x12], "850814", 6);
+        InfocomSaveBuilder::PutWord (memory, InfocomSaveBuilder::kGlobals + 57 * 2, 1149);
+        InfocomSave::FindPositions (InfocomSaveBuilder::MakeLateDisk (memory, 0, InfocomSave::kSmallSlotPages), positions);
+
+        Assert::AreEqual ((size_t) 1, positions.size());
+        Assert::IsTrue   (positions[0].isTimed && !positions[0].hasScore);
+        Assert::AreEqual (std::string ("A Mind Forever Voyaging (release 77), time 7:09 PM"), InfocomSave::Describe (positions[0]));
+
+        InfocomSaveBuilder::PutWord (memory, 0x02, 11);
+        memcpy (&memory[0x12], "860509", 6);
+        InfocomSaveBuilder::PutWord (memory, InfocomSaveBuilder::kGlobals + 133 * 2, 42);
+        InfocomSave::FindPositions (InfocomSaveBuilder::MakeLateDisk (memory, 0, InfocomSave::kSmallSlotPages), positions);
+
+        Assert::AreEqual ((size_t) 1, positions.size());
+        Assert::AreEqual (std::string ("Trinity (release 11), 42 moves"), InfocomSave::Describe (positions[0]));
+    }
+
+
     //  A version 3 story with the timed flag has the hours and minutes in
     //  the globals of the score and the moves.
     TEST_METHOD (Describe_ATimedStoryHasTheTime)

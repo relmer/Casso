@@ -2,7 +2,9 @@
 
 #include "CassoExplorer/Window/Managers/ExplorerDragDrop.h"
 #include "CassoExplorer/Actions/ActionsCopy.h"
-#include "Devices/Disk/Store/DiskSourceFormat.h"
+#include "Devices/Disk/DiskImageStore.h"
+#include "CassoExplorer/Model/LinkImageDropRule.h"
+#include "Machines/Apple2/Common/ThirteenSectorCodec.h"
 #include "CassoExplorer/CassoExplorerDragOut.h"
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
@@ -768,22 +770,30 @@ DWORD ExplorerDragDrop::GetDropEffect (IDataObject * data, int tag, POINT screen
         return effect;
     }
 
-    //  Onto a linked Apple's drive: an image is written to the whole disk, and
-    //  files are copied in.
+    //  Onto a linked Apple's drive: an image is written to the whole disk or
+    //  copied in by its size, and files are copied in.
     if (data != nullptr && TryGetAppleDropDrive (tag, screen, location) && ReadDropSource (data, source))
     {
-        LeaveHostDrop();
-        ShowDropTarget (tag, screen, true);
+        LinkImageDrop  drop  = GetImageDrop (source, location);
+        std::wstring   title = m_context.browser.GetTreeModel().GetLinkDriveTitle (location.path);
 
-        if (IsImageWriteDrop (source, location))
+        LeaveHostDrop();
+        ShowDropTarget (tag, screen, drop != LinkImageDrop::None);
+
+        if (drop == LinkImageDrop::None)
         {
-            hr = DxuiDragDropTarget::SetDropDescription (data, DROPIMAGE_COPY, L"Write image to %1",
-                                                         m_context.browser.GetTreeModel().GetLinkDriveTitle (location.path).c_str());
-            IGNORE_RETURN_VALUE (hr, S_OK);
+            DescribeDrop (data, DROPEFFECT_NONE, location);
+            return DROPEFFECT_NONE;
+        }
+
+        if (drop == LinkImageDrop::Files)
+        {
+            DescribeDrop (data, DROPEFFECT_COPY, location);
         }
         else
         {
-            DescribeDrop (data, DROPEFFECT_COPY, location);
+            hr = DxuiDragDropTarget::SetDropDescription (data, DROPIMAGE_COPY, drop == LinkImageDrop::Write ? L"Write image to %1" : L"Write or copy to %1", title.c_str());
+            IGNORE_RETURN_VALUE (hr, S_OK);
         }
 
         return DROPEFFECT_COPY;
@@ -823,22 +833,40 @@ DWORD ExplorerDragDrop::GetDropEffect (IDataObject * data, int tag, POINT screen
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerDragDrop::IsImageWriteDrop
+//  ExplorerDragDrop::GetImageDrop
 //
-//  One disk image dropped on a linked drive itself, which is written to the
-//  whole disk.
+//  One disk image dropped on a linked drive itself goes by its size against
+//  the drive's. Anything else is files copied in. A drive the connection
+//  hasn't listed yet is written, as the confirmation follows. A 13-sector
+//  image, which no emulated drive mounts, is a 5.25-inch disk to the link.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ExplorerDragDrop::IsImageWriteDrop (const DropSource & source, const Location & drive)
+LinkImageDrop ExplorerDragDrop::GetImageDrop (const DropSource & source, const Location & drive) const
 {
-    DiskFormat  format = DiskFormat::Dsk;
-    bool        single = !source.fromImage && source.hostPaths.size() == 1 && drive.innerPath.empty();
-    HRESULT     known  = single ? DiskSourceFormat::GetSourceFormatByExtension (TextEncoding::WideToNarrow (source.hostPaths[0]), format) : E_FAIL;
+    bool                  single   = !source.fromImage && source.hostPaths.size() == 1 && drive.innerPath.empty();
+    bool                  thirteen = single && _wcsicmp (std::filesystem::path (source.hostPaths[0]).extension().c_str(), L".d13") == 0;
+    LinkImageDrop         drop     = LinkImageDrop::Files;
+    LinkTreeEntry::Drive  row;
+    ImageClass            image;
 
 
 
-    return SUCCEEDED (known);
+    if (thirteen)
+    {
+        image.status         = ImageStatus::Classified;
+        image.formFactor     = ImageFormFactor::Floppy525;
+        image.layout         = ImageLayout::Sector;
+        image.formattedBytes = ThirteenSectorCodec::kImageByteSize;
+    }
+
+    if (single && (thirteen || ImageClassifier::IsImageExtension (std::filesystem::path (source.hostPaths[0]).extension().wstring())))
+    {
+        image = thirteen ? image : ImageClassifier::Classify (m_context.browser.GetFileIo(), TextEncoding::WideToUtf8 (source.hostPaths[0]));
+        drop  = m_context.browser.GetTreeModel().TryGetLinkDrive (drive.path, row) ? LinkImageDropRule::GetDrop (image, row) : LinkImageDrop::Write;
+    }
+
+    return drop;
 }
 
 
@@ -1245,6 +1273,146 @@ void ExplorerDragDrop::ClearDropTarget()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerDragDrop::DropOnAppleDrive
+//
+//  A drop or a paste onto a linked Apple's drive: one disk image is written
+//  to the whole disk, or offered both ways on a menu; files, or an image's
+//  files, are copied in. Each write goes over the link, and is reported when
+//  it is done. False when nothing can go onto the drive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerDragDrop::DropOnAppleDrive (IDataObject * data, DropSource & source, const Location & drive, POINT screen)
+{
+    LinkImageDrop                  drop    = GetImageDrop (source, drive);
+    CassoExplorerActions::Outcome  outcome;
+    BOOL                           posted  = FALSE;
+
+
+
+    if (drop == LinkImageDrop::None)
+    {
+        return false;
+    }
+
+    if (drop == LinkImageDrop::Write)
+    {
+        m_context.linkDrives.StartImageWrite (drive, source.hostPaths[0]);
+        return true;
+    }
+
+    //  The write-or-copy menu opens once this call has returned and a drag
+    //  is over, so the window it came from isn't left waiting.
+    if (drop == LinkImageDrop::Choose)
+    {
+        m_pendingDrop             = PendingDrop();
+        m_pendingDrop.valid       = true;
+        m_pendingDrop.imageChoice = true;
+        m_pendingDrop.location    = drive;
+        m_pendingDrop.screen      = screen;
+        m_pendingDrop.hostPaths   = source.hostPaths;
+
+        posted = PostMessageW (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerDropMenu, 0, 0);
+        IGNORE_RETURN_VALUE (posted, TRUE);
+        return true;
+    }
+
+    if (m_context.browser.GetLocation().path != drive.path || m_context.browser.GetLocation().innerPath != drive.innerPath)
+    {
+        m_context.addressBar.GoToLocation (drive);
+    }
+
+    RemoveVirtualFiles();
+
+    if (source.isVirtual && !WriteVirtualFiles (data, source))
+    {
+        return true;
+    }
+
+    outcome = source.fromImage ? m_context.actions.CopyEntriesToAppleDrive (source.image, source.kind, source.catalogPaths)
+                               : m_context.actions.PutFiles (source.hostPaths, m_context.prompts.MakeAddressPrompt());
+
+    m_context.verbs.ReportOutcome (outcome, L"Put");
+    RemoveVirtualFiles();
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerDragDrop::TryGetPasteDrive
+//
+//  The linked drive a paste goes onto: the one shown, or the one drive row
+//  selected in its connection's list.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerDragDrop::TryGetPasteDrive (Location & outDrive)
+{
+    const std::vector<int> &  selected = m_context.browser.GetSelectedRows();
+    Location                  row;
+
+
+
+    if (m_context.browser.IsAppleDriveLocation())
+    {
+        outDrive = m_context.browser.GetLocation();
+        return true;
+    }
+
+    if (selected.size() == 1 && BrowserRowPaths::TryGetRowLocation (m_context.browser.GetRowListing(), selected[0], row)
+        && row.kind == Location::Kind::AppleDrive && row.innerPath.empty())
+    {
+        outDrive = row;
+        return true;
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerDragDrop::PasteOnAppleDrive
+//
+//  The clipboard's files, as a drop on the drive at the pointer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerDragDrop::PasteOnAppleDrive (const Location & drive)
+{
+    ComPtr<IDataObject>  data;
+    DropSource           source;
+    POINT                screen = {};
+    HRESULT              hr     = OleGetClipboard (&data);
+
+
+
+    if (FAILED (hr) || !ReadDropSource (data.Get(), source))
+    {
+        return;
+    }
+
+    GetCursorPos (&screen);
+
+    if (!DropOnAppleDrive (data.Get(), source, drive, screen))
+    {
+        m_context.window.ShowMessage (std::format (L"The disk image is too big for {}.", m_context.browser.GetTreeModel().GetLinkDriveTitle (drive.path)), MB_ICONWARNING);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerDragDrop::HandleDrop
 //
 //  Another image's entries are copied byte for byte when the drag holds
@@ -1369,34 +1537,8 @@ void ExplorerDragDrop::HandleDrop (IDataObject * data, int tag, POINT screen)
     //  in. Each write goes over the link, and is reported when it is done.
     if (TryGetAppleDropDrive (tag, screen, location) && ReadDropSource (data, source))
     {
-        bool  image = IsImageWriteDrop (source, location);
-
         LeaveHostDrop();
-        m_dropTarget.SetDropResult (DROPEFFECT_COPY);
-
-        if (image)
-        {
-            m_context.linkDrives.StartImageWrite (location, source.hostPaths[0]);
-            return;
-        }
-
-        if (m_context.browser.GetLocation().path != location.path || m_context.browser.GetLocation().innerPath != location.innerPath)
-        {
-            m_context.addressBar.GoToLocation (location);
-        }
-
-        RemoveVirtualFiles();
-
-        if (source.isVirtual && !WriteVirtualFiles (data, source))
-        {
-            return;
-        }
-
-        outcome = source.fromImage ? m_context.actions.CopyEntriesToAppleDrive (source.image, source.kind, source.catalogPaths)
-                                   : m_context.actions.PutFiles (source.hostPaths, m_context.prompts.MakeAddressPrompt());
-
-        m_context.verbs.ReportOutcome (outcome, L"Put");
-        RemoveVirtualFiles();
+        m_dropTarget.SetDropResult (DropOnAppleDrive (data, source, location, screen) ? DROPEFFECT_COPY : DROPEFFECT_NONE);
         return;
     }
 
@@ -1541,6 +1683,11 @@ void ExplorerDragDrop::BeginDragOut()
 
 
     m_context.listPane.ReleasePress();
+
+    if (!m_context.listPane.FetchSelectedStockDisks())
+    {
+        return;
+    }
 
     //  A picker's drag is a copy of files on the disk, as an image dragged to
     //  one of the emulator's drives is. Nothing is moved, and no entry of an
@@ -1698,7 +1845,14 @@ void ExplorerDragDrop::ShowDropMenu()
 
     m_context.menus.GetMenuCommands().clear();
 
-    if (m_pendingDrop.fromImage)
+    if (m_pendingDrop.imageChoice)
+    {
+        label = std::format (L"&Write image to {}", m_context.browser.GetTreeModel().GetLinkDriveTitle (m_pendingDrop.location.path));
+
+        m_context.menus.AddMenuCommand (items, label.c_str(),            [this]() { RunImageDrop (true);  });
+        m_context.menus.AddMenuCommand (items, L"&Copy here as a file", [this]() { RunImageDrop (false); });
+    }
+    else if (m_pendingDrop.fromImage)
     {
         //  Entries from another image go across as they are, types mapped.
         m_context.menus.AddMenuCommand (items, L"&Copy here", [this]() { RunDrop (CassoExplorerActions::Conversion::ByContent); });
@@ -1779,6 +1933,49 @@ void ExplorerDragDrop::RunDrop (CassoExplorerActions::Conversion conversion)
     m_context.folderSync.RefreshAfterHostChange();
 
     RemoveVirtualFiles();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerDragDrop::RunImageDrop
+//
+//  The menu's answer for one image dropped on a linked drive: write it to
+//  the whole disk, or copy it onto the volume as a file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerDragDrop::RunImageDrop (bool write)
+{
+    PendingDrop                    drop = m_pendingDrop;
+    CassoExplorerActions::Outcome  outcome;
+
+
+
+    m_pendingDrop = PendingDrop();
+
+    if (!drop.valid || drop.hostPaths.size() != 1)
+    {
+        return;
+    }
+
+    if (write)
+    {
+        m_context.linkDrives.StartImageWrite (drop.location, drop.hostPaths[0]);
+        return;
+    }
+
+    if (m_context.browser.GetLocation().path != drop.location.path || !m_context.browser.GetLocation().innerPath.empty())
+    {
+        m_context.addressBar.GoToLocation (drop.location);
+    }
+
+    outcome = m_context.actions.PutFiles (drop.hostPaths, m_context.prompts.MakeAddressPrompt());
+
+    m_context.verbs.ReportOutcome (outcome, L"Put");
 }
 
 

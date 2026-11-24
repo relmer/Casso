@@ -6,6 +6,7 @@
 #include "CassoLink/Session/CassoLinkResume.h"
 
 class IDiskFileIo;
+class ILinkImageSource;
 
 
 
@@ -21,7 +22,8 @@ class IDiskFileIo;
 //  the partial image is flushed and its record written beside it, and after
 //  the last block the partial image becomes the image: a .2mg wrapped in its
 //  header, any other extension the blocks as they are. A write's record is
-//  beside the image it writes from. A transfer the link, a device error or
+//  beside the image file it writes from; a write from an image in memory has
+//  no record. A transfer the link, a device error or
 //  a cancel cuts short has its record saved, and one started with resume set,
 //  for the same device in the same direction with the same volume directory,
 //  continues after the record's last block.
@@ -49,9 +51,9 @@ public:
     static HRESULT  ReadDevice  (ICassoLinkBlockIo & blocks, IDiskFileIo & io, const CassoLinkBlockDevice & device, const std::string & imagePath, bool verify, bool resume,
                                  const ProgressFn & progress, const CancelFn & cancel, Result & outResult);
 
-    //  imagePath's blocks written to the device, which must have as many or
+    //  The image's blocks written to the device, which must have as many or
     //  more. ERROR_WRITE_FAULT for a device error, as ReadDevice otherwise.
-    static HRESULT  WriteDevice (ICassoLinkBlockIo & blocks, IDiskFileIo & io, const CassoLinkBlockDevice & device, const std::string & imagePath, bool verify, bool resume,
+    static HRESULT  WriteDevice (ICassoLinkBlockIo & blocks, IDiskFileIo & io, const CassoLinkBlockDevice & device, ILinkImageSource & source, bool verify, bool resume,
                                  const ProgressFn & progress, const CancelFn & cancel, Result & outResult);
 
     //  The block a transfer of the device in that direction would continue
@@ -68,6 +70,7 @@ public:
     static HRESULT  LoadImage   (IDiskFileIo & io, const std::string & imagePath, std::vector<Byte> & outBlocks);
 
 private:
+    static HRESULT  ParseImage     (std::vector<Byte> bytes, std::vector<Byte> & outBlocks);
     static HRESULT  HashDevice     (ICassoLinkBlockIo & blocks, const CassoLinkBlockDevice & device, std::string & outHex);
     static HRESULT  HashImage      (std::span<const Byte> image, std::string & outHex);
     static int64_t  FindLastBlock  (IDiskFileIo & io, const std::string & recordFor, const CassoLinkBlockDevice & device, const std::string & hash, const char * direction);

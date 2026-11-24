@@ -676,9 +676,10 @@ std::wstring FullSendPanel::DescribeDrive (const FullSendDriveStatus & drive)
     switch (drive.state)
     {
         case FullSendDiskState::Checking:  state = L"Checking";                              break;
-        case FullSendDiskState::Sending:   state = drive.verified ? L"Sending, with verification" : L"Sending"; break;
+        case FullSendDiskState::Sending:   state = drive.writing ? (drive.verified ? L"Writing, with verification" : L"Writing")
+                                                                 : (drive.verified ? L"Sending, with verification" : L"Sending"); break;
         case FullSendDiskState::Capturing: state = L"Capturing raw";                         break;
-        case FullSendDiskState::Sent:      state = L"Sent";                                  break;
+        case FullSendDiskState::Sent:      state = drive.writing ? L"Written" : L"Sent";     break;
         case FullSendDiskState::Duplicate: state = L"Duplicate";                             break;
         case FullSendDiskState::Empty:     state = L"Unformatted, or no disk";               break;
         case FullSendDiskState::Blank:     state = L"Blank";                                 break;
@@ -971,7 +972,8 @@ void FullSendPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
         first = PaintDrive (painter, text, theme, 1, m_view.snapshot.drives[0], left, top, column);
     }
 
-    if (m_view.snapshot.present[1])
+    //  Side by side only when both fit; a job's one column is the width.
+    if (m_view.snapshot.present[1] && (!m_view.snapshot.present[0] || left + column + gap + column <= left + width + 0.5f))
     {
         second = PaintDrive (painter, text, theme, 2, m_view.snapshot.drives[1], m_view.snapshot.present[0] ? left + column + gap : left, top, column);
     }

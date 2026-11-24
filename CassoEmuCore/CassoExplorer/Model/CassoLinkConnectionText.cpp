@@ -138,7 +138,7 @@ std::wstring CassoLinkConnectionText::DescribeFailure (const LinkOperation & ope
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring CassoLinkConnectionText::DescribeState (LinkState state, const CassoLinkSettings & settings, const std::wstring & pcName)
+std::wstring CassoLinkConnectionText::DescribeState (LinkState state, const CassoLinkSettings & settings, const std::wstring & pcName, bool usingDrives, const std::wstring & model)
 {
     std::wstring  name    = TextEncoding::NarrowToWide (settings.name);
     std::wstring  address = TextEncoding::NarrowToWide (settings.address);
@@ -149,6 +149,13 @@ std::wstring CassoLinkConnectionText::DescribeState (LinkState state, const Cass
     bool          server  = settings.transport == LinkTransport::AdtProServer;
 
 
+
+    //  The Apple runs the driver rather than Casso's program, so the line
+    //  has no Ready, and the state is a search's.
+    if (usingDrives && state != LinkState::Ready && state != LinkState::Busy && state != LinkState::Closed)
+    {
+        return std::format (L"{} is using the virtual drives.", model.empty() ? std::wstring (L"The Apple") : model);
+    }
 
     switch ((server || settings.IsSearch()) ? LinkState::Opening : state)
     {
@@ -216,6 +223,32 @@ std::wstring CassoLinkConnectionText::DescribeState (LinkState state, const Cass
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnectionText::DescribeDriveImage
+//
+//  A virtual drive's image file name, or "no image".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoLinkConnectionText::DescribeDriveImage (const std::wstring & path)
+{
+    size_t  slash = path.find_last_of (L"\\/");
+
+
+
+    if (path.empty())
+    {
+        return L"no image";
+    }
+
+    return (slash == std::wstring::npos) ? path : path.substr (slash + 1);
 }
 
 

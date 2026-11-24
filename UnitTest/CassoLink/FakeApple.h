@@ -1046,7 +1046,9 @@ public:
     std::shared_ptr<InProcessByteStream>  GetUnansweredEnd () const { return m_unanswered; }
     std::atomic<bool> answer      { true };
 
-    enum class Port { Busy, Silent, Apple };
+    //  Booted is an Apple that booted the CassoLink ProDOS disk: it doesn't
+    //  answer Idle, and sends a virtual drive request on the line instead.
+    enum class Port { Busy, Silent, Apple, Booted };
 
     std::map<std::wstring, Port>  comPorts;
     std::vector<std::wstring>     comOpened;
@@ -1130,6 +1132,15 @@ public:
         else
         {
             m_silent.push_back (appleEnd);
+        }
+
+        if (found->second == Port::Booted)
+        {
+            const Byte         block[] = { 1, CassoLinkCodec::kVirtualStatus, 0, 0 };
+            std::vector<Byte>  request;
+
+            CassoLinkCodec::Encode (CassoLinkCodec::kVirtualBlock, block, request);
+            appleEnd->Write (request.data(), request.size());
         }
 
         outStream = std::make_unique<SharedStream> (pcEnd, peerReady, peerLagReads, peerReads, peerGlitchEvery);

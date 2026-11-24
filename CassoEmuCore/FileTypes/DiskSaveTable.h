@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Machines/Apple2/Common/InfocomSave.h"
 
 #include "FileTypes/DecodedFile.h"
 
@@ -70,5 +71,13 @@ public:
     static HRESULT  DecodeUltima2Save    (const std::vector<Byte> & sectors, std::span<const bool> unreadable, DecodedFile & outFile);
 
 private:
+    static constexpr int       s_kScoreBarCells  = 20;
+    static constexpr size_t    s_kItemIndent     = 4;
+
+    static std::string  GetInfocomTitle    (const std::vector<InfocomSave::Position> & positions);
+    static void         AddInfocomPosition (const InfocomSave::Position & position, std::vector<Paragraph> & ioParagraphs);
+    static void         AddInfocomItems    (const wchar_t * heading, const std::vector<InfocomSave::Item> & items, std::vector<Paragraph> & ioParagraphs);
+    static void         AddScoreBar        (int score, int maxScore, std::vector<Run> & ioRuns);
+
     static bool     TryLoadImage         (IDiskFileIo & io, const std::string & path, std::vector<Byte> & outSectors);
 };

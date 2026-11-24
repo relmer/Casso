@@ -186,6 +186,18 @@ public:
 
 
 
+    //  A volume that spans more than this disk, as Wizardry IV's 2048 blocks
+    //  over several disk sides, is a Pascal volume.
+    TEST_METHOD (DetectsAVolumeLargerThanTheDisk)
+    {
+        std::vector<Byte>  image = BuildSample();
+
+        PutWord (image, 2, 14, 2048);
+        Assert::IsTrue (PascalVolume::IsFound (image));
+    }
+
+
+
     TEST_METHOD (RejectsHeadersThatAreNotAVolume)
     {
         std::vector<Byte>  image = BuildSample();

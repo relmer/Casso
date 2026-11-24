@@ -165,7 +165,8 @@ void PreviewText::AddLegendRows (const std::vector<Run> & entries, const SourceS
 //
 //  A row for each paragraph, aligned as it is, a span for each styled or
 //  colored run, and a paragraph with a picture a row of the picture. A tab
-//  in a run starts the row's next cell, so the cells line up in columns.
+//  in a run starts the row's next cell, so the cells line up in columns,
+//  and a paragraph with a rule has a line under its row.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -214,6 +215,7 @@ std::vector<DxuiTextView::Row> PreviewText::BuildDocumentRows (const std::vector
         row.alignment = (paragraph.alignment == Alignment::Center) ? DxuiTextHAlign::Center
                       : (paragraph.alignment == Alignment::Right)  ? DxuiTextHAlign::Right
                                                                    : DxuiTextHAlign::Left;
+        row.rule      = paragraph.hasRule;
 
         if (!paragraph.picture.empty())
         {
@@ -276,7 +278,8 @@ std::vector<DxuiTextView::Row> PreviewText::BuildDocumentRows (const std::vector
 //  PreviewText::AddTableRows
 //
 //  The title in bold first. As a table, a heading row in bold and a row a
-//  record, their cells in columns, each record's details under its row. In
+//  record, their cells in columns, each record's details under its row and,
+//  when any record has details, a blank line between them. In
 //  the other forms, a rule under the title, then each record's fields or
 //  card and its details, a blank line between records.
 //
@@ -336,11 +339,18 @@ void PreviewText::AddTableRows (const RecordTable & table, const SourceSyntax::C
         ioRows.push_back (std::move (heading));
     }
 
+    bool  hasDetails = std::any_of (table.records.begin(), table.records.end(), [] (const RecordTable::Record & record) { return !record.details.empty(); });
+
     for (size_t i = 0; i < table.records.size(); i++)
     {
         const RecordTable::Record &     record  = table.records[i];
         DxuiTextView::Row               row;
         std::vector<DxuiTextView::Row>  details = BuildDocumentRows (record.details, colors);
+
+        if (i > 0 && hasDetails)
+        {
+            ioRows.push_back (DxuiTextView::Row());
+        }
 
         for (const Run & run : record.cells)
         {

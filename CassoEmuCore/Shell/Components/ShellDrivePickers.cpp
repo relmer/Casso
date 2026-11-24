@@ -129,24 +129,6 @@ DrivePickers::Hooks ShellDrivePickers::MakeHooks()
         };
     };
 
-    //  The DOS 3.3 and ProDOS masters, and apart from them the disks in the
-    //  Apple2\Demos folder, each listed for a drive that accepts it. A master
-    //  is downloaded when it is picked, as the old dialog's Download rows did.
-    hooks.getStockDisks = [] (const PickerDrive & drive)
-    {
-        return StartupDiskPicker::GetStockDisks (drive.receiving);
-    };
-
-    hooks.getDemoDisks = [this] (const PickerDrive & drive)
-    {
-        return StartupDiskPicker::GetDemoDisks (m_shell.m_machine.GetBlockMediaFileIo(), drive.receiving);
-    };
-
-    hooks.fetchStockDisk = [] (const std::wstring & path, std::wstring & outError)
-    {
-        return StartupDiskPicker::FetchStockDisk (path, outError);
-    };
-
     //  The disks in the machine's drives, for the picker's "In slot 6
     //  drive 1" mark: the Disk II drives', then the 3.5-inch drives' and
     //  hard disks' on the desk. The paths are UTF-8.
@@ -336,7 +318,7 @@ std::unique_ptr<IDrivePicker> ShellDrivePickers::OpenPicker (PickerRequest reque
 std::unique_ptr<ExplorerPickerHost> ShellDrivePickers::MakeHost (PickerRequest request, HWND owner, bool cascade)
 {
     std::string                          theme    = CassoExplorerPrefs::MapCassoTheme (m_shell.m_settings->GetPrefs().activeTheme);
-    ExplorerPickerHost::Services         services = { .shellRoots = &m_shellRoots };
+    ExplorerPickerHost::Services         services = { .shellRoots = &m_shellRoots, .listsStockDisks = true };
     std::unique_ptr<ExplorerPickerHost>  host     = std::make_unique<ExplorerPickerHost> (m_shell.m_settings->GetFileSystem(),
                                                                                             m_shell.m_machine.GetBlockMediaFileIo(),
                                                                                             AssetBootstrap::GetAssetBaseDirectory().wstring(),

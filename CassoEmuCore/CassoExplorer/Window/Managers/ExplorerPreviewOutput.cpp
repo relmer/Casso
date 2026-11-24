@@ -50,7 +50,7 @@ bool ExplorerPreviewOutput::TryGetSource (ExplorerContext & context, Source & ou
     outSource.entry       = entries[0];
     outSource.kind        = context.browser.GetVolumeKind();
     outSource.format      = CopyOutConversion::Find (context.browser.GetOperations(), outSource.image, outSource.catalogPath, outSource.entry, outSource.kind,
-                                                     context.browser.GetPreviewer().GetDecodeOptions (context.browser.GetLocation().path, outSource.catalogPath));
+                                                     context.browser.GetPreviewer().GetViewState().GetDecodeOptions (context.browser.GetLocation().path, outSource.catalogPath));
 
     return true;
 }
@@ -194,7 +194,7 @@ HRESULT ExplorerPreviewOutput::WriteChoice (ExplorerContext & context, PreviewSa
 
         case PreviewSaveChoices::Kind::Converted:
             result = CopyOutConversion::GetToFile (context.browser.GetOperations(), *context.app.fs,
-                                                   context.browser.GetPreviewer().GetDecodeOptions (TextEncoding::NarrowToWide (source.image), source.catalogPath),
+                                                   context.browser.GetPreviewer().GetViewState().GetDecodeOptions (TextEncoding::NarrowToWide (source.image), source.catalogPath),
                                                    source.image, source.catalogPath, source.entry, source.kind, source.format,
                                                    CassoExplorerActions::GetEncoding (source.entry, source.kind), path.wstring());
             read    = result.Succeeded();
@@ -277,7 +277,7 @@ void ExplorerPreviewOutput::Copy (ExplorerContext & context)
     if (preview.kind == PreviewContent::Kind::Document && TryGetSource (context, source) && source.format != FileFormat::None)
     {
         result = CopyOutConversion::Get (context.browser.GetOperations(),
-                                         context.browser.GetPreviewer().GetDecodeOptions (TextEncoding::NarrowToWide (source.image), source.catalogPath),
+                                         context.browser.GetPreviewer().GetViewState().GetDecodeOptions (TextEncoding::NarrowToWide (source.image), source.catalogPath),
                                          source.image, source.catalogPath, source.entry, source.kind, source.format,
                                          CassoExplorerActions::GetEncoding (source.entry, source.kind), failure);
 

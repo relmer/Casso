@@ -86,8 +86,9 @@ ExplorerServices CassoExplorerWindow::MakeServices()
 
 HRESULT CassoExplorerWindow::RunModalPicker (HWND owner, PickerRequest request, PickerOutcome & outOutcome)
 {
-    HRESULT             hr = S_OK;
-    ExplorerPickerHost  host (*m_context.fs, m_browser.GetFileIo(), m_context.baseDir);
+    HRESULT                       hr       = S_OK;
+    ExplorerPickerHost::Services  services = { .listsStockDisks = true };
+    ExplorerPickerHost            host (*m_context.fs, m_browser.GetFileIo(), m_context.baseDir, services);
 
 
 

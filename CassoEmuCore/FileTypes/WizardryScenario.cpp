@@ -611,7 +611,50 @@ std::wstring WizardryScenario::ToTitleCase (const std::wstring & name)
 
 void WizardryScenario::RenderLevel (std::span<const Byte> level, int partyX, int partyY, std::vector<uint32_t> & outBgra, int & outWidth, int & outHeight)
 {
-    int  side = kMazeSide * s_kMapCell + 2 * s_kMapBorder + 1;
+    static constexpr size_t  s_kSideTables[] = { kNorthAt, kEastAt, kSouthAt, kWestAt };
+    auto  getWall = [level] (int x, int y, int direction)
+    {
+        return ReadPacked (level, s_kSideTables[direction], kWallRowBytes, kWallBits, x, y);
+    };
+    auto  getLook = [level] (int x, int y)
+    {
+        SquareLook  look;
+        int         extra = ReadPacked (level, kExtraAt, kExtraRowBytes, kExtraBits, x, y);
+        int         type  = ReadPacked (level, kSquareTypesAt, 0, kExtraBits, 0, extra);
+        bool        fight = ReadPacked (level, kFightsAt, kFightRowBytes, kFightBits, x, y) != 0;
+
+        look.fill    = (type == s_kSquareStairs)   ? s_kMapStairs
+                     : (type == s_kSquareDarkness) ? s_kMapDark
+                     : (type == s_kSquareRock)     ? s_kMapRock
+                     : fight                       ? s_kMapFight
+                                                   : 0;
+        look.special = type > 0 && type != s_kSquareStairs && type != s_kSquareDarkness && type != s_kSquareRock;
+
+        return look;
+    };
+
+
+
+    RenderGrid (kMazeSide, getWall, getLook, partyX, partyY, outBgra, outWidth, outHeight);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WizardryScenario::RenderGrid
+//
+//  A maze of side by side squares as RenderLevel draws it, each square's
+//  sides and fill from the readers. A wall reader's direction is 0 for
+//  north, 1 east, 2 south and 3 west.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WizardryScenario::RenderGrid (int squares, const WallReader & getWall, const LookReader & getLook, int partyX, int partyY, std::vector<uint32_t> & outBgra, int & outWidth, int & outHeight)
+{
+    int  side = squares * s_kMapCell + 2 * s_kMapBorder + 1;
 
 
 
@@ -654,25 +697,23 @@ void WizardryScenario::RenderLevel (std::span<const Byte> level, int partyX, int
         }
     };
 
-    for (int y = 0; y < kMazeSide; y++)
+    for (int y = 0; y < squares; y++)
     {
-        for (int x = 0; x < kMazeSide; x++)
+        for (int x = 0; x < squares; x++)
         {
-            int   left  = s_kMapBorder + x * s_kMapCell;
-            int   top   = s_kMapBorder + (kMazeSide - 1 - y) * s_kMapCell;
-            int   extra = ReadPacked (level, kExtraAt, kExtraRowBytes, kExtraBits, x, y);
-            int   type  = ReadPacked (level, kSquareTypesAt, 0, kExtraBits, 0, extra);
-            bool  fight = ReadPacked (level, kFightsAt, kFightRowBytes, kFightBits, x, y) != 0;
+            int         left = s_kMapBorder + x * s_kMapCell;
+            int         top  = s_kMapBorder + (squares - 1 - y) * s_kMapCell;
+            SquareLook  look = getLook (x, y);
 
-            if (fight)
+            if (look.fill != 0)
             {
-                fill (left, top, s_kMapCell, s_kMapCell, s_kMapFight);
+                fill (left, top, s_kMapCell, s_kMapCell, look.fill);
             }
 
-            if (type == s_kSquareStairs)        { fill (left, top, s_kMapCell, s_kMapCell, s_kMapStairs); }
-            else if (type == s_kSquareDarkness) { fill (left, top, s_kMapCell, s_kMapCell, s_kMapDark);   }
-            else if (type == s_kSquareRock)     { fill (left, top, s_kMapCell, s_kMapCell, s_kMapRock);   }
-            else if (type > 0)                  { fill (left + s_kMapCell / 2 - 2, top + s_kMapCell / 2 - 2, 5, 5, s_kMapSpecial); }
+            if (look.special)
+            {
+                fill (left + s_kMapCell / 2 - 2, top + s_kMapCell / 2 - 2, 5, 5, s_kMapSpecial);
+            }
 
             if (x == partyX && y == partyY)
             {
@@ -696,17 +737,17 @@ void WizardryScenario::RenderLevel (std::span<const Byte> level, int partyX, int
     }
 
     //  The sides last, over the fills.
-    for (int y = 0; y < kMazeSide; y++)
+    for (int y = 0; y < squares; y++)
     {
-        for (int x = 0; x < kMazeSide; x++)
+        for (int x = 0; x < squares; x++)
         {
             int  left = s_kMapBorder + x * s_kMapCell;
-            int  top  = s_kMapBorder + (kMazeSide - 1 - y) * s_kMapCell;
+            int  top  = s_kMapBorder + (squares - 1 - y) * s_kMapCell;
 
-            drawSide (left,              top,              true,  ReadPacked (level, kNorthAt, kWallRowBytes, kWallBits, x, y));
-            drawSide (left,              top + s_kMapCell, true,  ReadPacked (level, kSouthAt, kWallRowBytes, kWallBits, x, y));
-            drawSide (left,              top,              false, ReadPacked (level, kWestAt,  kWallRowBytes, kWallBits, x, y));
-            drawSide (left + s_kMapCell, top,              false, ReadPacked (level, kEastAt,  kWallRowBytes, kWallBits, x, y));
+            drawSide (left,              top,              true,  getWall (x, y, 0));
+            drawSide (left,              top + s_kMapCell, true,  getWall (x, y, 2));
+            drawSide (left,              top,              false, getWall (x, y, 3));
+            drawSide (left + s_kMapCell, top,              false, getWall (x, y, 1));
         }
     }
 }
@@ -839,6 +880,81 @@ void WizardryScenario::DrawPartyLevel (std::span<const Byte> bytes, const Conten
                               Run { L"Rock or water   ", false, false, false, RunColor::Muted, s_kMapRock    },
                               Run { L"Fight zone   ",    false, false, false, RunColor::Muted, s_kMapFight   },
                               Run { L"Special square",   false, false, false, RunColor::Muted, s_kMapSpecial } });
+
+    legend.isLegend = true;
+    ioParagraphs.push_back (std::move (legend));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WizardryScenario::DrawWizardry5Level
+//
+//  A Wizardry V level as DrawPartyLevel draws one, from the walls block of
+//  its disk side. The block has each square's east and north sides; its west
+//  and south sides are its neighbors' east and north.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WizardryScenario::DrawWizardry5Level (std::span<const Byte> walls, const WizardryMaze::Square & party, std::vector<Paragraph> & ioParagraphs)
+{
+    static constexpr const wchar_t *  s_kSides[] = { L"north", L"east", L"south", L"west" };
+    Paragraph                         map;
+    Paragraph                         legend;
+    auto  getWall = [walls] (int x, int y, int direction)
+    {
+        return (direction == 0) ? WizardryMaze::GetWall (walls, x,     y,     true)
+             : (direction == 1) ? WizardryMaze::GetWall (walls, x,     y,     false)
+             : (direction == 2) ? WizardryMaze::GetWall (walls, x,     y - 1, true)
+                                : WizardryMaze::GetWall (walls, x - 1, y,     false);
+    };
+    auto  getLook = [] (int, int) { return SquareLook(); };
+
+
+
+    RenderGrid (WizardryMaze::kSide, getWall, getLook, party.x, party.y, map.picture, map.width, map.height);
+
+    map.tipCell    = s_kMapCell;
+    map.tipLeft    = s_kMapBorder;
+    map.tipTop     = s_kMapBorder;
+    map.tipColumns = WizardryMaze::kSide;
+    map.tips.assign ((size_t) WizardryMaze::kSide * WizardryMaze::kSide, PictureTip());
+
+    for (int y = 0; y < WizardryMaze::kSide; y++)
+    {
+        for (int x = 0; x < WizardryMaze::kSide; x++)
+        {
+            PictureTip &  tip = map.tips[(size_t) (WizardryMaze::kSide - 1 - y) * WizardryMaze::kSide + (size_t) x];
+
+            tip.lines.push_back ({ 0, std::format (L"{} east, {} north", x, y) });
+
+            if (x == party.x && y == party.y)
+            {
+                tip.lines.push_back ({ s_kMapParty, L"The party" });
+            }
+
+            for (int direction = 0; direction < 4; direction++)
+            {
+                int  kind = getWall (x, y, direction);
+
+                if (kind == s_kSideDoor)            { tip.lines.push_back ({ s_kMapDoor, std::format (L"Door to the {}",        s_kSides[direction]) }); }
+                else if (kind == s_kSideHiddenDoor) { tip.lines.push_back ({ s_kMapDoor, std::format (L"Hidden door to the {}", s_kSides[direction]) }); }
+            }
+        }
+    }
+
+    map.pingX   = s_kMapBorder + party.x * s_kMapCell + s_kMapCell / 2;
+    map.pingY   = s_kMapBorder + (WizardryMaze::kSide - 1 - party.y) * s_kMapCell + s_kMapCell / 2;
+    map.canZoom = true;
+
+    ioParagraphs.push_back (Paragraph());
+    ioParagraphs.push_back (MakeParagraph ({ Run { std::format (L"Maze level {}, the party at {} east, {} north", party.level, party.x, party.y), true } }));
+    ioParagraphs.push_back (std::move (map));
+    legend = MakeParagraph ({ Run { L"The party   ", false, false, false, RunColor::Muted, s_kMapParty },
+                              Run { L"Door",         false, false, false, RunColor::Muted, s_kMapDoor  } });
 
     legend.isLegend = true;
     ioParagraphs.push_back (std::move (legend));

@@ -82,6 +82,29 @@ public:
 
 
 
+    TEST_METHOD (APickerOnTheCassoNode_ListsTheStockDisks)
+    {
+        InMemoryFileSystem  fs;
+        FakeDiskFileIo      io;
+        ExplorerPickerHost  listing (fs, io, kBaseDir, ExplorerPickerHost::Services { .listsStockDisks = true });
+        ExplorerPickerHost  plain   (fs, io, kBaseDir);
+        PickerRequest       request;
+
+
+
+        SeedCassoExplorerFiles (fs);
+        request.startInCasso = true;
+
+        listing.Prepare (request, CassoExplorerPrefs::kThemeDark, nullptr, false);
+        plain.Prepare   (request, CassoExplorerPrefs::kThemeDark, nullptr, false);
+
+        Assert::IsFalse (listing.GetRequest().stockDisks.empty());
+        Assert::IsTrue  ((bool) listing.GetRequest().onFetchStock);
+        Assert::IsTrue  (plain.GetRequest().stockDisks.empty(), L"a host that doesn't list them");
+    }
+
+
+
     TEST_METHOD (Context_HasNoLinksCardsOrRunningCassos)
     {
         InMemoryFileSystem          fs;

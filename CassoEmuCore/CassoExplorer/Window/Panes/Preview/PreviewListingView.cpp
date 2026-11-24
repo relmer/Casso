@@ -9,6 +9,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
 #include "CassoExplorer/Browser/BrowserCells.h"
 #include "CassoExplorer/Browser/BrowserPreviewer.h"
+#include "CassoExplorer/Browser/Preview/ShellItemPreviewer.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
 #include "CassoExplorer/Window/Panes/ExplorerPane.h"
@@ -319,12 +320,12 @@ void PreviewListingView::Fill (const PreviewContent & preview, bool columns)
         ExplorerTextStyles::Apply (*m_list, preview.archive ? ExplorerTextStyles::kProse : ExplorerTextStyles::kListing);
         m_list->SetRowHeightDip    (kRowHeightDip);
         m_list->SetRowHeightPxFn   (preview.archive ? std::function<int (UINT)> (&ExplorerLayout::GetListRowHeightPx) : nullptr);
-        m_list->SetColumns         (preview.archive ? BrowserPreviewer::GetArchivePreviewColumns() : BrowserCells::GetCatalogPreviewColumns());
+        m_list->SetColumns         (preview.archive ? ShellItemPreviewer::GetArchivePreviewColumns() : BrowserCells::GetCatalogPreviewColumns());
         m_list->SetTextSelectionColors (!preview.archive);
 
         for (const CatalogRow & row : preview.rows)
         {
-            rows.push_back (preview.archive ? m_context.browser.GetPreviewer().GetArchivePreviewCells (row) : BrowserCells::ToCatalogPreviewCells (row));
+            rows.push_back (preview.archive ? m_context.browser.GetPreviewer().GetShellItems().GetArchivePreviewCells (row) : BrowserCells::ToCatalogPreviewCells (row));
         }
     }
 

@@ -69,7 +69,7 @@ void ExplorerPreviewManager::Create()
     m_sections->SetVisible  (false);
     m_sections->SetOnChange ([this] (int index)
     {
-        m_context.browser.GetPreviewer().SetSavedGameShown (index == 0);
+        m_context.browser.GetPreviewer().GetViewState().SetSavedGameShown (index == 0);
         FillPreview();
         m_context.window.Invalidate();
     });
@@ -350,7 +350,7 @@ void ExplorerPreviewManager::FillPreview()
     bool                    vars     = preview.kind == PreviewContent::Kind::Variables;
     bool                    columns  = (preview.kind == PreviewContent::Kind::Catalog && preview.lines.empty()) || vars || preview.kind == PreviewContent::Kind::Grid;
     bool                    program  = preview.kind == PreviewContent::Kind::Listing && !preview.bytes.empty();
-    bool                    forms    = picture && m_context.browser.GetPreviewer().CanTogglePictureColor();
+    bool                    forms    = picture && m_context.browser.GetPreviewer().GetMonitorChoice().CanTogglePictureColor();
     bool                    shell    = preview.kind == PreviewContent::Kind::Shell;
     bool                    woz      = !preview.wozPath.empty();
     bool                    random   = preview.recordLength > 0;
@@ -1714,7 +1714,7 @@ void ExplorerPreviewManager::ChooseRecordLength()
 
     if (parsed)
     {
-        m_context.browser.GetPreviewer().SetRecordLength (length);
+        m_context.browser.GetPreviewer().GetViewState().SetRecordLength (length);
         FillPreview();
     }
 }

@@ -300,7 +300,9 @@ std::string CassoLinkHost::DescribeBlockError (Byte error, uint32_t block)
 //  CassoLinkHost::ServeVirtualBlock
 //
 //  A request whose size doesn't match its operation, or a write whose block
-//  fails its CRC, has no reply, so the driver sends it again.
+//  fails its CRC, has no reply, so the driver sends it again. A status
+//  request has the ROM's identification bytes after the block, which
+//  identify the model.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -317,6 +319,7 @@ HRESULT CassoLinkHost::ServeVirtualBlock (const CassoLinkPacket & packet)
     Byte                   error     = CassoLinkVirtualDrives::kNoDevice;
     bool                   sized     = false;
     Word                   crc       = 0;
+    std::wstring           model;
 
 
 
@@ -327,7 +330,8 @@ HRESULT CassoLinkHost::ServeVirtualBlock (const CassoLinkPacket & packet)
     drive     = payload[0];
     operation = payload[1];
     block     = (uint32_t) payload[2] | ((uint32_t) payload[3] << 8);
-    sized     = payload.size() == ((operation == CassoLinkCodec::kVirtualWrite) ? 4 + CassoLinkVirtualDrives::kBlockSize + 2 : 4);
+    sized     = payload.size() == ((operation == CassoLinkCodec::kVirtualWrite) ? 4 + CassoLinkVirtualDrives::kBlockSize + 2 : 4)
+             || (operation == CassoLinkCodec::kVirtualStatus && payload.size() == 4 + kVirtualIdSize);
     ReportVirtualDrop (sized);
     BAIL_OUT_IF (!sized, S_OK);
 
@@ -369,6 +373,15 @@ HRESULT CassoLinkHost::ServeVirtualBlock (const CassoLinkPacket & packet)
     }
     else
     {
+        if (payload.size() == 4 + kVirtualIdSize)
+        {
+            CassoLinkClient  id;
+
+            id.hasRomId = true;
+            std::copy_n (payload.begin() + 4, kVirtualIdSize, id.romId.begin());
+            model = id.GetModelName();
+        }
+
         if (m_virtualDrives != nullptr)
         {
             error = m_virtualDrives->GetBlocks (drive, blocks);
@@ -381,6 +394,11 @@ HRESULT CassoLinkHost::ServeVirtualBlock (const CassoLinkPacket & packet)
 
     hr = SendPacket (CassoLinkCodec::kVirtualBlock, reply);
     CHR (hr);
+
+    if (m_virtualServed)
+    {
+        m_virtualServed (model);
+    }
 
 Error:
     return hr;

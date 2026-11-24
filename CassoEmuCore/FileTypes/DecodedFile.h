@@ -26,6 +26,7 @@ enum class FileFormat
     IigsIcons, HiResFont, Apple3Font, FontrixFont, PrintShopFont,
     IigsFont, WizardryScenario, InfocomStory, HiResScreen,
     DoubleHiResScreen, LoResScreen, MacPaint, Disassembly, UltimaSave,
+    WizardryRoster,
 };
 
 
@@ -96,6 +97,13 @@ enum class DisassemblyCpu { None, Mos6502, Mos6502Undocumented, Wdc65C02, Wdc658
 
 
 
+//  Disk images, each as its sectors in DOS order.
+using DiskSectorsList = std::span<const std::vector<Byte>>;
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DecodeOptions
@@ -108,16 +116,18 @@ enum class DisassemblyCpu { None, Mos6502, Mos6502Undocumented, Wdc65C02, Wdc658
 
 struct DecodeOptions
 {
-    size_t           recordLength     = 0;
-    Charset          charset          = Charset::Default;
-    bool             formulas         = false;                    // a spreadsheet's formulas as typed, not their values
-    bool             hiResMono        = false;                    // a hi-res picture's dots in black and white
-    DoubleHiResForm  doubleHiRes      = DoubleHiResForm::Auto;
-    bool             basicColor       = false;                    // a BASIC listing as RTF, its keywords, strings and remarks colored
-    bool             basicRawControls = false;                    // an Applesoft listing's control characters as the bytes, not ^D
-    DisassemblyCpu   disassembly      = DisassemblyCpu::None;     // a code file copied as a disassembly for this processor
-    bool             longRegisters    = true;                     // 65816 code starts with 16-bit registers
-    bool             followFlags      = true;                     // 65816 register widths follow REP and SEP
+    size_t                 recordLength     = 0;
+    Charset                charset          = Charset::Default;
+    bool                   formulas         = false;                    // a spreadsheet's formulas as typed, not their values
+    bool                   hiResMono        = false;                    // a hi-res picture's dots in black and white
+    DoubleHiResForm        doubleHiRes      = DoubleHiResForm::Auto;
+    bool                   basicColor       = false;                    // a BASIC listing as RTF, its keywords, strings and remarks colored
+    bool                   basicRawControls = false;                    // an Applesoft listing's control characters as the bytes, not ^D
+    DisassemblyCpu         disassembly      = DisassemblyCpu::None;     // a code file copied as a disassembly for this processor
+    bool                   longRegisters    = true;                     // 65816 code starts with 16-bit registers
+    bool                   followFlags      = true;                     // 65816 register widths follow REP and SEP
+    std::span<const Byte>  diskSectors;                                 // the disk the file is on, in DOS order, for a file that refers to others
+    DiskSectorsList        otherDisks;                                  // other disks of the same game, from the image's folder
 };
 
 
@@ -196,15 +206,14 @@ struct Paragraph
     int                                 tipLeft    = 0;
     int                                 tipTop     = 0;
     int                                 tipColumns = 0;
-    int                                 pingX      = -1;      // a picture's ping center, in its pixels; -1 for none
+    int                                 pingX      = -1;                // a picture's ping center, in its pixels; -1 for none
     int                                 pingY      = -1;
-    bool                                canZoom    = false;   // the wheel zooms the picture and a drag pans it
-    bool                                isLegend   = false;   // each run is an entry, laid out in columns as many as fit
+    bool                                canZoom    = false;             // the wheel zooms the picture and a drag pans it
+    bool                                isLegend   = false;             // each run is an entry, laid out in columns as many as fit
+    bool                                hasRule    = false;             // a horizontal line under the paragraph
     std::shared_ptr<const RecordTable>  table;
 
-    bool  operator== (const Paragraph &) const = default;
-
-    //  The tip of the cell at a pixel of the picture, or nullptr.
+    bool  operator== (const Paragraph &) const = default;               //  The tip of the cell at a pixel of the picture, or nullptr.
     const PictureTip * GetTipAt (int x, int y) const
     {
         int  column = (tipCell > 0 && x >= tipLeft) ? (x - tipLeft) / tipCell : -1;

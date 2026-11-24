@@ -423,6 +423,8 @@
     <ClCompile Include="FileTypes\OmfFileTests.cpp" />
     <ClCompile Include="FileTypes\VisiCalcSheetTests.cpp" />
     <ClCompile Include="FileTypes\ZMachineStoryTests.cpp" />
+    <ClCompile Include="FileTypes\WizardryMazeTests.cpp" />
+    <ClCompile Include="FileTypes\WizardryRosterTests.cpp" />
     <ClCompile Include="FileTypes\WizardryScenarioTests.cpp" />
     <ClCompile Include="FileTypes\Ultima3SaveTests.cpp" />
     <ClCompile Include="FileTypes\Ultima4SaveTests.cpp" />
@@ -647,6 +649,15 @@
     <ClCompile Include="CassoExplorer\DisassemblerTests.cpp" />
     <ClCompile Include="CassoExplorer\PCodeDisassemblerTests.cpp" />
     <ClCompile Include="CassoExplorer\HostFileNamingTests.cpp" />
+    <ClCompile Include="CassoExplorer\HostTextPreviewTests.cpp" />
+    <ClCompile Include="CassoExplorer\PreviewViewStateTests.cpp" />
+    <ClCompile Include="CassoExplorer\PictureMonitorChoiceTests.cpp" />
+    <ClCompile Include="CassoExplorer\DiskImagePreviewerTests.cpp" />
+    <ClCompile Include="CassoExplorer\BrowserSearchMatchesTests.cpp" />
+    <ClCompile Include="CassoExplorer\BrowserArchivesTests.cpp" />
+    <ClCompile Include="CassoExplorer\ShellItemPreviewerTests.cpp" />
+    <ClCompile Include="CassoExplorer\HostFilePreviewerTests.cpp" />
+    <ClCompile Include="CassoExplorer\CassoLinkPreviewerTests.cpp" />
     <ClCompile Include="CassoExplorer\ContentSnifferTests.cpp" />
     <ClCompile Include="CassoExplorer\CatalogModelTests.cpp" />
     <ClCompile Include="CassoExplorer\PickerColumnTests.cpp" />
@@ -665,6 +676,7 @@
     <ClCompile Include="CassoExplorer\RawCopyDropHandlerTests.cpp" />
     <ClCompile Include="CassoExplorer\DiskOperationsTests.cpp" />
     <ClCompile Include="CassoExplorer\TreeModelTests.cpp" />
+    <ClCompile Include="CassoExplorer\LinkImageDropRuleTests.cpp" />
     <ClCompile Include="CassoExplorer\BrowserModelTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerSessionTests.cpp" />
     <ClCompile Include="CassoExplorer\KnownFolderStoreTests.cpp" />
@@ -681,6 +693,7 @@
     <ClCompile Include="CassoExplorer\HostAppleFileTests.cpp" />
     <ClCompile Include="CassoExplorer\SearchExpressionTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoLinkJobViewTests.cpp" />
+    <ClCompile Include="CassoExplorer\CassoLinkListActionsTests.cpp" />
     <ClCompile Include="CassoExplorer\FullSendDialogTests.cpp" />
     <ClCompile Include="CassoExplorer\KrunchMapTests.cpp" />
     <ClCompile Include="CassoExplorer\SearchQueryTests.cpp" />
@@ -694,6 +707,7 @@
     <ClCompile Include="CassoExplorer\InspectorWindowSetTests.cpp" />
     <ClCompile Include="CassoExplorer\RefreshAnchorTests.cpp" />
     <ClInclude Include="CassoExplorer\FakeExplorerWindow.h" />
+    <ClInclude Include="CassoExplorer\BrowserPartsFixture.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerBrowserTestHost.h" />
     <ClInclude Include="CassoExplorer\FakeRecycleBin.h" />
     <ClInclude Include="CassoExplorer\RecordingExplorerServices.h" />

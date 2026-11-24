@@ -59,13 +59,14 @@ public:
 
 
 
-        Assert::AreEqual ((size_t) 6, rows.size(), L"The title, the headings, and a row and a detail for each record, no blank row between");
-        Assert::IsTrue   (rows[4].cells == std::vector<std::wstring> ({ L"SHADE", L"Bishop" }));
+        Assert::AreEqual ((size_t) 7, rows.size(), L"The title, the headings, and a row and a detail for each record, a blank row between");
+        Assert::IsTrue   (rows[4].cells.empty(), L"The blank row between records with details");
+        Assert::IsTrue   (rows[5].cells == std::vector<std::wstring> ({ L"SHADE", L"Bishop" }));
         Assert::IsTrue   (rows[1].cells == std::vector<std::wstring> ({ L"Name", L"Class" }));
         Assert::IsTrue   (rows[1].spans[0].bold, L"The headings are bold");
         Assert::IsTrue   (rows[2].cells == std::vector<std::wstring> ({ L"ELVE", L"Bishop" }));
         Assert::IsTrue   (rows[3].cells == std::vector<std::wstring> ({ L"      MACE", L"equipped" }), L"The record's detail is under it, its tab a column");
-        Assert::IsTrue   (outParagraph == std::vector<int> ({ 0, 1, 1, 1, 1, 1 }), L"Each row's paragraph");
+        Assert::IsTrue   (outParagraph == std::vector<int> ({ 0, 1, 1, 1, 1, 1, 1 }), L"Each row's paragraph");
     }
 
 

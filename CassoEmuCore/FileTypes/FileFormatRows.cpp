@@ -20,6 +20,7 @@
 #include "FileTypes/SuperHiRes.h"
 #include "FileTypes/TeachDocument.h"
 #include "FileTypes/VisiCalcSheet.h"
+#include "FileTypes/WizardryRoster.h"
 #include "FileTypes/WizardryScenario.h"
 #include "FileTypes/ZMachineStory.h"
 
@@ -59,6 +60,7 @@ std::vector<FileFormatTable::Row> FileFormatRows::Make()
         Row { FileFormat::PascalCode,     &PascalCodefile::Matches,      &PascalCodefile::Decode,      nullptr,               L".Pascal code.txt",      false },
         Row { FileFormat::InfocomStory,   &ZMachineStory::Matches,       &ZMachineStory::Decode,       nullptr,               L".Z-machine.txt",        false },
         Row { FileFormat::WizardryScenario, &WizardryScenario::Matches,  &WizardryScenario::Decode,    nullptr,               L".Wizardry.rtf",         false },
+        Row { FileFormat::WizardryRoster, &WizardryRoster::Matches,      &WizardryRoster::Decode,      nullptr,               L".Wizardry.rtf",         false },
 
         Row { FileFormat::SuperHiRes,         &SuperHiRes::MatchesScreen,          &SuperHiRes::DecodeScreen,          nullptr, L".Super Hi-Res.png", true },
         Row { FileFormat::PackedSuperHiRes,   &SuperHiRes::MatchesPacked,          &SuperHiRes::DecodePacked,          nullptr, L".Super Hi-Res.png", true },

@@ -44,6 +44,21 @@ public:
     };
 
 
+    TEST_METHOD (TheIcon_IsTheSystemMenu)
+    {
+        Fixture  f;
+
+
+
+        f.caption.SetAppIcon (std::vector<uint32_t> (16 * 16, 0xFFFFFFFF), 16, 16);
+        f.PaintAt (L"Casso Explorer", 800);
+
+        Assert::IsTrue (f.caption.ClassifyHit (POINT { 20, DxuiCaptionBar::kCaptionHeightDip / 2 }) == DxuiHitTestKind::SystemMenu);
+        Assert::IsTrue (f.caption.ClassifyHit (POINT { 300, DxuiCaptionBar::kCaptionHeightDip / 2 }) == DxuiHitTestKind::Caption, L"the title");
+    }
+
+
+
     TEST_METHOD (TitleThatFits_ShowsNoTip)
     {
         Fixture  f;
