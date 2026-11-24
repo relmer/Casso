@@ -301,8 +301,8 @@ public:
 
     TEST_METHOD (Hidden_Drive_Is_Neither_Drawn_Nor_Hit)
     {
-        DeskSceneMetrics      metrics = MakeMetrics();
-        RECT                  vp      = { 0, 0, 1120, 768 };
+        DeskSceneMetrics      metrics   = MakeMetrics();
+        RECT                  vp        = { 0, 0, 1120, 768 };
         DeskSceneComposition  comp;
         float                 screen[2] = {};
         SceneHitResult        hit;
