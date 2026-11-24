@@ -190,9 +190,9 @@ public:
 
         const Case  cases[] =
         {
-            { L"bad.dsk",     RepairFixtures::MakeDos33Bitmap().damaged,       L"Bad: Track 18, sector $E is used by HELLO but marked free. Click Inspect to see the problems.",
+            { L"bad.dsk",     RepairFixtures::MakeDos33Bitmap().damaged,       L"Track 18, sector $E is used by HELLO but marked free.\nClick Inspect for more information.",
               DxuiInfoBanner::Severity::Error, L"" },
-            { L"suspect.dsk", RepairFixtures::MakeDos33NextTrackOff().damaged, L"Possible inconsistencies: The VTOC's next track to allocate, track 40, is off the disk. Click Inspect to see the problems.",
+            { L"suspect.dsk", RepairFixtures::MakeDos33NextTrackOff().damaged, L"The VTOC's next track to allocate, track 40, is off the disk.\nClick Inspect for more information.",
               DxuiInfoBanner::Severity::Info,  L"" },
             { L"ok.dsk",      RepairFixtures::MakeDos33(),                     L"", DxuiInfoBanner::Severity::Info, L"" },
         };

@@ -124,19 +124,19 @@ public:
     }
 
 
-    TEST_METHOD (FormatNotice_HasTheVerdictTheFindingAndTheReason)
+    TEST_METHOD (FormatNotice_HasTheFindingAndTheReason)
     {
         RepairPlan  plan;
 
 
 
         plan.canRepair = true;
-        Assert::AreEqual (std::wstring (L"Bad: 7 blocks in use are marked free."),
+        Assert::AreEqual (std::wstring (L"7 blocks in use are marked free."),
                           BlockRepairController::FormatNotice (FileSystemVerdict::Bad, L"7 blocks in use are marked free", plan));
 
         plan.canRepair = false;
         plan.reason    = L"The card is read-only.";
-        Assert::AreEqual (std::wstring (L"Bad: 7 blocks in use are marked free. Repair isn't available. The card is read-only."),
+        Assert::AreEqual (std::wstring (L"7 blocks in use are marked free. Repair isn't available. The card is read-only."),
                           BlockRepairController::FormatNotice (FileSystemVerdict::Bad, L"7 blocks in use are marked free", plan));
     }
 };

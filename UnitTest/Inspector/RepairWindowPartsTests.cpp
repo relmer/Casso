@@ -245,7 +245,7 @@ public:
             banner = issues.GetBanner().GetBounds();
             Assert::IsTrue   (issues.GetBanner().IsVisible(), std::format (L"the infobar at {} dpi", dpi).c_str());
             Assert::AreEqual ((size_t) 1, issues.GetBanner().GetActionCount(), L"Repair...");
-            Assert::IsTrue   (issues.GetBanner().GetText().starts_with (L"Bad: "), issues.GetBanner().GetText().c_str());
+            Assert::IsTrue   (issues.GetBanner().GetText().starts_with (L"Track "), issues.GetBanner().GetText().c_str());
             Assert::IsTrue   (banner.top == 0 && banner.bottom <= issues.GetList().GetBounds().top, L"over the list");
 
             button = issues.GetBanner().GetAction (0)->GetBounds();
@@ -311,7 +311,7 @@ public:
 
         text = IssuesView::FormatBanner (analysis, plan);
 
-        Assert::AreEqual (std::wstring (L"Bad: Track 18, sector $E is used by HELLO but marked free. Repair isn't available. The image is read-only."), text);
+        Assert::AreEqual (std::wstring (L"Track 18, sector $E is used by HELLO but marked free. Repair isn't available. The image is read-only."), text);
     }
 
 

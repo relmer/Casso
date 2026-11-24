@@ -129,7 +129,9 @@ std::wstring BlockRepairController::FormatNotice (FileSystemVerdict verdict, con
         sentence += L".";
     }
 
-    text = FileSystemCheck::FormatVerdict (verdict) + (sentence.empty() ? std::wstring (L".") : L": " + sentence);
+    //  The infobar's color indicates the verdict, so the text is the finding
+    //  alone, or the verdict when there is no finding.
+    text = sentence.empty() ? FileSystemCheck::FormatVerdict (verdict) + L"." : sentence;
 
     if (!plan.canRepair)
     {

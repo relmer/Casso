@@ -336,7 +336,7 @@ void IssuesView::UpdateBanner()
 //
 //  IssuesView::FormatBanner
 //
-//  "Bad: Track 18, sector $E is used by HELLO but marked free.", and when
+//  "Track 18, sector $E is used by HELLO but marked free.", and when
 //  Repair isn't available, its reason after.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -359,7 +359,9 @@ std::wstring IssuesView::FormatBanner (const DiskAnalysis & analysis, const Repa
         sentence += L".";
     }
 
-    text = FileSystemCheck::FormatVerdict (analysis.verdict) + (sentence.empty() ? std::wstring (L".") : L": " + sentence);
+    //  The infobar's color indicates the verdict, so the text is the finding
+    //  alone, or the verdict when there is no finding.
+    text = sentence.empty() ? FileSystemCheck::FormatVerdict (analysis.verdict) + L"." : sentence;
 
     if (!plan.canRepair)
     {
