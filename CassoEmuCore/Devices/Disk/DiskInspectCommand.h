@@ -35,12 +35,15 @@ class DiskInspectCommand
 {
 public:
     //  A block volume's finding and the map units it covers. A finding of
-    //  damaged blocks is a role, as "Marked used, in no file".
+    //  damaged blocks is a role, as "Marked used, in no file", and its
+    //  sentence is "7 blocks are marked used but are in no file"; any other
+    //  finding's sentence is its text.
     struct BlockFinding
     {
         std::wstring      text;
         vector<uint32_t>  units;
         bool              isRole = false;
+        std::wstring      sentence;
     };
 
     static void         Run           (IDiskFileIo & io, const std::string & imagePath, DiskCommandResult & result);

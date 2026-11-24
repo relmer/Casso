@@ -350,7 +350,7 @@ bool FileSystemCheckScheduler::CheckBlockImage (IDiskFileIo & fileIo, const File
             vector<DiskInspectCommand::BlockFinding>  findings = DiskInspectCommand::GetBlockFindings (map);
 
             outOutcome.verdict = verdict;
-            outOutcome.finding = findings.empty() ? std::wstring() : findings.front().text;
+            outOutcome.finding = findings.empty() ? std::wstring() : findings.front().sentence;
         }
     }
 

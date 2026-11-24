@@ -496,4 +496,17 @@ public:
         Assert::IsTrue (map.blocks[14].role == SectorRole::Free);
         Assert::IsTrue (map.blocks[3].role  == SectorRole::Free);
     }
+
+    TEST_METHOD (DamageRoles_AreFindingSentences)
+    {
+        static constexpr size_t  kBlocks = 7;
+
+
+
+        Assert::AreEqual (std::wstring (L"7 blocks in use are marked free"),             BlockMap::FormatRoleFinding (SectorRole::OwnedMarkedFree, kBlocks));
+        Assert::AreEqual (std::wstring (L"1 sector is marked used but is in no file"),   BlockMap::FormatRoleFinding (SectorRole::AllocatedUnowned, 1, true));
+        Assert::AreEqual (std::wstring (L"7 blocks are in two or more files"),           BlockMap::FormatRoleFinding (SectorRole::CrossLinked, kBlocks));
+        Assert::AreEqual (std::wstring (L"This block is in use but is marked free"),     BlockMap::FormatBlockFinding (SectorRole::OwnedMarkedFree));
+        Assert::IsTrue   (BlockMap::FormatRoleFinding (SectorRole::FileData, kBlocks).empty(), L"not a finding");
+    }
 };
