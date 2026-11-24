@@ -510,6 +510,14 @@ void ExplorerVerbs::RunVerb (CassoExplorerActions::Verb verb)
             m_context.imageTools.MakeArchive (verb == CassoExplorerActions::Verb::MakeShrinkItDisk);
             break;
 
+        case CassoExplorerActions::Verb::ConvertToDsk:
+        case CassoExplorerActions::Verb::ConvertToPo:
+        case CassoExplorerActions::Verb::ConvertToTwoImg:
+        case CassoExplorerActions::Verb::ConvertToHdv:
+        case CassoExplorerActions::Verb::ConvertToWoz:
+            m_context.imageTools.ConvertImage (verb);
+            break;
+
         case CassoExplorerActions::Verb::Test:
             m_context.imageTools.TestImage();
             break;

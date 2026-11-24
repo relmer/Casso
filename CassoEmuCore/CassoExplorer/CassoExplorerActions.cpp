@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
+#include "Machines/Apple2/Common/DiskImageConverter.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "CassoExplorer/InspectorWindowSet.h"
 #include "Devices/Disk/Archives/WrappedImageFileIo.h"
@@ -360,13 +361,19 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
 
 void CassoExplorerActions::AddImageVerbs (bool onDisk, std::vector<Verb> & inOutVerbs) const
 {
-    std::vector<std::wstring>  imagePaths;
-    bool                       one        = false;
+    std::vector<std::wstring>     imagePaths;
+    std::vector<DiskImageFormat>  targets;
+    bool                          one        = false;
 
 
 
     m_browser.GetSelection().GetSelectedHostPaths (imagePaths);
     one = imagePaths.size() == 1;
+
+    if (one)
+    {
+        m_archiver.GetConvertTargets (imagePaths[0], targets);
+    }
 
     inOutVerbs.push_back (Verb::Open);
 
@@ -401,6 +408,11 @@ void CassoExplorerActions::AddImageVerbs (bool onDisk, std::vector<Verb> & inOut
     if (one && ActionsTape::CanMakeDiskRecording (imagePaths[0]))
     {
         inOutVerbs.push_back (Verb::ConvertToDiskAudio);
+    }
+
+    for (DiskImageFormat format : targets)
+    {
+        inOutVerbs.push_back (ActionsArchive::GetConvertVerb (format));
     }
 
     if (one && ActionsArchive::CanMakeShrinkItDisk (imagePaths[0]))

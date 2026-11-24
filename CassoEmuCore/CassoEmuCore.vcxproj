@@ -416,6 +416,7 @@
     <ClCompile Include="Devices\Disk\MountDiagnosis.cpp" />
     <ClCompile Include="Machines\Apple2\Common\NibbleImageCodec.cpp" />
     <ClCompile Include="Machines\Apple2\Common\Denibblizer.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\DiskImageConverter.cpp" />
     <ClCompile Include="Machines\Apple2\Common\FluxSectorWriter.cpp" />
     <ClCompile Include="Machines\Apple2\Common\NibbleFieldWriter.cpp" />
     <ClCompile Include="Machines\Apple2\Common\Nibblizer.cpp" />
@@ -1646,6 +1647,7 @@
     <ClInclude Include="Devices\Disk\MountDiagnosis.h" />
     <ClInclude Include="Machines\Apple2\Common\NibbleImageCodec.h" />
     <ClInclude Include="Machines\Apple2\Common\Denibblizer.h" />
+    <ClInclude Include="Machines\Apple2\Common\DiskImageConverter.h" />
     <ClInclude Include="Machines\Apple2\Common\FluxSectorWriter.h" />
     <ClInclude Include="Machines\Apple2\Common\NibbleFieldWriter.h" />
     <ClInclude Include="Machines\Apple2\Common\NibbleFormat.h" />

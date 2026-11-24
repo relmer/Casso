@@ -14,6 +14,7 @@
 
 struct AppleSingleFile;
 class CassoExplorerBrowser;
+enum class DiskImageFormat;
 
 
 
@@ -70,6 +71,7 @@ public:
     //  the test of an image or an archive.
     Outcome  MakeArchive            (const std::vector<std::wstring> & hostPaths, std::wstring & outPath) { return m_archiver.MakeArchive (hostPaths, outPath); }
     Outcome  MakeShrinkItDisk       (const std::wstring & imagePath, std::wstring & outPath)              { return m_archiver.MakeShrinkItDisk (imagePath, outPath); }
+    Outcome  ConvertImage           (const std::wstring & imagePath, DiskImageFormat format, std::wstring & outPath) { return m_archiver.ConvertImage (imagePath, format, outPath); }
     Outcome  TestImage              (const std::wstring & imagePath, std::wstring & outReport)            { return m_archiver.Test (imagePath, outReport); }
     Outcome  MakeTapeRecording      (const std::wstring & target)                                         { return m_tapes.MakeRecording (target); }
     Outcome  MakeDiskRecording      (const std::wstring & imagePath, const std::wstring & target, std::string & outCommand, double & outSeconds) { return m_tapes.MakeDiskRecording (imagePath, target, outCommand, outSeconds); }

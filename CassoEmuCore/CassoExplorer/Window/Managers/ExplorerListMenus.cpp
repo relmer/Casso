@@ -32,6 +32,7 @@
 #include "Seams/IDiskPictures.h"
 #include "CassoExplorer/InspectorWindowSet.h"
 #include "CassoExplorer/Window/Managers/ExplorerImageTools.h"
+#include "Machines/Apple2/Common/DiskImageConverter.h"
 
 
 
@@ -405,6 +406,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
     std::vector<DxuiPopupMenuItem>                   convertChoices;
     size_t                                           cassoAt        = 0;
     size_t                                           convertAt      = 0;
+    DiskImageFormat                                  convertFormat  = DiskImageFormat::Dsk;
 
 
 
@@ -693,7 +695,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
             continue;
         }
 
-        if (verb == CassoExplorerActions::Verb::ConvertToDiskAudio || verb == CassoExplorerActions::Verb::MakeShrinkItDisk)
+        if (verb == CassoExplorerActions::Verb::ConvertToDiskAudio || verb == CassoExplorerActions::Verb::MakeShrinkItDisk || ActionsArchive::TryGetConvertFormat (verb, convertFormat))
         {
             convertAt = convertChoices.empty() ? items.size() : convertAt;
             convertChoices.push_back (DxuiPopupMenuItem::ForCommand (command));

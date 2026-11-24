@@ -84,6 +84,13 @@ struct ActionsTypes
         ConvertToTapeAudio,
         ConvertToDiskAudio,
 
+        //  The selected image written beside it in another image format.
+        ConvertToDsk,
+        ConvertToPo,
+        ConvertToTwoImg,
+        ConvertToHdv,
+        ConvertToWoz,
+
         //  The selected image set as a drive in an A2Pico card's A2retroNET.txt.
         AddToA2retroNet,
 

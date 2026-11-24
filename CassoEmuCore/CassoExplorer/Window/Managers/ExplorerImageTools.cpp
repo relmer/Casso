@@ -49,6 +49,7 @@
 #include "CassoExplorer/Browser/BrowserRowPaths.h"
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
+#include "Machines/Apple2/Common/DiskImageConverter.h"
 
 
 
@@ -191,6 +192,45 @@ void ExplorerImageTools::MakeArchive (bool shrinkItDisk)
     outcome = shrinkItDisk ? m_context.actions.MakeShrinkItDisk (hostPaths[0], created) : m_context.actions.MakeArchive (hostPaths, created);
 
     m_context.verbs.ReportOutcome (outcome, shrinkItDisk ? L"Make a ShrinkIt disk" : L"Add to ShrinkIt archive");
+    m_context.folderSync.RefreshAfterHostChange();
+
+    if (!created.empty())
+    {
+        m_context.listPane.SelectRowNamed (std::filesystem::path (created).filename().wstring());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerImageTools::ConvertImage
+//
+//  The new image is selected once the folder is listed again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerImageTools::ConvertImage (ActionsTypes::Verb verb)
+{
+    std::vector<std::wstring>      hostPaths;
+    std::wstring                   created;
+    CassoExplorerActions::Outcome  outcome;
+    DiskImageFormat                format = DiskImageFormat::Dsk;
+
+
+
+    m_context.browser.GetSelection().GetSelectedHostPaths (hostPaths);
+
+    if (hostPaths.size() != 1 || !ActionsArchive::TryGetConvertFormat (verb, format))
+    {
+        return;
+    }
+
+    outcome = m_context.actions.ConvertImage (hostPaths[0], format, created);
+
+    m_context.verbs.ReportOutcome (outcome, L"Convert");
     m_context.folderSync.RefreshAfterHostChange();
 
     if (!created.empty())

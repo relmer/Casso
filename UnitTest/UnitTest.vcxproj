@@ -318,6 +318,7 @@
     <ClCompile Include="EmuTests\TrackBitReaderTests.cpp" />
     <ClCompile Include="EmuTests\TrackSectorDecoderTests.cpp" />
     <ClCompile Include="EmuTests\TrackLayoutWriterTests.cpp" />
+    <ClCompile Include="EmuTests\DiskImageConverterTests.cpp" />
     <ClCompile Include="AppleTextCodecTests.cpp" />
     <ClCompile Include="ApplesoftTokenizerTests.cpp" />
     <ClCompile Include="BasicCorpusTests.cpp" />
@@ -593,6 +594,7 @@
     <ClCompile Include="CassoExplorer\CassoExplorerActionsTests.cpp" />
     <ClCompile Include="CassoExplorer\ScratchImages.cpp" />
     <ClCompile Include="CassoExplorer\A2PicoCardActionsTests.cpp" />
+    <ClCompile Include="CassoExplorer\ImageConversionActionsTests.cpp" />
     <ClCompile Include="CassoExplorer\ExplorerPartitionTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerAboutTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerDragOutTests.cpp" />
