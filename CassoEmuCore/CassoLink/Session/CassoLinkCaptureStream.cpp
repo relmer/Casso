@@ -255,6 +255,8 @@ bool CassoLinkCapture::CollectMarks (const Position & position, Stream & outStre
         outStream.weak[at] = differing[at] >= weakReads && (size_t) differs[at] * 2 >= alignments.size();
     }
 
+    MarkProtectedEndings (outStream.bytes, differing, outStream.weak);
+
     //  A //c's IWM reads a write splice otherwise on each pass, so a stretch
     //  each pass reads otherwise is random only with a quiet baseline, and
     //  only that baseline lets the moments a byte was caught be followed;
@@ -275,6 +277,45 @@ bool CassoLinkCapture::CollectMarks (const Position & position, Stream & outStre
     }
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::MarkProtectedEndings
+//
+//  After an address field whose ending isn't DE AA, the bytes up to the next
+//  sync byte are the protection's, as Ultima IV's weak bits after its track
+//  0 checksum are. A drive whose head reads them more steadily than another
+//  differs on fewer than half its reads there, and on a track read three
+//  times a byte can differ on one: a byte after the ending's first that any
+//  read differs on is weak.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkCapture::MarkProtectedEndings (const std::vector<Byte> & bytes, const std::vector<int> & differing, std::vector<bool> & ioWeak)
+{
+    size_t  n     = bytes.size();
+    size_t  field = 3 + s_kAddressNibbles;
+
+
+
+    for (size_t at = 0; n > field + s_kSpliceBytes && at < n; at++)
+    {
+        size_t  ending      = at + field;
+        bool    isProtected = IsAddressPrologAt (bytes, at)
+                              && ((bytes[ending % n] | 0x80) != s_kEpilog0 || (bytes[(ending + 1) % n] | 0x80) != s_kEpilog1);
+
+        for (size_t k = 1; isProtected && k < s_kSpliceBytes && (bytes[(ending + k) % n] | 0x80) != s_kSyncByte; k++)
+        {
+            size_t  each = (ending + k) % n;
+
+            ioWeak[each] = ioWeak[each] || differing[each] > 0;
+        }
+    }
 }
 
 

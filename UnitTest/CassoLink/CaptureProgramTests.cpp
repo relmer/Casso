@@ -405,6 +405,121 @@ public:
     }
 
 
+    //  A track whose address fields end in AF, as Ultima IV's track 0 does,
+    //  with the bytes after it read otherwise on one of three reads, as a
+    //  drive that reads a weak stretch steadily does: the bytes after the
+    //  ending's first are written weak, so they differ between reads, as a
+    //  protection's check requires.
+    TEST_METHOD (AProtectedEndingsBytes_ReadOtherwiseOnce_AreWeak)
+    {
+        static constexpr size_t  kSectors       = 16;
+        static constexpr size_t  kSyncs         = 6;
+        static constexpr size_t  kDataBytes     = 343;
+        static constexpr size_t  kReadBytes     = 14000;
+        static constexpr size_t  kTail          = 4;
+        static constexpr Byte    kSteady[kTail] = { 0xA4, 0xBF, 0xC8, 0xD3 };
+        static constexpr Byte    kOther[kTail]  = { 0xA4, 0x9F, 0xE4, 0xB3 };
+
+        std::vector<Byte>                        revolution;
+        std::vector<Byte>                        other;
+        std::vector<CassoLinkCapture::Position>  positions (1);
+        CassoLinkCapture::Result                 result;
+        DiskImage                                image;
+        std::vector<Byte>                        framed;
+        uint32_t                                 seed    = 12345;
+        size_t                                   checked = 0;
+        size_t                                   read    = 0;
+
+
+
+        auto  add = [&revolution, &other] (std::initializer_list<Byte> values)
+        {
+            for (Byte value : values)
+            {
+                revolution.push_back (value);
+                other.push_back (value);
+            }
+        };
+
+        for (size_t sector = 0; sector < kSectors; sector++)
+        {
+            for (size_t each = 0; each < kSyncs; each++)
+            {
+                add ({ 0xFF });
+            }
+
+            add ({ 0xD5, 0xAA, 0x96, 0xAA, 0xAA, 0xAA, 0xAA, (Byte) (0xAA | (sector >> 1)), (Byte) (0xAA | sector), (Byte) (0xAA | (sector >> 1)), (Byte) (0xAA | sector), 0xAF });
+
+            for (size_t each = 0; each < kTail; each++)
+            {
+                revolution.push_back (kSteady[each]);
+                other.push_back (kOther[each]);
+            }
+
+            for (size_t each = 0; each < kSyncs; each++)
+            {
+                add ({ 0xFF });
+            }
+
+            add ({ 0xD5, 0xAA, 0xAD });
+
+            for (size_t each = 0; each < kDataBytes; each++)
+            {
+                seed = seed * 1103515245u + 12345u;
+                add ({ s_kDiskBytes[(seed >> 16) % (std::size (s_kDiskBytes) - 1)] });
+            }
+
+            add ({ 0xDE, 0xAA, 0xEB });
+        }
+
+        for (Byte delay : CassoLinkCapture::kWholeDelays)
+        {
+            const std::vector<Byte>  & source = (read == 1) ? other : revolution;
+            std::vector<Byte>          bytes;
+
+            for (size_t at = 0; at < kReadBytes; at++)
+            {
+                bytes.push_back (source[at % source.size()]);
+            }
+
+            positions[0].reads.push_back (bytes);
+            positions[0].delays.push_back (delay);
+            read++;
+        }
+
+        AssertSucceeded (CassoLinkCapture::BuildWoz (positions, 0, "2026-11-24T00:00:00Z", 1, result));
+        AssertSucceeded (WozLoader::Load (result.woz, image));
+
+        int     slot  = image.ResolveQuarterTrack (0);
+        size_t  count = image.GetTrackBitCount (slot);
+        size_t  at    = 0;
+        Byte    value = 0;
+
+        while (at < count)
+        {
+            value = (Byte) ((value << 1) | image.ReadBit (slot, at++));
+
+            if ((value & 0x80) != 0)
+            {
+                framed.push_back (value);
+                value = 0;
+            }
+        }
+
+        for (size_t each = 0; each + 14 < framed.size(); each++)
+        {
+            if (framed[each] == 0xD5 && framed[each + 1] == 0xAA && framed[each + 2] == 0x96 && framed[each + 11] == 0xAF)
+            {
+                Assert::AreEqual ((int) 0xA4, (int) framed[each + 12], L"The byte after the ending, the same on every read");
+                Assert::AreNotEqual ((int) 0xBF, (int) framed[each + 13], L"The next byte, read otherwise once, is weak");
+                checked++;
+            }
+        }
+
+        Assert::IsTrue (checked > 0, L"The track has address fields");
+    }
+
+
     //  A track whose data fields, with the D5 AA BC prolog Infocom's disks
     //  have, end in FF FF before the epilog, read with its sync bytes marked:
     //  the data's FFs are written with no zero bits, so a read of the field
