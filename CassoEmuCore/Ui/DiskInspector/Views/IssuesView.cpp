@@ -20,25 +20,32 @@ static constexpr float    s_kToggleHDip   = 22.0f;
 //
 //  IssuesView::IssuesView
 //
-//  The finding columns, the severity as an icon and the finding wrapped to
-//  the width the other columns leave, each of them as wide as its content.
+//  The finding columns, each as wide as its content measured: the severity
+//  as an icon under an empty heading, and the finding on one line. The last
+//  column takes any width left over, and the list scrolls sideways when the
+//  columns are wider than the view. Copy keeps the severity's heading.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 IssuesView::IssuesView (InspectorViewContext & context) :
     InspectorTableView (context)
 {
-    vector<std::wstring>  columns = InspectorTables::GetFindingColumns();
+    vector<std::wstring>  titles  = InspectorTables::GetFindingColumns();
+    vector<std::wstring>  columns = titles;
     vector<int>           widths  (columns.size(), 0);
 
 
 
-    widths[kFindingColumn] = kFindingMinDip;
+    columns[0] = std::wstring();
+    widths[0]  = kSeverityColumnDip;
 
-    SetColumns    (columns, widths, kFindingColumn);
+    SetColumns    (columns, widths, kCellColumn);
     SetIconColumn (0);
-    SetWrapsText  (true);
+    SetWrapsText  (false);
     SetOnSort     ([this] (int column) { OnSort (column); });
+
+    m_titles = std::move (titles);
+    m_list.SetPreciseAutoFit (true);
 
     m_banner.SetVisible  (false);
     m_banner.SetOnAction ([this] (size_t)

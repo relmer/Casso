@@ -15,12 +15,13 @@
 //
 //  Every finding on the disk (FR-048), most severe first, under a row of
 //  category toggles that filter the list (FR-049); each toggle has its
-//  category's count. A row has the severity's icon, the finding's whole
-//  text wrapped to its column, and the category, track, sector and cell.
+//  category's count. A row has the severity's icon, the finding's text on
+//  one line, and the category, track, sector and cell. The list scrolls
+//  sideways when the columns are wider than the view.
 //  Selecting a finding goes to it.
 //
-//  Over the list, while the volume is damaged, an infobar has the verdict
-//  and the first finding, and Repair... opens Repair's confirmation with
+//  Over the list, while the volume is damaged, an infobar has the first
+//  finding, and Repair... opens Repair's confirmation with
 //  every change checked. While the volume can't be repaired, the infobar
 //  has the reason in place of the button.
 //
@@ -33,7 +34,8 @@ public:
 
     static constexpr int     kFilterDip         = 28;
     static constexpr int     kSeverityIconDip   = 14;
-    static constexpr int     kFindingMinDip     = 240;     // the narrowest the finding column gets before the list scrolls
+    static constexpr int     kSeverityColumnDip = 28;      // the severity column, as wide as its icon and a margin
+    static constexpr size_t  kCellColumn        = 5;
     static constexpr int     kBannerGapDip      = 6;
     static constexpr size_t  kFindingColumn     = 1;
 
@@ -57,7 +59,7 @@ public:
     DxuiInfoBanner        & GetBanner       () { return m_banner; }
     const DxuiInfoBanner  & GetBanner       () const { return m_banner; }
 
-    //  The infobar's text: the verdict, the first finding and, when Repair
+    //  The infobar's text: the first finding and, when Repair
     //  isn't available, the reason.
     static std::wstring  FormatBanner (const DiskAnalysis & analysis, const RepairPlan & plan);
 

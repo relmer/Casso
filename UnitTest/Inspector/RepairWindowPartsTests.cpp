@@ -262,37 +262,31 @@ public:
 
 
 
-    TEST_METHOD (TheIssuesFindingColumn_TakesTheRestAndNeverGetsNarrow)
+    TEST_METHOD (TheIssuesColumns_FitTheirContentOnOneLineAndScrollSideways)
     {
-        auto           session = std::make_unique<InspectorSession>();
-        IssuesView     issues  { session->context };
-        DxuiDpiScaler  scaler;
-        RECT           finding = {};
-        RECT           cell    = {};
-        long           others  = 0;
+        auto                  session = std::make_unique<InspectorSession>();
+        IssuesView            issues  { session->context };
+        DxuiDpiScaler         scaler;
+        MockDxuiTextRenderer  text;
+        RECT                  finding = {};
+        int                   fitPx   = 0;
 
 
 
         Images::Analyze (RepairFixtures::MakeDos33Bitmap().damaged, false, session->analysis);
         session->context.hasDisk = true;
         issues.Refresh();
-        issues.Layout ({ 0, 0, 900, 400 }, scaler);
-
-        Assert::IsTrue (issues.GetList().GetCellRectPx (0, IssuesView::kFindingColumn, finding));
-
-        for (int column = 0; column < (int) InspectorTables::GetFindingColumns().size(); column++)
-        {
-            if (column != (int) IssuesView::kFindingColumn && issues.GetList().GetCellRectPx (0, column, cell))
-            {
-                others += cell.right - cell.left;
-            }
-        }
-
-        Assert::IsTrue (finding.right - finding.left > others, L"the finding takes the width the others leave");
-
+        issues.GetList().MeasureColumnsPx (text);
         issues.Layout ({ 0, 0, 300, 400 }, scaler);
-        Assert::IsTrue (issues.GetList().GetCellRectPx (0, IssuesView::kFindingColumn, finding));
-        Assert::IsTrue (finding.right - finding.left >= IssuesView::kFindingMinDip, L"no narrower than its least width");
+
+        Assert::AreEqual (std::wstring(), issues.GetList().GetColumnAt (0).title, L"the severity column has no heading");
+        Assert::AreEqual ((int) IssuesView::kSeverityColumnDip, issues.GetList().GetColumnEffectiveWidthPx (0), L"the severity column is as wide as its icon");
+        fitPx = issues.GetList().MeasureColumnContentPx (text, IssuesView::kFindingColumn);
+        Assert::IsTrue   (issues.GetList().GetCellRectPx (0, IssuesView::kFindingColumn, finding));
+        Assert::IsTrue   (finding.right - finding.left >= fitPx, L"the finding is as wide as its text");
+        Assert::AreEqual ((long) issues.GetList().GetRowHeightDip(), finding.bottom - finding.top, L"a finding is on one line");
+        Assert::IsTrue   (issues.GetList().GetMaxLeftPx() > 0, L"the columns wider than the view scroll sideways");
+        Assert::AreEqual (std::wstring (L"Severity"), InspectorTables::GetFindingColumns()[0], L"Copy keeps the heading");
     }
 
 
@@ -547,19 +541,22 @@ public:
     {
         for (UINT dpi : { 96u, 144u })
         {
-            auto              session = std::make_unique<InspectorSession>();
-            auto              issues  = std::make_unique<IssuesView> (session->context);
-            DxuiDpiScaler     scaler;
-            DxuiMouseEvent    ev;
-            RECT              before  = {};
-            RECT              after   = {};
-            POINT             divider = {};
+            auto                  session = std::make_unique<InspectorSession>();
+            auto                  issues  = std::make_unique<IssuesView> (session->context);
+            DxuiDpiScaler         scaler;
+            MockDxuiTextRenderer  text;
+            DxuiMouseEvent        ev;
+            RECT                  before  = {};
+            RECT                  after   = {};
+            POINT                 divider = {};
 
             Images::Analyze (RepairFixtures::MakeDos33Bitmap().damaged, false, session->analysis);
             session->context.hasDisk = true;
             scaler.SetDpi (dpi);
 
             issues->Refresh();
+            issues->Layout ({ 0, 0, scaler.ToPx (900), scaler.ToPx (400) }, scaler);
+            issues->GetList().MeasureColumnsPx (text);
             issues->Layout ({ 0, 0, scaler.ToPx (900), scaler.ToPx (400) }, scaler);
 
             //  The divider at the Category column's right edge, in the header.
