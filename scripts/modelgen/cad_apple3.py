@@ -45,6 +45,26 @@ COVER_END  = 238.5        # the cover's back, where the fins start
 COVER_BOT  = 28.4         # the cover's lower edge at its back
 D          = 282.2        # the fins' back face
 
+COVER_ROLL_R = 14.0       # the face into the top
+COVER_LIP_R  = 4.0        # the face's bottom edge
+COVER_SIDE_R = 9.0        # the top, the face and the lower edge into the sides
+FIN_TOP_R    = 8.0        # the fins' top edge, back and sides
+
+# The keyboard section in front of the face, from the same side photograph:
+# the base runs forward under it and its top rises from the front lip to the
+# well behind the keyboard.
+KB_FRONT_Y = -180.0       # the front of the base
+KB_LIP_Z   = 12.0         # the base's top at its front
+KB_BACK_Y  = -24.0        # the back of the keyboard housing
+KB_BACK_Z  = 40.0         # the base's top under it
+KB_THICK   = 20.0         # the housing, top to bottom
+KB_SIDE    = 6.0          # its inset from the sides
+KB_BEZEL   = 9.0          # the rim round the key well
+KB_WELL_D  = 9.0          # the well's depth
+KEY_PITCH  = 19.05
+KEY_CAP    = 17.5
+KEY_H      = 9.0
+
 FACE_TILT  = math.atan2(FACE_TOP_Y, TOP - FACE_BOT_Z)
 FACE_LEN   = math.hypot(FACE_TOP_Y, TOP - FACE_BOT_Z)
 
@@ -61,6 +81,7 @@ SLOT_V0, SLOT_V1   = 47.4, 51.9
 CHANNEL_X0, CHANNEL_X1 = SLOT_X0 - 7.5, SLOT_X0 + SLOT_W + 7.5
 CHANNEL_V0, CHANNEL_V1 = 45.0, 54.5
 CHANNEL_D          = 1.2
+BEVEL_R            = 1.2                    # where a channel's bevel meets the face
 NOTCH_X0, NOTCH_X1 = 292.0, 334.0
 NOTCH_V0, NOTCH_V1 = 16.7, 85.1
 NOTCH_D            = 14.0
@@ -112,6 +133,8 @@ GOLD     = (0.780, 0.640, 0.300)
 INK      = (0.200, 0.200, 0.210)
 INSERT   = (0.230, 0.225, 0.220)    # a D connector's insert
 RUBBER   = (0.120, 0.110, 0.100)
+KEYCAP   = (0.300, 0.290, 0.270)    # the dark gray keys
+KEYCAP_T = (0.700, 0.620, 0.480)    # the tan keys
 
 
 def box(x0, y0, z0, x1, y1, z1):
@@ -142,13 +165,16 @@ def face_box(x0, v0, x1, v1, n0, n1):
 
 
 def face_pocket(x0, x1, v0, v1, depth):
-    """A pocket `depth` deep into the face, its walls at 45 degrees."""
-    outer = cq.Wire.makePolygon([cq.Vector(x0 - depth, -0.01, v0 - depth), cq.Vector(x1 + depth, -0.01, v0 - depth),
-                                 cq.Vector(x1 + depth, -0.01, v1 + depth), cq.Vector(x0 - depth, -0.01, v1 + depth)], close=True)
-    inner = cq.Wire.makePolygon([cq.Vector(x0, depth, v0), cq.Vector(x1, depth, v0),
-                                 cq.Vector(x1, depth, v1), cq.Vector(x0, depth, v1)], close=True)
+    """A pocket `depth` deep into the face, its walls at 45 degrees, the
+    edge where a wall meets the face rolled over rather than sharp."""
+    def ring(grow, y):
+        return cq.Wire.makePolygon([cq.Vector(x0 - grow, y, v0 - grow), cq.Vector(x1 + grow, y, v0 - grow),
+                                    cq.Vector(x1 + grow, y, v1 + grow), cq.Vector(x0 - grow, y, v1 + grow)], close=True)
 
-    return on_face(cq.Workplane("XY").add(cq.Solid.makeLoft([outer, inner], True)))
+    roll  = cq.Solid.makeLoft([ring(depth + BEVEL_R, -0.01), ring(depth + BEVEL_R * 0.3, BEVEL_R * 0.3), ring(depth, BEVEL_R)], False)
+    wall  = cq.Solid.makeLoft([ring(depth, BEVEL_R - 0.01), ring(0.0, depth + 0.01)], True)
+
+    return on_face(cq.Workplane("XY").add(roll).union(cq.Workplane("XY").add(wall)))
 
 
 def rear_x(u):
@@ -170,22 +196,248 @@ m = Model()
 
 # ---------------------------------------------------------------------- base
 
-base = profile([(0.0, FOOT_H), (COVER_END, FOOT_H), (COVER_END, COVER_BOT - 0.05), (KINK_Y, KINK_Z - 0.05), (0.0, FACE_BOT_Z - 0.05)])
+base = profile([(KB_FRONT_Y + 4.0, FOOT_H), (COVER_END, FOOT_H), (COVER_END, COVER_BOT - 0.05), (KINK_Y, KINK_Z - 0.05),
+                (0.0, FACE_BOT_Z - 0.05), (KB_BACK_Y, KB_BACK_Z), (KB_FRONT_Y, KB_LIP_Z), (KB_FRONT_Y, FOOT_H + 4.0)])
+base = base.edges("|X").edges(cq.selectors.BoxSelector((-1.0, KB_FRONT_Y - 1.0, -1.0), (W + 1.0, KB_FRONT_Y + 5.0, KB_LIP_Z + 1.0))).fillet(2.5)
 m.add("base", base, BROWN)
 
 for fx in (30.0, W - 60.0):
     for fy in (20.0, D - 50.0):
         m.add(f"foot_{fx:.0f}_{fy:.0f}", box(fx, fy, 0.0, fx + 30.0, fy + 30.0, FOOT_H + 0.5), RUBBER)
 
+# ------------------------------------------------------------------ keyboard
+#
+# The keyboard, from the close-up in tcd/fig02.jpg: a cream housing lying on
+# the base's slope, its top stepped down inside a rim, with the key well
+# behind a wide front rest. The keys are on a 19.05 mm pitch: the main block
+# of five rows, 14.25 keys wide, and three columns of numeric pad a key's
+# width to its right. The keys are dark gray with white legends; ALPHA LOCK,
+# the two command keys and the arrows are light gray, and two flat light
+# blanks fill the bottom row beside the space bar. The command keys have
+# Casso's silhouette, open and solid, in place of the logo.
+KB_SLOPE = math.atan2(KB_BACK_Z - KB_LIP_Z, KB_BACK_Y - KB_FRONT_Y)
+KB_RUN   = math.hypot(KB_BACK_Z - KB_LIP_Z, KB_BACK_Y - KB_FRONT_Y)
+KB_LEN   = 146.0                            # the housing, front to back along the slope
+
+KB_X0, KB_X1   = KB_SIDE, W - KB_SIDE
+KB_EDGE_C      = 5.0                       # the outer edge's 45-degree chamfer
+KB_STEP        = 14.0                      # the stepped-down panel, in from the edge
+KB_STEP_D      = 1.2
+MAIN_U         = 14.25
+PAD_GAP_U      = 1.0
+PAD_U          = 3.0
+KEYS_W         = (MAIN_U + PAD_GAP_U + PAD_U) * KEY_PITCH
+WELL_MARGIN    = 3.0
+WELL_X0        = (W - KEYS_W) * 0.5 - WELL_MARGIN
+WELL_X1        = W - WELL_X0
+WELL_Y1        = KB_LEN - 11.0             # the well's back edge, along the slope
+WELL_Y0        = WELL_Y1 - 5 * KEY_PITCH - 2 * WELL_MARGIN
+KEYS_X0        = WELL_X0 + WELL_MARGIN
+KEYS_Y1        = WELL_Y1 - WELL_MARGIN
+KEY_Z0         = KB_THICK - KB_WELL_D
+KEY_TOP_IN     = 2.3                       # how far each side of the top is in from the base
+KEY_DISH       = 0.7
+
+DARK_KEY   = (0.270, 0.262, 0.250)
+LIGHT_KEY  = (0.590, 0.580, 0.555)
+BLANK_KEY  = (0.720, 0.710, 0.680)
+LEGEND     = (0.930, 0.925, 0.900)
+FONT_KEY   = r"C:\Windows\Fonts\arial.ttf"
+
+
+def on_keyboard(wp):
+    """Moves a part built flat, with y along the slope from the housing's
+    front and z up from its bottom, onto the base's slope."""
+    return (wp.rotate((0, 0, 0), (1, 0, 0), math.degrees(KB_SLOPE))
+              .translate((0.0, KB_FRONT_Y, KB_LIP_Z))
+              .translate((0.0, (KB_RUN - KB_LEN) * math.cos(KB_SLOPE), (KB_RUN - KB_LEN) * math.sin(KB_SLOPE))))
+
+
+housing = box(KB_X0, 0.0, 0.0, KB_X1, KB_LEN, KB_THICK)
+housing = housing.edges("|Z").fillet(6.0)
+housing = housing.faces(">Z").edges().chamfer(KB_EDGE_C)
+housing = housing.cut(box(KB_X0 + KB_STEP, KB_STEP, KB_THICK - KB_STEP_D, KB_X1 - KB_STEP, KB_LEN - KB_STEP * 0.6, KB_THICK + 1.0)
+                        .edges("|Z").fillet(4.0))
+# Two wells, the main block's and the pad's, with the housing between them.
+MAIN_X1 = KEYS_X0 + MAIN_U * KEY_PITCH + WELL_MARGIN
+PAD_X0W = KEYS_X0 + (MAIN_U + PAD_GAP_U) * KEY_PITCH - WELL_MARGIN
+WELLS   = ((WELL_X0, MAIN_X1), (PAD_X0W, WELL_X1))
+for wx0, wx1 in WELLS:
+    housing = housing.cut(box(wx0, WELL_Y0, KEY_Z0, wx1, WELL_Y1, KB_THICK + 1.0).edges("|Z").fillet(2.0))
+
+# The reset button: a gray plunger in a notch at the back right corner of
+# the housing, below the rim so it is hard to press by accident.
+RESET_X  = KB_X1 - 22.0
+housing  = housing.cut(box(RESET_X - 7.0, KB_LEN - 6.0, KB_THICK - 9.0, RESET_X + 7.0, KB_LEN + 1.0, KB_THICK + 1.0))
+m.add("keyboard", on_keyboard(housing), CASE, angular=0.14)
+m.add("reset", on_keyboard(box(RESET_X - 5.0, KB_LEN - 5.0, KB_THICK - 9.0, RESET_X + 5.0, KB_LEN - 1.5, KB_THICK - 3.5)
+                             .edges("|Y").fillet(1.0)), METAL)
+
+# The well's floor, dark between the keys.
+for i, (wx0, wx1) in enumerate(WELLS):
+    m.add(f"key_well_{i}", on_keyboard(box(wx0, WELL_Y0, KEY_Z0 - 0.2, wx1, WELL_Y1, KEY_Z0 + 0.2)), (0.090, 0.088, 0.085))
+
+key_parts   = {}
+legend_part = []
+
+
+def add_part(table, color, solid):
+    table[color] = solid if color not in table else table[color].union(solid)
+
+
+def keycap_solid(x0, y0, w, d, h):
+    """A keycap: tapered sides, its top set back toward the row behind, and
+    a shallow cylindrical dish across the top."""
+    bot = cq.Wire.makePolygon([cq.Vector(x0, y0, KEY_Z0), cq.Vector(x0 + w, y0, KEY_Z0),
+                               cq.Vector(x0 + w, y0 + d, KEY_Z0), cq.Vector(x0, y0 + d, KEY_Z0)], close=True)
+    tx0, tx1 = x0 + KEY_TOP_IN, x0 + w - KEY_TOP_IN
+    ty0, ty1 = y0 + KEY_TOP_IN + 1.2, y0 + d - KEY_TOP_IN + 0.4
+    top = cq.Wire.makePolygon([cq.Vector(tx0, ty0, KEY_Z0 + h), cq.Vector(tx1, ty0, KEY_Z0 + h),
+                               cq.Vector(tx1, ty1, KEY_Z0 + h), cq.Vector(tx0, ty1, KEY_Z0 + h)], close=True)
+    cap  = cq.Workplane("XY").add(cq.Solid.makeLoft([bot, top], True))
+    r    = 30.0
+    dish = (cq.Workplane("XZ").center((tx0 + tx1) * 0.5, KEY_Z0 + h + r - KEY_DISH).circle(r)
+              .extrude(-(d + 4.0)).translate((0.0, y0 - 2.0, 0.0)))
+
+    return cap.cut(dish), (tx0 + tx1) * 0.5, (ty0 + ty1) * 0.5, KEY_Z0 + h - KEY_DISH
+
+
+def legend(text, size, cx, cy, z, fit=0.0):
+    wp = cq.Workplane("XY").text(text, size, 1.0, fontPath=FONT_KEY, halign="center", valign="center")
+    bb = wp.val().BoundingBox()
+    if fit > 0.0 and bb.xmax - bb.xmin > fit:
+        size *= fit / (bb.xmax - bb.xmin)
+        wp    = cq.Workplane("XY").text(text, size, 1.0, fontPath=FONT_KEY, halign="center", valign="center")
+        bb    = wp.val().BoundingBox()
+    legend_part.append(wp.translate((cx - (bb.xmin + bb.xmax) * 0.5, cy - (bb.ymin + bb.ymax) * 0.5, z - 0.2)))
+
+
+def key(u, row, w_u, labels=(), color=DARK_KEY, word=False, mark=None):
+    x0 = KEYS_X0 + u * KEY_PITCH + (KEY_PITCH - KEY_CAP) * 0.5
+    y0 = KEYS_Y1 - (row + 1) * KEY_PITCH + (KEY_PITCH - KEY_CAP) * 0.5
+    w  = w_u * KEY_PITCH - (KEY_PITCH - KEY_CAP)
+    cap, cx, cy, zt = keycap_solid(x0, y0, w, KEY_CAP, KEY_H)
+    add_part(key_parts, color, cap)
+
+    if word:
+        lines = labels[0].split("\n")
+        for i, line in enumerate(lines):
+            legend(line, 2.4, cx, cy + 2.6 - i * 3.0, zt, fit=w - 2.0 * KEY_TOP_IN - 1.5)
+    elif len(labels) == 2:
+        legend(labels[0], 3.9, cx, cy + 2.7, zt)
+        legend(labels[1], 3.9, cx, cy - 2.7, zt)
+    elif len(labels) == 1:
+        legend(labels[0], 4.6, cx, cy, zt)
+
+    if mark is not None:
+        add_mark(cx, cy, zt - 0.2, 6.0, legend_part)
+        if mark == "open":
+            # The open key's silhouette is an outline: its middle in the
+            # key's own color.
+            inner = []
+            add_mark(cx, cy - 0.15, zt + 0.55, 4.2, inner)
+            for part in inner:
+                add_part(key_parts, color, part)
+
+
+def add_mark(cx, cy, z, height, out):
+    """Casso's silhouette lying on a key top, centered at (cx, cy)."""
+    sil = Model()
+    badge(sil, 0.0, 0.0, height, y=0.0, prefix="mark")
+    flat = [part.solid.rotate((0, 0, 0), (1, 0, 0), -90.0) for part in sil.parts]
+    bb   = flat[0].BoundingBox()
+    for f in flat[1:]:
+        bb = bb.add(f.BoundingBox())
+    for f in flat:
+        out.append(cq.Workplane("XY").add(f.translate((cx - (bb.xmin + bb.xmax) * 0.5, cy - (bb.ymin + bb.ymax) * 0.5, z - bb.zmin))))
+
+
+def blank(u, row, dot=False):
+    """A flat filler in the bottom row, flush with the well's floor plus a little."""
+    x0 = KEYS_X0 + u * KEY_PITCH + 0.6
+    y0 = KEYS_Y1 - (row + 1) * KEY_PITCH + 0.6
+    add_part(key_parts, BLANK_KEY, box(x0, y0, KEY_Z0, x0 + KEY_PITCH - 1.2, y0 + KEY_PITCH - 1.2, KEY_Z0 + 3.0))
+    if dot:
+        legend_part.append(cq.Workplane("XY").center(x0 + KEY_PITCH * 0.5 - 0.6, y0 + 4.0).circle(0.6).extrude(0.3)
+                             .translate((0.0, 0.0, KEY_Z0 + 2.95)))
+
+
+PAIRS = [("!", "1"), ("@", "2"), ("#", "3"), ("$", "4"), ("%", "5"), ("^", "6"), ("&", "7"), ("*", "8"),
+         ("(", "9"), (")", "0"), ("_", "-"), ("+", "=")]
+
+key(0, 0, 1.0, ("ESCAPE",), word=True)
+for i, pair in enumerate(PAIRS):
+    key(1 + i, 0, 1.0, pair)
+key(13, 0, 1.25, ("|", "\\"))
+
+key(0, 1, 1.25, ("TAB",), word=True)
+for i, ch in enumerate("QWERTYUIOP"):
+    key(1.25 + i, 1, 1.0, (ch,))
+key(11.25, 1, 1.0, ("{", "["))
+key(12.25, 1, 1.0, ("}", "]"))
+key(13.25, 1, 1.0, ("~", "`"))
+
+key(0, 2, 1.75, ("CONTROL",), word=True)
+for i, ch in enumerate("ASDFGHJKL"):
+    key(1.75 + i, 2, 1.0, (ch,))
+key(10.75, 2, 1.0, (":", ";"))
+key(11.75, 2, 1.0, ("\"", "'"))
+key(12.75, 2, 1.5, ("RETURN",), word=True)
+
+key(0, 3, 2.25, ("SHIFT",), word=True)
+for i, ch in enumerate("ZXCVBNM"):
+    key(2.25 + i, 3, 1.0, (ch,))
+key(9.25, 3, 1.0, ("<", ","))
+key(10.25, 3, 1.0, (">", "."))
+key(11.25, 3, 1.0, ("?", "/"))
+key(12.25, 3, 1.0, ("SHIFT",), word=True)
+key(13.25, 3, 1.0, ("\u2191",), color=LIGHT_KEY)
+
+key(0, 4, 1.0, ("ALPHA\nLOCK",), color=LIGHT_KEY, word=True)
+key(1, 4, 1.0, (), color=LIGHT_KEY, mark="open")
+key(2, 4, 1.0, (), color=LIGHT_KEY, mark="solid")
+blank(3, 4, dot=True)
+key(4, 4, 6.25)
+blank(10.25, 4)
+key(11.25, 4, 1.0, ("\u2190",), color=LIGHT_KEY)
+key(12.25, 4, 1.0, ("\u2192",), color=LIGHT_KEY)
+key(13.25, 4, 1.0, ("\u2193",), color=LIGHT_KEY)
+
+PAD = MAIN_U + PAD_GAP_U
+for row, keys_in_row in enumerate([["7", "8", "9"], ["4", "5", "6"], ["1", "2", "3"]]):
+    for col, ch in enumerate(keys_in_row):
+        key(PAD + col, row, 1.0, (ch,))
+key(PAD, 3, 2.0, ("0",))
+key(PAD + 2, 3, 1.0, (".",))
+key(PAD, 4, 1.0, ("\u2013",))
+key(PAD + 1, 4, 2.0, ("ENTER",), word=True)
+
+for color, solid in key_parts.items():
+    name = {DARK_KEY: "keys", LIGHT_KEY: "keys_light", BLANK_KEY: "keys_blank"}[color]
+    m.add(name, on_keyboard(solid), color)
+
+legends = legend_part[0]
+for part in legend_part[1:]:
+    legends = legends.union(part)
+m.add("key_legends", on_keyboard(legends), LEGEND)
+
 # --------------------------------------------------------------------- cover
 
 cover = profile([(0.0, FACE_BOT_Z), (KINK_Y, KINK_Z), (COVER_END, COVER_BOT),
                  (COVER_END, TOP), (FACE_TOP_Y, TOP)])
+
+# The molding has no sharp edges: the face rolls into the top, and the top
+# and the face roll into the sides. The back edge, against the fins, is left
+# square.
+cover = cover.edges("|X").edges(cq.selectors.BoxSelector((-1.0, FACE_TOP_Y - 1.0, TOP - 1.0), (W + 1.0, FACE_TOP_Y + 1.0, TOP + 1.0))).fillet(COVER_ROLL_R)
+cover = cover.edges("|X").edges(cq.selectors.BoxSelector((-1.0, -1.0, FACE_BOT_Z - 1.0), (W + 1.0, 1.0, FACE_BOT_Z + 1.0))).fillet(COVER_LIP_R)
+cover = cover.faces("<X or >X").edges(cq.selectors.BoxSelector((-1.0, -5.0, -1.0), (W + 1.0, COVER_END - 0.5, TOP + 1.0))).fillet(COVER_SIDE_R)
 cover = cover.cut(box(PANEL_X0, PANEL_Y0, TOP - PANEL_DEEP, PANEL_X1, PANEL_Y1, TOP + 1.0).edges("|Z").fillet(4.0))
 cover = cover.cut(face_pocket(CHANNEL_X0, CHANNEL_X1, CHANNEL_V0, CHANNEL_V1, CHANNEL_D))
 cover = cover.cut(face_pocket(NOTCH_X0, NOTCH_X1, NOTCH_V0, NOTCH_V1, CHANNEL_D))
 cover = cover.cut(face_box(SLOT_X0, SLOT_V0, SLOT_X0 + SLOT_W, SLOT_V1, -5.0, 20.0))
 cover = cover.cut(face_box(NOTCH_X0, NOTCH_V0, NOTCH_X1, NOTCH_V1, -5.0, NOTCH_D))
+
 m.add("case", cover, CASE, angular=0.14)
 
 # ------------------------------------------------------------- front: drive
@@ -216,6 +468,18 @@ m.add("model_plate", face_box(PLATE2_X0, PLATE_V0, PLATE2_X1, PLATE_V1, -0.4, 0.
 badge_parts = Model()
 badge(badge_parts, PLATE1_X0 + 3.0, PLATE_V0 + 2.5, PLATE_V1 - PLATE_V0 - 5.0, y=-0.7)
 
+# The maker's word to the right of the silhouette, in light gray.
+word = (cq.Workplane("XZ").text("apple", 10.0, 0.12, fontPath=r"C:\Windows\Fonts\GOTHICB.TTF",
+                                halign="center", valign="center"))
+wb   = word.val().BoundingBox()
+k    = 30.0 / (wb.xmax - wb.xmin)
+word = (cq.Workplane("XZ").text("apple", 10.0 * k, 0.12, fontPath=r"C:\Windows\Fonts\GOTHICB.TTF",
+                                halign="center", valign="center"))
+wb   = word.val().BoundingBox()
+word = word.translate((PLATE1_X1 - 3.0 - 15.0 - (wb.xmin + wb.xmax) * 0.5, -0.4 - wb.ymax,
+                       (PLATE_V0 + PLATE_V1) * 0.5 - (wb.zmin + wb.zmax) * 0.5))
+m.add("logo_word", on_face(word), (0.780, 0.770, 0.740))
+
 for part in badge_parts.parts:
     m.add(part.name, on_face(part.solid), part.color)
 
@@ -230,6 +494,7 @@ m.add("model_mark", on_face(slashes), WHITE)
 
 fins = box(0.0, COVER_END, FOOT_H, W, D, FIN_TOP_Z)
 fins = fins.edges("|Z and >Y").fillet(REAR_R)
+fins = fins.faces(">Z").edges(cq.selectors.BoxSelector((-1.0, COVER_END + 0.5, TOP - 1.0), (W + 1.0, D + 1.0, TOP + 1.0))).fillet(FIN_TOP_R)
 
 u = FIN_PITCH * 0.5
 

@@ -23,6 +23,46 @@ Ka 0 0 0
 Kd 0.12 0.11 0.1
 d 1
 
+newmtl keyboard
+Ka 0 0 0 
+Kd 0.905 0.84 0.7
+d 1
+
+newmtl reset
+Ka 0 0 0 
+Kd 0.62 0.625 0.635
+d 1
+
+newmtl key_well_0
+Ka 0 0 0 
+Kd 0.09 0.088 0.085
+d 1
+
+newmtl key_well_1
+Ka 0 0 0 
+Kd 0.09 0.088 0.085
+d 1
+
+newmtl keys
+Ka 0 0 0 
+Kd 0.27 0.262 0.25
+d 1
+
+newmtl keys_light
+Ka 0 0 0 
+Kd 0.59 0.58 0.555
+d 1
+
+newmtl keys_blank
+Ka 0 0 0 
+Kd 0.72 0.71 0.68
+d 1
+
+newmtl key_legends
+Ka 0 0 0 
+Kd 0.93 0.925 0.9
+d 1
+
 newmtl case
 Ka 0 0 0 
 Kd 0.905 0.84 0.7
@@ -61,6 +101,11 @@ d 1
 newmtl model_plate
 Ka 0 0 0 
 Kd 0.19 0.145 0.11
+d 1
+
+newmtl logo_word
+Ka 0 0 0 
+Kd 0.78 0.77 0.74
 d 1
 
 newmtl badge0
