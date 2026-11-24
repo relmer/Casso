@@ -662,30 +662,6 @@ std::wstring Win32PackagedCommands::FindLogoFile (const wchar_t * fullName, cons
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Win32PackagedCommands::LoadIndirectString
-//
-//  A "@file,-id" resource string read from its file; any other text is
-//  returned as it is.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring Win32PackagedCommands::LoadIndirectString (const std::wstring & text)
-{
-    wchar_t  loaded[512] = {};
-    bool     indirect    = !text.empty() && text[0] == L'@';
-    HRESULT  hr          = indirect ? SHLoadIndirectString (text.c_str(), loaded, (UINT) std::size (loaded), nullptr) : E_INVALIDARG;
-
-
-
-    return SUCCEEDED (hr) ? std::wstring (loaded) : text;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  Win32PackagedCommands::GetAttribute
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -857,7 +833,7 @@ bool Win32PackagedCommands::IsInSyncRootOf (const std::wstring & package, const 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Win32PackagedCommands::Applies (const Registration & registration, const std::vector<std::wstring> & paths, ItemKind kind)
+bool Win32PackagedCommands::Applies (const Registration & registration, const std::vector<std::wstring> & paths, Win32ExplorerCommandEntries::ItemKind kind)
 {
     const wchar_t  * type = registration.itemType.c_str();
 
@@ -866,15 +842,15 @@ bool Win32PackagedCommands::Applies (const Registration & registration, const st
     //  A sync client's commands are for what is in its own sync root.
     if (registration.itemType == s_kpszCloudItemType)
     {
-        return (kind == ItemKind::File || kind == ItemKind::Folder) && !paths.empty() && IsInSyncRootOf (registration.package, paths[0]);
+        return (kind == Win32ExplorerCommandEntries::ItemKind::File || kind == Win32ExplorerCommandEntries::ItemKind::Folder) && !paths.empty() && IsInSyncRootOf (registration.package, paths[0]);
     }
 
     switch (kind)
     {
-        case ItemKind::Folder:      return _wcsicmp (type, L"Directory") == 0 || _wcsicmp (type, L"Folder") == 0;
-        case ItemKind::Background:  return _wcsicmp (type, L"Directory\\Background") == 0;
-        case ItemKind::Drive:       return _wcsicmp (type, L"Drive") == 0;
-        case ItemKind::File:
+        case Win32ExplorerCommandEntries::ItemKind::Folder:      return _wcsicmp (type, L"Directory") == 0 || _wcsicmp (type, L"Folder") == 0;
+        case Win32ExplorerCommandEntries::ItemKind::Background:  return _wcsicmp (type, L"Directory\\Background") == 0;
+        case Win32ExplorerCommandEntries::ItemKind::Drive:       return _wcsicmp (type, L"Drive") == 0;
+        case Win32ExplorerCommandEntries::ItemKind::File:
         default:
             break;
     }
@@ -898,57 +874,16 @@ bool Win32PackagedCommands::Applies (const Registration & registration, const st
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Win32PackagedCommands::MakeItems
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT Win32PackagedCommands::MakeItems (const std::vector<std::wstring> & paths, IShellItemArray ** outItems)
-{
-    HRESULT                        hr  = S_OK;
-    std::vector<PIDLIST_ABSOLUTE>  ids;
-
-
-
-    *outItems = nullptr;
-
-    for (const std::wstring & path : paths)
-    {
-        PIDLIST_ABSOLUTE  id = nullptr;
-
-        hr = ShellItemId::ToPidl (path, &id);
-        CHR (hr);
-
-        ids.push_back (id);
-    }
-
-    hr = SHCreateShellItemArrayFromIDLists ((UINT) ids.size(), (PCIDLIST_ABSOLUTE_ARRAY) ids.data(), outItems);
-    CHR (hr);
-
-Error:
-    for (PIDLIST_ABSOLUTE id : ids)
-    {
-        CoTaskMemFree (id);
-    }
-
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  Win32PackagedCommands::GetEntries
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<Win32PackagedCommands::Entry> Win32PackagedCommands::GetEntries (const std::vector<std::wstring> & paths, ItemKind kind)
+std::vector<Win32ExplorerCommandEntries::Entry> Win32PackagedCommands::GetEntries (const std::vector<std::wstring> & paths, Win32ExplorerCommandEntries::ItemKind kind)
 {
-    std::vector<Entry>                         entries;
-    std::vector<Registration>                  registrations;
-    Microsoft::WRL::ComPtr<IShellItemArray>    items;
-    HRESULT                                    hr = S_OK;
+    std::vector<Win32ExplorerCommandEntries::Entry>  entries;
+    std::vector<Registration>                        registrations;
+    Microsoft::WRL::ComPtr<IShellItemArray>          items;
+    HRESULT                                          hr            = S_OK;
 
 
 
@@ -966,11 +901,11 @@ std::vector<Win32PackagedCommands::Entry> Win32PackagedCommands::GetEntries (con
         }
     }
 
-    BAIL_OUT_IF (paths.empty() && kind != ItemKind::Background, S_OK);
+    BAIL_OUT_IF (paths.empty() && kind != Win32ExplorerCommandEntries::ItemKind::Background, S_OK);
 
     if (!paths.empty())
     {
-        hr = MakeItems (m_itemIds.empty() ? paths : m_itemIds, &items);
+        hr = Win32ExplorerCommandEntries::MakeItems (m_itemIds.empty() ? paths : m_itemIds, &items);
         CHR (hr);
     }
 
@@ -978,8 +913,8 @@ std::vector<Win32PackagedCommands::Entry> Win32PackagedCommands::GetEntries (con
     //  run here.
     for (size_t first = 0, next = 0; first < registrations.size(); first = next)
     {
-        std::vector<Entry>  own;
-        size_t              applies = 0;
+        std::vector<Win32ExplorerCommandEntries::Entry>  own;
+        size_t                                           applies = 0;
 
         for (next = first; next < registrations.size() && registrations[next].package == registrations[first].package; next++)
         {
@@ -996,7 +931,7 @@ std::vector<Win32PackagedCommands::Entry> Win32PackagedCommands::GetEntries (con
 
             if (SUCCEEDED (hrMade))
             {
-                AddEntry (command.Get(), items.Get(), 0, L"", L"", own);
+                Win32ExplorerCommandEntries::AddEntry (command.Get(), items.Get(), 0, L"", L"", own);
             }
         }
 
@@ -1088,9 +1023,9 @@ bool Win32PackagedCommands::IsDisconnected (HRESULT hr)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Win32PackagedCommands::AddPackageEntries (const Registration & package, size_t applies, std::vector<Entry> & own, std::vector<Entry> & outEntries)
+void Win32PackagedCommands::AddPackageEntries (const Registration & package, size_t applies, std::vector<Win32ExplorerCommandEntries::Entry> & own, std::vector<Win32ExplorerCommandEntries::Entry> & outEntries)
 {
-    Entry  group;
+    Win32ExplorerCommandEntries::Entry  group;
 
 
 
@@ -1119,96 +1054,6 @@ void Win32PackagedCommands::AddPackageEntries (const Registration & package, siz
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Win32PackagedCommands::AddEntry
-//
-//  Skip a command hidden for these items and gray a disabled one. After
-//  E_PENDING from a quick GetState, call it again with okToBeSlow set, as
-//  File Explorer does, and list the command whatever the slow answer hides,
-//  as File Explorer lists Beyond Compare's. A command with no title or icon of its
-//  own takes the fallbacks, and one with subcommands becomes a submenu.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Win32PackagedCommands::AddEntry (IExplorerCommand * command, IShellItemArray * items, int depth, const std::wstring & fallbackTitle,
-                                      const std::wstring & fallbackIcon, std::vector<Entry> & outEntries)
-{
-    EXPCMDSTATE                                   state    = ECS_ENABLED;
-    EXPCMDFLAGS                                   flags    = ECF_DEFAULT;
-    PWSTR                                         title    = nullptr;
-    PWSTR                                         icon     = nullptr;
-    Entry                                         entry;
-    Microsoft::WRL::ComPtr<IEnumExplorerCommand>  children;
-    HRESULT                                       hr       = S_OK;
-    bool                                          pending  = false;
-
-
-
-    hr      = command->GetState (items, FALSE, &state);
-    pending = hr == E_PENDING;
-
-    if (pending)
-    {
-        hr = command->GetState (items, TRUE, &state);
-    }
-
-    state = SUCCEEDED (hr) ? state : ECS_ENABLED;
-    state = pending ? (state & ~ECS_HIDDEN) : state;
-
-    hr = command->GetFlags (&flags);
-    flags = SUCCEEDED (hr) ? flags : ECF_DEFAULT;
-
-    if ((state & ECS_HIDDEN) != 0 || (flags & ECF_ISSEPARATOR) != 0)
-    {
-        return;
-    }
-
-    hr = command->GetTitle (items, &title);
-
-    entry.title = (SUCCEEDED (hr) && title != nullptr) ? std::wstring (title) : fallbackTitle;
-    CoTaskMemFree (title);
-
-    if (entry.title.empty())
-    {
-        return;
-    }
-
-    entry.enabled = (state & ECS_DISABLED) == 0;
-    entry.command = command;
-
-    hr = command->GetIcon (items, &icon);
-
-    entry.icon = (SUCCEEDED (hr) && icon != nullptr) ? std::wstring (icon) : fallbackIcon;
-    CoTaskMemFree (icon);
-
-    if ((flags & ECF_HASSUBCOMMANDS) != 0 && depth < s_kMaxDepth)
-    {
-        hr = command->EnumSubCommands (&children);
-
-        while (SUCCEEDED (hr) && children)
-        {
-            Microsoft::WRL::ComPtr<IExplorerCommand>  child;
-            ULONG                                     fetched = 0;
-
-            hr = children->Next (1, &child, &fetched);
-
-            if (hr != S_OK || fetched == 0)
-            {
-                break;
-            }
-
-            AddEntry (child.Get(), items, depth + 1, L"", L"", entry.children);
-        }
-    }
-
-    outEntries.push_back (std::move (entry));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  Win32PackagedCommands::GetWindowsEntries
 //
 //  File Explorer's order for a file: Send to My Phone, the type's own Windows
@@ -1219,18 +1064,18 @@ void Win32PackagedCommands::AddEntry (IExplorerCommand * command, IShellItemArra
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<Win32PackagedCommands::Entry> Win32PackagedCommands::GetWindowsEntries (const std::vector<std::wstring> & paths, ItemKind kind)
+std::vector<Win32ExplorerCommandEntries::Entry> Win32PackagedCommands::GetWindowsEntries (const std::vector<std::wstring> & paths, Win32ExplorerCommandEntries::ItemKind kind)
 {
-    std::vector<Entry>                         entries;
-    Microsoft::WRL::ComPtr<IShellItemArray>    items;
-    HRESULT                                    hr     = S_OK;
-    bool                                       isFile = kind == ItemKind::File;
+    std::vector<Win32ExplorerCommandEntries::Entry>  entries;
+    Microsoft::WRL::ComPtr<IShellItemArray>          items;
+    HRESULT                                          hr      = S_OK;
+    bool                                             isFile  = kind == Win32ExplorerCommandEntries::ItemKind::File;
 
 
 
-    BAIL_OUT_IF (paths.empty() || (kind != ItemKind::File && kind != ItemKind::Folder), S_OK);
+    BAIL_OUT_IF (paths.empty() || (kind != Win32ExplorerCommandEntries::ItemKind::File && kind != Win32ExplorerCommandEntries::ItemKind::Folder), S_OK);
 
-    hr = MakeItems (m_itemIds.empty() ? paths : m_itemIds, &items);
+    hr = Win32ExplorerCommandEntries::MakeItems (m_itemIds.empty() ? paths : m_itemIds, &items);
     CHR (hr);
 
     if (isFile)
@@ -1264,7 +1109,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Win32PackagedCommands::AddStoreEntry (const wchar_t * name, const wchar_t * explorerIcon, IShellItemArray * items, std::vector<Entry> & outEntries)
+void Win32PackagedCommands::AddStoreEntry (const wchar_t * name, const wchar_t * explorerIcon, IShellItemArray * items, std::vector<Win32ExplorerCommandEntries::Entry> & outEntries)
 {
     HRESULT                                    hr      = S_OK;
     std::wstring                               key     = std::wstring (s_kpszCommandStoreKey) + L"\\" + name;
@@ -1285,7 +1130,7 @@ void Win32PackagedCommands::AddStoreEntry (const wchar_t * name, const wchar_t *
     CHR (hr);
 
     hr    = ReadString (HKEY_LOCAL_MACHINE, key, L"MUIVerb", title);
-    title = SUCCEEDED (hr) ? LoadIndirectString (title) : std::wstring();
+    title = SUCCEEDED (hr) ? Win32ExplorerCommandEntries::LoadIndirectString (title) : std::wstring();
 
     hr = ReadString (HKEY_LOCAL_MACHINE, key, L"Icon", icon);
     IGNORE_RETURN_VALUE (hr, S_OK);
@@ -1306,7 +1151,7 @@ void Win32PackagedCommands::AddStoreEntry (const wchar_t * name, const wchar_t *
         CHR (hr);
     }
 
-    AddEntry (command.Get(), items, 0, title, icon, outEntries);
+    Win32ExplorerCommandEntries::AddEntry (command.Get(), items, 0, title, icon, outEntries);
 
     if (!outEntries.empty() && outEntries.back().command.Get() == command.Get())
     {
@@ -1331,7 +1176,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Win32PackagedCommands::AddStaticVerbs (const std::wstring & path, IShellItemArray * items, std::vector<Entry> & outEntries)
+void Win32PackagedCommands::AddStaticVerbs (const std::wstring & path, IShellItemArray * items, std::vector<Win32ExplorerCommandEntries::Entry> & outEntries)
 {
     std::wstring               extension    = fs::path (path).extension().wstring();
     wchar_t                    program[256] = {};
@@ -1372,7 +1217,7 @@ void Win32PackagedCommands::AddStaticVerbs (const std::wstring & path, IShellIte
     {
         for (const wchar_t * verb : s_kpszFirstLevelVerbs)
         {
-            bool  added = std::any_of (outEntries.begin(), outEntries.end(), [verb] (const Entry & known)
+            bool  added = std::any_of (outEntries.begin(), outEntries.end(), [verb] (const Win32ExplorerCommandEntries::Entry & known)
             {
                 return _wcsicmp (TextEncoding::NarrowToWide (known.verb).c_str(), verb) == 0;
             });
@@ -1387,8 +1232,8 @@ void Win32PackagedCommands::AddStaticVerbs (const std::wstring & path, IShellIte
 
     //  Rotate goes before Add to Favorites, which ends Windows' own verbs.
     {
-        std::vector<Entry>  rotate;
-        auto                favorites = std::find_if (outEntries.begin(), outEntries.end(), [] (const Entry & known) { return _stricmp (known.verb.c_str(), "pintohomefile") == 0; });
+        std::vector<Win32ExplorerCommandEntries::Entry>  rotate;
+        auto                favorites = std::find_if (outEntries.begin(), outEntries.end(), [] (const Win32ExplorerCommandEntries::Entry & known) { return _stricmp (known.verb.c_str(), "pintohomefile") == 0; });
         ptrdiff_t           at        = favorites - outEntries.begin();
 
         for (const wchar_t * name : s_kpszStoreVerbs)
@@ -1415,17 +1260,17 @@ void Win32PackagedCommands::AddStaticVerbs (const std::wstring & path, IShellIte
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Win32PackagedCommands::AddStoreVerb (const wchar_t * name, IShellItemArray * items, std::vector<Entry> & outEntries)
+HRESULT Win32PackagedCommands::AddStoreVerb (const wchar_t * name, IShellItemArray * items, std::vector<Win32ExplorerCommandEntries::Entry> & outEntries)
 {
     HRESULT                                         hr      = S_OK;
     std::wstring                                    key     = std::wstring (s_kpszCommandStoreKey) + L"\\" + name;
-    std::wstring                                    handler;
-    std::wstring                                    title;
-    CLSID                                           clsid   = {};
-    EXPCMDSTATE                                     state   = ECS_HIDDEN;
-    Microsoft::WRL::ComPtr<IExplorerCommandState>   stateHandler;
-    Entry                                           entry;
-    std::wstring                                    verb    = name;
+    std::wstring                                   handler;
+    std::wstring                                   title;
+    CLSID                                          clsid        = {};
+    EXPCMDSTATE                                    state        = ECS_HIDDEN;
+    Microsoft::WRL::ComPtr<IExplorerCommandState>  stateHandler;
+    Win32ExplorerCommandEntries::Entry             entry;
+    std::wstring                                   verb         = name;
 
 
 
@@ -1451,7 +1296,7 @@ HRESULT Win32PackagedCommands::AddStoreVerb (const wchar_t * name, IShellItemArr
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     verb               = verb.substr (verb.find (L'.') + 1);
-    entry.title        = LoadIndirectString (title);
+    entry.title        = Win32ExplorerCommandEntries::LoadIndirectString (title);
     entry.verb         = TextEncoding::WideToNarrow (verb);
     entry.explorerIcon = std::wstring (L"windows.") + verb;
     hr                 = S_OK;
@@ -1475,17 +1320,17 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Win32PackagedCommands::AddStaticVerb (const std::wstring & classKey, const wchar_t * verb, IShellItemArray * items, std::vector<Entry> & outEntries)
+HRESULT Win32PackagedCommands::AddStaticVerb (const std::wstring & classKey, const wchar_t * verb, IShellItemArray * items, std::vector<Win32ExplorerCommandEntries::Entry> & outEntries)
 {
     HRESULT                                         hr        = S_OK;
     std::wstring                                    key       = classKey + L"\\shell\\" + verb;
-    std::wstring                                    title;
-    std::wstring                                    handler;
-    CLSID                                           clsid     = {};
-    EXPCMDSTATE                                     state     = ECS_ENABLED;
-    Microsoft::WRL::ComPtr<IExplorerCommandState>   stateHandler;
-    Entry                                           entry;
-    bool                                            exists    = HasValue (key, nullptr);
+    std::wstring                                   title;
+    std::wstring                                   handler;
+    CLSID                                          clsid        = {};
+    EXPCMDSTATE                                    state        = ECS_ENABLED;
+    Microsoft::WRL::ComPtr<IExplorerCommandState>  stateHandler;
+    Win32ExplorerCommandEntries::Entry             entry;
+    bool                                           exists       = HasValue (key, nullptr);
     bool                                            hidden    = HasValue (key, L"LegacyDisable") || HasValue (key, L"ProgrammaticAccessOnly") || HasValue (key, L"Extended");
 
 
@@ -1501,7 +1346,7 @@ HRESULT Win32PackagedCommands::AddStaticVerb (const std::wstring & classKey, con
         CHR (hr);
     }
 
-    title = LoadIndirectString (title);
+    title = Win32ExplorerCommandEntries::LoadIndirectString (title);
 
     hr = ReadString (HKEY_CLASSES_ROOT, key, L"CommandStateHandler", handler);
 
@@ -1619,7 +1464,7 @@ bool Win32PackagedCommands::HasValue (const std::wstring & key, const wchar_t * 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Win32PackagedCommands::GetStartPinEntry (const std::wstring & path, Entry & outEntry)
+bool Win32PackagedCommands::GetStartPinEntry (const std::wstring & path, Win32ExplorerCommandEntries::Entry & outEntry)
 {
     HRESULT                                 hr      = S_OK;
     Microsoft::WRL::ComPtr<IShellItem>      item;
@@ -1679,7 +1524,7 @@ bool Win32PackagedCommands::GetStartPinEntry (const std::wstring & path, Entry &
 
         std::erase (plain, L'&');
 
-        outEntry              = Entry();
+        outEntry              = Win32ExplorerCommandEntries::Entry();
         outEntry.title        = title;
         outEntry.verb         = TextEncoding::WideToNarrow (verb);
         outEntry.explorerIcon = (_wcsnicmp (plain.c_str(), L"Unpin", 5) == 0) ? L"windows.unpinfromstartscreen" : L"PinToStartScreen";
@@ -1887,7 +1732,7 @@ std::wstring Win32PackagedCommands::GetMenuVerb (IContextMenu * menu, UINT id)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Win32PackagedCommands::Invoke (HWND owner, const Entry & entry, const std::vector<std::wstring> & paths)
+HRESULT Win32PackagedCommands::Invoke (HWND owner, const Win32ExplorerCommandEntries::Entry & entry, const std::vector<std::wstring> & paths)
 {
     HRESULT                                       hr       = S_OK;
     Microsoft::WRL::ComPtr<IShellItemArray>       items;
@@ -1900,7 +1745,7 @@ HRESULT Win32PackagedCommands::Invoke (HWND owner, const Entry & entry, const st
 
     CBREx (entry.command != nullptr, E_INVALIDARG);
 
-    hr = MakeItems (paths, &items);
+    hr = Win32ExplorerCommandEntries::MakeItems (paths, &items);
     CHR (hr);
 
     //  As File Explorer hosts a command: some look for their window through the

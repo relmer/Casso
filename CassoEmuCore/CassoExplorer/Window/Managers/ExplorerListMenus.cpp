@@ -718,7 +718,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
         //  A folder that isn't on the disk has no item for the commands to act
         //  on, as File Explorer's menu there asks them with none.
-        m_context.menus.AddPackagedCommandsFor (items, onDisk ? std::vector<std::wstring> { shellId } : std::vector<std::wstring>(), Win32PackagedCommands::ItemKind::Background);
+        m_context.menus.AddPackagedCommandsFor (items, onDisk ? std::vector<std::wstring> { shellId } : std::vector<std::wstring>(), Win32ExplorerCommandEntries::ItemKind::Background);
 
         m_context.menus.AddMenuEnd (items, [this, shellId, screen]()
         {
@@ -739,9 +739,9 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
     }
     else if (!m_context.browser.GetSelectedRows().empty())
     {
-        std::vector<std::wstring>        selectedPaths;
-        Win32PackagedCommands::ItemKind  kind    = Win32PackagedCommands::ItemKind::File;
-        bool                             windows = false;
+        std::vector<std::wstring>              selectedPaths;
+        Win32ExplorerCommandEntries::ItemKind  kind          = Win32ExplorerCommandEntries::ItemKind::File;
+        bool                                   windows       = false;
 
         //  Windows' own commands lead into Copy as path in one group, as in
         //  File Explorer; without them the group starts here.
@@ -1313,15 +1313,15 @@ std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetSortChoices (bool commandBa
 
 std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetSeeMoreRows()
 {
-    std::vector<DxuiPopupMenuItem>   items;
-    std::vector<DxuiPopupMenuItem>   windows;
-    std::vector<std::wstring>        paths;
-    Win32PackagedCommands::ItemKind  kind     = Win32PackagedCommands::ItemKind::File;
-    Location                         location = m_context.browser.GetLocation();
-    bool                             selected = !m_context.browser.GetSelectedRows().empty();
-    bool                             search   = SearchQuery::IsId (location.path);
-    bool                             onHost   = location.kind == Location::Kind::HostFolder && !search;
-    auto                             row      = [this, &items] (const wchar_t * label, const wchar_t * svg, std::function<bool()> enabled, std::function<void()> dispatch)
+    std::vector<DxuiPopupMenuItem>         items;
+    std::vector<DxuiPopupMenuItem>         windows;
+    std::vector<std::wstring>              paths;
+    Win32ExplorerCommandEntries::ItemKind  kind     = Win32ExplorerCommandEntries::ItemKind::File;
+    Location                               location = m_context.browser.GetLocation();
+    bool                                   selected = !m_context.browser.GetSelectedRows().empty();
+    bool                                   search   = SearchQuery::IsId (location.path);
+    bool                                   onHost   = location.kind == Location::Kind::HostFolder && !search;
+    auto                                   row      = [this, &items] (const wchar_t * label, const wchar_t * svg, std::function<bool()> enabled, std::function<void()> dispatch)
     {
         std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
 

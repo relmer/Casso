@@ -4,6 +4,7 @@
 
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
+#include "Seams/Win32ExplorerCommandEntries.h"
 #include "Seams/Win32PackagedCommands.h"
 
 struct ExplorerContext;
@@ -102,14 +103,14 @@ public:
     bool                            ShowScrollbarMenu      (const DxuiMouseEvent & ev);
     void                            AddPackagedCommands    (std::vector<DxuiPopupMenuItem> & items);
     HRESULT                         RunAskCopilot          (const std::wstring & path);
-    void                            AddPackagedCommandsFor (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind);
+    void                            AddPackagedCommandsFor (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32ExplorerCommandEntries::ItemKind kind);
     void                            AddMenuEnd             (std::vector<DxuiPopupMenuItem> & items, std::function<void()> showMore);
-    void                            AddPackagedEntry       (std::vector<DxuiPopupMenuItem> & items, const Win32PackagedCommands::Entry & entry, const std::vector<std::wstring> & paths);
-    bool                            AddWindowsCommands     (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind);
+    void                            AddPackagedEntry       (std::vector<DxuiPopupMenuItem> & items, const Win32ExplorerCommandEntries::Entry & entry, const std::vector<std::wstring> & paths);
+    bool                            AddWindowsCommands     (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32ExplorerCommandEntries::ItemKind kind);
     void                            SetCommandItemIds      (std::vector<std::wstring> ids) { m_packagedCommands.SetItemIds (std::move (ids)); }
     void                            AddShellMenuCommands   (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths);
     static const wchar_t *          GetShellVerbSvgName    (const std::string & verb);
-    bool                            GetSelectionKind       (std::vector<std::wstring> & outPaths, Win32PackagedCommands::ItemKind & outKind) const;
+    bool                            GetSelectionKind       (std::vector<std::wstring> & outPaths, Win32ExplorerCommandEntries::ItemKind & outKind) const;
     void                            ShowListHeaderMenu     (int x, int y, int column);
     void                            ShowListContextMenu    (int x, int y, int group = -1);
     void  AddMenuCommand         (std::vector<DxuiPopupMenuItem> & items, const wchar_t * label, std::function<void()> dispatch, const wchar_t * accelerator = L"", const wchar_t * menuGlyph = nullptr);

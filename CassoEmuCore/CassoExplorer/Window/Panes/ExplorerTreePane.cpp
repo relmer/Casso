@@ -1164,7 +1164,7 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
         //  New and Properties follow the open and pin rows.
         if (location.kind == Location::Kind::HostFolder && location.path.size() > 3)
         {
-            m_context.menus.AddWindowsCommands (items, { location.path }, Win32PackagedCommands::ItemKind::Folder);
+            m_context.menus.AddWindowsCommands (items, { location.path }, Win32ExplorerCommandEntries::ItemKind::Folder);
         }
 
         if (location.kind == Location::Kind::HostFolder)
@@ -1221,7 +1221,7 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
 
         ClientToScreen (m_context.window.GetHwnd(), &screen);
 
-        m_context.menus.AddPackagedCommandsFor (items, { location.path }, (location.path.size() <= 3) ? Win32PackagedCommands::ItemKind::Drive : Win32PackagedCommands::ItemKind::Folder);
+        m_context.menus.AddPackagedCommandsFor (items, { location.path }, (location.path.size() <= 3) ? Win32ExplorerCommandEntries::ItemKind::Drive : Win32ExplorerCommandEntries::ItemKind::Folder);
 
         m_context.menus.AddMenuEnd (items, [this, location, screen]()
         {

@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Seams/Win32ContextMenuLayout.h"
+#include "Seams/Win32ExplorerCommandEntries.h"
 #include "Seams/Win32PackageWatcher.h"
 
 
@@ -45,21 +46,6 @@
 class Win32PackagedCommands
 {
 public:
-    //  The kind of item a registration applies to.
-    enum class ItemKind { File, Folder, Background, Drive };
-
-    struct Entry
-    {
-        std::wstring                                title;
-        std::wstring                                icon;       // a "path,index" resource, or empty
-        bool                                        enabled = true;
-        bool                                        cloud   = false;     // a sync client's group, which has a menu group of its own
-        Microsoft::WRL::ComPtr<IExplorerCommand>    command;
-        std::string                                 verb;           // a static verb, invoked by name, when there is no command
-        std::wstring                                explorerIcon;   // File Explorer's own icon for one of Windows' commands
-        std::vector<Entry>                          children;
-    };
-
     //  One of the shell's New choices. The verb is the shell's for it: a
     //  file type's extension, such as ".txt", or NewFolder or NewLink.
     struct NewChoice
@@ -86,10 +72,10 @@ public:
 
     //  Returns the commands that apply to the items; empty until the
     //  manifests are read.
-    std::vector<Entry>  GetEntries (const std::vector<std::wstring> & paths, ItemKind kind);
+    std::vector<Win32ExplorerCommandEntries::Entry>  GetEntries (const std::vector<std::wstring> & paths, Win32ExplorerCommandEntries::ItemKind kind);
 
     //  Returns Windows' own commands for the items, in File Explorer's order.
-    std::vector<Entry>  GetWindowsEntries (const std::vector<std::wstring> & paths, ItemKind kind);
+    std::vector<Win32ExplorerCommandEntries::Entry>  GetWindowsEntries (const std::vector<std::wstring> & paths, Win32ExplorerCommandEntries::ItemKind kind);
 
     //  The shell items the commands are asked about in place of the paths: Home's rows, whose commands answer for them as they are listed there.
     void                SetItemIds        (std::vector<std::wstring> ids) { m_itemIds = std::move (ids); }
@@ -100,7 +86,7 @@ public:
 
     //  Returns Start's Pin or Unpin command for one item, with the title from
     //  the shell's handler; false when the handler has neither.
-    bool  GetStartPinEntry (const std::wstring & path, Entry & outEntry);
+    bool  GetStartPinEntry (const std::wstring & path, Win32ExplorerCommandEntries::Entry & outEntry);
 
     //  Returns New's choices, in the shell's order; empty until read.
     std::vector<NewChoice>  GetNewChoices ();
@@ -109,7 +95,7 @@ public:
     //  created, or an empty path when none can be found.
     HRESULT  CreateNew (HWND owner, const std::wstring & folder, const std::wstring & verb, std::wstring & outPath);
 
-    HRESULT         Invoke         (HWND owner, const Entry & entry, const std::vector<std::wstring> & paths);
+    HRESULT         Invoke         (HWND owner, const Win32ExplorerCommandEntries::Entry & entry, const std::vector<std::wstring> & paths);
     static HRESULT  InvokeGuarded  (IExplorerCommand * command, IShellItemArray * items);
     static HRESULT  SetSiteGuarded (IObjectWithSite * sited, IUnknown * site);
 
@@ -125,7 +111,6 @@ private:
         std::wstring  logo;         // the package's small logo file, or empty
     };
 
-    static constexpr int   s_kMaxDepth          = 2;
     static constexpr UINT  s_kFirstNewCommandId = 1;
     static constexpr UINT  s_kLastNewCommandId  = 0x7FFF;
 
@@ -142,24 +127,20 @@ private:
     static void  PrepareCommands (const std::vector<Registration> & registrations);
     static bool  IsDisconnected  (HRESULT hr);
 
-    static HRESULT       OpenManifest       (const wchar_t * fullName, IStream ** outStream);
-    static HRESULT       ReadManifest       (IStream * stream, const wchar_t * fullName, std::vector<Registration> & outRegistrations);
-    static std::wstring  LoadAppName        (const wchar_t * fullName, const std::wstring & displayName);
-    static std::wstring  FindLogoFile       (const wchar_t * fullName, const std::wstring & logo);
-    static std::wstring  LoadIndirectString (const std::wstring & text);
-    static HRESULT       GetAttribute       (IXmlReader * reader, const wchar_t * attribute, std::wstring & outValue);
-    static HRESULT       ParseClsid         (const std::wstring & text, CLSID & outClsid);
-    static void          AddRegistration    (const Registration & registration, std::vector<Registration> & outRegistrations);
-    static bool          Applies            (const Registration & registration, const std::vector<std::wstring> & paths, ItemKind kind);
-    static bool          IsInSyncRootOf     (const std::wstring & package, const std::wstring & path);
-    static HRESULT       MakeItems          (const std::vector<std::wstring> & paths, IShellItemArray ** outItems);
-    static void     AddEntry         (IExplorerCommand * command, IShellItemArray * items, int depth, const std::wstring & fallbackTitle,
-                                      const std::wstring & fallbackIcon, std::vector<Entry> & outEntries);
-    static void          AddPackageEntries (const Registration & package, size_t applies, std::vector<Entry> & own, std::vector<Entry> & outEntries);
-    static void          AddStoreEntry     (const wchar_t * name, const wchar_t * explorerIcon, IShellItemArray * items, std::vector<Entry> & outEntries);
-    static void          AddStaticVerbs    (const std::wstring & path, IShellItemArray * items, std::vector<Entry> & outEntries);
-    static HRESULT       AddStaticVerb     (const std::wstring & classKey, const wchar_t * verb, IShellItemArray * items, std::vector<Entry> & outEntries);
-    static HRESULT       AddStoreVerb      (const wchar_t * name, IShellItemArray * items, std::vector<Entry> & outEntries);
+    static HRESULT       OpenManifest      (const wchar_t * fullName, IStream ** outStream);
+    static HRESULT       ReadManifest      (IStream * stream, const wchar_t * fullName, std::vector<Registration> & outRegistrations);
+    static std::wstring  LoadAppName       (const wchar_t * fullName, const std::wstring & displayName);
+    static std::wstring  FindLogoFile      (const wchar_t * fullName, const std::wstring & logo);
+    static HRESULT       GetAttribute      (IXmlReader * reader, const wchar_t * attribute, std::wstring & outValue);
+    static HRESULT       ParseClsid        (const std::wstring & text, CLSID & outClsid);
+    static void          AddRegistration   (const Registration & registration, std::vector<Registration> & outRegistrations);
+    static bool          Applies           (const Registration & registration, const std::vector<std::wstring> & paths, Win32ExplorerCommandEntries::ItemKind kind);
+    static bool          IsInSyncRootOf    (const std::wstring & package, const std::wstring & path);
+    static void          AddPackageEntries (const Registration & package, size_t applies, std::vector<Win32ExplorerCommandEntries::Entry> & own, std::vector<Win32ExplorerCommandEntries::Entry> & outEntries);
+    static void          AddStoreEntry     (const wchar_t * name, const wchar_t * explorerIcon, IShellItemArray * items, std::vector<Win32ExplorerCommandEntries::Entry> & outEntries);
+    static void          AddStaticVerbs    (const std::wstring & path, IShellItemArray * items, std::vector<Win32ExplorerCommandEntries::Entry> & outEntries);
+    static HRESULT       AddStaticVerb     (const std::wstring & classKey, const wchar_t * verb, IShellItemArray * items, std::vector<Win32ExplorerCommandEntries::Entry> & outEntries);
+    static HRESULT       AddStoreVerb      (const wchar_t * name, IShellItemArray * items, std::vector<Win32ExplorerCommandEntries::Entry> & outEntries);
     static HRESULT       ReadString        (HKEY root, const std::wstring & key, const wchar_t * value, std::wstring & outText);
     static bool          HasValue          (const std::wstring & key, const wchar_t * value);
     static HRESULT       OpenNewMenu       (const std::wstring & folder, IContextMenu3 ** outMenu, HMENU & outPopup, HMENU & outChoices);
