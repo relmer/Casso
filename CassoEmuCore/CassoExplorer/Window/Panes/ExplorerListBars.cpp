@@ -155,8 +155,9 @@ bool ExplorerListBars::FillSearchBar()
 //  a form A2retroNET doesn't read, with Convert to .po, which replaces each
 //  with a .po. A warning when a drive has a problem, the settings file has
 //  CR LF line ends, or an image is offered.
-//  And a selected, copied or written image the firmware reads that isn't a
-//  drive, with Set as drive for a free drive.
+//  And a selected or converted image the firmware reads that isn't a
+//  drive, with Set as drive for a free drive. An image copied to the card
+//  is set as a free drive right away.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -186,8 +187,15 @@ bool ExplorerListBars::FillCardBar()
     //  Files dropped on or from a card that Windows has moved since.
     m_context.actions.GetA2retroNet().ResolveMoves();
 
+    //  Images copied to a card are set as its drives once Windows has
+    //  written them.
     m_context.actions.GetA2retroNet().TakeArrived (arrived);
-    m_settable.insert (m_settable.end(), arrived.begin(), arrived.end());
+
+    if (!arrived.empty())
+    {
+        m_context.verbs.ReportOutcome (m_context.actions.GetA2retroNet().AddArrived (arrived), L"Add to A2retroNET drives");
+        m_context.folderSync.RefreshAfterHostChange();
+    }
 
     onCard = location.kind == Location::Kind::HostFolder && !root.empty() && m_context.actions.IsA2PicoCard (root) && location.path != m_cardBarClosed;
     atRoot = onCard && location.path == root;

@@ -88,6 +88,12 @@ public:
     //  that Windows is writing is checked again on the next call.
     void  TakeArrived    (std::vector<std::wstring> & outArrived);
 
+    //  Each disk image copied to an A2Pico card set as a free drive. One in
+    //  DOS order with a ProDOS volume is replaced with a .po first. One the
+    //  firmware can't mount, or one that arrives when each drive is set, is
+    //  left on the card and reported in the outcome's warning.
+    ActionsTypes::Outcome  AddArrived (const std::vector<std::wstring> & paths);
+
     //  The drive, from 1, that Add sets the image as. False for an image
     //  the firmware doesn't read, one that is a drive already, or a card
     //  with each drive set.

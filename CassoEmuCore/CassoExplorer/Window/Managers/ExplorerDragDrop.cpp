@@ -1352,8 +1352,8 @@ void ExplorerDragDrop::HandleDrop (IDataObject * data, int tag, POINT screen)
             m_context.actions.GetA2retroNet().ExpectMoves (dropped, hostFolder);
         }
 
-        //  An image dropped onto an A2Pico card that A2retroNET doesn't read
-        //  is offered as a .po once it is listed.
+        //  An image dropped onto an A2Pico card is set as a drive once
+        //  Windows has written it.
         if (SUCCEEDED (hr) && effect != DROPEFFECT_NONE)
         {
             m_context.actions.GetA2retroNet().ExpectArrivals (targets);
