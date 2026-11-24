@@ -183,11 +183,11 @@ public:
 
             Assert::IsTrue (map.fileSystem == MapFileSystem::Cpm);
             Assert::IsTrue (map.findings.empty(), L"a standard volume gives no findings");
-            Assert::AreEqual (18 * 4, FileOf (map, L"0:PIP.COM").GetUsedCount(), L"two extents' blocks");
-            Assert::AreEqual (-1, FileOf (map, L"0:SPARSE.DAT").sectors[4].cell, L"block 0 is a hole");
+            Assert::AreEqual (18 * 4, FileOf (map, L"PIP.COM").GetUsedCount(), L"two extents' blocks");
+            Assert::AreEqual (-1, FileOf (map, L"SPARSE.DAT").sectors[4].cell, L"block 0 is a hole");
             Assert::AreEqual (4, FileOf (map, L"5:NOTES.TXT").GetUsedCount());
             Assert::IsTrue   (std::none_of (map.files.begin(), map.files.end(), [] (const MappedFile & f) { return f.path.starts_with (L"31:"); }), L"the system entry is no file");
-            Assert::IsTrue   (FileOf (map, L"0:OLD.TXT").isDeleted);
+            Assert::IsTrue   (FileOf (map, L"OLD.TXT").isDeleted);
             Assert::IsTrue   (map.cells[0].role == SectorRole::BootArea);
             Assert::IsTrue   (map.cells[3 * 16].role == SectorRole::CatalogOrDirectory);
         }
