@@ -43,6 +43,7 @@ enum class DxuiHitTestKind
     None,
     Client,
     Caption,
+    SystemMenu,         // the window's icon: a click opens the system menu, a double-click closes the window
     MinButton,
     MaxButton,
     CloseButton,

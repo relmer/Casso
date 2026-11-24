@@ -57,7 +57,7 @@ its decoder is written. The table is the test list for
 | Ultima I save | none | ProDOS file `U1.VARS` with a race and class from 1 to 4 | the character, position and inventory, and the player's continent from a game disk in the same host folder with the player marked | `NAME.Ultima1.rtf` | no | a save made in Casso |
 | Ultima I game disk | none | ProDOS file `GEN` whose table at byte 2794 unpacks to four continents of 64 by 64 tiles | the four continents with a legend | `NAME.Ultima1.rtf` | no | the woz-a-day image |
 | Ultima II save | none | a disk with the character at track 4 sector 8: a high-bit name, F or M, class and race 0 to 3, decimal stats | the character and position | `NAME.Ultima2.rtf` | no | a save made in Casso |
-| Ultima (1981) save | none | DOS 3.3 file `NAME=<character>` and the Applesoft variables on track 26 | the character and position | `NAME.Ultima.rtf` | no | a save made in Casso |
+| Ultima (1981) save | none | DOS 3.2 file `NAME=<character>` and the Applesoft variables in the file `BEVERY` | the character, position and inventory, and the player's continent from the file `BTERRA<n>` with the player marked | `NAME.Ultima.rtf` | no | a save made in Casso |
 | Infocom story | BIN, or a host `.z1` to `.z8` or `.dat`, with a Z-machine header: version 1 to 8 at $00, the high memory, dictionary and object table addresses inside the file | the story's sectors on an Infocom disk with no catalog, from track 3 on, opened as one file | listing | `NAME.Z-machine.txt` | no | Z-Machine Standards Document 1.1 |
 
 Import rows: a host file whose suffix is the row's Out suffix is put as

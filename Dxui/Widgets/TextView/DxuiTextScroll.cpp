@@ -41,7 +41,7 @@ int DxuiTextScroll::GetLineCap() const
 
 bool DxuiTextScroll::IsScrollbarVisible() const
 {
-    return m_layout.GetLineCount() > GetLineCap();
+    return !m_vertBarHidden && m_layout.GetLineCount() > GetLineCap();
 }
 
 

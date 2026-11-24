@@ -157,6 +157,12 @@ CassoLinkJobView CassoLinkJobView::Build (const LinkOperation & operation, const
     view.drive.isJob   = true;
     view.drive.machine = model;
 
+    //  A job is for one drive, so the other one isn't drawn.
+    if (operation.drive == 1 || operation.drive == 2)
+    {
+        view.drive.snapshot.present[(size_t) (2 - operation.drive)] = false;
+    }
+
     if (view.state == State::Failed)
     {
         view.message = TextEncoding::NarrowToWide (operation.message);
@@ -524,6 +530,21 @@ void CassoLinkJobPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     m_tabs.SetStripFill (theme.Background());
 
     DxuiPanel::Paint (painter, text, theme);
+
+    //  The page's border runs up around the selected tab, and not between
+    //  the tab and its page.
+    if (m_tabs.GetSelected() >= 0 && m_tabs.GetSelected() < (int) m_tabs.GetTabs().size())
+    {
+        const RECT &  tab   = m_tabs.GetTabs()[(size_t) m_tabs.GetSelected()].rect;
+        float         tabL  = std::max ((float) tab.left,  (float) bounds.left);
+        float         tabR  = std::min ((float) tab.right, (float) bounds.right);
+        float         tabT  = (float) tab.top;
+
+        painter.FillRect (tabL + edge, pageT, tabR - tabL - edge * 2.0f, edge, page);
+        painter.FillRect (tabL, tabT, tabR - tabL, edge, theme.Divider());
+        painter.FillRect (tabL, tabT, edge, pageT - tabT + edge, theme.Divider());
+        painter.FillRect (tabR - edge, tabT, edge, pageT - tabT + edge, theme.Divider());
+    }
 
     if (view == nullptr)
     {

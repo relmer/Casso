@@ -993,6 +993,11 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
 
     //  A folder on the disk has Explorer's row of Cut, Copy, Paste, Rename and
     //  Delete, and a drive Copy and Paste.
+    if (hasLocation && location.kind == Location::Kind::AppleDrive && location.innerPath.empty())
+    {
+        AddAppleDriveIconRow (items, location);
+    }
+
     if (hasLocation && !isCard && (location.kind == Location::Kind::HostFolder || location.kind == Location::Kind::DiskImage))
     {
         AddTreeIconRow (items, location.path, id, location.kind == Location::Kind::HostFolder && location.path.size() <= 3);
@@ -1191,7 +1196,7 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
         //  New and Properties follow the open and pin rows.
         if (location.kind == Location::Kind::HostFolder && location.path.size() > 3)
         {
-            m_context.menus.AddWindowsCommands (items, { location.path }, Win32PackagedCommands::ItemKind::Folder);
+            m_context.menus.AddWindowsCommands (items, { location.path }, Win32ExplorerCommandEntries::ItemKind::Folder);
         }
 
         if (location.kind == Location::Kind::HostFolder)
@@ -1248,17 +1253,14 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
 
         ClientToScreen (m_context.window.GetHwnd(), &screen);
 
-        m_context.menus.AddPackagedCommandsFor (items, { location.path }, (location.path.size() <= 3) ? Win32PackagedCommands::ItemKind::Drive : Win32PackagedCommands::ItemKind::Folder);
+        m_context.menus.AddPackagedCommandsFor (items, { location.path }, (location.path.size() <= 3) ? Win32ExplorerCommandEntries::ItemKind::Drive : Win32ExplorerCommandEntries::ItemKind::Folder);
 
-        items.push_back (DxuiPopupMenuItem::ForSeparator());
-        m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::MoreOptions), [this, location, screen]()
+        m_context.menus.AddMenuEnd (items, [this, location, screen]()
         {
             HRESULT  hr = m_context.shellVerbs.ShowShellMenu (m_context.window.GetHwnd(), { location.path }, screen, {});
 
             IGNORE_RETURN_VALUE (hr, S_OK);
         });
-        m_context.menus.GetMenuCommands().back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
-        m_context.menus.GetMenuCommands().back()->menuSvg   = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::MoreOptions));
     }
 
     ExplorerListMenus::RemoveExtraSeparators (items);
@@ -1395,7 +1397,8 @@ void ExplorerTreePane::AddPartitionRows (std::vector<DxuiPopupMenuItem> & items,
 //  ExplorerTreePane::AddRootRows
 //
 //  File Explorer's rows for This PC's node: the network commands and
-//  Properties; and for This PC and Home, Show more options.
+//  Properties; and for This PC and Home, Customize menu and, when Settings
+//  turns it on, Show more options.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1455,14 +1458,47 @@ void ExplorerTreePane::AddRootRows (std::vector<DxuiPopupMenuItem> & items, cons
         m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.properties");
     }
 
-    items.push_back (DxuiPopupMenuItem::ForSeparator());
-    m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::MoreOptions), [this, owner, shellId, screen]()
+    m_context.menus.AddMenuEnd (items, [this, owner, shellId, screen]()
     {
         HRESULT  hr = m_context.shellVerbs.ShowShellMenu (owner, { shellId }, screen, {});
 
         IGNORE_RETURN_VALUE (hr, S_OK);
     });
-    m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::MoreOptions));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerTreePane::AddAppleDriveIconRow
+//
+//  A linked Apple's drive has Paste atop its menu, as a drop on the drive:
+//  an image is written to the disk, or files copied onto it. It is grayed
+//  with no files to paste, as in File Explorer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerTreePane::AddAppleDriveIconRow (std::vector<DxuiPopupMenuItem> & items, const Location & drive)
+{
+    std::shared_ptr<DxuiCommand>                     command = std::make_shared<DxuiCommand>();
+    std::vector<std::shared_ptr<const DxuiCommand>>  iconCommands;
+
+
+
+    command->id        = (int) CassoExplorerActions::Verb::Paste;
+    command->label     = ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::Paste);
+    command->glyph     = ExplorerMenus::GetVerbGlyph (CassoExplorerActions::Verb::Paste);
+    command->menuSvg   = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::Paste));
+    command->isEnabled = [this]() { return m_context.shellVerbs.ClipboardHasFiles(); };
+    command->dispatch  = [this, drive]() { m_context.dragDrop.PasteOnAppleDrive (drive); };
+
+    iconCommands.push_back (command);
+    m_context.menus.GetMenuCommands().push_back (std::move (command));
+
+    items.push_back (DxuiPopupMenuItem::ForIconRow (std::move (iconCommands)));
+    items.push_back (DxuiPopupMenuItem::ForSeparator());
 }
 
 

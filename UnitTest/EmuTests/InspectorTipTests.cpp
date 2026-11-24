@@ -429,6 +429,62 @@ public:
     }
 
 
+    TEST_METHOD (TheSectorBytesAreTypedInTheHexViewWhileEditing)
+    {
+        DiskAnalysis           analysis;
+        InspectorViewModel     model;
+        InspectorViewContext   context;
+        EditController         edits;
+        const TrackAnalysis  * track  = nullptr;
+        DxuiTheme              theme  = DxuiTheme::Dark();
+        DxuiDpiScaler          scaler;
+        MockDxuiPainter        painter;
+        MockDxuiTextRenderer   text;
+        DxuiKeyEvent           ev     = {};
+        std::wstring           reason;
+        int                    edit   = -1;
+
+
+
+        analysis = GetDsk();
+        track    = analysis.tracks[analysis.entries[68].slot].get();
+
+        model.SetDisk      (1);
+        model.SetAnalysis  (&analysis);
+        model.SelectSector (68, 0);
+        context.analysis = &analysis;
+        context.model    = &model;
+        context.hasDisk  = true;
+        context.edits    = &edits;
+
+        SectorsView  bytes (context);
+
+        bytes.Layout ({ 0, 0, 900, 700 }, scaler);
+        bytes.Paint  (painter, text, theme);
+
+        edit = edits.Begin (*track, 68, 0, reason);
+        Assert::IsTrue (edit >= 0, reason.c_str());
+
+        model.SelectBytes (4, 1, false);
+        ev.kind = DxuiKeyEventKind::Char;
+        ev.vk   = L'C';
+
+        Assert::IsFalse (bytes.OnEditKey (ev), L"typing doesn't edit until Edit");
+
+        bytes.SetEditing (true);
+        bytes.Paint      (painter, text, theme);
+
+        for (wchar_t ch : { L'C', L'3' })
+        {
+            ev.vk = ch;
+            Assert::IsTrue (bytes.OnEditKey (ev));
+        }
+
+        Assert::AreEqual ((int) 0xC3, (int) edits.GetEdit (edit).bytes[4], L"two hex digits set one byte");
+        Assert::AreEqual (5, model.GetFirstByte(), L"the caret moves on to the next byte");
+    }
+
+
 
     TEST_METHOD (ASectorTipDrawsItsChecksumErrorInTheFailedColor)
     {

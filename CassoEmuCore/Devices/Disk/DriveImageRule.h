@@ -31,8 +31,9 @@ enum class ReceivingDriveKind
 
 struct ReceivingDrive
 {
-    ReceivingDriveKind  kind      = ReceivingDriveKind::Floppy525;
-    uint32_t            maxBlocks = 0;
+    ReceivingDriveKind  kind        = ReceivingDriveKind::Floppy525;
+    uint32_t            maxBlocks   = 0;
+    bool                isRealDrive = false;   // a real Apple's drive over CassoLink, which also takes 13-sector images, and any block image that fits
 
     bool  operator== (const ReceivingDrive &) const = default;
 };

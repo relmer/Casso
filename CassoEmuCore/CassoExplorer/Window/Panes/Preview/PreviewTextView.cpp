@@ -79,16 +79,16 @@ void PreviewTextView::Configure()
 void PreviewTextView::Layout (const RECT & content)
 {
     const PreviewContent  & preview = m_context.browser.GetPreviewer().GetPreview();
-    bool                    tables  = preview.kind == PreviewContent::Kind::Document
-                                   && std::any_of (preview.paragraphs.begin(), preview.paragraphs.end(), [] (const Paragraph & p) { return p.table != nullptr; });
+    bool                    reflows = preview.kind == PreviewContent::Kind::Document
+                                   && std::any_of (preview.paragraphs.begin(), preview.paragraphs.end(), [] (const Paragraph & p) { return p.table != nullptr || p.isLegend; });
 
 
 
     m_text->Layout (content, m_context.scaler);
 
-    //  A document's tables change form with the width, so its rows are built
-    //  again when the width changes.
-    if (tables && m_text->IsVisible() && content.right - content.left != m_tableWidth)
+    //  A document's tables change form, and its legends their columns, with
+    //  the width, so its rows are built again when the width changes.
+    if (reflows && m_text->IsVisible() && content.right - content.left != m_tableWidth)
     {
         FillRows (preview, true);
     }
@@ -585,20 +585,27 @@ void PreviewTextView::UpdatePictureTipAt (const DxuiMouseEvent & ev)
 //
 //  PreviewTextView::GetCursorForPoint
 //
-//  The text selects as text does, so the cursor over it is the I-beam;
-//  over its scrollbars and its pictures, such as a map, it is the arrow.
+//  The text selects as text does, so the cursor over it is the I-beam. Over
+//  a map, which a drag pans, and while one pans, it is the four-way arrow;
+//  over its scrollbars and its other pictures, it is the arrow.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 LPCWSTR PreviewTextView::GetCursorForPoint (POINT clientPx) const
 {
-    bool  inside  = m_text->IsVisible() && ExplorerLayout::Contains (m_text->GetBounds(), clientPx);
-    int   row     = 0;
-    int   x       = 0;
-    int   y       = 0;
-    bool  picture = inside && m_text->GetPictures().HitTest (clientPx, row, x, y);
+    const DxuiTextPictures  & pictures = m_text->GetPictures();
+    bool                      inside   = m_text->IsVisible() && ExplorerLayout::Contains (m_text->GetBounds(), clientPx);
+    int                       row      = 0;
+    int                       x        = 0;
+    int                       y        = 0;
+    bool                      picture  = inside && pictures.HitTest (clientPx, row, x, y);
 
 
+
+    if (pictures.IsPanning() || (inside && !m_text->IsOverScrollbar (clientPx) && pictures.IsOverMap (clientPx)))
+    {
+        return IDC_SIZEALL;
+    }
 
     return !inside ? nullptr : (picture || m_text->IsOverScrollbar (clientPx)) ? IDC_ARROW : IDC_IBEAM;
 }

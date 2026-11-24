@@ -6,6 +6,7 @@
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/A2retroNetConfig.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/DiskSourceFormat.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 
@@ -976,7 +977,7 @@ ActionsTypes::Outcome ActionsA2retroNet::AddArrived (const std::vector<std::wstr
 
     for (const std::wstring & path : paths)
     {
-        if (!CanAdd (path) || !DiskImageStore::IsMountableImageExtension (path))
+        if (!CanAdd (path) || !DiskSourceFormat::IsMountableImageExtension (path))
         {
             continue;
         }

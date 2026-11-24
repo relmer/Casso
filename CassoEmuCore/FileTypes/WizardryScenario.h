@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "FileTypes/FileFormatTable.h"
+#include "FileTypes/WizardryMaze.h"
 
 
 
@@ -87,6 +88,10 @@ public:
     //  with the square at partyX and partyY marked as the party's.
     static void  RenderLevel  (std::span<const Byte> level, int partyX, int partyY, std::vector<uint32_t> & outBgra, int & outWidth, int & outHeight);
 
+    //  A Wizardry V maze level as a picture with the party's square marked,
+    //  under a heading and over a legend.
+    static void  DrawWizardry5Level (std::span<const Byte> walls, const WizardryMaze::Square & party, std::vector<Paragraph> & ioParagraphs);
+
     //  The game's number in Roman numerals and its title, from the name in
     //  the table of contents.
     static std::wstring  GetTitle (const std::wstring & name);
@@ -97,6 +102,13 @@ public:
     //  Where the party is, from the characters' records, or false when no
     //  character is in the maze.
     static bool  FindParty    (std::span<const Byte> bytes, const Contents & contents, int & outX, int & outY, int & outLevel);
+
+    //  Fields of UCSD Pascal records, as the game writes them.
+    static int           ReadWord      (std::span<const Byte> bytes, size_t at);
+    static uint64_t      ReadAmount    (std::span<const Byte> bytes, size_t at);
+    static std::wstring  ReadString    (std::span<const Byte> bytes, size_t at, size_t maximum);
+    static RunColor      GetHpColor    (int left, int max);
+    static Paragraph     MakeParagraph (std::vector<Run> runs);
 
 private:
     static constexpr size_t  kNameField        = 40;
@@ -129,18 +141,25 @@ private:
     static constexpr size_t  kSquareTypesAt    = 760;
     static constexpr int     kWordBits         = 16;
 
-    static int           ReadWord     (std::span<const Byte> bytes, size_t at);
-    static uint64_t      ReadAmount   (std::span<const Byte> bytes, size_t at);
-    static std::wstring  ReadString   (std::span<const Byte> bytes, size_t at, size_t maximum);
+    //  A square's fill color, 0 for none, and whether it has a special
+    //  square's dot.
+    struct SquareLook
+    {
+        uint32_t  fill    = 0;
+        bool      special = false;
+    };
+
+    using WallReader = std::function<int (int x, int y, int direction)>;
+    using LookReader = std::function<SquareLook (int x, int y)>;
+
+    static void          RenderGrid   (int squares, const WallReader & getWall, const LookReader & getLook, int partyX, int partyY, std::vector<uint32_t> & outBgra, int & outWidth, int & outHeight);
     static int           ReadPacked   (std::span<const Byte> bytes, size_t at, size_t rowBytes, int bits, int x, int y);
     static std::wstring  GetName      (const std::vector<std::wstring> & names, int index);
 
     static std::wstring  GetItemName    (std::span<const Byte> bytes, const Contents & contents, int item, bool identified);
     static void          ListRoster     (std::span<const Byte> bytes, const Contents & contents, std::vector<Paragraph> & ioParagraphs, std::vector<std::wstring> & ioNotes);
     static void          AddItemStates  (bool equipped, bool cursed, bool identified, std::vector<Run> & ioRuns);
-    static RunColor      GetHpColor     (int left, int max);
     static void          DrawPartyLevel (std::span<const Byte> bytes, const Contents & contents, std::vector<Paragraph> & ioParagraphs, std::vector<std::wstring> & ioNotes);
     static bool          IsPartyOut     (std::span<const Byte> bytes, const Contents & contents);
     static void          AddSquareTips  (std::span<const Byte> level, int partyX, int partyY, Paragraph & ioMap);
-    static Paragraph     MakeParagraph  (std::vector<Run> runs);
 };

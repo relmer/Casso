@@ -3,6 +3,7 @@
 #include "BlankDiskSpecResolver.h"
 #include "DiskImageSession.h"
 #include "DiskImageStore.h"
+#include "Devices/Disk/Store/DiskSourceFormat.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DamagedMountReport.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
@@ -887,7 +888,7 @@ HRESULT BlankDiskSpecResolver::ResolveFlux (const CommandLineOptions & options,
     }
     else if (overExisting)
     {
-        hr = DiskImageStore::GetSourceFormatByExtension (options.disk.imagePath, format);
+        hr = DiskSourceFormat::GetSourceFormatByExtension (options.disk.imagePath, format);
         BAIL_OUT_IF (FAILED (hr) || !BlankDiskBuilder::CanHoldFlux (format), S_OK);
 
         hr = m_context.GetFileIo().ReadAllBytes (options.disk.imagePath, existing);

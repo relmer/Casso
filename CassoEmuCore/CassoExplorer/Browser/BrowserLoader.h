@@ -9,6 +9,7 @@
 #include "CassoExplorer/Model/TreeModel.h"
 #include "Devices/Disk/Partitions/PartitionAccess.h"
 
+class BrowserArchives;
 class IBrowserLoaderHost;
 
 
@@ -28,7 +29,7 @@ class IBrowserLoaderHost;
 class BrowserLoader
 {
 public:
-    BrowserLoader (const BrowserParts & parts, IBrowserLoaderHost & host);
+    BrowserLoader (const BrowserParts & parts, const BrowserArchives & archives, IBrowserLoaderHost & host);
 
     //  When the folder or image the active tab shows is gone from the disk,
     //  moves to the nearest folder above it that is still there, as Explorer
@@ -123,6 +124,7 @@ private:
     bool      IsCardInDrive    (int number);
 
     BrowserParts                         m_parts;
+    const BrowserArchives              & m_archives;
     IBrowserLoaderHost                 & m_host;
     CassoExplorerHostListings            m_hostListings;
     Location                             m_linkVisit;    // the linked machine or drive last listed

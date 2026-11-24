@@ -982,7 +982,9 @@ std::vector<LinkTreeEntry> CassoLinkConnections::BuildTreeEntries() const
             entry.transferring = (*found)->sink->IsTransferring ((*found)->session->IsServingAdtPro());
             entry.fullSending  = (*found)->sink->IsFullSending();
             entry.model    = entry.replying ? (*found)->session->GetModelName() : std::wstring();
-            entry.status   = failure.empty() ? CassoLinkConnectionText::DescribeState (state, settings, CassoLinkShimBuilder::GetPcName()) : TextEncoding::NarrowToWide (failure);
+            entry.status   = failure.empty() ? CassoLinkConnectionText::DescribeState (state, settings, CassoLinkShimBuilder::GetPcName(),
+                                                                                                 (*found)->session->IsServingVirtualDrives(), (*found)->session->GetModelName())
+                                             : TextEncoding::NarrowToWide (failure);
         }
 
         AddFirewall (settings, entry);

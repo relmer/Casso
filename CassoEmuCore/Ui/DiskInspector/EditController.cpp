@@ -262,9 +262,38 @@ bool EditController::TypeHexDigit (int edit, int offset, bool isHighNibble, wcha
 
     if (value >= 0 && edit >= 0 && edit < static_cast<int> (m_edits.size()) && offset >= 0 && offset < DiskFieldFormat::kSectorBytes)
     {
-        Byte  old = m_edits[edit].bytes[offset];
+        Byte  old     = m_edits[edit].bytes[offset];
+        Byte  typed   = static_cast<Byte> (isHighNibble ? ((value << 4) | (old & 0x0F)) : ((old & 0xF0) | value));
+        int   digitAt = m_digitAction;
 
-        isTyped = SetBytes (edit, offset, { static_cast<Byte> (isHighNibble ? ((value << 4) | (old & 0x0F)) : ((old & 0xF0) | value)) });
+        //  The second digit joins the first digit's action, so a byte is one
+        //  undo step.
+        if (!isHighNibble && digitAt >= 0 && digitAt == m_undoAt - 1 && CanUndo() && !CanRedo() &&
+            m_actions[digitAt].edit == edit && m_actions[digitAt].offset == offset && m_actions[digitAt].after.size() == 1)
+        {
+            m_edits[edit].bytes[offset] = typed;
+            m_actions[digitAt].after[0] = typed;
+            m_digitAction               = -1;
+
+            if (m_actions[digitAt].before == m_actions[digitAt].after)
+            {
+                m_actions.pop_back();
+                m_undoAt--;
+            }
+
+            isTyped = true;
+        }
+        else
+        {
+            size_t  count = m_actions.size();
+
+            isTyped = SetBytes (edit, offset, { typed });
+
+            if (isHighNibble && m_actions.size() != count)
+            {
+                m_digitAction = m_undoAt - 1;
+            }
+        }
     }
 
     return isTyped;
@@ -397,6 +426,56 @@ bool EditController::Redo()
     }
 
     return isDone;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditController::GetUndoAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EditController::GetUndoAt (int & outEdit, int & outOffset) const
+{
+    bool  isFound = CanUndo() && !m_actions[m_undoAt - 1].isWholeSet && m_actions[m_undoAt - 1].edit >= 0;
+
+
+
+    if (isFound)
+    {
+        outEdit   = m_actions[m_undoAt - 1].edit;
+        outOffset = m_actions[m_undoAt - 1].offset;
+    }
+
+    return isFound;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditController::GetRedoAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EditController::GetRedoAt (int & outEdit, int & outOffset) const
+{
+    bool  isFound = CanRedo() && !m_actions[m_undoAt].isWholeSet && m_actions[m_undoAt].edit >= 0;
+
+
+
+    if (isFound)
+    {
+        outEdit   = m_actions[m_undoAt].edit;
+        outOffset = m_actions[m_undoAt].offset;
+    }
+
+    return isFound;
 }
 
 
@@ -833,7 +912,8 @@ void EditController::Record (Action action)
 {
     m_actions.resize (m_undoAt);
     m_actions.push_back (std::move (action));
-    m_undoAt = static_cast<int> (m_actions.size());
+    m_undoAt      = static_cast<int> (m_actions.size());
+    m_digitAction = -1;
 }
 
 

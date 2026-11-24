@@ -84,6 +84,7 @@ ExplorerWindowParts::ExplorerWindowParts (IExplorerWindow             & window,
                  .folderSync       = folderSync,
                  .cassoLinkManager = cassoLinkManager,
                  .linkDrives       = linkDrives,
+                 .linkListActions  = linkListActions,
                  .fullSendWindows  = fullSendWindows,
                  .linkJobs         = linkJobs,
                  .dragDrop         = dragDrop,
@@ -158,7 +159,7 @@ void ExplorerWindowParts::CreateControls()
 
     treePane.Create();
     listPane.Create();
-    cassoLinkManager.CreateListActions();
+    linkListActions.CreateListActions();
     preview.Create();
     treeSplitter    = window.CreateChild<CassoExplorerNamedControl<DxuiSplitter>>();
     previewSplitter = window.CreateChild<CassoExplorerNamedControl<DxuiSplitter>>();
@@ -227,8 +228,8 @@ void ExplorerWindowParts::Configure()
     services.shellIcons->SetSizePx (MulDiv (DxuiTreeView::s_kIconDip, dpi, (int) DxuiDpiScaler::kBaseDpi));
     context.browser.SetShellIcons (services.shellIcons.get());
     context.browser.SetShellVerbs (services.shellVerbs.get());
-    context.browser.GetPreviewer().SetPreviewMonitor (preview.GetPicture().GetMonitor(), context.prefs.previewCustomArgb);
-    context.browser.GetPreviewer().SetDefaultDecodeOptions (context.prefs.copyOptions);
+    context.browser.GetPreviewer().GetMonitorChoice().SetPreviewMonitor (preview.GetPicture().GetMonitor(), context.prefs.previewCustomArgb);
+    context.browser.GetPreviewer().GetViewState().SetDefaultDecodeOptions (context.prefs.copyOptions);
     explorerOptions = FolderOptions::ReadFromShell();
     context.browser.SetFolderOptions (explorerOptions);
     treePane.ApplyNavPaneOptions();
@@ -537,7 +538,7 @@ bool ExplorerWindowParts::HandleTimer (UINT_PTR timerId)
     if (timerId == (UINT_PTR) AppTimerId::ExplorerDrive)
     {
         folderSync.PollDrives();
-        cassoLinkManager.PollFirewall();
+        linkListActions.PollFirewall();
 
         //  An announcement since the last look is listed, on the same poll
         //  as a drive.

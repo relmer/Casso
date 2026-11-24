@@ -378,8 +378,9 @@ bool DxuiTextView::OnMouse (const DxuiMouseEvent & ev)
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Wheel:
-        //  The wheel over a zoomable picture zooms it.
-        handled = (!ev.wheelHorizontal && !ev.shift && m_pictures.Zoom (point, ev.wheelDelta)) || m_scroll.OnWheel (ev);
+        //  Ctrl with the wheel over a zoomable picture zooms it, so the wheel
+        //  alone scrolls past a map.
+        handled = (ev.ctrl && !ev.wheelHorizontal && m_pictures.Zoom (point, ev.wheelDelta)) || m_scroll.OnWheel (ev);
         break;
 
     case DxuiMouseEventKind::Down:

@@ -995,8 +995,8 @@ void CassoExplorerLinkDialog::OnCreate()
         }
     });
 
-    m_browse1.SetOnClick ([this]() { BrowseImage (m_drive1); });
-    m_browse2.SetOnClick ([this]() { BrowseImage (m_drive2); });
+    m_browse1.SetOnClick ([this]() { BrowseImage (1, m_drive1); });
+    m_browse2.SetOnClick ([this]() { BrowseImage (2, m_drive2); });
 
     kids.transportLabel = &m_transportLabel;
     kids.transport      = &m_transport;
@@ -1276,13 +1276,13 @@ void CassoExplorerLinkDialog::ShowTransportRows()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerLinkDialog::BrowseImage (DxuiTextInput & field)
+void CassoExplorerLinkDialog::BrowseImage (int drive, DxuiTextInput & field)
 {
     std::wstring  image = field.GetText();
 
 
 
-    if (m_browseImage && m_browseImage (GetHwnd(), image))
+    if (m_browseImage && m_browseImage (GetHwnd(), drive, image))
     {
         field.SetText (image);
         Revalidate();

@@ -2872,6 +2872,13 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
             break;
 
         case WM_NCLBUTTONDOWN:
+            if (wp == HTSYSMENU)
+            {
+                ClickWindowIcon (ptScreen);
+                result = 0;
+                break;
+            }
+
             result = IsClaimed (m_client != nullptr
                                   ? m_client->OnNcLButtonDown ((LRESULT) wp, ptScreen.x, ptScreen.y)
                                   : DxuiMessageResult::NotHandled,
@@ -4998,6 +5005,49 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiHwndSource::ClickWindowIcon
+//
+//  As on a caption Windows draws: a click on the icon opens the system menu,
+//  and a second click on the icon within the double-click time closes the
+//  window. The second click dismisses the menu, so it is detected after the
+//  menu returns: the button down, over the icon, in time.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::ClickWindowIcon (POINT ptScreen)
+{
+    HRESULT    hr      = S_OK;
+    ULONGLONG  opened  = GetTickCount64();
+    POINT      now     = {};
+    bool       inTime  = false;
+    bool       isDown  = false;
+    bool       onIcon  = false;
+
+
+
+    hr = ShowSystemMenu (ptScreen);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    inTime = GetTickCount64() - opened <= GetDoubleClickTime();
+    isDown = (GetAsyncKeyState (VK_LBUTTON) & 0x8000) != 0;
+
+    if (inTime && isDown && GetCursorPos (&now))
+    {
+        onIcon = SendMessageW (m_hwnd, WM_NCHITTEST, 0, MAKELPARAM (now.x, now.y)) == HTSYSMENU;
+    }
+
+    if (onIcon)
+    {
+        PostMessageW (m_hwnd, WM_SYSCOMMAND, SC_CLOSE, 0);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiHwndSource::IsSystemMenuDropped
 //
 //  Whether the window is created without the system menu style. Without it,
@@ -5104,6 +5154,7 @@ LRESULT DxuiHwndSource::KindToHt (DxuiHitTestKind kind)
         case DxuiHitTestKind::None:             ht = HTNOWHERE;       break;
         case DxuiHitTestKind::Client:           ht = HTCLIENT;        break;
         case DxuiHitTestKind::Caption:          ht = HTCAPTION;       break;
+        case DxuiHitTestKind::SystemMenu:       ht = HTSYSMENU;       break;
         case DxuiHitTestKind::MinButton:        ht = HTMINBUTTON;     break;
         case DxuiHitTestKind::MaxButton:        ht = HTMAXBUTTON;     break;
         case DxuiHitTestKind::CloseButton:      ht = HTCLOSE;         break;

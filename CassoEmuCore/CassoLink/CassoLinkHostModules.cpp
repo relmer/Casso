@@ -314,6 +314,21 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkHost::GetTrackPercents
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::array<Byte, 2> CassoLinkHost::GetTrackPercents (Byte track)
+{
+    return { (Byte) (track * 100 / kNibbleTracks), (Byte) ((track + 1) * 100 / kNibbleTracks) };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkHost::WriteNibbleTrack
 //
 //  The Apple requests the stream with an Acknowledge, and requests it again
@@ -326,9 +341,10 @@ HRESULT CassoLinkHost::WriteNibbleTrack (Byte drive, Byte track, std::span<const
     HRESULT            hr      = S_OK;
     CassoLinkPacket    packet;
     std::vector<Byte>  payload (stream.begin(), stream.end());
-    std::vector<Byte>  request = { drive, track, (Byte) (stream.size() & 0xFF), (Byte) (stream.size() >> 8) };
-    Word               crc     = CassoLinkCodec::ComputeCrc (stream);
-    bool               valid   = !stream.empty() && stream.size() <= CassoLinkCodec::kMaxNibbleStream;
+    std::array<Byte, 2>  percents = GetTrackPercents (track);
+    std::vector<Byte>    request  = { drive, track, (Byte) (stream.size() & 0xFF), (Byte) (stream.size() >> 8), percents[0], percents[1] };
+    Word                 crc      = CassoLinkCodec::ComputeCrc (stream);
+    bool                 valid    = !stream.empty() && stream.size() <= CassoLinkCodec::kMaxNibbleStream;
 
 
 
@@ -384,9 +400,10 @@ Error:
 
 HRESULT CassoLinkHost::ReadThirteenTrack (Byte drive, Byte track, Word requested, std::vector<std::vector<Byte>> & outFields, Word & outUnwritten, CassoLinkStatus & outStatus)
 {
-    HRESULT            hr      = S_OK;
-    CassoLinkPacket    packet;
-    std::vector<Byte>  request = { drive, track, (Byte) (requested & 0xFF), (Byte) (requested >> 8) };
+    HRESULT              hr       = S_OK;
+    CassoLinkPacket      packet;
+    std::array<Byte, 2>  percents = GetTrackPercents (track);
+    std::vector<Byte>    request  = { drive, track, (Byte) (requested & 0xFF), (Byte) (requested >> 8), percents[0], percents[1] };
 
 
 

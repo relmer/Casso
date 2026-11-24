@@ -12,6 +12,7 @@
 #include "CassoLink/SteppedByteStream.h"
 #include "Core/TextEncoding.h"
 #include "Devices/BlockDevice/BlockDeviceCatalog.h"
+#include "Devices/Disk/DiskImageStore.h"
 #include "Seams/InProcessByteStream.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -105,8 +106,9 @@ public:
 
 
 
-    //  An emulated //c with the disk in a UniDisk 3.5 on its disk port, and
-    //  the shim on port 2 with the host on the test's thread.
+    //  An emulated //c with the disk in a UniDisk 3.5 on its disk port, or
+    //  with nothing on it, and the shim on port 2 with the host on the test's
+    //  thread.
     struct Rig
     {
         FakeDiskFileIo                        io;
@@ -120,8 +122,6 @@ public:
         explicit Rig (const std::vector<Byte> & disk)
         {
             std::vector<PortConfig>  diskPort (1);
-            std::vector<Byte>        shim;
-            Word                     at = LinkProgram::kShimAddress;
 
 
 
@@ -133,16 +133,39 @@ public:
             diskPort[0].chain[0].device = kpszUniDisk35Device;
             diskPort[0].chain[0].image  = kDiskPath;
 
-            machine = std::make_unique<TestMachine> ("Apple2c", diskPort, io);
-            machine->SetVideoTiming (std::make_unique<VideoTiming>());
-            machine->GetCpu()->SetVideoTiming (machine->GetVideoTiming());
-            machine->PowerCycle();
+            Start (diskPort);
 
             //  The ROM boots ProDOS from the UniDisk first, as a real //c has
             //  booted before the link starts: its SmartPort firmware assigns
             //  the bus's units their numbers when it boots.
             GuestSession::StartFromPowerOn (*machine);
             Assert::IsTrue (RunUntilScreenShows (*machine, "PRODOS", kBootCap), L"ProDOS boots from the UniDisk");
+
+            StartShim();
+        }
+
+        //  A //c with nothing on its disk port, started from power on.
+        Rig()
+        {
+            Start (std::vector<PortConfig>());
+            GuestSession::StartFromPowerOn (*machine);
+            StartShim();
+        }
+
+        void  Start (const std::vector<PortConfig> & ports)
+        {
+            machine = std::make_unique<TestMachine> ("Apple2c", ports, io);
+            machine->SetVideoTiming (std::make_unique<VideoTiming>());
+            machine->GetCpu()->SetVideoTiming (machine->GetVideoTiming());
+            machine->PowerCycle();
+        }
+
+        void  StartShim()
+        {
+            std::vector<Byte>  shim;
+            Word               at = LinkProgram::kShimAddress;
+
+
 
             InProcessByteStream::CreatePair (machineEnd, pcEnd);
             AssertSucceeded (machine->AttachSerialStream (kPort, machineEnd));
@@ -204,6 +227,41 @@ public:
         Assert::AreEqual ((uint32_t) kBlocks800K, device.blocks);
         Assert::AreEqual (kKind35Disk, device.kind);
         Assert::AreEqual (GetVolumeName (disk), device.volume);
+    }
+
+
+
+    //  A //c with no memory card, right after a floppy read, as a session
+    //  lists its block devices: the list is empty, and the RAM disk firmware
+    //  in slot 4 isn't called. The floppy's motor runs on after the read,
+    //  and the SmartPort firmware in slot 5 loops until it stops. The RAM
+    //  disk firmware's first call formats the RAM disk, and with no card the
+    //  format loops on the card's registers, which read as the screen's
+    //  bytes, so whether it ends depends on the cycle it starts on.
+    TEST_METHOD (AfterAFloppyRead_TheBlockDevicesAreListed_AndTheRamDiskIsPassedOver)
+    {
+        static constexpr Byte  kSectors[] = { 0, 1, 2, 3 };
+        static constexpr Word  kRamReady  = 0x077C;
+        static constexpr Byte  kSetUp     = 0xA5;
+
+        Rig                                rig;
+        std::vector<Byte>                  module;
+        std::vector<Byte>                  data;
+        std::vector<CassoLinkBlockDevice>  devices;
+        CassoLinkStatus                    status;
+
+
+
+        AssertSucceeded (rig.machine->GetDiskStore().MountFromBytes (6, 0, "master.dsk", DiskFormat::Dsk, GuestSession::RequireDos33Master()));
+        AssertSucceeded (rig.host->ReadSectors (1, 17, kSectors, data, status));
+        Assert::AreEqual ((Byte) 0, status.error);
+
+        AssertSucceeded (LinkProgram::BuildBlockModule (module));
+        AssertSucceeded (rig.host->EnsureModule (module));
+        AssertSucceeded (rig.host->ListBlockDevices (devices));
+
+        Assert::AreEqual    ((size_t) 0, devices.size());
+        Assert::AreNotEqual (kSetUp, rig.machine->GetCpu()->ReadByte (kRamReady), L"The RAM disk firmware was called");
     }
 
 

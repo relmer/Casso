@@ -108,6 +108,7 @@ private:
     void  AddOpenRow           (std::vector<DxuiPopupMenuItem> & items, const Location & location);
     void  AddCassoSubmenu      (std::vector<DxuiPopupMenuItem> & items, const std::wstring & image);
     void  AddCompareRows       (std::vector<DxuiPopupMenuItem> & items, const std::wstring & image);
+    void  AddAppleDriveIconRow (std::vector<DxuiPopupMenuItem> & items, const Location & drive);
     void  AddRootRows          (std::vector<DxuiPopupMenuItem> & items, const Location & location, int x, int y);
     void  ShowTreeEmptyMenu    (int x, int y);
     void  AddNavPaneToggle     (std::vector<DxuiPopupMenuItem> & items, const wchar_t * label, CassoExplorerPrefs::NavOption option);

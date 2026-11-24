@@ -5,6 +5,7 @@
 #include "Ui/DiskInspector/Components/IInspectorComponent.h"
 #include "Ui/DiskInspector/FollowHead.h"
 
+class DecodeSettings;
 class DiskCopy;
 class IInspectorComponentHost;
 class InspectorSession;
@@ -54,6 +55,8 @@ private:
     void           RequestWrittenTracks ();
     void           SelectHeadTrack      (int quarterTrack);
     std::set<int>  GetQuarterTracksOf   (const vector<RecordResult> & results) const;
+
+    static DecodeSettings  GetStartSettings (const std::shared_ptr<const DiskCopy> & copy);
 
     InspectorSession         & m_session;
     IInspectorComponentHost  & m_host;

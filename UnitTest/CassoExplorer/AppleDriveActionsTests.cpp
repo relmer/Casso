@@ -635,7 +635,7 @@ public:
         AssertSucceeded (LinkProgram::BuildUniversalBootDisk (options, disk));
 
         rig.Open (2);
-        AssertSucceeded (rig.actions->SaveLinkToDisk ("Test", 2, L"C:\\Temp").hr);
+        AssertSucceeded (rig.actions->SaveLinkToDisk ("Test", 2).hr);
 
         //  No catalog to list afterward: the disk has no file system.
         {
@@ -650,6 +650,7 @@ public:
         Assert::IsTrue (rig.links->RunCompletions().empty());
 
         Assert::IsTrue (rig.Drive (2) == disk, L"the drive is the universal boot disk");
+        Assert::IsTrue (rig.io.files.empty(), L"the disk is made in memory, with no file");
     }
 
 

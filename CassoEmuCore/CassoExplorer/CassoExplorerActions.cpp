@@ -62,6 +62,7 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
     std::wstring               wrapped;
     size_t                     selected    = m_browser.GetSelectedRows().size();
     Location                   location    = m_browser.GetLocation();
+    Location                   rowLocation;
     bool                       nested      = location.kind == Location::Kind::DiskDirectory && !location.innerPath.empty();
     bool                       onDisk      = location.kind == Location::Kind::HostFolder || m_browser.GetSelection().AreSelectedRowsSearchFiles();
     std::wstring               partition;
@@ -294,10 +295,18 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
         verbs.push_back (Verb::MoreOptions);
     }
 
+    //  The Casso node's images, and its stock and demo disks, copy out as
+    //  files. A stock disk not downloaded yet is downloaded first.
+    else if (location.kind == Location::Kind::Root && selected > 0
+             && (location.path == TreeModel::kCassoRootId || location.path == TreeModel::kStockDisksId || location.path == TreeModel::kDemoDisksId))
+    {
+        verbs.push_back (Verb::Copy);
+    }
+
     //  What the shell lists, such as the files inside a zip, copies, cuts and
     //  deletes through the shell, and has the shell's own menu; a match inside
     //  a disk image is the image's to act on.
-    else if (location.kind == Location::Kind::ShellFolder && selected > 0 && !onDisk && !m_browser.GetPreviewer().AreSelectedRowsSearchMatches())
+    else if (location.kind == Location::Kind::ShellFolder && selected > 0 && !onDisk && !m_browser.GetSearchMatches().AreSelectedRowsSearchMatches())
     {
         verbs.push_back (Verb::Cut);
         verbs.push_back (Verb::Copy);
@@ -305,8 +314,14 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
         verbs.push_back (Verb::MoreOptions);
     }
 
-    //  Into the folder shown, from its background.
-    if (!m_browser.IsImageLocation() && location.kind == Location::Kind::HostFolder && selected == 0)
+    //  Into the folder shown, or onto a linked Apple's drive, from its
+    //  background or from the drive's row in its connection's list.
+    if (!m_browser.IsImageLocation() && (location.kind == Location::Kind::HostFolder || m_browser.IsAppleDriveLocation()) && selected == 0)
+    {
+        verbs.push_back (Verb::Paste);
+    }
+    else if (selected == 1 && BrowserRowPaths::TryGetRowLocation (m_browser.GetRowListing(), m_browser.GetSelectedRows()[0], rowLocation)
+             && rowLocation.kind == Location::Kind::AppleDrive && rowLocation.innerPath.empty())
     {
         verbs.push_back (Verb::Paste);
     }
@@ -560,7 +575,7 @@ bool CassoExplorerActions::TryGetWrappedImage (std::wstring & outPath) const
 {
     Location                   location = m_browser.GetLocation();
     std::vector<std::wstring>  paths;
-    std::wstring               archive  = m_browser.GetPreviewer().GetExtractTarget();
+    std::wstring               archive  = m_browser.GetArchives().GetExtractTarget();
     std::wstring               lower    = archive;
     std::wstring               inner;
     std::wstring               candidate;
@@ -1615,12 +1630,12 @@ ActionsTypes::Outcome CassoExplorerActions::GetSelected (const std::wstring & ho
     {
         formats.push_back ((raw || style == HostFileNaming::Style::AppleSingle) ? FileFormat::None
                                                                                 : CopyOutConversion::Find (m_browser.GetOperations(), image, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entry), entry, kind,
-                                                                                                           m_browser.GetPreviewer().GetDecodeOptions (m_browser.GetLocation().path, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entry))));
+                                                                                                           m_browser.GetPreviewer().GetViewState().GetDecodeOptions (m_browser.GetLocation().path, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entry))));
         hostNames.push_back (entry.isDirectory ? std::wstring() : DragPayload::GetHostName (entry, kind, style, converted, formats.back(), raw));
 
         if (converted)
         {
-            BasicListingOutput::RenameForOptions (hostNames.back(), m_browser.GetPreviewer().GetDecodeOptions (m_browser.GetLocation().path, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entry)));
+            BasicListingOutput::RenameForOptions (hostNames.back(), m_browser.GetPreviewer().GetViewState().GetDecodeOptions (m_browser.GetLocation().path, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entry)));
         }
     }
 
@@ -1650,7 +1665,7 @@ ActionsTypes::Outcome CassoExplorerActions::GetSelected (const std::wstring & ho
             continue;
         }
 
-        Append (outcome, CopyOutConversion::GetToFile (m_browser.GetOperations(), m_fs, m_browser.GetPreviewer().GetDecodeOptions (m_browser.GetLocation().path, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entry)),
+        Append (outcome, CopyOutConversion::GetToFile (m_browser.GetOperations(), m_fs, m_browser.GetPreviewer().GetViewState().GetDecodeOptions (m_browser.GetLocation().path, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entry)),
                                                        image, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entry), entry, kind, formats[at], raw ? Encoding::Verbatim : GetEncoding (entry, kind), hostPath));
     }
 

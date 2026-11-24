@@ -20,7 +20,7 @@ class InspectorSession;
 //
 //  The inspector's dialogs: Go to (FR-055), Export (FR-058), the decode
 //  settings with the change they make to the analysis (FR-019), Repair's
-//  confirmation, and the confirmations.
+//  confirmation, the confirmations, and Stamp format.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,6 +39,13 @@ public:
     void  OpenRepair         (const std::set<std::wstring> & chosen);
     void  ApplySettings      (const DecodeSettings & settings);
 
+    //  Builds a format stamp from the disk and the decode settings, keeping
+    //  the capture facts of tracks that didn't change, and saves it in the
+    //  disk. Only for a 5.25" WOZ that can be written.
+    void  StampFormat        ();
+    bool  CanStampFormat     () const;
+    bool  TakeReply          (const InspectorReply & reply) override;
+
     //  A modal question with a button for the action and one for Cancel;
     //  true for the action.
     bool  Confirm (const std::wstring & title, const vector<std::wstring> & lines, const std::wstring & action);
@@ -53,5 +60,6 @@ public:
 private:
     InspectorSession         & m_session;
     IInspectorComponentHost  & m_host;
-    GoToKind                   m_goToKind = GoToKind::Track;
+    GoToKind                   m_goToKind     = GoToKind::Track;
+    uint64_t                   m_stampRequest = 0;
 };

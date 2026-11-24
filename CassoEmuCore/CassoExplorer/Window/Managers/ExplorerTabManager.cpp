@@ -303,6 +303,7 @@ void ExplorerTabManager::SelectInFolder (const std::wstring & path)
     }
 
     m_context.browser.GetNavigator().OpenInNewTab (Location::MakeHostFolder (folder));
+    m_context.listPane.FillList();
     m_context.listPane.SelectWhenListed (folder, { name });
 }
 

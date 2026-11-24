@@ -310,7 +310,9 @@ void BlockEditController::SaveToPreservedCopy()
 
 void BlockEditController::Undo()
 {
-    bool  canUndo = m_parts.model.GetEdits().CanUndo();
+    bool      canUndo = m_parts.model.GetEdits().CanUndo();
+    uint32_t  block   = 0;
+    int       offset  = 0;
 
 
 
@@ -327,7 +329,12 @@ void BlockEditController::Undo()
 
     m_note.clear();
 
-    if (m_parts.model.Undo())
+    if (m_parts.model.GetEdits().GetUndoAt (block, offset) && m_parts.model.Undo())
+    {
+        m_parts.view.ShowBlockByte (block, offset);
+        m_parts.view.Refresh();
+    }
+    else if (m_parts.model.Undo())
     {
         m_parts.view.Refresh();
     }
@@ -348,7 +355,9 @@ void BlockEditController::Undo()
 
 void BlockEditController::Redo()
 {
-    bool  canRedo = m_parts.model.GetEdits().CanRedo();
+    bool      canRedo = m_parts.model.GetEdits().CanRedo();
+    uint32_t  block   = 0;
+    int       offset  = 0;
 
 
 
@@ -365,7 +374,12 @@ void BlockEditController::Redo()
 
     m_note.clear();
 
-    if (m_parts.model.Redo())
+    if (m_parts.model.GetEdits().GetRedoAt (block, offset) && m_parts.model.Redo())
+    {
+        m_parts.view.ShowBlockByte (block, offset);
+        m_parts.view.Refresh();
+    }
+    else if (m_parts.model.Redo())
     {
         m_parts.view.Refresh();
     }

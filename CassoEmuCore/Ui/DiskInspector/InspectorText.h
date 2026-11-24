@@ -38,6 +38,7 @@ enum class SummaryChipKind
     Blocks,
     BlocksUsed,
     Files,
+    StampMarks,
     CrossLinked,
     FileSystem,
     ReadAsCpm,
@@ -63,7 +64,21 @@ struct HeaderItem
     size_t        badLength = 0;
 
     static HeaderItem  MakeResult (LPCWSTR label, const std::wstring & value);
+
+    //  A check as the sector buttons mark it, the mark before the label: a
+    //  check mark when it passed, an X in the error color when it failed, a
+    //  question mark when it wasn't checked, and the empty set when the field
+    //  is missing. An item without a label is drawn as its value alone.
+    static HeaderItem  MakeCheck  (LPCWSTR label, bool isPresent, bool isChecked, bool isGood);
 };
+
+
+
+//  The Sector data header's first lines (FR-040): where the sector is, its
+//  checks, and where the disk's file system puts it.
+static constexpr int  kSectorHeaderLines = 3;
+
+using SectorHeader = std::array<vector<HeaderItem>, kSectorHeaderLines>;
 
 
 
@@ -85,6 +100,8 @@ class InspectorText
 public:
     static vector<SummaryChip>  BuildChips          (const DiskSummary & summary);
     static vector<SummaryChip>  BuildBlockChips     (const BlockInspectorModel & model);
+    static vector<SummaryChip>  BuildStampChips     (const ImageDetails & image);
+    static bool                 HasCustomMark       (const vector<vector<Byte>> & prologs);
     static std::wstring         FormatFileSystem    (BlockFileSystem fileSystem);
     static vector<SummaryChip>  BuildChips          (const DiskSummary & summary, FileSystemVerdict verdict);
     static std::wstring         FormatDiskFormat    (DiskFormatClass format);
@@ -123,7 +140,7 @@ public:
     static std::wstring         FormatSelection     (const TrackAnalysis * track, int quarterTrack, int sectorIndex, int firstNibble, int nibbleCount,
                                                      const FileMap * map);
     static std::wstring         FormatNoSectors     (const QuarterTrackEntry & entry);
-    static vector<HeaderItem>   BuildSectorHeader   (const AnalyzedSector & sector, const TrackAnalysis & track);
+    static SectorHeader         BuildSectorHeader   (const AnalyzedSector & sector, const TrackAnalysis & track, MapFileSystem fileSystem);
     static std::wstring         FormatNoSectorData  (const QuarterTrackEntry & entry, const TrackAnalysis * track);
 
     static std::wstring  FormatNibbleKind   (NibbleKind kind, bool isFailedChecksum);

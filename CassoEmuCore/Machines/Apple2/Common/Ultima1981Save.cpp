@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/Ultima1981Save.h"
+#include "Machines/Apple2/Common/Ultima1Map.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 
 
@@ -24,8 +25,9 @@ static constexpr const wchar_t * s_kSpells[]  = { L"Prayer", L"Open", L"Unlock",
 //
 //  Ultima1981Save::GetImage
 //
-//  Track 26's sectors 11 down to 0, in the order the game saves memory to
-//  them.
+//  Sectors 427 down to 416 of the disk, in the order the game saves memory
+//  to them: the file BEVERY, on track 32 of the player disk's 13-sector
+//  tracks.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -298,6 +300,7 @@ bool Ultima1981Save::TryParse (const std::vector<Byte> & sectors, Character & ou
     double             experience         = 0;
     double             x                  = 0;
     double             y                  = 0;
+    double             continent          = 0;
     Character          c;
 
 
@@ -329,6 +332,10 @@ bool Ultima1981Save::TryParse (const std::vector<Byte> & sectors, Character & ou
         return false;
     }
 
+    //  FA is the continent the player is on, the n of the file BTERRAn that
+    //  has its map. A save without it is on the first.
+    TryFindVariable (image, tableAt, statsAt, 'F', 'A', continent);
+
     valuesAt = statsAt + kEntryBytes;
 
     for (size_t i = 0; i < kStatsCount; i++)
@@ -350,10 +357,123 @@ bool Ultima1981Save::TryParse (const std::vector<Byte> & sectors, Character & ou
     c.experience     = (int) experience;
     c.x              = (int) x;
     c.y              = (int) y;
+    c.continent      = (int) continent;
 
     AddInventory (image, statsAt, c);
 
     outCharacter = std::move (c);
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Ultima1981Save::TryReadFile
+//
+//  A binary file by its catalog entry, without its four-byte header. The
+//  game's files are in a second catalog that isn't chained from the VTOC,
+//  so every sector is searched for an entry with the name. The disk is read as 13-sector unless it's the size of a 16-sector
+//  one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Ultima1981Save::TryReadFile (const std::vector<Byte> & sectors, const std::string & name, std::vector<Byte> & outBytes)
+{
+    constexpr size_t  kEntriesAt   = 11;
+    constexpr size_t  kEntryLength = 35;
+    constexpr size_t  kEntries     = 7;
+    constexpr size_t  kNameAt      = 3;
+    constexpr size_t  kNameLength  = 30;
+    constexpr size_t  kPairsAt     = 12;
+    constexpr size_t  kHeaderBytes = 4;
+    constexpr int     kTracks      = 35;
+    constexpr Byte    kHighBit     = 0x80;
+    constexpr Byte    kSpace       = 0xA0;
+    int               perTrack     = sectors.size() == (size_t) kTracks * 16 * kSectorBytes ? 16 : 13;
+    size_t            count        = sectors.size() / kSectorBytes;
+
+
+
+    outBytes.clear();
+
+    for (size_t sector = 0; sector < count && outBytes.empty(); sector++)
+    {
+        const Byte  * b = sectors.data() + sector * kSectorBytes;
+
+        for (size_t e = 0; e < kEntries && outBytes.empty(); e++)
+        {
+            const Byte  * entry   = b + kEntriesAt + e * kEntryLength;
+            bool          isMatch = entry[0] < kTracks && entry[1] < perTrack;
+
+            for (size_t i = 0; i < kNameLength && isMatch; i++)
+            {
+                isMatch = entry[kNameAt + i] == (i < name.size() ? (Byte) (name[i] | kHighBit) : kSpace);
+            }
+
+            if (!isMatch)
+            {
+                continue;
+            }
+
+            const Byte  * list = sectors.data() + ((size_t) entry[0] * (size_t) perTrack + entry[1]) * kSectorBytes;
+
+            for (size_t at = kPairsAt; at + 1 < kSectorBytes && list[at] != 0 && list[at] < kTracks && list[at + 1] < perTrack; at += 2)
+            {
+                const Byte  * data = sectors.data() + ((size_t) list[at] * (size_t) perTrack + list[at + 1]) * kSectorBytes;
+
+                outBytes.insert (outBytes.end(), data, data + kSectorBytes);
+            }
+        }
+    }
+
+    if (outBytes.size() < kHeaderBytes)
+    {
+        outBytes.clear();
+        return false;
+    }
+
+    outBytes.erase (outBytes.begin(), outBytes.begin() + kHeaderBytes);
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Ultima1981Save::TryReadTerrain
+//
+//  The continent's map from the file BTERRAn: 64 by 64 bytes, each a tile
+//  of Ultima1Map's in its high nibble and the place it is, such as which
+//  town, in its low nibble. The game loads it at $1000.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Ultima1981Save::TryReadTerrain (const std::vector<Byte> & sectors, int continent, std::vector<Byte> & outTiles)
+{
+    constexpr size_t   kTiles    = (size_t) Ultima1Map::kMapSide * Ultima1Map::kMapSide;
+    constexpr int      kTileBits = 4;
+    std::vector<Byte>  bytes;
+
+
+
+    outTiles.clear();
+
+    if (!TryReadFile (sectors, std::format ("BTERRA{}", continent), bytes) || bytes.size() < kTiles)
+    {
+        return false;
+    }
+
+    for (size_t i = 0; i < kTiles; i++)
+    {
+        outTiles.push_back ((Byte) (bytes[i] >> kTileBits));
+    }
 
     return true;
 }
@@ -480,17 +600,19 @@ Run Ultima1981Save::MakeValue (const std::wstring & text)
 //
 //  Ultima1981Save::Decode
 //
-//  The title and position, then the character: name, race and class, hit
-//  points, food, gold and experience, the six stats, and the inventory.
+//  The title and position, the player's continent with the player marked,
+//  then the character: name, race and class, hit points, food, gold and
+//  experience, the six stats, and the inventory.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Ultima1981Save::Decode (const std::vector<Byte> & sectors, std::span<const bool> unreadable, DecodedFile & outFile, std::wstring & outError)
 {
-    HRESULT       hr       = S_OK;
-    Character     c;
-    std::wstring  items;
-    bool          isParsed = TryParse (sectors, c);
+    HRESULT            hr       = S_OK;
+    Character          c;
+    std::wstring       items;
+    std::vector<Byte>  tiles;
+    bool               isParsed = TryParse (sectors, c);
 
 
 
@@ -503,7 +625,17 @@ HRESULT Ultima1981Save::Decode (const std::vector<Byte> & sectors, std::span<con
     CBRFEx (isParsed, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outError = L"The disk doesn't have an Ultima saved game.");
 
     outFile.paragraphs.push_back (MakeParagraph ({ Run { L"Ultima (1981)", true } }));
-    outFile.paragraphs.push_back (MakeParagraph ({ Run { std::format (L"Saved game, the player at column {}, row {}", c.x, c.y), false, false, false, RunColor::Muted } }));
+    outFile.paragraphs.push_back (MakeParagraph ({ Run { std::format (L"Saved game, the player in {} at column {}, row {}", Ultima1Map::GetContinentName (c.continent), c.x, c.y), false, false, false, RunColor::Muted } }));
+
+    if (TryReadTerrain (sectors, c.continent, tiles))
+    {
+        Paragraph  map;
+
+        Ultima1Map::RenderMap (tiles, c.x, c.y, map);
+        outFile.paragraphs.push_back (std::move (map));
+        Ultima1Map::AddLegend (outFile.paragraphs, true);
+    }
+
     outFile.paragraphs.push_back (Paragraph());
     outFile.paragraphs.push_back (MakeParagraph ({ Run { c.name, true },
                                                    Run { std::format (L"   {} {}", GetRaceName (c.race), GetClassName (c.characterClass)), false, true, false, RunColor::Muted } }));

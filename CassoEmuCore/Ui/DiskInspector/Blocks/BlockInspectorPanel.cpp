@@ -374,6 +374,26 @@ void BlockInspectorPanel::SelectBlock (uint32_t block)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BlockInspectorPanel::ShowBlockByte
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorPanel::ShowBlockByte (uint32_t block, int offset)
+{
+    if (m_model->GetBlock() != block)
+    {
+        SelectBlock (block);
+    }
+
+    m_hexPane.GetHexView().GoToOffset (static_cast<uint64_t> (offset));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BlockInspectorPanel::OpenBlock
 //
 //  A double-click on a block, on the map or on a row of blocks: the block
@@ -414,6 +434,7 @@ void BlockInspectorPanel::OpenBlock (uint32_t block)
 void BlockInspectorPanel::SetEditing (bool isEditing)
 {
     m_isEditing = isEditing && m_model->IsOpen();
+    m_hexPane.GetHexView().SetEditing (m_isEditing);
 
     if (m_isEditing && m_onPressed)
     {
@@ -1202,9 +1223,6 @@ bool BlockInspectorPanel::GetHexTooltip (POINT pointPx, std::wstring & outText, 
 void BlockInspectorPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     m_splitters.Paint (painter, theme);
-
-    m_hexPane.SetEditLook (m_isEditing, m_hexPane.GetHexView().HasFocus(), { theme.Accent(), theme.ContentBackground(), theme.Foreground() });
-    m_hexPane.PaintFrame  (painter);
 
     DxuiPanel::Paint (painter, text, theme);
     m_header.Paint (painter, text, theme, m_scaler, m_jobs, m_model != nullptr && m_model->IsOpen());

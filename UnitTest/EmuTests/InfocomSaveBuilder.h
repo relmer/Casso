@@ -89,4 +89,31 @@ public:
 
         return disk;
     }
+
+
+    //  A disk with `memory` saved by a later interpreter in slot `index` of
+    //  `slotPages` pages: five pages of state, then the memory, each page n
+    //  of the disk at track n / 16, physical sector n % 16.
+    static std::vector<Byte> MakeLateDisk (const std::vector<Byte> & memory, int index, size_t slotPages)
+    {
+        static constexpr int  kDosSectorOfPhysical[16] = { 0, 13, 11, 9, 7, 5, 3, 1, 14, 12, 10, 8, 6, 4, 2, 15 };
+
+        std::vector<Byte>  disk   (kDiskBytes, 0);
+        std::vector<Byte>  stream (InfocomSave::kLateStatePages * InfocomSave::kPageBytes, 0xA5);
+
+
+
+        stream.insert (stream.end(), memory.begin(), memory.end());
+        stream.resize ((stream.size() + 255) / 256 * 256, 0);
+
+        for (size_t page = 0; page * 256 < stream.size(); page++)
+        {
+            size_t  at   = (size_t) index * slotPages + page;
+            size_t  byte = ((at / 16) * 16 + (size_t) kDosSectorOfPhysical[at % 16]) * 256;
+
+            memcpy (&disk[byte], &stream[page * 256], 256);
+        }
+
+        return disk;
+    }
 };

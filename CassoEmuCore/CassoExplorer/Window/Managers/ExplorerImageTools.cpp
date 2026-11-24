@@ -387,7 +387,7 @@ void ExplorerImageTools::TestImage()
 void ExplorerImageTools::ExtractAll()
 {
     HRESULT       hr     = S_OK;
-    std::wstring  target = m_context.browser.GetPreviewer().GetExtractTarget();
+    std::wstring  target = m_context.browser.GetArchives().GetExtractTarget();
 
 
 

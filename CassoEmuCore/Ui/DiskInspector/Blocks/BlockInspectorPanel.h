@@ -128,6 +128,10 @@ public:
     //  The current block as a hex dump with its text, for Copy block.
     std::wstring  BuildBlockText () const override;
 
+    //  A block selected with the caret on a byte, so an undo or a redo is
+    //  seen as it happens.
+    void  ShowBlockByte (uint32_t block, int offset) override;
+
     //  "Selected: block 2" at the Block level, the path of the file or the
     //  directory at the Files and File levels, the volume's name at the
     //  Volume level, or empty.

@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Devices/Disk/DiskImageStore.h"    // IsMountableImageExtension
+#include "Devices/Disk/Store/DiskSourceFormat.h"
 #include "Devices/Disk/DamagedMountReport.h"
 #include "Devices/Disk/IDiskImage.h"        // WriteProtectInfo
 #include "Machines/Apple2/Common/WozCompatibility.h"
@@ -270,7 +271,7 @@ struct DriveWidgetState
 
 inline bool IsSupportedDiskImageExtension (const std::wstring & path)
 {
-    return DiskImageStore::IsMountableImageExtension (path);
+    return DiskSourceFormat::IsMountableImageExtension (path);
 }
 
 

@@ -9,6 +9,9 @@
 #include "Devices/Disk/DurableCommit.h"
 #include "Devices/Disk/Containers/TwoImgContainer.h"
 #include "Devices/Disk/Containers/DiskCopy42Container.h"
+#include "Devices/Disk/Stamp/FormatStamp.h"
+#include "Devices/Disk/Stamp/FormatStampChunk.h"
+#include "Devices/Disk/Stamp/FormatStampJson.h"
 
 
 
@@ -449,6 +452,7 @@ std::string DiskImageSession::DescribeWozChunks (const std::vector<Byte> & fileB
         }
     }
 
+    text += DescribeStamp (fileBytes);
     text += FormatDetailHeading ("Casso analysis");
 
     snprintf (note, sizeof (note),
@@ -470,6 +474,88 @@ std::string DiskImageSession::DescribeWozChunks (const std::vector<Byte> & fileB
     text += FormatDetailLine ("flux", note);
 
 Error:
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageSession::DescribeStamp
+//
+//  A WOZ image's format stamp under its heading: where it came from, what
+//  wrote it and when, the capture's reads, the address and data prologs it
+//  lists other than the standard ones, and how many tracks changed after it
+//  was written. Empty for an image without one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskImageSession::DescribeStamp (const std::vector<Byte> & fileBytes)
+{
+    static const std::vector<Byte>  kStandard[] = { { 0xD5, 0xAA, 0x96 }, { 0xD5, 0xAA, 0xB5 }, { 0xD5, 0xAA, 0xAD } };
+    std::string                     text;
+    std::string                     stored;
+    std::string                     marks;
+    StampState                      state       = StampState::Absent;
+    FormatStamp                     stamp;
+    std::set<std::string>           seen;
+    int                             changed     = 0;
+
+
+
+    FormatStampChunk::GetStampFromFile (fileBytes, stored, state, stamp);
+
+    if (state == StampState::Absent)
+    {
+        return text;
+    }
+
+    text += FormatDetailHeading ("Format stamp");
+
+    if (state == StampState::Unreadable)
+    {
+        text += FormatDetailLine ("stamp", "written by a later version of Casso");
+        return text;
+    }
+
+    text += FormatDetailLine ("source",  stamp.source == StampSource::Capture ? "CassoLink capture" : "disk inspector");
+    text += FormatDetailLine ("written", stamp.writer + ", " + stamp.written);
+
+    if (stamp.hasCapture)
+    {
+        text += FormatDetailLine ("capture", std::to_string (stamp.capture.reads) + " reads" + (stamp.capture.isSynchronized ? ", tracks placed relative to track 0" : ""));
+    }
+
+    for (const StampTrack & track : stamp.tracks)
+    {
+        for (const std::vector<Byte> & mark : track.addressPrologs)
+        {
+            bool  isStandard = std::ranges::find (kStandard, mark) != std::end (kStandard);
+
+            if (!isStandard && seen.insert ("address " + FormatStampJson::NibblesToText (mark)).second)
+            {
+                marks += (marks.empty() ? "" : "\n") + std::string ("address ") + FormatStampJson::NibblesToText (mark);
+            }
+        }
+
+        for (const std::vector<Byte> & mark : track.dataPrologs)
+        {
+            bool  isStandard = std::ranges::find (kStandard, mark) != std::end (kStandard);
+
+            if (!isStandard && seen.insert ("data " + FormatStampJson::NibblesToText (mark)).second)
+            {
+                marks += (marks.empty() ? "" : "\n") + std::string ("data ") + FormatStampJson::NibblesToText (mark);
+            }
+        }
+
+        changed += track.isChangedAfterCapture ? 1 : 0;
+    }
+
+    text += FormatDetailLine ("tracks", std::to_string (stamp.tracks.size()) + (changed > 0 ? ", " + std::to_string (changed) + " changed since stamped" : std::string()));
+    text += FormatDetailLine ("marks",  marks.empty() ? std::string ("standard") : marks);
+
     return text;
 }
 

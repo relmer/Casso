@@ -517,7 +517,8 @@ public:
 
         source.SetBytes (bytes);
         hex.SetSource   (&source);
-        hex.SetOnType   ([&] (uint64_t offset, bool isHex, bool isHigh, wchar_t ch) { (void) isHex; typed.push_back ({ offset, isHigh, ch }); return true; });
+        hex.SetEditing  (true);
+        hex.SetOnType  ([&] (uint64_t offset, bool isHex, bool isHigh, wchar_t ch) { (void) isHex; typed.push_back ({ offset, isHigh, ch }); return true; });
         hex.GoToOffset  (10);
 
         Assert::IsTrue (hex.OnChar (L'A'));
@@ -872,51 +873,51 @@ public:
 
     TEST_METHOD (HexPane_BytesAreDrawnAsTheMemoryWindowDrawsThem)
     {
-        BlockHexPane::EditColors     colors      = { 0xFF0078D4, 0xFF1E1E1E, 0xFFD4D4D4 };
-        BlockHexPane::ByteState      idleState   = {};
-        BlockHexPane::ByteState      plainState  = { true, false, false, true, false, BlockHexSource::kMarkNone };
-        BlockHexPane::ByteState      editedState = { true, false, false, true, false, BlockHexSource::kMarkChanged };
-        BlockHexPane::ByteState      caretState  = { true, true,  false, true, false, BlockHexSource::kMarkNone };
-        BlockHexPane::ByteState      bothState   = { true, true,  false, true, false, BlockHexSource::kMarkChanged };
-        BlockHexPane::ByteState      typedState  = { true, true,  true,  true, false, BlockHexSource::kMarkChanged };
-        BlockHexPane::ByteState      typedText   = { true, true,  true,  false, false, BlockHexSource::kMarkChanged };
-        BlockHexPane::ByteState      selState    = { true, false, false, true, true,  BlockHexSource::kMarkChanged };
-        DxuiHexViewTypes::ByteStyle  idle;
-        DxuiHexViewTypes::ByteStyle  plain;
-        DxuiHexViewTypes::ByteStyle  edited;
-        DxuiHexViewTypes::ByteStyle  caret;
-        DxuiHexViewTypes::ByteStyle  both;
-        DxuiHexViewTypes::ByteStyle  typed;
-        DxuiHexViewTypes::ByteStyle  typedChar;
-        DxuiHexViewTypes::ByteStyle  selected;
+        DxuiHexViewTypes::EditColors     colors      = { 0xFF0078D4, 0xFF1E1E1E, 0xFFD4D4D4 };
+        DxuiHexViewTypes::EditByteState  idleState   = {};
+        DxuiHexViewTypes::EditByteState  plainState  = { true, false, false, true, false, false };
+        DxuiHexViewTypes::EditByteState  editedState = { true, false, false, true, false, true };
+        DxuiHexViewTypes::EditByteState  caretState  = { true, true,  false, true, false, false };
+        DxuiHexViewTypes::EditByteState  bothState   = { true, true,  false, true, false, true };
+        DxuiHexViewTypes::EditByteState  typedState  = { true, true,  true,  true, false, true };
+        DxuiHexViewTypes::EditByteState  typedText   = { true, true,  true,  false, false, true };
+        DxuiHexViewTypes::EditByteState  selState    = { true, false, false, true, true,  true };
+        DxuiHexViewTypes::ByteStyle      idle;
+        DxuiHexViewTypes::ByteStyle      plain;
+        DxuiHexViewTypes::ByteStyle      edited;
+        DxuiHexViewTypes::ByteStyle      caret;
+        DxuiHexViewTypes::ByteStyle      both;
+        DxuiHexViewTypes::ByteStyle      typed;
+        DxuiHexViewTypes::ByteStyle      typedChar;
+        DxuiHexViewTypes::ByteStyle      selected;
 
 
 
-        Assert::IsFalse (BlockHexPane::PickByteStyle (colors, idleState,   idle),     L"a byte not edited, outside editing, is the hex view's");
-        Assert::IsFalse (BlockHexPane::PickByteStyle (colors, selState,    selected), L"a selected byte is the hex view's selection, edited or not");
+        Assert::IsFalse (DxuiHexView::PickEditStyle (colors, idleState,   idle),     L"a byte not edited, outside editing, is the hex view's");
+        Assert::IsFalse (DxuiHexView::PickEditStyle (colors, selState,    selected), L"a selected byte is the hex view's selection, edited or not");
 
-        Assert::IsTrue  (BlockHexPane::PickByteStyle (colors, plainState,  plain));
-        Assert::IsTrue  (BlockHexPane::PickByteStyle (colors, editedState, edited));
-        Assert::IsTrue  (BlockHexPane::PickByteStyle (colors, caretState,  caret));
-        Assert::IsTrue  (BlockHexPane::PickByteStyle (colors, bothState,   both));
-        Assert::IsTrue  (BlockHexPane::PickByteStyle (colors, typedState,  typed));
-        Assert::IsTrue  (BlockHexPane::PickByteStyle (colors, typedText,   typedChar));
+        Assert::IsTrue  (DxuiHexView::PickEditStyle (colors, plainState,  plain));
+        Assert::IsTrue  (DxuiHexView::PickEditStyle (colors, editedState, edited));
+        Assert::IsTrue  (DxuiHexView::PickEditStyle (colors, caretState,  caret));
+        Assert::IsTrue  (DxuiHexView::PickEditStyle (colors, bothState,   both));
+        Assert::IsTrue  (DxuiHexView::PickEditStyle (colors, typedState,  typed));
+        Assert::IsTrue  (DxuiHexView::PickEditStyle (colors, typedText,   typedChar));
 
         Assert::IsTrue   (plain.fill != 0 && plain.fill != colors.background, L"editable bytes have a tint");
         Assert::IsTrue   (!edited.isBold && !plain.isBold && !caret.isBold && !both.isBold, L"edited bytes are regular weight");
-        Assert::AreEqual (BlockHexPane::GetReadableInk (BlockHexPane::GetChangedInk (colors.background), edited.fill), edited.ink, L"an edited byte is in the changed-byte red");
-        Assert::IsTrue   (DxuiColor::ComputeContrastRatio (edited.ink, edited.fill) >= BlockHexPane::kMinContrast);
+        Assert::AreEqual (DxuiHexView::GetReadableInk (DxuiHexView::GetChangedInk (colors.background), edited.fill), edited.ink, L"an edited byte is in the changed-byte red");
+        Assert::IsTrue   (DxuiColor::ComputeContrastRatio (edited.ink, edited.fill) >= DxuiHexView::kMinContrast);
 
         Assert::AreEqual (colors.accent, caret.fill, L"the caret byte has the accent behind it");
         Assert::AreEqual (DxuiColor::GetContrastingInk (colors.accent), caret.ink);
         Assert::AreEqual (caret.fill, both.fill, L"an edited caret byte looks like any caret byte");
         Assert::AreEqual (caret.ink,  both.ink);
 
-        Assert::AreEqual (colors.accent,     typed.outline, L"a byte being typed is in an accent box");
-        Assert::AreEqual (colors.background, typed.fill);
-        Assert::AreEqual (colors.foreground, typed.ink);
-        Assert::AreEqual (0u,                typedChar.outline, L"its character is a caret byte");
-        Assert::AreEqual (caret.fill,        typedChar.fill);
+        Assert::AreEqual (0u,         typed.outline, L"a byte being typed has no box");
+        Assert::AreEqual (caret.fill, typed.fill,    L"a byte being typed is a caret byte");
+        Assert::AreEqual (caret.ink,  typed.ink);
+        Assert::AreEqual (0u,         typedChar.outline);
+        Assert::AreEqual (caret.fill, typedChar.fill);
     }
 
 

@@ -321,7 +321,7 @@ void DxuiHexPainter::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & them
             selected = selected || m_view.IsByteSelected (offset + (uint64_t) index);
         }
 
-        if (GetByteStyle (offset, m_rowMarks[(size_t) first], selected, DxuiHexViewTypes::Column::Hex, style))
+        if (GetByteStyle (theme, offset, m_rowMarks[(size_t) first], selected, DxuiHexViewTypes::Column::Hex, style))
         {
             FillStyled (text, m_view.m_layout.GetValueSelectionRect (offset, cell), style);
 
@@ -348,7 +348,7 @@ void DxuiHexPainter::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & them
 
         //  A byte the host styles is drawn its way. Otherwise selected bytes
         //  are drawn in the full foreground, over the selection.
-        if (GetByteStyle (offset, m_rowMarks[(size_t) index], m_view.IsByteSelected (offset), DxuiHexViewTypes::Column::Text, style))
+        if (GetByteStyle (theme, offset, m_rowMarks[(size_t) index], m_view.IsByteSelected (offset), DxuiHexViewTypes::Column::Text, style))
         {
             FillStyled (text, m_view.m_layout.GetSelectionCellRect (offset, index, txtRect, false), style);
 
@@ -414,9 +414,9 @@ void DxuiHexPainter::DrawCell (IDxuiTextRenderer & text, const RECT & rect, cons
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiHexPainter::GetByteStyle (uint64_t offset, uint8_t mark, bool isSelected, DxuiHexViewTypes::Column column, DxuiHexViewTypes::ByteStyle & outStyle) const
+bool DxuiHexPainter::GetByteStyle (const IDxuiTheme & theme, uint64_t offset, uint8_t mark, bool isSelected, DxuiHexViewTypes::Column column, DxuiHexViewTypes::ByteStyle & outStyle) const
 {
-    return m_byteStyle && m_byteStyle (offset, mark, isSelected, column, outStyle);
+    return m_view.GetByteStyle (theme, offset, mark, isSelected, column, outStyle);
 }
 
 

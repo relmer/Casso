@@ -4,6 +4,7 @@
 #include "CassoLink/Session/CassoLinkCapture.h"
 #include "CassoLink/Session/CassoLinkDiskStatus.h"
 #include "CassoLink/Session/CassoLinkThirteenSector.h"
+#include "CassoLink/Session/LinkImageSource.h"
 #include "CassoLink/Session/TrackMeasures.h"
 #include "CassoLink/Session/TrackVerifier.h"
 #include "CassoLink/CassoLinkCodec.h"
@@ -12,7 +13,7 @@
 #include "CassoLink/FullSend/FullSendManifest.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImage.h"
-#include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/DiskSourceFormat.h"
 #include "Devices/Disk/DurableCommit.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
@@ -351,7 +352,7 @@ HRESULT CassoLinkDiskTransfer::ReadWholeDisk (LinkOperation & operation)
 
     if (!operation.automatic)
     {
-        hr = DiskImageStore::GetSourceFormatByExtension (operation.imagePath, format);
+        hr = DiskSourceFormat::GetSourceFormatByExtension (operation.imagePath, format);
         CHR (hr);
     }
 
@@ -645,7 +646,7 @@ HRESULT CassoLinkDiskTransfer::ChooseAutomatic (LinkOperation & operation, const
 
     if (!outRaw && outFormat != DiskFormat::Woz)
     {
-        hr = DiskImageStore::GetSourceFormatByExtension (operation.imagePath, outFormat);
+        hr = DiskSourceFormat::GetSourceFormatByExtension (operation.imagePath, outFormat);
         CHR (hr);
     }
 
@@ -1169,7 +1170,11 @@ HRESULT CassoLinkDiskTransfer::WriteThirteenSectorDisk (LinkOperation & operatio
     CHR (hr);
 
     hr = CassoLinkThirteenSector::WriteDisk (*m_session.m_host, (Byte) operation.drive, sectors,
-                                             [this, &operation] (int track) { m_session.Report (operation, (track + 1) * 100 / ThirteenSectorCodec::kTrackCount); },
+                                             [this, &operation] (int track)
+                                             {
+                                                 m_session.Report (operation, (track + 1) * 100 / ThirteenSectorCodec::kTrackCount);
+                                                 MarkWrittenTrack (operation, track);
+                                             },
                                              [this] () { return m_session.m_canceled.load(); }, status);
     CHR (hr);
 
@@ -1218,16 +1223,28 @@ HRESULT CassoLinkDiskTransfer::WriteWholeDisk (LinkOperation & operation)
 
 
 
-    hr = m_session.m_fileIo.ReadAllBytes (operation.imagePath, fileBytes);
+    CBRAEx (operation.source != nullptr, E_INVALIDARG);
+
+    hr = operation.source->ReadImage (fileBytes);
     CHR (hr);
 
-    hr = VolumeImage::Load (fileBytes, operation.imagePath, sectors, report);
+    hr = VolumeImage::Load (fileBytes, operation.source->GetName(), sectors, report);
     CHR (hr);
+
+    BeginWriteStatus (operation);
+
+    //  The drive's title is the image's, as a read's is the disk's.
+    if (operation.status != nullptr && (operation.drive == 1 || operation.drive == 2))
+    {
+        operation.status->SetTitle (operation.drive, FullSendDisk::GetCatalogTitle (sectors), std::string());
+    }
 
     if (sectors.size() == ThirteenSectorCodec::kImageByteSize)
     {
         hr = WriteThirteenSectorDisk (operation, sectors);
         CHR (hr);
+
+        EndWriteStatus (operation, sectors.size());
         BAIL_OUT_IF (true, S_OK);
     }
 
@@ -1295,6 +1312,8 @@ HRESULT CassoLinkDiskTransfer::WriteWholeDisk (LinkOperation & operation)
         }
 
         CHR (hr);
+
+        MarkWrittenTrack (operation, track);
     }
 
     if (operation.verifyWrites)
@@ -1308,8 +1327,102 @@ HRESULT CassoLinkDiskTransfer::WriteWholeDisk (LinkOperation & operation)
         }
     }
 
+
+    EndWriteStatus (operation, sectors.size());
+
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDiskTransfer::BeginWriteStatus
+//
+//  As a read's: the job's one drive and a line for the write.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkDiskTransfer::BeginWriteStatus (LinkOperation & operation)
+{
+    FullSendStatus  * status = operation.status.get();
+    int               drive  = operation.drive;
+
+
+
+    if (status == nullptr || (drive != 1 && drive != 2))
+    {
+        return;
+    }
+
+    status->Begin();
+    status->SetPresent (3 - drive, false);
+    status->SetActivity (FullSendActivity::Sending, drive);
+    status->BeginDisk (drive, operation.verifyWrites, std::span<const int>());
+    status->SetWriting (drive);
+    status->AddLine (std::format ("Writing {} to the disk in drive {}{}", std::filesystem::path (operation.imagePath).filename().string(), drive,
+                                  operation.verifyWrites ? ", then reading it back to compare" : ""), drive);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDiskTransfer::MarkWrittenTrack
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkDiskTransfer::MarkWrittenTrack (LinkOperation & operation, int track)
+{
+    if (operation.status != nullptr && (operation.drive == 1 || operation.drive == 2))
+    {
+        operation.status->MarkTrack (operation.drive, track, FullSendTrackMark::Read);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDiskTransfer::EndWriteStatus
+//
+//  A verified write's tracks are marked verified once the disk matches.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkDiskTransfer::EndWriteStatus (LinkOperation & operation, size_t bytes)
+{
+    FullSendStatus  * status = operation.status.get();
+    FullSendRow       row;
+
+
+
+    if (status == nullptr || (operation.drive != 1 && operation.drive != 2))
+    {
+        return;
+    }
+
+    if (operation.verifyWrites)
+    {
+        for (int track = 0; track < NibbleFormat::kTrackCount; track++)
+        {
+            status->MarkTrack (operation.drive, track, FullSendTrackMark::Verified);
+        }
+    }
+
+    row.file   = std::filesystem::path (operation.imagePath).filename().string();
+    row.drive  = operation.drive;
+    row.status = FullSendManifest::kStatusSent;
+
+    status->EndDisk (operation.drive, row, bytes);
+    status->AddLine (operation.verifyWrites ? "Wrote the disk, and it matches the image" : "Wrote the disk", operation.drive);
 }
 
 

@@ -127,11 +127,11 @@ public:
         Assert::IsTrue   (rig.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Document);
 
         //  The map: a tip for the square under the pointer, and
-        //  the arrow over it rather than the text's I-beam.
+        //  the four-way arrow over it, as a drag pans it.
         Assert::IsTrue   (HoverOverTheMap (rig, onMap), L"A tip over the map");
         Assert::IsFalse  (rig.parts->tips.GetTooltip().IsPending(), L"put up at once, with no delay to wait out");
         Assert::IsFalse  (rig.parts->tips.GetTooltip().GetSwatches().empty(), L"with a color sample beside its lines");
-        Assert::IsTrue   (rig.parts->preview.GetText().GetCursorForPoint (onMap) == IDC_ARROW, L"The arrow over the map");
+        Assert::IsTrue   (rig.parts->preview.GetText().GetCursorForPoint (onMap) == IDC_SIZEALL, L"The four-way arrow over the map");
 
         //  A click on Disk: the catalog, and the switch above it.
         disk      = rig.parts->preview.GetSections().GetBounds();

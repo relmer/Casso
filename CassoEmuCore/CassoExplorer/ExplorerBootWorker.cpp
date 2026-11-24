@@ -8,7 +8,7 @@
 #include "DiskCheck/BootProbe.h"
 #include "DiskCheck/BootTitle.h"
 #include "DiskCheck/GivenNames.h"
-#include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/DiskSourceFormat.h"
 #include "Devices/Disk/Inspector/Repair/FileSystemCheck.h"
 #include "FileTypes/SaveSummary.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
@@ -299,7 +299,7 @@ ExplorerBootWorker::Result ExplorerBootWorker::Check (const std::wstring & path,
         given  = m_given;
     }
 
-    hr = DiskImageStore::GetSourceFormatByExtension (narrow, format);
+    hr = DiskSourceFormat::GetSourceFormatByExtension (narrow, format);
     CHR (hr);
 
     {

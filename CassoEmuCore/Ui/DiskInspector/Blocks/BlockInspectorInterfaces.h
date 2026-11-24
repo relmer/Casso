@@ -58,6 +58,7 @@ public:
     virtual BlockHeaderView  & GetHeader      () = 0;
     virtual BlockHexView     * GetHexView     () const = 0;
     virtual std::wstring       BuildBlockText () const = 0;
+    virtual void               ShowBlockByte  (uint32_t block, int offset) = 0;
 };
 
 

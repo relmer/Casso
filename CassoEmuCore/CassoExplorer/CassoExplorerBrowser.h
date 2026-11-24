@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "CassoExplorer/Browser/BrowserArchives.h"
 #include "CassoExplorer/Browser/BrowserLoader.h"
 #include "CassoExplorer/Browser/BrowserPreviewer.h"
 #include "CassoExplorer/Browser/BrowserCells.h"
@@ -11,6 +12,7 @@
 #include "CassoExplorer/Browser/BrowserNavigator.h"
 #include "CassoExplorer/Browser/BrowserRowOrder.h"
 #include "CassoExplorer/Browser/BrowserRowPaths.h"
+#include "CassoExplorer/Browser/BrowserSearchMatches.h"
 #include "CassoExplorer/Browser/BrowserSelection.h"
 #include "CassoExplorer/Browser/IBrowserSelectionSource.h"
 #include "CassoExplorer/Browser/IBrowserListing.h"
@@ -109,12 +111,16 @@ public:
 
     //  The list's loading, the preview of the selection, and the cells and
     //  status text.
-    BrowserLoader           & GetLoader    ()       { return m_loader; }
-    const BrowserLoader     & GetLoader    () const { return m_loader; }
-    BrowserPreviewer        & GetPreviewer ()       { return m_previewer; }
-    const BrowserPreviewer  & GetPreviewer () const { return m_previewer; }
-    BrowserCells            & GetCells     ()       { return m_cells; }
-    const BrowserCells      & GetCells     () const { return m_cells; }
+    BrowserLoader               & GetLoader        ()       { return m_loader; }
+    const BrowserLoader         & GetLoader        () const { return m_loader; }
+    BrowserPreviewer            & GetPreviewer     ()       { return m_previewer; }
+    const BrowserPreviewer      & GetPreviewer     () const { return m_previewer; }
+    BrowserSearchMatches        & GetSearchMatches ()       { return m_searchMatches; }
+    const BrowserSearchMatches  & GetSearchMatches () const { return m_searchMatches; }
+    BrowserArchives             & GetArchives      ()       { return m_archives; }
+    const BrowserArchives       & GetArchives      () const { return m_archives; }
+    BrowserCells                & GetCells         ()       { return m_cells; }
+    const BrowserCells          & GetCells         () const { return m_cells; }
 
     //  Opens a folder or disk image row in place, as a double-click does.
     //  False, with nothing changed, for a row that is neither.
@@ -293,10 +299,8 @@ private:
     Location  GetShellParent        () const override                                    { return m_list.shellParent; }
 
     //  IBrowserLoaderHost, for the loader.
-    void          QueueVolumeFacts     (const std::wstring & folder) override;
-    void          NavigateToLocation   (const Location & location) override              { m_navigator.NavigateToLocation (location); }
-    bool          IsLocalArchivePath   (const std::wstring & id) const override          { return m_previewer.IsLocalArchivePath (id); }
-    std::wstring  DescribeEmptyArchive (const std::wstring & path) const override        { return m_previewer.DescribeEmptyArchive (path); }
+    void  QueueVolumeFacts   (const std::wstring & folder) override;
+    void  NavigateToLocation (const Location & location) override  { m_navigator.NavigateToLocation (location); }
 
     CassoExplorerShellListings              m_shellListings;
     Location                                m_homeParent;
@@ -321,11 +325,13 @@ private:
     BrowserSources                          m_sources;
 
     //  The browser's components, each with the parts it uses.
-    BrowserParts      m_parts          { m_fs, m_fileIo, m_imageClasses, m_catalog, m_tree, m_hostFolders, m_model, m_operations, m_shellListings, m_list, m_sources };
-    BrowserSelection  m_selection      { m_model, m_list.rows, m_list.selectedRows, *this };
-    BrowserLoader     m_loader         { m_parts, *this };
-    BrowserPreviewer  m_previewer      { m_parts, m_selection, *this };
-    BrowserCells      m_cells          { m_parts, *this };
-    BrowserNavigator  m_navigator      { m_model, m_fs, m_hostFolders, *this };
-    BrowserRowOrder   m_rowOrder       { m_model, m_list.rows, m_list.selectedRows, m_columnFilters, *this };
+    BrowserParts          m_parts          { m_fs, m_fileIo, m_imageClasses, m_catalog, m_tree, m_hostFolders, m_model, m_operations, m_shellListings, m_list, m_sources };
+    BrowserSelection      m_selection      { m_model, m_list.rows, m_list.selectedRows, *this };
+    BrowserArchives       m_archives       { m_parts, m_selection };
+    BrowserLoader         m_loader         { m_parts, m_archives, *this };
+    BrowserSearchMatches  m_searchMatches  { m_parts };
+    BrowserPreviewer      m_previewer      { m_parts, m_selection, m_searchMatches, m_archives, *this };
+    BrowserCells          m_cells          { m_parts, *this };
+    BrowserNavigator      m_navigator      { m_model, m_fs, m_hostFolders, *this };
+    BrowserRowOrder       m_rowOrder       { m_model, m_list.rows, m_list.selectedRows, m_columnFilters, *this };
 };

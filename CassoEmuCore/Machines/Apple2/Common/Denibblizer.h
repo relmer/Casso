@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Machines/Apple2/Common/TrackBitReader.h"
+
 
 
 
@@ -9,6 +11,7 @@
 class DiskImage;
 class SectorDecodeReport;
 enum class DiskFormat;
+struct TrackMarks;
 
 
 
@@ -101,6 +104,10 @@ public:
                                  SectorDecodeReport  & outReport);
 
 private:
+    static constexpr uint16_t  kAllSectorsMask = 0xFFFF;
+
+    struct TrackScan;
+
     //  The walk shared by every entry point above. keepRecovered decides what
     //  becomes of a sector that decoded but did not verify; both reports are
     //  filled from the one pass, so they can never disagree about the same
@@ -111,4 +118,15 @@ private:
                                   vector<Byte>        &  out,
                                   DenibblizeReport    &  report,
                                   SectorDecodeReport  *  outCoverage);
+
+    static void     ScanTrack    (const TrackBitReader::TrackBits & src, const TrackMarks * marks, TrackScan & outScan);
+    static void     MergeScans   (const TrackScan & stamped, TrackScan & ioScan);
+    static void     WriteTrack   (const TrackScan & scan, int track, const int * interleave, bool keepRecovered, vector<Byte> & out);
+    static void     ReportTrack  (const TrackScan                  &  scan,
+                                  int                                 track,
+                                  const TrackBitReader::TrackBits  &  src,
+                                  const TrackMarks                 *  marks,
+                                  const int                        *  interleave,
+                                  DenibblizeReport                 &  report,
+                                  SectorDecodeReport               *  outCoverage);
 };

@@ -845,6 +845,7 @@ HRESULT CassoLinkConnector::OpenStream (DWORD baud, std::stop_token stop)
 
         m_session.m_host->SetActivitySink ([this] (const std::string & text) { m_session.m_sink.OnActivity (text); });
         m_session.m_host->SetTraceSink    ([this] (bool sent, const std::string & text) { m_session.m_sink.OnTrace (sent, text); });
+        m_session.m_host->SetVirtualSink  ([this] (const std::wstring & model) { m_session.OnVirtualServed (model); });
         m_session.m_host->SetProgramChip (CassoLinkSession::GetLinkChip (m_session.m_settings.transport));
         m_session.m_host->SetFaultProgram (LinkFaults::IsEnabled());
         m_session.m_host->SetBlockCrc     (!m_session.m_settings.IsEthernet());

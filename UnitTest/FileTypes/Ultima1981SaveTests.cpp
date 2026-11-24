@@ -17,7 +17,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  A player disk built here in the layout the 1981 Ultima writes: a DOS 3.3
 //  disk with the file NAME=CASSO, and Applesoft variables on track 26 for a
-//  dwarf thief at column 40, row 34.
+//  dwarf thief at column 40, row 34 of the second continent, whose map is
+//  the file BTERRA1.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,6 +68,7 @@ public:
         std::vector<Byte>  written;
         std::vector<Byte>  image (0x15, 0);
         FilePayload        payload;
+        FilePayload        terrain;
 
         payload.bytes = { 0x8D };
         payload.type  = 0x00;
@@ -74,11 +76,22 @@ public:
         AssertSucceeded (Dos33Volume (disk).Write (FilePath::Parse ("NAME=CASSO"), payload, written));
         disk = std::move (written);
 
+        //  Grass everywhere, with a town at the top left.
+        terrain.bytes.assign (4096, 0x10);
+        terrain.bytes[0]       = 0x62;
+        terrain.type           = 0x04;
+        terrain.loadAddress    = 0x1000;
+        terrain.hasLoadAddress = true;
+
+        AssertSucceeded (Dos33Volume (disk).Write (FilePath::Parse ("BTERRA1"), terrain, written));
+        disk = std::move (written);
+
         AppendVariable (image, 'X',  0,  k1);
         AppendVariable (image, 'F', 'O', k96);
         AppendVariable (image, 'E', 'P', k1);
         AppendVariable (image, 'T', 'X', k40);
         AppendVariable (image, 'T', 'Y', k34);
+        AppendVariable (image, 'F', 'A', k1);
         Append (image, { 'C', 0x00, 0x39, 0x00, 0x01, 0x00, 0x0A });
 
         for (const auto * value : { &k100, &k25, &k25, &k18, &k12, &k10, &k15, &k100, &k3, &k4 })
@@ -126,6 +139,7 @@ public:
         Assert::AreEqual (96,  c.food);
         Assert::AreEqual (40,  c.x);
         Assert::AreEqual (34,  c.y);
+        Assert::AreEqual (1,   c.continent);
         Assert::AreEqual ((size_t) 1, c.inventory.size());
         Assert::AreEqual (std::wstring (L"Dagger"), c.inventory[0].first);
         Assert::AreEqual (2, c.inventory[0].second);
@@ -159,5 +173,27 @@ public:
         Assert::IsTrue (text.find (L"Ultima (1981)") != std::wstring::npos);
         Assert::IsTrue (text.find (L"Dwarf Thief") != std::wstring::npos);
         Assert::IsTrue (text.find (L"Food 96") != std::wstring::npos);
+        Assert::IsTrue (text.find (L"The Lands of the Feudal Lords") != std::wstring::npos);
+    }
+
+
+    TEST_METHOD (TheContinentIsDrawnFromItsTerrainFile)
+    {
+        std::vector<Byte>  disk = MakeDisk();
+        DecodedFile        decoded;
+        std::wstring       error;
+        const Paragraph  * map  = nullptr;
+
+        AssertSucceeded (Ultima1981Save::Decode (disk, {}, decoded, error));
+
+        for (const Paragraph & paragraph : decoded.paragraphs)
+        {
+            map = paragraph.picture.empty() ? map : &paragraph;
+        }
+
+        Assert::IsNotNull (map);
+        Assert::IsTrue   (map->pingX >= 0);
+        Assert::AreEqual (std::wstring (L"Town"), map->tips[0].lines.back().second);
+        Assert::AreEqual (std::wstring (L"Grass"), map->tips[1].lines.back().second);
     }
 };

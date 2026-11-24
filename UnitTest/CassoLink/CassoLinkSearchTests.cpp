@@ -109,6 +109,21 @@ public:
 
 
 
+    TEST_METHOD (Find_StopsAtAnAppleThatSendsAVirtualDriveRequest)
+    {
+        Rig           rig;
+        std::wstring  port;
+
+        rig.factory.comPorts = { { L"COM1", Port::Silent }, { L"COM2", Port::Booted } };
+
+        AssertSucceeded (CassoLinkSearch::Find (rig.factory, ComSettings(), kSpeeds, kReplyMs, port));
+
+        Assert::AreEqual (std::wstring (L"COM2"), port, L"a booted ProDOS disk sends block requests, not Ready");
+    }
+
+
+
+
     TEST_METHOD (Find_WithNoAppleOnAnyPort_IsNotFound)
     {
         Rig           rig;

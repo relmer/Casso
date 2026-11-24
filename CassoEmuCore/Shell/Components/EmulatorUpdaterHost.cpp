@@ -12,6 +12,7 @@
 #include "Shell/EmulatorShellInternal.h"
 #include "Ui/Dialogs/DialogDefinition.h"
 #include "Ui/Settings/SettingsSheet.h"
+#include "Devices/Disk/Store/DiskFlusher.h"
 
 
 
@@ -429,7 +430,7 @@ void EmulatorUpdaterHost::StopSharedCheckTimer()
 
 void EmulatorUpdaterHost::PrepareForDeploy()
 {
-    HRESULT  hr = m_shell.m_machine.GetDiskStore().FlushAllForShutdown();
+    HRESULT  hr = m_shell.m_machine.GetDiskStore().GetFlusher().FlushAllForShutdown();
 
 
 

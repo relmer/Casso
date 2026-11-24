@@ -409,9 +409,6 @@ int DxuiCaptionBar::GetTitleChipAt (POINT clientPx) const
 void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     constexpr float    kTitleFontDip     = 14.0f;
-    constexpr float    kTitlePadDip      = 14.0f;
-    constexpr float    kIconPadFraction  = 0.18f;
-    constexpr float    kMinTitleDip      = 48.0f;
 
 
 
@@ -454,9 +451,9 @@ void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
     painter.FillGradientRect (xPx, yPx, wPx, hPx, theme.TitleBarTop(), theme.TitleBarBottom());
 
-    iconPadPx    = hPx * kIconPadFraction;
+    iconPadPx    = hPx * s_kIconPadFraction;
     iconSizePx   = hPx - iconPadPx * 2.0f;
-    textOffsetPx = m_scaler.ToPxf (kTitlePadDip);
+    textOffsetPx = m_scaler.ToPxf (s_kTitlePadDip);
 
     if (iconSizePx > 0.0f && !m_iconPixels.empty() && m_iconW > 0 && m_iconH > 0)
     {
@@ -466,7 +463,7 @@ void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                                                yPx + iconPadPx,
                                                iconSizePx, iconSizePx);
         IGNORE_RETURN_VALUE (hrIcon, S_OK);
-        textOffsetPx = m_scaler.ToPxf (kTitlePadDip) + iconSizePx + iconPadPx;
+        textOffsetPx = m_scaler.ToPxf (s_kTitlePadDip) + iconSizePx + iconPadPx;
     }
 
     buttonCount   = (m_minBtn ? 1 : 0) + (m_maxBtn ? 1 : 0) + (m_closeBtn ? 1 : 0);
@@ -474,14 +471,14 @@ void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     buttonStripPx += (m_accessory != nullptr && m_accessory->IsVisible()) ? m_scaler.ToPxf ((float) m_accessoryWidthDip) : 0.0f;
 
     textLeftPx   = xPx + textOffsetPx;
-    titleWidthPx = wPx - textOffsetPx - buttonStripPx - m_scaler.ToPxf (kTitlePadDip);
+    titleWidthPx = wPx - textOffsetPx - buttonStripPx - m_scaler.ToPxf (s_kTitlePadDip);
     if (titleWidthPx < 0.0f)
     {
         titleWidthPx = 0.0f;
     }
 
     fontPx  = m_scaler.ToPxf (kTitleFontDip);
-    chipsPx = FitChips (text, titleWidthPx - m_scaler.ToPxf (kMinTitleDip), chipWidthsPx);
+    chipsPx = FitChips (text, titleWidthPx - m_scaler.ToPxf (s_kMinTitleDip), chipWidthsPx);
     drawnPx = PaintTitle (painter, text, theme, RECT { std::lround (textLeftPx), std::lround (yPx), std::lround (textLeftPx + titleWidthPx - chipsPx), std::lround (yPx + hPx) }, fontPx);
 
     PaintChips (painter, text, theme, textLeftPx + drawnPx, yPx, hPx, fontPx, chipWidthsPx);
@@ -568,9 +565,9 @@ float DxuiCaptionBar::PaintTitle (IDxuiPainter & painter, IDxuiTextRenderer & te
 
 float DxuiCaptionBar::FitChips (IDxuiTextRenderer & text, float roomPx, std::vector<float> & outWidthsPx) const
 {
-    float  padPx   = m_scaler.ToPxf (kChipPadDip);
-    float  gapPx   = m_scaler.ToPxf (kChipGapDip);
-    float  fontPx  = m_scaler.ToPxf (kChipTextDip);
+    float  padPx   = m_scaler.ToPxf (s_kChipPadDip);
+    float  gapPx   = m_scaler.ToPxf (s_kChipGapDip);
+    float  fontPx  = m_scaler.ToPxf (s_kChipTextDip);
     float  totalPx = 0.0f;
 
 
@@ -651,9 +648,9 @@ Error:
 
 void DxuiCaptionBar::PaintChips (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float leftPx, float topPx, float heightPx, float titleFontPx, const std::vector<float> & widthsPx)
 {
-    float     gapPx   = m_scaler.ToPxf (kChipGapDip);
-    float     chipPx  = m_scaler.ToPxf (kChipHeightDip);
-    float     fontPx  = m_scaler.ToPxf (kChipTextDip);
+    float     gapPx   = m_scaler.ToPxf (s_kChipGapDip);
+    float     chipPx  = m_scaler.ToPxf (s_kChipHeightDip);
+    float     fontPx  = m_scaler.ToPxf (s_kChipTextDip);
     float     xPx     = leftPx;
     float     yPx     = GetChipTopPx (text, topPx, heightPx, titleFontPx, chipPx, fontPx);
     bool      isInfo  = false;
@@ -767,6 +764,11 @@ DxuiHitTestKind DxuiCaptionBar::ClassifyHit (POINT clientDip) const
 
 
 
+    if (IsOverIcon (clientDip))
+    {
+        return DxuiHitTestKind::SystemMenu;
+    }
+
     n = GetChildCount();
 
     // Reverse order so visually-topmost children win. A child that reports
@@ -798,6 +800,36 @@ DxuiHitTestKind DxuiCaptionBar::ClassifyHit (POINT clientDip) const
     }
 
     return kind;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsOverIcon
+//
+//  The icon as Paint places it, when the caption is drawn here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiCaptionBar::IsOverIcon (POINT clientDip) const
+{
+    RECT   b    = GetBounds();
+    float  h    = (float) (b.bottom - b.top);
+    float  pad  = h * s_kIconPadFraction;
+    float  left = (float) b.left + s_kTitlePadDip;
+    float  size = h - pad * 2.0f;
+
+
+
+    if (!m_renderCaption || m_iconPixels.empty() || size <= 0.0f)
+    {
+        return false;
+    }
+
+    return clientDip.x >= left && clientDip.x < left + size && clientDip.y >= b.top && clientDip.y < b.bottom;
 }
 
 

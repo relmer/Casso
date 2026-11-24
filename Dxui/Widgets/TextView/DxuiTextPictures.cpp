@@ -124,6 +124,30 @@ bool DxuiTextPictures::HitTest (POINT point, int & outRow, int & outX, int & out
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiTextPictures::IsOverMap
+//
+//  Whether a point is on a picture that Ctrl with the wheel zooms and a
+//  drag pans.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextPictures::IsOverMap (POINT point) const
+{
+    int  row = 0;
+    int  x   = 0;
+    int  y   = 0;
+
+
+
+    return HitTest (point, row, x, y) && GetPicture (row)->zoom;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiTextPictures::SetOutline
 //
 //  A rectangle of a row's picture, in its pixels, outlined in the accent
@@ -271,8 +295,7 @@ bool DxuiTextPictures::TickPing (int64_t nowMs)
 //
 //  DxuiTextPictures::Zoom
 //
-//  The wheel over a zoomable picture; false off one, so the view scrolls
-//  there.
+//  Ctrl with the wheel over a zoomable picture; false off one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

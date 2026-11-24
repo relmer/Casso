@@ -141,11 +141,12 @@ private:
     //  Stands for a separator in a list of command ids.
     static constexpr int  kSeparatorId = 0;
 
-    bool                     IsTickWanted   () const;
-    void                     EndFastClock   ();
-    void                     RecordSession  ();
-    struct ExplorerServices  MakeServices   ();
-    HRESULT                  RunModalPicker (HWND owner, PickerRequest request, PickerOutcome & outOutcome);
+    bool                     IsTickWanted    () const;
+    void                     EndFastClock    ();
+    void                     RecordSession   ();
+    struct ExplorerServices  MakeServices    ();
+    HRESULT                  RunModalPicker  (HWND owner, PickerRequest request, PickerOutcome & outOutcome);
+    void                     PaintResizeEdge (IDxuiPainter & painter, const IDxuiTheme & theme) const;
 
     CassoExplorerBrowser                  & m_browser;
     CassoExplorerActions                  & m_actions;

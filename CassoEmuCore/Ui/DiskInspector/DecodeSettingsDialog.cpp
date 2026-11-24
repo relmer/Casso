@@ -178,8 +178,13 @@ void DecodeSettingsDialog::OnCreate()
     m_checkData.SetChecked     (m_form.checkData);
     m_checkEpilogue.SetChecked (m_form.checkEpilogues);
 
-    m_error.SetTextRole  (DxuiTextRole::Error);
+    m_error.SetTextRole  (m_form.isFromStamp ? DxuiTextRole::Body : DxuiTextRole::Error);
     m_error.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
+
+    if (m_form.isFromStamp)
+    {
+        m_error.SetText (L"These marks are from the disk's format stamp.");
+    }
 
     body = CreateDialogContent<DecodeSettingsBody>();
     body->Init (m_labels, m_inputs, { &m_matchStandard, &m_checkAddress, &m_checkData, &m_checkEpilogue }, m_error);
@@ -234,7 +239,8 @@ void DecodeSettingsDialog::OnOkClicked()
     }
     else
     {
-        m_error.SetText (error);
+        m_error.SetTextRole (DxuiTextRole::Error);
+        m_error.SetText     (error);
         Invalidate();
     }
 }

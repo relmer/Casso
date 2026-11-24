@@ -2,7 +2,6 @@
 
 #include "../EhmTestHelper.h"
 #include "CassoExplorer/Browser/BrowserCells.h"
-#include "CassoExplorer/Browser/BrowserPreviewer.h"
 #include "CassoExplorer/Model/PreviewDecoder.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -16,8 +15,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  BrowserFormattingTests
 //
 //  The text of a list row and of the status bar: Content view lines, sizes,
-//  dates, selection counts and location labels. Also the character set a PC
-//  text file is detected as.
+//  dates, selection counts and location labels.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,36 +64,6 @@ public:
 
         Assert::AreEqual ((size_t) 1, folderCells[0].contentRight.size());
         Assert::IsTrue   (folderCells[0].contentRight[0].text.empty(), L"The date's line is blank, not removed");
-    }
-
-
-    TEST_METHOD (HostTextCharsets)
-    {
-        const Byte  ascii[]   = { 'R', 'E', 'A', 'D', '\r', '\n', '\t', 'x', 0x0C, 0x1A };
-        const Byte  dos[]     = { ' ', 0xC4, 0xC4, 0xCD, 0xB3, 'Z', 0x82, '\r', '\n' };
-        const Byte  windows[] = { 'c', 'a', 'f', 0xE9, ' ', 0xFC, 'r' };
-        const Byte  utf8[]    = { 'c', 'a', 'f', 0xC3, 0xA9 };
-        const Byte  cutOff[]  = { 'a', 0xE2, 0x80 };
-        const Byte  binary[]  = { 'M', 'Z', 0x90, 0x00, 0x03 };
-
-        Assert::IsTrue (BrowserPreviewer::GetHostCharset (ascii)   == HostCharset::Ascii,   L"Tabs, line breaks, form feeds and DOS's end mark are text");
-        Assert::IsTrue (BrowserPreviewer::GetHostCharset (dos)     == HostCharset::Dos,     L"Mostly box drawing is DOS text");
-        Assert::IsTrue (BrowserPreviewer::GetHostCharset (windows) == HostCharset::Windows, L"Accented letters are Windows text");
-        Assert::IsTrue (BrowserPreviewer::GetHostCharset (utf8)    == HostCharset::Utf8,    L"Well-formed UTF-8 is UTF-8");
-        Assert::IsTrue (BrowserPreviewer::GetHostCharset (cutOff)  == HostCharset::Utf8,    L"A sequence cut off at the end of the sample is UTF-8");
-        Assert::IsTrue (BrowserPreviewer::GetHostCharset (binary)  == HostCharset::None,    L"A control code other than those is binary");
-        Assert::IsTrue (BrowserPreviewer::GetHostCharset ({})      == HostCharset::None,    L"An empty file is no text");
-
-        //  DOS text draws a control code now and then as a symbol, such as a
-        //  menu's pointer; more than one byte in a hundred is no text.
-        std::vector<Byte>  pointer (200, 'a');
-
-        pointer[50] = 0x10;
-        Assert::IsTrue (BrowserPreviewer::GetHostCharset (pointer) == HostCharset::Dos,     L"A DOS symbol among text is DOS text");
-
-        pointer[51] = 0x10;
-        pointer[52] = 0x11;
-        Assert::IsTrue (BrowserPreviewer::GetHostCharset (pointer) == HostCharset::None,    L"but too many are binary");
     }
 
 

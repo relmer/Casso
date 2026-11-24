@@ -2,7 +2,7 @@
 
 #include "CassoExplorer/Model/DiskImagePictures.h"
 #include "Core/TextEncoding.h"
-#include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/DiskSourceFormat.h"
 #include "Devices/Printer/PngCodec.h"
 #include "DiskCheck/BootCheck.h"
 
@@ -382,7 +382,7 @@ std::vector<std::string> DiskImagePictures::GetKeys (const std::vector<std::wstr
 
         for (const std::filesystem::directory_entry & entry : std::filesystem::recursive_directory_iterator (path, std::filesystem::directory_options::skip_permission_denied, error))
         {
-            HRESULT  hrFormat = entry.is_regular_file (error) ? DiskImageStore::GetSourceFormatByExtension (TextEncoding::WideToNarrow (entry.path().wstring()), format) : E_FAIL;
+            HRESULT  hrFormat = entry.is_regular_file (error) ? DiskSourceFormat::GetSourceFormatByExtension (TextEncoding::WideToNarrow (entry.path().wstring()), format) : E_FAIL;
 
             if (SUCCEEDED (hrFormat))
             {

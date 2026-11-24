@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/Window/Managers/ExplorerVerbs.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerDragDrop.h"
 #include "CassoExplorer/Window/Managers/ExplorerImageTools.h"
 #include "CassoExplorer/CassoExplorerCopyOptionsDialog.h"
 #include "CassoExplorer/Picker/PickerRequest.h"
@@ -217,6 +218,7 @@ void ExplorerVerbs::RunVerb (CassoExplorerActions::Verb verb)
     std::vector<std::wstring>            hostPaths;
     CassoExplorerNewDiskDialog::Outcome  newDisk;
     HostFileNaming::Style                style     = GetNamingStyle();
+    Location                             pasteDrive;
 
 
 
@@ -271,7 +273,7 @@ void ExplorerVerbs::RunVerb (CassoExplorerActions::Verb verb)
         case CassoExplorerActions::Verb::GetWithOptions:
         {
             std::vector<CopyOptionRows::Row>  rows;
-            DecodeOptions                     options = m_context.browser.GetPreviewer().GetDefaultDecodeOptions();
+            DecodeOptions                     options = m_context.browser.GetPreviewer().GetViewState().GetDefaultDecodeOptions();
 
             m_context.actions.FindCopyOptionRows (rows);
 
@@ -281,7 +283,7 @@ void ExplorerVerbs::RunVerb (CassoExplorerActions::Verb verb)
             }
 
             m_context.prefs.copyOptions = options;
-            m_context.browser.GetPreviewer().SetDefaultDecodeOptions (options);
+            m_context.browser.GetPreviewer().GetViewState().SetDefaultDecodeOptions (options);
 
             hr = m_context.dialogs.PickFolder (m_context.window.GetHwnd(), picked, chosen);
 
@@ -323,6 +325,11 @@ void ExplorerVerbs::RunVerb (CassoExplorerActions::Verb verb)
             if (m_context.browser.IsVolumeLocation())
             {
                 m_context.clipboard.CopyEntriesToClipboard (GetNamingStyle());
+                break;
+            }
+
+            if (!m_context.listPane.FetchSelectedStockDisks())
+            {
                 break;
             }
 
@@ -371,6 +378,12 @@ void ExplorerVerbs::RunVerb (CassoExplorerActions::Verb verb)
             break;
 
         case CassoExplorerActions::Verb::Paste:
+            if (m_context.dragDrop.TryGetPasteDrive (pasteDrive))
+            {
+                m_context.dragDrop.PasteOnAppleDrive (pasteDrive);
+                break;
+            }
+
             if (m_context.browser.IsVolumeLocation())
             {
                 m_context.clipboard.PasteIntoVolume();

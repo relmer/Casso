@@ -256,7 +256,7 @@ public:
     {
         DiskAnalysis           analysis;
         const TrackAnalysis *  track    = nullptr;
-        vector<HeaderItem>     header;
+        SectorHeader           header;
         QuarterTrackEntry      empty;
         QuarterTrackEntry      damaged;
         TrackAnalysis          noSectors;
@@ -266,24 +266,30 @@ public:
 
         analysis = GetDsk();
         track  = analysis.tracks[analysis.entries[68].slot].get();
-        header = InspectorText::BuildSectorHeader (track->sectors[1], *track);
+        header = InspectorText::BuildSectorHeader (track->sectors[1], *track, MapFileSystem::Dos33);
 
-        Assert::AreEqual (std::wstring (L"Address field"),          header[0].label);
-        Assert::AreEqual (std::wstring (L"track 17, sector $1"),    header[0].value);
-        Assert::IsTrue   (header[0].badStart == std::wstring::npos, L"the address field on track 17 has track 17");
-        Assert::AreEqual (std::wstring (L"Address checksum"),       header[2].label);
-        Assert::AreEqual (std::wstring (L"Good"),                   header[3].value);
-        Assert::AreEqual (std::wstring (L"6-and-2"),                header[4].value);
-        Assert::AreEqual (std::wstring (L"DOS-order sector index"), header[5].label);
-        Assert::AreEqual (std::wstring (L"$7"),                     header[5].value);
+        Assert::AreEqual (std::wstring (L"Track 17, sector $1"),                  header[0][0].value);
+        Assert::IsTrue   (header[0][0].badStart == std::wstring::npos,            L"the address field on track 17 has track 17");
+        Assert::AreEqual (std::wstring (L"6-and-2"),                              header[0][2].value);
+        Assert::AreEqual (std::wstring (s_kpszCheckMark) + L" Address",           header[1][0].value, L"the check mark comes before the check, as on the sector buttons");
+        Assert::AreEqual (std::wstring (s_kpszCheckMark) + L" Data",              header[1][1].value);
+        Assert::AreEqual (std::wstring (L"DOS sector"),                           header[2][0].label);
+        Assert::AreEqual (std::wstring (L"$7"),                                   header[2][0].value);
+        Assert::AreEqual (static_cast<size_t> (1),                                header[2].size(),   L"a DOS 3.3 disk has no ProDOS block");
+
+        header = InspectorText::BuildSectorHeader (track->sectors[1], *track, MapFileSystem::ProDos);
+
+        Assert::AreEqual (std::wstring (L"Block"),                                header[2][0].label);
+        Assert::AreEqual (static_cast<size_t> (1),                                header[2].size(),   L"a ProDOS disk has no DOS sector");
+        Assert::IsTrue   (InspectorText::BuildSectorHeader (track->sectors[1], *track, MapFileSystem::None)[2].empty(), L"a disk with no file system has neither");
 
         moved = *track;
         moved.fields[moved.sectors[1].addressField].track = 3;
-        header = InspectorText::BuildSectorHeader (moved.sectors[1], moved);
+        header = InspectorText::BuildSectorHeader (moved.sectors[1], moved, MapFileSystem::None);
 
-        Assert::AreEqual (std::wstring (L"track 3, sector $1"), header[0].value);
-        Assert::AreEqual (static_cast<size_t> (0), header[0].badStart);
-        Assert::AreEqual (std::wstring (L"track 3"), header[0].value.substr (header[0].badStart, header[0].badLength), L"only the track is in the error color");
+        Assert::AreEqual (std::wstring (L"Track 3, sector $1"), header[0][0].value);
+        Assert::AreEqual (static_cast<size_t> (0), header[0][0].badStart);
+        Assert::AreEqual (std::wstring (L"Track 3"), header[0][0].value.substr (header[0][0].badStart, header[0][0].badLength), L"only the track is in the error color");
 
         damaged.content      = QuarterTrackContent::Damaged;
         damaged.damageReason = DamageReason::OutsideFile;

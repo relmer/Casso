@@ -247,19 +247,6 @@ public:
     static constexpr Byte    kBitTimingStandard  = 32;
 
 private:
-    //  A chunk's place in a file: its header, and its payload's offset and size.
-    struct ChunkSpan
-    {
-        Byte    id[4]   = {};
-        size_t  start   = 0;
-        size_t  payload = 0;
-        size_t  size    = 0;
-    };
-
-    //  The chunks from the header to the first id that isn't a chunk's, and
-    //  where that walk ends.
-    static void     WalkChunks (const vector<Byte> & raw, std::vector<ChunkSpan> & outChunks, size_t & outEnd);
-
     //  META's text: key, tab, value and a line break for each field.
     static HRESULT  FormatMeta (const std::vector<MetaField> & fields, std::string & outText);
 

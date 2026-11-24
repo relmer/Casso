@@ -9,6 +9,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 #include "Seams/Win32ShellItemVerbs.h"
+#include "Seams/Win32ContextMenuLayout.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
@@ -31,6 +32,29 @@
 ExplorerMenus::ExplorerMenus (ExplorerContext & context)
     : m_context (context)
 {
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerMenus::StartPackagedCommands
+//
+//  Start reading the commands installed apps add and New's choices. Once
+//  the window is started, each menu reads Settings' Context menu page from
+//  the registry; before then, and in a test with no window, the menus take
+//  the page's defaults.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerMenus::StartPackagedCommands (HWND hwnd, UINT message, UINT assocMessage)
+{
+    m_commandsStarted = hwnd != nullptr;
+
+    m_shellMenuHandlers.Start (hwnd, message);
+    m_packagedCommands.Start (hwnd, assocMessage);
 }
 
 
@@ -682,7 +706,7 @@ void ExplorerMenus::AddPinMenuCommand (std::vector<DxuiPopupMenuItem> & items, c
 
 void ExplorerMenus::AddOpenRows (std::vector<DxuiPopupMenuItem> & items, const Location & location, bool withOpen)
 {
-    Win32PackagedCommands::Entry  startPin;
+    Win32ExplorerCommandEntries::Entry  startPin;
 
 
 
@@ -715,7 +739,7 @@ void ExplorerMenus::AddOpenRows (std::vector<DxuiPopupMenuItem> & items, const L
 
     AddPinMenuCommand (items, location.path);
 
-    if (m_packagedCommands.GetStartPinEntry (location.path, startPin))
+    if (m_shellMenuHandlers.GetStartPinEntry (location.path, startPin))
     {
         AddPackagedEntry (items, startPin, { location.path });
     }
@@ -740,9 +764,9 @@ void ExplorerMenus::AddOpenRows (std::vector<DxuiPopupMenuItem> & items, const L
 void ExplorerMenus::AddNewChoices (std::vector<DxuiPopupMenuItem> & items, const Location & target,
                                    std::shared_ptr<const DxuiCommand> folder, std::shared_ptr<const DxuiCommand> disk)
 {
-    std::vector<Win32PackagedCommands::NewChoice>  choices = m_packagedCommands.GetNewChoices();
-    bool                                           host    = target.kind == Location::Kind::HostFolder;
-    bool                                           types   = false;
+    std::vector<Win32ShellMenuHandlers::NewChoice>  choices = m_shellMenuHandlers.GetNewChoices();
+    bool                                            host    = target.kind == Location::Kind::HostFolder;
+    bool                                            types   = false;
 
 
 
@@ -758,9 +782,9 @@ void ExplorerMenus::AddNewChoices (std::vector<DxuiPopupMenuItem> & items, const
         items.push_back (DxuiPopupMenuItem::ForCommand (std::move (colored)));
     }
 
-    for (const Win32PackagedCommands::NewChoice & choice : choices)
+    for (const Win32ShellMenuHandlers::NewChoice & choice : choices)
     {
-        if (host && _wcsicmp (choice.verb.c_str(), Win32PackagedCommands::kNewLinkVerb) == 0)
+        if (host && _wcsicmp (choice.verb.c_str(), Win32ShellMenuHandlers::kNewLinkVerb) == 0)
         {
             AddMenuCommand (items, choice.title.c_str(), [this, target, verb = choice.verb]() { RunNewChoice (target, verb); });
             m_menuCommands.back()->menuImage = GetIconFileMenuImage (L"shell32.dll", -16769);
@@ -772,7 +796,7 @@ void ExplorerMenus::AddNewChoices (std::vector<DxuiPopupMenuItem> & items, const
         items.push_back (DxuiPopupMenuItem::ForCommand (disk));
     }
 
-    for (const Win32PackagedCommands::NewChoice & choice : choices)
+    for (const Win32ShellMenuHandlers::NewChoice & choice : choices)
     {
         if (!host || choice.verb.empty() || choice.verb[0] != L'.')
         {
@@ -894,13 +918,13 @@ void ExplorerMenus::RunNewChoice (const Location & target, const std::wstring & 
 {
     std::wstring  created;
     HRESULT       hr      = S_OK;
-    bool          named   = _wcsicmp (verb.c_str(), Win32PackagedCommands::kNewLinkVerb) != 0;
+    bool          named   = _wcsicmp (verb.c_str(), Win32ShellMenuHandlers::kNewLinkVerb) != 0;
 
 
 
     m_context.addressBar.GoToLocation (target);
 
-    hr = m_packagedCommands.CreateNew (m_context.window.GetHwnd(), target.path, verb, created);
+    hr = m_shellMenuHandlers.CreateNew (m_context.window.GetHwnd(), target.path, verb, created);
 
     if (FAILED (hr))
     {
@@ -974,7 +998,7 @@ HRESULT ExplorerMenus::RunAskCopilot (const std::wstring & path)
 
     for (const std::wstring & probe : { path, std::wstring (windows, length) + L"\\win.ini" })
     {
-        for (const Win32PackagedCommands::Entry & entry : m_packagedCommands.GetEntries ({ probe }, Win32PackagedCommands::ItemKind::File))
+        for (const Win32ExplorerCommandEntries::Entry & entry : m_packagedCommands.GetEntries ({ probe }, Win32ExplorerCommandEntries::ItemKind::File))
         {
             if (entry.command && entry.title == s_kpszTitle)
             {
@@ -994,16 +1018,16 @@ HRESULT ExplorerMenus::RunAskCopilot (const std::wstring & path)
 //
 //  ExplorerMenus::AddPackagedCommands
 //
-//  After a separator, each command an installed app adds for the selected
-//  files or folders, with the app's own title and icon. A selection of files
+//  After a separator, an App extensions submenu with each command an installed
+//  app adds for the selected files or folders. A selection of files
 //  and folders together has none, as no registration covers both.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerMenus::AddPackagedCommands (std::vector<DxuiPopupMenuItem> & items)
 {
-    std::vector<std::wstring>        paths;
-    Win32PackagedCommands::ItemKind  kind = Win32PackagedCommands::ItemKind::File;
+    std::vector<std::wstring>              paths;
+    Win32ExplorerCommandEntries::ItemKind  kind  = Win32ExplorerCommandEntries::ItemKind::File;
 
 
 
@@ -1027,13 +1051,13 @@ void ExplorerMenus::AddPackagedCommands (std::vector<DxuiPopupMenuItem> & items)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ExplorerMenus::AddWindowsCommands (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind)
+bool ExplorerMenus::AddWindowsCommands (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32ExplorerCommandEntries::ItemKind kind)
 {
-    std::vector<Win32PackagedCommands::Entry>  entries = m_packagedCommands.GetWindowsEntries (paths, kind);
+    std::vector<Win32ExplorerCommandEntries::Entry>  entries = m_windowsCommands.GetWindowsEntries (paths, kind);
 
 
 
-    for (const Win32PackagedCommands::Entry & entry : entries)
+    for (const Win32ExplorerCommandEntries::Entry & entry : entries)
     {
         AddPackagedEntry (items, entry, paths);
     }
@@ -1062,10 +1086,10 @@ void ExplorerMenus::AddShellMenuCommands (std::vector<DxuiPopupMenuItem> & items
     static const std::vector<std::string>   kDriveVerbs = { "encrypt-bde-elev", "encrypt-bde", "format", "eject" };
     static const std::vector<std::string>   kFileVerbs  = { "runas", "opencontaining" };
     std::vector<IShellItemVerbs::ItemVerb>  found;
-    Win32PackagedCommands::Entry            startPin;
-    bool                                    drives      = false;
-    bool                                    files       = false;
-    HRESULT                                 hr          = S_OK;
+    Win32ExplorerCommandEntries::Entry      startPin;
+    bool                                    drives   = false;
+    bool                                    files    = false;
+    HRESULT                                 hr       = S_OK;
 
 
 
@@ -1118,7 +1142,7 @@ void ExplorerMenus::AddShellMenuCommands (std::vector<DxuiPopupMenuItem> & items
     }
 
     //  A program or shortcut pins to Start, as a folder does.
-    if (files && paths.size() == 1 && m_packagedCommands.GetStartPinEntry (paths[0], startPin))
+    if (files && paths.size() == 1 && m_shellMenuHandlers.GetStartPinEntry (paths[0], startPin))
     {
         AddPackagedEntry (items, startPin, paths);
     }
@@ -1173,7 +1197,7 @@ const wchar_t * ExplorerMenus::GetShellVerbSvgName (const std::string & verb)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ExplorerMenus::GetSelectionKind (std::vector<std::wstring> & outPaths, Win32PackagedCommands::ItemKind & outKind) const
+bool ExplorerMenus::GetSelectionKind (std::vector<std::wstring> & outPaths, Win32ExplorerCommandEntries::ItemKind & outKind) const
 {
     size_t  folders = 0;
 
@@ -1185,7 +1209,7 @@ bool ExplorerMenus::GetSelectionKind (std::vector<std::wstring> & outPaths, Win3
     }
 
     m_context.browser.GetSelection().GetSelectedHostPaths (outPaths);
-    outKind = (folders != 0) ? Win32PackagedCommands::ItemKind::Folder : Win32PackagedCommands::ItemKind::File;
+    outKind = (folders != 0) ? Win32ExplorerCommandEntries::ItemKind::Folder : Win32ExplorerCommandEntries::ItemKind::File;
 
     return !outPaths.empty() && (folders == 0 || folders == outPaths.size());
 }
@@ -1200,10 +1224,22 @@ bool ExplorerMenus::GetSelectionKind (std::vector<std::wstring> & outPaths, Win3
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerMenus::AddPackagedCommandsFor (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind)
+void ExplorerMenus::AddPackagedCommandsFor (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32ExplorerCommandEntries::ItemKind kind)
 {
-    std::vector<Win32PackagedCommands::Entry>  entries = m_packagedCommands.GetEntries (paths, kind);
+    std::vector<Win32ExplorerCommandEntries::Entry>  entries;
+    std::vector<DxuiPopupMenuItem>                   children;
+    std::shared_ptr<DxuiCommand>                     flyout   = std::make_shared<DxuiCommand>();
+    Win32ContextMenuLayout                           layout   = m_commandsStarted ? Win32ContextMenuLayout::Read() : Win32ContextMenuLayout();
 
+
+
+    //  Settings' Context menu page can hide the submenu.
+    if (!layout.showExtensions)
+    {
+        return;
+    }
+
+    entries = m_packagedCommands.GetEntries (paths, kind);
 
 
     //  On the background of a folder not on the disk, File Explorer doesn't list
@@ -1211,9 +1247,9 @@ void ExplorerMenus::AddPackagedCommandsFor (std::vector<DxuiPopupMenuItem> & ite
     //  PowerRename hides itself for one, and is listed. Network is the test.
     if (paths.empty())
     {
-        for (const Win32PackagedCommands::Entry & folderEntry : m_packagedCommands.GetEntries ({ L"::{F02C1A0D-BE21-4350-88B0-7367FC96EF3C}" }, kind))
+        for (const Win32ExplorerCommandEntries::Entry & folderEntry : m_packagedCommands.GetEntries ({ L"::{F02C1A0D-BE21-4350-88B0-7367FC96EF3C}" }, kind))
         {
-            std::erase_if (entries, [&folderEntry] (const Win32PackagedCommands::Entry & entry) { return entry.title == folderEntry.title; });
+            std::erase_if (entries, [&folderEntry] (const Win32ExplorerCommandEntries::Entry & entry) { return entry.title == folderEntry.title; });
         }
     }
 
@@ -1225,10 +1261,67 @@ void ExplorerMenus::AddPackagedCommandsFor (std::vector<DxuiPopupMenuItem> & ite
     items.push_back (DxuiPopupMenuItem::ForSeparator());
 
     //  A sync client's commands, as OneDrive's, are among the rest in the order
-    //  Windows lists them, as in File Explorer.
-    for (const Win32PackagedCommands::Entry & entry : entries)
+    //  Windows lists them, under App extensions, as in File Explorer.
+    for (const Win32ExplorerCommandEntries::Entry & entry : entries)
     {
-        AddPackagedEntry (items, entry, paths);
+        AddPackagedEntry (children, entry, paths);
+    }
+
+    AddMenuCommand (children, L"Manage extensions", []()
+    {
+        ShellExecuteW (nullptr, L"open", L"ms-settings:personalization-contextmenu-extensions", nullptr, nullptr, SW_SHOWNORMAL);
+    });
+
+    flyout->label   = L"App extensions";
+    flyout->menuSvg = GetMenuSvg (L"windows.extensionsflyout");
+
+    items.push_back (DxuiPopupMenuItem::ForSubmenu (flyout, std::move (children)));
+    m_menuCommands.push_back (std::move (flyout));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerMenus::AddMenuEnd
+//
+//  The bottom of File Explorer's menu, after a separator: Show more options,
+//  which runs showMore, when Settings' Context menu page turns it on, and
+//  Customize menu, which opens that page.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerMenus::AddMenuEnd (std::vector<DxuiPopupMenuItem> & items, std::function<void()> showMore)
+{
+    Win32ContextMenuLayout  layout = m_commandsStarted ? Win32ContextMenuLayout::Read() : Win32ContextMenuLayout();
+
+
+
+    showMore = layout.showMore ? std::move (showMore) : std::function<void()>();
+
+    if (!showMore && !layout.showCustomize)
+    {
+        return;
+    }
+
+    items.push_back (DxuiPopupMenuItem::ForSeparator());
+
+    if (showMore)
+    {
+        AddMenuCommand (items, GetVerbLabel (CassoExplorerActions::Verb::MoreOptions), std::move (showMore), L"Shift+F10");
+        m_menuCommands.back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
+        m_menuCommands.back()->menuSvg   = GetMenuSvg (GetVerbMenuSvgName (CassoExplorerActions::Verb::MoreOptions));
+    }
+
+    if (layout.showCustomize)
+    {
+        AddMenuCommand (items, L"Customize menu", []()
+        {
+            ShellExecuteW (nullptr, L"open", L"ms-settings:personalization-contextmenu", nullptr, nullptr, SW_SHOWNORMAL);
+        });
+        m_menuCommands.back()->menuSvg = GetMenuSvg (L"windows.customizemenu");
     }
 }
 
@@ -1244,7 +1337,7 @@ void ExplorerMenus::AddPackagedCommandsFor (std::vector<DxuiPopupMenuItem> & ite
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerMenus::AddPackagedEntry (std::vector<DxuiPopupMenuItem> & items, const Win32PackagedCommands::Entry & entry, const std::vector<std::wstring> & paths)
+void ExplorerMenus::AddPackagedEntry (std::vector<DxuiPopupMenuItem> & items, const Win32ExplorerCommandEntries::Entry & entry, const std::vector<std::wstring> & paths)
 {
     std::shared_ptr<DxuiCommand>     command  = std::make_shared<DxuiCommand>();
     std::vector<DxuiPopupMenuItem>   children;
@@ -1261,7 +1354,7 @@ void ExplorerMenus::AddPackagedEntry (std::vector<DxuiPopupMenuItem> & items, co
 
     if (!entry.children.empty())
     {
-        for (const Win32PackagedCommands::Entry & child : entry.children)
+        for (const Win32ExplorerCommandEntries::Entry & child : entry.children)
         {
             AddPackagedEntry (children, child, paths);
         }

@@ -753,6 +753,7 @@ vector<TableRow> InspectorTables::BuildImage (const ImageDetails & image, const 
         AddRow (rows, L"Checksum", (live != nullptr) ? L"Checked when the file was read: " + crc : crc);
         AddInfoRows   (rows, image.info, drive);
         AddMetaRows   (rows, image.layout);
+        AddStampRows  (rows, image);
         AddMapRows    (rows, L"TMAP", image.layout.tmap);
 
         if (image.layout.hasFluxMap)
@@ -873,6 +874,61 @@ void InspectorTables::AddMetaRows (vector<TableRow> & inOut, const WozFileLayout
     for (const WozMetaEntry & entry : layout.metaEntries)
     {
         AddRow (inOut, TextEncoding::Utf8ToWide (entry.key), TextEncoding::Utf8ToWide (entry.value));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorTables::AddStampRows
+//
+//  The format stamp's section: where it came from, what wrote it and when,
+//  the capture's facts, and how many tracks it lists and how many changed
+//  after the capture. A stamp Casso can't read has one row with the reason.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorTables::AddStampRows (vector<TableRow> & inOut, const ImageDetails & image)
+{
+    const FormatStamp  & stamp   = image.stamp;
+    int                  changed = 0;
+    std::wstring         capture;
+
+
+
+    if (image.stampState == StampState::Absent)
+    {
+        return;
+    }
+
+    AddRow (inOut, L"Format stamp", L"");
+
+    if (image.stampState == StampState::Unreadable)
+    {
+        AddRow (inOut, L"Stamp", L"Written by a later version of Casso, or damaged, so Casso doesn't use it");
+        return;
+    }
+
+    for (const StampTrack & track : stamp.tracks)
+    {
+        changed += track.isChangedAfterCapture ? 1 : 0;
+    }
+
+    AddRow (inOut, L"Source",     stamp.source == StampSource::Capture ? L"CassoLink capture" : L"Disk inspector");
+    AddRow (inOut, L"Written by", TextEncoding::Utf8ToWide (stamp.writer));
+    AddRow (inOut, L"Written",    TextEncoding::Utf8ToWide (stamp.written));
+    AddRow (inOut, L"Tracks",     std::format (L"{}, {} changed after the stamp was written", stamp.tracks.size(), changed));
+
+    if (stamp.hasCapture)
+    {
+        capture = std::format (L"{} reads", stamp.capture.reads);
+        capture += stamp.capture.hasRevolution ? std::format (L", revolution {:.0f} cycles", stamp.capture.revolutionCycles) : L"";
+        capture += stamp.capture.isSynchronized ? L", tracks placed relative to track 0" : L"";
+
+        AddRow (inOut, L"Capture", capture);
     }
 }
 

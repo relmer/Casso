@@ -231,9 +231,7 @@ void ExplorerListMenus::ShowHomeItemMenu (int x, int y, int row)
         }
     }
 
-    items.push_back (DxuiPopupMenuItem::ForSeparator());
-
-    m_context.menus.AddMenuCommand (items, L"Show more options", [this, id]()
+    m_context.menus.AddMenuEnd (items, [this, id]()
     {
         POINT    screen = {};
         BOOL     got    = GetCursorPos (&screen);
@@ -241,7 +239,7 @@ void ExplorerListMenus::ShowHomeItemMenu (int x, int y, int row)
 
         IGNORE_RETURN_VALUE (got, TRUE);
         IGNORE_RETURN_VALUE (shown, S_OK);
-    }, L"Shift+F10");
+    });
 
     DxuiContextMenu::Show (*m_context.window.GetPopupHost(), x, y, std::move (items));
 }
@@ -772,18 +770,15 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
         //  A folder that isn't on the disk has no item for the commands to act
         //  on, as File Explorer's menu there asks them with none.
-        m_context.menus.AddPackagedCommandsFor (items, onDisk ? std::vector<std::wstring> { shellId } : std::vector<std::wstring>(), Win32PackagedCommands::ItemKind::Background);
+        m_context.menus.AddPackagedCommandsFor (items, onDisk ? std::vector<std::wstring> { shellId } : std::vector<std::wstring>(), Win32ExplorerCommandEntries::ItemKind::Background);
 
-        items.push_back (DxuiPopupMenuItem::ForSeparator());
-        m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::MoreOptions), [this, shellId, screen]()
+        m_context.menus.AddMenuEnd (items, [this, shellId, screen]()
         {
             HRESULT  hr = m_context.shellVerbs.ShowBackgroundMenu (m_context.window.GetHwnd(), shellId, screen);
 
             IGNORE_RETURN_VALUE (hr, S_OK);
             m_context.folderSync.RefreshAfterHostChange();
         });
-        m_context.menus.GetMenuCommands().back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
-        m_context.menus.GetMenuCommands().back()->menuSvg   = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::MoreOptions));
     }
 
     //  A deleted item has no path to copy, and the bin itself describes it.
@@ -796,8 +791,8 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
     }
     else if (!m_context.browser.GetSelectedRows().empty())
     {
-        std::vector<std::wstring>        selectedPaths;
-        Win32PackagedCommands::ItemKind  kind = Win32PackagedCommands::ItemKind::File;
+        std::vector<std::wstring>              selectedPaths;
+        Win32ExplorerCommandEntries::ItemKind  kind          = Win32ExplorerCommandEntries::ItemKind::File;
 
         //  Windows' commands lead into Share and Copy as path in one
         //  group, as in File Explorer.
@@ -855,8 +850,9 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
             selectedDrives = !rowPaths.empty() && std::all_of (rowPaths.begin(), rowPaths.end(), [] (const std::wstring & path) { return path.size() == 3 && path[1] == L':'; });
         }
 
-        //  File Explorer's drive has no Copy as path.
-        if (!selectedDrives)
+        //  File Explorer's drive has no Copy as path, and a stock disk has no
+        //  file at its path until it is downloaded.
+        if (!selectedDrives && !m_context.listPane.IsStockDiskToFetchSelected())
         {
             m_context.menus.AddMenuCommand (items, L"Copy as &path", [this]() { m_context.clipboard.CopySelectedPaths(); }, L"Ctrl+Shift+C", s_kpszMdl2CopyPath);
             m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.copyaspath");
@@ -963,8 +959,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
         ClientToScreen (m_context.window.GetHwnd(), &screen);
 
-        items.push_back (DxuiPopupMenuItem::ForSeparator());
-        m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::MoreOptions), [this, screen]()
+        m_context.menus.AddMenuEnd (items, [this, screen]()
         {
             std::vector<std::wstring>  paths;
             HRESULT                    hr = S_OK;
@@ -982,8 +977,6 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
             IGNORE_RETURN_VALUE (hr, S_OK);
         });
-        m_context.menus.GetMenuCommands().back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
-        m_context.menus.GetMenuCommands().back()->menuSvg   = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::MoreOptions));
     }
 
     RemoveExtraSeparators (items);
@@ -1500,15 +1493,15 @@ std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetSortChoices (bool commandBa
 
 std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetSeeMoreRows()
 {
-    std::vector<DxuiPopupMenuItem>   items;
-    std::vector<DxuiPopupMenuItem>   windows;
-    std::vector<std::wstring>        paths;
-    Win32PackagedCommands::ItemKind  kind     = Win32PackagedCommands::ItemKind::File;
-    Location                         location = m_context.browser.GetLocation();
-    bool                             selected = !m_context.browser.GetSelectedRows().empty();
-    bool                             search   = SearchQuery::IsId (location.path);
-    bool                             onHost   = location.kind == Location::Kind::HostFolder && !search;
-    auto                             row      = [this, &items] (const wchar_t * label, const wchar_t * svg, std::function<bool()> enabled, std::function<void()> dispatch)
+    std::vector<DxuiPopupMenuItem>         items;
+    std::vector<DxuiPopupMenuItem>         windows;
+    std::vector<std::wstring>              paths;
+    Win32ExplorerCommandEntries::ItemKind  kind     = Win32ExplorerCommandEntries::ItemKind::File;
+    Location                               location = m_context.browser.GetLocation();
+    bool                                   selected = !m_context.browser.GetSelectedRows().empty();
+    bool                                   search   = SearchQuery::IsId (location.path);
+    bool                                   onHost   = location.kind == Location::Kind::HostFolder && !search;
+    auto                                   row      = [this, &items] (const wchar_t * label, const wchar_t * svg, std::function<bool()> enabled, std::function<void()> dispatch)
     {
         std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
 

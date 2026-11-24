@@ -134,11 +134,16 @@ public:
     DxuiAccessibleRole    GetAccessibleRole () const          override { return DxuiAccessibleRole::CaptionBar; }
 
 private:
-    static constexpr int      kButtonWidthDip   = 46;
-    static constexpr float    kChipPadDip       = 8.0f;
-    static constexpr float    kChipGapDip       = 6.0f;
-    static constexpr float    kChipHeightDip    = 20.0f;
-    static constexpr float    kChipTextDip      = 12.0f;
+    static constexpr int    kButtonWidthDip    = 46;
+    static constexpr float  s_kTitlePadDip     = 14.0f;
+    static constexpr float  s_kIconPadFraction = 0.18f;
+    static constexpr float  s_kMinTitleDip     = 48.0f;
+    static constexpr float  s_kChipPadDip      = 8.0f;
+    static constexpr float  s_kChipGapDip      = 6.0f;
+    static constexpr float  s_kChipHeightDip   = 20.0f;
+    static constexpr float  s_kChipTextDip     = 12.0f;
+
+    bool                 IsOverIcon   (POINT clientDip) const;
     static constexpr wchar_t  kTitleFamily[]    = L"Segoe UI";
 
     float                PaintTitle   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & areaPx, float fontPx);

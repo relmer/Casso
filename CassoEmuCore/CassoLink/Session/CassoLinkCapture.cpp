@@ -3,6 +3,7 @@
 #include "CassoLink/Session/CassoLinkCapture.h"
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/CassoLinkHost.h"
+#include "CassoLink/Session/CaptureStamp.h"
 #include "CassoLink/Session/CaptureStream.h"
 #include "CassoLink/Session/CassoLinkDiskTransfer.h"
 #include "Devices/Disk/DiskFieldFormat.h"
@@ -1478,6 +1479,9 @@ HRESULT CassoLinkCapture::BuildWoz (const std::vector<Position> & positions, int
         outResult.woz[s_kInfoProtected]    = outResult.writeProtected ? 1 : 0;
         Write32 (outResult.woz, s_kWozCrcOffset, ZipArchive::ComputeCrc32 (std::span<const Byte> (outResult.woz).subspan (s_kWozHeaderBytes)));
     }
+
+    hr = CaptureStamp::AddToWoz (positions, outResult, imageDate, outResult.woz);
+    CHR (hr);
 
 Error:
     return hr;

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerDragDrop.h"
 #include "CassoExplorer/Window/Managers/ExplorerImageTools.h"
 #include "CassoExplorer/Window/Managers/ExplorerVerbs.h"
 #include "CassoExplorer/CassoExplorerCopyOptionsDialog.h"
@@ -131,6 +132,7 @@ bool ExplorerCommandManager::IsEnabled (int id) const
     DxuiStandardCommand   standard = CassoExplorerCommands::GetStandardCommand (id);
     bool                  enabled  = false;
     Location              drive;
+    Location              pasteDrive;
 
 
 
@@ -157,7 +159,7 @@ bool ExplorerCommandManager::IsEnabled (int id) const
         case CassoExplorerCommands::kLineAddresses:
         case CassoExplorerCommands::kCrossReference:    return m_context.preview.GetBarMode() == CassoExplorerCommands::kPreviewBarListing;
         case CassoExplorerCommands::kPictureMonochrome:
-        case CassoExplorerCommands::kPictureColor:      return m_context.browser.GetPreviewer().CanTogglePictureColor();
+        case CassoExplorerCommands::kPictureColor:      return m_context.browser.GetPreviewer().GetMonitorChoice().CanTogglePictureColor();
         case CassoExplorerCommands::kSavePicture:       return m_context.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Picture && !m_context.browser.GetPreviewer().GetPreview().bgra.empty();
         case CassoExplorerCommands::kExpandPreview:     return m_context.preview.IsShown();
         case CassoExplorerCommands::kViewAs:            return !m_context.browser.GetPreviewer().GetPreview().viewChoices.empty();
@@ -199,12 +201,12 @@ bool ExplorerCommandManager::IsEnabled (int id) const
         case CassoExplorerCommands::kPreviousTab:       return model.GetTabCount() > 1;
         case CassoExplorerCommands::kUndo:              return m_context.undo.CanUndo();
         case CassoExplorerCommands::kCutItems:          return m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Cut);
-        case CassoExplorerCommands::kCopyItems:         return m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Copy) || m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Get) || m_context.browser.GetPreviewer().AreSelectedRowsSearchMatches();
-        case CassoExplorerCommands::kPasteItems:        return (m_context.browser.IsVolumeLocation() || m_context.browser.GetLocation().kind == Location::Kind::HostFolder)
+        case CassoExplorerCommands::kCopyItems:         return m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Copy) || m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Get) || m_context.browser.GetSearchMatches().AreSelectedRowsSearchMatches();
+        case CassoExplorerCommands::kPasteItems:        return (m_context.browser.IsVolumeLocation() || m_context.dragDrop.TryGetPasteDrive (pasteDrive) || m_context.browser.GetLocation().kind == Location::Kind::HostFolder)
                                                          && m_context.shellVerbs.ClipboardHasFiles();
         case CassoExplorerCommands::kRenameItem:        return m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Rename);
         case CassoExplorerCommands::kShareItems:        return m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Share);
-        case CassoExplorerCommands::kExtractAll:        return !m_context.browser.GetPreviewer().GetExtractTarget().empty();
+        case CassoExplorerCommands::kExtractAll:        return !m_context.browser.GetArchives().GetExtractTarget().empty();
         case CassoExplorerCommands::kInspectDiskImage:  return m_context.actions.CanInspect();
         case CassoExplorerCommands::kCompareDiskImages: return m_context.actions.CanCompare();
         case CassoExplorerCommands::kInitializeCard:    return m_context.app.cards != nullptr;
@@ -282,8 +284,8 @@ bool ExplorerCommandManager::IsChecked (int id) const
         case CassoExplorerCommands::kCrossReference:    return m_context.preview.GetText().IsCrossReference();
         case CassoExplorerCommands::kShowDisassembly:   return m_context.browser.GetPreviewer().GetPreview().disassembly;
         case CassoExplorerCommands::kShowBytes:         return m_context.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Hex && !m_context.browser.GetPreviewer().GetPreview().disassembly;
-        case CassoExplorerCommands::kPictureMonochrome: return m_context.browser.GetPreviewer().CanTogglePictureColor() && m_context.browser.GetPreviewer().GetPreview().pictureMode == PicturePreview::Mode::DoubleHiResMono;
-        case CassoExplorerCommands::kPictureColor:      return m_context.browser.GetPreviewer().CanTogglePictureColor() && m_context.browser.GetPreviewer().GetPreview().pictureMode != PicturePreview::Mode::DoubleHiResMono;
+        case CassoExplorerCommands::kPictureMonochrome: return m_context.browser.GetPreviewer().GetMonitorChoice().CanTogglePictureColor() && m_context.browser.GetPreviewer().GetPreview().pictureMode == PicturePreview::Mode::DoubleHiResMono;
+        case CassoExplorerCommands::kPictureColor:      return m_context.browser.GetPreviewer().GetMonitorChoice().CanTogglePictureColor() && m_context.browser.GetPreviewer().GetPreview().pictureMode != PicturePreview::Mode::DoubleHiResMono;
         case CassoExplorerCommands::kCharsetAppleText:  return m_context.browser.GetPreviewer().GetPreview().charset == Charset::AppleText;
         case CassoExplorerCommands::kCharsetMacOsRoman: return m_context.browser.GetPreviewer().GetPreview().charset == Charset::MacOsRoman;
         case CassoExplorerCommands::kCharsetIso8859:    return m_context.browser.GetPreviewer().GetPreview().charset == Charset::Iso8859_1;
@@ -412,6 +414,14 @@ void ExplorerCommandManager::Dispatch (int id)
         //  selected, as Explorer's do; a folder's own menu pastes into it.
         case CassoExplorerCommands::kPasteItems:
         {
+            Location  drive;
+
+            if (m_context.dragDrop.TryGetPasteDrive (drive))
+            {
+                m_context.dragDrop.PasteOnAppleDrive (drive);
+                break;
+            }
+
             if (m_context.browser.IsVolumeLocation())
             {
                 m_context.clipboard.PasteIntoVolume();
@@ -442,7 +452,7 @@ void ExplorerCommandManager::Dispatch (int id)
         //  the shell, an entry in an image as the file a paste would write,
         //  in the style the Options dialog sets.
         case CassoExplorerCommands::kCopyItems:
-            if (m_context.browser.IsVolumeLocation() || m_context.browser.GetPreviewer().AreSelectedRowsSearchMatches())
+            if (m_context.browser.IsVolumeLocation() || m_context.browser.GetSearchMatches().AreSelectedRowsSearchMatches())
             {
                 m_context.clipboard.CopyEntriesToClipboard (m_context.verbs.GetNamingStyle());
             }
@@ -529,16 +539,16 @@ void ExplorerCommandManager::Dispatch (int id)
         case CassoExplorerCommands::kViewAsDoubleHiRes:
         case CassoExplorerCommands::kViewAsLoRes:
         case CassoExplorerCommands::kViewAsResourceFork:
-            m_context.browser.GetPreviewer().SetViewAs ((ViewChoice) (id - CassoExplorerCommands::kViewAsDefault));
+            m_context.browser.GetPreviewer().GetViewState().SetViewAs ((ViewChoice) (id - CassoExplorerCommands::kViewAsDefault));
             m_context.preview.FillPreview();
             break;
         case CassoExplorerCommands::kShowDisassembly:
-            m_context.browser.GetPreviewer().SetHexForm (PreviewDecoder::HexForm::Disassembly);
+            m_context.browser.GetPreviewer().GetViewState().SetHexForm (PreviewDecoder::HexForm::Disassembly);
             m_context.preview.FillPreview();
             break;
 
         case CassoExplorerCommands::kShowBytes:
-            m_context.browser.GetPreviewer().SetHexForm (PreviewDecoder::HexForm::Bytes);
+            m_context.browser.GetPreviewer().GetViewState().SetHexForm (PreviewDecoder::HexForm::Bytes);
             m_context.preview.FillPreview();
             break;
 
@@ -686,7 +696,7 @@ void ExplorerCommandManager::Dispatch (int id)
 
 void ExplorerCommandManager::ChooseSheetForm (bool formulas)
 {
-    m_context.browser.GetPreviewer().SetFormulas (formulas);
+    m_context.browser.GetPreviewer().GetViewState().SetFormulas (formulas);
     m_context.preview.FillPreview();
 }
 
@@ -704,7 +714,7 @@ void ExplorerCommandManager::ChooseSheetForm (bool formulas)
 
 void ExplorerCommandManager::ChooseCharset (Charset charset)
 {
-    m_context.browser.GetPreviewer().SetCharset (charset);
+    m_context.browser.GetPreviewer().GetViewState().SetCharset (charset);
     m_context.preview.FillPreview();
 }
 

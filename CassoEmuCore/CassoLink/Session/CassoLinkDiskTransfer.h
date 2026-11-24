@@ -74,6 +74,9 @@ public:
     HRESULT  CaptureWholeDisk   (LinkOperation & operation);
     HRESULT  SaveUnreadableList (const LinkOperation & operation);
     HRESULT  WriteWholeDisk     (LinkOperation & operation);
+    void     BeginWriteStatus   (LinkOperation & operation);
+    void     MarkWrittenTrack   (LinkOperation & operation, int track);
+    void     EndWriteStatus     (LinkOperation & operation, size_t bytes);
     HRESULT  CompareWrittenDisk (LinkOperation & operation, const std::vector<Byte> & sectors);
     HRESULT  ReadBootSector     (LinkOperation & operation);
 

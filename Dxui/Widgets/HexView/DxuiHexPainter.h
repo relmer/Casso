@@ -43,7 +43,7 @@ public:
     void          PaintLineRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, uint64_t row);
     static void   FillCell     (IDxuiTextRenderer & text, const RECT & rect, uint32_t argb);
     static void   FillStyled   (IDxuiTextRenderer & text, const RECT & rect, const DxuiHexViewTypes::ByteStyle & style);
-    bool          GetByteStyle (uint64_t offset, uint8_t mark, bool isSelected, DxuiHexViewTypes::Column column, DxuiHexViewTypes::ByteStyle & outStyle) const;
+    bool          GetByteStyle (const IDxuiTheme & theme, uint64_t offset, uint8_t mark, bool isSelected, DxuiHexViewTypes::Column column, DxuiHexViewTypes::ByteStyle & outStyle) const;
 
     static wchar_t  GetHexDigit      (int value);
     wchar_t         GetCharFor       (uint8_t byte) const;

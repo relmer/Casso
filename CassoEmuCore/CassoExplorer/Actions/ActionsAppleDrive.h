@@ -94,7 +94,9 @@ public:
     //  from the drive's number before a catalog is read.
     static std::wstring  GetDriveImageName (CassoLinkConnections * links, const std::string & link, int slot, int drive);
 
-    ActionsTypes::Outcome  SaveLinkToDisk   (const std::string & link, int drive, const std::wstring & tempFolder);
+    //  The link's boot disk, made in memory and written to the linked
+    //  Apple's drive.
+    ActionsTypes::Outcome  SaveLinkToDisk   (const std::string & link, int drive);
 
     ActionsTypes::Outcome  FormatAppleDrive (const DiskOperations::NewDiskRequest & request, const std::wstring & tempFolder);
     ActionsTypes::Outcome  FormatAppleDrive (const std::string & link, int drive, const DiskOperations::NewDiskRequest & request, const std::wstring & tempFolder);
@@ -110,6 +112,9 @@ public:
     //  The CassoLink ProDOS disk (CassoLinkProDosDisk), from the user's ProDOS
     //  disk at usersDisk, for the link's speed.
     ActionsTypes::Outcome  SaveLinkProDosDisk (const std::wstring & usersDisk, const std::wstring & imagePath, const CassoLinkSettings & settings);
+
+    //  The same disk, made in memory and written to the linked Apple's drive.
+    ActionsTypes::Outcome  SaveLinkProDosToDisk (const std::string & link, int drive, const std::wstring & usersDisk);
 
     //  The CassoLink SOS disk (CassoLinkSosDisk), from the user's SOS disk at
     //  usersDisk, for the link's speed.
@@ -146,6 +151,9 @@ public:
 
 private:
     friend class CassoExplorerActions;
+
+    CassoLinkSettings      FindLinkSettings   (const std::string & link) const;
+    ActionsTypes::Outcome  MakeLinkProDosDisk (const std::wstring & usersDisk, const CassoLinkSettings & settings, std::vector<Byte> & outDisk);
 
     CassoExplorerActions  & m_actions;
 

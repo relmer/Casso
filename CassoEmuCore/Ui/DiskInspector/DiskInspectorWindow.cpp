@@ -87,6 +87,7 @@ static constexpr int      s_kMinTableDip    = 200;
 static constexpr int      s_kDecodeButtonDip = 132;
 static constexpr int      s_kExportButtonDip = 80;
 static constexpr int      s_kCopySectorDip   = 100;
+static constexpr int      s_kEditSectorDip   = 72;
 static constexpr int      s_kFindButtonDip   = 60;
 static constexpr int      s_kCompareDip      = 122;
 static constexpr int      s_kFollowDip       = 110;
@@ -680,6 +681,13 @@ void DiskInspectorWindow::OnCreate()
     m_session.views.image->SetWrapsText (true);
     m_session.views.image->SetOnSelect  ([this] (const TableRow & row) { m_tables->SelectFromRow (row); });
     m_session.context.edits = &m_session.edits;
+
+    //  The sector row and the sector's bytes are each one stop for Tab; the
+    //  arrows then step through the sectors or the bytes.
+    m_session.views.sectorRow->SetFocusable (true);
+    m_session.views.sectors->SetFocusable   (true);
+    m_session.views.sectorRow->SetOnFocus   ([this] () { m_session.keyTarget = KeyTarget::SectorRow; });
+    m_session.views.sectors->SetOnFocus     ([this] () { m_session.keyTarget = KeyTarget::SectorData; });
     m_copySector->SetOnClick ([this] () { m_selection->CopySector(); });
     m_session.views.stripB->SetSide (ComparisonSession::kSideB);
 
@@ -951,17 +959,18 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
         content->Layout (m_session.layout.diskContent, scaler);
     }
 
-    //  The edit bar above the Sector data tab's header and bytes.
-    m_editing->Layout ({ right.left, y, right.right, y + m_editing->GetHeightPx (right.right - right.left, scaler) }, scaler);
-    y += m_editing->GetHeightPx (right.right - right.left, scaler);
+    //  The edit bar is placed by the Sector data tab, under its header.
     m_session.views.sectors->Layout ({ right.left, y, right.right, right.bottom }, scaler);
 
     m_files->Layout (m_session.layout.diskContent, scaler);
 
-    //  The "Copy sector" icon at the end of the Sectors header's first line, with
-    //  room reserved for it there.
+    //  "Edit" and the "Copy sector" icon at the end of the Sectors header's
+    //  first line, as block mode has Edit and Copy block in its title row, with
+    //  room reserved for them there.
     m_copySector->Layout       ({ right.right - scaler.ToPx (s_kCopySectorDip), y, right.right, y + scaler.ToPx (SectorsView::kHeaderDip) + margin / 2 }, scaler);
-    m_session.views.sectors->SetHeaderReserve (scaler.ToPx (s_kCopySectorDip) + margin);
+    m_editing->LayoutEditButton ({ right.right - scaler.ToPx (s_kCopySectorDip) - margin / 2 - scaler.ToPx (s_kEditSectorDip), y,
+                                   right.right - scaler.ToPx (s_kCopySectorDip) - margin / 2, y + scaler.ToPx (SectorsView::kHeaderDip) + margin / 2 }, scaler);
+    m_session.views.sectors->SetHeaderReserve (scaler.ToPx (s_kCopySectorDip + s_kEditSectorDip) + margin * 3 / 2);
 
     m_session.views.strip->Layout  (f.strip, scaler);
     m_session.views.stripB->Layout (f.stripB, scaler);
@@ -985,6 +994,8 @@ void DiskInspectorWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
     RECT  focus = {};
 
 
+
+    SyncEditFocus();
 
     painter.FillRect (static_cast<float> (m_boundsDip.left), static_cast<float> (m_boundsDip.top),
                       static_cast<float> (m_boundsDip.right - m_boundsDip.left), static_cast<float> (m_boundsDip.bottom - m_boundsDip.top),
@@ -1027,7 +1038,7 @@ void DiskInspectorWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
 
     //  The view the keys act on, outlined once a key has been used, unless a
     //  control or the find bar has the focus (FR-059).
-    if (m_isFocusShown && m_session.keyTarget != KeyTarget::FindBar && m_session.context.hasDisk && !m_session.is35 && GetFocusManager().GetFocusedControl() == nullptr)
+    if (m_isFocusShown && m_session.keyTarget != KeyTarget::FindBar && m_session.context.hasDisk && !m_session.is35 && IsViewFocused())
     {
         focus = m_selection->GetKeyTargetBounds();
         InflateRect (&focus, m_session.scaler.ToPx (s_kFocusGapDip), m_session.scaler.ToPx (s_kFocusGapDip));
@@ -1035,7 +1046,7 @@ void DiskInspectorWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
                              static_cast<float> (focus.bottom - focus.top), m_session.scaler.ToPxf (2.0f), theme.FocusRing());
     }
 
-    m_walkthrough->Paint (text, theme, m_boundsDip);
+    m_walkthrough->Paint (painter, text, theme, m_boundsDip);
 }
 
 
@@ -1178,6 +1189,65 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskInspectorWindow::SyncEditFocus
+//
+//  Starting to edit moves the keys from any control to the sector's bytes,
+//  and the bytes are drawn focused only while the keys go to them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::SyncEditFocus()
+{
+    bool            isEditing = m_session.views.sectors->IsEditing();
+    IDxuiControl *  focused   = GetFocusManager().GetFocusedControl();
+
+
+
+    if (isEditing && !m_wasEditing)
+    {
+        GetFocusManager().SetFocused (m_session.views.sectors);
+        m_session.keyTarget = KeyTarget::SectorData;
+    }
+    else if ((focused == m_session.views.sectorRow && m_session.keyTarget != KeyTarget::SectorRow) ||
+             (focused == m_session.views.sectors && m_session.keyTarget != KeyTarget::SectorData))
+    {
+        //  F6 or a click moved the keys to another view.
+        GetFocusManager().SetFocused (nullptr);
+    }
+
+    m_wasEditing = isEditing;
+    m_session.views.sectors->SetHasKeys   (m_session.keyTarget == KeyTarget::SectorData && IsViewFocused());
+    m_session.views.sectorRow->SetHasKeys (m_session.keyTarget == KeyTarget::SectorRow && IsViewFocused() && m_isFocusShown);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::IsViewFocused
+//
+//  Whether the keys go to the views: no control has the focus, or a view
+//  that is a stop for Tab has it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskInspectorWindow::IsViewFocused() const
+{
+    const IDxuiControl *  focused = const_cast<DiskInspectorWindow *> (this)->GetFocusManager().GetFocusedControl();
+
+
+
+    return focused == nullptr || focused == m_session.views.sectorRow || focused == m_session.views.sectors;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskInspectorWindow::OnKey
 //
 //  Up and Down step a quarter track, Page Up and Page Down go to the next
@@ -1210,6 +1280,20 @@ bool DiskInspectorWindow::OnKey (const DxuiKeyEvent & ev)
     {
         isHandled = true;
     }
+    else if (ev.kind == DxuiKeyEventKind::Down && ev.vk == VK_ESCAPE && !ev.ctrl && !ev.alt && !ev.shift && m_session.views.sectors->IsEditing())
+    {
+        //  Escape stops editing, wherever the focus is.
+        GetFocusManager().SetFocused (nullptr);
+        m_editing->ToggleEditing();
+        isHandled = true;
+    }
+    else if (IsViewFocused() && m_editing->OnKey (ev))
+    {
+        //  While editing, the Sector data tab has the keys unless a control
+        //  has the focus: typing, Ctrl+Z, Ctrl+Y, Ctrl+V, and Tab from the
+        //  hex column to the text column (FR-097).
+        isHandled = true;
+    }
     else if (ev.kind == DxuiKeyEventKind::Down && ev.vk == VK_TAB && !ev.ctrl && !ev.alt)
     {
         //  Tab and Shift+Tab move the focus from control to control, in the
@@ -1217,7 +1301,7 @@ bool DiskInspectorWindow::OnKey (const DxuiKeyEvent & ev)
         RefreshFocusOrder (nullptr);
         isHandled = GetFocusManager().HandleKey (ev.shift ? DxuiFocusKey::ShiftTab : DxuiFocusKey::Tab);
     }
-    else if (ev.kind == DxuiKeyEventKind::Down && GetFocusManager().GetFocusedControl() != nullptr && (ev.vk == VK_ESCAPE || ev.vk == VK_F6))
+    else if (ev.kind == DxuiKeyEventKind::Down && !IsViewFocused() && (ev.vk == VK_ESCAPE || ev.vk == VK_F6))
     {
         //  Escape and F6 return the keys from the focused control to the views.
         GetFocusManager().SetFocused (nullptr);
@@ -1226,12 +1310,6 @@ bool DiskInspectorWindow::OnKey (const DxuiKeyEvent & ev)
     else if (GetFocusManager().GetFocusedControl() != nullptr && GetFocusManager().GetFocusedControl()->OnKey (ev))
     {
         //  A focused control takes Enter, Space and its arrows first.
-        isHandled = true;
-    }
-    else if (m_editing->OnKey (ev))
-    {
-        //  While editing, the Sector data tab takes typing, Ctrl+Z, Ctrl+Y
-        //  and Ctrl+V, and Escape stops editing (FR-097).
         isHandled = true;
     }
     else

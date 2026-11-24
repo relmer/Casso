@@ -268,6 +268,24 @@ void BrowserSelection::GetSelectedEntries (std::vector<FileEntry> & outEntries) 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BrowserSelection::IsCassoNodeLocation
+//
+//  The Casso node, or its stock or demo disks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BrowserSelection::IsCassoNodeLocation (const Location & location)
+{
+    return location.kind == Location::Kind::Root
+        && (location.path == TreeModel::kCassoRootId || location.path == TreeModel::kStockDisksId || location.path == TreeModel::kDemoDisksId);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BrowserSelection::GetSelectedHostPaths
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -280,9 +298,10 @@ void BrowserSelection::GetSelectedHostPaths (std::vector<std::wstring> & outPath
 
     outPaths.clear();
 
-    //  Home's and a search's items are anywhere on the disk, and a cloud item
-    //  isn't on it.
-    if (m_source.IsHomeLocation() || AreSelectedRowsSearchFiles())
+    //  Home's, a search's and the Casso node's items are anywhere on the
+    //  disk, and a cloud item isn't on it. A stock disk's path is where it is
+    //  downloaded to, so it is downloaded before the path is used.
+    if (m_source.IsHomeLocation() || AreSelectedRowsSearchFiles() || IsCassoNodeLocation (location))
     {
         for (int row : m_selectedRows)
         {
@@ -328,7 +347,7 @@ bool BrowserSelection::TryGetSelectedShellIds (std::vector<std::wstring> & outId
 
     outIds.clear();
 
-    if (m_source.GetLocation().kind == Location::Kind::HostFolder)
+    if (m_source.GetLocation().kind == Location::Kind::HostFolder || IsCassoNodeLocation (m_source.GetLocation()))
     {
         GetSelectedHostPaths (outIds);
         return !outIds.empty();

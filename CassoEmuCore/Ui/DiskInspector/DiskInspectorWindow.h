@@ -185,6 +185,8 @@ private:
 
     RECT          GetWalkthroughArea (WalkthroughArea area) const;
     void          UpdateControls     ();
+    void          SyncEditFocus      ();
+    bool          IsViewFocused      () const;
     void          OnSelection        () override;
     void          ShowTrackTab       (int tab) override;
     void          ShowTabContent     ();
@@ -227,6 +229,7 @@ private:
     int                     m_flownQuarterTrack = -1;
     int                     m_flownSector       = -1;
     bool                    m_isFocusShown      = false;
+    bool                    m_wasEditing        = false;
     bool                    m_isFileGone        = false;
     bool                    m_isRepairWanted    = false;
 

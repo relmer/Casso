@@ -102,6 +102,11 @@ public:
     bool  CanUndo () const { return m_undoAt > 0; }
     bool  CanRedo () const { return m_undoAt < static_cast<int> (m_actions.size()); }
 
+    //  The edit and the first byte the next undo or redo changes; false when
+    //  there's none, or the action changes every edit at once.
+    bool  GetUndoAt (int & outEdit, int & outOffset) const;
+    bool  GetRedoAt (int & outEdit, int & outOffset) const;
+
     void  DiscardAll    ();
     void  DiscardSector (int edit);
 
@@ -166,5 +171,6 @@ private:
 
     vector<PendingEdit>  m_edits;
     vector<Action>       m_actions;
-    int                  m_undoAt = 0;
+    int                  m_undoAt      = 0;
+    int                  m_digitAction = -1;
 };
