@@ -293,6 +293,12 @@ bool ExplorerWindowParts::HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lPar
         return true;
     }
 
+    if (msg == (UINT) AppMessage::ExplorerFileSystemCheck)
+    {
+        preview.TakeFileSystemCheck();
+        return true;
+    }
+
     //  The bin's changes come in bursts, as a folder's do, and matter only
     //  while it is shown.
     if (msg == (UINT) AppMessage::ExplorerRecycleBin)
@@ -481,6 +487,13 @@ bool ExplorerWindowParts::HandleTimer (UINT_PTR timerId)
         KillTimer (hwnd, timerId);
         preview.HandleAutoPreviewTimer();
         context.window.Invalidate();
+        return true;
+    }
+
+    if (timerId == (UINT_PTR) AppTimerId::ExplorerFileSystemCheck)
+    {
+        KillTimer (hwnd, timerId);
+        preview.GetThumbnail().TickCheck();
         return true;
     }
 

@@ -3,6 +3,8 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Model/DiskThumbnailWorker.h"
+#include "CassoExplorer/Model/FileSystemCheckScheduler.h"
+#include "Shell/BackgroundWorkQueue.h"
 #include "Ui/DiskInspector/Blocks/BlockMapView.h"
 #include "Ui/DiskInspector/InspectorView.h"
 #include "Ui/DiskInspector/InspectorViewModel.h"
@@ -212,6 +214,11 @@ public:
     void  SetPath    (const std::wstring & path);
     void  TakeResult ();
 
+    //  The file-system check of an image of blocks: its timer, and its result
+    //  posted to the window. TakeCheck returns whether the infobar changed.
+    void  TickCheck  ();
+    bool  TakeCheck  ();
+
     //  The image in the pane, renamed from one path to the other.
     void  MovePath   (const std::wstring & from, const std::wstring & to);
 
@@ -287,6 +294,9 @@ private:
     DiskThumbnailResult  BuildThumbnail (const std::wstring & path);
 
     void  ApplyResult        ();
+    void  StartCheck         ();
+    void  ArmCheckTimer      (int64_t delayMs);
+    bool  ShowCheck          ();
     bool  IsBlocks           () const { return m_result.blocks != nullptr; }
     //  The picture comes from the thumbnail store, not the analysis, so it is
     //  drawn while the analysis runs and the pane isn't laid out again when
@@ -301,6 +311,8 @@ private:
     InspectorViewContext                    m_view;
     InspectorViewModel                      m_model;
     DiskThumbnailWorker                     m_worker;
+    BackgroundWorkQueue                     m_checkQueue;                    // before m_checks, so a check is canceled before the queue is joined
+    FileSystemCheckScheduler                m_checks;
     DiskThumbnailResult                     m_result;
     DxuiScrollPanel                       * m_header            = nullptr;   // the controls below, clipped where the pane scrolls them away
     ThumbnailPlatterView                  * m_platter           = nullptr;

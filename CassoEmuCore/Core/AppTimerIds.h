@@ -34,6 +34,7 @@ enum class AppTimerId : UINT_PTR
     PreviewHelperOwner   = 0x5160,
     ControllerRescanSoon = 0x5161,
     ControllerRescanLate = 0x5162,
+    ExplorerFileSystemCheck = 0x5163,
     ShellPrefsSave       = 0xCA55,
     ShellSharedCheck     = 0xCA56,
 };

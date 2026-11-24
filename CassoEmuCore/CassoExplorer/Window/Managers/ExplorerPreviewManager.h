@@ -60,6 +60,7 @@ public:
     void                              Hide                   ();
     void                              FillPreview            ();
     void                              TakeThumbnail          ();
+    void                              TakeFileSystemCheck    ();
 
     //  The text view filled from the preview, with an image's File system
     //  detail from the thumbnail's analysis once it has one: an image that

@@ -12,10 +12,12 @@
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewOutput.h"
 #include "Core/AppMessages.h"
+#include "Core/AppTimerIds.h"
 #include "Core/TextEncoding.h"
 #include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
 #include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
 #include "CassoExplorer/Window/Panes/Preview/PreviewListingView.h"
+#include "Devices/Disk/IDiskFileIo.h"
 #include "Devices/Disk/Inspector/Blocks/BlockImageFile.h"
 #include "Devices/Disk/Inspector/FindingFormatter.h"
 #include "Devices/Disk/Inspector/Repair/FileSystemCheck.h"
@@ -383,14 +385,27 @@ void ThumbnailScreen::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
 //  PreviewDiskThumbnail::PreviewDiskThumbnail
 //
 //  A finished thumbnail is posted to the window, which takes it on the UI
-//  thread.
+//  thread. So is a finished file-system check, which runs on the check
+//  queue's thread and reads the image through the browser's file I/O, as the
+//  thumbnail does. Only an image of blocks is checked: the thumbnail's
+//  analysis of any other image has its verdict.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 PreviewDiskThumbnail::PreviewDiskThumbnail (ExplorerContext & context) :
     m_context (context),
     m_worker  ([this] () { PostMessageW (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerThumbnail, 0, 0); },
-               [this] (const std::wstring & path) { return BuildThumbnail (path); })
+               [this] (const std::wstring & path) { return BuildThumbnail (path); }),
+    m_checks  ([] () { return CassoExplorerWindow::GetNowMs(); },
+               [this] (FileSystemCheckScheduler::Job job) { m_checkQueue.Post (std::move (job)); },
+               [this] (const FileSystemCheckKey & key, const std::atomic<bool> & isCanceled, FileSystemCheckOutcome & outOutcome)
+               {
+                   IDiskFileIo  & fileIo   = m_context.browser.GetOperations().GetFileIo();
+                   bool           isBlocks = BlockImageFile::IsBlockImage (fileIo, TextEncoding::WideToUtf8 (key.path));
+
+                   return isBlocks && FileSystemCheckScheduler::CheckBlockImage (fileIo, key, isCanceled, outOutcome);
+               },
+               [this] () { PostMessageW (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerFileSystemCheck, 0, 0); })
 {
     m_view.model = &m_model;
 }
@@ -454,6 +469,7 @@ void PreviewDiskThumbnail::Create()
 
     m_header->SetScrollbarShown (false);
     m_inspect->SetOnClick       ([this] () { m_context.imageTools.InspectDiskImages ({ m_path }); });
+    m_verdict->SetOnAction      ([this] (size_t) { m_context.imageTools.InspectDiskImages ({ m_path }); });
 
     m_context.window.SetMouseHandler (m_header, [this] (const DxuiMouseEvent & ev) { return HandleHeaderMouse (ev); });
 
@@ -507,6 +523,7 @@ void PreviewDiskThumbnail::SetPath (const std::wstring & path)
         (void) m_worker.Request (path);
     }
 
+    StartCheck();
     RefreshScreen();
 }
 
@@ -600,6 +617,153 @@ void PreviewDiskThumbnail::TakeResult()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PreviewDiskThumbnail::TickCheck
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewDiskThumbnail::TickCheck()
+{
+    ArmCheckTimer (m_checks.Tick());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::TakeCheck
+//
+//  A check of an image that is no longer selected is cached, and the infobar
+//  changes only for the selected one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PreviewDiskThumbnail::TakeCheck()
+{
+    bool  isSelected = m_checks.TakeFinished();
+
+
+
+    return isSelected && ShowCheck();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::StartCheck
+//
+//  The selected image's check, by its path, length and modified time, starts
+//  after the debounce delay. No image, or one whose length and time can't
+//  be read, has no check.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewDiskThumbnail::StartCheck()
+{
+    HRESULT             hr      = S_OK;
+    FileSystemCheckKey  key;
+    FileStamp           stamp;
+    bool                hasPath = !m_path.empty();
+
+
+
+    m_checks.Clear();
+    ArmCheckTimer (-1);
+    CBR (hasPath);
+
+    hr = m_context.browser.GetOperations().GetFileIo().Stat (TextEncoding::WideToUtf8 (m_path), stamp);
+    CHR (hr);
+
+    key.path         = m_path;
+    key.sizeBytes    = stamp.sizeBytes;
+    key.modifiedUnix = stamp.modifiedUnix;
+
+    m_checks.Select (key);
+    ArmCheckTimer (m_checks.Tick());
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::ArmCheckTimer
+//
+//  A negative delay stops the timer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewDiskThumbnail::ArmCheckTimer (int64_t delayMs)
+{
+    HWND  hwnd = m_context.window.GetHwnd();
+
+
+
+    if (hwnd == nullptr)
+    {
+        return;
+    }
+
+    if (delayMs < 0)
+    {
+        KillTimer (hwnd, (UINT_PTR) AppTimerId::ExplorerFileSystemCheck);
+    }
+    else
+    {
+        SetTimer (hwnd, (UINT_PTR) AppTimerId::ExplorerFileSystemCheck, (UINT) std::max<int64_t> (delayMs, USER_TIMER_MINIMUM), nullptr);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::ShowCheck
+//
+//  The check of the selected image of blocks, in the infobar once its block
+//  map is drawn: Bad as an error, Possible inconsistencies and no standard
+//  file system as info, each with Inspect / repair, and nothing for OK.
+//  Returns whether the infobar is visible.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PreviewDiskThumbnail::ShowCheck()
+{
+    FileSystemCheckOutcome  outcome;
+    std::wstring            text;
+    bool                    hasOutcome = m_state == State::Ready && IsBlocks() && m_checks.TryGetOutcome (outcome);
+
+
+
+    text             = hasOutcome ? FileSystemCheckScheduler::FormatInfobar (outcome) : std::wstring();
+    m_isVerdictShown = !text.empty();
+
+    if (m_isVerdictShown)
+    {
+        m_verdict->SetText     (text);
+        m_verdict->SetActions  ({ L"Inspect / repair" });
+        m_verdict->SetSeverity ((outcome.verdict == FileSystemVerdict::Bad) ? DxuiInfoBanner::Severity::Error : DxuiInfoBanner::Severity::Info);
+    }
+
+    return m_isVerdictShown;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PreviewDiskThumbnail::ApplyResult
 //
 //  Each quarter track's ring set from its record's levels, as the
@@ -626,6 +790,7 @@ void PreviewDiskThumbnail::ApplyResult()
         m_blockMap->SetModel (m_result.blocks.get());
         m_blockMap->Refresh();
         m_chips->SetChips (m_result.chips);
+        (void) ShowCheck();
         return;
     }
 
@@ -674,6 +839,7 @@ void PreviewDiskThumbnail::ApplyResult()
     m_isVerdictShown = !text.empty();
 
     m_verdict->SetText     (text);
+    m_verdict->SetActions  ({});
     m_verdict->SetSeverity ((m_result.analysis->verdict == FileSystemVerdict::Bad) ? DxuiInfoBanner::Severity::Error : DxuiInfoBanner::Severity::Info);
 }
 
