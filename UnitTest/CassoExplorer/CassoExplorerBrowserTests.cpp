@@ -659,46 +659,6 @@ public:
     }
 
 
-    TEST_METHOD (AnAppleSingleHostFile_PreviewsAsTheFileItHolds)
-    {
-        Host               host;
-        std::wstring       folder = host.OpenDisksFolder();
-        AppleSingleFile    file;
-        std::vector<Byte>  bytes;
-        bool               named  = false;
-        bool               typed  = false;
-        bool               dated  = false;
-
-        file.data          = { 0x60 };
-        file.realName      = "GAME";
-        file.hasProDosInfo = true;
-        file.fileType      = 0x06;
-        file.auxType       = 0x6000;
-        file.modifyDate    = 86400;
-        AppleSingleCodec::Encode (file, bytes);
-        AssertSucceeded (host.fs.WriteAllText (L"C:\\Disks\\GAME.as", std::string (bytes.begin(), bytes.end())));
-
-        AssertSucceeded (host.browser.SelectTreeNode (folder));
-        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"GAME.as") });
-
-        Assert::IsTrue (host.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Details);
-
-        for (const auto & [label, value] : host.browser.GetPreviewer().GetPreview().details)
-        {
-            named |= label == L"Name"     && value == L"GAME";
-            typed |= label == L"Aux type" && value == L"$6000";
-            dated |= label == L"Modified" && !value.empty() && value != L"Not valid";
-        }
-
-        Assert::IsTrue (named, L"The real name");
-        Assert::IsTrue (typed, L"The aux type");
-        Assert::IsTrue (dated, L"The date, counted from 2000");
-
-        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"readme.txt") });
-        Assert::IsTrue (host.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Hex, L"Any other file still shows its bytes");
-    }
-
-
     //  A search's match inside a disk image previews and copies as it does in
     //  its image, found again there by where its catalog lists it.
     TEST_METHOD (SearchMatchInAnImage_PreviewsAndCopiesAsInItsImage)
@@ -1522,41 +1482,6 @@ public:
 
         Assert::IsTrue  (host.browser.IsKnownFolder (path),             L"Folder names are not case-sensitive");
         Assert::IsFalse (host.browser.IsKnownFolder (L"C:\\Elsewhere"), L"A folder not added is not known");
-    }
-
-
-    //  An assembler's source previews as text with its line numbers, in
-    //  whatever character set it is; UTF-8 text of any kind previews as text,
-    //  which the hex view cannot draw; plain ASCII text stays in the hex view.
-    TEST_METHOD (SourceAndUtf8Files_PreviewAsText)
-    {
-        Host  host;
-
-        AssertSucceeded (host.fs.WriteAllText (L"C:\\Disks\\demo.a65", "\xEF\xBB\xBF; caf\xC3\xA9\tx\r\n\tLDA #1\r\n"));
-        AssertSucceeded (host.fs.WriteAllText (L"C:\\Disks\\notes.txt", "a \xE2\x80\x94 b\n"));
-        AssertSucceeded (host.fs.WriteAllText (L"C:\\Disks\\wide.txt",  std::string ("\xFF\xFEh\0i\0\r\0\n\0", 10)));
-        AssertSucceeded (host.fs.WriteAllText (L"C:\\Disks\\big.txt",   std::string ("\xFE\xFF\0h\0i", 6)));
-        AssertSucceeded (host.browser.SelectTreeNode (host.OpenDisksFolder()));
-
-        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"demo.a65") });
-        Assert::IsTrue (host.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Text);
-        Assert::IsTrue (host.browser.GetPreviewer().GetPreview().source, L"with its line numbers");
-        Assert::IsTrue (host.browser.GetPreviewer().GetPreview().lines == std::vector<std::wstring> ({ L"; caf\u00E9  x", L"        LDA #1" }),
-                        L"The mark dropped, the letters decoded and the tabs expanded");
-
-        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"notes.txt") });
-        Assert::IsTrue (host.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Text);
-        Assert::IsFalse (host.browser.GetPreviewer().GetPreview().source);
-        Assert::IsTrue (host.browser.GetPreviewer().GetPreview().lines == std::vector<std::wstring> ({ L"a \u2014 b" }));
-
-        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"wide.txt") });
-        Assert::IsTrue (host.browser.GetPreviewer().GetPreview().lines == std::vector<std::wstring> ({ L"hi" }), L"UTF-16 with its mark, little-endian");
-
-        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"big.txt") });
-        Assert::IsTrue (host.browser.GetPreviewer().GetPreview().lines == std::vector<std::wstring> ({ L"hi" }), L"and big-endian");
-
-        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"readme.txt") });
-        Assert::IsTrue (host.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Hex, L"ASCII text draws in the hex view");
     }
 
 

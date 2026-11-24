@@ -5,6 +5,7 @@
 #include "CassoExplorer/Browser/BrowserParts.h"
 #include "CassoExplorer/Browser/BrowserTypes.h"
 #include "CassoExplorer/Browser/Preview/DiskImagePreviewer.h"
+#include "CassoExplorer/Browser/Preview/HostFilePreviewer.h"
 #include "CassoExplorer/Browser/Preview/IPreviewRefresh.h"
 #include "CassoExplorer/Browser/Preview/PictureMonitorChoice.h"
 #include "CassoExplorer/Browser/Preview/PreviewParts.h"
@@ -40,20 +41,11 @@ class BrowserPreviewer : private IPreviewRefresh
 public:
     BrowserPreviewer (const BrowserParts & parts, const BrowserSelection & selection, BrowserSearchMatches & searchMatches, const BrowserArchives & archives, IBrowserPreviewHost & host);
 
-    //  The largest host file that previews as text rather than in the hex view.
-    static constexpr size_t  s_kTextPreviewMaxBytes = 1024 * 1024;
-
     const PreviewContent  & GetPreview () const { return m_preview; }
 
     void  PreviewAppleEntry    (const std::string & entryPath, const FileEntry & entry);
     bool  PreviewAppleDrive    (const CatalogRow & row);
     void  PreviewCassoLinkItem (const CatalogRow & row);
-
-    bool     TryPreviewAppleSingle (const std::wstring & folder, const CatalogRow & row);
-    void     PreviewHostFile       (const std::wstring & folder, const CatalogRow & row);
-    bool     TryReadHostPayload    (const std::wstring & path, const CatalogRow & row, FilePayload & outPayload, FileEntry & outEntry, bool & outTyped);
-    void     AttachHostViews       (const FileEntry & entry, const FilePayload & payload, bool loaded, PreviewDecoder::HexForm hexForm);
-    void     ReadTextPreview       (const std::wstring & path, const std::wstring & name);
 
     void  PreviewSearchMatch (const CatalogRow & row);
 
@@ -89,4 +81,5 @@ private:
     PreviewParts                        m_previewParts   { m_preview, m_bus, m_viewState, m_monitor };
     DiskImagePreviewer                  m_diskImages     { m_parts, m_previewParts };
     ShellItemPreviewer                  m_shellItems     { m_parts, m_previewParts, m_archives, m_diskImages };
+    HostFilePreviewer                   m_hostFiles      { m_parts, m_previewParts };
 };
