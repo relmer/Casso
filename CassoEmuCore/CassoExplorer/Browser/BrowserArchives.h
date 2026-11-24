@@ -38,7 +38,8 @@ public:
     std::wstring  GetExtractTarget     () const;
 
 private:
-    Location  GetLocation () const { return m_parts.model.HasTabs() ? m_parts.model.GetActiveTab().location : Location(); }
+    bool      TryGetFileSize (const std::wstring & path, uintmax_t & outSize) const;
+    Location  GetLocation    () const { return m_parts.model.HasTabs() ? m_parts.model.GetActiveTab().location : Location(); }
 
     BrowserParts              m_parts;
     const BrowserSelection  & m_selection;

@@ -46,6 +46,52 @@ bool BrowserArchives::IsLocalArchivePath (const std::wstring & id) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BrowserArchives::TryGetFileSize
+//
+//  A file's size as its folder lists it. False for a file the folder does not
+//  list.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BrowserArchives::TryGetFileSize (const std::wstring & path, uintmax_t & outSize) const
+{
+    size_t                        separator = path.find_last_of (L"\\/");
+    std::vector<FileSystemEntry>  entries;
+    HRESULT                       hr        = S_OK;
+    bool                          found     = false;
+
+
+
+    if (separator == std::wstring::npos)
+    {
+        return false;
+    }
+
+    hr = m_parts.fs.EnumerateAllEntries (path.substr (0, separator), entries);
+
+    if (FAILED (hr))
+    {
+        return false;
+    }
+
+    for (const FileSystemEntry & entry : entries)
+    {
+        if (!found && !entry.isFolder && _wcsicmp (entry.name.c_str(), path.c_str() + separator + 1) == 0)
+        {
+            outSize = entry.sizeBytes;
+            found   = true;
+        }
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BrowserArchives::DescribeEmptyArchive
 //
 //  Read whole, up to a size past which a damaged file is more likely than
@@ -55,15 +101,15 @@ bool BrowserArchives::IsLocalArchivePath (const std::wstring & id) const
 
 std::wstring BrowserArchives::DescribeEmptyArchive (const std::wstring & path) const
 {
-    std::error_code  error;
-    uintmax_t        size  = fs::file_size (fs::path (path), error);
-    std::string      bytes;
-    std::wstring     name  = path.substr (path.find_last_of (L"\\/") + 1);
-    HRESULT          hr    = S_OK;
+    uintmax_t     size    = 0;
+    bool          hasSize = TryGetFileSize (path, size);
+    std::string   bytes;
+    std::wstring  name    = path.substr (path.find_last_of (L"\\/") + 1);
+    HRESULT       hr      = S_OK;
 
 
 
-    if (!error && size > kArchiveProbeMaxBytes)
+    if (hasSize && size > kArchiveProbeMaxBytes)
     {
         return ArchiveProbe::GetReason (name, ArchiveProbe::Verdict::NotZip);
     }

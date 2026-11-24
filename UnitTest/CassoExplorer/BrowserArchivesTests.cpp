@@ -6,6 +6,7 @@
 #include "CassoExplorer/Browser/BrowserArchives.h"
 #include "CassoExplorer/Browser/BrowserSelection.h"
 #include "CassoExplorer/Browser/IBrowserSelectionSource.h"
+#include "CassoExplorer/Model/ArchiveProbe.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -17,8 +18,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  BrowserArchivesTests
 //
-//  Which paths are inside an archive the shell lists, and the archive Extract
-//  all applies to.
+//  Which paths are inside an archive the shell lists, why an archive with
+//  nothing in it is empty, and the archive Extract all applies to.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -167,5 +168,107 @@ public:
         rig.SetLocation (Location::MakeDiskImage (L"C:\\Disks\\a.dsk"));
 
         Assert::IsTrue (rig.archives.GetExtractTarget().empty());
+    }
+
+    //  One file listed with a size of the test's choosing, whatever its content is.
+    class ReportedSizeFileSystem : public InMemoryFileSystem
+    {
+    public:
+        HRESULT EnumerateAllEntries (const std::wstring & directory, std::vector<FileSystemEntry> & outEntries) override
+        {
+            HRESULT  hr = InMemoryFileSystem::EnumerateAllEntries (directory, outEntries);
+
+            for (FileSystemEntry & entry : outEntries)
+            {
+                if (entry.name == reportedName)
+                {
+                    entry.sizeBytes = reportedSize;
+                }
+            }
+
+            return hr;
+        }
+
+        std::wstring  reportedName;
+        uint64_t      reportedSize = 0;
+    };
+
+
+    struct SizedRig
+    {
+        BrowserPartsFixture     fixture;
+        ReportedSizeFileSystem  fs;
+        BrowserParts            parts     { fs, fixture.io, fixture.imageClasses, fixture.catalog, fixture.tree, fixture.hostFolders, fixture.model,
+                                            fixture.operations, fixture.shellListings, fixture.list, fixture.sources };
+        FakeSelectionSource     source    { fixture.model };
+        BrowserSelection        selection { fixture.model, fixture.list.rows, fixture.list.selectedRows, source };
+        BrowserArchives         archives  { parts, selection };
+
+        //  A zip with no entries: its end record alone.
+        void SeedEmptyZip (const wchar_t * path)
+        {
+            std::string  zip ("PK\x05\x06", 4);
+
+            zip.append (18, '\0');
+            AssertSucceeded (fs.WriteAllText (path, zip));
+        }
+    };
+
+
+    TEST_METHOD (DescribeEmptyArchive_ForAZipWithNothingInIt_GivesNoReason)
+    {
+        SizedRig  rig;
+
+        rig.SeedEmptyZip (L"C:\\Disks\\empty.zip");
+
+        Assert::IsTrue (rig.archives.DescribeEmptyArchive (L"C:\\Disks\\empty.zip").empty());
+    }
+
+
+    TEST_METHOD (DescribeEmptyArchive_ForAFileThatIsNotAZip_GivesTheNotZipReason)
+    {
+        SizedRig  rig;
+
+        AssertSucceeded (rig.fs.WriteAllText (L"C:\\Disks\\notes.zip", "not a zip at all"));
+
+        Assert::AreEqual (ArchiveProbe::GetReason (L"notes.zip", ArchiveProbe::Verdict::NotZip),
+                          rig.archives.DescribeEmptyArchive (L"C:\\Disks\\notes.zip"));
+    }
+
+
+    TEST_METHOD (DescribeEmptyArchive_ForAFileThatCannotBeRead_GivesTheNotZipReason)
+    {
+        SizedRig  rig;
+
+        Assert::AreEqual (ArchiveProbe::GetReason (L"gone.zip", ArchiveProbe::Verdict::NotZip),
+                          rig.archives.DescribeEmptyArchive (L"C:\\Disks\\gone.zip"));
+    }
+
+
+    //  The size is the file system's, which is how a file too big to read whole
+    //  is distinguished from one the file system lists with a size to read.
+    TEST_METHOD (DescribeEmptyArchive_PastTheSizeLimit_IsNotRead)
+    {
+        SizedRig  rig;
+
+        rig.SeedEmptyZip (L"C:\\Disks\\huge.zip");
+        rig.fs.reportedName = L"huge.zip";
+        rig.fs.reportedSize = BrowserArchives::kArchiveProbeMaxBytes + 1;
+
+        Assert::AreEqual (ArchiveProbe::GetReason (L"huge.zip", ArchiveProbe::Verdict::NotZip),
+                          rig.archives.DescribeEmptyArchive (L"C:\\Disks\\huge.zip"),
+                          L"A zip with nothing in it would have given no reason had it been read");
+    }
+
+
+    TEST_METHOD (DescribeEmptyArchive_AtTheSizeLimit_IsRead)
+    {
+        SizedRig  rig;
+
+        rig.SeedEmptyZip (L"C:\\Disks\\large.zip");
+        rig.fs.reportedName = L"large.zip";
+        rig.fs.reportedSize = BrowserArchives::kArchiveProbeMaxBytes;
+
+        Assert::IsTrue (rig.archives.DescribeEmptyArchive (L"C:\\Disks\\large.zip").empty());
     }
 };
