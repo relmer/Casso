@@ -1301,7 +1301,7 @@ public:
 
         result = RunVerb (io, CommandLineOptions::DiskOptions::Command::List, "", "cpm");
         Assert::AreNotEqual (DiskCommandResult::kNoOutput, result.exitStatus);
-        Assert::IsTrue (result.output.find ("Bytes Remaining On A: ") != std::string::npos);
+        Assert::IsTrue (result.output.find ("k free") != std::string::npos);
 
         result = RunVerb (io, CommandLineOptions::DiskOptions::Command::List, "", "nonsense");
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);

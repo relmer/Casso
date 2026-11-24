@@ -202,7 +202,7 @@ void NativeListing::AppendCpmRows (const std::vector<const FileEntry *> & files,
 
     for (const FileEntry * file : sorted)
     {
-        std::string  name = "A:" + GetCpmName (*file);
+        const std::string  & name = file->name;
 
         inOutLines.push_back (std::format ("{:>4}{:>6}k{:>5} {} {}",
                                            file->records,
@@ -221,9 +221,10 @@ void NativeListing::AppendCpmRows (const std::vector<const FileEntry *> & files,
 //
 //  NativeListing::FormatCpm
 //
-//  STAT *.* for user 0, exactly as CP/M prints it with the current user at 0,
-//  including its foot. STAT shows no other user at once, so each of those
-//  follows as its own block under a USER line, in user order.
+//  STAT *.* for user 0 as CP/M prints it with the current user at 0, without
+//  a drive letter, and the free space at the foot. STAT lists one user at a
+//  time, so each other user follows in a separate block under a USER line, in
+//  user order. A file in a user other than 0 has its user and a colon in front.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -249,7 +250,7 @@ void NativeListing::FormatCpm (const VolumeListing & listing, std::vector<std::s
         outLines.push_back ("File Not Found");
     }
 
-    outLines.push_back (std::format ("Bytes Remaining On A: {}k", listing.freeUnits));
+    outLines.push_back (std::format ("{}k free", listing.freeUnits));
 
     for (const auto & [user, files] : users)
     {
