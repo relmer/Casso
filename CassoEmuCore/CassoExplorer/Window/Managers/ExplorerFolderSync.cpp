@@ -96,6 +96,7 @@ void ExplorerFolderSync::RefreshTreeFolder (const std::wstring & folder)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ExplorerFolderSync::ChangeKnownFolder
