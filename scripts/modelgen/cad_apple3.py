@@ -372,14 +372,14 @@ def key(u, row, w_u, labels=(), color=DARK_KEY, word=False, mark=None, convex=Fa
     if word:
         lines = labels[0].split("\n")
         for i, line in enumerate(lines):
-            legend(line, 2.8, cx, cy - 1.8 + (len(lines) - 1) * 1.7 - i * 3.4, zt, skin, fit=w - 2.0 * KEY_TOP_IN - 1.5)
+            legend(line, 2.8, cx, cy - 0.4 + (len(lines) - 1) * 1.7 - i * 3.4, zt, skin, fit=w - 2.0 * KEY_TOP_IN - 1.5)
     elif len(labels) == 2:
-        legend(labels[0], 4.2, cx, cy + 0.8, zt, skin)
-        legend(labels[1], 4.2, cx, cy - 4.0, zt, skin)
+        legend(labels[0], 4.2, cx, cy + 2.0, zt, skin)
+        legend(labels[1], 4.2, cx, cy - 2.8, zt, skin)
     elif len(labels) == 1 and labels[0] in ARROWS:
         decal(arrow_solid(ARROWS[labels[0]], cx, cy - 1.8, zt - 1.5), skin, legend_part)
     elif len(labels) == 1:
-        legend(labels[0], 5.0, cx, cy - 3.0, zt, skin)
+        legend(labels[0], 5.0, cx, cy - (3.0 if labels[0].isalnum() else 0.4), zt, skin)
 
     if mark is not None:
         outer = mark_solid(cx, cy, zt - 1.5, 6.0)
