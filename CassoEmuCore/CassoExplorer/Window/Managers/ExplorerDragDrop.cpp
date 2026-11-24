@@ -1313,6 +1313,19 @@ bool ExplorerDragDrop::TryDropStreamless (IDataObject * data, const std::wstring
     }
 
     m_context.actions.GetA2retroNet().ExpectArrivals (pasted.created);
+
+    //  Undo removes what was dropped, or moves it back, as after a paste.
+    if (!pasted.created.empty())
+    {
+        ExplorerUndoStep  step;
+
+        step.kind    = pasted.moved ? ExplorerUndoStep::Kind::HostMove : ExplorerUndoStep::Kind::HostCopy;
+        step.paths   = pasted.created;
+        step.sources = pasted.sources;
+
+        m_context.undo.Push (std::move (step));
+    }
+
     m_context.folderSync.RefreshAfterHostChange();
     m_context.folderSync.RefreshTreeFolder (folder);
 
