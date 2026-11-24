@@ -1403,7 +1403,7 @@ void ExplorerDragDrop::PasteOnAppleDrive (const Location & drive)
 
     if (!DropOnAppleDrive (data.Get(), source, drive, screen))
     {
-        m_context.window.ShowMessage (L"The disk image is bigger than the disk, so it can't be written to it.", MB_ICONWARNING);
+        m_context.window.ShowMessage (std::format (L"The disk image is too big for {}.", m_context.browser.GetTreeModel().GetLinkDriveTitle (drive.path)), MB_ICONWARNING);
     }
 }
 
