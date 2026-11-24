@@ -22,6 +22,7 @@
 #include "CassoExplorer/Model/DiskImageCatalog.h"
 #include "CassoExplorer/Model/DiskOperations.h"
 #include "CassoExplorer/Model/TypedPathHistory.h"
+#include "CassoExplorer/Model/IImageRecords.h"
 #include "CassoExplorer/Model/ImageVolumeFacts.h"
 #include "Devices/Disk/ImageClassCache.h"
 #include "Shell/DiskMru.h"
@@ -255,6 +256,10 @@ public:
     void                    SetCardOpenAllowed   (bool allowed)                 { m_sources.cardOpenAllowed = allowed; }
     PhysicalCards         * GetPhysicalCards     () const                       { return m_sources.cards; }
 
+    //  The stored records of what images contain; none set, every image is
+    //  read each time.
+    void  SetImageRecords (IImageRecords * records) { m_records = records; m_catalog.SetRecords (records); }
+
     //  What lists the Recycle Bin. None set, it shows empty.
     void  SetShellVerbs (IShellItemVerbs * verbs);
 
@@ -302,6 +307,11 @@ private:
     bool      IsOnMissingDrive      (const Location & location) const override           { return m_loader.IsOnMissingDrive (location); }
     Location  GetShellParent        () const override                                    { return m_list.shellParent; }
 
+    //  An image's facts for the facts worker, from its stored record when
+    //  it has one. Without one, the image is read through the catalog so the
+    //  record is stored for the next read.
+    VolumeFacts  ReadVolumeFacts (const std::string & path);
+
     //  IBrowserLoaderHost, for the loader.
     void  QueueVolumeFacts   (const std::wstring & folder) override;
     void  NavigateToLocation (const Location & location) override  { m_navigator.NavigateToLocation (location); }
@@ -313,7 +323,8 @@ private:
     IDiskFileIo                           & m_fileIo;
     ImageClassCache                         m_imageClasses;
     std::function<void ()>                  m_onVolumeFacts;
-    ImageVolumeFacts                        m_volumeFacts       { m_fileIo, [this] () { if (m_onVolumeFacts) { m_onVolumeFacts(); } } };
+    std::atomic<IImageRecords *>            m_records           { nullptr };
+    ImageVolumeFacts                        m_volumeFacts       { m_fileIo, [this] () { if (m_onVolumeFacts) { m_onVolumeFacts(); } }, [this] (const std::string & path) { return ReadVolumeFacts (path); } };
     HostFolderReader                        m_hostFolders;
     TreeModel                               m_tree              { m_fs, m_hostFolders };
     BrowserModel                            m_model;

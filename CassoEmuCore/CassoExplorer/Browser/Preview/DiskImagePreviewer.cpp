@@ -3,9 +3,11 @@
 #include "CassoExplorer/Browser/Preview/DiskImagePreviewer.h"
 #include "CassoExplorer/Browser/Preview/PictureMonitorChoice.h"
 #include "CassoExplorer/Browser/Preview/PreviewViewState.h"
+#include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Model/BrowserModel.h"
 #include "CassoExplorer/Model/DiskImageCatalog.h"
 #include "CassoExplorer/Model/DiskOperations.h"
+#include "CassoExplorer/Model/IImageRecords.h"
 #include "CassoExplorer/Model/DiskMessageText.h"
 #include "CassoExplorer/Model/PreviewViewChoices.h"
 #include "Core/TextEncoding.h"
@@ -13,7 +15,10 @@
 #include "Devices/Disk/IDiskFileIo.h"
 #include "FileTypes/DiskSaveTable.h"
 #include "FileTypes/WizardryMaze.h"
+#include "Devices/Disk/Store/DiskSourceFormat.h"
+#include "Machines/Apple2/Common/SectorDecodeCache.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
+#include "Seams/Win32DiskFileIo.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 
 
@@ -30,6 +35,91 @@ DiskImagePreviewer::DiskImagePreviewer (const BrowserParts & parts, const Previe
     : m_parts        (parts),
       m_previewParts (previewParts)
 {
+    m_decodes.SetLister (Decode);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImagePreviewer::Decode
+//
+//  The image read and decoded on the decoding thread, for the decode cache.
+//  The listing that arrives has no items; only its arrival matters.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImagePreviewer::Decode (const std::wstring & imagePath, std::vector<Byte> & outUnused)
+{
+    HRESULT             hr      = S_OK;
+    Win32DiskFileIo     io;
+    std::string         narrow  = TextEncoding::WideToNarrow (imagePath);
+    std::vector<Byte>   bytes;
+    std::vector<Byte>   sectors;
+    SectorDecodeReport  report;
+
+
+
+    outUnused.clear();
+
+    hr = io.ReadAllBytes (narrow, bytes);
+    CHR (hr);
+
+    hr = VolumeImage::Load (bytes, narrow, sectors, report);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImagePreviewer::IsDecodeReady
+//
+//  Whether the image can be previewed now without a slow decode: it is not a
+//  WOZ or NIB image, its decode is cached, or its decode just finished.
+//  Otherwise the decode is started on its thread.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImagePreviewer::IsDecodeReady (const std::wstring & imagePath)
+{
+    std::string        narrow = TextEncoding::WideToNarrow (imagePath);
+    DiskFormat         format = DiskFormat::Dsk;
+    HRESULT            hr     = DiskSourceFormat::GetSourceFormatByExtension (narrow, format);
+    std::vector<Byte>  bytes;
+    std::vector<Byte>  unused;
+    bool               isSlow = SUCCEEDED (hr) && (format == DiskFormat::Woz || format == DiskFormat::Nib);
+
+
+
+    //  A decode that failed before the cache stored it is not started again.
+    if (!isSlow || m_decoded.contains (imagePath))
+    {
+        return true;
+    }
+
+    hr = m_parts.operations.GetFileIo().ReadAllBytes (narrow, bytes);
+
+    if (FAILED (hr) || SectorDecodeCache::Contains (bytes))
+    {
+        return true;
+    }
+
+    if (!m_decodes.TryTake (imagePath, imagePath, unused, hr))
+    {
+        return false;
+    }
+
+    m_decoded.insert (imagePath);
+
+    return true;
 }
 
 
@@ -56,6 +146,16 @@ void DiskImagePreviewer::PreviewImageCatalog (const std::wstring & imagePath)
 
     if (!m_parts.model.TryGetCachedCatalog (imagePath, listing, kind))
     {
+        IImageRecords  * records   = m_parts.catalog.GetRecords();
+        bool             hasRecord = records != nullptr && records->FindContents (imagePath, contents);
+
+        if (!hasRecord && !IsDecodeReady (imagePath))
+        {
+            m_previewParts.preview.kind    = PreviewContent::Kind::Error;
+            m_previewParts.preview.message = CassoExplorerBrowser::s_kWorkingText;
+            return;
+        }
+
         HRESULT  hrDescribe = m_parts.catalog.Describe (imagePath, std::string(), contents);
 
         IGNORE_RETURN_VALUE (hrDescribe, S_OK);
@@ -144,23 +244,43 @@ void DiskImagePreviewer::PreviewImageCatalog (const std::wstring & imagePath)
 
 bool DiskImagePreviewer::TryDecodeDiskSave (const std::wstring & imagePath, DecodedFile & outFile)
 {
-    HRESULT            hr     = S_OK;
-    std::string        narrow = TextEncoding::WideToNarrow (imagePath);
-    std::vector<Byte>  bytes;
+    HRESULT                    hr      = S_OK;
+    std::string                narrow  = TextEncoding::WideToNarrow (imagePath);
+    std::vector<Byte>          bytes;
+    IImageRecords            * records = m_parts.catalog.GetRecords();
+    IImageRecords::SavedGame   known   = (records != nullptr) ? records->FindSavedGame (imagePath) : IImageRecords::SavedGame::Unknown;
+    bool                       isRead  = false;
+    bool                       isFound = false;
+    bool                       isReady = false;
 
 
+
+    //  A disk found before to have no saved game isn't decoded again, and
+    //  one whose decode isn't ready is previewed as its catalog until it is.
+    BAIL_OUT_IF (known == IImageRecords::SavedGame::None, S_OK);
+
+    isReady = IsDecodeReady (imagePath);
+    BAIL_OUT_IF (!isReady, S_OK);
 
     hr = m_parts.operations.GetFileIo().ReadAllBytes (narrow, bytes);
     CHR (hr);
+
+    isRead = true;
 
     hr = DiskSaveTable::DecodeImage (bytes, narrow, [this, &narrow] (DiskSaveTable::IsFoundFn isCompanion, std::vector<Byte> & outSectors)
                                      {
                                          return DiskSaveTable::FindBeside (m_parts.operations.GetFileIo(), narrow, isCompanion, outSectors);
                                      }, outFile);
-    CHR (hr);
+
+    isFound = SUCCEEDED (hr);
 
 Error:
-    return SUCCEEDED (hr);
+    if (isRead && records != nullptr)
+    {
+        records->StoreSavedGame (imagePath, isFound);
+    }
+
+    return isFound;
 }
 
 

@@ -1041,6 +1041,7 @@ CassoExplorerWindow * CassoExplorerShell::OpenWindow (CassoExplorerWindowRequest
     context.firewall    = &m_firewall;
     context.cards       = &m_cards;
     context.pictures    = &m_pictures;
+    context.records     = ImageRecordStore::GetDefaultFolder().empty() ? nullptr : &m_records;
     context.givenNames  = &m_givenNames;
 
     slot->window = std::make_unique<CassoExplorerWindow> (*slot->browser, *slot->actions, m_prefs, std::move (context));

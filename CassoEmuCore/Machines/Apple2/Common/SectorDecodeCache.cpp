@@ -61,6 +61,29 @@ bool SectorDecodeCache::Find (const std::vector<Byte> & fileBytes, HRESULT & out
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SectorDecodeCache::Contains
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SectorDecodeCache::Contains (const std::vector<Byte> & fileBytes)
+{
+    uint64_t                     hash  = Hash (fileBytes);
+    std::lock_guard<std::mutex>  lock (s_lock);
+
+
+
+    return std::any_of (s_entries.begin(), s_entries.end(), [&] (const Entry & each)
+    {
+        return each.hash == hash && each.size == fileBytes.size();
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SectorDecodeCache::Store
 //
 //  At the front, dropping the least recently used past kEntries.

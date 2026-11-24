@@ -27,8 +27,9 @@
 class SectorDecodeCache
 {
 public:
-    static bool  Find  (const std::vector<Byte> & fileBytes, HRESULT & outHr, std::vector<Byte> & outSectors, SectorDecodeReport & outReport);
-    static void  Store (const std::vector<Byte> & fileBytes, HRESULT hr, const std::vector<Byte> & sectors, const SectorDecodeReport & report);
+    static bool  Find     (const std::vector<Byte> & fileBytes, HRESULT & outHr, std::vector<Byte> & outSectors, SectorDecodeReport & outReport);
+    static bool  Contains (const std::vector<Byte> & fileBytes);
+    static void  Store    (const std::vector<Byte> & fileBytes, HRESULT hr, const std::vector<Byte> & sectors, const SectorDecodeReport & report);
 
     static constexpr size_t  kEntries = 8;
 

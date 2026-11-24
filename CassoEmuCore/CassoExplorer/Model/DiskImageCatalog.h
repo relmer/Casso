@@ -6,6 +6,7 @@
 #include "Devices/Disk/Partitions/PartitionAccess.h"
 
 class IDiskFileIo;
+class IImageRecords;
 
 
 
@@ -64,6 +65,11 @@ class DiskImageCatalog
 public:
     explicit DiskImageCatalog (DiskOperations & operations) : m_operations (operations) {}
 
+    //  The stored records an image's volume directory is read from and
+    //  stored to; none reads every image.
+    void             SetRecords (IImageRecords * records) { m_records = records; }
+    IImageRecords  * GetRecords () const                  { return m_records; }
+
     HRESULT  Describe       (const std::wstring & path, const std::string & directory, ImageContents & outContents);
     HRESULT  ListPartitions (const std::wstring & path, PartitionLayoutKind & outLayout, std::vector<PartitionEntry> & outEntries);
 
@@ -78,4 +84,5 @@ private:
     static void  ListSubdirectories (const IVolume & volume, const std::string & directory, const VolumeListing & listing, std::vector<ImageSubdirectory> & outSubdirectories);
 
     DiskOperations  & m_operations;
+    IImageRecords   * m_records = nullptr;
 };
