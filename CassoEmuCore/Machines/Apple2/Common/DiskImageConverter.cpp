@@ -357,14 +357,21 @@ Error:
 //
 //  DiskImageConverter::BuildTwoImg
 //
-//  The blocks in ProDOS order, the order most 2IMG files use.
+//  The blocks in ProDOS order, the order most 2IMG files use. For a DOS 3.3
+//  disk, the header's flags have the VTOC's volume number, marked valid.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskImageConverter::BuildTwoImg (const std::vector<Byte> & sectors, std::vector<Byte> & outBytes)
 {
+    static constexpr size_t  kVtocOffVolume = 0x06;
+
+
+
     TwoImgHeader       header;
     std::vector<Byte>  payload;
+    size_t             vtoc    = (size_t) Dos33Geometry::kVtocTrack * NibbleFormat::kSectorsPerTrack * Dos33Geometry::kSectorByteSize;
+    bool               isDos   = sectors.size() == (size_t) NibbleFormat::kImageByteSize && VolumeImage::DetectFilesystem (sectors) == VolumeKind::Dos33;
 
 
 
@@ -372,6 +379,11 @@ void DiskImageConverter::BuildTwoImg (const std::vector<Byte> & sectors, std::ve
 
     header.format     = TwoImgHeader::kFormatProDosOrder;
     header.blockCount = (uint32_t) (payload.size() / ProDosSkeleton::kBlockByteSize);
+
+    if (isDos)
+    {
+        header.flags = TwoImgHeader::kFlagVolumeValid | sectors[vtoc + kVtocOffVolume];
+    }
 
     TwoImgContainer::Build (header, payload, outBytes);
 }

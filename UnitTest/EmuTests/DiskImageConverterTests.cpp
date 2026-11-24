@@ -4,6 +4,7 @@
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/Containers/TwoImgContainer.h"
 #include "Machines/Apple2/Common/DiskImageConverter.h"
+#include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "Machines/Apple2/Common/Nibblizer.h"
@@ -218,6 +219,7 @@ public:
         static constexpr size_t    kBlocksAt   = 20;
         static constexpr size_t    kDataAt     = 24;
         static constexpr size_t    kLengthAt   = 28;
+        static constexpr size_t    kFlagsAt    = 16;
         static constexpr uint32_t  kBlocks     = 280;
 
         Image        dsk = MakeSectors (NibbleFormat::kImageByteSize);
@@ -239,5 +241,26 @@ public:
 
         VolumeImage::DosLogicalToProDosFile (dsk, blocks);
         Assert::IsTrue (std::equal (blocks.begin(), blocks.end(), made.begin() + (ptrdiff_t) kHeaderSize));
+        Assert::AreEqual (0u, read32 (kFlagsAt), L"not a DOS 3.3 disk");
+    }
+
+    TEST_METHOD (TwoImg_OfADos33Disk_HasItsVolumeNumber)
+    {
+        static constexpr size_t  kFormatAt = 12;
+        static constexpr size_t  kFlagsAt  = 16;
+        static constexpr Byte    kVolume   = 123;
+
+        Image        dsk (NibbleFormat::kImageByteSize);
+        Image        made;
+        std::string  reason;
+        auto         read32 = [&made] (size_t at) { return (uint32_t) made[at] | ((uint32_t) made[at + 1] << 8) | ((uint32_t) made[at + 2] << 16) | ((uint32_t) made[at + 3] << 24); };
+
+
+
+        AssertSucceeded (Dos33Skeleton::Write (dsk, kVolume));
+        AssertSucceeded (DiskImageConverter::Convert (dsk, "C:\\Disks\\game.dsk", DiskImageFormat::TwoImg, made, reason));
+
+        Assert::AreEqual (TwoImgHeader::kFormatProDosOrder,                           read32 (kFormatAt));
+        Assert::AreEqual (TwoImgHeader::kFlagVolumeValid | (uint32_t) kVolume,        read32 (kFlagsAt));
     }
 };
