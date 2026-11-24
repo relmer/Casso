@@ -281,6 +281,130 @@ public:
     }
 
 
+    //  A track with Ultima IV's D7 AA 96 address fields, each after a data
+    //  field whose last nibbles are DD, a checksum, DE AA EB and sync bytes,
+    //  which pass for an address field ending at the D7. Every read at 8
+    //  cycles marks the D7, as a //c can by chance: the field is written with
+    //  no zero bits inside it, so a read of the field doesn't read a byte twice.
+    TEST_METHOD (AnAddressFieldsMarkedBytes_AreWrittenWithNoZeroBits)
+    {
+        static constexpr size_t  kSectors   = 16;
+        static constexpr size_t  kSyncs     = 6;
+        static constexpr size_t  kDataBytes = 343;
+        static constexpr size_t  kReadBytes = 14000;
+        static constexpr size_t  kFieldSize = 11;
+
+        std::vector<Byte>                        revolution;
+        std::vector<bool>                        marked;
+        std::vector<CassoLinkCapture::Position>  positions (1);
+        CassoLinkCapture::Result                 result;
+        DiskImage                                image;
+        std::vector<std::pair<Byte, size_t>>     framed;
+        uint32_t                                 seed    = 12345;
+        size_t                                   checked = 0;
+
+
+
+        auto  add = [&revolution, &marked] (std::initializer_list<Byte> values, bool isMarked)
+        {
+            for (Byte value : values)
+            {
+                revolution.push_back (value);
+                marked.push_back (isMarked);
+            }
+        };
+
+        for (size_t sector = 0; sector < kSectors; sector++)
+        {
+            for (size_t each = 0; each < kSyncs; each++)
+            {
+                add ({ 0xFF }, false);
+            }
+
+            add ({ 0xD7 }, true);
+            add ({ 0xAA, 0x96, 0xAA, 0xAA, 0xAB, 0xBA, (Byte) (0xAA | (sector >> 1)), (Byte) (0xAA | sector) }, false);
+            add ({ (Byte) (0xAA | ((0x12 ^ sector) >> 1)), (Byte) (0xAA | (0x12 ^ sector)) }, false);
+            add ({ 0xDE, 0xAA, 0xEB }, false);
+
+            for (size_t each = 0; each < kSyncs; each++)
+            {
+                add ({ 0xFF }, false);
+            }
+
+            add ({ 0xD5, 0xAA, 0xAD }, false);
+
+            for (size_t each = 0; each + 2 < kDataBytes; each++)
+            {
+                seed = seed * 1103515245u + 12345u;
+                add ({ s_kDiskBytes[(seed >> 16) % (std::size (s_kDiskBytes) - 1)] }, false);
+            }
+
+            add ({ 0xDD, 0xAB, 0xDE, 0xAA, 0xEB }, false);
+        }
+
+        for (Byte delay : CassoLinkCapture::kWholeDelays)
+        {
+            std::vector<Byte>  read;
+
+            for (size_t at = 0; at < kReadBytes; at++)
+            {
+                size_t  in = at % revolution.size();
+
+                read.push_back ((delay == 0 && marked[in]) ? (Byte) (revolution[in] & 0x7F) : revolution[in]);
+            }
+
+            positions[0].reads.push_back (read);
+            positions[0].delays.push_back (delay);
+        }
+
+        AssertSucceeded (CassoLinkCapture::BuildWoz (positions, 0, "2026-11-23T00:00:00Z", 1, result));
+        AssertSucceeded (WozLoader::Load (result.woz, image));
+
+        int     slot  = image.ResolveQuarterTrack (0);
+        size_t  count = image.GetTrackBitCount (slot);
+        size_t  at    = 0;
+
+        while (at < count && image.ReadBit (slot, at) == 0)
+        {
+            at++;
+        }
+
+        while (at + 8 <= count)
+        {
+            Byte    value = 0;
+            size_t  zeros = 0;
+
+            for (int bit = 0; bit < 8; bit++)
+            {
+                value = (Byte) ((value << 1) | image.ReadBit (slot, at++));
+            }
+
+            while (at < count && image.ReadBit (slot, at) == 0)
+            {
+                zeros++;
+                at++;
+            }
+
+            framed.push_back ({ value, zeros });
+        }
+
+        for (size_t each = 0; each + kFieldSize < framed.size(); each++)
+        {
+            if (framed[each].first == 0xD7 && framed[each + 1].first == 0xAA && framed[each + 2].first == 0x96)
+            {
+                for (size_t k = 0; k < kFieldSize; k++)
+                {
+                    Assert::AreEqual ((size_t) 0, framed[each + k].second, L"Zero bits inside the address field");
+                }
+
+                checked++;
+            }
+        }
+
+        Assert::IsTrue (checked > 0, L"The track has address fields");
+    }
+
+
     //  A track whose data fields, with the D5 AA BC prolog Infocom's disks
     //  have, end in FF FF before the epilog, read with its sync bytes marked:
     //  the data's FFs are written with no zero bits, so a read of the field

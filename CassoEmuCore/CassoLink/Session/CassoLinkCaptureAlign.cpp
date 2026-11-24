@@ -491,19 +491,7 @@ std::vector<bool> CassoLinkCapture::FindAddressEndings (std::span<const Byte> re
 
     for (size_t at = 0; n > field + s_kEndingBytes && at < n; at++)
     {
-        Byte  first   = (Byte) (revolution[at] | 0x80);
-        bool  isField = (first & 0xD5) == 0xD5 && first != s_kSyncByte;
-        bool  isSync  = true;
-
-        for (size_t k = 3; isField && k < field; k++)
-        {
-            Byte  nibble = (Byte) (revolution[(at + k) % n] | 0x80);
-
-            isField = (nibble & 0xAA) == 0xAA;
-            isSync  = isSync && nibble == s_kSyncByte;
-        }
-
-        isField = isField && !isSync;
+        bool  isField = IsAddressFieldAt (revolution, at);
 
         for (size_t k = 0; isField && k < s_kEndingBytes; k++)
         {
@@ -523,4 +511,81 @@ std::vector<bool> CassoLinkCapture::FindAddressEndings (std::span<const Byte> re
     }
 
     return endings;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::FindAddressBodies
+//
+//  For each byte of a revolution, whether it is in an address field, from
+//  the prolog's first byte through the checksum's second. The prolog's
+//  second byte is AA and its third has $96's bits set, as in D5 AA 96 and
+//  Ultima IV's D7 AA 96, so a data byte before an epilog and sync bytes
+//  isn't taken for one. A drive writes a
+//  field's bytes back to back, so no zero bits follow any of them; zero bits
+//  counted there come from a //c marking bytes by chance, and they make a
+//  reader catch the byte before twice.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<bool> CassoLinkCapture::FindAddressBodies (std::span<const Byte> revolution)
+{
+    size_t             n      = revolution.size();
+    size_t             field  = 3 + s_kAddressNibbles;
+    std::vector<bool>  bodies (n, false);
+
+
+
+    for (size_t at = 0; n > field && at < n; at++)
+    {
+        Byte  second  = (Byte) (revolution[(at + 1) % n] | 0x80);
+        Byte  third   = (Byte) (revolution[(at + 2) % n] | 0x80);
+        bool  isField = second == s_kProlog1 && (third & s_kAddress16) == s_kAddress16 && IsAddressFieldAt (revolution, at);
+
+        for (size_t k = 0; isField && k < field; k++)
+        {
+            bodies[(at + k) % n] = true;
+        }
+    }
+
+    return bodies;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::IsAddressFieldAt
+//
+//  Whether an address field starts at `at`: a byte with $D5's bits set,
+//  other than a sync byte, two more bytes, then s_kAddressNibbles 4-and-4
+//  nibbles, not all sync bytes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkCapture::IsAddressFieldAt (std::span<const Byte> revolution, size_t at)
+{
+    size_t  n       = revolution.size();
+    size_t  field   = 3 + s_kAddressNibbles;
+    Byte    first   = (Byte) (revolution[at] | 0x80);
+    bool    isField = n > field && (first & 0xD5) == 0xD5 && first != s_kSyncByte;
+    bool    isSync  = true;
+
+
+
+    for (size_t k = 3; isField && k < field; k++)
+    {
+        Byte  nibble = (Byte) (revolution[(at + k) % n] | 0x80);
+
+        isField = (nibble & 0xAA) == 0xAA;
+        isSync  = isSync && nibble == s_kSyncByte;
+    }
+
+    return isField && !isSync;
 }

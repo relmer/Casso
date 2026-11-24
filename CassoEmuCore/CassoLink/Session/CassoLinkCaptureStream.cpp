@@ -818,6 +818,7 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const std::v
     std::vector<bool>                       values (length, false);
     std::vector<bool>                       pooled (length, false);
     std::vector<bool>                       inData (length, false);
+    std::vector<bool>                       bodies;
     bool                                    quiet     = false;
     size_t                                  shortest  = fine ? s_kShortestRun : s_kPooledRun;
 
@@ -978,6 +979,13 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const std::v
     }
 
     CountEndingZeros (bytes, weak, marks, outZeros);
+
+    bodies = FindAddressBodies (bytes);
+
+    for (size_t each = 0; each < length; each++)
+    {
+        outZeros[each] = bodies[each] ? 0 : outZeros[each];
+    }
 }
 
 

@@ -251,6 +251,8 @@ private:
     static bool                 Align          (std::span<const Byte> revolution, std::span<const Byte> read, size_t from,
                                                 std::vector<int> & outMap, size_t & outDiffer, std::vector<bool> & outStretch);
     static std::vector<bool>  FindAddressEndings (std::span<const Byte> revolution);
+    static std::vector<bool>  FindAddressBodies  (std::span<const Byte> revolution);
+    static bool               IsAddressFieldAt   (std::span<const Byte> revolution, size_t at);
     static void               CountEndingZeros   (const std::vector<Byte> & bytes, const std::vector<bool> & weak, const Marks & marks, std::vector<uint8_t> & ioZeros);
     static int                CountSectors       (std::span<const Byte> revolution, int track, bool & outThirteen, int & outAddressed);
     static bool               IsCrosstalk        (std::span<const Byte> revolution, int position);
