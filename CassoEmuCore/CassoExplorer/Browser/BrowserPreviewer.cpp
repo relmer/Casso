@@ -39,13 +39,16 @@ BrowserPreviewer::BrowserPreviewer (
     const BrowserParts      & parts,
     const BrowserSelection  & selection,
     BrowserSearchMatches    & searchMatches,
+    const BrowserArchives   & archives,
     IBrowserPreviewHost     & host)
     : m_parts         (parts),
       m_selection     (selection),
       m_host          (host),
-      m_searchMatches (searchMatches)
+      m_searchMatches (searchMatches),
+      m_archives      (archives)
 {
 }
+
 
 
 
@@ -344,63 +347,6 @@ void BrowserPreviewer::UpdatePreview()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BrowserPreviewer::IsLocalArchivePath
-//
-//  A path on a lettered drive that the shell, not the file system, lists:
-//  an archive or a folder inside one.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool BrowserPreviewer::IsLocalArchivePath (const std::wstring & id) const
-{
-    return m_parts.sources.shellVerbs != nullptr && id.size() > 3 && id[1] == L':' && id[2] == L'\\'
-        && !m_parts.fs.DirectoryExists (id);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BrowserPreviewer::DescribeEmptyArchive
-//
-//  Read whole, up to a size past which a damaged file is more likely than
-//  an archive worth probing, and judged by its directory.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring BrowserPreviewer::DescribeEmptyArchive (const std::wstring & path) const
-{
-    std::error_code  error;
-    uintmax_t        size  = fs::file_size (fs::path (path), error);
-    std::string      bytes;
-    std::wstring     name  = path.substr (path.find_last_of (L"\\/") + 1);
-    HRESULT          hr    = S_OK;
-
-
-
-    if (!error && size > s_kArchiveProbeMaxBytes)
-    {
-        return ArchiveProbe::GetReason (name, ArchiveProbe::Verdict::NotZip);
-    }
-
-    hr = m_parts.fs.ReadAllText (path, bytes);
-
-    if (FAILED (hr))
-    {
-        return ArchiveProbe::GetReason (name, ArchiveProbe::Verdict::NotZip);
-    }
-
-    return ArchiveProbe::GetReason (name, ArchiveProbe::ProbeZip (std::span<const Byte> ((const Byte *) bytes.data(), bytes.size())));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  BrowserPreviewer::ShowShellPreviewBytes
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -410,56 +356,6 @@ void BrowserPreviewer::ShowShellPreviewBytes()
     if (m_preview.kind == PreviewContent::Kind::Shell)
     {
         m_preview.kind = PreviewContent::Kind::Hex;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BrowserPreviewer::GetExtractTarget
-//
-//  The archive Extract all applies to: the one selected alone in a host
-//  folder, or the one open, found as the first part of the open path that is
-//  a file. Empty when there is none.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring BrowserPreviewer::GetExtractTarget() const
-{
-    std::vector<std::wstring>  paths;
-    std::wstring               prefix;
-    const Location           & location = GetLocation();
-
-
-
-    if (location.kind == Location::Kind::HostFolder && m_parts.list.selectedRows.size() == 1
-        && m_parts.list.rows[(size_t) m_parts.list.selectedRows[0]].isArchive)
-    {
-        m_selection.GetSelectedHostPaths (paths);
-        return paths.empty() ? std::wstring() : paths[0];
-    }
-
-    if (location.kind != Location::Kind::ShellFolder || !IsLocalArchivePath (location.path))
-    {
-        return std::wstring();
-    }
-
-    for (size_t at = location.path.find (L'\\', 3); ; at = location.path.find (L'\\', at + 1))
-    {
-        prefix = location.path.substr (0, at);
-
-        if (m_parts.fs.Exists (prefix) && !m_parts.fs.DirectoryExists (prefix))
-        {
-            return prefix;
-        }
-
-        if (at == std::wstring::npos)
-        {
-            return std::wstring();
-        }
     }
 }
 
@@ -503,15 +399,15 @@ void BrowserPreviewer::PreviewArchive (const std::wstring & path)
     if (FAILED (hr))
     {
         m_preview.kind    = PreviewContent::Kind::Error;
-        m_preview.message = PathResolver::IsNetworkPath (path) ? path.substr (path.find_last_of (L"\\/") + 1) + L" is unavailable." : DescribeEmptyArchive (path);
+        m_preview.message = PathResolver::IsNetworkPath (path) ? path.substr (path.find_last_of (L"\\/") + 1) + L" is unavailable." : m_archives.DescribeEmptyArchive (path);
         m_preview.message = m_preview.message.empty() ? L"The archive could not be read" : m_preview.message;
         return;
     }
 
-    if (items.empty() && !DescribeEmptyArchive (path).empty())
+    if (items.empty() && !m_archives.DescribeEmptyArchive (path).empty())
     {
         m_preview.kind    = PreviewContent::Kind::Error;
-        m_preview.message = DescribeEmptyArchive (path);
+        m_preview.message = m_archives.DescribeEmptyArchive (path);
         return;
     }
 

@@ -15,6 +15,7 @@
 #include "Devices/Disk/Partitions/PartitionAccess.h"
 #include "Core/MemoryBus.h"
 
+class BrowserArchives;
 class BrowserSearchMatches;
 class BrowserSelection;
 class IBrowserPreviewHost;
@@ -36,7 +37,7 @@ class IBrowserPreviewHost;
 class BrowserPreviewer : private IPreviewRefresh
 {
 public:
-    BrowserPreviewer (const BrowserParts & parts, const BrowserSelection & selection, BrowserSearchMatches & searchMatches, IBrowserPreviewHost & host);
+    BrowserPreviewer (const BrowserParts & parts, const BrowserSelection & selection, BrowserSearchMatches & searchMatches, const BrowserArchives & archives, IBrowserPreviewHost & host);
 
     //  How much of a file with no file of its own, such as one inside a zip,
     //  is read for its preview.
@@ -50,25 +51,14 @@ public:
 
     //  The largest host file that previews as text rather than in the hex view.
     static constexpr size_t  s_kTextPreviewMaxBytes = 1024 * 1024;
-    void  PreviewShellItem   (const CatalogRow & row);
-    void  PreviewArchive     (const std::wstring & path);
-    bool  IsLocalArchivePath (const std::wstring & id) const;
-
-    //  Why an archive the shell lists nothing in is empty, by its name;
-    //  empty when it has nothing in it.
-    std::wstring  DescribeEmptyArchive (const std::wstring & path) const;
-
-    //  The largest archive read whole for the reason it lists nothing.
-    static constexpr uintmax_t  s_kArchiveProbeMaxBytes = 64ull * 1024 * 1024;
+    void  PreviewShellItem (const CatalogRow & row);
+    void  PreviewArchive   (const std::wstring & path);
 
     //  A shell preview that failed or took too long is replaced by the file's
     //  bytes.
     void  ShowShellPreviewBytes ();
 
     const PreviewContent  & GetPreview () const { return m_preview; }
-
-    //  The archive Extract all applies to, selected or open; empty for none.
-    std::wstring  GetExtractTarget () const;
 
     void  PreviewAppleEntry    (const std::string & entryPath, const FileEntry & entry);
     bool  PreviewAppleDrive    (const CatalogRow & row);
@@ -102,6 +92,7 @@ private:
     const BrowserSelection  & m_selection;
     IBrowserPreviewHost     & m_host;
     BrowserSearchMatches    & m_searchMatches;
+    const BrowserArchives   & m_archives;
 
     MemoryBus                           m_bus;
     PreviewContent                      m_preview;

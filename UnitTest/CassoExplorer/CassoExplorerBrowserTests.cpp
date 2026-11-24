@@ -293,16 +293,16 @@ public:
         AssertSucceeded (host.browser.SelectTreeNode (host.OpenDisksFolder()));
 
         host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"notes.zip") });
-        Assert::AreEqual (std::wstring (L"C:\\Disks\\notes.zip"), host.browser.GetPreviewer().GetExtractTarget());
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\notes.zip"), host.browser.GetArchives().GetExtractTarget());
 
         host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"readme.txt") });
-        Assert::IsTrue (host.browser.GetPreviewer().GetExtractTarget().empty(), L"A plain file has none");
+        Assert::IsTrue (host.browser.GetArchives().GetExtractTarget().empty(), L"A plain file has none");
 
         host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"notes.zip"), FindRow (host.browser, L"readme.txt") });
-        Assert::IsTrue (host.browser.GetPreviewer().GetExtractTarget().empty(), L"nor does a selection of several");
+        Assert::IsTrue (host.browser.GetArchives().GetExtractTarget().empty(), L"nor does a selection of several");
 
         host.browser.GetNavigator().NavigateToLocation (Location::MakeShellFolder (L"C:\\Disks\\notes.zip\\docs", L"docs"));
-        Assert::AreEqual (std::wstring (L"C:\\Disks\\notes.zip"), host.browser.GetPreviewer().GetExtractTarget(), L"Inside, the archive open");
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\notes.zip"), host.browser.GetArchives().GetExtractTarget(), L"Inside, the archive open");
     }
 
 

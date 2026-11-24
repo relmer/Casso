@@ -550,7 +550,7 @@ void ExplorerToolbars::UpdateCommandBar()
     {
         extra = Extra::AppleDrive;
     }
-    else if (!m_context.browser.GetPreviewer().GetExtractTarget().empty())
+    else if (!m_context.browser.GetArchives().GetExtractTarget().empty())
     {
         extra = m_context.actions.CanInspect() ? Extra::ArchiveImage : Extra::Archive;
     }

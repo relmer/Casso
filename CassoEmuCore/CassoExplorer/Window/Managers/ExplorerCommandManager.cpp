@@ -206,7 +206,7 @@ bool ExplorerCommandManager::IsEnabled (int id) const
                                                          && m_context.shellVerbs.ClipboardHasFiles();
         case CassoExplorerCommands::kRenameItem:        return m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Rename);
         case CassoExplorerCommands::kShareItems:        return m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Share);
-        case CassoExplorerCommands::kExtractAll:        return !m_context.browser.GetPreviewer().GetExtractTarget().empty();
+        case CassoExplorerCommands::kExtractAll:        return !m_context.browser.GetArchives().GetExtractTarget().empty();
         case CassoExplorerCommands::kInspectDiskImage:  return m_context.actions.CanInspect();
         case CassoExplorerCommands::kCompareDiskImages: return m_context.actions.CanCompare();
         case CassoExplorerCommands::kInitializeCard:    return m_context.app.cards != nullptr;

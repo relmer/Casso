@@ -457,7 +457,7 @@ bool CassoExplorerActions::TryGetWrappedImage (std::wstring & outPath) const
 {
     Location                   location = m_browser.GetLocation();
     std::vector<std::wstring>  paths;
-    std::wstring               archive  = m_browser.GetPreviewer().GetExtractTarget();
+    std::wstring               archive  = m_browser.GetArchives().GetExtractTarget();
     std::wstring               lower    = archive;
     std::wstring               inner;
     std::wstring               candidate;
