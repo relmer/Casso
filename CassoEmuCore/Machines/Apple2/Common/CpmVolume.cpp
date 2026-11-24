@@ -149,10 +149,9 @@ bool CpmVolume::IsPlausibleEntry (std::span<const Byte> entry)
 
 bool CpmVolume::IsFound (const vector<Byte> & sectors)
 {
-    vector<Byte>  directory (s_kDirectoryBytes, 0);
+    vector<Byte>  directory;
     int           valid     = 0;
     int           invalid   = 0;
-    int           sector    = 0;
     bool          allFree   = true;
     int           limit     = 0;
 
@@ -163,12 +162,7 @@ bool CpmVolume::IsFound (const vector<Byte> & sectors)
         return false;
     }
 
-    for (size_t at : GetDirectorySectors())
-    {
-        std::copy_n (sectors.begin() + (ptrdiff_t) (at * NibbleFormat::kSectorByteSize), NibbleFormat::kSectorByteSize,
-                     directory.begin() + (ptrdiff_t) ((size_t) sector * NibbleFormat::kSectorByteSize));
-        sector++;
-    }
+    CopyDirectory (sectors, directory);
 
     limit = GetSlotLimit (directory);
 
@@ -185,7 +179,151 @@ bool CpmVolume::IsFound (const vector<Byte> & sectors)
         }
     }
 
-    return allFree || (valid >= 1 && invalid == 0) || valid >= s_kMinWithInvalid;
+    return allFree || (valid >= 1 && invalid == 0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CpmVolume::IsFoundLenient
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CpmVolume::IsFoundLenient (const vector<Byte> & sectors)
+{
+    vector<Byte>   directory;
+    std::set<int>  skipped;
+    int            inUse     = 0;
+    int            valid     = 0;
+
+
+
+    if (sectors.size() != (size_t) NibbleFormat::kImageByteSize)
+    {
+        return false;
+    }
+
+    CopyDirectory (sectors, directory);
+
+    skipped = CollectSkippedSlots (directory, inUse);
+    valid   = inUse - (int) skipped.size();
+
+    return valid >= s_kMinWithInvalid && 2 * valid > inUse;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CpmVolume::IsReadOnly
+//
+//  A disk that only the lenient read finds. A disk read as CP/M by choice,
+//  which neither read finds, can be changed, since its invalid slots are
+//  never reused.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CpmVolume::IsReadOnly() const
+{
+    return !IsFound (m_sectors) && IsFoundLenient (m_sectors);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CpmVolume::CopyDirectory
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpmVolume::CopyDirectory (const vector<Byte> & sectors, vector<Byte> & outDirectory)
+{
+    int  sector = 0;
+
+
+
+    outDirectory.assign (s_kDirectoryBytes, 0);
+
+    for (size_t at : GetDirectorySectors())
+    {
+        std::copy_n (sectors.begin() + (ptrdiff_t) (at * NibbleFormat::kSectorByteSize), NibbleFormat::kSectorByteSize,
+                     outDirectory.begin() + (ptrdiff_t) ((size_t) sector * NibbleFormat::kSectorByteSize));
+        sector++;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CpmVolume::CollectSkippedSlots
+//
+//  Slots past the disk's limit aren't read, as in CollectFiles.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::set<int> CpmVolume::CollectSkippedSlots (const vector<Byte> & directory, int & outInUse)
+{
+    int                  limit = GetSlotLimit (directory);
+    std::set<int>        skipped;
+    std::map<Byte, int>  listed;
+
+
+
+    outInUse = 0;
+
+    for (int slot = 0; slot < limit; slot++)
+    {
+        std::span<const Byte>  bytes = std::span<const Byte> (directory).subspan ((size_t) slot * kEntryBytes, kEntryBytes);
+        int                    user  = bytes[0];
+
+        if (bytes[0] == kFree)
+        {
+            continue;
+        }
+
+        outInUse++;
+
+        if (!IsPlausibleEntry (bytes) || (user > s_kUserVisibleMax && user != s_kUserSystem))
+        {
+            skipped.insert (slot);
+            continue;
+        }
+
+        for (size_t i = 0; i < (size_t) s_kBlocksPerEntry; i++)
+        {
+            listed[bytes[s_kOffBlocks + i]] += (bytes[s_kOffBlocks + i] != 0) ? 1 : 0;
+        }
+    }
+
+    for (int slot = 0; slot < limit; slot++)
+    {
+        std::span<const Byte>  bytes = std::span<const Byte> (directory).subspan ((size_t) slot * kEntryBytes, kEntryBytes);
+
+        if (bytes[0] == kFree || skipped.contains (slot))
+        {
+            continue;
+        }
+
+        for (size_t i = 0; i < (size_t) s_kBlocksPerEntry; i++)
+        {
+            if (listed[bytes[s_kOffBlocks + i]] > 1)
+            {
+                skipped.insert (slot);
+            }
+        }
+    }
+
+    return skipped;
 }
 
 
@@ -464,7 +602,11 @@ void CpmVolume::ReadDirectory (vector<Byte> & outDirectory) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CpmVolume::CollectFiles (const vector<Byte> & directory, vector<RawFile> & outFiles, int & outInvalid)
+void CpmVolume::CollectFiles (
+    const vector<Byte>     & directory,
+    vector<RawFile>        & outFiles,
+    int                    & outInvalid,
+    const std::set<int>    * skipped)
 {
     int  limit = GetSlotLimit (directory);
 
@@ -487,7 +629,7 @@ void CpmVolume::CollectFiles (const vector<Byte> & directory, vector<RawFile> & 
             continue;
         }
 
-        if (!IsPlausibleEntry (bytes))
+        if (!IsPlausibleEntry (bytes) || (skipped != nullptr && skipped->contains (slot)))
         {
             outInvalid += (slot < limit) ? 1 : 0;
             continue;
@@ -537,6 +679,31 @@ void CpmVolume::CollectFiles (const vector<Byte> & directory, vector<RawFile> & 
     {
         std::stable_sort (file.extents.begin(), file.extents.end(), [] (const RawEntry & a, const RawEntry & b) { return a.extent < b.extent; });
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CpmVolume::CollectVolumeFiles
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpmVolume::CollectVolumeFiles (const vector<Byte> & directory, vector<RawFile> & outFiles, int & outInvalid) const
+{
+    std::set<int>  skipped;
+    int            inUse   = 0;
+
+
+
+    if (IsReadOnly())
+    {
+        skipped = CollectSkippedSlots (directory, inUse);
+    }
+
+    CollectFiles (directory, outFiles, outInvalid, &skipped);
 }
 
 
@@ -718,8 +885,8 @@ HRESULT CpmVolume::Enumerate (VolumeListing & outListing) const
 
     CBREx (whole, E_INVALIDARG);
 
-    ReadDirectory (directory);
-    CollectFiles  (directory, files, invalid);
+    ReadDirectory      (directory);
+    CollectVolumeFiles (directory, files, invalid);
 
     for (size_t i = 0; i < files.size(); i++)
     {
@@ -733,6 +900,7 @@ HRESULT CpmVolume::Enumerate (VolumeListing & outListing) const
     {
         outListing.damage.push_back ((invalid == 1) ? std::string ("1 directory entry isn't a valid CP/M entry")
                                                     : std::format ("{} directory entries aren't valid CP/M entries", invalid));
+        outListing.damage.back() += IsReadOnly() ? ", so the disk is read-only" : "";
     }
 
     hr = BuildIntegrityReport (report);
@@ -784,8 +952,8 @@ HRESULT CpmVolume::Read (const FilePath & path, FilePayload & outPayload) const
 
     CBREx (whole, E_INVALIDARG);
 
-    ReadDirectory (directory);
-    CollectFiles  (directory, files, invalid);
+    ReadDirectory      (directory);
+    CollectVolumeFiles (directory, files, invalid);
 
     found = TryFindFile (files, path.ToString(), index);
     CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
@@ -844,8 +1012,8 @@ HRESULT CpmVolume::BuildIntegrityReport (VolumeIntegrityReport & outReport) cons
 
     CBREx (whole, E_INVALIDARG);
 
-    ReadDirectory (directory);
-    CollectFiles  (directory, files, invalid);
+    ReadDirectory      (directory);
+    CollectVolumeFiles (directory, files, invalid);
 
     outReport.Reset (kUnitCount);
     outReport.SetCatalogFullyParsed (invalid == 0);
@@ -984,6 +1152,7 @@ HRESULT CpmVolume::Write (const FilePath & path, const FilePayload & payload, ve
     HRESULT                hr         = S_OK;
     std::string            name       = path.ToString();
     bool                   whole      = m_sectors.size() == (size_t) NibbleFormat::kImageByteSize;
+    bool                   isWritable = !IsReadOnly();
     bool                   nameOk     = false;
     bool                   locked     = false;
     bool                   hasRoom    = false;
@@ -1006,7 +1175,8 @@ HRESULT CpmVolume::Write (const FilePath & path, const FilePayload & payload, ve
 
 
 
-    CBREx (whole, E_INVALIDARG);
+    CBREx (whole,      E_INVALIDARG);
+    CBREx (isWritable, HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT));
 
     nameOk = TryParseName (name, parsed);
     CBREx (nameOk, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
@@ -1150,12 +1320,13 @@ HRESULT CpmVolume::Delete (const FilePath & path, vector<Byte> & outBuffer) cons
 
 HRESULT CpmVolume::Delete (const FilePath & path, vector<Byte> & outBuffer, DeleteOutcome & outOutcome) const
 {
-    HRESULT                hr      = S_OK;
-    bool                   whole   = m_sectors.size() == (size_t) NibbleFormat::kImageByteSize;
-    bool                   found   = false;
-    bool                   locked  = false;
-    size_t                 index   = 0;
-    int                    invalid = 0;
+    HRESULT                hr         = S_OK;
+    bool                   whole      = m_sectors.size() == (size_t) NibbleFormat::kImageByteSize;
+    bool                   isWritable = !IsReadOnly();
+    bool                   found      = false;
+    bool                   locked     = false;
+    size_t                 index      = 0;
+    int                    invalid    = 0;
     vector<Byte>           directory;
     vector<Byte>           result;
     vector<RawFile>        files;
@@ -1165,7 +1336,8 @@ HRESULT CpmVolume::Delete (const FilePath & path, vector<Byte> & outBuffer, Dele
 
     outOutcome = DeleteOutcome();
 
-    CBREx (whole, E_INVALIDARG);
+    CBREx (whole,      E_INVALIDARG);
+    CBREx (isWritable, HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT));
 
     ReadDirectory (directory);
     CollectFiles  (directory, files, invalid);
@@ -1240,15 +1412,16 @@ HRESULT CpmVolume::SetStartupProgram (const FilePath & path, vector<Byte> & outB
 
 HRESULT CpmVolume::Rename (const FilePath & from, const std::string & to, vector<Byte> & outBuffer) const
 {
-    HRESULT                hr      = S_OK;
-    bool                   whole   = m_sectors.size() == (size_t) NibbleFormat::kImageByteSize;
-    bool                   nameOk  = false;
-    bool                   found   = false;
-    bool                   locked  = false;
-    bool                   taken   = false;
-    size_t                 index   = 0;
-    size_t                 holder  = 0;
-    int                    invalid = 0;
+    HRESULT                hr         = S_OK;
+    bool                   whole      = m_sectors.size() == (size_t) NibbleFormat::kImageByteSize;
+    bool                   isWritable = !IsReadOnly();
+    bool                   nameOk     = false;
+    bool                   found      = false;
+    bool                   locked     = false;
+    bool                   taken      = false;
+    size_t                 index      = 0;
+    size_t                 holder     = 0;
+    int                    invalid    = 0;
     ParsedName             parsed;
     vector<Byte>           directory;
     vector<Byte>           result;
@@ -1257,7 +1430,8 @@ HRESULT CpmVolume::Rename (const FilePath & from, const std::string & to, vector
 
 
 
-    CBREx (whole, E_INVALIDARG);
+    CBREx (whole,      E_INVALIDARG);
+    CBREx (isWritable, HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT));
 
     nameOk = TryParseName (to, parsed);
     CBREx (nameOk, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
@@ -1314,13 +1488,14 @@ Error:
 
 HRESULT CpmVolume::SetAttributes (const FilePath & path, const FileAttributes & attributes, vector<Byte> & outBuffer) const
 {
-    HRESULT                hr      = S_OK;
-    bool                   whole   = m_sectors.size() == (size_t) NibbleFormat::kImageByteSize;
-    bool                   stored  = !attributes.hasType && !attributes.hasAuxType && !attributes.hasCreated && !attributes.hasModified;
-    bool                   found   = false;
-    bool                   locks   = attributes.hasAccess && (attributes.access & FilePayload::kAccessWriteEnable) == 0;
-    size_t                 index   = 0;
-    int                    invalid = 0;
+    HRESULT                hr         = S_OK;
+    bool                   whole      = m_sectors.size() == (size_t) NibbleFormat::kImageByteSize;
+    bool                   isWritable = !IsReadOnly();
+    bool                   stored     = !attributes.hasType && !attributes.hasAuxType && !attributes.hasCreated && !attributes.hasModified;
+    bool                   found      = false;
+    bool                   locks      = attributes.hasAccess && (attributes.access & FilePayload::kAccessWriteEnable) == 0;
+    size_t                 index      = 0;
+    int                    invalid    = 0;
     vector<Byte>           directory;
     vector<Byte>           result;
     vector<RawFile>        files;
@@ -1328,8 +1503,9 @@ HRESULT CpmVolume::SetAttributes (const FilePath & path, const FileAttributes & 
 
 
 
-    CBREx (whole,  E_INVALIDARG);
-    CBREx (stored, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+    CBREx (whole,      E_INVALIDARG);
+    CBREx (isWritable, HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT));
+    CBREx (stored,     HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
 
     ReadDirectory (directory);
     CollectFiles  (directory, files, invalid);

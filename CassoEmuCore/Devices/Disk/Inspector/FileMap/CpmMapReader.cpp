@@ -20,7 +20,7 @@ static constexpr int   s_kRecordCount   = 15;
 static constexpr int   s_kBlocks        = 16;
 static constexpr int   s_kReadOnly      = 9;
 static constexpr int   s_kSystemTracks  = 3;
-static constexpr int   s_kFoundEntries  = 4;
+static constexpr int   s_kFoundEntries  = 3;
 static constexpr Byte  s_kHighBit       = 0x80;
 static constexpr int   s_kDirectoryBlock = 1;
 static constexpr int   s_kFirstFileBlock = 2;
@@ -89,7 +89,7 @@ bool CpmMapReader::IsFound (const SectorSource & source)
         }
     }
 
-    return (valid >= 1 && invalid == 0) || valid > s_kFoundEntries || free == kEntries;
+    return (valid >= 1 && invalid == 0) || (valid >= s_kFoundEntries && valid > invalid) || free == kEntries;
 }
 
 
