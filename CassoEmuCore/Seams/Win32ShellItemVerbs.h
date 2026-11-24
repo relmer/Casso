@@ -72,6 +72,8 @@ public:
     HRESULT      PlaceOnClipboard       (HWND owner, const std::vector<std::wstring> & paths, bool cut) override { return m_transfers.PlaceOnClipboard (owner, paths, cut); }
     bool         ClipboardHasFiles      () const override { return m_transfers.ClipboardHasFiles(); }
     HRESULT      PasteInto              (HWND owner, const std::wstring & folder, PasteResult & outResult) override { return m_transfers.PasteInto (owner, folder, outResult); }
+    HRESULT      DropInto               (HWND owner, IDataObject * data, const std::wstring & folder, bool isMove, PasteResult & outResult) override { return m_transfers.DropInto (owner, data, folder, isMove, outResult); }
+    bool         HasNamedStreams        (const std::wstring & folder) const override { return Win32ShellTransfers::HasNamedStreams (folder); }
     HRESULT      MoveItemsTo            (HWND owner, const std::vector<std::wstring> & paths, const std::vector<std::wstring> & targets) override { return m_transfers.MoveItemsTo (owner, paths, targets); }
     HRESULT      CreateFolder           (HWND owner, const std::wstring & parent, const std::wstring & name) override { return m_transfers.CreateFolder (owner, parent, name); }
     HRESULT      Share                  (HWND owner, const std::vector<std::wstring> & paths) override { return m_transfers.Share (owner, paths); }

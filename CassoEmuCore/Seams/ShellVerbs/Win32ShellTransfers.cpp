@@ -390,15 +390,10 @@ HRESULT Win32ShellTransfers::PasteInto (HWND owner, const std::wstring & folder,
     HRESULT                 hr        = S_OK;
     ComPtr<IDataObject>     data;
     ComPtr<IShellItem>      target;
-    ComPtr<IFileOperation>  operation;
     FORMATETC               format    = { (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_PREFERREDDROPEFFECT), nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
     STGMEDIUM               medium    = {};
     HRESULT                 hasMark   = S_OK;
     DWORD                   effect    = DROPEFFECT_COPY;
-    OperationRecorder       recorder;
-    DWORD                   cookie    = 0;
-    HRESULT                 unadvised = S_OK;
-    std::wstring            parent;
 
 
 
@@ -428,26 +423,96 @@ HRESULT Win32ShellTransfers::PasteInto (HWND owner, const std::wstring & folder,
         BAIL_OUT_IF (true, S_OK);
     }
 
+    hr = TransferInto (owner, data.Get(), folder, (effect & DROPEFFECT_MOVE) != 0, outResult);
+    CHR (hr);
+
+    //  A cut is used up by its paste.
+    if (outResult.moved)
+    {
+        hr = OleSetClipboard (nullptr);
+        CHR (hr);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellTransfers::DropInto
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ShellTransfers::DropInto (HWND owner, IDataObject * data, const std::wstring & folder, bool isMove, IShellItemVerbs::PasteResult & outResult)
+{
+    Win32ShellVerbsTypes::CenterDialogsOver  centered (owner);
+
+
+
+    return TransferInto (owner, data, folder, isMove, outResult);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellTransfers::TransferInto
+//
+//  The object's files copied or moved into the folder, with the items made
+//  in the folder itself listed for undo; the contents of a folder copied
+//  come back with it.
+//
+//  A file with a named stream, such as a disk image with Casso's picture of
+//  it, is copied onto a volume without them, such as a FAT memory card, only
+//  after a prompt about copying it without its properties. The answer is yes
+//  for every file, so FOF_NOCONFIRMATION is set, unless a file of the same
+//  name is in the folder already, since that prompt must still be shown.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ShellTransfers::TransferInto (HWND owner, IDataObject * data, const std::wstring & folder, bool isMove, IShellItemVerbs::PasteResult & outResult)
+{
+    HRESULT                 hr        = S_OK;
+    ComPtr<IShellItem>      target;
+    ComPtr<IFileOperation>  operation;
+    OperationRecorder       recorder;
+    DWORD                   cookie    = 0;
+    HRESULT                 unadvised = S_OK;
+    DWORD                   flags     = FOF_ALLOWUNDO | FOF_NOCONFIRMMKDIR | FOFX_ADDUNDORECORD;
+    std::wstring            parent;
+
+
+
+    outResult = IShellItemVerbs::PasteResult();
+
+    hr = SHCreateItemFromParsingName (folder.c_str(), nullptr, IID_PPV_ARGS (&target));
+    CHR (hr);
+
     hr = m_verbs.m_recycleBin.CreateOperation (owner, &operation);
     CHR (hr);
 
-    if ((effect & DROPEFFECT_MOVE) != 0)
+    //  A copy into the folder it came from is named "name - Copy", as
+    //  Explorer names it, rather than stopping on the names being the same.
+    if (!isMove && IsFromFolder (data, folder))
     {
-        hr = operation->MoveItems (data.Get(), target.Get());
-    }
-    else
-    {
-        //  A copy into the folder it came from is named "name - Copy", as
-        //  Explorer names it, rather than stopping on the names being the same.
-        if (IsFromFolder (data.Get(), folder))
-        {
-            hr = operation->SetOperationFlags (FOF_ALLOWUNDO | FOF_NOCONFIRMMKDIR | FOFX_ADDUNDORECORD | FOF_RENAMEONCOLLISION);
-            CHR (hr);
-        }
-
-        hr = operation->CopyItems (data.Get(), target.Get());
+        flags |= FOF_RENAMEONCOLLISION;
     }
 
+    if (!HasNamedStreams (folder) && !HasNameInFolder (data, folder))
+    {
+        flags |= FOF_NOCONFIRMATION;
+    }
+
+    hr = operation->SetOperationFlags (flags);
+    CHR (hr);
+
+    hr = isMove ? operation->MoveItems (data, target.Get()) : operation->CopyItems (data, target.Get());
     CHR (hr);
 
     hr = operation->Advise (&recorder, &cookie);
@@ -458,9 +523,7 @@ HRESULT Win32ShellTransfers::PasteInto (HWND owner, const std::wstring & folder,
     IGNORE_RETURN_VALUE (unadvised, S_OK);
     CHR (hr);
 
-    //  What went into the folder itself; the contents of a folder copied
-    //  come back with it on an undo.
-    outResult.moved = (effect & DROPEFFECT_MOVE) != 0;
+    outResult.moved = isMove;
 
     for (size_t i = 0; i < recorder.created.size(); i++)
     {
@@ -473,15 +536,77 @@ HRESULT Win32ShellTransfers::PasteInto (HWND owner, const std::wstring & folder,
         }
     }
 
-    //  A cut is used up by its paste.
-    if (outResult.moved)
-    {
-        hr = OleSetClipboard (nullptr);
-        CHR (hr);
-    }
-
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellTransfers::HasNamedStreams
+//
+//  True when the volume can't be read, so no prompt is skipped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Win32ShellTransfers::HasNamedStreams (const std::wstring & folder)
+{
+    wchar_t  root[MAX_PATH] = {};
+    DWORD    flags          = 0;
+    BOOL     hasRoot        = GetVolumePathNameW (folder.c_str(), root, (DWORD) std::size (root));
+    BOOL     hasInfo        = hasRoot && GetVolumeInformationW (root, nullptr, 0, nullptr, nullptr, &flags, nullptr, 0);
+
+
+
+    return !hasInfo || (flags & FILE_NAMED_STREAMS) != 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellTransfers::HasNameInFolder
+//
+//  True when the object has no file list, so no prompt is skipped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Win32ShellTransfers::HasNameInFolder (IDataObject * data, const std::wstring & folder)
+{
+    FORMATETC        format = { CF_HDROP, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+    STGMEDIUM        medium = {};
+    HDROP            drop   = nullptr;
+    UINT             count  = 0;
+    bool             found  = false;
+    std::error_code  ignore;
+    HRESULT          hrData = (data != nullptr) ? data->GetData (&format, &medium) : E_POINTER;
+
+
+
+    if (FAILED (hrData))
+    {
+        return true;
+    }
+
+    drop  = (HDROP) medium.hGlobal;
+    count = DragQueryFileW (drop, 0xFFFFFFFF, nullptr, 0);
+
+    for (UINT i = 0; i < count && !found; i++)
+    {
+        wchar_t  path[MAX_PATH * 4] = {};
+
+        DragQueryFileW (drop, i, path, (UINT) std::size (path));
+        found = std::filesystem::exists (std::filesystem::path (folder) / std::filesystem::path (path).filename(), ignore);
+    }
+
+    ReleaseStgMedium (&medium);
+
+    return found;
 }
 
 

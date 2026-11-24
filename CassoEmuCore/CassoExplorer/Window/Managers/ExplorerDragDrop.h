@@ -92,6 +92,7 @@ public:
     bool                                    TryGetHostDropFolder (int tag, POINT screen, std::wstring & outFolder);
     DWORD                                   ForwardHostDrag      (IDataObject * data, const std::wstring & folder, POINT screen);
     void                                    LeaveHostDrop        ();
+    bool                                    TryDropStreamless    (IDataObject * data, const std::wstring & folder);
     void                                    ShowDropTarget       (int tag, POINT screen, bool accepted);
     void                                    RefreshDropTarget    ();
     void                                    ShowDropMenu         ();

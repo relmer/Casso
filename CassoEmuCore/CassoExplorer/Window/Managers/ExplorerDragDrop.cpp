@@ -1245,6 +1245,85 @@ void ExplorerDragDrop::ClearDropTarget()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerDragDrop::TryDropStreamless
+//
+//  Files dropped onto a folder whose volume has no named streams are copied,
+//  or moved with Shift or within the volume, as the folder's target would.
+//  False, with nothing done, for a right-drag, a link, a volume with named
+//  streams or no files, so the folder's target makes the drop.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerDragDrop::TryDropStreamless (IDataObject * data, const std::wstring & folder)
+{
+    IShellItemVerbs::PasteResult  pasted;
+    std::vector<std::wstring>     dropped;
+    std::vector<std::wstring>     names;
+    DWORD                         keys      = m_dropTarget.GetDragKeyState();
+    DWORD                         allowed   = m_dropTarget.GetAllowedEffects();
+    bool                          isSame    = false;
+    bool                          isMove    = false;
+    HRESULT                       hr        = S_OK;
+
+
+
+    if (m_dropTarget.IsRightDrag() || (keys & MK_ALT) != 0 || m_context.shellVerbs.HasNamedStreams (folder))
+    {
+        return false;
+    }
+
+    hr = DxuiDragDropTarget::ExtractHDropPaths (data, dropped);
+
+    if (FAILED (hr) || dropped.empty())
+    {
+        return false;
+    }
+
+    isSame = _wcsicmp (std::filesystem::path (dropped[0]).root_path().c_str(), std::filesystem::path (folder).root_path().c_str()) == 0;
+    isMove = ((keys & MK_SHIFT) != 0 || (isSame && (keys & MK_CONTROL) == 0)) && (allowed & DROPEFFECT_MOVE) != 0;
+
+    if (!isMove && (allowed & DROPEFFECT_COPY) == 0)
+    {
+        return false;
+    }
+
+    LeaveHostDrop();
+
+    hr = m_context.shellVerbs.DropInto (m_context.window.GetHwnd(), data, folder, isMove, pasted);
+
+    //  The move is made here, so the source is told of a copy and removes
+    //  nothing itself.
+    m_dropTarget.SetDropResult (SUCCEEDED (hr) ? DROPEFFECT_COPY : DROPEFFECT_NONE);
+
+    for (const std::wstring & path : pasted.created)
+    {
+        names.push_back (std::filesystem::path (path).filename().wstring());
+    }
+
+    if (!names.empty())
+    {
+        m_context.listPane.SelectWhenListed (folder, std::move (names));
+    }
+
+    //  A file moved from an A2Pico card is a drive's image there no longer,
+    //  and an image dropped onto one is set as a drive.
+    for (size_t i = 0; pasted.moved && i < pasted.sources.size() && i < pasted.created.size(); i++)
+    {
+        m_context.actions.GetA2retroNet().NoteMove (pasted.sources[i], pasted.created[i]);
+    }
+
+    m_context.actions.GetA2retroNet().ExpectArrivals (pasted.created);
+    m_context.folderSync.RefreshAfterHostChange();
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerDragDrop::HandleDrop
 //
 //  Another image's entries are copied byte for byte when the drag holds
@@ -1315,6 +1394,15 @@ void ExplorerDragDrop::HandleDrop (IDataObject * data, int tag, POINT screen)
             m_context.cassoLinkManager.HandleConnectionChanged();
         }
 
+        return;
+    }
+
+    //  Onto a volume without named streams, such as a FAT memory card, the
+    //  drop is made by the shell's file operations, as a paste is, with no
+    //  prompt about properties that can't be copied.
+    if (m_hostDrop != nullptr && TryGetHostDropFolder (tag, screen, hostFolder) && ExplorerFolderSync::IsSameFolder (hostFolder, m_hostDropFolder)
+        && TryDropStreamless (data, hostFolder))
+    {
         return;
     }
 

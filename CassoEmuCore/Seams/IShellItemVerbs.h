@@ -255,6 +255,14 @@ public:
     virtual bool     ClipboardHasFiles () const = 0;
     virtual HRESULT  PasteInto         (HWND owner, const std::wstring & folder, PasteResult & outResult) = 0;
 
+    //  Dropped files copied, or moved, into the folder by the shell's file
+    //  operations, as a paste is, in place of the folder's drop target.
+    virtual HRESULT  DropInto          (HWND owner, IDataObject * data, const std::wstring & folder, bool isMove, PasteResult & outResult) = 0;
+
+    //  Whether the folder's volume stores named streams; a FAT memory card
+    //  doesn't.
+    virtual bool     HasNamedStreams   (const std::wstring & folder) const = 0;
+
     //  Each item moved to the full path beside it, as an undo of a move puts
     //  items back where they were.
     virtual HRESULT  MoveItemsTo       (HWND owner, const std::vector<std::wstring> & paths, const std::vector<std::wstring> & targets) = 0;
