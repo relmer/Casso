@@ -1,6 +1,6 @@
 newmtl base
 Ka 0 0 0 
-Kd 0.19 0.145 0.11
+Kd 0.44 0.375 0.3
 d 1
 
 newmtl foot_30_20
@@ -45,12 +45,12 @@ d 1
 
 newmtl keys
 Ka 0 0 0 
-Kd 0.27 0.262 0.25
+Kd 0.44 0.375 0.3
 d 1
 
 newmtl keys_light
 Ka 0 0 0 
-Kd 0.59 0.58 0.555
+Kd 0.7 0.63 0.5
 d 1
 
 newmtl power_lens
@@ -85,7 +85,7 @@ d 1
 
 newmtl recess
 Ka 0 0 0 
-Kd 0.19 0.145 0.11
+Kd 0.44 0.375 0.3
 d 1
 
 newmtl lever
@@ -105,12 +105,12 @@ d 1
 
 newmtl logo_plate
 Ka 0 0 0 
-Kd 0.19 0.145 0.11
+Kd 0.44 0.375 0.3
 d 1
 
 newmtl model_plate
 Ka 0 0 0 
-Kd 0.19 0.145 0.11
+Kd 0.44 0.375 0.3
 d 1
 
 newmtl logo_word
@@ -155,22 +155,22 @@ d 1
 
 newmtl fins
 Ka 0 0 0 
-Kd 0.19 0.145 0.11
+Kd 0.44 0.375 0.3
 d 1
 
 newmtl opening_rib_0
 Ka 0 0 0 
-Kd 0.19 0.145 0.11
+Kd 0.44 0.375 0.3
 d 1
 
 newmtl opening_rib_1
 Ka 0 0 0 
-Kd 0.19 0.145 0.11
+Kd 0.44 0.375 0.3
 d 1
 
 newmtl opening_rib_2
 Ka 0 0 0 
-Kd 0.19 0.145 0.11
+Kd 0.44 0.375 0.3
 d 1
 
 newmtl opening_back

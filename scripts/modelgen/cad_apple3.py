@@ -122,7 +122,7 @@ FONT_GOTHIC = r"C:\Windows\Fonts\GOTHIC.TTF"
 
 CASE     = (0.905, 0.840, 0.700)    # the Disk ///'s cream
 LATCH    = (0.905, 0.860, 0.755)
-BROWN    = (0.190, 0.145, 0.110)    # the base, the fins and the logo plates
+BROWN    = (0.440, 0.375, 0.300)    # the base, the fins and the logo plates
 SLOT_DK  = (0.055, 0.055, 0.062)
 BLACK    = (0.070, 0.070, 0.075)
 WHITE    = (0.920, 0.920, 0.900)
@@ -238,8 +238,8 @@ KEY_Z0         = KB_THICK - KB_WELL_D
 KEY_TOP_IN     = 2.3                       # how far each side of the top is in from the base
 KEY_DISH       = 0.7
 
-DARK_KEY   = (0.270, 0.262, 0.250)
-LIGHT_KEY  = (0.590, 0.580, 0.555)
+DARK_KEY   = (0.440, 0.375, 0.300)
+LIGHT_KEY  = (0.700, 0.630, 0.500)
 BLANK_KEY  = (0.720, 0.710, 0.680)
 LEGEND     = (0.930, 0.925, 0.900)
 FONT_KEY   = r"C:\Windows\Fonts\GOTHICB.TTF"
