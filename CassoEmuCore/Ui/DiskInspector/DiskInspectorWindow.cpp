@@ -723,7 +723,8 @@ void DiskInspectorWindow::OnCreate()
 //
 //  "Disk inspector - " and the file's path, with a lock before it while the
 //  disk is write-protected (FR-007, FR-065), a red dot after the path while
-//  edits are pending, and the machine and drive while the disk is mounted.
+//  edits are pending, "(read as CP/M)" while the disk is read as CP/M by the
+//  user's choice, and the machine and drive while the disk is mounted.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -738,7 +739,7 @@ void DiskInspectorWindow::UpdateTitle()
     if (m_session.context.hasDisk)
     {
         title = InspectorText::FormatWindowTitle (path.empty() ? m_session.GetFileName() : path, m_session.IsWriteProtected(), !m_session.edits.IsEmpty(),
-                                                  m_session.host->GetMountDescription(), markAt);
+                                                  m_session.host->GetMountDescription(), m_session.analysis.isCpmChosen, markAt);
     }
 
     if (title != m_title || markAt != m_titleMark)

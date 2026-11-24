@@ -94,13 +94,18 @@ public:
     void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override { SetBounds (boundsDip); m_scaler = scaler; }
     void  Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
-    void  SetChips (vector<SummaryChip> chips)  { m_chips = std::move (chips); m_line.clear(); }
-    void  SetLine  (const std::wstring & line)  { m_line = line; m_chips.clear(); }
+    void  SetChips (vector<SummaryChip> chips)  { m_chips = std::move (chips); m_line.clear(); m_chipRects.clear(); }
+    void  SetLine  (const std::wstring & line)  { m_line = line; m_chips.clear(); m_chipRects.clear(); }
+
+    //  The info chip under a point, as the chips were last drawn, and where it
+    //  is; false for none.
+    bool  TryGetInfoChipAt (POINT pointPx, RECT & outRect) const;
 
 private:
     const DiskInspectorPalette  & m_palette;
     DxuiDpiScaler                 m_scaler;
     vector<SummaryChip>           m_chips;
+    vector<RECT>                  m_chipRects;   // each chip's place, as last drawn
     std::wstring                  m_line;
 };
 
@@ -280,6 +285,7 @@ private:
     bool  IsInspectBeside    (int widthPx) const;
     bool  HandlePlatterMouse (const DxuiMouseEvent & ev);
     bool  HandleScreenMouse  (const DxuiMouseEvent & ev);
+    void  ShowChipTip        (const DxuiMouseEvent & ev);
     void  SetHot             (bool isHot);
 
     enum class State
@@ -298,6 +304,11 @@ private:
     void  StartCheck         ();
     void  ArmCheckTimer      (int64_t delayMs);
     bool  ShowCheck          ();
+
+    //  The result's chips, and the chip of a disk read as CP/M by the
+    //  user's choice.
+    vector<SummaryChip>  GetChips () const;
+
     bool  IsBlocks           () const { return m_result.blocks != nullptr; }
     //  The picture comes from the thumbnail store, not the analysis, so it is
     //  drawn while the analysis runs and the pane isn't laid out again when
@@ -326,6 +337,7 @@ private:
     ThumbnailScrollbar                    * m_scrollbar         = nullptr;   // a window child after the views, so it's offered the mouse first
     bool                                    m_isVerdictShown    = false;
     bool                                    m_isVerdictReserved = false;     // the last image's infobar space is reserved while the next is read
+    bool                                    m_isChipTipShown    = false;
 
     std::shared_ptr<const DxuiIconImage>    m_picture;
     std::wstring                            m_path;

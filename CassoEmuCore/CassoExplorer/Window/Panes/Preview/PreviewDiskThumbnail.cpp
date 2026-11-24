@@ -11,6 +11,8 @@
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewOutput.h"
+#include "CassoExplorer/Window/Managers/ExplorerTips.h"
+#include "CassoExplorer/Model/DiskOperations.h"
 #include "Core/AppMessages.h"
 #include "Core/AppTimerIds.h"
 #include "Core/TextEncoding.h"
@@ -127,7 +129,8 @@ void ThumbnailBlockMap::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
 //  ThumbnailChips::Paint
 //
 //  Each chip as the status band draws it, wrapped onto the next row where
-//  it does not fit; a bad chip in the bad sector color.
+//  it does not fit; a bad chip in the bad sector color, and an info chip in
+//  the accent.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -153,8 +156,12 @@ void ThumbnailChips::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                          DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     }
 
+    m_chipRects.clear();
+
     for (const SummaryChip & chip : m_chips)
     {
+        uint32_t  ink = chip.isBad ? m_palette.colors.sectorBad : chip.isInfo ? theme.Accent() : theme.Foreground();
+
         text.MeasureString (chip.text.c_str(), textPx, DxuiTheme::kBodyFace, w, h);
 
         if (x > left && x + w + 2 * pad > right)
@@ -164,11 +171,39 @@ void ThumbnailChips::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
         }
 
         painter.FillRoundedRect    (x, y, w + 2 * pad, chipH, chipH / 2, theme.ButtonIdle());
-        painter.OutlineRoundedRect (x, y, w + 2 * pad, chipH, chipH / 2, m_scaler.ToPxf (1.0f), chip.isBad ? m_palette.colors.sectorBad : theme.ButtonBorder());
-        text.DrawString (chip.text.c_str(), x, y, w + 2 * pad, chipH, chip.isBad ? m_palette.colors.sectorBad : theme.Foreground(), textPx,
+        painter.OutlineRoundedRect (x, y, w + 2 * pad, chipH, chipH / 2, m_scaler.ToPxf (1.0f), (chip.isBad || chip.isInfo) ? ink : theme.ButtonBorder());
+        text.DrawString (chip.text.c_str(), x, y, w + 2 * pad, chipH, ink, textPx,
                          DxuiTheme::kBodyFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        m_chipRects.push_back (RECT { static_cast<LONG> (x), static_cast<LONG> (y), static_cast<LONG> (x + w + 2 * pad), static_cast<LONG> (y + chipH) });
         x += w + 2 * pad + gap;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThumbnailChips::TryGetInfoChipAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ThumbnailChips::TryGetInfoChipAt (POINT pointPx, RECT & outRect) const
+{
+    bool  isFound = false;
+
+
+
+    outRect = {};
+
+    for (size_t i = 0; i < m_chipRects.size() && i < m_chips.size() && !isFound; i++)
+    {
+        isFound = m_chips[i].isInfo && PtInRect (&m_chipRects[i], pointPx) != FALSE;
+        outRect = isFound ? m_chipRects[i] : outRect;
+    }
+
+    return isFound;
 }
 
 
@@ -805,7 +840,7 @@ void PreviewDiskThumbnail::ApplyResult()
         }
     }
 
-    m_chips->SetChips (m_result.chips);
+    m_chips->SetChips (GetChips());
     m_platter->SetVisible (m_chips->IsVisible());
 
     finding          = FileSystemCheck::GetVerdictFinding (*m_result.analysis);
@@ -1079,6 +1114,7 @@ bool PreviewDiskThumbnail::HandleHeaderMouse (const DxuiMouseEvent & ev)
     if (ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Leave)
     {
         SetHot (ev.kind == DxuiMouseEventKind::Move && IsOverPlatter (ev.positionDip));
+        ShowChipTip (ev);
     }
 
     if (ev.kind == DxuiMouseEventKind::Wheel)
@@ -1163,6 +1199,63 @@ void PreviewDiskThumbnail::SetHot (bool isHot)
 {
     m_platter->SetHot  (isHot);
     m_blockMap->SetHot (isHot);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::GetChips
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<SummaryChip> PreviewDiskThumbnail::GetChips() const
+{
+    vector<SummaryChip>  chips  = m_result.chips;
+    bool                 isCpm  = m_context.browser.GetOperations().IsReadAsCpmByChoice (TextEncoding::WideToNarrow (m_path));
+
+
+
+    if (isCpm)
+    {
+        chips.push_back (InspectorText::MakeReadAsCpmChip());
+    }
+
+    return chips;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::ShowChipTip
+//
+//  The tip of the chip under the pointer, for the chip of a disk read as
+//  CP/M by the user's choice; hidden once the pointer is off it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewDiskThumbnail::ShowChipTip (const DxuiMouseEvent & ev)
+{
+    RECT  chip   = {};
+    bool  isOver = ev.kind == DxuiMouseEventKind::Move && m_chips->IsVisible() && m_chips->TryGetInfoChipAt (ev.positionDip, chip);
+
+
+
+    if (isOver && !m_isChipTipShown)
+    {
+        m_context.tips.ShowHoverTip (ExplorerTips::TipOwner::Preview, chip, InspectorText::kpszReadAsCpmTip);
+    }
+    else if (!isOver && m_isChipTipShown)
+    {
+        m_context.tips.HideHoverTip (ExplorerTips::TipOwner::Preview);
+    }
+
+    m_isChipTipShown = isOver;
 }
 
 

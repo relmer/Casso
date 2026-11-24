@@ -255,11 +255,35 @@ std::wstring InspectorText::FormatFileSystem (BlockFileSystem fileSystem)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  InspectorText::MakeReadAsCpmChip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SummaryChip InspectorText::MakeReadAsCpmChip()
+{
+    SummaryChip  chip;
+
+
+
+    chip.kind   = SummaryChipKind::ReadAsCpm;
+    chip.text   = L"Read as CP/M";
+    chip.isInfo = true;
+
+    return chip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  InspectorText::FormatWindowTitle
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring InspectorText::FormatWindowTitle (const std::wstring & path, bool isWriteProtected, bool hasEdits, const std::wstring & mount, size_t & outMarkAt)
+std::wstring InspectorText::FormatWindowTitle (const std::wstring & path, bool isWriteProtected, bool hasEdits, const std::wstring & mount, bool isReadAsCpm,
+                                               size_t & outMarkAt)
 {
     std::wstring  title = L"Disk inspector - ";
 
@@ -268,6 +292,7 @@ std::wstring InspectorText::FormatWindowTitle (const std::wstring & path, bool i
     title    += isWriteProtected ? std::wstring (s_kpszLock) + L" " : std::wstring();
     title    += path;
     outMarkAt = hasEdits ? title.size() : std::wstring::npos;
+    title    += isReadAsCpm ? L" (read as CP/M)" : L"";
     title    += mount.empty() ? std::wstring() : L" (mounted in " + mount + L")";
 
     return title;

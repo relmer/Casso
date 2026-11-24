@@ -107,6 +107,9 @@ public:
 
     bool  IsUnrecognized (const std::string & imagePath);
 
+    //  Whether the user chose to read the image as CP/M.
+    bool  IsReadAsCpmByChoice (const std::string & imagePath) const { return GetChoice (imagePath) == VolumeKind::Cpm; }
+
     IDiskFileIo &  GetFileIo () { return m_fileIo; }
 
     //  Reads through the volume layer.
