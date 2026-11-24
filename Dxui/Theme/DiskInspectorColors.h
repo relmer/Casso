@@ -103,7 +103,7 @@ struct DiskInspectorColors
         c.mapFileData      = 0xFF4A8FE0;
         c.mapBadBlocks     = 0xFF8A5A3A;
         c.mapUnowned       = 0xFFA0A0A0;
-        c.mapOwnedFree     = 0xFF60C060;
+        c.mapOwnedFree     = 0xFFE8A838;
         c.mapCrossLinked   = 0xFFE03C3C;
 
         c.timingFast       = 0xFF40A0FF;
@@ -161,7 +161,7 @@ struct DiskInspectorColors
         c.mapFileData      = 0xFF2F6FC8;
         c.mapBadBlocks     = 0xFF8A5A3A;
         c.mapUnowned       = 0xFF9A9A9A;
-        c.mapOwnedFree     = 0xFF3E9E3E;
+        c.mapOwnedFree     = 0xFFC8860E;
         c.mapCrossLinked   = 0xFFD02828;
 
         c.timingFast       = 0xFF1060D0;
