@@ -270,3 +270,18 @@ void ExplorerBlockInspectorWindow::CompareWith (const std::wstring & pathB)
 {
     m_window->GetFileSession().CompareWithFile (pathB);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBlockInspectorWindow::Close
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerBlockInspectorWindow::Close()
+{
+    m_window->CloseWindow();
+}

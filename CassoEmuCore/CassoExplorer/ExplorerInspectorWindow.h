@@ -39,6 +39,7 @@ public:
     HWND     GetHwnd         () const override;
     bool     ConfirmExit     () override;
     void     RequestRepair   () override;
+    void     Close           () override;
 
 private:
     std::unique_ptr<DiskInspectorWindow>  m_window;

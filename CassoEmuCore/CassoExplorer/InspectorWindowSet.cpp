@@ -420,7 +420,9 @@ void InspectorWindowSet::SetTheme (const DxuiTheme & theme)
 //
 //  InspectorWindowSet::CloseAll
 //
-//  When Explorer exits (FR-075). The state saved is the last window's.
+//  When Explorer exits (FR-075). The state saved is the last window's. Each
+//  window is hidden and its work stopped first, so none stays on screen
+//  while its worker finishes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -432,6 +434,7 @@ void InspectorWindowSet::CloseAll()
         {
             entry->window->GetPrefs (m_prefs);
             entry->isClosed = true;
+            entry->window->Close();
         }
     }
 
