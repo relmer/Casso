@@ -9,9 +9,9 @@
 #include "CassoLink/Session/CassoLinkCapture.h"
 #include "CassoLink/Session/CassoLinkThirteenSector.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Machines/Apple2/Common/ThirteenSectorCodec.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskFieldFormat.h"
@@ -41,7 +41,7 @@ public:
     //  An empty DOS 3.3 disk's sectors, built in memory.
     static std::vector<Byte>  MakeDisk()
     {
-        std::vector<Byte>  bytes (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  bytes (NibbleFormat::kImageByteSize, 0);
 
 
 

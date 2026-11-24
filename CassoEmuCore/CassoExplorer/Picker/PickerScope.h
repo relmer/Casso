@@ -37,6 +37,8 @@ public:
     const FileMaskSet &  GetActiveMasks () const;
 
 private:
+    static bool  IsThirteenSectorImage (const CatalogRow & row);
+
     std::vector<FileMaskSet>       m_masks;
     size_t                         m_active = 0;
     std::optional<ReceivingDrive>  m_drive;

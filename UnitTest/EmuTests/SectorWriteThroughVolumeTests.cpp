@@ -6,8 +6,8 @@
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/Inspector/FieldLocator.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "FakeDiskFileIo.h"
@@ -42,8 +42,8 @@ TEST_CLASS (SectorWriteThroughVolumeTests)
 public:
 
     static constexpr Byte  kVolume     = 130;
-    static constexpr int   kTracks     = NibblizationLayer::kTrackCount;
-    static constexpr int   kSectorSize = NibblizationLayer::kSectorByteSize;
+    static constexpr int   kTracks     = NibbleFormat::kTrackCount;
+    static constexpr int   kSectorSize = NibbleFormat::kSectorByteSize;
 
 
 
@@ -164,7 +164,7 @@ public:
 
         AssertSucceeded (VolumeImage::Load (woz, "t.woz", sectors, report));
 
-        at          = (static_cast<size_t> (track) * NibblizationLayer::kSectorsPerTrack + 3) * kSectorSize + 0x40;
+        at          = (static_cast<size_t> (track) * NibbleFormat::kSectorsPerTrack + 3) * kSectorSize + 0x40;
         edited      = sectors;
         edited[at] ^= 0x5A;
 
@@ -325,7 +325,7 @@ public:
         AssertSucceeded (BlankDiskBuilder::Build (spec, BootPayload(), nib));
         AssertSucceeded (VolumeImage::Load (nib, "t.nib", sectors, report));
 
-        sectors[(static_cast<size_t> (9) * NibblizationLayer::kSectorsPerTrack + 4) * kSectorSize + 7] ^= 0xFF;
+        sectors[(static_cast<size_t> (9) * NibbleFormat::kSectorsPerTrack + 4) * kSectorSize + 7] ^= 0xFF;
 
         AssertSucceeded (VolumeImage::Save (nib, "t.nib", sectors, written, refusal));
         Assert::AreEqual (nib.size(), written.size());

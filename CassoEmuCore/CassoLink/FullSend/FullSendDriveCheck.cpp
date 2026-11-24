@@ -6,7 +6,7 @@
 #include "CassoLink/FullSend/FullSendDisk.h"
 #include "CassoLink/FullSend/FullSendLink.h"
 #include "CassoLink/FullSend/FullSendStatus.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 
 
 
@@ -134,7 +134,7 @@ HRESULT FullSendDriveCheck::ReadFingerprint (int drive, FullSendCheckedDisk & ou
 
 
     outStable = false;
-    outDisk.image.assign (NibblizationLayer::kImageByteSize, 0);
+    outDisk.image.assign (NibbleFormat::kImageByteSize, 0);
 
     hr = ReadStableTrack (drive, 0, outDisk, hasDisk, outStable);
     CHR (hr);
@@ -182,7 +182,7 @@ Error:
 
 HRESULT FullSendDriveCheck::ReadStableTrack (int drive, int track, FullSendCheckedDisk & ioDisk, bool & outHasDisk, bool & outStable)
 {
-    constexpr size_t   kTrackBytes = (size_t) NibblizationLayer::kSectorsPerTrack * NibblizationLayer::kSectorByteSize;
+    constexpr size_t   kTrackBytes = (size_t) NibbleFormat::kSectorsPerTrack * NibbleFormat::kSectorByteSize;
     HRESULT            hr          = S_OK;
     auto               start       = ioDisk.image.begin() + (ptrdiff_t) ((size_t) track * kTrackBytes);
     bool               whole       = false;

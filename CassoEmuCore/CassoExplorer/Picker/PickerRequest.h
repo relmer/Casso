@@ -51,6 +51,9 @@ struct PickerRequest
     std::filesystem::path          initialFolder;
     std::vector<FileDialogFilter>  filters;
     std::optional<ReceivingDrive>  receivingDrive;
+    std::vector<std::wstring>      listedTerms;      // the bar's capsules in place of the drive's
+    bool                           startInCasso     = false;   // opens on the Casso node, as a drive's picker does
+    std::wstring                   initialSearch;    // typed in the search box at the start, and cleared as any search is
 
     //  "Apple 3.5 Drive, slot 5 drive 1", for the picker's header.
     std::wstring                   driveLabel;

@@ -487,7 +487,8 @@ public:
     //  PARSES, that it names the command whose block it sits in, and that every
     //  option it types is documented right there rather than three screens
     //  away. The facts the prose used to carry are asserted where they belong,
-    //  against the runner, in DiskCommandRunnerTests.
+    //  against the runner, in DiskCreateCommandTests and the other disk
+    //  command test classes.
     //
     ////////////////////////////////////////////////////////////////////////////
 
@@ -874,8 +875,9 @@ public:
     //  default, leaving the flag nothing to do but cancel a `--text` earlier on
     //  the same line.
     //
-    //  WHAT THE COLUMNS ARE is asserted against the LISTING, in
-    //  DiskCommandRunnerTests, where a rendered ProDOS row is compared whole.
+    //  WHAT THE COLUMNS ARE is asserted against the LISTING of a real ProDOS
+    //  disk, in the scenario suite's DiskCommandRealDiskTests, where a rendered
+    //  row is compared whole.
     //  This test used to also require the help to contain the words "eof= and
     //  aux=", which pinned a sentence rather than a behavior and kept a
     //  paragraph on the page that a reader gets from running the command.

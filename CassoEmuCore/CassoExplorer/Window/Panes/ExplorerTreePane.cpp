@@ -991,6 +991,11 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
 
     //  A folder on the disk has Explorer's row of Cut, Copy, Paste, Rename and
     //  Delete, and a drive Copy and Paste.
+    if (hasLocation && location.kind == Location::Kind::AppleDrive && location.innerPath.empty())
+    {
+        AddAppleDriveIconRow (items, location);
+    }
+
     if (hasLocation && !isCard && (location.kind == Location::Kind::HostFolder || location.kind == Location::Kind::DiskImage))
     {
         AddTreeIconRow (items, location.path, id, location.kind == Location::Kind::HostFolder && location.path.size() <= 3);
@@ -1350,6 +1355,41 @@ void ExplorerTreePane::AddRootRows (std::vector<DxuiPopupMenuItem> & items, cons
         IGNORE_RETURN_VALUE (hr, S_OK);
     });
     m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::MoreOptions));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerTreePane::AddAppleDriveIconRow
+//
+//  A linked Apple's drive has Paste atop its menu, as a drop on the drive:
+//  an image is written to the disk, or files copied onto it. It is grayed
+//  with no files to paste, as in File Explorer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerTreePane::AddAppleDriveIconRow (std::vector<DxuiPopupMenuItem> & items, const Location & drive)
+{
+    std::shared_ptr<DxuiCommand>                     command = std::make_shared<DxuiCommand>();
+    std::vector<std::shared_ptr<const DxuiCommand>>  iconCommands;
+
+
+
+    command->id        = (int) CassoExplorerActions::Verb::Paste;
+    command->label     = ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::Paste);
+    command->glyph     = ExplorerMenus::GetVerbGlyph (CassoExplorerActions::Verb::Paste);
+    command->menuSvg   = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::Paste));
+    command->isEnabled = [this]() { return m_context.shellVerbs.ClipboardHasFiles(); };
+    command->dispatch  = [this, drive]() { m_context.dragDrop.PasteOnAppleDrive (drive); };
+
+    iconCommands.push_back (command);
+    m_context.menus.GetMenuCommands().push_back (std::move (command));
+
+    items.push_back (DxuiPopupMenuItem::ForIconRow (std::move (iconCommands)));
+    items.push_back (DxuiPopupMenuItem::ForSeparator());
 }
 
 

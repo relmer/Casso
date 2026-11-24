@@ -5,8 +5,10 @@
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/CassoLinkHost.h"
 #include "CassoLink/LinkProgram.h"
+#include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
@@ -63,7 +65,7 @@ public:
     //  those in `deleted` removed, so the free space is in pieces.
     static std::vector<Byte>  BuildDisk (std::span<const int> sizes, std::span<const int> deleted)
     {
-        std::vector<Byte>  image (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  image (NibbleFormat::kImageByteSize, 0);
         std::vector<Byte>  next;
 
 
@@ -293,7 +295,7 @@ public:
 
 
 
-            AssertSucceeded (NibblizationLayer::SalvageSectors (copies[i], DiskFormat::Dsk, file, report));
+            AssertSucceeded (Denibblizer::SalvageSectors (copies[i], DiskFormat::Dsk, file, report));
             Assert::IsTrue (report.sectorsLost + report.sectorsRecovered <= 1, (where + std::format (L": {} sectors damaged", report.sectorsLost + report.sectorsRecovered)).c_str());
             AssertSucceeded (VolumeImage::Load (file, "d.dsk", sectors, decode));
 

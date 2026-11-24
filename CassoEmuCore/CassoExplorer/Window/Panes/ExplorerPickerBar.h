@@ -33,7 +33,6 @@ public:
     static constexpr int  kEdgePadDip    = DxuiButtonRow::kEdgePadDip;
     static constexpr int  kGapDip        = 8;
     static constexpr int  kNameMinDip    = 160;
-    static constexpr int  kVerifyDip     = 90;
     static constexpr int  kNoteDip       = 24;
     static constexpr int  kSaveLabelDip  = 100;
     static constexpr int  kRowPadDip     = 12;

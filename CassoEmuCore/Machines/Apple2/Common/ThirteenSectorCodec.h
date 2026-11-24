@@ -59,6 +59,7 @@ public:
 
 private:
     static FieldMarks  MakeMarks         ();
+    static void        AddMark           (vector<DiskMarkPattern> & ioMarks, const DiskMarkPattern & mark);
     static void        LocateTrack       (const DiskImage & image, int track, vector<LocatedField> & outFields);
     static bool        IsGoodSector      (const vector<LocatedField> & fields, const LocatedField & address);
     static bool        IsUnwrittenSector (const LocatedField & address);

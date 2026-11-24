@@ -14,7 +14,7 @@
 #include "CassoLink/LinkProgram.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "CassoExplorer/Browser/BrowserRowPaths.h"
@@ -177,7 +177,7 @@ public:
 
     static std::vector<Byte>  BuildDos33()
     {
-        std::vector<Byte>  buffer (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  buffer (NibbleFormat::kImageByteSize, 0);
         std::vector<Byte>  next;
 
         AssertSucceeded (Dos33Skeleton::Write (buffer, 254));
@@ -188,7 +188,7 @@ public:
 
     static std::vector<Byte>  BuildProDos()
     {
-        std::vector<Byte>  buffer (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  buffer (NibbleFormat::kImageByteSize, 0);
 
         AssertSucceeded (ProDosSkeleton::Write (buffer, "LINKED"));
 
@@ -635,7 +635,7 @@ public:
         AssertSucceeded (LinkProgram::BuildUniversalBootDisk (options, disk));
 
         rig.Open (2);
-        AssertSucceeded (rig.actions->SaveLinkToDisk ("Test", 2, L"C:\\Temp").hr);
+        AssertSucceeded (rig.actions->SaveLinkToDisk ("Test", 2).hr);
 
         //  No catalog to list afterward: the disk has no file system.
         {
@@ -650,6 +650,7 @@ public:
         Assert::IsTrue (rig.links->RunCompletions().empty());
 
         Assert::IsTrue (rig.Drive (2) == disk, L"the drive is the universal boot disk");
+        Assert::IsTrue (rig.io.files.empty(), L"the disk is made in memory, with no file");
     }
 
 
@@ -767,8 +768,8 @@ public:
 
         Rig                rig;
         CassoLinkSettings  serial;
-        std::vector<Byte>  users (NibblizationLayer::kImageByteSize, 0);
-        std::vector<Byte>  blank (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  users (NibbleFormat::kImageByteSize, 0);
+        std::vector<Byte>  blank (NibbleFormat::kImageByteSize, 0);
         std::vector<Byte>  file;
         Byte               fileType = 0;
         Word               auxType  = 0;

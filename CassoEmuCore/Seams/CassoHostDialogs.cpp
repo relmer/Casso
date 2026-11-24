@@ -60,6 +60,9 @@ PickerRequest CassoHostDialogs::MakeRequest (const FileDialogSpec & spec, bool i
     request.filters          = spec.filters;
     request.receivingDrive   = spec.receivingDrive;
     request.driveLabel       = spec.driveLabel;
+    request.listedTerms      = spec.listedTerms;
+    request.startInCasso     = spec.startInCasso || (!isSave && spec.content == FileDialogContent::Images && spec.initialFolder.empty());
+    request.initialSearch    = spec.initialSearch;
     request.defaultFileName  = spec.defaultFileName;
     request.defaultExtension = spec.defaultExtension;
     request.askToReplace     = spec.askToReplace;

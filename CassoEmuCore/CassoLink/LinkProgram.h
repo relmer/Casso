@@ -156,7 +156,7 @@ public:
     //  The block module's id and version in its header. The SOS build
     //  reports them as loaded, as the block requests are in it.
     static constexpr Byte    kBlockModuleId      = 2;
-    static constexpr Byte    kBlockModuleVersion = 1;
+    static constexpr Byte    kBlockModuleVersion = 2;
 
     //  The universal boot disk's payload: the first stage, which finds the
     //  machine's interfaces and waits for the PC on all of them, then each
@@ -231,7 +231,7 @@ public:
 
     static constexpr Word    kInstallerAddress = 0x2000;
     static constexpr Word    kDriverAddress    = 0x9200;
-    static constexpr size_t  kDriverLimit      = 0x200;
+    static constexpr size_t  kDriverLimit      = 0x300;
 
     static constexpr Word    kModuleAddress   = 0x5000;
     static constexpr size_t  kModuleLimit     = 0x4000;

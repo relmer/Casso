@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "ExplorerWindowPartsRig.h"
 #include "Core/TextEncoding.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -824,7 +825,7 @@ public:
 
         Assert::AreEqual (1, dialogs->opens);
         Assert::IsTrue   (dialogs->lastSpec.title.starts_with (L"Write image to"));
-        Assert::IsTrue   (dialogs->lastSpec.receivingDrive == ReceivingDrive { ReceivingDriveKind::Floppy525, 0 }, L"the picker lists the images a 5.25-inch drive can use");
+        Assert::IsTrue   (dialogs->lastSpec.receivingDrive == ReceivingDrive { ReceivingDriveKind::Floppy525, 0, true }, L"the picker lists the images a real 5.25-inch drive can use");
         Assert::AreEqual (std::wstring (L"C:\\Disks\\dos33.dsk"), rig.browser.GetLocation().path);
     }
 
@@ -1256,7 +1257,7 @@ public:
         Rig                rig;
         FixtureProvider    fixtures;
         std::vector<Byte>  po;
-        std::vector<Byte>  dsk (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  dsk (NibbleFormat::kImageByteSize, 0);
         std::string        text = "[drives]\n";
 
 
@@ -1312,7 +1313,7 @@ public:
         Rig                rig;
         FixtureProvider    fixtures;
         std::vector<Byte>  po;
-        std::vector<Byte>  dsk (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  dsk (NibbleFormat::kImageByteSize, 0);
         std::string        text = "[drives]\n";
 
 

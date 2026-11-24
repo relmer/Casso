@@ -54,7 +54,9 @@ if ($LASTEXITCODE -ne 0 -or -not (Test-Path $listPath)) {
     throw "Listing the tests in $TestDll failed."
 }
 
-$allTests = @(Get-Content $listPath | Where-Object { $_ -match '::' })
+#  Tests whose names start with OnDemand_ run only when asked for, so they are
+#  left out of the shards and out of the count.
+$allTests = @(Get-Content $listPath | Where-Object { $_ -match '::' -and $_ -notmatch '::OnDemand_' })
 
 if ($allTests.Count -eq 0) {
     throw "No tests found in $TestDll."

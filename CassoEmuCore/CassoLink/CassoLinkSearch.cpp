@@ -131,7 +131,10 @@ HRESULT CassoLinkSearch::Probe (IByteStream & stream, DWORD replyTimeoutMs, bool
             }
 
             received.erase (received.begin(), received.begin() + (ptrdiff_t) consumed);
-            outReplied = packet.command == CassoLinkCodec::kReady;
+            //  An Apple running the CassoLink ProDOS disk's driver sends block
+            //  requests rather than Ready. The driver sends each request
+            //  again, so the one read here gets its reply the next time.
+            outReplied = packet.command == CassoLinkCodec::kReady || packet.command == CassoLinkCodec::kVirtualBlock;
         }
     }
 

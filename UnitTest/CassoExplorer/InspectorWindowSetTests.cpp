@@ -2,7 +2,7 @@
 
 #include "../EmuTests/FakeDiskFileIo.h"
 #include "CassoExplorer/InspectorWindowSet.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Ui/DiskInspector/IDiskInspectorHost.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -300,8 +300,8 @@ public:
 
 
 
-        rig.fileIo.files[path]  = vector<Byte> (NibblizationLayer::kImageByteSize, 0x11);
-        rig.fileIo.stamps[path] = FileStamp { NibblizationLayer::kImageByteSize, 1 };
+        rig.fileIo.files[path]  = vector<Byte> (NibbleFormat::kImageByteSize, 0x11);
+        rig.fileIo.stamps[path] = FileStamp { NibbleFormat::kImageByteSize, 1 };
 
         Assert::AreEqual (S_OK, rig.Open (kMist));
         (void) rig.logs[0]->host->PostInspectorRequest ({ InspectorRequestKind::CopyDisk, 0, 0, {}, -1 });

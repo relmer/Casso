@@ -3,13 +3,20 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Browser/BrowserParts.h"
-#include "CassoExplorer/Browser/BrowserTypes.h"
+#include "CassoExplorer/Browser/Preview/CassoLinkPreviewer.h"
+#include "CassoExplorer/Browser/Preview/DiskImagePreviewer.h"
+#include "CassoExplorer/Browser/Preview/HostFilePreviewer.h"
+#include "CassoExplorer/Browser/Preview/IPreviewRefresh.h"
+#include "CassoExplorer/Browser/Preview/PictureMonitorChoice.h"
+#include "CassoExplorer/Browser/Preview/PreviewParts.h"
+#include "CassoExplorer/Browser/Preview/PreviewViewState.h"
+#include "CassoExplorer/Browser/Preview/ShellItemPreviewer.h"
 #include "CassoExplorer/Model/BrowserModel.h"
-
 #include "CassoExplorer/Model/PreviewDecoder.h"
-#include "Devices/Disk/Partitions/PartitionAccess.h"
 #include "Core/MemoryBus.h"
 
+class BrowserArchives;
+class BrowserSearchMatches;
 class BrowserSelection;
 class IBrowserPreviewHost;
 
@@ -21,162 +28,56 @@ class IBrowserPreviewHost;
 //
 //  BrowserPreviewer
 //
-//  The preview of the selection: a catalog entry, a host file, text in
-//  its character set, an archive's files, a shell item, a search match, a
-//  linked Apple's drive or entry, and an AppleSingle file.
+//  The preview of the selection. UpdatePreview calls the previewer for the
+//  kind of row selected: a disk image or a file in one, a shell item or an
+//  archive, a host file, a search match, or a CassoLink drive or item.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class BrowserPreviewer
+class BrowserPreviewer : private IPreviewRefresh
 {
 public:
-    BrowserPreviewer (const BrowserParts & parts, const BrowserSelection & selection, IBrowserPreviewHost & host);
+    BrowserPreviewer (const BrowserParts      & parts,
+                      const BrowserSelection  & selection,
+                      BrowserSearchMatches    & searchMatches,
+                      const BrowserArchives   & archives,
+                      IBrowserPreviewHost     & host);
 
-    //  How much of a file with no file of its own, such as one inside a zip,
-    //  is read for its preview.
-    static constexpr size_t  s_kShellPreviewMaxBytes = 16 * 1024 * 1024;
-
-    //  An archive's preview as the file list would show it opened: the list's
-    //  first columns, with its icons.
-    static constexpr size_t                    s_kArchivePreviewColumns = 4;
-    static std::vector<DxuiListView::Column>   GetArchivePreviewColumns ();
-    std::vector<DxuiListView::Cell>            GetArchivePreviewCells   (const CatalogRow & row) const;
-
-    //  Which character set a file's first bytes are text in, if any, and how
-    //  many are looked at.
-    static constexpr size_t  s_kTextSampleBytes      = 64 * 1024;
-    static constexpr Byte    s_kFormFeed             = 0x0C;
-    static constexpr Byte    s_kDosEndOfFile         = 0x1A;
-    static constexpr Byte    s_kDosDrawingFirst      = 0xB0;    // code page 437's shades and box drawing
-    static constexpr Byte    s_kDosDrawingLast       = 0xDF;
-    static constexpr size_t  s_kTextControlRatio     = 100;     // at most one byte in this many a DOS symbol
-    static HostCharset       GetHostCharset (std::span<const Byte> sample);
-    static bool              IsUtf8         (std::span<const Byte> sample);
-
-    //  Whether a file is an assembler's source by its extension, which
-    //  previews as text with its line numbers.
-    static bool              IsSourceName   (const std::wstring & name);
-
-    //  Whether a file is a BASIC listing or text Casso Explorer exported, by
-    //  its suffix, which previews as lines of text even in plain ASCII.
-    static bool              IsAppleExportName (const std::wstring & name);
-
-    //  The largest host file that previews as text rather than in the hex view.
-    static constexpr size_t  s_kTextPreviewMaxBytes = 1024 * 1024;
-    void  PreviewShellItem   (const CatalogRow & row);
-    void  PreviewArchive     (const std::wstring & path);
-    bool  IsLocalArchivePath (const std::wstring & id) const;
-
-    //  Why an archive the shell lists nothing in is empty, by its name;
-    //  empty when it has nothing in it.
-    std::wstring              DescribeEmptyArchive (const std::wstring & path) const;
-    void                      AddWozDetails        (const std::wstring & imagePath);
-    void                      PreviewImageCatalog  (const std::wstring & imagePath);
-    bool                      PreviewPartitions    (const std::wstring & imagePath, PartitionLayoutKind layout, const std::vector<PartitionEntry> & entries);
-    bool                      PreviewSavedGame     (const std::wstring & imagePath, const VolumeListing & listing, VolumeKind kind);
-    static const FileEntry  * FindSavedGame        (const VolumeListing & listing, VolumeKind kind);
-
-    using DetailIterator = std::vector<std::pair<std::wstring, std::wstring>>::iterator;
-
-    static constexpr const wchar_t *  kAnalysisHeading = L"Casso analysis";
-
-    //  The largest archive read whole for the reason it lists nothing.
-    static constexpr uintmax_t  s_kArchiveProbeMaxBytes = 64ull * 1024 * 1024;
-
-    //  A shell preview that failed or took too long is replaced by the file's
-    //  bytes.
-    void  ShowShellPreviewBytes ();
-    void  SetHexForm            (PreviewDecoder::HexForm form);
-    void  SetViewAs             (ViewChoice view);
-
-    //  The character set and the record length of the file previewed now,
-    //  in effect for that file until the window closes. A record length of 0 is
-    //  the one found.
-    void  SetCharset            (Charset charset);
-    void  SetRecordLength       (size_t recordLength);
-    void  SetFormulas           (bool formulas);
-
-    //  The choices made for a file, by its image's path and its path in the
-    //  image; the defaults for a file with none.
-    DecodeOptions  GetDecodeOptions (const std::wstring & imagePath, const std::string & entryPath) const;
-
-    //  The options of a file whose preview hasn't set any. Setting them
-    //  sets each file's options too, all but its record length.
-    void                   SetDefaultDecodeOptions (const DecodeOptions & options);
-    const DecodeOptions &  GetDefaultDecodeOptions () const { return m_defaultOptions; }
+    //  The preview made again for the selection, as when a slow read arrives,
+    //  and as PreviewViewState does after a choice changes.
+    void  UpdatePreview () override;
 
     const PreviewContent  & GetPreview () const { return m_preview; }
 
-    //  The monitor a picture preview is drawn for, with the custom monitor's
-    //  color; a change draws the current picture again.
-    void                     SetPreviewMonitor (PicturePreview::Monitor monitor, uint32_t customArgb = PicturePreview::kDefaultCustomArgb);
-    PicturePreview::Monitor  GetPreviewMonitor () const { return m_previewMonitor; }
+    //  The choices made for the files previewed.
+    PreviewViewState        & GetViewState ()       { return m_viewState; }
+    const PreviewViewState  & GetViewState () const { return m_viewState; }
 
-    //  The monitor the current picture is drawn on: the chosen one, except
-    //  for a double hi-res picture, whose monitor follows its form. Its color
-    //  form is drawn on the color monitor, and its monochrome form on the
-    //  chosen monochrome monitor, or the white one when the color monitor is
-    //  chosen.
-    PicturePreview::Monitor  GetPictureMonitor () const;
+    //  The monitor a picture preview is drawn for.
+    PictureMonitorChoice        & GetMonitorChoice ()       { return m_monitor; }
+    const PictureMonitorChoice  & GetMonitorChoice () const { return m_monitor; }
 
-    static PicturePreview::Monitor  ChooseMonitor (PicturePreview::Monitor chosen, PicturePreview::Mode mode);
-
-    //  A double hi-res picture drawn in color or as its bits, whichever the
-    //  automatic choice was not; again to go back. False for any other preview.
-    bool  TogglePictureColor    ();
-    bool  CanTogglePictureColor () const;
-
-    //  The archive Extract all applies to, selected or open; empty for none.
-    std::wstring  GetExtractTarget () const;
-
-    void  GetSelectedSearchMatches     (std::vector<BrowserSearchMatch> & outMatches);
-    bool  AreSelectedRowsSearchMatches () const;
-    bool  TryFindSearchMatch           (const CatalogRow & row, BrowserSearchMatch & outMatch, std::wstring & outError);
-    void  PreviewAppleEntry            (const std::string & entryPath, const FileEntry & entry);
-    bool  PreviewAppleDrive            (const CatalogRow & row);
-    void  PreviewCassoLinkItem         (const CatalogRow & row);
-
-    bool     TryPreviewAppleSingle (const std::wstring & folder, const CatalogRow & row);
-    void     PreviewHostFile       (const std::wstring & folder, const CatalogRow & row);
-    bool     TryReadHostPayload    (const std::wstring & path, const CatalogRow & row, FilePayload & outPayload, FileEntry & outEntry, bool & outTyped);
-    void     AttachHostViews       (const FileEntry & entry, const FilePayload & payload, bool loaded, PreviewDecoder::HexForm hexForm);
-    void     ReadTextPreview       (const std::wstring & path, const std::wstring & name);
-    bool     TryPreviewText        (const std::wstring & name, std::span<const Byte> bytes);
-
-    static constexpr const wchar_t *  s_kpszSourceExtensions[] = { L".a65", L".asm", L".s", L".inc", L".a", L".src", L".mac", L".ca65" };
-    static constexpr unsigned         s_kDosCodePage           = 437;
-    static constexpr unsigned         s_kWindowsCodePage       = 1252;
-    static constexpr wchar_t          s_kByteOrderMark         = 0xFEFF;
-    static constexpr size_t           s_kTabStop               = 8;
-    void  PreviewEntry       (const std::wstring & imagePath, const std::string & entryPath, const FileEntry & entry, VolumeKind kind);
-    void  SetSavedGameShown  (bool shown);
-    void  PreviewSearchMatch (const CatalogRow & row);
-
-    //  The preview made again for the selection, as when a slow read arrives.
-    void  UpdatePreview      ();
+    //  The preview of a file or archive the shell lists.
+    ShellItemPreviewer        & GetShellItems ()       { return m_shellItems; }
+    const ShellItemPreviewer  & GetShellItems () const { return m_shellItems; }
 
 private:
-    //  The form for a file, Auto when it isn't the file previewed last.
-    PreviewDecoder::HexForm  GetHexForm (const std::wstring & fileKey);
-
-    Location  GetLocation () const { return m_parts.model.HasTabs() ? m_parts.model.GetActiveTab().location : Location(); }
+    void      PreviewSearchMatch (const CatalogRow & row);
+    Location  GetLocation        () const { return m_parts.model.HasTabs() ? m_parts.model.GetActiveTab().location : Location(); }
 
     BrowserParts              m_parts;
     const BrowserSelection  & m_selection;
     IBrowserPreviewHost     & m_host;
+    BrowserSearchMatches    & m_searchMatches;
+    const BrowserArchives   & m_archives;
 
-    MemoryBus                           m_bus;
-    PicturePreview::Monitor             m_previewMonitor = PicturePreview::Monitor::Color;
-    uint32_t                            m_customArgb     = PicturePreview::kDefaultCustomArgb;
     PreviewContent                      m_preview;
-
-    //  The form of the file previewed now, which another file resets.
-    PreviewDecoder::HexForm             m_hexForm        = PreviewDecoder::HexForm::Auto;
-    std::wstring                        m_hexFormKey;
-    ViewChoice                          m_viewAs         = ViewChoice::Default;
-    bool                                m_savedGameShown = true;   // a disk with a saved game previews as the saved game, not the disk
-
-    //  The decode choices of each file one was made for, by file key.
-    std::map<std::wstring, DecodeOptions>  m_decodeOptions;
-    DecodeOptions                          m_defaultOptions;
+    MemoryBus                           m_bus;
+    PreviewViewState                    m_viewState      { *this };
+    PictureMonitorChoice                m_monitor        { m_preview, m_bus };
+    PreviewParts                        m_previewParts   { m_preview, m_bus, m_viewState, m_monitor };
+    DiskImagePreviewer                  m_diskImages     { m_parts, m_previewParts };
+    ShellItemPreviewer                  m_shellItems     { m_parts, m_previewParts, m_archives, m_diskImages };
+    HostFilePreviewer                   m_hostFiles      { m_parts, m_previewParts };
+    CassoLinkPreviewer                  m_cassoLink      { m_parts, m_previewParts };
 };

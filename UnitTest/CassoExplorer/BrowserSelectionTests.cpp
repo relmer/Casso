@@ -4,6 +4,7 @@
 #include "CassoExplorer/Browser/IBrowserSelectionSource.h"
 #include "CassoExplorer/Model/BrowserModel.h"
 #include "CassoExplorer/Model/CatalogModel.h"
+#include "CassoExplorer/Model/TreeModel.h"
 #include "Machines/Apple2/Common/VolumeTypes.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -68,6 +69,32 @@ public:
             rows.push_back (row);
         }
     };
+
+
+
+    TEST_METHOD (StockDisks_AreSelectedByTheirFiles)
+    {
+        Rig                        rig;
+        std::vector<std::wstring>  paths;
+
+
+
+        rig.source.location = Location::MakeRoot (TreeModel::kStockDisksId);
+        rig.AddRow (L"ProDOS 2.4.3", true);
+        rig.AddRow (L"DOS 3.3 System Master", true);
+        rig.rows[0].hostPath        = L"C:\\Stock\\ProDOS 2.4.3.po";
+        rig.rows[0].isStockDisk     = true;
+        rig.rows[0].stockDownloaded = true;
+        rig.rows[1].hostPath        = L"C:\\Stock\\DOS 3.3 System Master.dsk";
+        rig.rows[1].isStockDisk     = true;
+
+        rig.selection.SetSelectedRows ({ 0, 1 });
+        rig.selection.GetSelectedHostPaths (paths);
+
+        Assert::AreEqual ((size_t) 2, paths.size(), L"one not downloaded yet is downloaded there first");
+        Assert::AreEqual (std::wstring (L"C:\\Stock\\DOS 3.3 System Master.dsk"), paths[1]);
+        Assert::AreEqual (std::wstring (L"C:\\Stock\\ProDOS 2.4.3.po"), paths[0]);
+    }
 
 
 

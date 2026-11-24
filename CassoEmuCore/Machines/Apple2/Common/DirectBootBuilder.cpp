@@ -3,6 +3,8 @@
 #include "Machines/Apple2/Common/DirectBootBuilder.h"
 
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 
 
 
@@ -239,7 +241,7 @@ std::string DirectBootBuilder::DescribeTooLarge (Word loadAddress, size_t payloa
               payloadBytes,
               FormatAddress (loadAddress).c_str(),
               capacity,
-              capacity / (size_t) NibblizationLayer::kSectorByteSize);
+              capacity / (size_t) NibbleFormat::kSectorByteSize);
 
     return std::string (text);
 }
@@ -287,8 +289,8 @@ std::string DirectBootBuilder::DescribeEntry (const DirectBootSpec & spec, size_
 size_t DirectBootBuilder::GetCapacity (Word loadAddress)
 {
     static_assert (kMostSectors <=
-                   (size_t) ((NibblizationLayer::kTrackCount - kFirstPayloadTrack)
-                             * NibblizationLayer::kSectorsPerTrack),
+                   (size_t) ((NibbleFormat::kTrackCount - kFirstPayloadTrack)
+                             * NibbleFormat::kSectorsPerTrack),
                    "memory has to run out before the disk does, or the loader would "
                    "step past the last track looking for sectors that are not there");
 
@@ -321,7 +323,7 @@ size_t DirectBootBuilder::GetCapacity (Word loadAddress)
 
 size_t DirectBootBuilder::GetSectorsNeeded (Word loadAddress, size_t payloadBytes)
 {
-    constexpr size_t  kSectorBytes = (size_t) NibblizationLayer::kSectorByteSize;
+    constexpr size_t  kSectorBytes = (size_t) NibbleFormat::kSectorByteSize;
     size_t            leadIn       = (size_t) (loadAddress % kSectorBytes);
 
 
@@ -440,7 +442,7 @@ Error:
 
 void DirectBootBuilder::BuildReadOrder (Byte * outOrder)
 {
-    constexpr int  kCount        = (int) NibblizationLayer::kSectorsPerTrack;
+    constexpr int  kCount        = (int) NibbleFormat::kSectorsPerTrack;
     bool           taken[kCount] = {};
     int            at            = 0;
     int            index         = 0;
@@ -480,7 +482,7 @@ void DirectBootBuilder::WriteLoader (
     size_t                  sectorCount,
     vector<Byte>          & inOutSectors)
 {
-    constexpr size_t  kPerTrack        = (size_t) NibblizationLayer::kSectorsPerTrack;
+    constexpr size_t  kPerTrack        = (size_t) NibbleFormat::kSectorsPerTrack;
     size_t            at               = 0;
     Byte              order[kPerTrack] = {};
 
@@ -488,7 +490,7 @@ void DirectBootBuilder::WriteLoader (
 
     at = Dos33Skeleton::GetSectorOffset (
              kLoaderTrack,
-             NibblizationLayer::GetDosFileIndexForPhysicalSector (kLoaderSector));
+             SectorInterleave::GetDosFileIndexForPhysicalSector (kLoaderSector));
 
     std::copy (std::begin (s_kBootLoader), std::end (s_kBootLoader),
                inOutSectors.begin() + at);
@@ -537,8 +539,8 @@ void DirectBootBuilder::WriteLoader (
 
 void DirectBootBuilder::PlacePayload (const vector<Byte> & onDisk, vector<Byte> & inOutSectors)
 {
-    constexpr size_t  kSectorBytes     = (size_t) NibblizationLayer::kSectorByteSize;
-    constexpr size_t  kPerTrack        = (size_t) NibblizationLayer::kSectorsPerTrack;
+    constexpr size_t  kSectorBytes     = (size_t) NibbleFormat::kSectorByteSize;
+    constexpr size_t  kPerTrack        = (size_t) NibbleFormat::kSectorsPerTrack;
     size_t            sectorCount      = (onDisk.size() + kSectorBytes - 1) / kSectorBytes;
     size_t            index            = 0;
     Byte              order[kPerTrack] = {};
@@ -553,7 +555,7 @@ void DirectBootBuilder::PlacePayload (const vector<Byte> & onDisk, vector<Byte> 
         int     physical = (int) order[index % kPerTrack];
         size_t  at       = Dos33Skeleton::GetSectorOffset (
                                track,
-                               NibblizationLayer::GetDosFileIndexForPhysicalSector (physical));
+                               SectorInterleave::GetDosFileIndexForPhysicalSector (physical));
         size_t  from     = index * kSectorBytes;
         size_t  span     = (std::min) (kSectorBytes, onDisk.size() - from);
 
@@ -596,14 +598,14 @@ HRESULT DirectBootBuilder::Build (
     hr = Validate (payload, spec, outRefusal);
     CHR (hr);
 
-    leadIn = (size_t) (spec.loadAddress % (size_t) NibblizationLayer::kSectorByteSize);
+    leadIn = (size_t) (spec.loadAddress % (size_t) NibbleFormat::kSectorByteSize);
 
     onDisk.assign (leadIn, (Byte) 0);
     onDisk.insert (onDisk.end(), payload.begin(), payload.end());
 
     sectorCount = GetSectorsNeeded (spec.loadAddress, payload.size());
 
-    built.assign ((size_t) NibblizationLayer::kImageByteSize, (Byte) 0);
+    built.assign ((size_t) NibbleFormat::kImageByteSize, (Byte) 0);
 
     WriteLoader  (spec, sectorCount, built);
     PlacePayload (onDisk, built);

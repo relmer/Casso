@@ -203,6 +203,7 @@ struct PreviewContent
     //  the saved game or the disk; `savedGameShown` indicates which.
     bool                       hasSavedGame   = false;
     bool                       savedGameShown = false;
+    std::wstring               savedGameName;    // the switch's label for the saved game; empty for "Saved game"
 
     //  The character set text was read in, Default when the preview has no
     //  choice of one, and the record length a random-access text file was

@@ -514,6 +514,7 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
 
     m_context.treePane.UpdateLabelTip (ev);
     m_context.preview.GetListing().UpdateValueTipAt (ev);
+    m_context.preview.GetText().UpdatePictureTipAt (ev);
 
     //  A five-button mouse's back and forward buttons move through the tab's
     //  history wherever the pointer is, as in Explorer.
@@ -543,9 +544,10 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    //  Ctrl with the wheel over the preview zooms it, as in a browser.
+    //  Ctrl with the wheel over the preview zooms it, as in a browser. Over a
+    //  map, the map zooms instead.
     if (ev.kind == DxuiMouseEventKind::Wheel && ev.ctrl && !ev.wheelHorizontal
-        && m_context.preview.IsOverPane (point))
+        && m_context.preview.IsOverPane (point) && !m_context.preview.IsOverMap (point))
     {
         m_context.commandManager.Dispatch ((ev.wheelDelta > 0.0f) ? CassoExplorerCommands::kZoomIn : CassoExplorerCommands::kZoomOut);
         return true;

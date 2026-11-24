@@ -460,8 +460,9 @@ void DxuiWindow::SetComposedOpacity (float opacity)
 //
 //  Each paint waits for the next vertical blank to present, so a mouse event
 //  whose controls invalidate three times would wait three frames. During one
-//  the window is only marked, and Windows sends WM_PAINT once the event
-//  returns.
+//  the window is only marked, and it is painted once, when the event
+//  returns. Windows sends WM_PAINT only once no input is queued, so a hover
+//  drawn on a move would trail the pointer while it moves.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -478,6 +479,10 @@ void DxuiWindow::Invalidate()
         if (m_mouseDepth == 0)
         {
             UpdateWindow (hwnd);
+        }
+        else
+        {
+            m_paintAfterMouse = true;
         }
     }
 }
@@ -1404,6 +1409,16 @@ DxuiMessageResult DxuiWindow::DispatchMouse (DxuiMouseEventKind kind,
     }
 
     m_mouseDepth--;
+
+    if (m_mouseDepth == 0 && m_paintAfterMouse)
+    {
+        m_paintAfterMouse = false;
+
+        if (GetHwnd() != nullptr)
+        {
+            UpdateWindow (GetHwnd());
+        }
+    }
 
     return result;
 }

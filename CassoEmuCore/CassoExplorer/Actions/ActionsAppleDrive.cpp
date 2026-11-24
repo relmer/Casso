@@ -11,12 +11,13 @@
 #include "Devices/Tape/WavCodec.h"
 #include "CassoLink/CassoLinkProDosDisk.h"
 #include "CassoLink/CassoLinkSosDisk.h"
+#include "CassoLink/Session/LinkImageSource.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Devices/Disk/DiskFilePayload.h"
 #include "CassoExplorer/Model/DragPayload.h"
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 
 
@@ -1443,33 +1444,14 @@ std::wstring ActionsAppleDrive::GetDriveImageName (CassoLinkConnections * links,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ActionsTypes::Outcome ActionsAppleDrive::SaveLinkToDisk (const std::string & link, int drive, const std::wstring & tempFolder)
+ActionsTypes::Outcome ActionsAppleDrive::SaveLinkToDisk (const std::string & link, int drive)
 {
-    ActionsTypes::Outcome    outcome;
-    CassoLinkConnections   * links     = m_actions.m_browser.GetLinks();
-    CassoLinkSettings        chosen;
-    std::vector<Byte>        disk;
-    std::string              path;
-    HRESULT                  hr        = S_OK;
+    ActionsTypes::Outcome               outcome;
+    std::vector<Byte>                   disk;
+    std::shared_ptr<ILinkImageSource>   image;
+    HRESULT                             hr      = LinkProgram::BuildUniversalBootDisk (CassoLinkShimBuilder::MakeShimOptions (CassoLinkShimBuilder::GetPcName(), FindLinkSettings (link)), disk);
 
 
-
-    for (const CassoLinkSettings & settings : links->GetLinks())
-    {
-        if (settings.name == link)
-        {
-            chosen = settings;
-        }
-    }
-
-    path = TextEncoding::WideToNarrow (std::format (L"{}\\casso-link-{}.dsk", tempFolder, drive));
-
-    hr = LinkProgram::BuildUniversalBootDisk (CassoLinkShimBuilder::MakeShimOptions (CassoLinkShimBuilder::GetPcName(), chosen), disk);
-
-    if (SUCCEEDED (hr))
-    {
-        hr = m_actions.m_browser.GetOperations().GetFileIo().WriteAllBytes (path, disk);
-    }
 
     if (FAILED (hr))
     {
@@ -1477,7 +1459,9 @@ ActionsTypes::Outcome ActionsAppleDrive::SaveLinkToDisk (const std::string & lin
         return outcome;
     }
 
-    SubmitWrite (link, drive, [drive, path] (CassoLinkSession & session) { return session.WriteDisk (drive, path); }, outcome);
+    image = std::make_shared<MemoryImageSource> (std::format ("casso-link-{}.dsk", drive), std::move (disk));
+
+    SubmitWrite (link, drive, [drive, image] (CassoLinkSession & session) { return session.WriteDisk (drive, image); }, outcome);
 
     return outcome;
 }
@@ -1538,7 +1522,7 @@ ActionsTypes::Outcome ActionsAppleDrive::FormatAppleDrive (const std::string & l
     std::string                     volume;
     VolumeListing                   listing;
     VolumeKind                      kind     = VolumeKind::Unknown;
-    std::vector<Byte>               blank (NibblizationLayer::kImageByteSize, 0);
+    std::vector<Byte>               blank (NibbleFormat::kImageByteSize, 0);
     HRESULT                         hr       = S_OK;
 
 
@@ -1693,30 +1677,20 @@ ActionsTypes::Outcome ActionsAppleDrive::SaveLinkDiskImage (const std::wstring &
 
 ActionsTypes::Outcome ActionsAppleDrive::SaveLinkProDosDisk (const std::wstring & usersDisk, const std::wstring & imagePath, const CassoLinkSettings & settings)
 {
-    ActionsTypes::Outcome  outcome;
-    IDiskFileIo          & io      = m_actions.m_browser.GetOperations().GetFileIo();
-    std::string            source  = TextEncoding::WideToNarrow (usersDisk);
-    std::vector<Byte>      users;
     std::vector<Byte>      disk;
-    HRESULT                hr      = io.ReadAllBytes (source, users);
+    ActionsTypes::Outcome  outcome = MakeLinkProDosDisk (usersDisk, settings, disk);
+    HRESULT                hr      = S_OK;
 
 
 
-    if (SUCCEEDED (hr))
+    if (!outcome.Succeeded())
     {
-        hr = CassoLinkProDosDisk::Make (users, source, settings.baud, disk);
+        return outcome;
     }
 
-    if (SUCCEEDED (hr))
-    {
-        hr = io.WriteAllBytes (TextEncoding::WideToNarrow (imagePath), disk);
-    }
+    hr = m_actions.m_browser.GetOperations().GetFileIo().WriteAllBytes (TextEncoding::WideToNarrow (imagePath), disk);
 
-    if (hr == HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND) || hr == HRESULT_FROM_WIN32 (ERROR_INVALID_DATA))
-    {
-        ActionsCopy::AppendMessage (outcome, hr, L"The CassoLink ProDOS disk could not be made. The disk chosen must be a 140K ProDOS disk with PRODOS and BASIC.SYSTEM.");
-    }
-    else if (FAILED (hr))
+    if (FAILED (hr))
     {
         ActionsCopy::AppendMessage (outcome, hr, L"The CassoLink ProDOS disk could not be saved.");
     }
@@ -1726,6 +1700,109 @@ ActionsTypes::Outcome ActionsAppleDrive::SaveLinkProDosDisk (const std::wstring 
     }
 
     return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsAppleDrive::MakeLinkProDosDisk
+//
+//  The CassoLink ProDOS disk's bytes, from the user's ProDOS disk, for the
+//  link's speed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ActionsTypes::Outcome ActionsAppleDrive::MakeLinkProDosDisk (const std::wstring & usersDisk, const CassoLinkSettings & settings, std::vector<Byte> & outDisk)
+{
+    ActionsTypes::Outcome  outcome;
+    std::string            source  = TextEncoding::WideToNarrow (usersDisk);
+    std::vector<Byte>      users;
+    HRESULT                hr      = m_actions.m_browser.GetOperations().GetFileIo().ReadAllBytes (source, users);
+
+
+
+    outDisk.clear();
+
+    if (SUCCEEDED (hr))
+    {
+        hr = CassoLinkProDosDisk::Make (users, source, settings.baud, outDisk);
+    }
+
+    if (hr == HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND) || hr == HRESULT_FROM_WIN32 (ERROR_INVALID_DATA))
+    {
+        ActionsCopy::AppendMessage (outcome, hr, L"The CassoLink ProDOS disk could not be made. The disk chosen must be a 140K ProDOS disk with PRODOS and BASIC.SYSTEM.");
+    }
+    else if (FAILED (hr))
+    {
+        ActionsCopy::AppendMessage (outcome, hr, L"The CassoLink ProDOS disk could not be made.");
+    }
+
+    return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsAppleDrive::SaveLinkProDosToDisk
+//
+//  The CassoLink ProDOS disk, made in memory for the link's speed, written
+//  to the linked Apple's drive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ActionsTypes::Outcome ActionsAppleDrive::SaveLinkProDosToDisk (const std::string & link, int drive, const std::wstring & usersDisk)
+{
+    std::vector<Byte>                   disk;
+    ActionsTypes::Outcome               outcome = MakeLinkProDosDisk (usersDisk, FindLinkSettings (link), disk);
+    std::shared_ptr<ILinkImageSource>   image;
+
+
+
+    if (!outcome.Succeeded())
+    {
+        return outcome;
+    }
+
+    image = std::make_shared<MemoryImageSource> (std::format ("casso-link-prodos-{}.dsk", drive), std::move (disk));
+
+    SubmitWrite (link, drive, [drive, image] (CassoLinkSession & session) { return session.WriteDisk (drive, image); }, outcome);
+
+    return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsAppleDrive::FindLinkSettings
+//
+//  The connection's settings by its name; the defaults when there's none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CassoLinkSettings ActionsAppleDrive::FindLinkSettings (const std::string & link) const
+{
+    CassoLinkSettings  found;
+
+
+
+    for (const CassoLinkSettings & settings : m_actions.m_browser.GetLinks()->GetLinks())
+    {
+        if (settings.name == link)
+        {
+            found = settings;
+        }
+    }
+
+    return found;
 }
 
 

@@ -455,6 +455,7 @@ private:
     int                                m_modalResult     = 0;
     int                                m_defaultButtonId = 0;
     int                                m_mouseDepth      = 0;       // mouse events being dispatched, nested ones included
+    bool                               m_paintAfterMouse = false;   // invalidated during the mouse event being dispatched
     UINT                               m_dialogTickMs    = kDefaultDialogTickMs;   // dialog repaint / tick cadence (caret-blink default)
     std::function<void (int)>        m_onDialogEnd;            // modeless close callback
     std::function<void ()>           m_onModalLoopTick;        // OS size/move-loop keep-alive tick

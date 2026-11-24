@@ -19,6 +19,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
+#include "CassoExplorer/Window/Managers/CassoLinkListActions.h"
 #include "CassoExplorer/Window/Managers/FullSendWindowManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
@@ -281,7 +282,7 @@ void ExplorerLayout::RecomputeLayout()
 
         m_context.treePane.Layout (RECT { body.left, body.top, body.left, body.top });
         m_context.listPane.Layout (RECT { body.left, body.top, body.left, body.top });
-        m_context.cassoLinkManager.LayoutListActions();
+        m_context.linkListActions.LayoutListActions();
         m_context.preview.Layout (body);
         m_context.statusBar.Layout (m_statusBand.GetBounds());
 
@@ -321,14 +322,14 @@ void ExplorerLayout::RecomputeLayout()
         RECT  previewRect = { sashRect.right, right.top, right.right, right.bottom };
 
         m_context.listPane.Layout        (listRect);
-        m_context.cassoLinkManager.LayoutListActions();
+        m_context.linkListActions.LayoutListActions();
         m_context.preview.Layout     (previewRect);
     }
     else
     {
         m_context.preview.Hide();
         m_context.listPane.Layout       (right);
-        m_context.cassoLinkManager.LayoutListActions();
+        m_context.linkListActions.LayoutListActions();
     }
 
     m_context.statusBar.Layout (m_statusBand.GetBounds());

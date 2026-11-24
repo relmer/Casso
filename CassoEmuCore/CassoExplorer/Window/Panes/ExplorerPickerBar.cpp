@@ -89,7 +89,12 @@ void ExplorerPickerBar::Create()
         return;
     }
 
-    if (request->receivingDrive.has_value())
+    if (!request->listedTerms.empty())
+    {
+        m_chips = m_context.window.CreateChild<ExplorerPickerChips>();
+        m_chips->SetTerms (request->listedTerms);
+    }
+    else if (request->receivingDrive.has_value())
     {
         m_chips = m_context.window.CreateChild<ExplorerPickerChips>();
         m_chips->SetTerms (DriveImageRule::GetAcceptedTerms (*request->receivingDrive));
@@ -170,7 +175,7 @@ void ExplorerPickerBar::Create()
 //  ExplorerPickerBar::Layout
 //
 //  An open form is one row: the buttons at the right and the Verify box
-//  before them. A save form is the standard Save As dialog's stack: the
+//  at the left, from the list's edge. A save form is the standard Save As dialog's stack: the
 //  labeled file name box and file type list, both starting at the list's
 //  left edge, the type's note under the list, and the buttons in a row
 //  of their own at the bottom right.
@@ -200,20 +205,14 @@ void ExplorerPickerBar::Layout (const RECT & band, int listLeft)
 
     right = LayoutButtons (top, band.right - pad);
 
-    //  An open form's Verify box is before the buttons; a save form's is at
-    //  the left of the button row, under the file type list, and extends
-    //  to the buttons so a caller's longer label fits.
-    if (m_verify != nullptr && m_name == nullptr)
+    //  The Verify box is at the left of the button row, from the list's left
+    //  edge, or under a save form's file type list, and extends to the
+    //  buttons so a caller's longer label fits.
+    if (m_verify != nullptr)
     {
-        int  width = scaler.ToPx (kVerifyDip);
+        int  left = (m_name != nullptr) ? GetSaveBoxLeft (band, listLeft) : (std::max) (listLeft, (int) band.left + pad);
 
-        m_verify->Layout (RECT { right - width, top, right, top + height }, scaler);
-    }
-    else if (m_verify != nullptr)
-    {
-        int  left = GetSaveBoxLeft (band, listLeft);
-
-        m_verify->Layout (RECT { left, top, (std::max) (left, right), top + height }, scaler);
+        m_verify->Layout (RECT { left, top, (std::max) (left, right - pad), top + height }, scaler);
     }
 
 }

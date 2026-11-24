@@ -1221,13 +1221,13 @@ Fixed during the walk:
 ### 7f. CassoLink additions
 
 Walked on the emulator targets by the Story 23 to 29 tasks; the results are in the
-sections below. The steps on the owner's //c are left under T580 and T585.
+sections below. The step on the owner's //c left is under T580.
 
 | Step | Result |
 |---|---|
 | 1. Block devices | AppleWin's hard disk and MAME's //c with a UniDisk 3.5: Block devices in other emulators (T574) and Block devices in MAME (T709) |
 | 2. Raw capture | Each protected WOZ captured in an emulated //c and booted: `CassoLinkCaptureTests` (T579). Archon on the owner's //c took 18 minutes 47 seconds, over SC-055's 5 minutes: section 16 (T580, open) |
-| 3. Virtual drives | SAVE to each drive on an emulated //c: `CassoLinkVirtualDriveTests` (T585). The owner's //c is left |
+| 3. Virtual drives | SAVE to each drive on an emulated //c: `CassoLinkVirtualDriveTests` (T585). Passed on the owner's //c 2026-11-22 (SC-056): CAT of each drive, and TEST1 and TEST2 saved from BASIC.SYSTEM to drives 1 and 2 and found in their .po images |
 | 4. Cassette disks | A 140K disk each way on an emulated ][+ and //e, and ADTPro's audio client: `CassoLinkCassetteTests` and `CassoLinkAdtProAudioTests` (T592) |
 | 5. Tape recordings | Each format loaded and run in an emulated ][+ and read back: `TapeRecordingTests` (T597) |
 | 6. Interfaces and the Apple /// | Story 28's emulator targets (T602) and section 18 (T606) |
@@ -1394,3 +1394,13 @@ once at the start.
 The card's node in the tree had no expander after the card was opened: a tree
 node read with nothing under it stayed that way when it was refreshed with
 children to read. Now the node opens to the four partitions.
+
+## A 13-sector disk on the owner's //c (T611, 2026-11-22)
+
+CiderPress II's `3.2.1-master.d13` was written to a blank floppy in the //c's
+drive 2 over CassoLink on COM3, and the disk booted DOS 3.2.1. Create image
+from read it back as `DOS 3.2.1 Master.d13` in 0:45, with no sectors that
+couldn't be read. The two files are byte-identical, 116,480 bytes each.
+
+The program's bar stayed empty through the 13-sector read and write: those
+requests didn't send the bar's percentages. They do now.

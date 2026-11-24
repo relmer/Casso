@@ -16,6 +16,7 @@
 #include "GeneralPage.h"
 #include "HardwarePage.h"
 #include "SlotsPage.h"
+#include "DiskPortPage.h"
 #include "DiskPage.h"
 #include "ThemePage.h"
 #include "DisplayPage.h"
@@ -260,6 +261,7 @@ private:
     GeneralPage      * m_generalPage     = nullptr;
     HardwarePage     * m_hardwarePage    = nullptr;
     SlotsPage        * m_slotsPage       = nullptr;
+    DiskPortPage     * m_diskPortPage    = nullptr;
     DiskPage         * m_diskPage        = nullptr;
     ThemePage        * m_themePage       = nullptr;
     DisplayPage      * m_displayPage     = nullptr;
@@ -289,6 +291,10 @@ private:
     // The same pair for the Slots tab, which a machine without slots lacks.
     int            m_slotsPageIndex    = -1;
     bool           m_slotsTabVisible   = true;
+
+    // The same pair for the Disk port tab, which only a //c or //c Plus has.
+    int            m_diskPortPageIndex  = -1;
+    bool           m_diskPortTabVisible = true;
 
     // Refresh the Disk and Network tabs' presence from the staged hardware
     // config.

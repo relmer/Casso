@@ -192,11 +192,12 @@ Error:
 //
 //  DrawFramebuffer
 //
-//  Uploads a BGRA8 CPU pixel buffer into a cached ID2D1Bitmap and
-//  draws it into the destination DIP rect with linear interpolation.
-//  The bitmap is created lazily and recreated when the source
-//  dimensions change; otherwise CopyFromMemory rewrites the pixels
-//  in place each call. Used by the Settings → Theme preview to show
+//  Uploads a BGRA8 CPU pixel buffer into the cached ID2D1Bitmap for its
+//  address and draws it into the destination DIP rect with linear
+//  interpolation. The bitmap is created lazily and recreated when the
+//  source dimensions change; otherwise CopyFromMemory rewrites the pixels
+//  in place each call. The cache is emptied once it has
+//  s_kMaxFramebufferBitmaps buffers. Used by the Settings → Theme preview to show
 //  the live emulator framebuffer inside the mock window.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -210,8 +211,9 @@ HRESULT DxuiRenderIcons::DrawFramebuffer (
     float            destWidthDip,
     float            destHeightDip)
 {
-    HRESULT       hr     = S_OK;
-    D2D1_RECT_F   dest   = {};
+    HRESULT              hr     = S_OK;
+    D2D1_RECT_F          dest   = {};
+    FramebufferBitmap  * cached = nullptr;
 
 
 
@@ -222,9 +224,16 @@ HRESULT DxuiRenderIcons::DrawFramebuffer (
     CBRA (srcBgraPixels);
     CBRA (srcWidthPx > 0 && srcHeightPx > 0);
 
-    if (m_framebufferBitmap == nullptr ||
-        m_framebufferBitmapW != srcWidthPx ||
-        m_framebufferBitmapH != srcHeightPx)
+    if (m_framebufferBitmaps.size() >= s_kMaxFramebufferBitmaps && !m_framebufferBitmaps.contains (srcBgraPixels))
+    {
+        m_framebufferBitmaps.clear();
+    }
+
+    cached = &m_framebufferBitmaps[srcBgraPixels];
+
+    if (cached->bitmap == nullptr ||
+        cached->width  != srcWidthPx ||
+        cached->height != srcHeightPx)
     {
         D2D1_BITMAP_PROPERTIES  props = {};
 
@@ -233,18 +242,18 @@ HRESULT DxuiRenderIcons::DrawFramebuffer (
         props.dpiX                  = 96.0f;
         props.dpiY                  = 96.0f;
 
-        m_framebufferBitmap.Reset();
+        cached->bitmap.Reset();
         hr = m_renderer.m_d2dContext->CreateBitmap (D2D1::SizeU ((UINT32) srcWidthPx, (UINT32) srcHeightPx),
-                                         nullptr, 0, &props, &m_framebufferBitmap);
+                                         nullptr, 0, &props, &cached->bitmap);
         CHRA (hr);
-        m_framebufferBitmapW = srcWidthPx;
-        m_framebufferBitmapH = srcHeightPx;
+        cached->width  = srcWidthPx;
+        cached->height = srcHeightPx;
     }
 
     {
         D2D1_RECT_U  srcRect = D2D1::RectU (0, 0, (UINT32) srcWidthPx, (UINT32) srcHeightPx);
 
-        hr = m_framebufferBitmap->CopyFromMemory (&srcRect, srcBgraPixels,
+        hr = cached->bitmap->CopyFromMemory (&srcRect, srcBgraPixels,
                                                   (UINT32) (srcWidthPx * sizeof (uint32_t)));
         CHRA (hr);
     }
@@ -254,7 +263,7 @@ HRESULT DxuiRenderIcons::DrawFramebuffer (
     dest.right  = destXDip + destWidthDip;
     dest.bottom = destYDip + destHeightDip;
 
-    m_renderer.m_d2dContext->DrawBitmap (m_framebufferBitmap.Get(),
+    m_renderer.m_d2dContext->DrawBitmap (cached->bitmap.Get(),
                               &dest, m_renderer.m_globalAlpha,
                               D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
                               nullptr);

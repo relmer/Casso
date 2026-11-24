@@ -35,8 +35,10 @@ static constexpr size_t  s_kPossIdentifiedAt   = 4;
 static constexpr size_t  s_kPossItemAt         = 6;
 static constexpr int     s_kMaxPossessions     = 8;
 
-//  The status of a character whose slot is free. A character with this
-//  status can't join a party.
+//  The statuses of a dead character, dead and ashes, and of one whose slot
+//  is free. A character with the last status can't join a party.
+static constexpr int     s_kStatusDead         = 5;
+static constexpr int     s_kStatusAshes        = 6;
 static constexpr int     s_kStatusLost         = 7;
 
 //  Wizardry III adds this to the item number of some possessions, such as
@@ -68,8 +70,8 @@ static constexpr uint32_t  s_kMapStairs      = 0xFFCFE0FF;
 static constexpr uint32_t  s_kMapDark        = 0xFFA8A8A8;
 static constexpr uint32_t  s_kMapRock        = 0xFF6E6E6E;
 static constexpr uint32_t  s_kMapSpecial     = 0xFF8A8A8A;
-static constexpr uint32_t  s_kMapParty       = 0xFFE0A800;
-static constexpr uint32_t  s_kMapPartyEdge   = 0xFF7A5C00;
+static constexpr uint32_t  s_kMapParty       = 0xFF12B05A;
+static constexpr uint32_t  s_kMapPartyEdge   = 0xFF0A5C2E;
 
 //  The special square types the map fills: stairs, darkness, and rock or
 //  water.
@@ -81,10 +83,6 @@ static constexpr int  s_kSquareRock     = 9;
 static constexpr int  s_kSideWall       = 1;
 static constexpr int  s_kSideDoor       = 2;
 static constexpr int  s_kSideHiddenDoor = 3;
-
-static constexpr const wchar_t *  s_kpszMapLegend = L"The party is the gold circle. Walls are black, doors are brown, and hidden doors are dotted brown. "
-                                                    L"Blue squares are stairs, gray ones are dark, dark gray ones are rock or water, and pink ones are "
-                                                    L"fight zones. A dot marks any other special square.";
 
 
 
@@ -355,18 +353,29 @@ std::wstring WizardryScenario::GetItemName (std::span<const Byte> bytes, const C
 
 void WizardryScenario::ListRoster (std::span<const Byte> bytes, const Contents & contents, std::vector<Paragraph> & ioParagraphs, std::vector<std::wstring> & ioNotes)
 {
-    std::vector<Paragraph>  roster;
-    int                     listed = 0;
+    auto  roster = std::make_shared<RecordTable>();
+    int   listed = 0;
+
+
+
+    roster->headings = { L"Name", L"Level", L"Race", L"Class", L"Alignment", L"Status", L"Hit points", L"Gold", L"Experience" };
 
 
 
     for (int i = 0; i < contents.count[kZoneCharacter]; i++)
     {
-        size_t        at     = 0;
-        int           status = 0;
-        int           items  = 0;
-        bool          inMaze = false;
-        std::wstring  shown;
+        size_t               at        = 0;
+        int                  status    = 0;
+        int                  items     = 0;
+        bool                 inMaze    = false;
+        std::wstring         shown;
+        std::wstring         name;
+        std::wstring         race;
+        std::wstring         kind;
+        std::wstring         align;
+        RunColor             color     = RunColor::Text;
+        RunColor             nameColor = RunColor::Text;
+        RecordTable::Record  record;
 
         if (!TryLocate (bytes, contents, kZoneCharacter, i, kCharacterBytes, at))
         {
@@ -383,21 +392,37 @@ void WizardryScenario::ListRoster (std::span<const Byte> bytes, const Contents &
         }
 
         shown = inMaze ? std::wstring (L"Out, in the maze") : ToTitleCase (GetName (contents.statuses, status));
+        name  = ReadString (bytes, at + s_kCharNameAt, kShortStringMax);
+        race  = ToTitleCase (GetName (contents.races,      ReadWord (bytes, at + s_kCharRaceAt)));
+        kind  = ToTitleCase (GetName (contents.classes,    ReadWord (bytes, at + s_kCharClassAt)));
+        align = ToTitleCase (GetName (contents.alignments, ReadWord (bytes, at + s_kCharAlignAt)));
+        color = (status == 0 && !inMaze) ? RunColor::Good : RunColor::Bad;
 
-        roster.push_back (Paragraph());
-        roster.push_back (MakeParagraph ({ Run { ReadString (bytes, at + s_kCharNameAt, kShortStringMax), true },
-                                           Run { std::format (L"   Level {} {} {}, {}",
-                                                              ReadWord (bytes, at + s_kCharLevelAt),
-                                                              ToTitleCase (GetName (contents.races,      ReadWord (bytes, at + s_kCharRaceAt))),
-                                                              ToTitleCase (GetName (contents.classes,    ReadWord (bytes, at + s_kCharClassAt))),
-                                                              ToTitleCase (GetName (contents.alignments, ReadWord (bytes, at + s_kCharAlignAt)))),
-                                                 false, false, false, RunColor::Muted } }));
-        roster.push_back (MakeParagraph ({ Run { L"Status: " },
-                                           Run { shown, false, false, false, (status == 0 && !inMaze) ? RunColor::Text : RunColor::Bad },
-                                           Run { std::format (L"   Hit points: {}/{}   Gold: {}   Experience: {}",
-                                                              ReadWord (bytes, at + s_kCharHpLeftAt), ReadWord (bytes, at + s_kCharHpMaxAt),
-                                                              NumberFormat::FormatInteger ((int64_t) ReadAmount (bytes, at + s_kCharGoldAt)),
-                                                              NumberFormat::FormatInteger ((int64_t) ReadAmount (bytes, at + s_kCharExperienceAt))) } }));
+        //  A dead character's name is red as well.
+        nameColor = (status == s_kStatusDead || status == s_kStatusAshes) ? RunColor::Bad : RunColor::Text;
+
+        std::wstring  level   = std::format (L"{}", ReadWord (bytes, at + s_kCharLevelAt));
+        std::wstring  hits    = std::format (L"{}/{}", ReadWord (bytes, at + s_kCharHpLeftAt), ReadWord (bytes, at + s_kCharHpMaxAt));
+        std::wstring  gold    = NumberFormat::FormatInteger ((int64_t) ReadAmount (bytes, at + s_kCharGoldAt));
+        std::wstring  exp     = NumberFormat::FormatInteger ((int64_t) ReadAmount (bytes, at + s_kCharExperienceAt));
+        RunColor      hpColor = GetHpColor (ReadWord (bytes, at + s_kCharHpLeftAt), ReadWord (bytes, at + s_kCharHpMaxAt));
+
+        record.cells = { Run { name, true, false, false, nameColor }, Run { level }, Run { race, false, true, false, RunColor::Muted },
+                         Run { kind, false, true, false, RunColor::Muted }, Run { align, false, true, false, RunColor::Muted },
+                         Run { shown, true, false, false, color }, Run { hits, true, false, false, hpColor }, Run { gold }, Run { exp } };
+
+        record.card.push_back (MakeParagraph ({ Run { name, true, false, false, nameColor },
+                                                Run { L"   Level ", false, false, false, RunColor::Muted },
+                                                Run { level, true, false, false, RunColor::Keyword },
+                                                Run { std::format (L" {} {}, {}", race, kind, align), false, true, false, RunColor::Muted } }));
+        record.card.push_back (MakeParagraph ({ Run { L"Status ", false, false, false, RunColor::Muted },
+                                                Run { shown, true, false, false, color },
+                                                Run { L"   HP ", false, false, false, RunColor::Muted },
+                                                Run { hits, true, false, false, hpColor },
+                                                Run { L"   Gold ", false, false, false, RunColor::Muted },
+                                                Run { gold, true, false, false, RunColor::Keyword },
+                                                Run { L"   Exp ", false, false, false, RunColor::Muted },
+                                                Run { exp, true, false, false, RunColor::Keyword } }));
 
         items = (std::clamp) (ReadWord (bytes, at + s_kCharItemCountAt), 0, s_kMaxPossessions);
 
@@ -407,25 +432,31 @@ void WizardryScenario::ListRoster (std::span<const Byte> bytes, const Contents &
             bool          equipped   = ReadWord (bytes, item + s_kPossEquippedAt)   != 0;
             bool          cursed     = ReadWord (bytes, item + s_kPossCursedAt)     != 0;
             bool          identified = ReadWord (bytes, item + s_kPossIdentifiedAt) != 0;
-            std::wstring  name       = GetItemName (bytes, contents, ReadWord (bytes, item + s_kPossItemAt), identified);
+            std::wstring  itemName   = GetItemName (bytes, contents, ReadWord (bytes, item + s_kPossItemAt), identified);
             Paragraph     line       = MakeParagraph ({ Run { L"      " },
-                                                        Run { name, false, !identified, false, cursed ? RunColor::Bad : identified ? RunColor::Text : RunColor::Muted } });
+                                                        Run { itemName, false, !identified, false, cursed ? RunColor::Bad : identified ? RunColor::Text : RunColor::Muted },
+                                                        Run { L"\t" } });
 
             AddItemStates (equipped, cursed, identified, line.runs);
-            roster.push_back (std::move (line));
+            record.details.push_back (std::move (line));
         }
 
+        roster->records.push_back (std::move (record));
         listed++;
     }
 
-    ioParagraphs.push_back (MakeParagraph ({ Run { std::format (L"Saved game: {} {}", listed, (listed == 1) ? L"character" : L"characters"), false, false, false, RunColor::Muted } }));
+    roster->title = std::format (L"Saved game: {} {}", listed, (listed == 1) ? L"character" : L"characters");
 
     if (listed > 0)
     {
-        ioParagraphs.insert (ioParagraphs.end(), roster.begin(), roster.end());
+        Paragraph  table;
+
+        table.table = roster;
+        ioParagraphs.push_back (std::move (table));
     }
     else
     {
+        ioParagraphs.push_back (MakeParagraph ({ Run { roster->title, true } }));
         ioParagraphs.push_back (Paragraph());
         ioParagraphs.push_back (MakeParagraph ({ Run { L"No characters." } }));
     }
@@ -437,11 +468,41 @@ void WizardryScenario::ListRoster (std::span<const Byte> bytes, const Contents &
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WizardryScenario::GetHpColor
+//
+//  Green at full hit points, red at a quarter or less.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RunColor WizardryScenario::GetHpColor (int left, int max)
+{
+    RunColor  color = RunColor::Text;
+
+
+
+    if (max > 0 && left >= max)
+    {
+        color = RunColor::Good;
+    }
+    else if (left * 4 <= max)
+    {
+        color = RunColor::Bad;
+    }
+
+    return color;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WizardryScenario::AddItemStates
 //
-//  An item's states after its name, in parentheses, each with its mark in
-//  its color, as "(equipped, cursed)" with a check before equipped and a
-//  skull before cursed. Nothing for an item in none of them.
+//  An item's states, in the column after its name, each with its mark in
+//  its color: a check before equipped, a skull before cursed and a question
+//  mark before unidentified. Nothing for an item in none of them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -468,13 +529,12 @@ void WizardryScenario::AddItemStates (bool equipped, bool cursed, bool identifie
 
     for (size_t i = 0; i < states.size(); i++)
     {
-        ioRuns.push_back (Run { (i == 0) ? L" (" : L", " });
-        ioRuns.push_back (std::move (states[i]));
-    }
+        if (i > 0)
+        {
+            ioRuns.push_back (Run { L"   " });
+        }
 
-    if (!states.empty())
-    {
-        ioRuns.push_back (Run { L")" });
+        ioRuns.push_back (std::move (states[i]));
     }
 }
 
@@ -542,7 +602,7 @@ std::wstring WizardryScenario::ToTitleCase (const std::wstring & name)
 //
 //  North at the top, each square s_kMapCell pixels: a pink fight zone, a
 //  blue stair square, a gray dark one and a dark gray rock or water one
-//  filled, a dot on any other special square, and a gold circle on the
+//  filled, a dot on any other special square, and a green circle on the
 //  party's. Each side is drawn by its type in the level: a black wall, a brown
 //  door in the middle of a wall, a dotted brown hidden door, or a faint
 //  grid line where it is open.
@@ -551,7 +611,50 @@ std::wstring WizardryScenario::ToTitleCase (const std::wstring & name)
 
 void WizardryScenario::RenderLevel (std::span<const Byte> level, int partyX, int partyY, std::vector<uint32_t> & outBgra, int & outWidth, int & outHeight)
 {
-    int  side = kMazeSide * s_kMapCell + 2 * s_kMapBorder + 1;
+    static constexpr size_t  s_kSideTables[] = { kNorthAt, kEastAt, kSouthAt, kWestAt };
+    auto  getWall = [level] (int x, int y, int direction)
+    {
+        return ReadPacked (level, s_kSideTables[direction], kWallRowBytes, kWallBits, x, y);
+    };
+    auto  getLook = [level] (int x, int y)
+    {
+        SquareLook  look;
+        int         extra = ReadPacked (level, kExtraAt, kExtraRowBytes, kExtraBits, x, y);
+        int         type  = ReadPacked (level, kSquareTypesAt, 0, kExtraBits, 0, extra);
+        bool        fight = ReadPacked (level, kFightsAt, kFightRowBytes, kFightBits, x, y) != 0;
+
+        look.fill    = (type == s_kSquareStairs)   ? s_kMapStairs
+                     : (type == s_kSquareDarkness) ? s_kMapDark
+                     : (type == s_kSquareRock)     ? s_kMapRock
+                     : fight                       ? s_kMapFight
+                                                   : 0;
+        look.special = type > 0 && type != s_kSquareStairs && type != s_kSquareDarkness && type != s_kSquareRock;
+
+        return look;
+    };
+
+
+
+    RenderGrid (kMazeSide, getWall, getLook, partyX, partyY, outBgra, outWidth, outHeight);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WizardryScenario::RenderGrid
+//
+//  A maze of side by side squares as RenderLevel draws it, each square's
+//  sides and fill from the readers. A wall reader's direction is 0 for
+//  north, 1 east, 2 south and 3 west.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WizardryScenario::RenderGrid (int squares, const WallReader & getWall, const LookReader & getLook, int partyX, int partyY, std::vector<uint32_t> & outBgra, int & outWidth, int & outHeight)
+{
+    int  side = squares * s_kMapCell + 2 * s_kMapBorder + 1;
 
 
 
@@ -594,25 +697,23 @@ void WizardryScenario::RenderLevel (std::span<const Byte> level, int partyX, int
         }
     };
 
-    for (int y = 0; y < kMazeSide; y++)
+    for (int y = 0; y < squares; y++)
     {
-        for (int x = 0; x < kMazeSide; x++)
+        for (int x = 0; x < squares; x++)
         {
-            int   left  = s_kMapBorder + x * s_kMapCell;
-            int   top   = s_kMapBorder + (kMazeSide - 1 - y) * s_kMapCell;
-            int   extra = ReadPacked (level, kExtraAt, kExtraRowBytes, kExtraBits, x, y);
-            int   type  = ReadPacked (level, kSquareTypesAt, 0, kExtraBits, 0, extra);
-            bool  fight = ReadPacked (level, kFightsAt, kFightRowBytes, kFightBits, x, y) != 0;
+            int         left = s_kMapBorder + x * s_kMapCell;
+            int         top  = s_kMapBorder + (squares - 1 - y) * s_kMapCell;
+            SquareLook  look = getLook (x, y);
 
-            if (fight)
+            if (look.fill != 0)
             {
-                fill (left, top, s_kMapCell, s_kMapCell, s_kMapFight);
+                fill (left, top, s_kMapCell, s_kMapCell, look.fill);
             }
 
-            if (type == s_kSquareStairs)        { fill (left, top, s_kMapCell, s_kMapCell, s_kMapStairs); }
-            else if (type == s_kSquareDarkness) { fill (left, top, s_kMapCell, s_kMapCell, s_kMapDark);   }
-            else if (type == s_kSquareRock)     { fill (left, top, s_kMapCell, s_kMapCell, s_kMapRock);   }
-            else if (type > 0)                  { fill (left + s_kMapCell / 2 - 2, top + s_kMapCell / 2 - 2, 5, 5, s_kMapSpecial); }
+            if (look.special)
+            {
+                fill (left + s_kMapCell / 2 - 2, top + s_kMapCell / 2 - 2, 5, 5, s_kMapSpecial);
+            }
 
             if (x == partyX && y == partyY)
             {
@@ -636,17 +737,17 @@ void WizardryScenario::RenderLevel (std::span<const Byte> level, int partyX, int
     }
 
     //  The sides last, over the fills.
-    for (int y = 0; y < kMazeSide; y++)
+    for (int y = 0; y < squares; y++)
     {
-        for (int x = 0; x < kMazeSide; x++)
+        for (int x = 0; x < squares; x++)
         {
             int  left = s_kMapBorder + x * s_kMapCell;
-            int  top  = s_kMapBorder + (kMazeSide - 1 - y) * s_kMapCell;
+            int  top  = s_kMapBorder + (squares - 1 - y) * s_kMapCell;
 
-            drawSide (left,              top,              true,  ReadPacked (level, kNorthAt, kWallRowBytes, kWallBits, x, y));
-            drawSide (left,              top + s_kMapCell, true,  ReadPacked (level, kSouthAt, kWallRowBytes, kWallBits, x, y));
-            drawSide (left,              top,              false, ReadPacked (level, kWestAt,  kWallRowBytes, kWallBits, x, y));
-            drawSide (left + s_kMapCell, top,              false, ReadPacked (level, kEastAt,  kWallRowBytes, kWallBits, x, y));
+            drawSide (left,              top,              true,  getWall (x, y, 0));
+            drawSide (left,              top + s_kMapCell, true,  getWall (x, y, 2));
+            drawSide (left,              top,              false, getWall (x, y, 3));
+            drawSide (left + s_kMapCell, top,              false, getWall (x, y, 1));
         }
     }
 }
@@ -740,6 +841,7 @@ void WizardryScenario::DrawPartyLevel (std::span<const Byte> bytes, const Conten
     int        level = 0;
     size_t     at    = 0;
     Paragraph  map;
+    Paragraph  legend;
 
 
 
@@ -761,11 +863,168 @@ void WizardryScenario::DrawPartyLevel (std::span<const Byte> bytes, const Conten
     }
 
     RenderLevel (bytes.subspan (at, kMazeBytes), x, y, map.picture, map.width, map.height);
+    AddSquareTips (bytes.subspan (at, kMazeBytes), x, y, map);
+
+    //  A ping at the middle of the party's square, and the map zooms and pans.
+    map.pingX   = s_kMapBorder + x * s_kMapCell + s_kMapCell / 2;
+    map.pingY   = s_kMapBorder + (kMazeSide - 1 - y) * s_kMapCell + s_kMapCell / 2;
+    map.canZoom = true;
 
     ioParagraphs.push_back (Paragraph());
     ioParagraphs.push_back (MakeParagraph ({ Run { std::format (L"Maze level {}, the party at {} east, {} north", level, x, y), true } }));
     ioParagraphs.push_back (std::move (map));
-    ioParagraphs.push_back (MakeParagraph ({ Run { s_kpszMapLegend, false, false, false, RunColor::Muted } }));
+    legend = MakeParagraph ({ Run { L"The party   ",     false, false, false, RunColor::Muted, s_kMapParty   },
+                              Run { L"Door   ",          false, false, false, RunColor::Muted, s_kMapDoor    },
+                              Run { L"Stairs   ",        false, false, false, RunColor::Muted, s_kMapStairs  },
+                              Run { L"Darkness   ",      false, false, false, RunColor::Muted, s_kMapDark    },
+                              Run { L"Rock or water   ", false, false, false, RunColor::Muted, s_kMapRock    },
+                              Run { L"Fight zone   ",    false, false, false, RunColor::Muted, s_kMapFight   },
+                              Run { L"Special square",   false, false, false, RunColor::Muted, s_kMapSpecial } });
+
+    legend.isLegend = true;
+    ioParagraphs.push_back (std::move (legend));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WizardryScenario::DrawWizardry5Level
+//
+//  A Wizardry V level as DrawPartyLevel draws one, from the walls block of
+//  its disk side. The block has each square's east and north sides; its west
+//  and south sides are its neighbors' east and north.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WizardryScenario::DrawWizardry5Level (std::span<const Byte> walls, const WizardryMaze::Square & party, std::vector<Paragraph> & ioParagraphs)
+{
+    static constexpr const wchar_t *  s_kSides[] = { L"north", L"east", L"south", L"west" };
+    Paragraph                         map;
+    Paragraph                         legend;
+    auto  getWall = [walls] (int x, int y, int direction)
+    {
+        return (direction == 0) ? WizardryMaze::GetWall (walls, x,     y,     true)
+             : (direction == 1) ? WizardryMaze::GetWall (walls, x,     y,     false)
+             : (direction == 2) ? WizardryMaze::GetWall (walls, x,     y - 1, true)
+                                : WizardryMaze::GetWall (walls, x - 1, y,     false);
+    };
+    auto  getLook = [] (int, int) { return SquareLook(); };
+
+
+
+    RenderGrid (WizardryMaze::kSide, getWall, getLook, party.x, party.y, map.picture, map.width, map.height);
+
+    map.tipCell    = s_kMapCell;
+    map.tipLeft    = s_kMapBorder;
+    map.tipTop     = s_kMapBorder;
+    map.tipColumns = WizardryMaze::kSide;
+    map.tips.assign ((size_t) WizardryMaze::kSide * WizardryMaze::kSide, PictureTip());
+
+    for (int y = 0; y < WizardryMaze::kSide; y++)
+    {
+        for (int x = 0; x < WizardryMaze::kSide; x++)
+        {
+            PictureTip &  tip = map.tips[(size_t) (WizardryMaze::kSide - 1 - y) * WizardryMaze::kSide + (size_t) x];
+
+            tip.lines.push_back ({ 0, std::format (L"{} east, {} north", x, y) });
+
+            if (x == party.x && y == party.y)
+            {
+                tip.lines.push_back ({ s_kMapParty, L"The party" });
+            }
+
+            for (int direction = 0; direction < 4; direction++)
+            {
+                int  kind = getWall (x, y, direction);
+
+                if (kind == s_kSideDoor)            { tip.lines.push_back ({ s_kMapDoor, std::format (L"Door to the {}",        s_kSides[direction]) }); }
+                else if (kind == s_kSideHiddenDoor) { tip.lines.push_back ({ s_kMapDoor, std::format (L"Hidden door to the {}", s_kSides[direction]) }); }
+            }
+        }
+    }
+
+    map.pingX   = s_kMapBorder + party.x * s_kMapCell + s_kMapCell / 2;
+    map.pingY   = s_kMapBorder + (WizardryMaze::kSide - 1 - party.y) * s_kMapCell + s_kMapCell / 2;
+    map.canZoom = true;
+
+    ioParagraphs.push_back (Paragraph());
+    ioParagraphs.push_back (MakeParagraph ({ Run { std::format (L"Maze level {}, the party at {} east, {} north", party.level, party.x, party.y), true } }));
+    ioParagraphs.push_back (std::move (map));
+    legend = MakeParagraph ({ Run { L"The party   ", false, false, false, RunColor::Muted, s_kMapParty },
+                              Run { L"Door",         false, false, false, RunColor::Muted, s_kMapDoor  } });
+
+    legend.isLegend = true;
+    ioParagraphs.push_back (std::move (legend));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WizardryScenario::AddSquareTips
+//
+//  A tip for each square of the map: where it is, then the party, the
+//  square's kind, a fight zone, and each door, a line each, with the color
+//  the map draws it in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WizardryScenario::AddSquareTips (std::span<const Byte> level, int partyX, int partyY, Paragraph & ioMap)
+{
+    static constexpr struct { size_t at; const wchar_t * side; }  s_kSides[] =
+    {
+        { kNorthAt, L"north" }, { kEastAt, L"east" }, { kSouthAt, L"south" }, { kWestAt, L"west" },
+    };
+
+
+
+    ioMap.tipCell    = s_kMapCell;
+    ioMap.tipLeft    = s_kMapBorder;
+    ioMap.tipTop     = s_kMapBorder;
+    ioMap.tipColumns = kMazeSide;
+    ioMap.tips.assign ((size_t) kMazeSide * kMazeSide, PictureTip());
+
+    for (int y = 0; y < kMazeSide; y++)
+    {
+        for (int x = 0; x < kMazeSide; x++)
+        {
+            PictureTip &  tip   = ioMap.tips[(size_t) (kMazeSide - 1 - y) * kMazeSide + (size_t) x];
+            int           extra = ReadPacked (level, kExtraAt, kExtraRowBytes, kExtraBits, x, y);
+            int           type  = ReadPacked (level, kSquareTypesAt, 0, kExtraBits, 0, extra);
+
+            tip.lines.push_back ({ 0, std::format (L"{} east, {} north", x, y) });
+
+            if (x == partyX && y == partyY)          { tip.lines.push_back ({ s_kMapParty,   L"The party" });       }
+            if (type == s_kSquareStairs)             { tip.lines.push_back ({ s_kMapStairs,  L"Stairs" });          }
+            else if (type == s_kSquareDarkness)      { tip.lines.push_back ({ s_kMapDark,    L"Darkness" });        }
+            else if (type == s_kSquareRock)          { tip.lines.push_back ({ s_kMapRock,    L"Rock or water" });   }
+            else if (type > 0)                       { tip.lines.push_back ({ s_kMapSpecial, L"Special square" });  }
+
+            if (ReadPacked (level, kFightsAt, kFightRowBytes, kFightBits, x, y) != 0)
+            {
+                tip.lines.push_back ({ s_kMapFight, L"Fight zone" });
+            }
+
+            for (const auto & side : s_kSides)
+            {
+                int  kind = ReadPacked (level, side.at, kWallRowBytes, kWallBits, x, y);
+
+                if (kind == s_kSideDoor)
+                {
+                    tip.lines.push_back ({ s_kMapDoor, std::format (L"Door to the {}", side.side) });
+                }
+                else if (kind == s_kSideHiddenDoor)
+                {
+                    tip.lines.push_back ({ s_kMapDoor, std::format (L"Hidden door to the {}", side.side) });
+                }
+            }
+        }
+    }
 }
 
 
@@ -827,8 +1086,14 @@ HRESULT WizardryScenario::Decode (std::span<const Byte> bytes, const FileFacts &
 
     outFile.paragraphs.push_back (MakeParagraph ({ Run { GetTitle (contents.name), true } }));
 
-    ListRoster     (bytes, contents, outFile.paragraphs, outFile.notes);
     DrawPartyLevel (bytes, contents, outFile.paragraphs, outFile.notes);
+
+    if (outFile.paragraphs.size() > 1)
+    {
+        outFile.paragraphs.push_back (Paragraph());
+    }
+
+    ListRoster     (bytes, contents, outFile.paragraphs, outFile.notes);
 
 Error:
     return hr;

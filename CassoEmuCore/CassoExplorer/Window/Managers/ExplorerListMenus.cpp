@@ -800,8 +800,9 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
             selectedDrives = !rowPaths.empty() && std::all_of (rowPaths.begin(), rowPaths.end(), [] (const std::wstring & path) { return path.size() == 3 && path[1] == L':'; });
         }
 
-        //  File Explorer's drive has no Copy as path.
-        if (!selectedDrives)
+        //  File Explorer's drive has no Copy as path, and a stock disk has no
+        //  file at its path until it is downloaded.
+        if (!selectedDrives && !m_context.listPane.IsStockDiskToFetchSelected())
         {
             m_context.menus.AddMenuCommand (items, L"Copy as &path", [this]() { m_context.clipboard.CopySelectedPaths(); }, L"Ctrl+Shift+C", s_kpszMdl2CopyPath);
             m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.copyaspath");

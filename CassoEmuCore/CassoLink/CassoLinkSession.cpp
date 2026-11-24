@@ -3,10 +3,13 @@
 #include "CassoLink/CassoLinkSession.h"
 #include "Core/TextEncoding.h"
 #include "CassoLink/LinkFault.h"
+#include "CassoLink/Session/LinkImageSource.h"
 #include "Devices/Disk/IDiskFileIo.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 #include "Seams/IByteStreamFactory.h"
 
 
@@ -362,6 +365,7 @@ std::shared_ptr<LinkOperation> CassoLinkSession::WriteBlockDevice (int drive, co
 
 
     operation->imagePath    = imagePath;
+    operation->source       = std::make_shared<FileImageSource> (m_fileIo, imagePath);
     operation->resume       = resume;
     operation->verifyWrites = forceVerify || m_verifyWrites;
 
@@ -429,13 +433,32 @@ std::shared_ptr<LinkOperation> CassoLinkSession::CaptureDisk (int drive, const s
 
 std::shared_ptr<LinkOperation> CassoLinkSession::WriteDisk (int drive, const std::string & imagePath, const std::string & formatted, bool forceVerify)
 {
+    return WriteDisk (drive, std::make_shared<FileImageSource> (m_fileIo, imagePath), formatted, forceVerify);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkSession::WriteDisk
+//
+//  An image in memory has its name as the image path, for the job's lines.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<LinkOperation> CassoLinkSession::WriteDisk (int drive, std::shared_ptr<ILinkImageSource> source, const std::string & formatted, bool forceVerify)
+{
     std::shared_ptr<LinkOperation>  operation = std::make_shared<LinkOperation>();
 
 
 
-    operation->imagePath = imagePath;
-    operation->formatted = formatted;
+    operation->imagePath    = source->GetPath().empty() ? source->GetName() : source->GetPath();
+    operation->source       = std::move (source);
+    operation->formatted    = formatted;
     operation->verifyWrites = forceVerify || m_verifyWrites;
+    operation->status       = std::make_shared<FullSendStatus> (CassoLinkFullSend::GetSeconds, CassoLinkFullSend::GetClockTime);
 
     return Queue (LinkOperationKind::WriteDisk, drive, FilePath(), operation);
 }
@@ -512,7 +535,7 @@ LinkChip CassoLinkSession::GetLinkChip (LinkTransport transport)
 
 int CassoLinkSession::GetLogicalSector (int physical)
 {
-    return NibblizationLayer::GetDosFileIndexForPhysicalSector (physical);
+    return SectorInterleave::GetDosFileIndexForPhysicalSector (physical);
 }
 
 
@@ -531,7 +554,7 @@ int CassoLinkSession::GetPhysicalSector (int logical)
 
 
 
-    for (int physical = 0; physical < NibblizationLayer::kSectorsPerTrack; physical++)
+    for (int physical = 0; physical < NibbleFormat::kSectorsPerTrack; physical++)
     {
         if (GetLogicalSector (physical) == logical)
         {
@@ -599,16 +622,16 @@ HRESULT CassoLinkSessionTypes::DriveSource::ReadSectors (std::span<const size_t>
 
     outData.assign (sectors.size() * LinkedDisk::kSectorSize, 0);
 
-    for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+    for (int track = 0; track < NibbleFormat::kTrackCount; track++)
     {
         physicals.clear();
         places.clear();
 
         for (size_t i = 0; i < sectors.size(); i++)
         {
-            if ((int) (sectors[i] / NibblizationLayer::kSectorsPerTrack) == track)
+            if ((int) (sectors[i] / NibbleFormat::kSectorsPerTrack) == track)
             {
-                physicals.push_back ((Byte) CassoLinkSession::GetPhysicalSector ((int) (sectors[i] % NibblizationLayer::kSectorsPerTrack)));
+                physicals.push_back ((Byte) CassoLinkSession::GetPhysicalSector ((int) (sectors[i] % NibbleFormat::kSectorsPerTrack)));
                 places.push_back (i);
             }
         }
@@ -656,16 +679,16 @@ HRESULT CassoLinkSessionTypes::DriveSource::WriteSectors (std::span<const size_t
 
 
 
-    for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+    for (int track = 0; track < NibbleFormat::kTrackCount; track++)
     {
         physicals.clear();
         trackData.clear();
 
         for (size_t i = 0; i < sectors.size(); i++)
         {
-            if ((int) (sectors[i] / NibblizationLayer::kSectorsPerTrack) == track)
+            if ((int) (sectors[i] / NibbleFormat::kSectorsPerTrack) == track)
             {
-                physicals.push_back ((Byte) CassoLinkSession::GetPhysicalSector ((int) (sectors[i] % NibblizationLayer::kSectorsPerTrack)));
+                physicals.push_back ((Byte) CassoLinkSession::GetPhysicalSector ((int) (sectors[i] % NibbleFormat::kSectorsPerTrack)));
                 trackData.insert (trackData.end(), data.begin() + (ptrdiff_t) (i * LinkedDisk::kSectorSize), data.begin() + (ptrdiff_t) ((i + 1) * LinkedDisk::kSectorSize));
             }
         }
@@ -1057,9 +1080,52 @@ void CassoLinkSession::SetState (LinkState state)
                                                 : "The Apple stopped answering: " + m_connector.m_lostReason);
     }
 
+    //  A line waiting for Casso's program is closed and opened again on each
+    //  attempt, while the driver goes on using the drives, so only Stop
+    //  ends it.
+    if (state == LinkState::Closed)
+    {
+        m_servingVirtual = false;
+    }
+
     m_connector.m_lostReason.clear();
 
     m_sink.OnStateChanged (state);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkSession::OnVirtualServed
+//
+//  The first reply to a virtual drive request on a line is logged, and the
+//  connection's page and status bar show the drives in use, and again when
+//  a status request identifies another model.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkSession::OnVirtualServed (const std::wstring & model)
+{
+    bool  first   = !m_servingVirtual.exchange (true);
+    bool  changed = false;
+
+
+
+    if (!model.empty())
+    {
+        std::lock_guard<std::mutex>  lock (m_connector.m_lock);
+
+        changed                 = m_connector.m_modelName != model;
+        m_connector.m_modelName = model;
+    }
+
+    if (first || changed)
+    {
+        m_sink.OnActivity (std::format ("{} is using the virtual drives", model.empty() ? std::string ("The Apple") : TextEncoding::WideToNarrow (model)));
+    }
 }
 
 
@@ -1385,7 +1451,7 @@ HRESULT CassoLinkSession::Revalidate (int drive)
         //  probed with: the VTOC and the volume directory's key block read
         //  again find a disk put in its place, such as a DOS 3.3 disk where
         //  the CassoLink disk was.
-        for (size_t mark : { (size_t) Dos33Skeleton::kVtocTrack * NibblizationLayer::kSectorsPerTrack,
+        for (size_t mark : { (size_t) Dos33Skeleton::kVtocTrack * NibbleFormat::kSectorsPerTrack,
                              ProDosSkeleton::GetBlockByteOffset (ProDosSkeleton::kDirKeyBlock, 0) / LinkedDisk::kSectorSize,
                              ProDosSkeleton::GetBlockByteOffset (ProDosSkeleton::kDirKeyBlock, LinkedDisk::kSectorSize) / LinkedDisk::kSectorSize })
         {
@@ -1399,7 +1465,7 @@ HRESULT CassoLinkSession::Revalidate (int drive)
     }
     else if (disk.GetKind() == VolumeKind::Dos33)
     {
-        marks.push_back ((size_t) Dos33Skeleton::kVtocTrack * NibblizationLayer::kSectorsPerTrack);
+        marks.push_back ((size_t) Dos33Skeleton::kVtocTrack * NibbleFormat::kSectorsPerTrack);
     }
     else if (disk.GetKind() != VolumeKind::ProDos)
     {

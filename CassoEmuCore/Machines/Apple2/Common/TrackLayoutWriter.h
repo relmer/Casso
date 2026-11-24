@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 
 
 
@@ -22,7 +22,7 @@
 
 struct TrackLayout
 {
-    Byte       volume  = NibblizationLayer::kDefaultVolume;
+    Byte       volume  = NibbleFormat::kDefaultVolume;
     int        nibbles = 0;
     int        bits    = 0;
     long long  sector0 = 0;

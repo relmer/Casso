@@ -253,6 +253,14 @@ public:
 
     void     SetTraceSink    (TraceFn sink) { m_trace = std::move (sink); }
 
+    //  Called for each reply sent to a virtual drive request, with the
+    //  model the installer's status request identified, or empty.
+    using VirtualFn = std::function<void (const std::wstring & model)>;
+
+    static constexpr size_t  kVirtualIdSize = 5;   // the ROM's identification bytes
+
+    void     SetVirtualSink  (VirtualFn sink) { m_virtualServed = std::move (sink); }
+
     //  The chip the Apple's program is built for: a 6551, or an Uthernet II's
     //  W5100.
     void     SetProgramChip (LinkChip chip) { m_programChip = chip; m_program.clear(); }
@@ -427,6 +435,10 @@ public:
     //  byte (CassoLinkCodec::kWriteNibbleTrack). A write-protected disk is the
     //  Status's error.
     HRESULT  WriteNibbleTrack    (Byte drive, Byte track, std::span<const Byte> stream, CassoLinkStatus & outStatus);
+
+    //  A 13-sector request's last two bytes: the whole disk's percentage at
+    //  the track's start and at its end, for the Apple's bar.
+    static std::array<Byte, 2>  GetTrackPercents (Byte track);
 
     //  A 13-sector track's sectors in `requested`, a bit each, read by the
     //  13-sector module, which must be loaded (CassoLinkCodec::kReadThirteenTrack).
@@ -604,6 +616,7 @@ private:
     DWORD                           m_waitNoticeMs    = kWaitNoticeMs;
     bool                            m_quiet           = false;
     TraceFn                         m_trace;
+    VirtualFn                       m_virtualServed;
     std::string                     m_tracedReady;     // text of the last Ready traced
     bool                            m_faultProgram    = false;
     bool                            m_blockCrc        = true;

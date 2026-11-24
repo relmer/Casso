@@ -40,7 +40,7 @@ public:
     static constexpr int              kRuleInsetDip    = 8;
     static constexpr int              kSectionsBandDip = 40;      // the band with the switch between a disk's saved game and the disk
     static constexpr int              kSectionsDip     = 28;
-    static constexpr int              kSectionDip      = 100;     // each of its segments
+    static constexpr int              kSectionsMaxDip  = 360;     // its widest; a wider pane centers it
     static constexpr int              kSectionsPadDip  = 12;
 
     //  The longest record length that can be typed, and its digits.
@@ -74,6 +74,7 @@ public:
     bool                              UpdateScrollbarHover   (POINT at);
     bool                              TickScrollbars         (int64_t nowMs);
     bool                              IsOverPane             (POINT point) const;
+    bool                              IsOverMap              (POINT point) const { return IsOverPane (point) && m_text.IsOverMap (point); }
 
     //  The wheel over the pane below its toolbar, with a disk image's
     //  thumbnail: down, the thumbnail scrolls away before the view does, and
@@ -107,6 +108,7 @@ public:
     PreviewShellView                & GetShell               ()            { return m_shell; }
     PreviewFindBar                  & GetFind                ()            { return m_find; }
     PreviewDiskThumbnail            & GetThumbnail           ()            { return m_thumbnail; }
+    const DxuiSegmentedControl      & GetSections            () const      { return *m_sections; }
 
     //  The preview over the whole tab, below the tab strip, and its steps to
     //  the previous and next file.

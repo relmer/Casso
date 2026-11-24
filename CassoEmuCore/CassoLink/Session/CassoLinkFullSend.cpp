@@ -7,10 +7,10 @@
 #include "CassoLink/Session/TrackMeasures.h"
 #include "CassoLink/FullSend/FullSendDisk.h"
 #include "CassoLink/FullSend/FullSendSession.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "CassoLink/CassoLinkSession.h"
 #include "Core/TextEncoding.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 
 
 
@@ -208,7 +208,7 @@ HRESULT CassoLinkFullSend::ReadTrack (int drive, int track, std::vector<Byte> & 
     hr = CheckStop();
     CHR (hr);
 
-    for (int physical = 0; physical < NibblizationLayer::kSectorsPerTrack; physical++)
+    for (int physical = 0; physical < NibbleFormat::kSectorsPerTrack; physical++)
     {
         physicals.push_back ((Byte) physical);
     }
@@ -240,11 +240,11 @@ HRESULT CassoLinkFullSend::ReadTrack (int drive, int track, std::vector<Byte> & 
     hr = CassoLinkDiskTransfer::ReadMissing (*m_session.m_host, (Byte) drive, (Byte) track, physicals, data, read, status);
     CHR (hr);
 
-    for (int physical = 0; physical < NibblizationLayer::kSectorsPerTrack; physical++)
+    for (int physical = 0; physical < NibbleFormat::kSectorsPerTrack; physical++)
     {
         if (read[(size_t) physical])
         {
-            to = (size_t) (track * NibblizationLayer::kSectorsPerTrack + CassoLinkSession::GetLogicalSector (physical)) * LinkedDisk::kSectorSize;
+            to = (size_t) (track * NibbleFormat::kSectorsPerTrack + CassoLinkSession::GetLogicalSector (physical)) * LinkedDisk::kSectorSize;
 
             std::copy_n (data.begin() + (ptrdiff_t) ((size_t) physical * LinkedDisk::kSectorSize), LinkedDisk::kSectorSize, ioImage.begin() + (ptrdiff_t) to);
         }
@@ -291,7 +291,7 @@ HRESULT CassoLinkFullSend::ReadDisk (int drive, std::vector<Byte> & ioImage, std
         CHR (hr);
     }
 
-    for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+    for (int track = 0; track < NibbleFormat::kTrackCount; track++)
     {
         hr = CheckStop();
         CHR (hr);
@@ -300,7 +300,7 @@ HRESULT CassoLinkFullSend::ReadDisk (int drive, std::vector<Byte> & ioImage, std
         //  the Apple draws the bar the same for both.
         if (m_measuring)
         {
-            m_session.m_host->SetProgress ((Byte) (track * 100 / NibblizationLayer::kTrackCount), (Byte) ((track + 1) * 100 / NibblizationLayer::kTrackCount));
+            m_session.m_host->SetProgress ((Byte) (track * 100 / NibbleFormat::kTrackCount), (Byte) ((track + 1) * 100 / NibbleFormat::kTrackCount));
 
             hr = m_session.m_diskTransfer.MeasureTrack (drive, track, measures);
             CHR (hr);
@@ -312,8 +312,8 @@ HRESULT CassoLinkFullSend::ReadDisk (int drive, std::vector<Byte> & ioImage, std
             continue;
         }
 
-        m_session.Report (*m_operation, track * 100 / NibblizationLayer::kTrackCount);
-        m_session.m_host->SetProgress ((Byte) (track * 100 / NibblizationLayer::kTrackCount), (Byte) ((track + 1) * 100 / NibblizationLayer::kTrackCount));
+        m_session.Report (*m_operation, track * 100 / NibbleFormat::kTrackCount);
+        m_session.m_host->SetProgress ((Byte) (track * 100 / NibbleFormat::kTrackCount), (Byte) ((track + 1) * 100 / NibbleFormat::kTrackCount));
 
         before = outUnreadable.size();
         marked = outReport.marks.size();
@@ -342,7 +342,7 @@ HRESULT CassoLinkFullSend::ReadDisk (int drive, std::vector<Byte> & ioImage, std
 
         m_status.MarkTrack (drive, track, CassoLinkDiskStatus::GetTrackMark (outUnreadable.size() - before, outReport.marks.size() - marked, m_verifying));
 
-        outReport.emptyTracks += outUnreadable.size() - before == NibblizationLayer::kSectorsPerTrack ? 1 : 0;
+        outReport.emptyTracks += outUnreadable.size() - before == NibbleFormat::kSectorsPerTrack ? 1 : 0;
         damaged               += outUnreadable.size() > before ? 1 : 0;
     }
 
@@ -422,7 +422,7 @@ HRESULT CassoLinkFullSend::ReadTrackOnce (int drive, int track, std::vector<Byte
 
 
 
-    for (int physical = 0; physical < NibblizationLayer::kSectorsPerTrack; physical++)
+    for (int physical = 0; physical < NibbleFormat::kSectorsPerTrack; physical++)
     {
         physicals.push_back ((Byte) physical);
     }
@@ -430,14 +430,14 @@ HRESULT CassoLinkFullSend::ReadTrackOnce (int drive, int track, std::vector<Byte
     hr = m_session.m_host->ReadSectors ((Byte) drive, (Byte) track, physicals, data, read, status);
     CHR (hr);
 
-    for (int physical = 0; physical < NibblizationLayer::kSectorsPerTrack; physical++)
+    for (int physical = 0; physical < NibbleFormat::kSectorsPerTrack; physical++)
     {
         int  logical = CassoLinkSession::GetLogicalSector (physical);
 
         if (read[(size_t) physical])
         {
             std::copy_n (data.begin() + (ptrdiff_t) ((size_t) physical * LinkedDisk::kSectorSize), LinkedDisk::kSectorSize,
-                         ioImage.begin() + (ptrdiff_t) ((size_t) (track * NibblizationLayer::kSectorsPerTrack + logical) * LinkedDisk::kSectorSize));
+                         ioImage.begin() + (ptrdiff_t) ((size_t) (track * NibbleFormat::kSectorsPerTrack + logical) * LinkedDisk::kSectorSize));
         }
         else
         {

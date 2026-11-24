@@ -3,7 +3,6 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/Dos33Geometry.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 
 
 
@@ -56,23 +55,25 @@ public:
     static constexpr int   kVtocOffSectorCount    = 0x35;   // -> 16
     static constexpr Byte  kMaxTsPairs            = 122;
 
+    //  The catalog chain and the tracks the DOS image occupies. Public for the
+    //  DOS 3.3 volume components.
+    static constexpr int   kVtocOffCatalogSector  = 0x02;   // -> 15
+    static constexpr int   kCatalogOffNextTrack   = 0x01;
+    static constexpr int   kCatalogOffNextSector  = 0x02;
+    static constexpr int   kDosImageTracks        = 3;      // tracks 0-2 carry DOS
+
 private:
     static constexpr int   kCatalogFirstSector    = 15;
-    static constexpr int   kVtocOffCatalogSector  = 0x02;   // -> 15
     static constexpr int   kVtocOffDosRelease     = 0x03;   // -> 3
     static constexpr int   kVtocOffLastAllocTrack = 0x30;   // allocation hint
     static constexpr int   kVtocOffAllocDirection = 0x31;   // +1 outward
     static constexpr int   kVtocOffSectorBytesLo  = 0x36;   // -> 0x00
     static constexpr int   kVtocOffSectorBytesHi  = 0x37;   // -> 0x01 (256)
     static constexpr int   kVtocOffFreeBitmap     = 0x38;   // 4 bytes / track
-    static constexpr int   kCatalogOffNextTrack   = 0x01;
-    static constexpr int   kCatalogOffNextSector  = 0x02;
     static constexpr Byte  kDosRelease            = 3;
     static constexpr Byte  kDos32Release          = 2;
-    static constexpr int   kDosImageTracks        = 3;      // tracks 0-2 carry DOS
 
     friend class Dos33FileWriter;
-    friend class Dos33Volume;
 };
 
 

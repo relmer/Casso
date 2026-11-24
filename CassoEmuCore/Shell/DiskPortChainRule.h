@@ -32,4 +32,9 @@ public:
     // The kind a drive of `device` swaps for: a 3.5-inch drive for a
     // 5.25-inch drive and the reverse. Empty for any other device.
     static std::string  GetSwapDevice (const std::string & device);
+
+    // The kinds of drive that fit on a chain of `drives`, in chain order, on
+    // a port that takes at most `maxApple35` Apple 3.5 Drives and
+    // `maxFloppies` 5.25-inch drives.
+    static std::vector<std::string>  GetFittingDevices (int maxApple35, int maxFloppies, const std::vector<std::string> & drives);
 };

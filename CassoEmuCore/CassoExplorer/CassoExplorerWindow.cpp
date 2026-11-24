@@ -86,8 +86,9 @@ ExplorerServices CassoExplorerWindow::MakeServices()
 
 HRESULT CassoExplorerWindow::RunModalPicker (HWND owner, PickerRequest request, PickerOutcome & outOutcome)
 {
-    HRESULT             hr = S_OK;
-    ExplorerPickerHost  host (*m_context.fs, m_browser.GetFileIo(), m_context.baseDir);
+    HRESULT                       hr       = S_OK;
+    ExplorerPickerHost::Services  services = { .listsStockDisks = true };
+    ExplorerPickerHost            host (*m_context.fs, m_browser.GetFileIo(), m_context.baseDir, services);
 
 
 
@@ -112,6 +113,8 @@ HRESULT CassoExplorerWindow::RunModalPicker (HWND owner, PickerRequest request, 
 
 CassoExplorerWindow::~CassoExplorerWindow()
 {
+    EndFastClock();
+
     if (m_context.running != nullptr && m_context.watcher != nullptr)
     {
         m_context.watcher->Unwatch (m_context.running->GetFolder());
@@ -472,9 +475,47 @@ void CassoExplorerWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
                           DxuiColor::Mix (theme.Background(), theme.Foreground(), s_kSavePickerBarTint));
     }
 
+    PaintResizeEdge (painter, theme);
     m_parts->preview.PaintBackground (painter, theme);
 
     DxuiWindow::Paint (painter, text, theme);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::PaintResizeEdge
+//
+//  The panes stop short of the resize band along the right edge, and along
+//  the bottom under an expanded preview. That band gets the color of the
+//  pane beside it, so no lighter stripe runs down the window's edge.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::PaintResizeEdge (IDxuiPainter & painter, const IDxuiTheme & theme) const
+{
+    RECT      body    = m_parts->layout.GetBodyBand().GetBounds();
+    RECT      pane    = m_parts->preview.GetRect();
+    bool      preview = m_parts->preview.IsShown() && pane.right > pane.left;
+    uint32_t  color   = preview ? ExplorerPreviewManager::GetBackground (theme) : theme.ContentBackground();
+    int       edgePx  = GetPopupHost() != nullptr ? GetPopupHost()->GetResizeBorderPx() : 0;
+
+
+
+    if (edgePx <= 0 || body.right <= body.left || body.bottom <= body.top)
+    {
+        return;
+    }
+
+    painter.FillRect ((float) (body.right - edgePx), (float) body.top, (float) edgePx, (float) (body.bottom - body.top), color);
+
+    if (preview && pane.bottom < body.bottom)
+    {
+        painter.FillRect ((float) body.left, (float) pane.bottom, (float) (body.right - body.left), (float) (body.bottom - pane.bottom), color);
+    }
 }
 
 
@@ -1085,6 +1126,7 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
     {
         KillTimer (GetHwnd(), (UINT_PTR) AppTimerId::ExplorerTooltip);
         m_tickArmed = false;
+        EndFastClock();
     }
 
     //  Not handled, so the host does not repaint after every tick: the work
@@ -1110,7 +1152,39 @@ void CassoExplorerWindow::ArmTick()
 {
     if (!m_tickArmed && GetHwnd() != nullptr)
     {
+        //  Windows times a timer to its clock's tick, 15.6 ms by default, so a
+        //  16 ms timer waits for the second tick and frames come every 31 ms,
+        //  unevenly. The clock runs at 1 ms while the tick runs.
+        if (!m_isClockFast)
+        {
+            m_isClockFast = timeBeginPeriod (kClockMs) == TIMERR_NOERROR;
+        }
+
         m_tickArmed = SetTimer (GetHwnd(), (UINT_PTR) AppTimerId::ExplorerTooltip, kTooltipTickMs, nullptr) != 0;
+
+        if (!m_tickArmed)
+        {
+            EndFastClock();
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::EndFastClock
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::EndFastClock()
+{
+    if (m_isClockFast)
+    {
+        timeEndPeriod (kClockMs);
+        m_isClockFast = false;
     }
 }
 
@@ -1130,7 +1204,7 @@ bool CassoExplorerWindow::IsTickWanted() const
         || m_parts->toolbars.IsMenuOpen() || m_parts->preview.GetToolbar().IsMenuOpen()
         || m_parts->toolbars.WantsTick() || m_parts->preview.GetToolbar().WantsTick()
         || GetPopupHost()->GetContextMenu().IsVisible() || GetPopupHost()->GetContextMenu().WantsTick()
-        || m_parts->input.HasCaretFocus() || m_parts->statusBar.IsZoomShown();
+        || m_parts->input.HasCaretFocus() || m_parts->statusBar.IsZoomShown() || m_parts->preview.GetText().IsPinging();
 }
 
 

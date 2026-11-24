@@ -1,13 +1,17 @@
 #include "Pch.h"
+#include "Devices/Disk/DiskImage.h"
 #include "EhmTestHelper.h"
 #include "FakeDiskFileIo.h"
 #include "FluxTestImages.h"
 #include "GuestSession.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "TestMachine.h"
 #include "Devices/Disk/DiskCommandRunner.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/WozLoader.h"
+#include "Devices/Disk/Store/DiskFlusher.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -38,7 +42,7 @@ public:
 
     static constexpr int     kSlot          = 6;
     static constexpr int     kDrive         = 0;
-    static constexpr int     kTracks        = NibblizationLayer::kTrackCount;
+    static constexpr int     kTracks        = NibbleFormat::kTrackCount;
     static constexpr size_t  kStretchBits   = 3000;
     static constexpr double  kSpeedSpread   = 1.03;
     static constexpr size_t  kPayloadBytes  = 256;
@@ -58,7 +62,7 @@ public:
         std::vector<Byte>               woz;
         int                             t = 0;
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (master, bitImage),
+        AssertSucceeded (Nibblizer::NibblizeDsk (master, bitImage),
             L"the master must nibblize");
 
         for (t = 0; t < kTracks; t++)
@@ -191,7 +195,7 @@ public:
         Assert::IsFalse (GuestSession::AnyRowContains (rows, "ERROR"),
             L"DOS must save to a flux disk without an error");
 
-        AssertSucceeded (machine.GetDiskStore().Flush (kSlot, kDrive), L"the flux disk must flush");
+        AssertSucceeded (machine.GetDiskStore().GetFlusher().Flush (kSlot, kDrive), L"the flux disk must flush");
 
         Assert::IsFalse (flushed.empty(), L"the save must have reached the file");
         AssertEveryTrackIsFlux (flushed);

@@ -630,7 +630,8 @@ std::wstring ExplorerPickerMode::GetConfirmLabel() const
 //
 //  ExplorerPickerMode::GetFilterLabel
 //
-//  An entry's label with its masks, as the Windows dialogs list them.
+//  An entry's label with its masks, as the Windows dialogs list them. A label
+//  that already ends in a parenthesized list of masks is used as written.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -645,5 +646,12 @@ std::wstring ExplorerPickerMode::GetFilterLabel (size_t index) const
         return std::wstring();
     }
 
-    return std::format (L"{} ({})", request->filters[index].name, request->filters[index].pattern);
+    const FileDialogFilter &  filter = request->filters[index];
+
+    if (filter.name.ends_with (L")") && filter.name.find (L"(*") != std::wstring::npos)
+    {
+        return filter.name;
+    }
+
+    return std::format (L"{} ({})", filter.name, filter.pattern);
 }

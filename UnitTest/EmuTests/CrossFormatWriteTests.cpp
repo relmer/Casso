@@ -1,12 +1,16 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
+#include "Devices/Disk/DiskImage.h"
 #include "FixtureProvider.h"
 #include "GuestSession.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "TestMachine.h"
 #include "MachineIdle.h"
 #include "TextScreenScraper.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/TrackWritability.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
@@ -121,7 +125,7 @@ public:
         vector<Byte>     bytes;
 
         AssertSucceeded (fixtures.OpenFixture (relativePath, bytes));
-        Assert::AreEqual (size_t (NibblizationLayer::kImageByteSize), bytes.size(),
+        Assert::AreEqual (size_t (NibbleFormat::kImageByteSize), bytes.size(),
             L"a fixture volume must be a full sector image");
 
         return bytes;
@@ -139,7 +143,7 @@ public:
 
         VolumeImage::DosLogicalToProDosFile (sectors, po);
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, img));
+        AssertSucceeded (Nibblizer::NibblizeDsk (sectors, img));
         AssertSucceeded (WozLoader::Serialize (img, woz));
 
         all.push_back (Container { "image.dsk", sectors });
@@ -169,14 +173,14 @@ public:
         }
         else if (isPo)
         {
-            AssertSucceeded (NibblizationLayer::NibblizePo (bytes, img));
+            AssertSucceeded (Nibblizer::NibblizePo (bytes, img));
         }
         else
         {
-            AssertSucceeded (NibblizationLayer::NibblizeDsk (bytes, img));
+            AssertSucceeded (Nibblizer::NibblizeDsk (bytes, img));
         }
 
-        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, sectors, report));
+        AssertSucceeded (Denibblizer::Denibblize (img, DiskFormat::Dsk, sectors, report));
 
         return sectors;
     }
@@ -265,7 +269,7 @@ public:
         DiskImage     img;
         vector<Byte>  woz;
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, img));
+        AssertSucceeded (Nibblizer::NibblizeDsk (sectors, img));
 
         {
             vector<Byte> &  bits   = img.GetTrackBitsForWrite (track);
@@ -273,7 +277,7 @@ public:
 
             Assert::AreNotEqual (SIZE_MAX, addrAt, L"the track must carry address fields to corrupt");
 
-            PatchFieldChecksum (bits, addrAt, NibblizationLayer::kDefaultVolume, (Byte) track);
+            PatchFieldChecksum (bits, addrAt, NibbleFormat::kDefaultVolume, (Byte) track);
         }
 
         AssertSucceeded (WozLoader::Serialize (img, woz));
@@ -310,7 +314,7 @@ public:
 
         AssertSucceeded (VolumeImage::Save (sectors, "merlin.po", sectors, po, reason));
 
-        Assert::AreEqual (size_t (NibblizationLayer::kImageByteSize), po.size(),
+        Assert::AreEqual (size_t (NibbleFormat::kImageByteSize), po.size(),
             L"a ProDOS-ordered image is the same length as the sectors it holds");
 
         Assert::AreEqual ((int) kVolumeDirStorage, (int) (po[header] & 0xF0),
@@ -493,7 +497,7 @@ public:
         int                 track     = 0;
         size_t              differing = 0;
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, source));
+        AssertSucceeded (Nibblizer::NibblizeDsk (sectors, source));
 
         {
             vector<Byte> &  bits    = source.GetTrackBitsForWrite (kBlankedTrack);
@@ -522,7 +526,7 @@ public:
         AssertSucceeded (WozLoader::Load (woz,     before));
         AssertSucceeded (WozLoader::Load (written, after));
 
-        for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+        for (track = 0; track < NibbleFormat::kTrackCount; track++)
         {
             bool  touched = Contains (changed, track);
 
@@ -623,7 +627,7 @@ public:
         // Pass one on a clean image, purely to learn which tracks the write
         // needs. Damaging one of them first would change where the allocator
         // puts the file, and the case would stop being the case.
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, img));
+        AssertSucceeded (Nibblizer::NibblizeDsk (sectors, img));
         AssertSucceeded (WozLoader::Serialize (img, clean));
         AssertSucceeded (VolumeImage::Load (clean, "image.woz", prior, report));
 
@@ -701,7 +705,7 @@ public:
         DiskImage           img;
         HRESULT             hr      = S_OK;
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, img));
+        AssertSucceeded (Nibblizer::NibblizeDsk (sectors, img));
 
         // A half-track position resolving to a slot that is not its whole
         // track: what a capture of a protected disk looks like.
@@ -755,7 +759,7 @@ public:
 
         Assert::AreEqual (dskImage->GetTrackCount(), poImage->GetTrackCount());
 
-        for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+        for (track = 0; track < NibbleFormat::kTrackCount; track++)
         {
             Assert::AreEqual (dskImage->GetTrackBitCount (track), poImage->GetTrackBitCount (track),
                 L"every track must be the same length on both");

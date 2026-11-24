@@ -53,6 +53,7 @@ public:
     //  command line to the running app, in a WM_COPYDATA with this id and the
     //  arguments as UTF-16 text, its path made full.
     static constexpr ULONG_PTR  kLaunchCopyId  = 0x43454C41;   // 'CELA'
+    static constexpr UINT       kClockMs       = 1;    // the system clock's period while the animation tick runs
     static constexpr UINT       kTooltipTickMs = 16;   // the menus' reveal runs on it too, so display rate
 
     //  Loaded at this size and scaled down by the caption, as Casso's is.
@@ -138,10 +139,12 @@ private:
     //  Stands for a separator in a list of command ids.
     static constexpr int  kSeparatorId = 0;
 
-    bool                     IsTickWanted   () const;
-    void                     RecordSession  ();
-    struct ExplorerServices  MakeServices   ();
-    HRESULT                  RunModalPicker (HWND owner, PickerRequest request, PickerOutcome & outOutcome);
+    bool                     IsTickWanted    () const;
+    void                     EndFastClock    ();
+    void                     RecordSession   ();
+    struct ExplorerServices  MakeServices    ();
+    HRESULT                  RunModalPicker  (HWND owner, PickerRequest request, PickerOutcome & outOutcome);
+    void                     PaintResizeEdge (IDxuiPainter & painter, const IDxuiTheme & theme) const;
 
     CassoExplorerBrowser                  & m_browser;
     CassoExplorerActions                  & m_actions;
@@ -154,6 +157,7 @@ private:
     std::vector<std::wstring>               m_pendingLaunches;   // other launches' arguments, run once the send that brought each returns
     bool                                    m_caretOn         = true;    // the search caret as last drawn
     bool                                    m_tickArmed       = false;   // the animation tick is running
+    bool                                    m_isClockFast     = false;   // timeBeginPeriod succeeded for the animation tick
     std::unique_ptr<ExplorerWindowParts>    m_parts;
 };
 

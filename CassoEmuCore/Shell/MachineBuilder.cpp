@@ -67,6 +67,8 @@
 #include "Print/PrinterWorker.h"
 #include "WasapiAudio.h"
 #include "../AssetBootstrap.h"
+#include "Devices/Disk/Store/DiskFlusher.h"
+#include "Devices/Disk/Store/ExternalChangeMonitor.h"
 
 
 
@@ -1749,13 +1751,13 @@ HRESULT MachineBuilder::CreateCpu (const MachineConfig & config)
         // skips clean images and the flush-error reporter surfaces failures.
         m_host.GetRefs().diskController->SetMotorOffFlushCallback ([this] ()
         {
-            m_host.GetDiskStore().FlushAll();
+            m_host.GetDiskStore().GetFlusher().FlushAll();
 
             // The disk has just stopped, so this is the quietest moment there
             // is to swap what is under it. One line and no decisions: which
             // bay, whether anything settled and what to do about it are all
             // the store's.
-            m_host.GetDiskStore().ApplyPendingReload();
+            m_host.GetDiskStore().GetChangeMonitor().ApplyPendingReload();
         });
 
         // The spindown hook above is not enough on its own, and the gap is the
@@ -1772,7 +1774,7 @@ HRESULT MachineBuilder::CreateCpu (const MachineConfig & config)
         {
             m_host.GetRefs().diskController->SetIdleCallback ([this] ()
             {
-                m_host.GetDiskStore().ApplyPendingReload();
+                m_host.GetDiskStore().GetChangeMonitor().ApplyPendingReload();
             });
         }
 

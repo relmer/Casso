@@ -13,7 +13,7 @@
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Net/FirewallMonitor.h"
 #include "Seams/ILinkAnnouncements.h"
@@ -48,7 +48,7 @@ public:
 
         Rig()
         {
-            std::vector<Byte>  buffer (NibblizationLayer::kImageByteSize, 0);
+            std::vector<Byte>  buffer (NibbleFormat::kImageByteSize, 0);
             std::vector<Byte>  next;
             FilePayload        payload;
             CassoLinkSettings  settings;
@@ -62,7 +62,7 @@ public:
 
             AssertSucceeded (Dos33Volume (buffer).Write (FilePath::Parse ("HELLO"), payload, next));
             apple.drives[0] = next;
-            apple.drives[1] = std::vector<Byte> (NibblizationLayer::kImageByteSize, 0);
+            apple.drives[1] = std::vector<Byte> (NibbleFormat::kImageByteSize, 0);
 
             settings.name      = "Test";
             settings.transport = LinkTransport::Emulated;
@@ -924,6 +924,26 @@ public:
 
 
 
+    //  With the CassoLink ProDOS disk's driver on the line, the page has
+    //  the model in place of the search's text, and a drive with no image is
+    //  "no image".
+    TEST_METHOD (TheDriversText_ListsTheVirtualDrives)
+    {
+        CassoLinkSettings  link;
+
+        link.name                 = "Serial (any port)";
+        link.virtualDrives.drive1 = L"C:\\Disks\\Blank ProDOS 1.po";
+
+        Assert::AreEqual (std::wstring (L"The Apple is using the virtual drives."), CassoLinkConnectionText::DescribeState (LinkState::WaitingForReady, link, L"pc", true));
+        Assert::AreEqual (std::wstring (L"Apple //c is using the virtual drives."), CassoLinkConnectionText::DescribeState (LinkState::WaitingForReady, link, L"pc", true, L"Apple //c"));
+        Assert::AreEqual (std::wstring (L"Blank ProDOS 1.po"), CassoLinkConnectionText::DescribeDriveImage (link.virtualDrives.drive1));
+        Assert::AreEqual (std::wstring (L"no image"), CassoLinkConnectionText::DescribeDriveImage (link.virtualDrives.drive2));
+        Assert::AreEqual (std::wstring (L"Connected."), CassoLinkConnectionText::DescribeState (LinkState::Ready, link, L"pc", true), L"Casso's program, not the driver");
+        Assert::AreEqual (std::wstring (L"Click Serial (any port) to connect."), CassoLinkConnectionText::DescribeState (LinkState::Closed, link, L"pc", true));
+    }
+
+
+
     TEST_METHOD (TheWaitingText_NamesTheMachine_AndWhatToDo)
     {
         CassoLinkSettings  link;
@@ -1006,7 +1026,7 @@ public:
     {
         Rig                         rig;
         std::vector<LinkTreeEntry>  entries;
-        std::vector<Byte>           other (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>           other (NibbleFormat::kImageByteSize, 0);
         auto                        until = std::chrono::steady_clock::now() + std::chrono::seconds (30);
 
         auto  volumeOf = [&rig, &entries] () -> std::wstring

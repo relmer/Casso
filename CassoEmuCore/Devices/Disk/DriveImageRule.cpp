@@ -47,7 +47,9 @@ bool DriveImageRule::Accepts (const ReceivingDrive & drive, const ImageClass & i
 
         case ReceivingDriveKind::HardDisk:
         {
-            return imageClass.formFactor == ImageFormFactor::HardDisk && isBlocks && imageClass.blockCount <= drive.maxBlocks;
+            bool  isKind = imageClass.formFactor == ImageFormFactor::HardDisk || drive.isRealDrive;
+
+            return isKind && isBlocks && imageClass.blockCount <= drive.maxBlocks;
         }
 
         case ReceivingDriveKind::Recorder:

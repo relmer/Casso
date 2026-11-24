@@ -7,13 +7,14 @@
 #include "CassoLink/CassoLinkSession.h"
 #include "CassoLink/LinkBootstrap.h"
 #include "CassoLink/LinkFault.h"
+#include "CassoLink/Session/LinkImageSource.h"
 #include "CassoLink/Session/TrackMeasures.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Machines/Apple2/Common/CpmVolume.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
@@ -232,7 +233,7 @@ public:
 
     static std::vector<Byte>  BuildDos33()
     {
-        std::vector<Byte>  buffer (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  buffer (NibbleFormat::kImageByteSize, 0);
         std::vector<Byte>  next;
 
         AssertSucceeded (Dos33Skeleton::Write (buffer, 254));
@@ -243,7 +244,7 @@ public:
 
     static std::vector<Byte>  BuildProDos()
     {
-        std::vector<Byte>  buffer (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  buffer (NibbleFormat::kImageByteSize, 0);
         std::vector<Byte>  next;
 
         AssertSucceeded (ProDosSkeleton::Write (buffer, "LINKED"));
@@ -746,7 +747,7 @@ public:
     TEST_METHOD (APascalDisk_ListsReadsAndWrites)
     {
         Rig                rig;
-        std::vector<Byte>  disk (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  disk (NibbleFormat::kImageByteSize, 0);
         std::vector<Byte>  expected;
         FilePayload        payload = Binary (PascalVolume::kKindData, 1500, 7);
         const char         name[]  = "LINKED";
@@ -790,7 +791,7 @@ public:
     TEST_METHOD (ADamagedCpmDisk_NeedsAChoice_UntilAnotherDiskIsInTheDrive)
     {
         Rig                rig;
-        std::vector<Byte>  disk (NibblizationLayer::kImageByteSize, CpmVolume::kFree);
+        std::vector<Byte>  disk (NibbleFormat::kImageByteSize, CpmVolume::kFree);
         std::vector<Byte>  expected;
         FilePayload        payload = Binary (0, 2000, 3);
 
@@ -842,7 +843,7 @@ public:
     {
         Rig  rig;
 
-        rig.apple.drives[1] = std::vector<Byte> (NibblizationLayer::kImageByteSize, 0x5A);
+        rig.apple.drives[1] = std::vector<Byte> (NibbleFormat::kImageByteSize, 0x5A);
         rig.Start();
 
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_UNRECOGNIZED_VOLUME), rig.Finish (rig.session->Enumerate (2, FilePath()))->result);
@@ -1006,7 +1007,7 @@ public:
         rig.Start();
 
         AssertSucceeded  (rig.Finish (rig.session->ReadDisk (2, "out.woz", false))->result);
-        Assert::AreEqual (NibblizationLayer::kTrackCount, rig.apple.measuredTracks.load());
+        Assert::AreEqual (NibbleFormat::kTrackCount, rig.apple.measuredTracks.load());
 
         AssertSucceeded (VolumeImage::Load (rig.fileIo.files["out.woz"], "out.woz", sectors, report));
         Assert::IsTrue  (sectors == rig.Drive (2));
@@ -1258,6 +1259,28 @@ public:
 
         AssertSucceeded (list->result);
         Assert::AreEqual (std::string ("LINKED"), list->listing.volumeName, L"the drive is listed afresh");
+    }
+
+
+
+    //  An image made in memory is written as a file's is, its format by the
+    //  extension of its name, with no file read or written.
+    TEST_METHOD (WriteDisk_FromMemory_PutsTheImageOnTheDisk)
+    {
+        Rig                rig;
+        std::vector<Byte>  image  = BuildProDos();
+        std::vector<Byte>  file;
+
+
+
+        VolumeImage::DosLogicalToProDosFile (image, file);
+
+        rig.Start();
+
+        AssertSucceeded (rig.Finish (rig.session->WriteDisk (1, std::make_shared<MemoryImageSource> ("made.po", file)))->result);
+
+        Assert::IsTrue (rig.Drive (1) == image);
+        Assert::IsTrue (rig.fileIo.files.empty(), L"no file");
     }
 
 

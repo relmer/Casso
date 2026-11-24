@@ -3,7 +3,7 @@
 #include "CassoLink/FullSend/FullSendProtection.h"
 #include "Devices/Disk/FilePath.h"
 #include "Machines/Apple2/Common/IVolume.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
@@ -27,7 +27,7 @@ ProtectionSigns FullSendProtection::Find (const std::vector<Byte> & image)
 
 
 
-    if (image.size() != (size_t) NibblizationLayer::kImageByteSize)
+    if (image.size() != (size_t) NibbleFormat::kImageByteSize)
     {
         return signs;
     }
@@ -94,17 +94,17 @@ Error:
 
 FullSendProtection::BootFamily FullSendProtection::GetBootFamily (const std::vector<Byte> & image)
 {
-    constexpr size_t      kSecondHalf = (size_t) 14 * NibblizationLayer::kSectorByteSize;
+    constexpr size_t      kSecondHalf = (size_t) 14 * NibbleFormat::kSectorByteSize;
     std::span<const Byte> sector (image.data(), (std::min) (image.size(), s_kBootSectorBytes));
     std::vector<Byte>     block;
     BootFamily            family      = BootFamily::Other;
 
 
 
-    if (image.size() >= kSecondHalf + NibblizationLayer::kSectorByteSize)
+    if (image.size() >= kSecondHalf + NibbleFormat::kSectorByteSize)
     {
         block.assign (image.begin(), image.begin() + (ptrdiff_t) s_kBootSectorBytes);
-        block.insert (block.end(), image.begin() + (ptrdiff_t) kSecondHalf, image.begin() + (ptrdiff_t) (kSecondHalf + NibblizationLayer::kSectorByteSize));
+        block.insert (block.end(), image.begin() + (ptrdiff_t) kSecondHalf, image.begin() + (ptrdiff_t) (kSecondHalf + NibbleFormat::kSectorByteSize));
     }
 
     if (std::all_of (sector.begin(), sector.end(), [] (Byte value) { return value == 0; }))

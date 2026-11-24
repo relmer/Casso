@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Browser/BrowserLoader.h"
+#include "CassoExplorer/Browser/BrowserArchives.h"
 #include "CassoExplorer/Browser/BrowserHostInterfaces.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Model/CassoImagesListing.h"
@@ -14,7 +15,7 @@
 #include "Devices/Disk/Partitions/PartitionAccess.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
 #include "Devices/Tape/TapeImageLoader.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 
@@ -27,9 +28,10 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-BrowserLoader::BrowserLoader (const BrowserParts & parts, IBrowserLoaderHost & host)
-    : m_parts (parts),
-      m_host  (host)
+BrowserLoader::BrowserLoader (const BrowserParts & parts, const BrowserArchives & archives, IBrowserLoaderHost & host)
+    : m_parts    (parts),
+      m_archives (archives),
+      m_host     (host)
 {
 }
 
@@ -194,7 +196,7 @@ HRESULT BrowserLoader::LoadShellFolder (const std::wstring & id)
     //  list says so meanwhile, as Explorer's does, and fills when it arrives.
     //  A path inside an archive on a local drive is read at once: the read is
     //  quick, and a placeholder would only flash.
-    if (m_host.IsLocalArchivePath (id))
+    if (m_archives.IsLocalArchivePath (id))
     {
         hr = m_parts.sources.shellVerbs->ListShellFolder (id, items);
     }
@@ -214,9 +216,9 @@ HRESULT BrowserLoader::LoadShellFolder (const std::wstring & id)
 
     //  An archive the shell lists nothing in gets the reason, damaged or locked,
     //  in place of an empty folder.
-    if (items.empty() && m_host.IsLocalArchivePath (id) && m_parts.fs.Exists (id))
+    if (items.empty() && m_archives.IsLocalArchivePath (id) && m_parts.fs.Exists (id))
     {
-        m_parts.list.listError = m_host.DescribeEmptyArchive (id);
+        m_parts.list.listError = m_archives.DescribeEmptyArchive (id);
     }
 
     //  Where Up goes: a folder on a disk opens as one.
@@ -280,7 +282,7 @@ HRESULT BrowserLoader::LoadShellFolder (const std::wstring & id)
         row.isDiskImage  = !row.hostPath.empty() && HostFolderReader::IsShellImage (items[index]);
 
         //  An image in a ZIP has no path on the disk, and opens by the ZIP's.
-        if (row.hostPath.empty() && HostFolderReader::IsShellImage (items[index]) && m_host.IsLocalArchivePath (id))
+        if (row.hostPath.empty() && HostFolderReader::IsShellImage (items[index]) && m_archives.IsLocalArchivePath (id))
         {
             row.containerPath = MakeContainerPath (id, row.name);
             row.isDiskImage   = !row.containerPath.empty();
@@ -840,7 +842,7 @@ void BrowserLoader::AddCassoLinkItems()
         entry.name = disk ? L"CassoLink.dsk" : L"What's CassoLink.md";
         m_parts.list.rows.push_back (CatalogModel::FromHostEntry (entry, disk, m_parts.list.rootChildren.size() + m_parts.list.rows.size()));
         m_parts.list.rows.back().cassoLinkItem = item;
-        m_parts.list.rows.back().sizeBytes     = disk ? NibblizationLayer::kImageByteSize : wcslen (GetCassoLinkHelp());
+        m_parts.list.rows.back().sizeBytes     = disk ? NibbleFormat::kImageByteSize : wcslen (GetCassoLinkHelp());
         m_parts.list.rows.back().hostPath      = (length > 0) ? std::wstring (temp) + entry.name : std::wstring();
 
         if (!disk && m_parts.sources.shellIcons != nullptr && !m_parts.sources.shellIcons->GetTypeName (m_parts.list.rows.back().hostPath, false).empty())
