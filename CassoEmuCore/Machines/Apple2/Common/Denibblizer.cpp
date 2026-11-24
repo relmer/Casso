@@ -8,6 +8,9 @@
 #include "Machines/Apple2/Common/SectorInterleave.h"
 #include "Machines/Apple2/Common/TrackBitReader.h"
 #include "Machines/Apple2/Common/TrackSectorDecoder.h"
+#include "Devices/Disk/Stamp/FormatStamp.h"
+#include "Devices/Disk/Stamp/StampedTrackMarks.h"
+#include "Machines/Apple2/Common/TrackMarks.h"
 
 
 
@@ -177,11 +180,41 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Denibblizer::TrackScan
+//
+//  The result of one scan of a track, by the sector number in its address
+//  fields: the bytes of each sector that decoded, and the sectors that
+//  verified, that decoded without verifying, that were lost, and that
+//  verified twice in one revolution.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct Denibblizer::TrackScan
+{
+    std::array<std::array<Byte, NibbleFormat::kSectorByteSize>, NibbleFormat::kSectorsPerTrack>  data       = {};
+    uint16_t                                                                                     mask       = 0;
+    uint16_t                                                                                     recovered  = 0;
+    uint16_t                                                                                     lost       = 0;
+    uint16_t                                                                                     duplicated = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DecodeTracks
 //
 //  The shared walk. keepRecovered decides what happens to a sector that
 //  decoded but did not verify: the strict path drops it (so the track reads
 //  as partial and the save is refused), salvage keeps its bytes.
+//
+//  A track whose sectors do not all verify is scanned again with the marks
+//  the image's format stamp lists for it, and each sector takes the better
+//  of the two results. The second scan can only add sectors the first did
+//  not verify, so a stale or wrong stamp cannot change a sector the first
+//  scan read.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -193,32 +226,11 @@ HRESULT Denibblizer::DecodeTracks (
     DenibblizeReport    &  report,
     SectorDecodeReport  *  outCoverage)
 {
-    // Enough attempts to still find all sixteen good sectors when several
-    // reads fail or repeat, without letting a hostile track spin forever.
-    constexpr int  kMaxAttemptsPerTrack = NibbleFormat::kSectorsPerTrack * 2;
-    constexpr int  kAllSectorsMask      = (1 << NibbleFormat::kSectorsPerTrack) - 1;
-
-
-
-    HRESULT                      hr                                  = S_OK;
-    const int                  * interleave                          = nullptr;
-    int                          track                               = 0;
-    int                          attempt                             = 0;
-    int                          decoded                             = 0;
-    uint16_t                     mask                                = 0;
-    uint16_t                     recovered                           = 0;
-    uint16_t                     lost                                = 0;
-    uint16_t                     duplicated                          = 0;
-    uint16_t                     slotMask                            = 0;
-    uint16_t                     seenAtRevStart                      = 0;
-    size_t                       revolutionEnd                       = 0;
-    Byte                         outSector                           = 0;
-    Byte                         sectorBase                          = 0;
-    Byte                         data[NibbleFormat::kSectorByteSize] = {};
-    size_t                       bitPos                              = 0;
-    size_t                       offset                              = 0;
-    size_t                       trackBits                           = 0;
-    int                          trackLimit                          = img.GetTrackCount();
+    HRESULT                      hr         = S_OK;
+    const int                  * interleave = nullptr;
+    int                          trackLimit = img.GetTrackCount();
+    FormatStamp                  stamp;
+    bool                         hasStamp   = StampedTrackMarks::TryLoadStamp (img.GetWozMetadata(), stamp);
     FluxBitView                  fluxView;
     TrackBitReader::TrackBits    src;
 
@@ -250,185 +262,308 @@ HRESULT Denibblizer::DecodeTracks (
         outCoverage->Reset (trackLimit);
     }
 
-    for (track = 0; track < trackLimit; track++)
+    for (int track = 0; track < trackLimit; track++)
     {
-        bitPos     = 0;
-        mask       = 0;
-        recovered  = 0;
-        lost       = 0;
-        duplicated = 0;
-        slotMask   = 0;
-        src        = TrackBitReader::GetTrackBits (img, img.ResolveWholeTrack (track), fluxView);
-        trackBits  = src.bitCount;
-        sectorBase = TrackSectorDecoder::FindSectorBase (src);
+        TrackScan   scan;
+        TrackMarks  marks;
+        bool        hasMarks = hasStamp && StampedTrackMarks::TryGetTrackMarks (stamp, track, marks);
 
-        //  A revolution that turns up nothing new means there is nothing left
-        //  to find, and the scan can stop. Without this an EMPTY track is the
-        //  worst case in the whole decoder: the mask never fills, so the loop
-        //  below runs its full count, and each attempt scans a whole
-        //  revolution looking for a prologue that is not there -- thirty-two
-        //  passes over the same bits to conclude what the first one did.
-        //
-        //  It costs the damaged-media recovery nothing. That recovery works by
-        //  arriving at a skipped sector from a different offset on the next
-        //  time round, so it pays off within a revolution or two; a revolution
-        //  that adds no sector, recovers none and loses none has met only
-        //  headers it has already read.
-        revolutionEnd  = trackBits;
-        seenAtRevStart = 0;
+        src = TrackBitReader::GetTrackBits (img, img.ResolveWholeTrack (track), fluxView);
 
-        for (attempt = 0; attempt < kMaxAttemptsPerTrack && mask != kAllSectorsMask; attempt++)
+        ScanTrack (src, nullptr, scan);
+
+        if (hasMarks && scan.mask != kAllSectorsMask)
         {
-            //  AT THE TOP, because every failure path below continues, and a
-            //  track with nothing on it takes all of them -- which is the one
-            //  case this exists to cut short.
-            if (bitPos >= revolutionEnd)
-            {
-                uint16_t  seen = static_cast<uint16_t> (mask | recovered | lost);
+            TrackScan  stamped;
 
-                if (seen == seenAtRevStart)
-                {
-                    break;
-                }
-
-                seenAtRevStart = seen;
-                revolutionEnd  = bitPos + trackBits;
-            }
-
-            //  DUPLICATES ARE ONLY MEANINGFUL WITHIN ONE REVOLUTION. This loop
-            //  deliberately keeps scanning after the cursor has been all the way
-            //  round, because that is how it retries the sectors a damaged header
-            //  cost it -- and a second pass necessarily meets headers it has
-            //  already read. Counting those would invent damage the scan caused
-            //  rather than report damage the disk carries.
-            size_t         fieldStart = SIZE_MAX;
-            size_t         dataStart  = SIZE_MAX;
-            SectorOutcome  outcome    = SectorOutcome::Lost;
-            HRESULT        hrSector   = TrackSectorDecoder::DecodeOneSector (src, bitPos, outSector,
-                                                         data, outcome, fieldStart, dataStart);
-            bool           firstPass  = fieldStart < trackBits;
-
-            // A hard failure means no address field could be found before the
-            // cursor wrapped -- there is nothing further on this track. Keep
-            // scanning anyway: the loop is bounded, and abandoning it here is
-            // what would cost the sectors after a damaged one the moment the
-            // decoder grows a per-sector failure mode. It has one now.
-            if (FAILED (hrSector))
-            {
-                continue;
-            }
-
-            outSector = (outSector >= sectorBase) ? static_cast<Byte> (outSector - sectorBase) : outSector;
-
-            if (outSector >= NibbleFormat::kSectorsPerTrack)
-            {
-                continue;
-            }
-
-            if (outcome == SectorOutcome::Lost)
-            {
-                lost = static_cast<uint16_t> (lost | (1 << outSector));
-                continue;
-            }
-
-            if (outcome == SectorOutcome::Recovered)
-            {
-                recovered = static_cast<uint16_t> (recovered | (1 << outSector));
-
-                if (!keepRecovered)
-                {
-                    continue;
-                }
-            }
-
-            offset = static_cast<size_t> (track * NibbleFormat::kSectorsPerTrack + interleave[outSector])
-                   * NibbleFormat::kSectorByteSize;
-
-            memcpy (&out[offset], data, NibbleFormat::kSectorByteSize);
-
-            if (outcome == SectorOutcome::Verified)
-            {
-                //  A SECOND COPY OF A SECTOR IS DAMAGE, AND SETTING THE BIT
-                //  AGAIN HIDES IT. The buffer keeps whichever copy landed last,
-                //  the mask is full either way, and every count below reads the
-                //  track as complete -- so coverage has to be asked whether each
-                //  slot was filled EXACTLY once, not merely whether it is full.
-                if (firstPass && (mask & (1 << outSector)) != 0)
-                {
-                    duplicated = static_cast<uint16_t> (duplicated | (1 << outSector));
-                }
-
-                mask = static_cast<uint16_t> (mask | (1 << outSector));
-
-                //  COVERAGE IS INDEXED BY OUTPUT SLOT, and the mask above is
-                //  indexed by the number the address field carried. The two
-                //  differ by the interleave, so a consumer holding the buffer
-                //  and reading the mask directly would test the wrong sector
-                //  and find zeros in a slot the report calls present.
-                slotMask = static_cast<uint16_t> (slotMask | (1 << interleave[outSector]));
-            }
+            ScanTrack  (src, &marks, stamped);
+            MergeScans (stamped, scan);
         }
 
-        report.decodedSectorMask[static_cast<size_t> (track)] = mask;
-
-        //  UNFORMATTED IS DECIDED BY THE BITS, NOT BY THE MASK. A track that
-        //  holds no bits at all was never written; a track that holds bits but
-        //  yielded no sector is damaged, and calling that one blank is what
-        //  licenses writing zeros over it.
-        if (outCoverage != nullptr)
-        {
-            TrackDecodeOutcome  outcome = TrackDecodeOutcome::Partial;
-
-            //  UNFORMATTED MEANS NO ADDRESS FIELD ANYWHERE, not "no bits". A
-            //  wiped track still carries bits, and a track whose headers are all
-            //  destroyed yields nothing at all -- while a track that yielded
-            //  something and then failed is damaged, which is a different thing
-            //  and must not license writing zeros over it.
-            //  A track with data fields and no address field the decoder
-            //  accepts was written: its sectors are lost, not blank.
-            if (trackBits == 0 || (slotMask == 0 && recovered == 0 && lost == 0 && !TrackSectorDecoder::HasDataField (src)))
-            {
-                outcome = TrackDecodeOutcome::Unformatted;
-            }
-            else if (slotMask == kAllSectorsMask && duplicated == 0)
-            {
-                outcome = TrackDecodeOutcome::Complete;
-            }
-
-            outCoverage->SetOutcome (track, outcome, slotMask, duplicated != 0);
-        }
-
-        if (trackBits == 0)
-        {
-            continue;
-        }
-
-        decoded = TrackSectorDecoder::PopCount (mask);
-
-        report.tracksPresent++;
-        report.sectorsVerified  += decoded;
-        report.sectorsRecovered += TrackSectorDecoder::PopCount (recovered);
-        report.sectorsLost      += TrackSectorDecoder::PopCount (lost);
-
-        if (decoded == 0)
-        {
-            report.tracksUnformatted++;
-        }
-        else if (decoded < NibbleFormat::kSectorsPerTrack)
-        {
-            report.tracksPartial++;
-            report.sectorsMissing += NibbleFormat::kSectorsPerTrack - decoded;
-        }
-        else
-        {
-            report.tracksComplete++;
-        }
+        WriteTrack  (scan, track, interleave, keepRecovered, out);
+        ReportTrack (scan, track, src, hasMarks ? &marks : nullptr, interleave, report, outCoverage);
     }
 
 Error:
     return hr;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Denibblizer::ScanTrack
+//
+//  Decodes sectors from the track until all sixteen verify, a revolution
+//  turns up nothing new, or the attempts run out. With marks, only their
+//  prologs are matched.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Denibblizer::ScanTrack (const TrackBitReader::TrackBits & src, const TrackMarks * marks, TrackScan & outScan)
+{
+    //  Enough attempts to still find all sixteen good sectors when several
+    //  reads fail or repeat, without letting a hostile track spin forever.
+    constexpr int  kMaxAttemptsPerTrack                = NibbleFormat::kSectorsPerTrack * 2;
+    Byte           data[NibbleFormat::kSectorByteSize] = {};
+    Byte           outSector                           = 0;
+    Byte           sectorBase                          = TrackSectorDecoder::FindSectorBase (src, marks);
+    size_t         bitPos                              = 0;
+    size_t         trackBits                           = src.bitCount;
+    size_t         revolutionEnd                       = trackBits;
+    uint16_t       seenAtRevStart                      = 0;
+
+
+
+    //  A revolution that turns up nothing new means there is nothing left to
+    //  find, and the scan can stop. Without this an EMPTY track is the worst
+    //  case in the whole decoder: the mask never fills, so the loop below
+    //  runs its full count, and each attempt scans a whole revolution looking
+    //  for a prologue that is not there.
+    //
+    //  It costs the damaged-media recovery nothing. That recovery works by
+    //  arriving at a skipped sector from a different offset on the next time
+    //  round, so it pays off within a revolution or two; a revolution that
+    //  adds no sector, recovers none and loses none has met only headers it
+    //  has already read.
+    for (int attempt = 0; attempt < kMaxAttemptsPerTrack && outScan.mask != kAllSectorsMask; attempt++)
+    {
+        size_t         fieldStart = SIZE_MAX;
+        size_t         dataStart  = SIZE_MAX;
+        SectorOutcome  outcome    = SectorOutcome::Lost;
+        HRESULT        hrSector   = S_OK;
+        uint16_t       bit        = 0;
+        bool           firstPass  = false;
+
+        //  AT THE TOP, because every failure path below continues, and a
+        //  track with nothing on it takes all of them.
+        if (bitPos >= revolutionEnd)
+        {
+            uint16_t  seen = static_cast<uint16_t> (outScan.mask | outScan.recovered | outScan.lost);
+
+            if (seen == seenAtRevStart)
+            {
+                break;
+            }
+
+            seenAtRevStart = seen;
+            revolutionEnd  = bitPos + trackBits;
+        }
+
+        //  A hard failure means no address field could be found before the
+        //  cursor wrapped. Keep scanning anyway: the loop is bounded, and
+        //  abandoning it here would cost the sectors after a damaged one.
+        hrSector  = TrackSectorDecoder::DecodeOneSector (src, bitPos, outSector, data, outcome, fieldStart, dataStart, marks);
+        firstPass = fieldStart < trackBits;
+
+        if (FAILED (hrSector))
+        {
+            continue;
+        }
+
+        outSector = (outSector >= sectorBase) ? static_cast<Byte> (outSector - sectorBase) : outSector;
+
+        if (outSector >= NibbleFormat::kSectorsPerTrack)
+        {
+            continue;
+        }
+
+        bit = static_cast<uint16_t> (1 << outSector);
+
+        if (outcome == SectorOutcome::Lost)
+        {
+            outScan.lost = static_cast<uint16_t> (outScan.lost | bit);
+            continue;
+        }
+
+        if (outcome == SectorOutcome::Recovered)
+        {
+            outScan.recovered = static_cast<uint16_t> (outScan.recovered | bit);
+
+            if ((outScan.mask & bit) == 0)
+            {
+                memcpy (outScan.data[outSector].data(), data, NibbleFormat::kSectorByteSize);
+            }
+
+            continue;
+        }
+
+        //  A SECOND COPY OF A SECTOR IS DAMAGE, AND SETTING THE BIT AGAIN
+        //  HIDES IT. Duplicates are only meaningful within one revolution: the
+        //  loop keeps scanning after the cursor has been all the way round,
+        //  which is how it retries the sectors a damaged header cost it, and a
+        //  second pass necessarily meets headers it has already read.
+        if (firstPass && (outScan.mask & bit) != 0)
+        {
+            outScan.duplicated = static_cast<uint16_t> (outScan.duplicated | bit);
+        }
+
+        outScan.mask = static_cast<uint16_t> (outScan.mask | bit);
+        memcpy (outScan.data[outSector].data(), data, NibbleFormat::kSectorByteSize);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Denibblizer::MergeScans
+//
+//  Each sector of the stamped scan that is better than the detection
+//  scan's: verified where the detection scan did not verify it, or
+//  recovered where the detection scan had no bytes for it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Denibblizer::MergeScans (const TrackScan & stamped, TrackScan & ioScan)
+{
+    for (int sector = 0; sector < NibbleFormat::kSectorsPerTrack; sector++)
+    {
+        uint16_t  bit        = static_cast<uint16_t> (1 << sector);
+        bool      isVerified = (stamped.mask & bit) != 0 && (ioScan.mask & bit) == 0;
+        bool      isBetter   = (stamped.recovered & bit) != 0 && ((ioScan.mask | ioScan.recovered) & bit) == 0;
+
+        if (isVerified)
+        {
+            ioScan.data[sector] = stamped.data[sector];
+            ioScan.mask         = static_cast<uint16_t> (ioScan.mask       |  bit);
+            ioScan.recovered    = static_cast<uint16_t> (ioScan.recovered  & ~bit);
+            ioScan.lost         = static_cast<uint16_t> (ioScan.lost       & ~bit);
+            ioScan.duplicated   = static_cast<uint16_t> (ioScan.duplicated | (stamped.duplicated & bit));
+        }
+        else if (isBetter)
+        {
+            ioScan.data[sector] = stamped.data[sector];
+            ioScan.recovered    = static_cast<uint16_t> (ioScan.recovered | bit);
+            ioScan.lost         = static_cast<uint16_t> (ioScan.lost      & ~bit);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Denibblizer::WriteTrack
+//
+//  Each verified sector's bytes into its place in the sector image, and
+//  with keepRecovered, each recovered one's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Denibblizer::WriteTrack (const TrackScan & scan, int track, const int * interleave, bool keepRecovered, vector<Byte> & out)
+{
+    uint16_t  written = static_cast<uint16_t> (scan.mask | (keepRecovered ? scan.recovered : 0));
+
+
+
+    for (int sector = 0; sector < NibbleFormat::kSectorsPerTrack; sector++)
+    {
+        size_t  offset = static_cast<size_t> (track * NibbleFormat::kSectorsPerTrack + interleave[sector]) * NibbleFormat::kSectorByteSize;
+
+        if ((written & (1 << sector)) != 0)
+        {
+            memcpy (&out[offset], scan.data[(size_t) sector].data(), NibbleFormat::kSectorByteSize);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Denibblizer::ReportTrack
+//
+//  The track's counts in the sector report, and its outcome in the coverage
+//  report.
+//
+//  COVERAGE IS INDEXED BY OUTPUT SLOT, and the scan's mask is indexed by the
+//  number the address field gave. The two differ by the interleave, so a
+//  consumer holding the buffer and reading the mask directly would test the
+//  wrong sector and find zeros in a slot the report calls present.
+//
+//  UNFORMATTED MEANS NO ADDRESS FIELD ANYWHERE, not "no bits". A wiped track
+//  still has bits, and a track whose headers are all destroyed yields
+//  nothing at all. A track with data fields and no address field the
+//  decoder accepts was written: its sectors are lost, not blank.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Denibblizer::ReportTrack (
+    const TrackScan                  &  scan,
+    int                                 track,
+    const TrackBitReader::TrackBits  &  src,
+    const TrackMarks                 *  marks,
+    const int                        *  interleave,
+    DenibblizeReport                 &  report,
+    SectorDecodeReport               *  outCoverage)
+{
+    uint16_t  slotMask = 0;
+    int       decoded  = TrackSectorDecoder::PopCount (scan.mask);
+    bool      hasData  = false;
+
+
+
+    for (int sector = 0; sector < NibbleFormat::kSectorsPerTrack; sector++)
+    {
+        if ((scan.mask & (1 << sector)) != 0)
+        {
+            slotMask = static_cast<uint16_t> (slotMask | (1 << interleave[sector]));
+        }
+    }
+
+    report.decodedSectorMask[static_cast<size_t> (track)] = scan.mask;
+
+    if (outCoverage != nullptr)
+    {
+        TrackDecodeOutcome  outcome = TrackDecodeOutcome::Partial;
+
+        hasData = TrackSectorDecoder::HasDataField (src) || (marks != nullptr && TrackSectorDecoder::HasDataField (src, marks));
+
+        if (src.bitCount == 0 || (slotMask == 0 && scan.recovered == 0 && scan.lost == 0 && !hasData))
+        {
+            outcome = TrackDecodeOutcome::Unformatted;
+        }
+        else if (slotMask == kAllSectorsMask && scan.duplicated == 0)
+        {
+            outcome = TrackDecodeOutcome::Complete;
+        }
+
+        outCoverage->SetOutcome (track, outcome, slotMask, scan.duplicated != 0);
+    }
+
+    if (src.bitCount == 0)
+    {
+        return;
+    }
+
+    report.tracksPresent++;
+    report.sectorsVerified  += decoded;
+    report.sectorsRecovered += TrackSectorDecoder::PopCount (scan.recovered);
+    report.sectorsLost      += TrackSectorDecoder::PopCount (scan.lost);
+
+    if (decoded == 0)
+    {
+        report.tracksUnformatted++;
+    }
+    else if (decoded < NibbleFormat::kSectorsPerTrack)
+    {
+        report.tracksPartial++;
+        report.sectorsMissing += NibbleFormat::kSectorsPerTrack - decoded;
+    }
+    else
+    {
+        report.tracksComplete++;
+    }
+}
 
 
 

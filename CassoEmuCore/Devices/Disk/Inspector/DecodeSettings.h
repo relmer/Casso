@@ -18,7 +18,8 @@
 //  Turning a check off makes the analyzer report the fields it covers as not
 //  checked rather than good or bad. A later range overrides an earlier one
 //  for the tracks they share. Standard by default, and kept only while the
-//  window shows the disk.
+//  window shows the disk. A range made from the disk's format stamp is
+//  marked as from the stamp.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,6 +38,7 @@ struct DecodeRange
     FieldMarks    customMarks;
     bool          matchStandardToo = true;
     DecodeChecks  checks;
+    bool          isFromStamp      = false;
 };
 
 

@@ -183,6 +183,7 @@
     <ClCompile Include="SosTests.cpp" />
     <ClCompile Include="CatalogReproductionTest.cpp" />
     <ClCompile Include="FileMapStockDiskTests.cpp" />
+    <ClCompile Include="FormatStampRealDiskTests.cpp" />
     <ClCompile Include="FileSystemVerdictTests.cpp" />
     <ClCompile Include="FullSendFileSystemCheckTests.cpp" />
     <ClCompile Include="GuestVisibleBasicTests.cpp" />

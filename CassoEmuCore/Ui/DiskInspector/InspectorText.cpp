@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Ui/DiskInspector/InspectorText.h"
+#include "Core/TextEncoding.h"
+#include "Devices/Disk/Stamp/FormatStampJson.h"
 #include "Core/UnicodeSymbols.h"
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
 #include "Devices/Disk/Inspector/FindingFormatter.h"
@@ -18,6 +20,72 @@
 
 //  Between items on a line.
 static const std::wstring  s_kSeparator = std::wstring (L" ") + s_kpszMiddleDot + L" ";
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::BuildStampChips
+//
+//  One chip when the image's format stamp lists address or data prologs
+//  other than the standard ones. The marks themselves are in the preview's
+//  Format stamp section.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<SummaryChip> InspectorText::BuildStampChips (const ImageDetails & image)
+{
+    vector<SummaryChip>  chips;
+    bool                 isAddressCustom = false;
+    bool                 isDataCustom    = false;
+
+
+
+    if (image.stampState != StampState::Readable)
+    {
+        return chips;
+    }
+
+    for (const StampTrack & track : image.stamp.tracks)
+    {
+        isAddressCustom = isAddressCustom || HasCustomMark (track.addressPrologs);
+        isDataCustom    = isDataCustom    || HasCustomMark (track.dataPrologs);
+    }
+
+    if (isAddressCustom || isDataCustom)
+    {
+        chips.push_back ({ SummaryChipKind::StampMarks,
+                           isAddressCustom && isDataCustom ? L"Uses nonstandard address and data marks"
+                         : isAddressCustom                 ? L"Uses nonstandard address marks"
+                         :                                   L"Uses nonstandard data marks",
+                           false });
+    }
+
+    return chips;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::HasCustomMark
+//
+//  Whether any prolog is other than D5 AA 96, D5 AA B5 or D5 AA AD.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool InspectorText::HasCustomMark (const vector<vector<Byte>> & prologs)
+{
+    static const vector<Byte>  kStandard[] = { { 0xD5, 0xAA, 0x96 }, { 0xD5, 0xAA, 0xB5 }, { 0xD5, 0xAA, 0xAD } };
+
+
+
+    return std::ranges::any_of (prologs, [] (const vector<Byte> & prolog) { return std::ranges::find (kStandard, prolog) == std::end (kStandard); });
+}
 
 
 

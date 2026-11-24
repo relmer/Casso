@@ -302,6 +302,7 @@
     <ClCompile Include="CassoLink\Session\TrackMeasures.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkDiskTransfer.cpp" />
     <ClCompile Include="CassoLink\Session\TrackVerifier.cpp" />
+    <ClCompile Include="CassoLink\Session\CaptureStamp.cpp" />
     <ClCompile Include="CassoLink\Session\CaptureStream.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkBlockDevices.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkBlockTransfer.cpp" />
@@ -388,6 +389,14 @@
     <ClCompile Include="Devices\Disk\Inspector\Blocks\PascalBlockLayout.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\ProDosBlockLayout.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\DecodeSettings.cpp" />
+    <ClCompile Include="Devices\Disk\Stamp\FormatStampBuilder.cpp" />
+    <ClCompile Include="Devices\Disk\Stamp\FormatStampChunk.cpp" />
+    <ClCompile Include="Devices\Disk\Stamp\FormatStampJson.cpp" />
+    <ClCompile Include="Devices\Disk\Stamp\FormatStampRefresher.cpp" />
+    <ClCompile Include="Devices\Disk\Stamp\FormatStampText.cpp" />
+    <ClCompile Include="Devices\Disk\Stamp\MarkDiscovery.cpp" />
+    <ClCompile Include="Devices\Disk\Stamp\StampedTrackMarks.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\WozChunkWalker.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\DiskAnalyzer.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\DiskCopy.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\FindingFormatter.cpp" />
@@ -650,6 +659,7 @@
     <ClCompile Include="Devices\Disk\DiskCommandRunner.cpp" />
     <ClCompile Include="Devices\Disk\DiskCollectionCommands.cpp" />
     <ClCompile Include="Devices\Disk\DiskInspectCommand.cpp" />
+    <ClCompile Include="Devices\Disk\DiskGetStampCommand.cpp" />
     <ClCompile Include="Devices\Disk\DiskRepairCommand.cpp" />
     <ClCompile Include="Devices\Disk\DiskThumbnailCommand.cpp" />
     <ClCompile Include="Devices\Disk\DiskHelpPage.cpp" />
@@ -1645,6 +1655,16 @@
     <ClInclude Include="Devices\Disk\Inspector\Blocks\PascalBlockLayout.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\ProDosBlockLayout.h" />
     <ClInclude Include="Devices\Disk\Inspector\DecodeSettings.h" />
+    <ClInclude Include="Devices\Disk\Stamp\FormatStamp.h" />
+    <ClInclude Include="Devices\Disk\Stamp\FormatStampBuilder.h" />
+    <ClInclude Include="Devices\Disk\Stamp\FormatStampChunk.h" />
+    <ClInclude Include="Devices\Disk\Stamp\FormatStampJson.h" />
+    <ClInclude Include="Devices\Disk\Stamp\FormatStampRefresher.h" />
+    <ClInclude Include="Devices\Disk\Stamp\FormatStampText.h" />
+    <ClInclude Include="Devices\Disk\Stamp\MarkDiscovery.h" />
+    <ClInclude Include="Devices\Disk\Stamp\StampedTrackMarks.h" />
+    <ClInclude Include="Machines\Apple2\Common\TrackMarks.h" />
+    <ClInclude Include="Machines\Apple2\Common\WozChunkWalker.h" />
     <ClInclude Include="Devices\Disk\Inspector\DiskAnalysis.h" />
     <ClInclude Include="Devices\Disk\Inspector\DiskAnalyzer.h" />
     <ClInclude Include="Devices\Disk\Inspector\DiskCopy.h" />
@@ -1943,6 +1963,7 @@
     <ClInclude Include="Devices\Disk\DiskCommandRunner.h" />
     <ClInclude Include="Devices\Disk\DiskCollectionCommands.h" />
     <ClInclude Include="Devices\Disk\DiskInspectCommand.h" />
+    <ClInclude Include="Devices\Disk\DiskGetStampCommand.h" />
     <ClInclude Include="Devices\Disk\DiskRepairCommand.h" />
     <ClInclude Include="Devices\Disk\DiskThumbnailCommand.h" />
     <ClInclude Include="Devices\Disk\DiskHelpPage.h" />
@@ -2167,6 +2188,7 @@
     <ClInclude Include="CassoLink\Session\TrackMeasures.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkDiskTransfer.h" />
     <ClInclude Include="CassoLink\Session\TrackVerifier.h" />
+    <ClInclude Include="CassoLink\Session\CaptureStamp.h" />
     <ClInclude Include="CassoLink\Session\CaptureStream.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkBlockDevices.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkBlockTransfer.h" />

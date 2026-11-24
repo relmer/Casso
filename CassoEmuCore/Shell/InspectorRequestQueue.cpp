@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Shell/InspectorRequestQueue.h"
+#include "Devices/Disk/Stamp/FormatStamp.h"
+#include "Devices/Disk/Stamp/FormatStampChunk.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/SectorFieldWriter.h"
 
@@ -495,6 +497,10 @@ InspectorReply InspectorRequestQueue::Answer (uint64_t id, const InspectorReques
     {
         AnswerSaveCopy (request, source, reply);
     }
+    else if (request.kind == InspectorRequestKind::Stamp)
+    {
+        AnswerStamp (request, source, reply);
+    }
     else if (request.quarterTrack >= 0 && request.quarterTrack < DiskImage::kQuarterTrackCount)
     {
         slot = image->ResolveQuarterTrack (request.quarterTrack);
@@ -506,6 +512,62 @@ InspectorReply InspectorRequestQueue::Answer (uint64_t id, const InspectorReques
     }
 
     return reply;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorRequestQueue::AnswerStamp
+//
+//  The request's format stamp put in the drive's disk and the disk saved,
+//  with the drive's usual save. When the save fails, the disk's metadata is
+//  restored and the reply has the reason.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorRequestQueue::AnswerStamp (const InspectorRequest & request, IInspectorDiskSource & source, InspectorReply & inOutReply)
+{
+    DiskImage            * image      = source.GetImageForEdit (request.drive);
+    WozMetadata            before;
+    WozMetadata            meta;
+    InspectorSaveResult    save;
+    HRESULT                hr         = S_OK;
+    bool                   hasDisk    = image != nullptr && request.stamp != nullptr;
+    bool                   isWritable = false;
+    bool                   isSaved    = false;
+
+
+
+    inOutReply.reason = L"There is no disk in the drive";
+    CBRF (hasDisk, inOutReply.status = InspectorReplyStatus::NoDisk);
+
+    inOutReply.reason = L"The disk is write-protected";
+    isWritable        = !image->IsWriteProtected();
+    CBR (isWritable);
+
+    before = image->GetWozMetadata();
+    meta   = before;
+
+    inOutReply.reason = L"The format stamp is too large to save";
+    hr                = FormatStampChunk::SetStamp (meta, *request.stamp);
+    CHR (hr);
+
+    image->SetWozMetadata (meta);
+    image->MarkDirty();
+
+    save              = source.SaveDrive (request.drive);
+    isSaved           = SUCCEEDED (save.hr);
+    inOutReply.reason = L"Not saved: the file could not be written. " + save.reason;
+    CBRF (isSaved, image->SetWozMetadata (before));
+
+    inOutReply.reason.clear();
+    inOutReply.savedPath = save.path;
+
+Error:
+    return;
 }
 
 
