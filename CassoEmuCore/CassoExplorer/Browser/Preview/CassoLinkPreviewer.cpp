@@ -113,7 +113,7 @@ void CassoLinkPreviewer::PreviewCassoLinkItem (const CatalogRow & row)
     m_previewParts.preview      = PreviewContent();
     m_previewParts.preview.kind = PreviewContent::Kind::Text;
 
-    //  The help is written out for Windows' own Markdown preview, where one
+    //  The help is written out for the Windows Markdown preview, where one
     //  is installed; otherwise the preview has the text as it is.
     if (help && m_parts.sources.shellVerbs != nullptr && !row.hostPath.empty())
     {

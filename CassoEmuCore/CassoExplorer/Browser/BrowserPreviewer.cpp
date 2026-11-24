@@ -78,7 +78,7 @@ void BrowserPreviewer::UpdatePreview()
         return;
     }
 
-    //  CassoLink's own items, and a linked Apple's drive, which previews as
+    //  CassoLink's items, and a linked Apple's drive, which previews as
     //  its catalog once it is read.
     if (location.kind == Location::Kind::Root && m_parts.list.selectedRows.size() == 1 && m_parts.list.selectedRows[0] >= 0 && (size_t) m_parts.list.selectedRows[0] < m_parts.list.rows.size())
     {
@@ -103,7 +103,7 @@ void BrowserPreviewer::UpdatePreview()
         return;
     }
 
-    //  A search's result on the disk previews as it does in its own folder.
+    //  A search's result on the disk previews as it does in its folder.
     if (!m_parts.list.isImage && m_parts.list.selectedRows.size() == 1 && SearchQuery::IsId (location.path) && !m_parts.list.rows[m_parts.list.selectedRows[0]].folderPath.empty())
     {
         folder = m_parts.list.rows[m_parts.list.selectedRows[0]].folderPath;
@@ -143,7 +143,7 @@ void BrowserPreviewer::UpdatePreview()
         return;
     }
 
-    //  An archive previews as what it holds, as a disk image does.
+    //  An archive previews as its contents, as a disk image does.
     if (m_parts.list.rows[m_parts.list.selectedRows[0]].isArchive)
     {
         m_shellItems.PreviewArchive (BrowserRowPaths::JoinPath (folder, m_parts.list.rows[m_parts.list.selectedRows[0]].name));

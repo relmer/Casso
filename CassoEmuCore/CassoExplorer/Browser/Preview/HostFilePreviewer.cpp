@@ -63,9 +63,9 @@ void HostFilePreviewer::ReadTextPreview (const std::wstring & path, const std::w
 //
 //  HostFilePreviewer::TryPreviewAppleSingle
 //
-//  A host file that is an AppleSingle container previews as the file it
-//  holds. Only a file small enough to be one is read to find out; anything
-//  larger shows its bytes as before.
+//  A host file that is an AppleSingle container previews as the file inside
+//  it. Only a file small enough to be one is read to find out; a larger file
+//  previews as its bytes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

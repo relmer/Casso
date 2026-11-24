@@ -57,7 +57,7 @@ void ShellItemPreviewer::ShowShellPreviewBytes()
 //
 //  ShellItemPreviewer::PreviewArchive
 //
-//  What an archive holds, folders first, in the columns a catalog uses.
+//  An archive's contents, folders first, in the columns a catalog uses.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,7 +73,7 @@ void ShellItemPreviewer::PreviewArchive (const std::wstring & path)
         return;
     }
 
-    //  One on a network share is read on a thread of its own, with a working
+    //  One on a network share is read on a separate thread, with a working
     //  message meanwhile, so an unreachable share never blocks the window.
     if (!PathResolver::IsNetworkPath (path))
     {
@@ -146,7 +146,7 @@ std::vector<DxuiListView::Column> ShellItemPreviewer::GetArchivePreviewColumns()
 
     columns.resize ((std::min) (columns.size(), kArchivePreviewColumns));
 
-    //  Fitted to what the archive holds, so the narrow pane shows them all.
+    //  Fitted to the archive's contents, so the narrow pane shows them all.
     for (DxuiListView::Column & column : columns)
     {
         column.widthDip = 0;
@@ -187,8 +187,8 @@ std::vector<DxuiListView::Cell> ShellItemPreviewer::GetArchivePreviewCells (cons
 //
 //  ShellItemPreviewer::PreviewShellItem
 //
-//  A file the shell lists shows its bytes: one on a disk from the file, as in
-//  its own folder, and one with no file of its own, such as one inside a zip,
+//  A file the shell lists previews as its bytes: one on a disk from the file,
+//  as in its folder, and one with no file on disk, such as one inside a zip,
 //  read through the shell up to a limit.
 //
 ////////////////////////////////////////////////////////////////////////////////
