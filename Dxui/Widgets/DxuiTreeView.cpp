@@ -582,28 +582,44 @@ void DxuiTreeView::MergeNodes (std::vector<DxuiTreeNode> & current, std::vector<
 //
 //  Applies a change under one node on a row in place, as Explorer's
 //  navigation pane does: rows elsewhere stay as they are, and the tree never
-//  shows anything in between.
+//  shows anything in between. Every row with the id is changed, since one
+//  folder can have two rows, as a removable drive does at the top level and
+//  under This PC.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiTreeView::ReplaceChildren (const std::wstring & id, std::vector<DxuiTreeNode> children)
 {
-    DxuiTreeNode *  node   = GetNodeAtMutable (FindRowById (id));
-    RowIds          ids    = GetRowIds();
-    bool            opened = false;
+    std::vector<DxuiTreeNode *>  nodes;
+    RowIds                       ids    = GetRowIds();
+    bool                         opened = false;
+    int                          row    = 0;
 
 
 
-    if (node == nullptr)
+    for (row = 0; row < (int) m_flatRows.size() && !id.empty(); row++)
+    {
+        DxuiTreeNode *  n = GetNodeAtMutable (row);
+
+        if (n != nullptr && n->id == id)
+        {
+            nodes.push_back (n);
+        }
+    }
+
+    if (nodes.empty())
     {
         return false;
     }
 
-    MergeNodes (node->children, std::move (children));
+    for (DxuiTreeNode * node : nodes)
+    {
+        MergeNodes (node->children, children);
 
-    node->childrenLoaded = true;
-    opened               = id == m_openWhenFilled && !node->children.empty();
-    node->expanded       = (node->expanded || opened) && !node->children.empty();
+        node->childrenLoaded = true;
+        opened               = opened || (id == m_openWhenFilled && !node->children.empty());
+        node->expanded       = (node->expanded || (id == m_openWhenFilled && !node->children.empty())) && !node->children.empty();
+    }
 
     if (opened)
     {
