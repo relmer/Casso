@@ -1512,12 +1512,12 @@ ActionsTypes::Outcome CassoExplorerActions::GetSelected (const std::wstring & ho
     {
         formats.push_back ((raw || style == HostFileNaming::Style::AppleSingle) ? FileFormat::None
                                                                                 : CopyOutConversion::Find (m_browser.GetOperations(), image, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entry), entry, kind,
-                                                                                                           m_browser.GetPreviewer().GetDecodeOptions (m_browser.GetLocation().path, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entry))));
+                                                                                                           m_browser.GetPreviewer().GetViewState().GetDecodeOptions (m_browser.GetLocation().path, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entry))));
         hostNames.push_back (entry.isDirectory ? std::wstring() : DragPayload::GetHostName (entry, kind, style, converted, formats.back(), raw));
 
         if (converted)
         {
-            BasicListingOutput::RenameForOptions (hostNames.back(), m_browser.GetPreviewer().GetDecodeOptions (m_browser.GetLocation().path, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entry)));
+            BasicListingOutput::RenameForOptions (hostNames.back(), m_browser.GetPreviewer().GetViewState().GetDecodeOptions (m_browser.GetLocation().path, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entry)));
         }
     }
 
@@ -1547,7 +1547,7 @@ ActionsTypes::Outcome CassoExplorerActions::GetSelected (const std::wstring & ho
             continue;
         }
 
-        Append (outcome, CopyOutConversion::GetToFile (m_browser.GetOperations(), m_fs, m_browser.GetPreviewer().GetDecodeOptions (m_browser.GetLocation().path, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entry)),
+        Append (outcome, CopyOutConversion::GetToFile (m_browser.GetOperations(), m_fs, m_browser.GetPreviewer().GetViewState().GetDecodeOptions (m_browser.GetLocation().path, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entry)),
                                                        image, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entry), entry, kind, formats[at], raw ? Encoding::Verbatim : GetEncoding (entry, kind), hostPath));
     }
 

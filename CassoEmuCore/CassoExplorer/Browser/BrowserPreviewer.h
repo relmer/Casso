@@ -4,6 +4,8 @@
 
 #include "CassoExplorer/Browser/BrowserParts.h"
 #include "CassoExplorer/Browser/BrowserTypes.h"
+#include "CassoExplorer/Browser/Preview/IPreviewRefresh.h"
+#include "CassoExplorer/Browser/Preview/PreviewViewState.h"
 #include "CassoExplorer/Model/BrowserModel.h"
 
 #include "CassoExplorer/Model/PreviewDecoder.h"
@@ -27,7 +29,7 @@ class IBrowserPreviewHost;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class BrowserPreviewer
+class BrowserPreviewer : private IPreviewRefresh
 {
 public:
     BrowserPreviewer (const BrowserParts & parts, const BrowserSelection & selection, IBrowserPreviewHost & host);
@@ -68,24 +70,6 @@ public:
     //  A shell preview that failed or took too long is replaced by the file's
     //  bytes.
     void  ShowShellPreviewBytes ();
-    void  SetHexForm            (PreviewDecoder::HexForm form);
-    void  SetViewAs             (ViewChoice view);
-
-    //  The character set and the record length of the file previewed now,
-    //  in effect for that file until the window closes. A record length of 0 is
-    //  the one found.
-    void  SetCharset            (Charset charset);
-    void  SetRecordLength       (size_t recordLength);
-    void  SetFormulas           (bool formulas);
-
-    //  The choices made for a file, by its image's path and its path in the
-    //  image; the defaults for a file with none.
-    DecodeOptions  GetDecodeOptions (const std::wstring & imagePath, const std::string & entryPath) const;
-
-    //  The options of a file whose preview hasn't set any. Setting them
-    //  sets each file's options too, all but its record length.
-    void                   SetDefaultDecodeOptions (const DecodeOptions & options);
-    const DecodeOptions &  GetDefaultDecodeOptions () const { return m_defaultOptions; }
 
     const PreviewContent  & GetPreview () const { return m_preview; }
 
@@ -125,16 +109,17 @@ public:
     void     ReadTextPreview       (const std::wstring & path, const std::wstring & name);
 
     void  PreviewEntry       (const std::wstring & imagePath, const std::string & entryPath, const FileEntry & entry, VolumeKind kind, std::span<const Byte> diskSectors = {}, std::span<const std::vector<Byte>> otherDisks = {});
-    void  SetSavedGameShown  (bool shown);
     void  PreviewSearchMatch (const CatalogRow & row);
 
-    //  The preview made again for the selection, as when a slow read arrives.
-    void  UpdatePreview      ();
+    //  The preview made again for the selection, as when a slow read arrives,
+    //  and as PreviewViewState does after a choice changes.
+    void  UpdatePreview      () override;
+
+    //  The choices made for the files previewed.
+    PreviewViewState        & GetViewState ()       { return m_viewState; }
+    const PreviewViewState  & GetViewState () const { return m_viewState; }
 
 private:
-    //  The form for a file, Auto when it isn't the file previewed last.
-    PreviewDecoder::HexForm  GetHexForm (const std::wstring & fileKey);
-
     Location  GetLocation () const { return m_parts.model.HasTabs() ? m_parts.model.GetActiveTab().location : Location(); }
 
     BrowserParts              m_parts;
@@ -145,14 +130,5 @@ private:
     PicturePreview::Monitor             m_previewMonitor = PicturePreview::Monitor::Color;
     uint32_t                            m_customArgb     = PicturePreview::kDefaultCustomArgb;
     PreviewContent                      m_preview;
-
-    //  The form of the file previewed now, which another file resets.
-    PreviewDecoder::HexForm             m_hexForm        = PreviewDecoder::HexForm::Auto;
-    std::wstring                        m_hexFormKey;
-    ViewChoice                          m_viewAs         = ViewChoice::Default;
-    bool                                m_savedGameShown = true;   // a disk with a saved game previews as the saved game, not the disk
-
-    //  The decode choices of each file one was made for, by file key.
-    std::map<std::wstring, DecodeOptions>  m_decodeOptions;
-    DecodeOptions                          m_defaultOptions;
+    PreviewViewState                    m_viewState      { *this };
 };

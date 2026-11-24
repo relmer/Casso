@@ -650,6 +650,7 @@
     <ClCompile Include="CassoExplorer\PCodeDisassemblerTests.cpp" />
     <ClCompile Include="CassoExplorer\HostFileNamingTests.cpp" />
     <ClCompile Include="CassoExplorer\HostTextPreviewTests.cpp" />
+    <ClCompile Include="CassoExplorer\PreviewViewStateTests.cpp" />
     <ClCompile Include="CassoExplorer\ContentSnifferTests.cpp" />
     <ClCompile Include="CassoExplorer\CatalogModelTests.cpp" />
     <ClCompile Include="CassoExplorer\PickerColumnTests.cpp" />

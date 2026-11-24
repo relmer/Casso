@@ -892,7 +892,7 @@ public:
         Assert::IsFalse (host.browser.GetPreviewer().GetPreview().bytes.empty());
         Assert::IsTrue  (ExplorerPreviewManager::IsKnownPreview (host.browser.GetPreviewer().GetPreview()), L"and its hex opens the pane by itself");
 
-        host.browser.GetPreviewer().SetHexForm (PreviewDecoder::HexForm::Disassembly);
+        host.browser.GetPreviewer().GetViewState().SetHexForm (PreviewDecoder::HexForm::Disassembly);
         Assert::IsTrue (host.browser.GetPreviewer().GetPreview().disassembly);
         Assert::IsTrue (ExplorerPreviewManager::IsKnownPreview (host.browser.GetPreviewer().GetPreview()), L"as does its disassembly");
 

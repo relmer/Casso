@@ -139,7 +139,7 @@ public:
         host.Seed (MakeDisk ("SCENARIO.DATA", WizardryScenarioBuilder::MakeScenario()), "C:\\Disks\\scenario.dsk");
         host.Select (L"scenario.dsk");
 
-        host.browser.GetPreviewer().SetSavedGameShown (false);
+        host.browser.GetPreviewer().GetViewState().SetSavedGameShown (false);
 
         const PreviewContent &  preview = host.browser.GetPreviewer().GetPreview();
 
@@ -147,7 +147,7 @@ public:
         Assert::IsTrue  (preview.hasSavedGame, L"with the saved game a choice");
         Assert::IsFalse (preview.savedGameShown);
 
-        host.browser.GetPreviewer().SetSavedGameShown (true);
+        host.browser.GetPreviewer().GetViewState().SetSavedGameShown (true);
         Assert::IsTrue  (host.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Document, L"and back");
     }
 
@@ -189,7 +189,7 @@ public:
         Assert::IsTrue (HasText (preview, L"Room\thall"));
         Assert::IsTrue (preview.hasSavedGame && preview.savedGameShown);
 
-        host.browser.GetPreviewer().SetSavedGameShown (false);
+        host.browser.GetPreviewer().GetViewState().SetSavedGameShown (false);
 
         Assert::IsTrue  (host.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Details, L"The disk previews as its details");
         Assert::IsTrue  (host.browser.GetPreviewer().GetPreview().hasSavedGame);

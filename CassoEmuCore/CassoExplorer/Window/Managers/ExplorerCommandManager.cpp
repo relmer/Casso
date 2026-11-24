@@ -539,16 +539,16 @@ void ExplorerCommandManager::Dispatch (int id)
         case CassoExplorerCommands::kViewAsDoubleHiRes:
         case CassoExplorerCommands::kViewAsLoRes:
         case CassoExplorerCommands::kViewAsResourceFork:
-            m_context.browser.GetPreviewer().SetViewAs ((ViewChoice) (id - CassoExplorerCommands::kViewAsDefault));
+            m_context.browser.GetPreviewer().GetViewState().SetViewAs ((ViewChoice) (id - CassoExplorerCommands::kViewAsDefault));
             m_context.preview.FillPreview();
             break;
         case CassoExplorerCommands::kShowDisassembly:
-            m_context.browser.GetPreviewer().SetHexForm (PreviewDecoder::HexForm::Disassembly);
+            m_context.browser.GetPreviewer().GetViewState().SetHexForm (PreviewDecoder::HexForm::Disassembly);
             m_context.preview.FillPreview();
             break;
 
         case CassoExplorerCommands::kShowBytes:
-            m_context.browser.GetPreviewer().SetHexForm (PreviewDecoder::HexForm::Bytes);
+            m_context.browser.GetPreviewer().GetViewState().SetHexForm (PreviewDecoder::HexForm::Bytes);
             m_context.preview.FillPreview();
             break;
 
@@ -696,7 +696,7 @@ void ExplorerCommandManager::Dispatch (int id)
 
 void ExplorerCommandManager::ChooseSheetForm (bool formulas)
 {
-    m_context.browser.GetPreviewer().SetFormulas (formulas);
+    m_context.browser.GetPreviewer().GetViewState().SetFormulas (formulas);
     m_context.preview.FillPreview();
 }
 
@@ -714,7 +714,7 @@ void ExplorerCommandManager::ChooseSheetForm (bool formulas)
 
 void ExplorerCommandManager::ChooseCharset (Charset charset)
 {
-    m_context.browser.GetPreviewer().SetCharset (charset);
+    m_context.browser.GetPreviewer().GetViewState().SetCharset (charset);
     m_context.preview.FillPreview();
 }
 

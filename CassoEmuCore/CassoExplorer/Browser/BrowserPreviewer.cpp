@@ -185,176 +185,16 @@ void BrowserPreviewer::PreviewAppleEntry (const std::string & entryPath, const F
 
     if (SUCCEEDED (hr))
     {
-        PreviewDecoder::HexForm  hexForm = GetHexForm (GetLocation().path + L"|" + TextEncoding::NarrowToWide (entryPath));
+        PreviewDecoder::HexForm  hexForm = m_viewState.GetHexForm (GetLocation().path + L"|" + TextEncoding::NarrowToWide (entryPath));
 
-        hr = PreviewViewChoices::Render (m_viewAs, entry, m_parts.list.kind, payload, hexForm, m_bus, m_preview, m_previewMonitor, m_customArgb,
-                                         GetDecodeOptions (GetLocation().path, entryPath));
+        hr = PreviewViewChoices::Render (m_viewState.GetViewAs(), entry, m_parts.list.kind, payload, hexForm, m_bus, m_preview, m_previewMonitor, m_customArgb,
+                                         m_viewState.GetDecodeOptions (GetLocation().path, entryPath));
     }
 
     if (FAILED (hr) && m_preview.message.empty())
     {
         m_preview.kind    = PreviewContent::Kind::Error;
         m_preview.message = message.empty() ? L"This file could not be previewed." : TextEncoding::NarrowToWide (message);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BrowserPreviewer::SetHexForm
-//
-//  The form applies to the file previewed now. Another file opens in its
-//  default form.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BrowserPreviewer::SetHexForm (PreviewDecoder::HexForm form)
-{
-    m_hexForm = form;
-    UpdatePreview();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BrowserPreviewer::SetViewAs
-//
-//  The view applies to the file previewed now. Another file opens in its
-//  default view.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BrowserPreviewer::SetViewAs (ViewChoice view)
-{
-    m_viewAs = view;
-    UpdatePreview();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BrowserPreviewer::GetHexForm
-//
-////////////////////////////////////////////////////////////////////////////////
-
-PreviewDecoder::HexForm BrowserPreviewer::GetHexForm (const std::wstring & fileKey)
-{
-    if (fileKey != m_hexFormKey)
-    {
-        m_hexFormKey = fileKey;
-        m_hexForm    = PreviewDecoder::HexForm::Auto;
-        m_viewAs     = ViewChoice::Default;
-    }
-
-    return m_hexForm;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BrowserPreviewer::SetCharset
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BrowserPreviewer::SetCharset (Charset charset)
-{
-    if (!m_hexFormKey.empty())
-    {
-        m_decodeOptions.try_emplace (m_hexFormKey, m_defaultOptions).first->second.charset = charset;
-        UpdatePreview();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BrowserPreviewer::SetRecordLength
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BrowserPreviewer::SetRecordLength (size_t recordLength)
-{
-    if (!m_hexFormKey.empty())
-    {
-        m_decodeOptions.try_emplace (m_hexFormKey, m_defaultOptions).first->second.recordLength = recordLength;
-        UpdatePreview();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BrowserPreviewer::SetFormulas
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BrowserPreviewer::SetFormulas (bool formulas)
-{
-    if (!m_hexFormKey.empty())
-    {
-        m_decodeOptions.try_emplace (m_hexFormKey, m_defaultOptions).first->second.formulas = formulas;
-        UpdatePreview();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BrowserPreviewer::GetDecodeOptions
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DecodeOptions BrowserPreviewer::GetDecodeOptions (const std::wstring & imagePath, const std::string & entryPath) const
-{
-    auto  found = m_decodeOptions.find (imagePath + L"|" + TextEncoding::NarrowToWide (entryPath));
-
-
-
-    return (found != m_decodeOptions.end()) ? found->second : m_defaultOptions;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BrowserPreviewer::SetDefaultDecodeOptions
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BrowserPreviewer::SetDefaultDecodeOptions (const DecodeOptions & options)
-{
-    m_defaultOptions              = options;
-    m_defaultOptions.recordLength = 0;
-
-    for (auto & [key, fileOptions] : m_decodeOptions)
-    {
-        size_t  recordLength = fileOptions.recordLength;
-
-        fileOptions              = m_defaultOptions;
-        fileOptions.recordLength = recordLength;
     }
 }
 
@@ -531,7 +371,7 @@ void BrowserPreviewer::PreviewImageCatalog (const std::wstring & imagePath)
         //  Infocom save disk.
         hasSave = !contents.result.Succeeded() && TryDecodeDiskSave (imagePath, diskSave);
 
-        if (hasSave && m_savedGameShown)
+        if (hasSave && m_viewState.IsSavedGameShown())
         {
             PreviewDecoder::FromDecoded (diskSave, m_preview);
             m_preview.hasSavedGame   = true;
@@ -564,7 +404,7 @@ void BrowserPreviewer::PreviewImageCatalog (const std::wstring & imagePath)
         m_parts.model.CacheCatalog (imagePath, listing, kind);
     }
 
-    if (m_savedGameShown && PreviewSavedGame (imagePath, listing, kind))
+    if (m_viewState.IsSavedGameShown() && PreviewSavedGame (imagePath, listing, kind))
     {
         m_preview.hasSavedGame   = true;
         m_preview.savedGameShown = true;
@@ -576,7 +416,7 @@ void BrowserPreviewer::PreviewImageCatalog (const std::wstring & imagePath)
     //  files.
     hasSave = (kind == VolumeKind::Dos33 || kind == VolumeKind::ProDos) && TryDecodeDiskSave (imagePath, diskSave);
 
-    if (hasSave && m_savedGameShown)
+    if (hasSave && m_viewState.IsSavedGameShown())
     {
         PreviewDecoder::FromDecoded (diskSave, m_preview);
         m_preview.hasSavedGame   = true;
@@ -625,25 +465,6 @@ bool BrowserPreviewer::TryDecodeDiskSave (const std::wstring & imagePath, Decode
 
 Error:
     return SUCCEEDED (hr);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BrowserPreviewer::SetSavedGameShown
-//
-//  Whether a disk with a saved game previews as the saved game or as the
-//  disk. The choice applies to every such disk until it is changed.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BrowserPreviewer::SetSavedGameShown (bool shown)
-{
-    m_savedGameShown = shown;
-    UpdatePreview();
 }
 
 
@@ -1300,7 +1121,7 @@ void BrowserPreviewer::PreviewEntry (const std::wstring & imagePath, const std::
     FilePayload             payload;
     HRESULT                 hr          = S_OK;
     PreviewDecoder::HexForm hexForm     = PreviewDecoder::HexForm::Auto;
-    DecodeOptions           options     = GetDecodeOptions (imagePath, entryPath);
+    DecodeOptions           options     = m_viewState.GetDecodeOptions (imagePath, entryPath);
 
 
 
@@ -1319,10 +1140,10 @@ void BrowserPreviewer::PreviewEntry (const std::wstring & imagePath, const std::
         return;
     }
 
-    hexForm = GetHexForm (imagePath + L"|" + TextEncoding::NarrowToWide (entryPath));
+    hexForm = m_viewState.GetHexForm (imagePath + L"|" + TextEncoding::NarrowToWide (entryPath));
     options.diskSectors = diskSectors;
     options.otherDisks  = otherDisks;
-    hr                  = PreviewViewChoices::Render (m_viewAs, entry, kind, payload, hexForm, m_bus, m_preview, m_previewMonitor, m_customArgb, options);
+    hr                  = PreviewViewChoices::Render (m_viewState.GetViewAs(), entry, kind, payload, hexForm, m_bus, m_preview, m_previewMonitor, m_customArgb, options);
 
     //  A double hi-res picture's monitor follows its form, which is known once
     //  it is decoded.
@@ -1594,7 +1415,7 @@ void BrowserPreviewer::PreviewHostFile (const std::wstring & folder, const Catal
     }
 
     loaded  = TryReadHostPayload (path, row, payload, entry, typed);
-    hexForm = GetHexForm (path);
+    hexForm = m_viewState.GetHexForm (path);
 
     if (TryPreviewAppleSingle (folder, row))
     {
@@ -1604,7 +1425,7 @@ void BrowserPreviewer::PreviewHostFile (const std::wstring & folder, const Catal
 
     if (typed)
     {
-        hr = PreviewViewChoices::Render (m_viewAs, entry, VolumeKind::ProDos, payload, hexForm, m_bus, m_preview, m_previewMonitor, m_customArgb, DecodeOptions());
+        hr = PreviewViewChoices::Render (m_viewState.GetViewAs(), entry, VolumeKind::ProDos, payload, hexForm, m_bus, m_preview, m_previewMonitor, m_customArgb, DecodeOptions());
 
         if (SUCCEEDED (hr))
         {
@@ -1741,11 +1562,11 @@ void BrowserPreviewer::AttachHostViews (const FileEntry & entry, const FilePaylo
 
     PreviewViewChoices::List (payload, m_preview, choices);
     defaultName = PreviewViewChoices::DescribeDefault (m_preview);
-    applies     = std::find (choices.begin(), choices.end(), m_viewAs) != choices.end();
+    applies     = std::find (choices.begin(), choices.end(), m_viewState.GetViewAs()) != choices.end();
 
     if (applies)
     {
-        hr = PreviewViewChoices::RenderAs (m_viewAs, entry, VolumeKind::ProDos, payload, hexForm, m_bus, chosen, m_previewMonitor, m_customArgb);
+        hr = PreviewViewChoices::RenderAs (m_viewState.GetViewAs(), entry, VolumeKind::ProDos, payload, hexForm, m_bus, chosen, m_previewMonitor, m_customArgb);
     }
 
     if (SUCCEEDED (hr))
@@ -1754,6 +1575,6 @@ void BrowserPreviewer::AttachHostViews (const FileEntry & entry, const FilePaylo
     }
 
     m_preview.viewChoices = std::move (choices);
-    m_preview.viewAs      = SUCCEEDED (hr) ? m_viewAs : ViewChoice::Default;
+    m_preview.viewAs      = SUCCEEDED (hr) ? m_viewState.GetViewAs() : ViewChoice::Default;
     m_preview.defaultView = std::move (defaultName);
 }

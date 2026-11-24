@@ -273,7 +273,7 @@ void ExplorerVerbs::RunVerb (CassoExplorerActions::Verb verb)
         case CassoExplorerActions::Verb::GetWithOptions:
         {
             std::vector<CopyOptionRows::Row>  rows;
-            DecodeOptions                     options = m_context.browser.GetPreviewer().GetDefaultDecodeOptions();
+            DecodeOptions                     options = m_context.browser.GetPreviewer().GetViewState().GetDefaultDecodeOptions();
 
             m_context.actions.FindCopyOptionRows (rows);
 
@@ -283,7 +283,7 @@ void ExplorerVerbs::RunVerb (CassoExplorerActions::Verb verb)
             }
 
             m_context.prefs.copyOptions = options;
-            m_context.browser.GetPreviewer().SetDefaultDecodeOptions (options);
+            m_context.browser.GetPreviewer().GetViewState().SetDefaultDecodeOptions (options);
 
             hr = m_context.dialogs.PickFolder (m_context.window.GetHwnd(), picked, chosen);
 
