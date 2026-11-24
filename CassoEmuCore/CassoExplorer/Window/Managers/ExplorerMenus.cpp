@@ -9,6 +9,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 #include "Seams/Win32ShellItemVerbs.h"
+#include "Seams/Win32ContextMenuLayout.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
@@ -31,6 +32,29 @@
 ExplorerMenus::ExplorerMenus (ExplorerContext & context)
     : m_context (context)
 {
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerMenus::StartPackagedCommands
+//
+//  Start reading the commands installed apps add and New's choices. Once
+//  the window is started, each menu reads Settings' Context menu page from
+//  the registry; before then, and in a test with no window, the menus take
+//  the page's defaults.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerMenus::StartPackagedCommands (HWND hwnd, UINT message, UINT assocMessage)
+{
+    m_commandsStarted = hwnd != nullptr;
+
+    m_shellMenuHandlers.Start (hwnd, message);
+    m_packagedCommands.Start (hwnd, assocMessage);
 }
 
 
@@ -1174,11 +1198,12 @@ void ExplorerMenus::AddPackagedCommandsFor (std::vector<DxuiPopupMenuItem> & ite
     std::vector<Win32ExplorerCommandEntries::Entry>  entries;
     std::vector<DxuiPopupMenuItem>                   children;
     std::shared_ptr<DxuiCommand>                     flyout   = std::make_shared<DxuiCommand>();
+    Win32ContextMenuLayout                           layout   = m_commandsStarted ? Win32ContextMenuLayout::Read() : Win32ContextMenuLayout();
 
 
 
     //  Settings' Context menu page can hide the submenu.
-    if (!m_packagedCommands.GetMenuLayout().showExtensions)
+    if (!layout.showExtensions)
     {
         return;
     }
@@ -1239,7 +1264,7 @@ void ExplorerMenus::AddPackagedCommandsFor (std::vector<DxuiPopupMenuItem> & ite
 
 void ExplorerMenus::AddMenuEnd (std::vector<DxuiPopupMenuItem> & items, std::function<void()> showMore)
 {
-    Win32PackagedCommands::MenuLayout  layout = m_packagedCommands.GetMenuLayout();
+    Win32ContextMenuLayout  layout = m_commandsStarted ? Win32ContextMenuLayout::Read() : Win32ContextMenuLayout();
 
 
 

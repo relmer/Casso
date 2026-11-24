@@ -77,8 +77,6 @@ void Win32PackagedCommands::Start (HWND notify, UINT assocMessage)
         return;
     }
 
-    m_notify = notify;
-
     m_reader =std::thread ([this]()
     {
         HRESULT  hrCom  = CoInitializeEx (nullptr, COINIT_MULTITHREADED);

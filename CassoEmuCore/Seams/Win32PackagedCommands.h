@@ -2,7 +2,6 @@
 
 #include "Pch.h"
 
-#include "Seams/Win32ContextMenuLayout.h"
 #include "Seams/Win32ExplorerCommandEntries.h"
 #include "Seams/Win32PackageWatcher.h"
 
@@ -35,8 +34,6 @@
 class Win32PackagedCommands
 {
 public:
-    using MenuLayout = Win32ContextMenuLayout;
-
     ~Win32PackagedCommands();
 
     //  Starts reading the installed packages' manifests. The shell sends
@@ -53,10 +50,6 @@ public:
 
     //  The shell items the commands are asked about in place of the paths: Home's rows, whose commands answer for them as they are listed there.
     void                SetItemIds        (std::vector<std::wstring> ids) { m_itemIds = std::move (ids); }
-
-    //  Returns the Context menu page's choices, read from the registry for
-    //  each menu once Start has run, and the defaults before then.
-    MenuLayout  GetMenuLayout () const { return (m_notify != nullptr) ? Win32ContextMenuLayout::Read() : MenuLayout(); }
 
     HRESULT         Invoke         (HWND owner, const Win32ExplorerCommandEntries::Entry & entry, const std::vector<std::wstring> & paths);
     static HRESULT  InvokeGuarded  (IExplorerCommand * command, IShellItemArray * items);
@@ -104,6 +97,5 @@ private:
     std::vector<Registration>   m_registrations;
     std::vector<CachedCommand>  m_commands;                      // used only on the thread that opens menus
     unsigned                    m_commandsGeneration = 0;
-    HWND                        m_notify             = nullptr;
     Win32PackageWatcher         m_watcher;                       // last, so it stops before ReadAll's members are destroyed
 };

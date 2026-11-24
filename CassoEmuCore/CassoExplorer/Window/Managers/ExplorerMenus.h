@@ -88,7 +88,7 @@ public:
     std::vector<std::shared_ptr<DxuiCommand>> &  GetMenuCommands () { return m_menuCommands; }
 
     //  The commands installed apps add to Explorer's menus, and New's choices.
-    void  StartPackagedCommands   (HWND hwnd, UINT message, UINT assocMessage) { m_shellMenuHandlers.Start (hwnd, message); m_packagedCommands.Start (hwnd, assocMessage); }
+    void  StartPackagedCommands   (HWND hwnd, UINT message, UINT assocMessage);
     void  RefreshPackagedCommands ()                                          { m_packagedCommands.Refresh(); }
 
     void  AddPinMenuCommand     (std::vector<DxuiPopupMenuItem> & items, const std::wstring & folder);
@@ -141,6 +141,7 @@ private:
     Win32ShellMenuHandlers                     m_shellMenuHandlers;
     Win32RegistryReader                        m_registryReader;
     Win32WindowsCommands                       m_windowsCommands { m_registryReader };
+    bool                                       m_commandsStarted = false;    // the Context menu page is read from the registry once started
     std::map<std::wstring, std::unique_ptr<std::string>>  m_menuSvgs;
     std::map<std::wstring, std::shared_ptr<const DxuiIconImage>>  m_openMenuImages;
 };
