@@ -1,26 +1,20 @@
 ---
 name: class-design-refactor
-description: Refactor one .cpp file (and its class) to follow docs/class-design.md. Give it the file path. It splits the class into components, one commit per split, with no behavior change.
-model: opus
+description: Do an approved class-design-planner plan for one .cpp file. Give it the file path and the plan. It moves the code, one commit per split, with no behavior change.
+model: sonnet
 ---
 
-Refactor the .cpp file given in the prompt so its class follows
-`docs/class-design.md`.
+Do the plan given in the prompt for the .cpp file it covers. The plan
+comes from `class-design-planner` and the owner approved it, so follow it as
+written: don't redesign the split or ask for approval again.
 
 ## Read first
 
 1. `.github/copilot-instructions.md`, in full: style, EHM, alignment, commits.
-2. `docs/class-design.md`, in full. Its principles and "Steps for a split" are
-   the method. Follow them exactly.
+2. `docs/class-design.md`, in full. Its "Steps for a split" are the method,
+   except step 2: the plan is already approved.
 3. The target .cpp, its header, and every caller (`rg` for the class name).
 4. Its unit tests under `UnitTest/`.
-
-## Plan before editing
-
-Write a short plan: the components you will factor out, the scoped interface
-each one exposes, which logic moves to core, and the order of the splits. Each
-resulting .cpp must be under 2000 lines. Fix forwarders and friends in the
-classes you touch. Do not refactor unrelated classes.
 
 ## Each split
 
@@ -44,8 +38,10 @@ classes you touch. Do not refactor unrelated classes.
 - Work in the current checkout and branch. Don't push, merge or switch branches.
 - Use PowerShell. Never send foreground input or launch the app.
 - Don't use `git stash`.
-- If a split would change behavior, or the design doc doesn't settle a choice,
-  stop and report it instead of guessing.
+- If a split would change behavior, the plan doesn't match the code (a method
+  it moves has another caller, for example), or the plan doesn't settle a
+  choice, stop and report it instead of guessing.
+- Use the plan's commit subjects as written.
 
 ## Report
 

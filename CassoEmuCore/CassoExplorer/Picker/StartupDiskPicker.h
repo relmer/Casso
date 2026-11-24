@@ -38,6 +38,10 @@ public:
     static std::vector<StockDiskRow>  GetDemoDisks         (IDiskFileIo & fileIo, const ReceivingDrive & drive);
     static bool                       FetchStockDisk       (const std::wstring & path, std::wstring & outError);
 
+    //  Every stock and demo disk, for a window that isn't for one drive.
+    static std::vector<StockDiskRow>  GetEveryStockDisk    ();
+    static std::vector<StockDiskRow>  GetEveryDemoDisk     (IDiskFileIo & fileIo);
+
     //  Where the 800K stock disk is saved once it is built.
     static std::filesystem::path      GetStockDisk800KPath ();
     static bool                       MakeStockDisk800K    (std::wstring & outError);

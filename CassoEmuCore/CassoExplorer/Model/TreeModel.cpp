@@ -1178,6 +1178,44 @@ std::wstring TreeModel::GetLinkDriveTitle (const std::wstring & driveId) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TreeModel::TryGetLinkDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TreeModel::TryGetLinkDrive (const std::wstring & driveId, LinkTreeEntry::Drive & outDrive) const
+{
+    std::wstring  name;
+    int           slot  = 0;
+    int           drive = 0;
+
+
+
+    if (!TryParseLinkId (driveId, name, slot, drive))
+    {
+        return false;
+    }
+
+    for (const LinkTreeEntry & link : m_links)
+    {
+        for (const LinkTreeEntry::Drive & row : link.name == name ? link.drives : std::vector<LinkTreeEntry::Drive>())
+        {
+            if (row.slot == slot && row.drive == drive)
+            {
+                outDrive = row;
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TreeModel::IsThirteenSectorDrive
 //
 ////////////////////////////////////////////////////////////////////////////////

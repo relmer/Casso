@@ -91,6 +91,8 @@ public:
     void                                     UpdateTip               (const DxuiMouseEvent & ev, POINT point);
     void                                     RefreshTip              ();
     static bool                              IsHostFileRow           (const CatalogRow & row, std::wstring & outPath);
+    bool                                     FetchSelectedStockDisks ();
+    bool                                     IsStockDiskToFetchSelected () const;
     std::vector<DxuiPopupMenuItem>           GetScrollbarMenu        (const DxuiMouseEvent & ev) const;
     bool                                     UpdateScrollbarHover    (POINT at) { return m_list->SetScrollbarHover (at); }
     LPCWSTR                                  GetCursorForPoint       (POINT clientPx) const;

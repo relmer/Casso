@@ -311,6 +311,7 @@
     <ClCompile Include="CassoLink\Session\CassoLinkCaptureStream.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkFullSend.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkResume.cpp" />
+    <ClCompile Include="CassoLink\Session\LinkImageSource.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkThirteenSector.cpp" />
     <ClCompile Include="DiskCheck\ThumbnailStore.cpp" />
     <ClCompile Include="DiskCheck\GivenNames.cpp" />
@@ -498,8 +499,10 @@
     <ClCompile Include="CassoExplorer\CassoExplorerPromptDialog.cpp" />
     <ClCompile Include="CassoExplorer\CassoLinkActivityDialog.cpp" />
     <ClCompile Include="CassoExplorer\CassoLinkJobDialog.cpp" />
+    <ClCompile Include="CassoExplorer\CassoLinkProDosDialog.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkDiskStatus.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\CassoLinkJobManager.cpp" />
+    <ClCompile Include="CassoExplorer\Window\Managers\CassoLinkListActions.cpp" />
     <ClCompile Include="CassoExplorer\FullSendDialog.cpp" />
     <ClCompile Include="CassoExplorer\KrunchMapDialog.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerOptionsDialog.cpp" />
@@ -624,6 +627,7 @@
     <ClCompile Include="CassoExplorer\Model\PreviewText.cpp" />
     <ClCompile Include="CassoExplorer\Model\ApplesoftVariables.cpp" />
     <ClCompile Include="CassoExplorer\Model\TreeModel.cpp" />
+    <ClCompile Include="CassoExplorer\Model\LinkImageDropRule.cpp" />
     <ClCompile Include="CassoExplorer\Model\CassoLinkConnections.cpp" />
     <ClCompile Include="CassoExplorer\Model\CassoLinkConnectionsProbe.cpp" />
     <ClCompile Include="CassoExplorer\Model\CassoLinkConnectionText.cpp" />
@@ -1759,8 +1763,10 @@
     <ClInclude Include="CassoExplorer\CassoExplorerPromptDialog.h" />
     <ClInclude Include="CassoExplorer\CassoLinkActivityDialog.h" />
     <ClInclude Include="CassoExplorer\CassoLinkJobDialog.h" />
+    <ClInclude Include="CassoExplorer\CassoLinkProDosDialog.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkDiskStatus.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\CassoLinkJobManager.h" />
+    <ClInclude Include="CassoExplorer\Window\Managers\CassoLinkListActions.h" />
     <ClInclude Include="CassoExplorer\FullSendDialog.h" />
     <ClInclude Include="CassoExplorer\KrunchMapDialog.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerOptionsDialog.h" />
@@ -1902,6 +1908,7 @@
     <ClInclude Include="CassoExplorer\Model\PreviewText.h" />
     <ClInclude Include="CassoExplorer\Model\ApplesoftVariables.h" />
     <ClInclude Include="CassoExplorer\Model\TreeModel.h" />
+    <ClInclude Include="CassoExplorer\Model\LinkImageDropRule.h" />
     <ClInclude Include="CassoExplorer\Model\CassoLinkConnections.h" />
     <ClInclude Include="CassoExplorer\Model\CassoLinkConnectionText.h" />
     <ClInclude Include="CassoExplorer\Model\CassoLinkFullSendOptions.h" />
@@ -2144,6 +2151,7 @@
     <ClInclude Include="CassoLink\Session\CassoLinkBlockTransfer.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkCapture.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkResume.h" />
+    <ClInclude Include="CassoLink\Session\LinkImageSource.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkThirteenSector.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkFullSend.h" />
     <ClInclude Include="DiskCheck\ThumbnailStore.h" />

@@ -15,6 +15,7 @@
 #include "CassoExplorer/Model/LaunchCommand.h"
 #include "CassoExplorer/Model/CassoImagesListing.h"
 #include "CassoExplorer/Model/DiskImageCatalog.h"
+#include "CassoExplorer/Picker/StartupDiskPicker.h"
 #include "Seams/Win32FolderWatcher.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "Seams/Win32IntentChannel.h"
@@ -981,6 +982,12 @@ void CassoExplorerShell::ConfigureBrowser (CassoExplorerBrowser & browser)
     browser.SetPhysicalCards (&m_cards);
 
     browser.SetRecentLoads ([this] () { return CassoImagesListing::LoadRecent (m_fs, m_baseDir); });
+
+    //  The stock and demo disks under the Casso node, to open or copy out.
+    browser.SetStockDisks (StartupDiskPicker::GetEveryStockDisk());
+    browser.GetTreeModel().SetStockDisksShown (true);
+    browser.SetDemoDisks (StartupDiskPicker::GetEveryDemoDisk (browser.GetFileIo()));
+    browser.GetTreeModel().SetDemoDisksShown (true);
     browser.GetTreeModel().SetDirectoryProbe (&HostFolderNames::IsReadableDirectory);
     browser.GetTreeModel().SetMediaProbe (&HostFolderNames::IsMediaPresent);
 }

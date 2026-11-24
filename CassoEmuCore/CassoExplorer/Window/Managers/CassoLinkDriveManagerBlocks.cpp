@@ -83,11 +83,9 @@ void CassoLinkDriveManager::WriteImageToBlockDevice (const Location & drive, con
     HRESULT                hr     = S_OK;
     std::filesystem::path  picked;
     bool                   chosen = false;
-    bool                   resume = false;
     CassoLinkBlockDevice   device;
     FileDialogSpec         spec;
     std::wstring           title  = m_context.browser.GetTreeModel().GetLinkDriveTitle (drive.path);
-    std::wstring           text;
 
 
 
@@ -99,18 +97,58 @@ void CassoLinkDriveManager::WriteImageToBlockDevice (const Location & drive, con
     spec.title      = std::format (L"Write image to {}", title);
     spec.content    = FileDialogContent::Images;
 
+    if (device.blocks > 0)
+    {
+        spec.receivingDrive = ReceivingDrive { ReceivingDriveKind::HardDisk, device.blocks, true };
+    }
+
+    if (device.blocks == s_kBlocks400K || device.blocks == s_kBlocks800K)
+    {
+        spec.listedTerms = { L"3.5\"", std::format (L"{}K", device.blocks / 2) };
+    }
+
     hr = m_context.dialogs.PickFileToOpen (m_context.window.GetHwnd(), spec, picked, chosen);
     CHR (hr);
     BAIL_OUT_IF (!chosen, S_OK);
 
-    BAIL_OUT_IF (!AskToResume (title, device, picked, false, resume), S_OK);
+    StartBlockImageWrite (drive, link, number, picked, forceVerify);
 
-    text = std::format (L"Overwrite {} with {}?\n\nEverything on that device is replaced.", title, picked.filename().wstring());
+Error:
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDriveManager::StartBlockImageWrite
+//
+//  A picked or dropped image onto a block device: a cut-short write of it is
+//  offered to continue, and otherwise the user confirms the overwrite.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkDriveManager::StartBlockImageWrite (const Location & drive, const std::wstring & link, int number, const std::filesystem::path & image, bool forceVerify)
+{
+    HRESULT               hr     = S_OK;
+    bool                  resume = false;
+    CassoLinkBlockDevice  device;
+    std::wstring          title  = m_context.browser.GetTreeModel().GetLinkDriveTitle (drive.path);
+    std::wstring          text;
+
+
+
+    BAIL_OUT_IF (!TryGetBlockDevice (link, number, device), S_OK);
+    BAIL_OUT_IF (!AskToResume (title, device, image, false, resume), S_OK);
+
+    text = std::format (L"Overwrite {} with {}?\n\nEverything on that device is replaced.", title, image.filename().wstring());
 
     BAIL_OUT_IF (!resume && DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, text.c_str(), L"Write image",
                                             MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Overwrite", L"Cancel" }) != IDOK, S_OK);
 
-    SubmitBlockTransfer (link, number, picked, false, resume, forceVerify);
+    SubmitBlockTransfer (link, number, image, false, resume, forceVerify);
 
 Error:
     IGNORE_RETURN_VALUE (hr, S_OK);

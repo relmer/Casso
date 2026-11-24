@@ -28,8 +28,12 @@ public:
     //  progress, and how many follow it. Empty for none.
     static std::wstring  DescribeJobs    (const std::vector<std::shared_ptr<LinkOperation>> & jobs);
 
-    //  The text under a link's root in place of its drives.
-    static std::wstring  DescribeState   (LinkState state, const CassoLinkSettings & settings, const std::wstring & pcName);
+    //  The text under a link's root in place of its drives. With
+    //  `usingDrives`, the CassoLink ProDOS disk's driver on `model`, or on
+    //  an Apple of no known model, is using the virtual drives on the line;
+    //  the drives' images are links under it.
+    static std::wstring  DescribeState   (LinkState state, const CassoLinkSettings & settings, const std::wstring & pcName, bool usingDrives = false, const std::wstring & model = std::wstring());
+    static std::wstring  DescribeDriveImage (const std::wstring & path);
 
     //  A speed with its thousands separated, as 115,200.
     static std::wstring  FormatBaud      (DWORD baud);

@@ -81,12 +81,14 @@ HRESULT DiskAudioRecording::Build (const std::vector<Byte> & sectors, uint32_t s
 
     for (size_t track = 0; track < kTracks; track++)
     {
-        std::vector<Byte>  request;
-        Word               crc     = 0;
+        std::vector<Byte>    request;
+        std::array<Byte, 2>  percents;
+        Word                 crc     = 0;
 
         CassoLinkThirteenSector::MakeStream (image, image.ResolveWholeTrack ((int) track), stream);
 
-        request = { kDrive, (Byte) track, (Byte) (stream.size() & 0xFF), (Byte) (stream.size() >> 8) };
+        percents = CassoLinkHost::GetTrackPercents ((Byte) track);
+        request  = { kDrive, (Byte) track, (Byte) (stream.size() & 0xFF), (Byte) (stream.size() >> 8), percents[0], percents[1] };
 
         packet.clear();
 

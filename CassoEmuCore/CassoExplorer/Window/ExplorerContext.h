@@ -9,6 +9,7 @@ class CassoExplorerBrowser;
 class CassoExplorerCommands;
 class CassoLinkConnections;
 class CassoLinkDriveManager;
+class CassoLinkListActions;
 class CassoLinkManager;
 class GivenNames;
 class IDiskPictures;
@@ -125,6 +126,7 @@ public:
     ExplorerFolderSync          & folderSync;
     CassoLinkManager            & cassoLinkManager;
     CassoLinkDriveManager       & linkDrives;
+    CassoLinkListActions        & linkListActions;
     FullSendWindowManager       & fullSendWindows;
     CassoLinkJobManager         & linkJobs;
     ExplorerDragDrop            & dragDrop;

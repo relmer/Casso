@@ -100,6 +100,82 @@ public:
 
 
 
+    TEST_METHOD (ListedTerms_AreThePickersCapsules)
+    {
+        Rig                    rig;
+        FileDialogSpec         spec;
+        std::filesystem::path  path;
+        bool                   picked = false;
+
+
+
+        spec.content            = FileDialogContent::Images;
+        spec.listedTerms        = { L"5.25\"", L"114K (13-sector)" };
+        rig.answer.isConfirmed  = true;
+        rig.answer.isClosed     = true;
+        rig.answer.path         = L"C:\\Disks\\a.d13";
+
+        AssertSucceeded (rig.dialogs.PickFileToOpen (nullptr, spec, path, picked));
+
+        Assert::AreEqual ((size_t) 1, rig.requests.size());
+        Assert::IsTrue   (rig.requests[0].listedTerms == spec.listedTerms);
+    }
+
+
+
+    TEST_METHOD (APickerOnTheCassoNode_StartsWithItsSearch)
+    {
+        Rig                    rig;
+        FileDialogSpec         spec;
+        std::filesystem::path  path;
+        bool                   picked = false;
+
+
+
+        spec.content            = FileDialogContent::Images;
+        spec.startInCasso       = true;
+        spec.initialSearch      = L"prodos";
+        rig.answer.isConfirmed  = true;
+        rig.answer.isClosed     = true;
+        rig.answer.path         = L"C:\\Disks\\a.dsk";
+
+        AssertSucceeded (rig.dialogs.PickFileToOpen (nullptr, spec, path, picked));
+
+        Assert::AreEqual ((size_t) 1, rig.requests.size());
+        Assert::IsTrue   (rig.requests[0].startInCasso);
+        Assert::AreEqual (std::wstring (L"prodos"), rig.requests[0].initialSearch);
+    }
+
+
+
+    TEST_METHOD (AnImageToOpen_WithNoFolder_StartsOnTheCassoNode)
+    {
+        Rig                    rig;
+        FileDialogSpec         spec;
+        std::filesystem::path  path;
+        bool                   picked = false;
+
+
+
+        spec.content            = FileDialogContent::Images;
+        rig.answer.isConfirmed  = true;
+        rig.answer.isClosed     = true;
+        rig.answer.path         = L"C:\\Disks\\a.po";
+
+        AssertSucceeded (rig.dialogs.PickFileToOpen (nullptr, spec, path, picked));
+        AssertSucceeded (rig.dialogs.PickFileToSave (nullptr, spec, path, picked));
+
+        spec.initialFolder = L"C:\\Disks";
+        AssertSucceeded (rig.dialogs.PickFileToOpen (nullptr, spec, path, picked));
+
+        Assert::AreEqual ((size_t) 3, rig.requests.size());
+        Assert::IsTrue   (rig.requests[0].startInCasso);
+        Assert::IsFalse  (rig.requests[1].startInCasso, L"a save");
+        Assert::IsFalse  (rig.requests[2].startInCasso, L"a folder given");
+    }
+
+
+
     TEST_METHOD (CanceledPicker_IsASuccessWithNothingPicked)
     {
         Rig                    rig;

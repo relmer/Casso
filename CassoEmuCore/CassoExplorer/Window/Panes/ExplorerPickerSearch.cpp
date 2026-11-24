@@ -51,6 +51,12 @@ void ExplorerPickerSearch::Create()
 
     m_box->SetPlaceholder (L"Search by name");
     m_box->SetOnChange    ([this] (const std::wstring & text) { ApplyFilter (text); });
+
+    if (!m_context.app.picker->initialSearch.empty())
+    {
+        m_box->SetText (m_context.app.picker->initialSearch);
+        m_context.browser.SetNameFilter (m_context.app.picker->initialSearch);
+    }
 }
 
 

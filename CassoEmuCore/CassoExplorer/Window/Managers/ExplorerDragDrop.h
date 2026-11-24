@@ -5,6 +5,7 @@
 #include "Seams/Win32ShellIcons.h"
 
 #include "CassoExplorer/CassoExplorerActions.h"
+#include "CassoExplorer/Model/LinkImageDropRule.h"
 
 struct ExplorerContext;
 
@@ -40,12 +41,14 @@ public:
         bool                       isVirtual = false;
     };
 
-    //  What a right-drag dropped, held between the drop and the menu's
-    //  answer: where it landed, and either the host files or the entries of
+    //  What a right-drag dropped, or one image to write or copy, stored from
+    //  the drop until a menu item is picked: where it landed, and
+    //  either the host files or the entries of
     //  the image they came from.
     struct PendingDrop
     {
         bool                       valid       = false;
+        bool                       imageChoice = false;   // one image onto a linked drive, written or copied as the menu chooses
         Location                   location;
         VolumeKind                 targetKind  = VolumeKind::Unknown;
         std::string                inner;
@@ -96,11 +99,12 @@ public:
     void                                    RefreshDropTarget    ();
     void                                    ShowDropMenu         ();
     void                                    RunDrop              (CassoExplorerActions::Conversion conversion);
+    void                                    RunImageDrop         (bool write);
     void                                    ClearDropTarget      ();
     bool                                    ReadDropSource       (IDataObject * data, DropSource & outSource);
     bool                                    WriteVirtualFiles    (IDataObject * data, DropSource & ioSource);
     void                                    RemoveVirtualFiles   ();
-    static bool                             IsImageWriteDrop     (const DropSource & source, const Location & drive);
+    LinkImageDrop                           GetImageDrop         (const DropSource & source, const Location & drive) const;
     DWORD                                   ChooseDropEffect     (const DropSource & source, const Location & target) const;
     void                                    DescribeDrop         (IDataObject * data, DWORD effect, const Location & target);
     void                                    HoverDropTab         (POINT screen);
@@ -108,10 +112,14 @@ public:
     static bool                             IsProgramPath        (const std::wstring & path);
     DxuiDragDropTarget                    & GetDropTarget        () { return m_dropTarget; }
 
-    void  HandleDropFile (const std::wstring & path);
-    void  HandleDrop     (IDataObject * data, int tag, POINT screen);
+    void  HandleDropFile    (const std::wstring & path);
+    void  HandleDrop        (IDataObject * data, int tag, POINT screen);
+    void  PasteOnAppleDrive (const Location & drive);
+    bool  TryGetPasteDrive  (Location & outDrive);
 
 private:
+    bool  DropOnAppleDrive (IDataObject * data, DropSource & source, const Location & drive, POINT screen);
+
     ExplorerContext      & m_context;
     Win32ShellIcons        m_dragIcons;   // drawn as each drag starts, so not in the background
     DxuiDragDropTarget     m_dropTarget;

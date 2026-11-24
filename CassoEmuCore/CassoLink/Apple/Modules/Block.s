@@ -34,6 +34,9 @@
 ;
 ; A firmware call saves the zero page and restores it after, as a card's
 ; firmware may use any of it; $42 to $47 have a ProDOS driver's request.
+; The Disk II's motor is turned off first. It runs on after a floppy
+; operation, and a //c's SmartPort firmware loops until the motor stops
+; before it uses the disk port.
 ; ---------------------------------------------------------------------------
 
 ; CMDBLKLIST and the other commands are assigned ahead of this source by
@@ -44,11 +47,12 @@ ZPBUF      = $6000              ; the zero page during a firmware call
 DEVTAB     = $6100              ; each unit's entry in List's reply
 STBUF      = $6400              ; a SmartPort STATUS's reply
 ENTRYLEN   = 23                 ; an entry: slot, unit, SmartPort, blocks (3), kind, name (16)
+RAMREADY   = $077C              ; $A5 once a //c's RAM disk firmware has set it up
 MAXUNITS   = 32
 TRIES      = 8
 
         .org $5000
-        .byte 'C', 'M', 2, 1    ; block, version 1
+        .byte 'C', 'M', 2, 2    ; block, version 2
         .word PROGVER
         .word modend - $5000
         .word 0                 ; the CRC, which the PC fills in
@@ -1092,7 +1096,10 @@ gbfail: sec
 ; ---------------------------------------------------------------------------
 
 ; isblock: C clear when bslot's firmware is a block device's, with A
-; 0 for a SmartPort and nonzero for a ProDOS driver alone.
+; 0 for a SmartPort and nonzero for a ProDOS driver alone. A //c's slot 4 is
+; its memory card's RAM disk, and is passed over until the RAM disk is set
+; up: the firmware's first call sizes the card and formats the RAM disk, and
+; with no card that format never ends.
 isblock: lda bslot
         ora #$C0
         sta bptr+1
@@ -1114,7 +1121,18 @@ isblock: lda bslot
         beq ibno                ; a Disk II
         cmp #$FF
         beq ibno                ; a 13-sector Disk II
-        ldy #7
+        lda bslot
+        cmp #4
+        bne ibfw
+        lda p_readyrom          ; a //c has $06 at $FBB3 and $00 at $FBC0
+        cmp #$06
+        bne ibfw
+        lda p_readyrom+1
+        bne ibfw
+        lda RAMREADY
+        cmp #$A5
+        bne ibno                ; a //c's RAM disk that isn't set up
+ibfw:   ldy #7
         lda (bptr),y
         beq ibsp
         lda #1
@@ -1183,6 +1201,7 @@ spstat: sta splist+4
 ; bptr. C is set with the error in A; after STATUS, X and Y have
 ; the block count, low byte first.
 pdcall: sta fwcmd
+        jsr p_motoroff
         jsr zpsave
         lda fwcmd
         sta $42
@@ -1212,6 +1231,7 @@ pdjmp:  jmp $C000               ; patched: the ProDOS entry
 
 ; spcall: the SmartPort command A with splist.
 spcall: sta spcmd
+        jsr p_motoroff
         jsr zpsave
         php
         sei
