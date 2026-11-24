@@ -608,6 +608,7 @@
     <ClCompile Include="CassoExplorer\CatalogModelTests.cpp" />
     <ClCompile Include="CassoExplorer\PickerColumnTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoImagesListingTests.cpp" />
+    <ClCompile Include="CassoExplorer\FileSystemCheckSchedulerTests.cpp" />
     <ClCompile Include="CassoExplorer\ImageVolumeFactsTests.cpp" />
     <ClCompile Include="CassoExplorer\FileMaskSetTests.cpp" />
     <ClCompile Include="CassoExplorer\ExplorerPickerHostTests.cpp" />

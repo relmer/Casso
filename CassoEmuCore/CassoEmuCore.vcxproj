@@ -556,6 +556,7 @@
     <ClCompile Include="CassoExplorer\Model\CatalogModel.cpp" />
     <ClCompile Include="CassoExplorer\Model\CassoImagesListing.cpp" />
     <ClCompile Include="CassoExplorer\Model\StockDisksListing.cpp" />
+    <ClCompile Include="CassoExplorer\Model\FileSystemCheckScheduler.cpp" />
     <ClCompile Include="CassoExplorer\Model\ImageVolumeFacts.cpp" />
     <ClCompile Include="CassoExplorer\Picker\FileMaskSet.cpp" />
     <ClCompile Include="CassoExplorer\Picker\ExplorerPickerHost.cpp" />
@@ -1800,6 +1801,7 @@
     <ClInclude Include="CassoExplorer\Model\CatalogModel.h" />
     <ClInclude Include="CassoExplorer\Model\CassoImagesListing.h" />
     <ClInclude Include="CassoExplorer\Model\StockDisksListing.h" />
+    <ClInclude Include="CassoExplorer\Model\FileSystemCheckScheduler.h" />
     <ClInclude Include="CassoExplorer\Model\ImageVolumeFacts.h" />
     <ClInclude Include="CassoExplorer\Picker\FileMaskSet.h" />
     <ClInclude Include="CassoExplorer\Picker\PickerRequest.h" />
