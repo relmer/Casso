@@ -637,6 +637,7 @@
     <ClCompile Include="Seams\Win32ContextMenuLayout.cpp" />
     <ClCompile Include="Seams\Win32ExplorerCommandEntries.cpp" />
     <ClCompile Include="Seams\Win32PackagedCommands.cpp" />
+    <ClCompile Include="Seams\Win32ShellMenuHandlers.cpp" />
     <ClCompile Include="Seams\Win32PackageWatcher.cpp" />
     <ClCompile Include="Seams\Win32PreviewHelper.cpp" />
     <ClCompile Include="Seams\Win32ShellPreview.cpp" />
@@ -1941,6 +1942,7 @@
     <ClInclude Include="Seams\Win32ContextMenuLayout.h" />
     <ClInclude Include="Seams\Win32ExplorerCommandEntries.h" />
     <ClInclude Include="Seams\Win32PackagedCommands.h" />
+    <ClInclude Include="Seams\Win32ShellMenuHandlers.h" />
     <ClInclude Include="Seams\Win32PackageWatcher.h" />
     <ClInclude Include="Seams\Win32PreviewHelper.h" />
     <ClInclude Include="Seams\ShellItemId.h" />

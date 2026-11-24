@@ -36,35 +36,18 @@
 //  creating one takes up to 60 ms, while its state and title take well under
 //  one, so they are requested again for each menu.
 //
-//  New's choices are the shell's own New menu, read once on a thread of their
-//  own, since the shell's handler for it takes a few hundred milliseconds to
-//  list them. Choosing one creates a fresh copy of the handler for the folder
-//  and runs the choice there, as File Explorer runs it.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 class Win32PackagedCommands
 {
 public:
-    //  One of the shell's New choices. The verb is the shell's for it: a
-    //  file type's extension, such as ".txt", or NewFolder or NewLink.
-    struct NewChoice
-    {
-        std::wstring  title;
-        std::wstring  verb;
-    };
-
     using MenuLayout = Win32ContextMenuLayout;
-
-    static constexpr const wchar_t *  kNewFolderVerb = L"NewFolder";
-    static constexpr const wchar_t *  kNewLinkVerb   = L"NewLink";
 
     ~Win32PackagedCommands();
 
-    //  Starts reading the installed packages' manifests and New's choices,
-    //  and posts `message` to `notify` once the choices are read. The shell
-    //  sends `assocMessage` to `notify` when a file association changes.
-    void  Start (HWND notify, UINT message, UINT assocMessage);
+    //  Starts reading the installed packages' manifests. The shell sends
+    //  `assocMessage` to `notify` when a file association changes.
+    void  Start (HWND notify, UINT assocMessage);
 
     //  Reads the manifests again, as after a package change; called when a
     //  file association changes.
@@ -84,17 +67,6 @@ public:
     //  each menu once Start has run, and the defaults before then.
     MenuLayout  GetMenuLayout () const { return (m_notify != nullptr) ? Win32ContextMenuLayout::Read() : MenuLayout(); }
 
-    //  Returns Start's Pin or Unpin command for one item, with the title from
-    //  the shell's handler; false when the handler has neither.
-    bool  GetStartPinEntry (const std::wstring & path, Win32ExplorerCommandEntries::Entry & outEntry);
-
-    //  Returns New's choices, in the shell's order; empty until read.
-    std::vector<NewChoice>  GetNewChoices ();
-
-    //  Runs a New choice in the folder and returns the path of the item it
-    //  created, or an empty path when none can be found.
-    HRESULT  CreateNew (HWND owner, const std::wstring & folder, const std::wstring & verb, std::wstring & outPath);
-
     HRESULT         Invoke         (HWND owner, const Win32ExplorerCommandEntries::Entry & entry, const std::vector<std::wstring> & paths);
     static HRESULT  InvokeGuarded  (IExplorerCommand * command, IShellItemArray * items);
     static HRESULT  SetSiteGuarded (IObjectWithSite * sited, IUnknown * site);
@@ -111,9 +83,6 @@ private:
         std::wstring  logo;         // the package's small logo file, or empty
     };
 
-    static constexpr UINT  s_kFirstNewCommandId = 1;
-    static constexpr UINT  s_kLastNewCommandId  = 0x7FFF;
-
     struct CachedCommand
     {
         CLSID                                       clsid = {};
@@ -121,7 +90,6 @@ private:
     };
 
     void     ReadAll        ();
-    void     ReadNewChoices ();
     HRESULT  GetCommand     (const CLSID & clsid, IExplorerCommand ** outCommand);
 
     static void  PrepareCommands (const std::vector<Registration> & registrations);
@@ -143,19 +111,14 @@ private:
     static HRESULT       AddStoreVerb      (const wchar_t * name, IShellItemArray * items, std::vector<Win32ExplorerCommandEntries::Entry> & outEntries);
     static HRESULT       ReadString        (HKEY root, const std::wstring & key, const wchar_t * value, std::wstring & outText);
     static bool          HasValue          (const std::wstring & key, const wchar_t * value);
-    static HRESULT       OpenNewMenu       (const std::wstring & folder, IContextMenu3 ** outMenu, HMENU & outPopup, HMENU & outChoices);
-    static std::wstring  GetMenuVerb       (IContextMenu * menu, UINT id);
 
     std::thread                 m_reader;
-    std::thread                 m_newReader;
     std::mutex                  m_lock;
     bool                        m_read               = false;
     unsigned                    m_generation         = 0;        // advanced by each read of the manifests
     std::vector<Registration>   m_registrations;
     std::vector<CachedCommand>  m_commands;                      // used only on the thread that opens menus
     unsigned                    m_commandsGeneration = 0;
-    std::vector<NewChoice>      m_newChoices;
     HWND                        m_notify             = nullptr;
-    UINT                        m_notifyMessage      = 0;
     Win32PackageWatcher         m_watcher;                       // last, so it stops before ReadAll's members are destroyed
 };

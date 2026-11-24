@@ -684,7 +684,7 @@ void ExplorerMenus::AddOpenRows (std::vector<DxuiPopupMenuItem> & items, const L
 
     AddPinMenuCommand (items, location.path);
 
-    if (m_packagedCommands.GetStartPinEntry (location.path, startPin))
+    if (m_shellMenuHandlers.GetStartPinEntry (location.path, startPin))
     {
         AddPackagedEntry (items, startPin, { location.path });
     }
@@ -709,9 +709,9 @@ void ExplorerMenus::AddOpenRows (std::vector<DxuiPopupMenuItem> & items, const L
 void ExplorerMenus::AddNewChoices (std::vector<DxuiPopupMenuItem> & items, const Location & target,
                                    std::shared_ptr<const DxuiCommand> folder, std::shared_ptr<const DxuiCommand> disk)
 {
-    std::vector<Win32PackagedCommands::NewChoice>  choices = m_packagedCommands.GetNewChoices();
-    bool                                           host    = target.kind == Location::Kind::HostFolder;
-    bool                                           types   = false;
+    std::vector<Win32ShellMenuHandlers::NewChoice>  choices = m_shellMenuHandlers.GetNewChoices();
+    bool                                            host    = target.kind == Location::Kind::HostFolder;
+    bool                                            types   = false;
 
 
 
@@ -727,9 +727,9 @@ void ExplorerMenus::AddNewChoices (std::vector<DxuiPopupMenuItem> & items, const
         items.push_back (DxuiPopupMenuItem::ForCommand (std::move (colored)));
     }
 
-    for (const Win32PackagedCommands::NewChoice & choice : choices)
+    for (const Win32ShellMenuHandlers::NewChoice & choice : choices)
     {
-        if (host && _wcsicmp (choice.verb.c_str(), Win32PackagedCommands::kNewLinkVerb) == 0)
+        if (host && _wcsicmp (choice.verb.c_str(), Win32ShellMenuHandlers::kNewLinkVerb) == 0)
         {
             AddMenuCommand (items, choice.title.c_str(), [this, target, verb = choice.verb]() { RunNewChoice (target, verb); });
             m_menuCommands.back()->menuImage = GetIconFileMenuImage (L"shell32.dll", -16769);
@@ -741,7 +741,7 @@ void ExplorerMenus::AddNewChoices (std::vector<DxuiPopupMenuItem> & items, const
         items.push_back (DxuiPopupMenuItem::ForCommand (disk));
     }
 
-    for (const Win32PackagedCommands::NewChoice & choice : choices)
+    for (const Win32ShellMenuHandlers::NewChoice & choice : choices)
     {
         if (!host || choice.verb.empty() || choice.verb[0] != L'.')
         {
@@ -863,13 +863,13 @@ void ExplorerMenus::RunNewChoice (const Location & target, const std::wstring & 
 {
     std::wstring  created;
     HRESULT       hr      = S_OK;
-    bool          named   = _wcsicmp (verb.c_str(), Win32PackagedCommands::kNewLinkVerb) != 0;
+    bool          named   = _wcsicmp (verb.c_str(), Win32ShellMenuHandlers::kNewLinkVerb) != 0;
 
 
 
     m_context.addressBar.GoToLocation (target);
 
-    hr = m_packagedCommands.CreateNew (m_context.window.GetHwnd(), target.path, verb, created);
+    hr = m_shellMenuHandlers.CreateNew (m_context.window.GetHwnd(), target.path, verb, created);
 
     if (FAILED (hr))
     {
@@ -1087,7 +1087,7 @@ void ExplorerMenus::AddShellMenuCommands (std::vector<DxuiPopupMenuItem> & items
     }
 
     //  A program or shortcut pins to Start, as a folder does.
-    if (files && paths.size() == 1 && m_packagedCommands.GetStartPinEntry (paths[0], startPin))
+    if (files && paths.size() == 1 && m_shellMenuHandlers.GetStartPinEntry (paths[0], startPin))
     {
         AddPackagedEntry (items, startPin, paths);
     }

@@ -6,6 +6,7 @@
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
 #include "Seams/Win32ExplorerCommandEntries.h"
 #include "Seams/Win32PackagedCommands.h"
+#include "Seams/Win32ShellMenuHandlers.h"
 
 struct ExplorerContext;
 
@@ -85,7 +86,7 @@ public:
     std::vector<std::shared_ptr<DxuiCommand>> &  GetMenuCommands () { return m_menuCommands; }
 
     //  The commands installed apps add to Explorer's menus, and New's choices.
-    void  StartPackagedCommands   (HWND hwnd, UINT message, UINT assocMessage) { m_packagedCommands.Start (hwnd, message, assocMessage); }
+    void  StartPackagedCommands   (HWND hwnd, UINT message, UINT assocMessage) { m_shellMenuHandlers.Start (hwnd, message); m_packagedCommands.Start (hwnd, assocMessage); }
     void  RefreshPackagedCommands ()                                          { m_packagedCommands.Refresh(); }
 
     void  AddPinMenuCommand     (std::vector<DxuiPopupMenuItem> & items, const std::wstring & folder);
@@ -135,6 +136,7 @@ private:
     ExplorerContext  & m_context;
     std::vector<std::shared_ptr<DxuiCommand>>  m_menuCommands;
     Win32PackagedCommands                      m_packagedCommands;
+    Win32ShellMenuHandlers                     m_shellMenuHandlers;
     std::map<std::wstring, std::unique_ptr<std::string>>  m_menuSvgs;
     std::map<std::wstring, std::shared_ptr<const DxuiIconImage>>  m_openMenuImages;
 };
