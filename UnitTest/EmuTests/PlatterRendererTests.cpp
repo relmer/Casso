@@ -160,6 +160,52 @@ public:
 
 
 
+    TEST_METHOD (RingsSetAgainUnchangedAreNotUploadedAgain)
+    {
+        WarpRenderHarness                               harness;
+        ComPtr<ID3D11Texture2D>                         texture;
+        ComPtr<ID3D11RenderTargetView>                  rtv;
+        DxuiPainter                                     painter;
+        PlatterRenderer                                 renderer;
+        PlatterPlacement                                view;
+        std::shared_ptr<const PlatterRenderer::Levels>  levels = MakeQuarterData();
+        RECT                                            rect   = { 0, 0, kSize, kSize };
+        HRESULT                                         drawn  = E_FAIL;
+
+
+
+        if (!harness.IsAvailable())
+        {
+            Logger::WriteMessage (L"No WARP device; skipped");
+            return;
+        }
+
+        DxuiResetUiThreadIdForTest();
+
+        AssertSucceeded (harness.MakeTarget (kSize, kSize, texture, rtv));
+        AssertSucceeded (painter.Initialize (harness.GetDevice(), harness.GetContext()));
+        AssertSucceeded (renderer.Initialize (harness.GetDevice()));
+
+        FillRings (renderer, levels);
+        view.centerXPx     = kSize / 2.0f;
+        view.centerYPx     = kSize / 2.0f;
+        view.outerRadiusPx = kSize / 2.0f;
+
+        AssertSucceeded (painter.Begin (kSize, kSize, rtv.Get()));
+        painter.DrawCustom (rect, [&] (const DxuiCustomDrawArgs & args) { drawn = renderer.Render (args, view); });
+        AssertSucceeded (painter.End (rtv.Get()));
+        AssertSucceeded (drawn);
+        Assert::IsFalse (renderer.IsDirty(), L"the draw uploads the rings");
+
+        FillRings (renderer, levels);
+        Assert::IsFalse (renderer.IsDirty(), L"the same rings again are not uploaded again");
+
+        renderer.SetRing (0, PlatterRingState::Damaged, nullptr);
+        Assert::IsTrue (renderer.IsDirty(), L"a changed ring is uploaded");
+    }
+
+
+
     TEST_METHOD (APendingRingShowsItsPattern)
     {
         WarpRenderHarness               harness;

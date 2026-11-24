@@ -536,7 +536,7 @@ bool DiskInspectorWindow::ConfirmDiscardEdits (const std::wstring & action, std:
 //
 //  Once per host frame: replies from the host, then analysis results, then
 //  a repaint. The palette is resolved each frame, so a theme change shows
-//  without reopening (FR-077).
+//  without reopening (FR-077). A hidden or minimized window isn't drawn.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -546,7 +546,7 @@ HRESULT DiskInspectorWindow::RenderFrame()
 
 
 
-    BAIL_OUT_IF (!IsCreated() || !IsWindowVisible (GetHwnd()), S_OK);
+    BAIL_OUT_IF (!IsCreated() || !IsWindowVisible (GetHwnd()) || IsIconic (GetHwnd()), S_OK);
 
     m_session.context.palette = DiskInspectorPalette::Resolve (*m_session.theme);
     m_tooltip.SetTheme (*m_session.theme);

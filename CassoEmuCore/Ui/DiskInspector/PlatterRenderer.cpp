@@ -79,11 +79,24 @@ Error:
 //
 //  PlatterRenderer::SetRing
 //
+//  The rings are set on every frame, so only a ring that differs from what
+//  it had makes the next draw upload them again.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void PlatterRenderer::SetRing (int ring, PlatterRingState state, std::shared_ptr<const Levels> levels, std::shared_ptr<const Levels> timing, bool isEcho, std::shared_ptr<const Levels> edges)
 {
-    if (ring >= 0 && ring < kRingCount)
+    bool  isInRange = ring >= 0 && ring < kRingCount;
+    bool  isSame    = isInRange
+                   && m_ringData[ring].state  == state
+                   && m_ringData[ring].levels == levels
+                   && m_ringData[ring].timing == timing
+                   && m_ringData[ring].edges  == edges
+                   && m_ringData[ring].isEcho == isEcho;
+
+
+
+    if (isInRange && !isSame)
     {
         m_ringData[ring].state  = state;
         m_ringData[ring].levels = std::move (levels);
