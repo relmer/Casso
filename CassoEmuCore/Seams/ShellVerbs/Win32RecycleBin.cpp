@@ -26,6 +26,11 @@ Win32RecycleBin::Win32RecycleBin (Win32ShellItemVerbs & verbs)
 //
 //  Win32RecycleBin::GetItemArray
 //
+//  Each item is read again from its volume before its IDList is taken. On a
+//  FAT volume, such as a memory card, an IDList parsed from a path has a
+//  size of zero, and the shell's delete confirmation then shows "0 bytes"
+//  for every file there.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Win32RecycleBin::GetItemArray (const std::vector<std::wstring> & paths, IShellItemArray ** outItems)
@@ -42,9 +47,18 @@ HRESULT Win32RecycleBin::GetItemArray (const std::vector<std::wstring> & paths, 
 
     for (const std::wstring & path : paths)
     {
-        PIDLIST_ABSOLUTE  pidl = nullptr;
+        ComPtr<IShellItem2>  item;
+        PIDLIST_ABSOLUTE     pidl    = nullptr;
+        HRESULT              updated = S_OK;
 
-        hr = SHParseDisplayName (path.c_str(), nullptr, &pidl, 0, nullptr);
+        hr = SHCreateItemFromParsingName (path.c_str(), nullptr, IID_PPV_ARGS (&item));
+        CHR (hr);
+
+        //  When the item can't be read again, the parsed data is used.
+        updated = item->Update (nullptr);
+        IGNORE_RETURN_VALUE (updated, S_OK);
+
+        hr = SHGetIDListFromObject (item.Get(), &pidl);
         CHR (hr);
 
         pidls.push_back (pidl);
@@ -133,10 +147,6 @@ Error:
 //
 //  Win32RecycleBin::Recycle
 //
-//  The shell is told first that each file changed, so its confirmation has
-//  the file's size and time as they are now, not as the shell last saw
-//  them, such as a file written since it was created empty.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Win32RecycleBin::Recycle (HWND owner, const std::vector<std::wstring> & paths)
@@ -147,11 +157,6 @@ HRESULT Win32RecycleBin::Recycle (HWND owner, const std::vector<std::wstring> & 
     ComPtr<IShellItemArray>  items;
 
 
-
-    for (const std::wstring & path : paths)
-    {
-        SHChangeNotify (SHCNE_UPDATEITEM, SHCNF_PATHW | SHCNF_FLUSH, path.c_str(), nullptr);
-    }
 
     hr = GetItemArray (paths, &items);
     CHR (hr);
