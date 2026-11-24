@@ -156,7 +156,7 @@ public:
     class RawHost : public FakeDrivelessHost
     {
     public:
-        bool  CanTransferRaw () const override                                { return true; }
+        bool  CanTransferRaw() const override                                 { return true; }
         void  TransferRaw    (const InspectorRawTransfer & transfer) override { transfers.push_back (transfer); }
 
         vector<InspectorRawTransfer>  transfers;
