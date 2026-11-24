@@ -4,6 +4,7 @@
 
 #include "Core/DxuiEvents.h"
 #include "Core/DxuiIconImage.h"
+#include "Core/DxuiWindowSizeMath.h"
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiInfoTip.h"
 #include "Widgets/DxuiPopupMenu.h"
@@ -980,8 +981,9 @@ DxuiMessageResult DxuiWindow::OnSetCursor (WORD hitTest)
 DxuiMessageResult DxuiWindow::OnGetMinMax (MINMAXINFO * info)
 {
     DxuiMessageResult  result = DxuiMessageResult::NotHandled;
-    UINT               dpi    = GetDpi();
     SIZE               maxPx  = {};
+    bool               hasMax = false;
+    bool               isSet  = false;
 
 
 
@@ -990,17 +992,11 @@ DxuiMessageResult DxuiWindow::OnGetMinMax (MINMAXINFO * info)
         return result;
     }
 
-    if (m_minSizeDip.cx > 0 || m_minSizeDip.cy > 0)
-    {
-        info->ptMinTrackSize.x = MulDiv (m_minSizeDip.cx, (int) dpi, USER_DEFAULT_SCREEN_DPI);
-        info->ptMinTrackSize.y = MulDiv (m_minSizeDip.cy, (int) dpi, USER_DEFAULT_SCREEN_DPI);
-        result = DxuiMessageResult::Handled;
-    }
+    hasMax = TryGetMaxTrackSizePx (maxPx);
+    isSet  = DxuiWindowSizeMath::TryApplyTrackLimits (m_minSizeDip, GetDpi(), hasMax, maxPx, *info);
 
-    if (TryGetMaxTrackSizePx (maxPx))
+    if (isSet)
     {
-        info->ptMaxTrackSize.x = std::max (maxPx.cx, info->ptMinTrackSize.x);
-        info->ptMaxTrackSize.y = std::max (maxPx.cy, info->ptMinTrackSize.y);
         result = DxuiMessageResult::Handled;
     }
 
@@ -1013,120 +1009,18 @@ DxuiMessageResult DxuiWindow::OnGetMinMax (MINMAXINFO * info)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ClampSize
-//
-//  Each dimension held within [minSize, maxSize]. A maximum below the
-//  minimum gives way to it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-SIZE DxuiWindow::ClampSize (const SIZE & size, const SIZE & minSize, const SIZE & maxSize)
-{
-    return SIZE { std::clamp (size.cx, minSize.cx, std::max (maxSize.cx, minSize.cx)),
-                  std::clamp (size.cy, minSize.cy, std::max (maxSize.cy, minSize.cy)) };
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  FitRectToMaxSize
-//
-//  The window at its maximum, cut to the work area, keeping its top left
-//  corner unless that would carry it past the work area's right or bottom
-//  edge. It grows as well as shrinks: a size remembered from before the
-//  content grew, or a design size the content has since outgrown, would
-//  otherwise open with a scroll bar on a screen with room to spare.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-RECT DxuiWindow::FitRectToMaxSize (const RECT & windowPx, const SIZE & maxPx, const RECT & workPx)
-{
-    LONG  widthPx  = std::min (maxPx.cx, workPx.right  - workPx.left);
-    LONG  heightPx = std::min (maxPx.cy, workPx.bottom - workPx.top);
-    LONG  left     = std::max (workPx.left, std::min (windowPx.left, workPx.right  - widthPx));
-    LONG  top      = std::max (workPx.top,  std::min (windowPx.top,  workPx.bottom - heightPx));
-
-
-
-    return RECT { left, top, left + widthPx, top + heightPx };
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TryGetGrownRect
-//
-//  FitRectToMaxSize with the window's own size as the floor, so a dimension
-//  the content does not exceed keeps its size.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiWindow::TryGetGrownRect (const RECT & windowPx, const SIZE & maxPx, const RECT & workPx, RECT & outPx)
-{
-    SIZE  sizePx  = { windowPx.right - windowPx.left, windowPx.bottom - windowPx.top };
-    SIZE  grownPx = { std::max (sizePx.cx, maxPx.cx), std::max (sizePx.cy, maxPx.cy) };
-
-
-
-    outPx = FitRectToMaxSize (windowPx, grownPx, workPx);
-
-    return outPx.right - outPx.left > sizePx.cx || outPx.bottom - outPx.top > sizePx.cy;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  FitToMaxSize
-//
-//  Sizes the window to TryGetMaxClientSizePx within its monitor's work area,
-//  and places it there by its creation-time placement. Called before the
-//  window is first shown, once its content has been laid out.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiWindow::FitToMaxSize()
-{
-    ResizeToMaxSize (false);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GrowToMaxSize
-//
-//  Grows the window toward TryGetMaxClientSizePx within its monitor's work
-//  area, and leaves it alone when the content fits.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiWindow::GrowToMaxSize()
-{
-    ResizeToMaxSize (true);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ResizeToMaxSize
 //
+//  Fit sizes the window to TryGetMaxClientSizePx within its monitor's work
+//  area, and places it there by its creation-time placement. It is called
+//  before the window is first shown, once its content has been laid out.
+//
+//  Grow grows the window toward TryGetMaxClientSizePx within the work area,
+//  and leaves it alone when the content fits.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiWindow::ResizeToMaxSize (bool growOnly)
+void DxuiWindow::ResizeToMaxSize (MaxSizeMode mode)
 {
     HRESULT      hr      = S_OK;
     HWND         hwnd    = GetHwnd();
@@ -1156,14 +1050,14 @@ void DxuiWindow::ResizeToMaxSize (bool growOnly)
     done    = GetMonitorInfoW (monitor, &info);
     CWRA (done);
 
-    if (growOnly)
+    if (mode == MaxSizeMode::Grow)
     {
-        grows = TryGetGrownRect (rect, maxPx, info.rcWork, fitted);
+        grows = DxuiWindowSizeMath::TryGetGrownRect (rect, maxPx, info.rcWork, fitted);
         BAIL_OUT_IF (!grows, S_OK);
     }
     else
     {
-        fitted = FitRectToMaxSize (rect, maxPx, info.rcWork);
+        fitted = DxuiWindowSizeMath::FitRectToMaxSize (rect, maxPx, info.rcWork);
 
         // The fit runs while the window is still hidden, once its content can
         // be measured, so it is placed here at the size it really opens at:

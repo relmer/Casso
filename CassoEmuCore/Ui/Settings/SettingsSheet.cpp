@@ -248,7 +248,7 @@ HRESULT SettingsSheet::OpenModeless (
     // Opened as tall and wide as the content wants, up to the work area, so a
     // page scrolls only when the monitor is too small for it. A size the user
     // chose is kept for the rest of this visit only.
-    FitToMaxSize();
+    ResizeToMaxSize (MaxSizeMode::Fit);
     m_openedSizeDip = GetSizeDip();
 
     SetTheme (&emuShell.GetChrome().GetTheme());
@@ -995,7 +995,7 @@ void SettingsSheet::GrowToContent()
         return;
     }
 
-    GrowToMaxSize();
+    ResizeToMaxSize (MaxSizeMode::Grow);
     m_openedSizeDip = GetSizeDip();
 }
 

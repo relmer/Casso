@@ -100,6 +100,7 @@
 #include "Core/DxuiPanZoom.h"
 #include "Core/DxuiViewport.h"
 #include "Core/DxuiFocusManager.h"
+#include "Core/DxuiWindowSizeMath.h"
 #include "Core/DxuiUnicodeSymbols.h"
 #include "Core/DxuiFrameRate.h"
 #include "Core/DxuiSystemSettings.h"
