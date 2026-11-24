@@ -34,6 +34,10 @@ public:
     static constexpr int  kListActionWidthDip   = 160;
     static constexpr int  kListActionWideDip    = 200;   // the firewall's actions, whose labels are longer
     static constexpr int  kListActionHeightDip  = 32;
+    static constexpr int  kDriveLinkWidthDip    = 360;   // a virtual drive's image name, as a link
+    static constexpr int  kDriveLabelWidthDip   = 120;   // "Drive 1:", ending at the message's middle
+    static constexpr int  kDriveLabelGapDip     = 6;
+    static constexpr int  kDriveLinkHeightDip   = 26;
     static constexpr int  kActivityShownMinutes = 15;
     static constexpr int  kFaultTextMax         = 400;
 
@@ -48,6 +52,7 @@ public:
     void          SaveCassetteBootstrap   (const std::string & name);
     void          ArmLinkFaults           ();
     bool          IsSerialConnection      (const std::string & name) const;
+    bool          HasVirtualDrives        (const std::string & name) const;
     bool          IsCassetteConnection    (const std::string & name) const;
     bool          CanBootstrapConnection  (const std::string & name) const;
     bool          CanMakeSosDisk          (const std::string & name) const;
@@ -75,11 +80,15 @@ public:
     void          CreateListActions       ();
     void          LayoutListActions       ();
     bool          IsFirewallMessage       () const { return m_listActionFirewall; }
+    bool          IsMessageAboveActions   () const { return m_listActionFirewall || m_driveLinksShown; }
 
     //  The status bar's detail has the pending operations, until they finish.
     void         MarkJobsShown          () { m_linkJobsShown = true; }
     RECT         GetListActionRect      () const;
     RECT         GetListActionAltRect   () const;
+    RECT         GetDriveLinkRect       (int drive) const;
+    RECT         GetDriveLabelRect      (int drive) const;
+    bool         IsUsingVirtualDrives   (const std::string & name, std::vector<std::wstring> & outDrives) const;
     std::string  GetBootstrapConnection () const;
     void         FillListAction         (bool hasMessage);
     bool         IsStoppedServer        (const std::string & name) const;
@@ -119,6 +128,13 @@ private:
     bool               m_linkJobsShown        = false;
     std::string        m_listActionConnection;
     bool               m_listActionConnects   = false;
+
+    //  The virtual drives' images under the message while the CassoLink
+    //  ProDOS disk's driver uses them; each opens its image.
+    std::array<DxuiButton *, 2>  m_driveLinks      = {};
+    std::array<DxuiLabel *, 2>   m_driveLabels     = {};
+    std::array<std::wstring, 2>  m_driveLinkPaths;
+    bool                         m_driveLinksShown = false;
 
     //  The cassette bootstrap's audio, while PlaySound sends it from memory,
     //  the link it starts, and how many times it was sent.

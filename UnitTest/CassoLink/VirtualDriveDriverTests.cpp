@@ -45,7 +45,15 @@ public:
     static constexpr Word      kAciaStat          = 0xC0A9;
     static constexpr Word      kAciaCmd           = 0xC0AA;
     static constexpr Word      kAciaCtl           = 0xC0AB;
+    static constexpr Word      kPort1Data         = 0xC098;   // a //c's port 1, with no cable
+    static constexpr Word      kPort1Stat         = 0xC099;
     static constexpr Word      kBuffer            = 0x4000;
+    static constexpr Word      kPrinted           = 0x5000;   // COUT's characters, from the stub
+    static constexpr Word      kPrintedCount      = 0x5100;
+    static constexpr Word      kBottomLine        = 0x07D0;
+    static constexpr Word      kRd80Vid           = 0xC01F;
+    static constexpr Word      kPage2Off          = 0xC054;
+    static constexpr Word      kPage2On           = 0xC055;
     static constexpr Byte      kDriverPage        = 0x90;
     static constexpr Word      kNoDevice          = 0xDEAD;
     static constexpr Word      kOtherDevice       = 0x1234;
@@ -81,11 +89,15 @@ public:
     {
     public:
         std::function<std::vector<Byte> (const Request &)>  answer;
-        std::vector<Request>                                requests;
-        std::deque<Byte>                                    arriving;
-        std::vector<Byte>                                   sending;
-        Byte                                                command = 0;
-        Byte                                                control = 0;
+        std::vector<Request>  requests;
+        std::vector<Request>  installRequests;   // the installer's, from Install
+        std::deque<Byte>      arriving;
+        std::vector<Byte>     sending;
+        Byte                  command         = 0;
+        Byte                  control         = 0;
+        size_t                port1Bytes      = 0;
+        bool                  page2           = false;
+        std::array<Byte, 40>  auxLine         = {};   // auxiliary memory's bottom line
 
         Byte  ReadByteSlow (Word address) override
         {
@@ -93,7 +105,11 @@ public:
 
 
 
-            if (address == kAciaStat)
+            if (address == kPort1Stat)
+            {
+                value = 0x10;
+            }
+            else if (address == kAciaStat)
             {
                 value = (Byte) (0x10 | (arriving.empty() ? 0x00 : 0x08));
             }
@@ -113,7 +129,19 @@ public:
 
         void  WriteByte (Word address, Byte value) override
         {
-            if (address == kAciaData)
+            if (address == kPort1Data)
+            {
+                port1Bytes++;
+            }
+            else if (address == kPage2On || address == kPage2Off)
+            {
+                page2 = address == kPage2On;
+            }
+            else if (page2 && address >= kBottomLine && address < kBottomLine + auxLine.size())
+            {
+                auxLine[(size_t) (address - kBottomLine)] = value;
+            }
+            else if (address == kAciaData)
             {
                 sending.push_back (value);
                 TakeRequest();
@@ -248,10 +276,47 @@ public:
     }
 
 
+    //  The text COUT was given, high bits off.
+    static std::string  GetPrinted (DriverCpu & cpu)
+    {
+        std::string  text;
+
+
+
+        for (Word i = 0; i < cpu.Peek (kPrintedCount); i++)
+        {
+            text += (char) (cpu.Peek ((Word) (kPrinted + i)) & 0x7F);
+        }
+
+        return text;
+    }
+
+
+    //  The text screen's bottom line in 40 columns, high bits off, or in 80
+    //  columns with the even columns from auxiliary memory.
+    static std::string  GetBottomLine (DriverCpu & cpu, bool eighty)
+    {
+        std::string  text;
+
+
+
+        for (size_t i = 0; i < (eighty ? 80u : 40u); i++)
+        {
+            Byte  b = eighty ? (i % 2 == 0 ? cpu.auxLine[i / 2] : cpu.Peek ((Word) (kBottomLine + i / 2))) : cpu.Peek ((Word) (kBottomLine + i));
+
+            text += (char) (b & 0x7F);
+        }
+
+        return text;
+    }
+
+
     //  The CASSOLINK file at $2000 and the machine it runs on, and the
     //  installer run: ProDOS's slot 0 entries are the no-device entry, which
-    //  slot 7's drives have too, GETBUFR returns kDriverPage, and COUT returns.
-    static void  Install (DriverCpu & cpu)
+    //  slot 7's drives have too, GETBUFR returns kDriverPage, and COUT's stub
+    //  logs each character at kPrinted. The installer's status call is
+    //  has a reply when `pcAnswers`, and is taken out of the requests after.
+    static void  Install (DriverCpu & cpu, bool pcAnswers = false)
     {
         std::vector<Byte>  file;
         std::string        errors;
@@ -271,7 +336,12 @@ public:
 
         cpu.Poke (0xFBC0, 0x00);
         cpu.WriteBytes (kGetBufr, { 0xA9, kDriverPage, 0x18, 0x60 });
-        cpu.Poke (kCout, 0x60);
+        cpu.WriteBytes (kCout, { 0x8E, 0x01, 0x51,      // STX $5101
+                                 0xAE, 0x00, 0x51,      // LDX $5100
+                                 0x9D, 0x00, 0x50,      // STA $5000,X
+                                 0xEE, 0x00, 0x51,      // INC $5100
+                                 0xAE, 0x01, 0x51,      // LDX $5101
+                                 0x60 });               // RTS
 
         for (Word slot = 0; slot < 8; slot++)
         {
@@ -284,8 +354,18 @@ public:
         cpu.Poke (kDevCnt, 0);
         cpu.Poke (kDevLst, 0x60);
 
+        if (pcAnswers)
+        {
+            cpu.answer = [] (const Request &) { return MakeReply ({ 0, 0x18, 0x01 }); };
+        }
+
         Call (cpu, kFile);
         Assert::AreEqual (speed, cpu.control, L"the 6551 at the connection's speed");
+
+        cpu.answer          = nullptr;
+        cpu.installRequests = cpu.requests;
+        cpu.requests.clear();
+        cpu.port1Bytes = 0;
     }
 
 
@@ -319,7 +399,7 @@ public:
 
 
     //  The installer lists the driver for both of slot 7's drives, its first
-    //  two pages at GETBUFR's page, and sets up the 6551 with DTR on and no
+    //  three pages at GETBUFR's page, and sets up the 6551 with DTR on and no
     //  interrupts.
     TEST_METHOD (TheInstaller_ListsTheDriverForSlot7sDrives)
     {
@@ -414,6 +494,7 @@ public:
 
         AssertWellFormed (cpu.requests[0]);
         Assert::AreEqual (kStatus, cpu.requests[0].op);
+        Assert::AreEqual ((size_t) (5 + 4 + 5 + 1), cpu.requests[0].bytes.size(), L"the ROM's ID bytes after the block");
         Assert::AreEqual ((Byte) 0x18, cpu.RegX(), L"280 blocks, low");
         Assert::AreEqual ((Byte) 0x01, cpu.RegY(), L"280 blocks, high");
         Assert::IsFalse (cpu.Status().flags.carry != 0, L"no error");
@@ -473,7 +554,8 @@ public:
 
         CallDriver (cpu, kRead, 0x70, 7);
 
-        Assert::AreEqual ((size_t) kTries, cpu.requests.size());
+        Assert::AreEqual ((size_t) kTries / 2, cpu.requests.size(), L"port 2 and port 1 in turn");
+        Assert::IsTrue   (cpu.port1Bytes > 0);
         Assert::IsTrue (cpu.Status().flags.carry != 0, L"an error");
         Assert::AreEqual (kErrIo, cpu.RegA());
     }
@@ -491,9 +573,117 @@ public:
 
         CallDriver (cpu, kRead, 0x70, 0);
 
-        Assert::AreEqual ((size_t) kTries, cpu.requests.size());
+        Assert::AreEqual ((size_t) kTries / 2, cpu.requests.size(), L"port 2 and port 1 in turn");
+        Assert::IsTrue   (cpu.port1Bytes > 0);
         Assert::IsTrue (cpu.Status().flags.carry != 0, L"an error");
         Assert::AreEqual (kErrIo, cpu.RegA());
+    }
+
+
+    //  With a reply to the installer's status call, the installer
+    //  prints the drives' slot and no other message.
+    TEST_METHOD (TheInstaller_PrintsNoMessage_WhenThePcAnswers)
+    {
+        DriverCpu    cpu;
+        std::string  printed;
+
+
+
+        Install (cpu, true);
+        printed = GetPrinted (cpu);
+
+        Assert::IsTrue (printed.find ("CASSOLINK DRIVES IN SLOT 7") != std::string::npos);
+        Assert::IsTrue (printed.find ("ISN'T CONNECTED") == std::string::npos);
+    }
+
+
+    //  A status call has the ROM's identification bytes after the block:
+    //  $FBB3, $FBC0, $FBBF, $FB1E, and 0 on a //c.
+    TEST_METHOD (TheInstallersStatus_HasTheRomsIdBytes)
+    {
+        DriverCpu  cpu;
+
+
+
+        Install (cpu, true);
+
+        Assert::AreEqual ((size_t) 1, cpu.installRequests.size());
+        AssertWellFormed (cpu.installRequests[0]);
+        Assert::AreEqual (kStatus, cpu.installRequests[0].op);
+        Assert::AreEqual ((size_t) (5 + 4 + 5 + 1), cpu.installRequests[0].bytes.size(), L"the block, then five ID bytes");
+        Assert::AreEqual ((Byte) 0x00, cpu.installRequests[0].bytes[10], L"$FBC0, a //c");
+    }
+
+
+    //  With no reply to the installer's status call, the installer prints
+    //  CASSOLINK ISN'T CONNECTED and writes nothing to the screen itself.
+    //  The driver's calls after it send each request up to four times again.
+    TEST_METHOD (TheInstaller_PrintsIsntConnected_WhenThePcDoesntAnswer)
+    {
+        DriverCpu  cpu;
+
+
+
+        Install (cpu);
+
+        Assert::IsTrue   (GetPrinted (cpu).find ("CASSOLINK ISN'T CONNECTED") != std::string::npos);
+        Assert::AreEqual ((Byte) 0, cpu.Peek (kBottomLine), L"no screen message from the installer's call");
+
+        CallDriver (cpu, kRead, 0x70, 0);
+
+        Assert::AreEqual ((size_t) kTries / 2, cpu.requests.size());
+    }
+
+
+    //  With no byte back from the PC, the driver writes CASSOLINK ISN'T
+    //  CONNECTED on the 40-column screen's bottom line.
+    TEST_METHOD (NoReply_WritesIsntConnectedOnTheBottomLine)
+    {
+        DriverCpu  cpu;
+
+
+
+        Install (cpu);
+
+        CallDriver (cpu, kRead, 0x70, 0);
+
+        Assert::AreEqual (std::string ("CASSOLINK ISN'T CONNECTED"), GetBottomLine (cpu, false).substr (0, 25));
+        Assert::AreEqual ((Byte) ('C' | 0x80), cpu.Peek (kBottomLine), L"normal text");
+    }
+
+
+    //  In 80 columns, the message's even columns are in auxiliary memory.
+    TEST_METHOD (NoReply_WritesIsntConnectedIn80Columns)
+    {
+        DriverCpu  cpu;
+
+
+
+        Install (cpu);
+        cpu.Poke (kRd80Vid, 0x80);
+
+        CallDriver (cpu, kRead, 0x70, 0);
+
+        Assert::AreEqual (std::string ("CASSOLINK ISN'T CONNECTED"), GetBottomLine (cpu, true).substr (0, 25));
+        Assert::IsFalse  (cpu.page2, L"PAGE2 off after");
+    }
+
+
+    //  A reply that arrives damaged every time is from a connected PC, so
+    //  the screen has no message.
+    TEST_METHOD (ADamagedReply_WritesNoMessage)
+    {
+        DriverCpu          cpu;
+        std::vector<Byte>  block = MakeBlock (1);
+
+
+
+        Install (cpu);
+        cpu.answer = [&] (const Request &) { return MakeReadReply (block, 1); };
+
+        CallDriver (cpu, kRead, 0x70, 7);
+
+        Assert::AreEqual ((Byte) 0, cpu.Peek (kBottomLine));
     }
 
 

@@ -465,6 +465,31 @@ public:
     }
 
 
+    //  The installer's status request has the ROM's identification bytes
+    //  after the block, and the virtual sink gets the model they identify.
+    TEST_METHOD (TheInstallersVirtualStatus_IdentifiesTheModel)
+    {
+        InMemoryCassoLinkFolder  folder;
+        FakeDiskFileIo           io;
+        CassoLinkVirtualDrives   drives (io);
+        std::vector<Byte>        wire;
+        std::vector<Byte>        reply;
+        std::wstring             model;
+
+        Session  session (folder);
+
+        session.host->SetVirtualDrives (&drives);
+        session.host->SetVirtualSink   ([&model] (const std::wstring & identified) { model = identified; });
+
+        AssertSucceeded (CassoLinkCodec::Encode (CassoLinkCodec::kVirtualBlock, std::vector<Byte> { 1, CassoLinkCodec::kVirtualStatus, 0, 0, 0x06, 0x00, 0x05, 0x00, 0 }, wire));
+        session.Send (wire);
+        reply = session.Receive (5 + 3 + 1);
+
+        Assert::AreEqual ((size_t) 9, reply.size(), L"the status has a reply");
+        Assert::AreEqual (std::wstring (L"Apple //c Plus"), model);
+    }
+
+
     TEST_METHOD (SizeReportsMissingAndNonImageFiles)
     {
         InMemoryCassoLinkFolder  folder;

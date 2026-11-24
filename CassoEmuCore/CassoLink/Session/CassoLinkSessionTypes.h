@@ -8,6 +8,7 @@
 #include "Machines/Apple2/Common/PascalVolume.h"
 
 class CassoLinkSession;
+class ILinkImageSource;
 
 
 
@@ -116,12 +117,15 @@ struct LinkOperation
 
     //  Full Send: imagePath is the folder, newName the chosen extension and
     //  imagePrefix what begins each image's file name.
-    //  Read disk and Write disk: the image file, and for a read, whether an
-    //  unreadable sector is written as zeros rather than failing the read.
-    //  unreadable lists those sectors, as track and DOS 3.3 sector.
-    std::string                      imagePath;
-    std::string                      imagePrefix;
-    bool                             blankUnreadable = false;
+    //  Read disk: the image file, and whether an unreadable sector is
+    //  written as zeros rather than failing the read. unreadable lists those
+    //  sectors, as track and DOS 3.3 sector.
+    //  Write disk: the image sent, a file or bytes in memory, with its path,
+    //  or its name for an image in memory, in imagePath.
+    std::string                         imagePath;
+    std::string                         imagePrefix;
+    bool                                blankUnreadable = false;
+    std::shared_ptr<ILinkImageSource>   source;
 
     //  Read disk with an automatic format: the copy-protection choices that
     //  pick a raw capture or a WOZ, and otherwise .po or .dsk by the disk's

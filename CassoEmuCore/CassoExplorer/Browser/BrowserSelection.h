@@ -76,6 +76,8 @@ public:
     bool  AreSelectedRowsImages      () const;
 
 private:
+    static bool  IsCassoNodeLocation (const Location & location);
+
     BrowserModel             & m_model;
     std::vector<CatalogRow>  & m_rows;
     std::vector<int>         & m_selectedRows;

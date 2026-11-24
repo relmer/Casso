@@ -6,6 +6,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerPickerSearch.h"
 #include "CassoExplorer/Browser/BrowserRowPaths.h"
 
+#include "CassoExplorer/Picker/StartupDiskPicker.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/CassoExplorerNamedControl.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
@@ -230,6 +231,12 @@ void ExplorerListPane::Configure()
 
         //  A picker confirms a file rather than opening it.
         if (m_context.pickerMode.HandleActivateRow (row))
+        {
+            return;
+        }
+
+        //  The double-clicked row is selected, so a stock disk is downloaded first.
+        if (!FetchSelectedStockDisks())
         {
             return;
         }
@@ -760,6 +767,94 @@ void ExplorerListPane::UpdateTip (const DxuiMouseEvent & ev, POINT point)
     m_listTipActive = ev.kind == DxuiMouseEventKind::Move;
 
     RefreshTip();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListPane::IsStockDiskToFetchSelected
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerListPane::IsStockDiskToFetchSelected() const
+{
+    const std::vector<CatalogRow> &  rows = m_context.browser.GetRows();
+
+
+
+    for (int row : m_context.browser.GetSelectedRows())
+    {
+        if (row >= 0 && (size_t) row < rows.size() && rows[(size_t) row].isStockDisk && !rows[(size_t) row].stockDownloaded)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListPane::FetchSelectedStockDisks
+//
+//  Each selected stock disk not yet on the PC is downloaded before it is
+//  copied or dragged, under the wait cursor. False when one fails, which is
+//  reported. The list is then read again, and the same rows are selected.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerListPane::FetchSelectedStockDisks()
+{
+    HRESULT                    hr       = S_OK;
+    std::vector<std::wstring>  paths;
+    std::wstring               error;
+    bool                       fetched  = true;
+    HCURSOR                    previous = nullptr;
+
+
+
+    if (m_context.IsPicker() || !IsStockDiskToFetchSelected())
+    {
+        return true;
+    }
+
+    for (int row : m_context.browser.GetSelectedRows())
+    {
+        const CatalogRow &  item = m_context.browser.GetRows()[(size_t) row];
+
+        if (item.isStockDisk && !item.stockDownloaded)
+        {
+            paths.push_back (item.hostPath);
+        }
+    }
+
+    previous = SetCursor (LoadCursorW (nullptr, IDC_WAIT));
+
+    for (size_t each = 0; fetched && each < paths.size(); each++)
+    {
+        fetched = StartupDiskPicker::FetchStockDisk (paths[each], error);
+    }
+
+    SetCursor (previous);
+
+    m_context.browser.SetStockDisks (StartupDiskPicker::GetEveryStockDisk());
+    hr = m_context.browser.Refresh();
+    IGNORE_RETURN_VALUE (hr, S_OK);
+    FillList();
+
+    if (!fetched)
+    {
+        m_context.window.ShowMessage (error.empty() ? std::wstring (L"The stock disk could not be downloaded.") : error, MB_ICONWARNING);
+    }
+
+    return fetched;
 }
 
 
@@ -1545,8 +1640,9 @@ RECT ExplorerListPane::GetListMessageRect() const
     }
 
     //  The firewall's message runs to several lines, so it ends at the
-    //  pane's middle, with the actions below it.
-    if (m_context.cassoLinkManager.IsFirewallMessage())
+    //  pane's middle, with the actions below it, as does a message with the
+    //  virtual drives' links below it.
+    if (m_context.cassoLinkManager.IsMessageAboveActions())
     {
         rect.bottom = (rect.top + rect.bottom) / 2;
     }

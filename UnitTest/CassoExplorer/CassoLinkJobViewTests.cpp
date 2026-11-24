@@ -73,6 +73,34 @@ public:
 
 
 
+    TEST_METHOD (AWrite_HasOnlyItsDrive_WrittenTrackByTrack)
+    {
+        LinkOperation     operation;
+        CassoLinkJobView  view;
+
+
+
+        operation.kind   = LinkOperationKind::WriteDisk;
+        operation.drive  = 1;
+        operation.state  = LinkOperationState::Running;
+        operation.status = std::make_shared<FullSendStatus> ([] () { return 0.0; }, [] () { return std::string ("0:00"); });
+
+        operation.status->BeginDisk  (1, false, std::span<const int>());
+        operation.status->SetWriting (1);
+        operation.status->SetTitle   (1, "PRODOS.2.4.3", std::string());
+        operation.status->MarkTrack  (1, 0, FullSendTrackMark::Read);
+
+        view = CassoLinkJobView::Build (operation, "COM3", L"", LinkTransport::Serial, L"");
+
+        Assert::IsTrue   (view.drive.snapshot.present[0]);
+        Assert::IsFalse  (view.drive.snapshot.present[1], L"drive 2 isn't the job's");
+        Assert::IsTrue   (view.drive.snapshot.drives[0].tracks[0] == FullSendTrackMark::Read);
+        Assert::AreEqual (std::wstring (L"Writing"), FullSendPanel::DescribeDrive (view.drive.snapshot.drives[0]));
+        Assert::AreEqual (std::string ("PRODOS.2.4.3"), view.drive.snapshot.drives[0].title);
+    }
+
+
+
     TEST_METHOD (AFinishedCapture_ListsWhatItFound)
     {
         LinkOperation     operation;

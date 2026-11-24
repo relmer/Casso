@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/Window/Managers/ExplorerVerbs.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerDragDrop.h"
 #include "CassoExplorer/Window/Managers/ExplorerImageTools.h"
 #include "CassoExplorer/CassoExplorerCopyOptionsDialog.h"
 #include "CassoExplorer/Picker/PickerRequest.h"
@@ -217,6 +218,7 @@ void ExplorerVerbs::RunVerb (CassoExplorerActions::Verb verb)
     std::vector<std::wstring>            hostPaths;
     CassoExplorerNewDiskDialog::Outcome  newDisk;
     HostFileNaming::Style                style     = GetNamingStyle();
+    Location                             pasteDrive;
 
 
 
@@ -326,6 +328,11 @@ void ExplorerVerbs::RunVerb (CassoExplorerActions::Verb verb)
                 break;
             }
 
+            if (!m_context.listPane.FetchSelectedStockDisks())
+            {
+                break;
+            }
+
             if (m_context.browser.GetSelection().TryGetSelectedShellIds (hostPaths))
             {
                 hr = m_context.shellVerbs.PlaceOnClipboard (m_context.window.GetHwnd(), hostPaths, verb == CassoExplorerActions::Verb::Cut);
@@ -363,6 +370,12 @@ void ExplorerVerbs::RunVerb (CassoExplorerActions::Verb verb)
             break;
 
         case CassoExplorerActions::Verb::Paste:
+            if (m_context.dragDrop.TryGetPasteDrive (pasteDrive))
+            {
+                m_context.dragDrop.PasteOnAppleDrive (pasteDrive);
+                break;
+            }
+
             if (m_context.browser.IsVolumeLocation())
             {
                 m_context.clipboard.PasteIntoVolume();

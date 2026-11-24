@@ -231,7 +231,7 @@ public:
 
     static constexpr Word    kInstallerAddress = 0x2000;
     static constexpr Word    kDriverAddress    = 0x9200;
-    static constexpr size_t  kDriverLimit      = 0x200;
+    static constexpr size_t  kDriverLimit      = 0x300;
 
     static constexpr Word    kModuleAddress   = 0x5000;
     static constexpr size_t  kModuleLimit     = 0x4000;

@@ -120,6 +120,20 @@ public:
 
 
 
+    TEST_METHOD (ARealDevice_TakesAnyBlockImageThatFits)
+    {
+        ReceivingDrive  disk35 { ReceivingDriveKind::HardDisk, 1600, true };
+
+
+
+        Assert::IsTrue  (DriveImageRule::Accepts (disk35, B::ClassifyRaw (L".po",  B::k800K)));
+        Assert::IsFalse (DriveImageRule::Accepts (disk35, B::ClassifyRaw (L".po",  B::k140K)), L"a 5.25-inch image");
+        Assert::IsFalse (DriveImageRule::Accepts (disk35, B::ClassifyRaw (L".hdv", kScsiBlocks * B::kBlock)));
+        Assert::IsFalse (DriveImageRule::Accepts (disk35, B::ClassifyRaw (L".dsk", B::k140K)));
+    }
+
+
+
     TEST_METHOD (EveryDeskModelHasAKind)
     {
         struct Row

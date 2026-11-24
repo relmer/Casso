@@ -20,6 +20,7 @@
 #include "Seams/IHostDialogs.h"
 #include "Seams/Win32HostDialogs.h"
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
+#include "CassoExplorer/Window/Managers/ExplorerDragDrop.h"
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
@@ -108,6 +109,24 @@ void CassoLinkManager::CreateListActions()
     m_listActionAlt = m_context.window.CreateChild<DxuiButton> (FirewallText::kPrivateAction);
     m_listActionAlt->SetVisible (false);
     m_listActionAlt->SetOnClick ([this] () { FixFirewall (true); });
+
+    for (size_t i = 0; i < m_driveLinks.size(); i++)
+    {
+        m_driveLabels[i] = m_context.window.CreateChild<DxuiLabel> (std::format (L"Drive {}:", i + 1), DxuiTextRole::Muted, DxuiTextHAlign::Right, DxuiTextVAlign::Center);
+        m_driveLabels[i]->SetVisible (false);
+
+        m_driveLinks[i] = m_context.window.CreateChild<DxuiButton> (std::wstring());
+        m_driveLinks[i]->SetVariant          (DxuiButton::Variant::Link);
+        m_driveLinks[i]->SetUnderlineOnHover (true);
+        m_driveLinks[i]->SetVisible          (false);
+        m_driveLinks[i]->SetOnClick ([this, i] ()
+        {
+            if (!m_driveLinkPaths[i].empty())
+            {
+                m_context.addressBar.GoToLocation (Location::MakeDiskImage (m_driveLinkPaths[i]));
+            }
+        });
+    }
 }
 
 
@@ -124,6 +143,12 @@ void CassoLinkManager::LayoutListActions()
 {
     m_listAction->Layout    (GetListActionRect(),    m_context.scaler);
     m_listActionAlt->Layout (GetListActionAltRect(), m_context.scaler);
+
+    for (size_t i = 0; i < m_driveLinks.size(); i++)
+    {
+        m_driveLabels[i]->Layout (GetDriveLabelRect ((int) i), m_context.scaler);
+        m_driveLinks[i]->Layout  (GetDriveLinkRect ((int) i), m_context.scaler);
+    }
 }
 
 
@@ -227,20 +252,106 @@ RECT CassoLinkManager::GetListActionAltRect() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkManager::IsUsingVirtualDrives
+//
+//  Whether the CassoLink ProDOS disk's driver uses the connection's virtual
+//  drives rather than Casso's program, and the drives' image paths.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkManager::IsUsingVirtualDrives (const std::string & name, std::vector<std::wstring> & outDrives) const
+{
+    CassoLinkSession  * session = m_context.app.links->GetSession (name);
+    LinkState           state   = (session != nullptr) ? session->GetState() : LinkState::Closed;
+    bool                inUse   = session != nullptr && session->IsServingVirtualDrives() && state != LinkState::Ready && state != LinkState::Busy;
+
+
+
+    outDrives.clear();
+
+    for (const CassoLinkSettings & settings : m_context.app.links->GetLinks())
+    {
+        if (inUse && settings.name == name)
+        {
+            outDrives = { settings.virtualDrives.drive1, settings.virtualDrives.drive2 };
+        }
+    }
+
+    return !outDrives.empty();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkManager::GetDriveLabelRect
+//
+//  "Drive 1:" or "Drive 2:", ending just left of the middle, beside its
+//  image name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT CassoLinkManager::GetDriveLabelRect (int drive) const
+{
+    RECT  link  = GetDriveLinkRect (drive);
+    int   right = link.left - m_context.scaler.ToPx (kDriveLabelGapDip);
+
+
+
+    return RECT { right - m_context.scaler.ToPx (kDriveLabelWidthDip), link.top, right, link.bottom };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkManager::GetDriveLinkRect
+//
+//  Drive 1's and drive 2's image names, one under the other, below the
+//  message, which ends at the list's middle; each starts just right of the
+//  middle, after its label.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT CassoLinkManager::GetDriveLinkRect (int drive) const
+{
+    RECT  message = m_context.listPane.GetListMessageRect();
+    int   width   = m_context.scaler.ToPx (kDriveLinkWidthDip);
+    int   height  = m_context.scaler.ToPx (kDriveLinkHeightDip);
+    int   gap     = m_context.scaler.ToPx (ExplorerMetrics::kListActionGapDip);
+    int   left    = (message.left + message.right) / 2 + m_context.scaler.ToPx (kDriveLabelGapDip) / 2;
+    int   top     = message.bottom + gap + drive * height;
+
+
+
+    return RECT { left, top, left + width, top + height };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkManager::FillListAction
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassoLinkManager::FillListAction (bool hasMessage)
 {
-    std::wstring   name;
-    int            slot   = 0;
-    int            drive  = 0;
-    std::string    disconnected;
-    LinkTreeEntry  entry;
-    bool           parsed = m_context.app.links != nullptr && TreeModel::TryParseLinkId (m_context.browser.GetLocation().path, name, slot, drive) && drive == 0;
-    bool           onLink = hasMessage && parsed;
-    bool           server = parsed && IsStoppedServer (TextEncoding::WideToNarrow (name));
+    std::wstring               name;
+    int                        slot         = 0;
+    int                        drive        = 0;
+    std::string                disconnected;
+    LinkTreeEntry              entry;
+    std::vector<std::wstring>  drives;
+    bool                       parsed       = m_context.app.links != nullptr && TreeModel::TryParseLinkId (m_context.browser.GetLocation().path, name, slot, drive) && drive == 0;
+    bool                       onLink       = hasMessage && parsed;
+    bool                       server       = parsed && IsStoppedServer (TextEncoding::WideToNarrow (name));
 
 
 
@@ -255,12 +366,37 @@ void CassoLinkManager::FillListAction (bool hasMessage)
     m_listActionConnects          = !m_listActionFirewall && !disconnected.empty();
     m_listActionConnection              = m_listActionFirewall ? std::string() : m_listActionConnects ? disconnected : hasMessage ? GetBootstrapConnection() : std::string();
 
-    m_context.listPane.AlignMessage (m_listActionFirewall);
+    //  The driver using the virtual drives: their images as links, and no
+    //  Bootstrap the Apple, as the Apple is running.
+    if (onLink && !m_listActionFirewall && disconnected.empty() && IsUsingVirtualDrives (TextEncoding::WideToNarrow (name), drives))
+    {
+        m_listActionConnection.clear();
+    }
+    else
+    {
+        drives = {};
+    }
+
+    m_driveLinksShown = !drives.empty();
+
+    m_context.listPane.AlignMessage (m_listActionFirewall || m_driveLinksShown);
     m_listAction->SetLabel      (m_listActionFirewall ? FirewallText::kAllowAction : server ? L"Start server" : m_listActionConnects ? L"Connect" : L"Bootstrap the Apple");
     m_listActionAlt->SetVisible (m_listActionFirewall && entry.firewallPublic);
     m_listAction->Layout        (GetListActionRect(), m_context.scaler);
     m_listActionAlt->Layout     (GetListActionAltRect(), m_context.scaler);
     m_listAction->SetVisible    (m_listActionFirewall || !m_listActionConnection.empty());
+
+    for (size_t i = 0; i < m_driveLinks.size(); i++)
+    {
+        m_driveLinkPaths[i] = drives.empty() ? std::wstring() : drives[i];
+
+        m_driveLinks[i]->SetLabel    (CassoLinkConnectionText::DescribeDriveImage (m_driveLinkPaths[i]));
+        m_driveLinks[i]->SetEnabled  (!m_driveLinkPaths[i].empty());
+        m_driveLinks[i]->Layout      (GetDriveLinkRect ((int) i), m_context.scaler);
+        m_driveLinks[i]->SetVisible  (!drives.empty());
+        m_driveLabels[i]->Layout     (GetDriveLabelRect ((int) i), m_context.scaler);
+        m_driveLabels[i]->SetVisible (!drives.empty());
+    }
 }
 
 
@@ -493,7 +629,7 @@ void CassoLinkManager::EditConnection (const std::string & name)
 
         return SUCCEEDED (result) && chosen;
     },
-    [this] (HWND owner, std::wstring & inOutImage) -> bool
+    [this] (HWND owner, int drive, std::wstring & inOutImage) -> bool
     {
         std::filesystem::path  picked;
         bool                   chosen = false;
@@ -502,7 +638,7 @@ void CassoLinkManager::EditConnection (const std::string & name)
 
         spec.filters = { FileDialogFilter { L"ProDOS images (*.po, *.dsk, *.hdv, *.2mg)", L"*.po;*.dsk;*.hdv;*.2mg" },
                          FileDialogFilter { L"All files (*.*)", L"*.*" } };
-        spec.title   = L"Choose a virtual drive's image";
+        spec.title   = std::format (L"Choose the image for virtual drive {}", drive);
         spec.content = FileDialogContent::Images;
 
         result = m_context.dialogs.PickFileToOpen (owner, spec, picked, chosen);
@@ -1062,6 +1198,32 @@ bool CassoLinkManager::IsStoppedServer (const std::string & name) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkManager::HasVirtualDrives
+//
+//  Whether the link is to a 6551, which the CassoLink ProDOS disk's driver
+//  uses: a serial port, or Casso's emulated one on TCP.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkManager::HasVirtualDrives (const std::string & name) const
+{
+    const std::vector<CassoLinkSettings> &  links = m_context.app.links->GetLinks();
+
+
+
+    return std::any_of (links.begin(), links.end(), [&name] (const CassoLinkSettings & settings)
+    {
+        return settings.name == name
+            && (settings.transport == LinkTransport::Serial || settings.transport == LinkTransport::Tcp || settings.transport == LinkTransport::Emulated);
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkManager::IsSerialConnection
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1218,11 +1380,11 @@ void CassoLinkManager::AddConnectionRows (std::vector<DxuiPopupMenuItem> & items
             m_context.menus.AddMenuCommand (items, L"Save CassoLink disk &image...", [this, name]() { m_context.linkDrives.SaveLinkDiskImage (name); });
         }
 
-        //  The ProDOS disk's driver talks to a 6551, so only a serial link
-        //  has its virtual drives.
-        if (IsSerialConnection (name))
+        //  The ProDOS disk's driver talks to a 6551, so only a link to a
+        //  serial port has its virtual drives.
+        if (HasVirtualDrives (name))
         {
-            m_context.menus.AddMenuCommand (items, L"Make CassoLink &ProDOS disk...", [this, name]() { m_context.linkDrives.SaveLinkProDosDisk (name); });
+            m_context.menus.AddMenuCommand (items, L"Make CassoLink &virtual drives disk...", [this, name]() { m_context.linkDrives.SaveLinkProDosDisk (name); });
         }
 
         if (CanMakeSosDisk (name))
@@ -1251,7 +1413,13 @@ void CassoLinkManager::AddConnectionRows (std::vector<DxuiPopupMenuItem> & items
         if (!isBlock)
         {
             m_context.menus.AddMenuCommand (items, L"Write &CassoLink to disk...", [this, location]() { m_context.linkDrives.SaveLinkToDisk (location); });
-            m_context.menus.AddMenuCommand (items, L"&Format disk...",            [this, location]() { m_context.linkDrives.FormatAppleDisk (location); });
+
+            if (HasVirtualDrives (TextEncoding::WideToNarrow (link)))
+            {
+                m_context.menus.AddMenuCommand (items, L"Write CassoLink &virtual drives disk...", [this, location]() { m_context.linkDrives.SaveLinkProDosToDisk (location); });
+            }
+
+            m_context.menus.AddMenuCommand (items, L"&Format disk...", [this, location]() { m_context.linkDrives.FormatAppleDisk (location); });
         }
 
         //  As a Pascal image's menu has it, with its icon.
@@ -1901,18 +2069,22 @@ Error:
 //  CassoLinkManager::GetLatestActivity
 //
 //  The status bar's CassoLink line: the log's latest entry, for a quarter
-//  of an hour after it.
+//  of an hour after it. While that entry's connection waits for the Apple,
+//  the line is "Waiting for the Apple" instead of an older entry such as
+//  Disconnected.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring CassoLinkManager::GetLatestActivity() const
 {
-    std::vector<CassoLinkConnections::Activity>  log;
-    FILETIME                                     local = {};
-    FILETIME                                     then  = {};
-    FILETIME                                     now   = {};
-    ULARGE_INTEGER                               a     = {};
-    ULARGE_INTEGER                               b     = {};
+    std::vector<CassoLinkConnections::Activity>    log;
+    FILETIME                                       local   = {};
+    FILETIME                                       then    = {};
+    FILETIME                                       now     = {};
+    ULARGE_INTEGER                                 a       = {};
+    ULARGE_INTEGER                                 b       = {};
+    CassoLinkSession                             * session = nullptr;
+    LinkState                                      state   = LinkState::Closed;
 
 
 
@@ -1926,6 +2098,15 @@ std::wstring CassoLinkManager::GetLatestActivity() const
     if (log.empty())
     {
         return std::wstring();
+    }
+
+    session = m_context.app.links->GetSession (TextEncoding::WideToNarrow (log.back().connection));
+    state   = (session != nullptr) ? session->GetState() : LinkState::Closed;
+
+    if (session != nullptr && !session->IsServingVirtualDrives()
+        && (state == LinkState::Searching || state == LinkState::Opening || state == LinkState::WaitingForReady))
+    {
+        return std::format (L"CassoLink: {}: Waiting for the Apple", log.back().connection);
     }
 
     GetSystemTimeAsFileTime (&now);

@@ -48,6 +48,10 @@ public:
     void  SetLinkColor        (uint32_t argb)   { m_linkColor = argb; }
     void  SetUnderlineOnHover (bool isUnderlined) { m_isUnderlinedOnHover = isUnderlined; }
 
+    // A Link's text centered in its box rather than at its left edge, for a
+    // link under centered text.
+    void  SetLinkCentered     (bool isCentered) { m_isLinkCentered = isCentered; }
+
     // How the label is trimmed when it does not fit the button's box. Off by
     // default: most buttons are sized to their label, and a caller that has
     // to show something longer than its box -- a path, a filename -- says so.
@@ -94,6 +98,7 @@ private:
     Variant        m_variant             = Variant::Default;
     uint32_t       m_linkColor           = 0;
     bool           m_isUnderlinedOnHover = false;
+    bool           m_isLinkCentered      = false;
     DxuiElide      m_elide               = DxuiElide::None;
     bool           m_emphasis            = false;
     int            m_commandId           = 0;

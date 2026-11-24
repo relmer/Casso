@@ -12,8 +12,8 @@
 //
 //  BrowserNameFilter::CaptureSource
 //
-//  A picker filters by name the rows of a folder, the Casso node and its
-//  stock and demo disks.
+//  A picker filters by name the rows of a folder, a shell folder such as
+//  Home, the Casso node and its stock and demo disks.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,7 +29,7 @@ void BrowserNameFilter::CaptureSource (
 
     m_source.clear();
     m_sourceBase   = 0;
-    m_isFilterable = hasScope && (location.kind == Location::Kind::HostFolder || isCasso || isStock);
+    m_isFilterable = hasScope && (location.kind == Location::Kind::HostFolder || location.kind == Location::Kind::ShellFolder || isCasso || isStock);
 
     if (!m_isFilterable)
     {

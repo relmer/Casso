@@ -667,6 +667,7 @@
     <ClCompile Include="CassoExplorer\RawCopyDropHandlerTests.cpp" />
     <ClCompile Include="CassoExplorer\DiskOperationsTests.cpp" />
     <ClCompile Include="CassoExplorer\TreeModelTests.cpp" />
+    <ClCompile Include="CassoExplorer\LinkImageDropRuleTests.cpp" />
     <ClCompile Include="CassoExplorer\BrowserModelTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerSessionTests.cpp" />
     <ClCompile Include="CassoExplorer\KnownFolderStoreTests.cpp" />

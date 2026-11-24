@@ -113,8 +113,8 @@ public:
 
 
     //  CASSOLINK: the installer at $2000, the driver after it within its
-    //  two pages, and the relocation list after the driver.
-    TEST_METHOD (TheVirtualDrive_Assembles_WithTheDriverInItsTwoPages)
+    //  three pages, and the relocation list after the driver.
+    TEST_METHOD (TheVirtualDrive_Assembles_WithTheDriverInItsThreePages)
     {
         std::vector<Byte>  file;
         std::string        errors;

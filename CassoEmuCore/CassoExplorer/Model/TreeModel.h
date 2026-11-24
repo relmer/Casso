@@ -354,6 +354,9 @@ public:
     //  and its volume once known.
     std::wstring  GetLinkDriveTitle (const std::wstring & driveId) const;
 
+    //  A drive of a link by its id, once the connection lists it.
+    bool  TryGetLinkDrive (const std::wstring & driveId, LinkTreeEntry::Drive & outDrive) const;
+
     //  Whether a drive of a link, by its id, has a 13-sector disk.
     bool  IsThirteenSectorDrive (const std::wstring & driveId) const;
 

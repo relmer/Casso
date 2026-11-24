@@ -258,7 +258,7 @@ public:
     //  The link's boot disk written to the open Apple drive over the link,
     //  through an image in tempFolder: its boot sector loads the shim at the
     //  link's speed.
-    Outcome  SaveLinkToDisk   (const std::string & link, int drive, const std::wstring & tempFolder) { return m_appleDrive.SaveLinkToDisk (link, drive, tempFolder); }
+    Outcome  SaveLinkToDisk   (const std::string & link, int drive) { return m_appleDrive.SaveLinkToDisk (link, drive); }
 
     //  The open Apple drive formatted as DOS 3.3 or ProDOS, bootable or not,
     //  by writing it a new disk built in tempFolder from the request.
@@ -272,9 +272,10 @@ public:
     //  The same boot disk as an image file on the PC, for an emulator or to
     //  write to a disk some other way. A Wi-Fi modem link's disk dials this
     //  PC before its first Ready.
-    Outcome  SaveLinkDiskImage  (const std::wstring & imagePath, const CassoLinkSettings & settings) { return m_appleDrive.SaveLinkDiskImage (imagePath, settings); }
-    Outcome  SaveLinkProDosDisk (const std::wstring & usersDisk, const std::wstring & imagePath, const CassoLinkSettings & settings) { return m_appleDrive.SaveLinkProDosDisk (usersDisk, imagePath, settings); }
-    Outcome  SaveLinkSosDisk    (const std::wstring & usersDisk, const std::wstring & imagePath, const CassoLinkSettings & settings) { return m_appleDrive.SaveLinkSosDisk (usersDisk, imagePath, settings); }
+    Outcome  SaveLinkDiskImage    (const std::wstring & imagePath, const CassoLinkSettings & settings) { return m_appleDrive.SaveLinkDiskImage (imagePath, settings); }
+    Outcome  SaveLinkProDosDisk   (const std::wstring & usersDisk, const std::wstring & imagePath, const CassoLinkSettings & settings) { return m_appleDrive.SaveLinkProDosDisk (usersDisk, imagePath, settings); }
+    Outcome  SaveLinkProDosToDisk (const std::string & link, int drive, const std::wstring & usersDisk) { return m_appleDrive.SaveLinkProDosToDisk (link, drive, usersDisk); }
+    Outcome  SaveLinkSosDisk      (const std::wstring & usersDisk, const std::wstring & imagePath, const CassoLinkSettings & settings) { return m_appleDrive.SaveLinkSosDisk (usersDisk, imagePath, settings); }
 
     //  The cassette bootstrap for a link as a WAV file on the PC, to send into
     //  a ][+ or //e's cassette input from another device, or to insert in

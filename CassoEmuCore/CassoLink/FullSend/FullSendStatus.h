@@ -84,6 +84,7 @@ struct FullSendDriveStatus
     std::string                        title;
     std::string                        fileSystem;
     bool                               verified    = false;
+    bool                               writing     = false;   // a disk written from an image, not read into one
     std::vector<FullSendTrackMark>     tracks      = std::vector<FullSendTrackMark> (kTracks, FullSendTrackMark::Unread);
     std::vector<FullSendPositionMark>  positions;                  // empty but in a raw capture
     int                                pass        = 0;
@@ -213,6 +214,7 @@ public:
     //  toward the disk's rate.
     void  BeginDisk      (int drive, bool verified, std::span<const int> haveTracks);
     void  SetTitle       (int drive, const std::string & title, const std::string & fileSystem);
+    void  SetWriting     (int drive);
     void  MarkTrack      (int drive, int track, FullSendTrackMark mark);
 
     void  BeginCapture   (int drive);

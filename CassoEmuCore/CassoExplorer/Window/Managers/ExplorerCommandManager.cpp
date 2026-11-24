@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerDragDrop.h"
 #include "CassoExplorer/Window/Managers/ExplorerImageTools.h"
 #include "CassoExplorer/Window/Managers/ExplorerVerbs.h"
 #include "CassoExplorer/CassoExplorerCopyOptionsDialog.h"
@@ -131,6 +132,7 @@ bool ExplorerCommandManager::IsEnabled (int id) const
     DxuiStandardCommand   standard = CassoExplorerCommands::GetStandardCommand (id);
     bool                  enabled  = false;
     Location              drive;
+    Location              pasteDrive;
 
 
 
@@ -200,7 +202,7 @@ bool ExplorerCommandManager::IsEnabled (int id) const
         case CassoExplorerCommands::kUndo:              return m_context.undo.CanUndo();
         case CassoExplorerCommands::kCutItems:          return m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Cut);
         case CassoExplorerCommands::kCopyItems:         return m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Copy) || m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Get) || m_context.browser.GetPreviewer().AreSelectedRowsSearchMatches();
-        case CassoExplorerCommands::kPasteItems:        return (m_context.browser.IsVolumeLocation() || m_context.browser.GetLocation().kind == Location::Kind::HostFolder)
+        case CassoExplorerCommands::kPasteItems:        return (m_context.browser.IsVolumeLocation() || m_context.dragDrop.TryGetPasteDrive (pasteDrive) || m_context.browser.GetLocation().kind == Location::Kind::HostFolder)
                                                          && m_context.shellVerbs.ClipboardHasFiles();
         case CassoExplorerCommands::kRenameItem:        return m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Rename);
         case CassoExplorerCommands::kShareItems:        return m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Share);
@@ -412,6 +414,14 @@ void ExplorerCommandManager::Dispatch (int id)
         //  selected, as Explorer's do; a folder's own menu pastes into it.
         case CassoExplorerCommands::kPasteItems:
         {
+            Location  drive;
+
+            if (m_context.dragDrop.TryGetPasteDrive (drive))
+            {
+                m_context.dragDrop.PasteOnAppleDrive (drive);
+                break;
+            }
+
             if (m_context.browser.IsVolumeLocation())
             {
                 m_context.clipboard.PasteIntoVolume();

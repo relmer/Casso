@@ -7,6 +7,7 @@
 #include "CassoLink/CassoLinkSession.h"
 #include "CassoLink/LinkBootstrap.h"
 #include "CassoLink/LinkFault.h"
+#include "CassoLink/Session/LinkImageSource.h"
 #include "CassoLink/Session/TrackMeasures.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Machines/Apple2/Common/CpmVolume.h"
@@ -1258,6 +1259,28 @@ public:
 
         AssertSucceeded (list->result);
         Assert::AreEqual (std::string ("LINKED"), list->listing.volumeName, L"the drive is listed afresh");
+    }
+
+
+
+    //  An image made in memory is written as a file's is, its format by the
+    //  extension of its name, with no file read or written.
+    TEST_METHOD (WriteDisk_FromMemory_PutsTheImageOnTheDisk)
+    {
+        Rig                rig;
+        std::vector<Byte>  image  = BuildProDos();
+        std::vector<Byte>  file;
+
+
+
+        VolumeImage::DosLogicalToProDosFile (image, file);
+
+        rig.Start();
+
+        AssertSucceeded (rig.Finish (rig.session->WriteDisk (1, std::make_shared<MemoryImageSource> ("made.po", file)))->result);
+
+        Assert::IsTrue (rig.Drive (1) == image);
+        Assert::IsTrue (rig.fileIo.files.empty(), L"no file");
     }
 
 

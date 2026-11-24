@@ -698,6 +698,7 @@ public:
     //
     static LRESULT  KindToHt            (DxuiHitTestKind kind);
     HRESULT         ShowSystemMenu      (POINT ptScreen);
+    void            ClickWindowIcon     (POINT ptScreen);
     bool            IsSystemMenuDropped () const;
     POINT           GetSystemMenuPoint  () const;
     HMENU           GetWindowSystemMenu () const;
