@@ -11,6 +11,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewOutput.h"
+#include "CassoExplorer/Window/Managers/ExplorerThumbnails.h"
 #include "Core/AppMessages.h"
 #include "Core/TextEncoding.h"
 #include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
@@ -167,6 +168,51 @@ void ThumbnailChips::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                          DxuiTheme::kBodyFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
         x += w + 2 * pad + gap;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThumbnailChips::CountRows
+//
+//  Wraps as Paint wraps.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ThumbnailChips::CountRows (IDxuiTextRenderer * text, const DxuiDpiScaler & scaler, int widthPx) const
+{
+    float  pad    = scaler.ToPxf (s_kChipPadDip);
+    float  gap    = scaler.ToPxf (s_kChipGapDip);
+    float  textPx = scaler.ToPxf (s_kChipTextDip);
+    float  x      = 0.0f;
+    float  w      = 0.0f;
+    float  h      = 0.0f;
+    int    rows   = 1;
+
+
+
+    if (text == nullptr)
+    {
+        return 2;
+    }
+
+    for (const SummaryChip & chip : m_chips)
+    {
+        text->MeasureString (chip.text.c_str(), textPx, DxuiTheme::kBodyFace, w, h);
+
+        if (x > 0.0f && x + w + 2 * pad > static_cast<float> (widthPx))
+        {
+            x = 0.0f;
+            rows++;
+        }
+
+        x += w + 2 * pad + gap;
+    }
+
+    return (std::max) (2, rows);
 }
 
 
@@ -732,7 +778,8 @@ void PreviewDiskThumbnail::GetFit (int widthPx, int & outScreenPx, int & outPlat
 //
 //  PreviewDiskThumbnail::GetHeightPx
 //
-//  The platter and two rows of chips, or one row for a line in their place.
+//  The platter and the rows the chips wrap onto, two at the least, or one
+//  row for a line in their place.
 //  With the screen's picture, two rows for its result as well, and the
 //  picture's height where it is above the platter.
 //
@@ -749,7 +796,7 @@ int PreviewDiskThumbnail::GetHeightPx (int widthPx) const
 
 
     GetFit (widthPx, screen, height);
-    height += 2 * rows + 2 * gap;
+    height += m_chips->CountRows (m_context.window.GetTextRenderer(), scaler, widthPx - 2 * gap) * rows + 2 * gap;
 
     if (!IsShown())
     {
@@ -859,7 +906,7 @@ int PreviewDiskThumbnail::Layout (const RECT & area, int scrollPx, int bottomPx,
         chipsTop += 2 * rows + gap;
     }
 
-    m_header->PlaceChild (*m_chips, RECT { area.left + gap, chipsTop, area.right - gap, chipsTop + 2 * rows });
+    m_header->PlaceChild (*m_chips, RECT { area.left + gap, chipsTop, area.right - gap, chipsTop + m_chips->CountRows (m_context.window.GetTextRenderer(), scaler, width - 2 * gap) * rows });
 
     m_header->SetVisible  (true);
     m_chips->SetVisible   (true);
@@ -1168,16 +1215,14 @@ std::wstring PreviewDiskThumbnail::GetFileSystemText() const
 //
 //  PreviewDiskThumbnail::HandleScreenMouse
 //
-//  The booted screen's picture has a menu with Copy, which puts the picture
-//  on the clipboard.
+//  The booted screen's picture has the thumbnail's menu.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool PreviewDiskThumbnail::HandleScreenMouse (const DxuiMouseEvent & ev)
 {
-    RECT                                  bounds  = m_screen->GetBounds();
-    std::shared_ptr<const DxuiIconImage>  picture = m_picture;
-    std::vector<DxuiPopupMenuItem>        items;
+    RECT                            bounds = m_screen->GetBounds();
+    std::vector<DxuiPopupMenuItem>  items;
 
 
 
@@ -1191,7 +1236,7 @@ bool PreviewDiskThumbnail::HandleScreenMouse (const DxuiMouseEvent & ev)
         m_context.input.SetFocusPane (ExplorerPane::Preview);
         m_context.input.ReleasePressed();
         m_context.menus.GetMenuCommands().clear();
-        m_context.menus.AddMenuCommand (items, L"&Copy", [this, picture]() { ExplorerPreviewOutput::CopyPicture (m_context, *picture); });
+        ExplorerThumbnails::AddPreviewMenu (m_context, items, m_path);
         DxuiContextMenu::Show (*m_context.window.GetPopupHost(), ev.positionDip.x, ev.positionDip.y, std::move (items));
     }
 

@@ -668,7 +668,45 @@ bool CassoExplorerBrowser::OpenRow (int row)
 BrowserRowPaths::Listing CassoExplorerBrowser::GetRowListing()
 {
     return BrowserRowPaths::Listing { GetLocation(), m_list.rows, m_list.rootChildren, m_list.isPartitionList, IsVolumeLocation(),
-                                      [this] (const std::wstring & path) { return m_loader.CanListImage (path); } };
+                                      [this] (const std::wstring & path) { return CanOpenImage (path); } };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::CanOpenImage
+//
+//  The facts of the row at that path, read on the worker's thread, when the
+//  row's file hasn't changed since. An image not read yet is decoded here
+//  once, and its answer cached.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerBrowser::CanOpenImage (const std::wstring & path)
+{
+    VolumeFacts  facts;
+    Location     at = GetLocation();
+
+
+
+    for (const CatalogRow & row : m_list.rows)
+    {
+        std::wstring  rowPath = !row.hostPath.empty()                  ? row.hostPath
+                              : (at.kind == Location::Kind::HostFolder) ? BrowserRowPaths::JoinPath (at.path, row.name)
+                                                                        : std::wstring();
+
+
+
+        if (row.isDiskImage && rowPath == path && m_volumeFacts.TryGet (path, row.sizeBytes, row.modifiedUnix, facts))
+        {
+            return !facts.fileSystem.empty();
+        }
+    }
+
+    return m_loader.CanListImage (path);
 }
 
 

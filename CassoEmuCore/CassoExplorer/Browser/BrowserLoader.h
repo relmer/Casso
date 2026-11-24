@@ -118,6 +118,7 @@ private:
     };
 
     std::unordered_map<std::wstring, ImageProblem>  m_imageProblems;
+    std::unordered_map<std::wstring, ImageProblem>  m_unlistable;      // images with no catalog, by the file's time and size
 
     Location  GetLocation      () const { return m_parts.model.HasTabs() ? m_parts.model.GetActiveTab().location : Location(); }
     bool      IsVolumeLocation () const { return m_parts.list.isImage || m_parts.list.isAppleDrive; }

@@ -246,6 +246,10 @@ public:
     void                    SetVolumeFactsNotify (std::function<void ()> notify) { m_onVolumeFacts = std::move (notify); }
     bool                    ApplyVolumeFacts     ();
 
+    //  Whether an image has a catalog to open: the volume facts worker's
+    //  answer when it has read the image, so painting never decodes one.
+    bool                    CanOpenImage         (const std::wstring & path);
+
     //  Until set, a card that is not open is not opened, so the tabs restored
     //  at launch raise no UAC prompt.
     void                    SetCardOpenAllowed   (bool allowed)                 { m_sources.cardOpenAllowed = allowed; }

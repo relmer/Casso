@@ -1757,28 +1757,53 @@ std::wstring BrowserLoader::MakeContainerPath (const std::wstring & folderId, co
 //  BrowserLoader::CanListImage
 //
 //  Whether an image has a catalog to open, read once and cached; an image
-//  with no file system has nothing to open into.
+//  with no file system has nothing to open into. An image with no catalog
+//  is read again only once its file changes, as toolbar painting asks on
+//  every frame.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool BrowserLoader::CanListImage (const std::wstring & imagePath)
 {
-    VolumeListing           listing;
-    VolumeKind              kind   = VolumeKind::Unknown;
-    DiskOperations::Result  result;
-    bool                    listed = m_parts.model.TryGetCachedCatalog (imagePath, listing, kind);
+    VolumeListing                 listing;
+    VolumeKind                    kind   = VolumeKind::Unknown;
+    DiskOperations::Result        result;
+    WIN32_FILE_ATTRIBUTE_DATA     file   = {};
+    uint64_t                      time   = 0;
+    uint64_t                      size   = 0;
+    bool                          listed = m_parts.model.TryGetCachedCatalog (imagePath, listing, kind);
 
 
 
-    if (!listed)
+    if (listed)
     {
-        result = m_parts.operations.List (TextEncoding::WideToNarrow (imagePath), listing, kind);
-        listed = result.Succeeded();
+        return true;
+    }
 
-        if (listed)
+    if (GetFileAttributesExW (imagePath.c_str(), GetFileExInfoStandard, &file))
+    {
+        auto  found = m_unlistable.find (imagePath);
+
+        time = ((uint64_t) file.ftLastWriteTime.dwHighDateTime << 32) | file.ftLastWriteTime.dwLowDateTime;
+        size = ((uint64_t) file.nFileSizeHigh << 32) | file.nFileSizeLow;
+
+        if (found != m_unlistable.end() && found->second.time == time && found->second.size == size)
         {
-            m_parts.model.CacheCatalog (imagePath, listing, kind);
+            return false;
         }
+    }
+
+    result = m_parts.operations.List (TextEncoding::WideToNarrow (imagePath), listing, kind);
+    listed = result.Succeeded();
+
+    if (listed)
+    {
+        m_parts.model.CacheCatalog (imagePath, listing, kind);
+        m_unlistable.erase (imagePath);
+    }
+    else
+    {
+        m_unlistable[imagePath] = ImageProblem { time, size, std::wstring() };
     }
 
     return listed;
