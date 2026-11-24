@@ -54,7 +54,7 @@ public:
     void  SaveLinkSosDisk         (const std::string & name);
 
 private:
-    void     OfferRawCapture      (const Location & drive, const std::filesystem::path & image);
+    void                 OfferRawCapture   (const Location & drive, const std::filesystem::path & image);
     static std::wstring  GetProDosDiskNote ();
 
     bool          ChooseProDosDisk   (const std::wstring & title, const std::wstring & note, const std::wstring & confirm, bool destructive, std::filesystem::path & outDisk);
