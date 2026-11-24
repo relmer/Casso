@@ -251,6 +251,10 @@ public:
     const IDxuiTheme  * GetTheme           () const { return m_theme; }
     void                SetTitle           (const std::wstring & title, size_t markAt = std::wstring::npos);
 
+    //  The icon for the taskbar, Alt+Tab and the caption's top left corner.
+    static constexpr int  kCaptionIconPx = 32;
+    void                SetAppIcon         (HICON icon);
+
     //  The smallest size the user can resize the window to, as at creation.
     void                SetMinSizeDip      (const SIZE & sizeDip) { m_minSizeDip = sizeDip; }
     int                 GetCaptionHeightPx () const { return m_source != nullptr ? m_source->GetCaptionHeightPx() : 0; }

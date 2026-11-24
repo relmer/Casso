@@ -270,7 +270,7 @@ struct CassoExplorerPrefs
     static constexpr int  kMinPreviewZoom         = 50;
     static constexpr int  kMaxPreviewZoom         = 300;
     static constexpr int  kDefaultTreeWidthDip    = 240;
-    static constexpr int  kDefaultPreviewWidthDip = 360;
+    static constexpr int  kDefaultPreviewWidthDip = 460;   // the screen's picture beside the platter, at full size
 
     //  The name a location's kind is stored under, and the kind a name reads
     //  back as; anything else is no kind.

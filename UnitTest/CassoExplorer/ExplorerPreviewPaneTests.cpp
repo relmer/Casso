@@ -51,9 +51,10 @@ public:
 
     //  The preview of a disk image has the picture of its screen and the
     //  line with its boot result under it, at 100% and at 150%: beside the
-    //  platter in a wide pane, and three quarters as tall as it is wide. The
-    //  platter's analysis reads the file from the disk, so the image is in a
-    //  folder of the test's in the temporary folder as well.
+    //  platter, scaled down where the pane is narrow, and three quarters as
+    //  tall as it is wide. The platter's analysis reads the file from the
+    //  disk, so the image is in a folder of the test's in the temporary
+    //  folder as well.
     TEST_METHOD (Preview_HasADiskImagesScreenAndResultLine_At100And150Percent)
     {
         for (UINT dpi : { 96u, 144u })
@@ -95,7 +96,8 @@ public:
             Assert::AreEqual (pictures.resultLine, rig.parts->preview.GetThumbnail().GetResultLine());
 
             screen = rig.parts->preview.GetThumbnail().GetScreenRect();
-            Assert::AreEqual ((long) rig.scaler.ToPx (PreviewDiskThumbnail::kScreenDip), screen.right - screen.left);
+            Assert::IsTrue (screen.right > screen.left && screen.right - screen.left <= (long) rig.scaler.ToPx (PreviewDiskThumbnail::kScreenDip),
+                            std::format (L"The screen's picture is {} px wide at {} dpi", screen.right - screen.left, dpi).c_str());
             Assert::AreEqual ((screen.right - screen.left) * 3 / 4, screen.bottom - screen.top);
 
             RemoveFolder (folder);

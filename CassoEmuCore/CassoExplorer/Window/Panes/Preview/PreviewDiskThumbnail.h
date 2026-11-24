@@ -193,7 +193,7 @@ private:
 //  inspector in block mode.
 //
 //  An image that has been booted has the picture of its screen beside the
-//  platter, or above it in a narrow pane, and a line with its boot result.
+//  platter, both scaled down in a narrow pane, and a line with its boot result.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -228,7 +228,7 @@ public:
 
 
     bool                  IsShown       () const { return !m_path.empty() && m_state != State::Failed; }
-    bool                  IsReady       () const { return m_state == State::Ready; }
+    bool                  IsReady       () const { return m_state == State::Ready && !m_isStale; }
     int                   GetHeightPx   (int widthPx) const;
     bool                  IsOverPlatter (POINT pointPx) const;
     const std::wstring  & GetPath       () const { return m_path; }
@@ -292,7 +292,7 @@ private:
     //  drawn while the analysis runs and the pane isn't laid out again when
     //  the analysis finishes.
     bool  HasScreen          () const { return m_picture != nullptr && (m_state == State::Ready || m_state == State::Analyzing); }
-    bool  IsBeside           (int widthPx) const;
+    void  GetFit             (int widthPx, int & outScreenPx, int & outPlatterPx) const;
     bool  HasVerdict         () const { return m_state == State::Ready && m_isVerdictShown; }
     int   GetVerdictHeightPx (int widthPx) const;
     void  PlaceVerdict       (const RECT & area, int top, int height);
@@ -317,4 +317,5 @@ private:
     std::shared_ptr<const DxuiIconImage>    m_picture;
     std::wstring                            m_path;
     State                                   m_state          = State::Analyzing;
+    bool                                    m_isStale        = false;   // the last image is shown until the next one is read
 };

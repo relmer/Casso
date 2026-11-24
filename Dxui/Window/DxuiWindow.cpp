@@ -3,6 +3,7 @@
 #include "DxuiWindow.h"
 
 #include "Core/DxuiEvents.h"
+#include "Core/DxuiIconImage.h"
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiInfoTip.h"
 #include "Widgets/DxuiPopupMenu.h"
@@ -498,6 +499,39 @@ void DxuiWindow::SetTheme (const IDxuiTheme * theme)
     if (m_source != nullptr)
     {
         m_source->SetTheme (theme);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetAppIcon
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::SetAppIcon (HICON icon)
+{
+    DxuiIconImage  image;
+    HRESULT        hr    = S_OK;
+
+
+
+    if (icon == nullptr || GetHwnd() == nullptr)
+    {
+        return;
+    }
+
+    SendMessageW (GetHwnd(), WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM> (icon));
+    SendMessageW (GetHwnd(), WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM> (icon));
+
+    hr = DxuiIconImage::FromHicon (icon, kCaptionIconPx, image);
+
+    if (SUCCEEDED (hr))
+    {
+        m_source->SetCaptionIcon (std::move (image.bgraPremul), image.width, image.height);
     }
 }
 

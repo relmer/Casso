@@ -44,11 +44,12 @@ struct EditBarState
 //
 //  EditBar
 //
-//  The row of editing controls above the Sector data tab's bytes: "Stop
-//  editing", the count of bytes and sectors changed, "Recompute the
-//  checksum" and "Discard sector" for the selected sector, "Undo save" and
+//  The row of editing controls between the Sector data tab's header and its
+//  bytes: "Undo sector changes" and "Recompute the checksum" while editing,
+//  "Use B's bytes", the count of bytes and sectors changed, "Undo save" and
 //  "Redo save". The note between them has why the sector cannot be edited,
-//  why saving is unavailable, or the result of the last save.
+//  why saving is unavailable, or the result of the last save. The row is
+//  there whether or not a sector is being edited, so the bytes don't move.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,7 +63,6 @@ public:
 
     EditBar();
 
-    void  SetOnEdit          (ActionFn fn) { m_onEdit          = std::move (fn); }
     void  SetOnChecksum      (CheckFn fn)  { m_onChecksum      = std::move (fn); }
     void  SetOnDiscardSector (ActionFn fn) { m_onDiscardSector = std::move (fn); }
     void  SetOnUndoApplied   (ActionFn fn) { m_onUndoApplied   = std::move (fn); }
@@ -73,7 +73,7 @@ public:
 
     void  SetState (const EditBarState & state);
 
-    //  What an edit is made on, "sector" at first: the "Discard" button's
+    //  What an edit is made on, "sector" at first: the "Undo" button's
     //  label, the count and the tips.
     void  SetUnit  (const std::wstring & unit, const std::wstring & unitPlural);
     //  The tooltip for the control under a point, with why it is unavailable
@@ -97,7 +97,6 @@ private:
     bool  HasControls         (const DxuiDpiScaler & scaler) const;
 
 private:
-    DxuiButton    * m_edit          = nullptr;
     DxuiCheckbox  * m_checksum      = nullptr;
     DxuiLabel     * m_count         = nullptr;
     DxuiLabel     * m_note          = nullptr;
@@ -107,7 +106,6 @@ private:
     DxuiButton    * m_pauseApply    = nullptr;
     DxuiButton    * m_cancelApply   = nullptr;
     DxuiButton    * m_useB          = nullptr;
-    ActionFn        m_onEdit;
     CheckFn         m_onChecksum;
     ActionFn        m_onDiscardSector;
     ActionFn        m_onUndoApplied;

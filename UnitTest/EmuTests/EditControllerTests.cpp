@@ -114,6 +114,34 @@ public:
 
 
 
+    TEST_METHOD (UndoRestoresBothHexDigitsOfAByteAtOnce)
+    {
+        DiskAnalysis    analysis;
+        EditController  edits;
+        std::wstring    reason;
+        int             edit     = -1;
+        Byte            original = 0;
+
+
+
+        AnalyzePlanted (analysis);
+        edit = edits.Begin (GetTrack (analysis), 20, GetSectorIndex (GetTrack (analysis), 2), reason);
+        Assert::IsTrue (edit >= 0, reason.c_str());
+
+        original = edits.GetEdit (edit).bytes[1];
+
+        Assert::IsTrue   (edits.TypeHexDigit (edit, 1, true, L'a'));
+        Assert::IsTrue   (edits.TypeHexDigit (edit, 1, false, L'7'));
+        Assert::IsTrue   (edits.Undo());
+        Assert::AreEqual (original, edits.GetEdit (edit).bytes[1]);
+        Assert::IsFalse  (edits.CanUndo());
+
+        Assert::IsTrue   (edits.Redo());
+        Assert::AreEqual (static_cast<Byte> (0xA7), edits.GetEdit (edit).bytes[1]);
+    }
+
+
+
     TEST_METHOD (APasteStopsAtTheLastByteAndReportsTheOverflow)
     {
         DiskAnalysis    analysis;

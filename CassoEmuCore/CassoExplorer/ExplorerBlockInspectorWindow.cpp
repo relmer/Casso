@@ -75,12 +75,9 @@ HRESULT ExplorerBlockInspectorWindow::Create (HINSTANCE hInstance, HWND anchor, 
 
     CHR (hr);
 
+    //  Casso Explorer's icon, in the caption as well as on the taskbar.
     icon = (anchor != nullptr) ? reinterpret_cast<HICON> (SendMessageW (anchor, WM_GETICON, ICON_BIG, 0)) : nullptr;
-
-    if (icon != nullptr)
-    {
-        SendMessageW (m_window->GetHwnd(), WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM> (icon));
-    }
+    m_window->SetAppIcon (icon);
 
 Error:
     return hr;

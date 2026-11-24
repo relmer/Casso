@@ -21,8 +21,10 @@
 class FakeBlockView : public IBlockView
 {
 public:
-    int              refreshes = 0;
-    bool             isEditing = false;
+    int              refreshes   = 0;
+    bool             isEditing   = false;
+    uint32_t         shownBlock  = 0;
+    int              shownOffset = -1;
     BlockEditState   lastState;
     std::wstring     blockText;
     BlockHeaderView  header;
@@ -34,4 +36,5 @@ public:
     BlockHeaderView  & GetHeader      () override                             { return header; }
     BlockHexView     * GetHexView     () const override                       { return nullptr; }
     std::wstring       BuildBlockText () const override                       { return blockText; }
+    void               ShowBlockByte  (uint32_t block, int offset) override   { shownBlock = block; shownOffset = offset; }
 };

@@ -97,10 +97,12 @@ void InspectorCommandSet::Build()
     c.close                     = make (L"&Close", L"Alt+F4", [this] () { m_frame.CloseWindow(); });
 
     //  Edit
-    c.undoApplied               = make (L"&Undo save", L"Ctrl+Z", [this] () { m_parts.GetEditing().UndoApplied(); });
-    c.undoApplied->isEnabled    = [this] () { return m_parts.GetEditing().GetState().canUndoApplied; };
-    c.redoApplied               = make (L"&Redo save", L"Ctrl+Y", [this] () { m_parts.GetEditing().RedoApplied(); });
-    c.redoApplied->isEnabled    = [this] () { return m_parts.GetEditing().GetState().canRedoApplied; };
+    c.undoApplied               = make (L"&Undo save", L"Ctrl+Z", [this] () { m_parts.GetEditing().Undo(); });
+    c.undoApplied->isEnabled    = [this] () { return m_session.edits.CanUndo() || m_parts.GetEditing().GetState().canUndoApplied; };
+    c.undoApplied->labelText    = [this] () { return std::wstring (m_session.edits.CanUndo() ? L"&Undo" : L"&Undo save"); };
+    c.redoApplied               = make (L"&Redo save", L"Ctrl+Y", [this] () { m_parts.GetEditing().Redo(); });
+    c.redoApplied->isEnabled    = [this] () { return m_session.edits.CanRedo() || m_parts.GetEditing().GetState().canRedoApplied; };
+    c.redoApplied->labelText    = [this] () { return std::wstring (m_session.edits.CanRedo() ? L"&Redo" : L"&Redo save"); };
     c.copy                      = make (L"&Copy", L"Ctrl+C", [this] () { m_parts.GetSelection().Copy(); });
     c.copy->isEnabled           = hasDisk;
     c.copySector                = make (L"Copy &sector", L"Ctrl+Shift+C", [this] () { m_parts.GetSelection().CopySector(); });

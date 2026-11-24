@@ -54,6 +54,31 @@ struct DxuiHexViewTypes
 
     using ByteStyleFn = std::function<bool (uint64_t offset, uint8_t mark, bool isSelected, Column column, ByteStyle & outStyle)>;
 
+    //  Edit mode. A typed character goes to the host, which returns true when
+    //  the byte at `offset` changed; a hex digit sets the high nibble first.
+    //  The changed function returns true for a byte the host has edited.
+    using TypeFn    = std::function<bool (uint64_t offset, bool isHexColumn, bool isHighNibble, wchar_t ch)>;
+    using ChangedFn = std::function<bool (uint64_t offset, uint8_t mark)>;
+
+    //  The theme's colors the edit look is made from.
+    struct EditColors
+    {
+        uint32_t  accent     = 0;
+        uint32_t  background = 0;
+        uint32_t  foreground = 0;
+    };
+
+    //  What the edit look draws for a byte in one column.
+    struct EditByteState
+    {
+        bool  isEditing   = false;   // the view is in edit mode
+        bool  isCaret     = false;   // the caret byte, with the view focused
+        bool  isTyping    = false;   // the byte's high nibble is typed and its low nibble isn't yet
+        bool  isHexColumn = false;
+        bool  isSelected  = false;
+        bool  isChanged   = false;
+    };
+
     //  Asked for a context menu at a point in the same DIPs as the bounds.
     using ContextMenuFn = std::function<void (POINT atDip)>;
 

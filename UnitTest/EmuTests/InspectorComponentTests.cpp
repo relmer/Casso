@@ -248,7 +248,7 @@ public:
 
 
 
-    TEST_METHOD (AnEditLeavesTheBarHeightAndAddsNoSaveButtons)
+    TEST_METHOD (TheEditRowIsThereWhetherOrNotASectorIsEdited)
     {
         EditBar        bar;
         EditBarState   state;
@@ -256,16 +256,14 @@ public:
         int            widthPx  = 800;
         int            heightPx = 0;
         RECT           anchor   = {};
-        RECT           stop     = {};
 
 
 
-        state.isEditing = true;
         bar.SetState (state);
         heightPx = bar.GetHeightPx (widthPx, scaler);
-        bar.Layout ({ 0, 0, widthPx, heightPx }, scaler);
-        Assert::IsFalse (bar.GetTip ({ 4, heightPx / 2 }, stop).empty(), L"Stop editing is at the left end");
+        Assert::AreEqual (scaler.ToPx (EditBar::kRowDip), heightPx, L"the row is reserved before editing");
 
+        state.isEditing     = true;
         state.hasSectorEdit = true;
         state.bytes         = 1;
         state.sectors       = 1;
@@ -274,7 +272,7 @@ public:
         bar.Layout ({ 0, 0, widthPx, bar.GetHeightPx (widthPx, scaler) }, scaler);
 
         Assert::AreEqual (heightPx, bar.GetHeightPx (widthPx, scaler), L"the bar's height is constant");
-        Assert::AreEqual (std::wstring (L"Drop the selected sector's pending edits"), bar.GetTip ({ widthPx - 4, heightPx / 2 }, anchor), L"Discard sector is at the right end");
+        Assert::AreEqual (std::wstring (L"Drop the selected sector's pending edits"), bar.GetTip ({ 4, heightPx / 2 }, anchor), L"Undo sector changes is at the left end");
 
         for (int x = 0; x < widthPx; x += 4)
         {

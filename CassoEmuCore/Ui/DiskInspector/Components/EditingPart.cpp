@@ -44,9 +44,41 @@ EditingPart::EditingPart (InspectorSession & session, IInspectorComponentHost & 
 
 void EditingPart::Create()
 {
-    m_editBar = m_host.GetControlParent().CreateChild<EditBar>();
+    m_editBar    = m_host.GetControlParent().CreateChild<EditBar>();
+    m_editButton = m_host.GetControlParent().CreateChild<DxuiButton> (L"Edit");
 
-    m_editBar->SetOnEdit          ([this] () { ToggleEditing(); });
+    m_editButton->SetOnClick ([this] () { ToggleEditing(); });
+
+    //  A double-click on a byte starts editing with the caret on it.
+    m_sectorsView.SetOnOpen ([this] (int offset)
+    {
+        if (!m_sectorsView.IsEditing())
+        {
+            ToggleEditing();
+        }
+
+        if (m_sectorsView.IsEditing())
+        {
+            m_sectorsView.GoToByte (offset);
+        }
+    });
+
+    //  The bar is placed between the Sector data tab's header and its bytes,
+    //  where the view reserves its row as it is laid out.
+    m_sectorsView.SetEditRow ([this] (const RECT & rowPx)
+    {
+        int   height = m_editBar->GetHeightPx (rowPx.right - rowPx.left, m_session.scaler);
+        RECT  bounds = { rowPx.left, rowPx.top, rowPx.right, rowPx.top + height };
+        RECT  shown  = m_editBar->GetBounds();
+
+        if (!EqualRect (&bounds, &shown))
+        {
+            m_editBar->Layout (bounds, m_session.scaler);
+        }
+
+        return height;
+    });
+
     m_editBar->SetOnChecksum      ([this] (bool isOn) { m_session.edits.SetChecksumMode (GetSelectedEdit(), isOn ? ChecksumMode::Recompute : ChecksumMode::KeepStored); });
     m_editBar->SetOnDiscardSector ([this] () { m_session.edits.DiscardSector (GetSelectedEdit()); });
     m_editBar->SetOnUseB          ([this] () { UseBBytes(); });
@@ -98,7 +130,23 @@ int EditingPart::GetHeightPx (int widthPx, const DxuiDpiScaler & scaler) const
 
 void EditingPart::SetShown (bool isShown)
 {
-    m_editBar->SetVisible (isShown);
+    m_editBar->SetVisible    (isShown);
+    m_editButton->SetVisible (isShown);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditingPart::LayoutEditButton
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EditingPart::LayoutEditButton (const RECT & rectPx, const DxuiDpiScaler & scaler)
+{
+    m_editButton->Layout (rectPx, scaler);
 }
 
 
@@ -356,13 +404,13 @@ bool EditingPart::HandleEditKey (const DxuiKeyEvent & ev)
 
     m_session.editNote.clear();
 
-    if (ev.kind == DxuiKeyEventKind::Down && ev.ctrl && !ev.alt && ev.vk == 'Z')
+    if (ev.kind == DxuiKeyEventKind::Down && ev.ctrl && !ev.alt && !ev.shift && ev.vk == 'Z')
     {
-        (void) m_session.edits.Undo();
+        Undo();
     }
-    else if (ev.kind == DxuiKeyEventKind::Down && ev.ctrl && !ev.alt && ev.vk == 'Y')
+    else if (ev.kind == DxuiKeyEventKind::Down && ev.ctrl && !ev.alt && (ev.vk == 'Y' || (ev.shift && ev.vk == 'Z')))
     {
-        (void) m_session.edits.Redo();
+        Redo();
     }
     else if (ev.kind == DxuiKeyEventKind::Down && ev.ctrl && !ev.alt && ev.vk == 'V')
     {
@@ -505,6 +553,11 @@ void EditingPart::UpdateEditBar()
     height = m_editBar->GetHeightPx (width, m_session.scaler);
     m_editBar->SetState (state);
     m_state = state;
+
+    //  As in block mode: "Edit", or "Done" in the accent while editing.
+    m_editButton->SetLabel   (state.isEditing ? L"Done" : L"Edit");
+    m_editButton->SetVariant (state.isEditing ? DxuiButton::Variant::Primary : DxuiButton::Variant::Default);
+    m_editButton->SetEnabled (state.canEdit || state.isEditing);
     m_session.isLayoutStale = m_session.isLayoutStale || (width > 0 && m_editBar->GetHeightPx (width, m_session.scaler) != height);
 }
 
@@ -725,6 +778,131 @@ void EditingPart::CancelApply()
     cancel.kind  = InspectorRequestKind::CancelApply;
     cancel.drive = m_session.drive;
     (void) m_session.host->PostInspectorRequest (cancel);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditingPart::Undo
+//
+//  Undoes the last unsaved edit, in or out of editing, as block mode does.
+//  With no unsaved edit to undo, undoes the last save.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EditingPart::Undo()
+{
+    int  edit   = -1;
+    int  offset = 0;
+
+
+
+    m_session.editNote.clear();
+
+    if (!m_session.edits.CanUndo())
+    {
+        if (m_state.canUndoApplied && !m_history[m_historyAt - 1].edits.GetEdits().empty())
+        {
+            ShowEdit (m_history[m_historyAt - 1].edits.GetEdits().front(), 0);
+        }
+
+        UndoApplied();
+        return;
+    }
+
+    if (m_session.edits.GetUndoAt (edit, offset))
+    {
+        ShowEdit (m_session.edits.GetEdit (edit), offset);
+    }
+
+    (void) m_session.edits.Undo();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditingPart::Redo
+//
+//  Redoes the last undone edit, in or out of editing. With no edit to redo,
+//  redoes the last undone save.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EditingPart::Redo()
+{
+    int  edit   = -1;
+    int  offset = 0;
+
+
+
+    m_session.editNote.clear();
+
+    if (!m_session.edits.CanRedo())
+    {
+        if (m_state.canRedoApplied && !m_history[m_historyAt].edits.GetEdits().empty())
+        {
+            ShowEdit (m_history[m_historyAt].edits.GetEdits().front(), 0);
+        }
+
+        RedoApplied();
+        return;
+    }
+
+    if (m_session.edits.GetRedoAt (edit, offset))
+    {
+        ShowEdit (m_session.edits.GetEdit (edit), offset);
+    }
+
+    (void) m_session.edits.Redo();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditingPart::ShowEdit
+//
+//  Selects an edit's sector on the Sector data tab with the caret on a
+//  byte, so an undo or a redo is seen as it happens.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EditingPart::ShowEdit (const PendingEdit & edit, int offset)
+{
+    const TrackAnalysis *  track = nullptr;
+
+
+
+    if (edit.quarterTrack != m_session.model.GetQuarterTrack())
+    {
+        m_session.model.SelectQuarterTrack (edit.quarterTrack);
+    }
+
+    track = m_session.model.GetTrack();
+
+    for (int k = 0; track != nullptr && k < static_cast<int> (track->sectors.size()); k++)
+    {
+        if (track->sectors[k].dataField >= 0 && track->fields[track->sectors[k].dataField].startCell == edit.fieldStartCell)
+        {
+            if (k != m_session.model.GetSectorIndex())
+            {
+                m_session.model.SelectSector (edit.quarterTrack, k);
+            }
+
+            m_host.ShowTrackTab (kTabSectorData);
+            m_sectorsView.GoToByte (offset);
+            m_host.OnSelection();
+            break;
+        }
+    }
 }
 
 

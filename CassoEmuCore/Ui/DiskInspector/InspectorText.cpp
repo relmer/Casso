@@ -661,41 +661,55 @@ HeaderItem HeaderItem::MakeResult (LPCWSTR label, const std::wstring & value)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  InspectorText::BuildSectorHeader
-//
-//  The Sector data header (FR-040): the sector, its address fields, both
-//  results and the encoding, and on a 16-sector track the DOS-order sector index and
-//  ProDOS block it has under the standard skew.
+//  HeaderItem::MakeCheck
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-vector<HeaderItem> InspectorText::BuildSectorHeader (const AnalyzedSector & sector, const TrackAnalysis & track)
+HeaderItem HeaderItem::MakeCheck (LPCWSTR label, bool isPresent, bool isChecked, bool isGood)
 {
-    const LocatedField &  address = track.fields[sector.addressField];
-    vector<HeaderItem>    items;
-    std::wstring          dataResult;
+    LPCWSTR     mark = !isPresent ? s_kpszEmptySet : !isChecked ? L"?" : isGood ? s_kpszCheckMark : s_kpszBallotX;
+    HeaderItem  item = { L"", std::wstring (mark) + L" " + label };
+
+
+
+    if (isPresent && isChecked && !isGood)
+    {
+        item.badStart  = 0;
+        item.badLength = item.value.size();
+    }
+
+    return item;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::BuildSectorHeader
+//
+//  The Sector data header's lines (FR-040): the sector, its volume and its
+//  encoding; its address and data checks; and where the file system puts
+//  it, as a ProDOS or Pascal block or a DOS 3.3 sector under the standard
+//  skew. A disk without one of those file systems has no third line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SectorHeader InspectorText::BuildSectorHeader (const AnalyzedSector & sector, const TrackAnalysis & track, MapFileSystem fileSystem)
+{
+    const LocatedField &  address  = track.fields[sector.addressField];
+    SectorHeader          lines;
     std::wstring          trackText;
     HeaderItem            location;
+    bool                  isSkewed = sector.kind == DiskFieldKind::Sixteen && sector.dosOrderIndex >= 0;
 
 
 
-    if (sector.dataField < 0)
-    {
-        dataResult = L"Missing";
-    }
-    else if (!sector.isDataCheck)
-    {
-        dataResult = L"Not checked";
-    }
-    else
-    {
-        dataResult = sector.isDataGood ? L"Good" : L"Bad";
-    }
-
-    //  The track in the address field is in the error color when it is neither
-    //  whole track the record is read as.
-    trackText = std::format (L"track {}", address.track);
-    location  = { L"Address field", std::format (L"{}, sector {}", trackText, InspectorFormat::FormatSector (sector.sector)) };
+    //  The track is in the error color when it is neither whole track the
+    //  record is read as.
+    trackText = std::format (L"Track {}", address.track);
+    location  = { L"", std::format (L"{}, sector {}", trackText, InspectorFormat::FormatSector (sector.sector)) };
 
     if (address.track != track.context.physicalTrack && address.track != track.context.alsoTrack)
     {
@@ -703,19 +717,23 @@ vector<HeaderItem> InspectorText::BuildSectorHeader (const AnalyzedSector & sect
         location.badLength = trackText.size();
     }
 
-    items.push_back (location);
-    items.push_back ({ L"Volume",   std::to_wstring (address.volume) });
-    items.push_back (HeaderItem::MakeResult (L"Address checksum", !sector.isAddressCheck ? L"Not checked" : (sector.isAddressGood ? L"Good" : L"Bad")));
-    items.push_back (HeaderItem::MakeResult (L"Data", dataResult));
-    items.push_back ({ L"Encoding", sector.kind == DiskFieldKind::Sixteen ? L"6-and-2" : L"5-and-3" });
+    lines[0].push_back (location);
+    lines[0].push_back ({ L"Volume", std::to_wstring (address.volume) });
+    lines[0].push_back ({ L"", sector.kind == DiskFieldKind::Sixteen ? L"6-and-2" : L"5-and-3" });
 
-    if (sector.kind == DiskFieldKind::Sixteen && sector.dosOrderIndex >= 0)
+    lines[1].push_back (HeaderItem::MakeCheck (L"Address", true, sector.isAddressCheck, sector.isAddressGood));
+    lines[1].push_back (HeaderItem::MakeCheck (L"Data", sector.dataField >= 0, sector.isDataCheck, sector.isDataGood));
+
+    if (isSkewed && (fileSystem == MapFileSystem::ProDos || fileSystem == MapFileSystem::Pascal))
     {
-        items.push_back ({ L"DOS-order sector index", InspectorFormat::FormatSector (sector.dosOrderIndex) });
-        items.push_back ({ L"ProDOS block",   std::format (L"{} ({} half)", sector.prodosBlock, sector.prodosHalf == 0 ? L"first" : L"second") });
+        lines[2].push_back ({ L"Block", std::format (L"{}, {} half", sector.prodosBlock, sector.prodosHalf == 0 ? L"first" : L"second") });
+    }
+    else if (isSkewed && fileSystem == MapFileSystem::Dos33)
+    {
+        lines[2].push_back ({ L"DOS sector", InspectorFormat::FormatSector (sector.dosOrderIndex) });
     }
 
-    return items;
+    return lines;
 }
 
 

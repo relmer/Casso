@@ -486,16 +486,33 @@ void PreviewDiskThumbnail::SetPath (const std::wstring & path)
         return;
     }
 
+    m_path    = path;
+    m_isStale = !path.empty() && m_state == State::Ready;
+
     m_isVerdictReserved = !path.empty() && (HasVerdict() || m_isVerdictReserved);
     m_blockMap->SetModel (nullptr);
 
-    m_path         = path;
-    m_state        = State::Analyzing;
-    m_result       = DiskThumbnailResult();
-    m_view.hasDisk = false;
-    m_view.analysis = nullptr;
     m_isVerdictShown = false;
     m_chips->SetLine (s_kpszWaiting);
+
+    //  After a ready image, a blank disk is shown in the same place until
+    //  the next one is read, so the pane doesn't flash its background.
+    if (m_isStale)
+    {
+        for (int qt = 0; qt < DiskImage::kQuarterTrackCount; qt++)
+        {
+            m_platter->GetRenderer().SetRing (qt, PlatterRingState::Nothing, nullptr);
+        }
+
+        m_verdict->SetVisible (false);
+    }
+    else
+    {
+        m_state         = State::Analyzing;
+        m_result        = DiskThumbnailResult();
+        m_view.hasDisk  = false;
+        m_view.analysis = nullptr;
+    }
 
     if (path.empty())
     {
@@ -526,7 +543,7 @@ void PreviewDiskThumbnail::SetPath (const std::wstring & path)
 
 void PreviewDiskThumbnail::MovePath (const std::wstring & from, const std::wstring & to)
 {
-    if (m_path.empty() || m_state == State::Analyzing || _wcsicmp (m_path.c_str(), from.c_str()) != 0)
+    if (m_path.empty() || m_state == State::Analyzing || m_isStale || _wcsicmp (m_path.c_str(), from.c_str()) != 0)
     {
         return;
     }
@@ -551,19 +568,19 @@ void PreviewDiskThumbnail::MovePath (const std::wstring & from, const std::wstri
 
 void PreviewDiskThumbnail::RefreshScreen()
 {
-    std::wstring  result;
-    bool          found = false;
+    std::wstring                          result;
+    bool                                  found = false;
+    std::shared_ptr<const DxuiIconImage>  picture;
 
 
-
-    m_picture.reset();
 
     if (!m_path.empty() && m_context.app.pictures != nullptr && !PhysicalCards::IsOnCard (m_path))
     {
-        found = m_context.app.pictures->Find (m_path, m_picture, result);
+        found = m_context.app.pictures->Find (m_path, picture, result);
     }
 
-    m_screen->SetPicture (found ? m_picture : nullptr);
+    m_picture = found ? picture : nullptr;
+    m_screen->SetPicture (m_picture);
     m_bootLine->SetText (result);
 }
 
@@ -589,8 +606,10 @@ void PreviewDiskThumbnail::TakeResult()
     if (m_worker.TakeResult (result) && result.path == m_path)
     {
         m_blockMap->SetModel (nullptr);
-        m_result = std::move (result);
+        m_result  = std::move (result);
+        m_isStale = false;
         ApplyResult();
+        RefreshScreen();
     }
 }
 
@@ -683,19 +702,26 @@ void PreviewDiskThumbnail::ApplyResult()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PreviewDiskThumbnail::IsBeside
+//  PreviewDiskThumbnail::GetFit
 //
-//  Whether the screen's picture and the platter fit side by side in the width.
+//  The screen's picture and the platter side by side, both at full size
+//  where they fit in the width and scaled down together where they don't.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool PreviewDiskThumbnail::IsBeside (int widthPx) const
+void PreviewDiskThumbnail::GetFit (int widthPx, int & outScreenPx, int & outPlatterPx) const
 {
-    const DxuiDpiScaler  & scaler = m_context.scaler;
+    const DxuiDpiScaler  & scaler  = m_context.scaler;
+    int                    gap     = scaler.ToPx (kGapDip);
+    int                    screen  = HasScreen() ? scaler.ToPx (kScreenDip) : 0;
+    int                    platter = scaler.ToPx (kPlatterDip);
+    int                    room    = (std::max) (1, widthPx - (HasScreen() ? 3 : 2) * gap);
+    float                  share   = (std::min) (1.0f, static_cast<float> (room) / static_cast<float> (screen + platter));
 
 
 
-    return widthPx >= scaler.ToPx (kScreenDip) + scaler.ToPx (kPlatterDip) + 3 * scaler.ToPx (kGapDip);
+    outScreenPx  = static_cast<int> (screen * share);
+    outPlatterPx = static_cast<int> (platter * share);
 }
 
 
@@ -717,9 +743,13 @@ int PreviewDiskThumbnail::GetHeightPx (int widthPx) const
     const DxuiDpiScaler  & scaler = m_context.scaler;
     int                    rows   = scaler.ToPx (static_cast<int> (ThumbnailChips::kRowDip));
     int                    gap    = scaler.ToPx (kGapDip);
-    int                    height = scaler.ToPx (kPlatterDip) + 2 * rows + 2 * gap;
+    int                    screen = 0;
+    int                    height = 0;
 
 
+
+    GetFit (widthPx, screen, height);
+    height += 2 * rows + 2 * gap;
 
     if (!IsShown())
     {
@@ -733,7 +763,7 @@ int PreviewDiskThumbnail::GetHeightPx (int widthPx) const
 
     if (HasScreen())
     {
-        height += 2 * rows + gap + (IsBeside (widthPx) ? 0 : scaler.ToPx (kScreenDip) * 3 / 4 + gap);
+        height += 2 * rows + gap;
     }
 
     //  Inspect...'s row under the platter, where there's no room beside it.
@@ -762,16 +792,15 @@ int PreviewDiskThumbnail::GetHeightPx (int widthPx) const
 int PreviewDiskThumbnail::Layout (const RECT & area, int scrollPx, int bottomPx, int rightPx)
 {
     const DxuiDpiScaler  & scaler    = m_context.scaler;
-    int                    platter   = scaler.ToPx (kPlatterDip);
+    int                    platter   = 0;
+    int                    screenW   = 0;
     int                    gap       = scaler.ToPx (kGapDip);
     int                    rows      = scaler.ToPx (static_cast<int> (ThumbnailChips::kRowDip));
     int                    width     = static_cast<int> (area.right - area.left);
     bool                   hasScreen = HasScreen();
-    bool                   isBeside  = hasScreen && IsBeside (width);
-    int                    screenW   = (std::min) (scaler.ToPx (kScreenDip), (std::max) (0, width - 2 * gap));
-    int                    screenH   = screenW * 3 / 4;
-    int                    group     = platter + (isBeside ? screenW + gap : 0);
-    int                    left      = area.left + (std::max) (0, (width - group) / 2);
+    int                    screenH   = 0;
+    int                    group     = 0;
+    int                    left      = 0;
     int                    top       = area.top + gap;
     int                    chipsTop  = area.top + gap;
     int                    shown     = 0;
@@ -786,6 +815,11 @@ int PreviewDiskThumbnail::Layout (const RECT & area, int scrollPx, int bottomPx,
         return area.top;
     }
 
+    GetFit (width, screenW, platter);
+    screenH = screenW * 3 / 4;
+    group   = platter + (hasScreen ? screenW + gap : 0);
+    left    = area.left + (std::max) (0, (width - group) / 2);
+
     if (HasVerdict() || m_isVerdictReserved)
     {
         PlaceVerdict (area, top, GetVerdictHeightPx (width) - gap);
@@ -793,22 +827,17 @@ int PreviewDiskThumbnail::Layout (const RECT & area, int scrollPx, int bottomPx,
         chipsTop = top;
     }
 
-    if (hasScreen && isBeside)
+    if (hasScreen)
     {
         m_header->PlaceChild (*m_screen, RECT { left, top + (platter - screenH) / 2, left + screenW, top + (platter - screenH) / 2 + screenH });
         left += screenW + gap;
-    }
-    else if (hasScreen)
-    {
-        m_header->PlaceChild (*m_screen, RECT { area.left + (width - screenW) / 2, top, area.left + (width - screenW) / 2 + screenW, top + screenH });
-        top += screenH + gap;
     }
 
     //  A block map is as wide as the pane, as a volume of blocks isn't round.
     if (m_state != State::Note35)
     {
         m_header->PlaceChild (*m_platter,  RECT { left, top, left + platter, top + platter });
-        m_header->PlaceChild (*m_blockMap, RECT { isBeside ? left : area.left + gap, top, area.right - gap, top + platter });
+        m_header->PlaceChild (*m_blockMap, RECT { hasScreen ? left : area.left + gap, top, area.right - gap, top + platter });
         chipsTop = top + platter + gap;
 
         //  Inspect... at the platter area's bottom right, or under the
@@ -979,10 +1008,14 @@ bool PreviewDiskThumbnail::IsInspectBeside (int widthPx) const
 {
     const DxuiDpiScaler  & scaler  = m_context.scaler;
     int                    gap     = scaler.ToPx (kGapDip);
-    int                    platter = scaler.ToPx (kPlatterDip);
-    int                    group   = platter + ((HasScreen() && IsBeside (widthPx)) ? scaler.ToPx (kScreenDip) + gap : 0);
+    int                    screen  = 0;
+    int                    platter = 0;
 
 
+
+    GetFit (widthPx, screen, platter);
+
+    int  group = platter + (HasScreen() ? screen + gap : 0);
 
     return !IsBlocks() && (widthPx - group) / 2 >= GetInspectWidthPx() + 2 * gap;
 }
@@ -1101,7 +1134,7 @@ std::wstring PreviewDiskThumbnail::GetFileSystemText() const
 
 
 
-    if (m_state != State::Ready || m_result.analysis == nullptr || m_result.analysis->verdict == FileSystemVerdict::None || m_result.analysis->fileMaps.size() != 1)
+    if (m_state != State::Ready || m_isStale || m_result.analysis == nullptr || m_result.analysis->verdict == FileSystemVerdict::None || m_result.analysis->fileMaps.size() != 1)
     {
         return text;
     }
