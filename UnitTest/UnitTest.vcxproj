@@ -657,6 +657,7 @@
     <ClCompile Include="CassoExplorer\BrowserArchivesTests.cpp" />
     <ClCompile Include="CassoExplorer\ShellItemPreviewerTests.cpp" />
     <ClCompile Include="CassoExplorer\HostFilePreviewerTests.cpp" />
+    <ClCompile Include="CassoExplorer\CassoLinkPreviewerTests.cpp" />
     <ClCompile Include="CassoExplorer\ContentSnifferTests.cpp" />
     <ClCompile Include="CassoExplorer\CatalogModelTests.cpp" />
     <ClCompile Include="CassoExplorer\PickerColumnTests.cpp" />

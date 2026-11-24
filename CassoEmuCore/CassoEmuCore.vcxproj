@@ -481,6 +481,7 @@
     <ClCompile Include="CassoExplorer\Browser\BrowserNavigator.cpp" />
     <ClCompile Include="CassoExplorer\Browser\BrowserLoader.cpp" />
     <ClCompile Include="CassoExplorer\Browser\BrowserPreviewer.cpp" />
+    <ClCompile Include="CassoExplorer\Browser\Preview\CassoLinkPreviewer.cpp" />
     <ClCompile Include="CassoExplorer\Browser\Preview\DiskImagePreviewer.cpp" />
     <ClCompile Include="CassoExplorer\Browser\Preview\HostFilePreviewer.cpp" />
     <ClCompile Include="CassoExplorer\Browser\Preview\PictureMonitorChoice.cpp" />
@@ -1750,6 +1751,7 @@
     <ClInclude Include="CassoExplorer\Browser\BrowserTypes.h" />
     <ClInclude Include="CassoExplorer\Browser\BrowserLoader.h" />
     <ClInclude Include="CassoExplorer\Browser\BrowserPreviewer.h" />
+    <ClInclude Include="CassoExplorer\Browser\Preview\CassoLinkPreviewer.h" />
     <ClInclude Include="CassoExplorer\Browser\Preview\DiskImagePreviewer.h" />
     <ClInclude Include="CassoExplorer\Browser\Preview\HostFilePreviewer.h" />
     <ClInclude Include="CassoExplorer\Browser\Preview\IImagePreviews.h" />
