@@ -4,11 +4,12 @@
 
 #include "CassoExplorer/Actions/ActionsTypes.h"
 #include "CassoExplorer/Actions/IAppleDriveLocation.h"
+#include "CassoExplorer/Actions/IImageWriteTarget.h"
 #include "CassoExplorer/Actions/LinkCompletionGuard.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
-class CassoExplorerActions;
+class CassoExplorerBrowser;
 
 
 
@@ -27,7 +28,7 @@ class CassoExplorerActions;
 class ActionsDriveImage
 {
 public:
-    ActionsDriveImage (CassoExplorerActions & actions, const IAppleDriveLocation & location);
+    ActionsDriveImage (CassoExplorerBrowser & browser, IImageWriteTarget & target, const IAppleDriveLocation & location);
 
     ActionsTypes::Outcome  ReadSectors  (int track, int sector, int count, const std::wstring & hostPath, DiskOperations::Numbering numbering = DiskOperations::Numbering::Logical, const std::wstring & target = {});
     ActionsTypes::Outcome  WriteSectors (int track, int sector, const std::wstring & hostPath, DiskOperations::Numbering numbering = DiskOperations::Numbering::Logical, const std::wstring & target = {});
@@ -65,7 +66,8 @@ public:
     static std::wstring  GetDriveImageName (CassoLinkConnections * links, const std::string & link, int slot, int drive);
 
 private:
-    CassoExplorerActions       & m_actions;
+    CassoExplorerBrowser       & m_browser;
+    IImageWriteTarget          & m_target;
     const IAppleDriveLocation  & m_location;
     LinkCompletionGuard          m_guard;
 };

@@ -12,6 +12,7 @@
 #include "CassoExplorer/Actions/ActionsLinkDisk.h"
 #include "CassoExplorer/Actions/ActionsPartition.h"
 #include "CassoExplorer/Actions/ActionsTape.h"
+#include "CassoExplorer/Actions/IImageWriteTarget.h"
 #include "Devices/Disk/IDiskFileIo.h"
 
 struct AppleSingleFile;
@@ -41,7 +42,7 @@ enum class DiskImageFormat;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class CassoExplorerActions : public ActionsTypes
+class CassoExplorerActions : public ActionsTypes, private IImageWriteTarget
 {
 public:
 
@@ -244,7 +245,7 @@ public:
 
     //  The image a format would act on, or empty. The raw sector and block
     //  verbs act on the same image.
-    std::wstring  GetFormatTarget() const;
+    std::wstring  GetFormatTarget() const override;
 
     //  The blocks the format target has, for a raw block read or write.
     int           GetTargetBlockCount (const std::wstring & target = {}) const;
@@ -311,6 +312,8 @@ public:
     static constexpr uint64_t  kNotFoundOffset   = UINT64_MAX;
     static constexpr size_t    kSearchChunkBytes = 1024 * 1024;
 
+    static void  Append (Outcome & inOutOutcome, const DiskOperations::Result & result);
+
 private:
     //  What reading an image found, reused until its size or time changes.
     //  The toolbar's commands are checked on every paint, and reading a WOZ
@@ -331,9 +334,7 @@ private:
     Outcome                   ConvertOne    (const FileEntry & entry, BasicConversion::Kind kind, const std::vector<std::string> & made, std::string & outNewName);
     ImageFacts              & GetImageFacts (const std::wstring & image) const;
 
-    void  FinishWrite (const std::wstring & imagePath);
-
-    static void  Append (Outcome & inOutOutcome, const DiskOperations::Result & result);
+    void  FinishWrite (const std::wstring & imagePath) override;
 
     CassoExplorerBrowser                        & m_browser;
     IFileSystem                                 & m_fs;
@@ -346,12 +347,11 @@ private:
     friend class       ActionsAppleDrive;
     friend class       ActionsArchive;
     friend class       ActionsCopy;
-    friend class       ActionsDriveImage;
     friend class       ActionsGoTo;
     friend class       ActionsPartition;
     friend class       ActionsTape;
     ActionsAppleDrive  m_appleDrive      { *this };
-    ActionsDriveImage  m_driveImages     { *this, m_appleDrive };
+    ActionsDriveImage  m_driveImages     { m_browser, *this, m_appleDrive };
     ActionsCopy        m_copier          { *this };
     ActionsArchive     m_archiver        { *this };
     ActionsGoTo        m_goTo            { *this };

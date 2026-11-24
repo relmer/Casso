@@ -19,8 +19,9 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ActionsDriveImage::ActionsDriveImage (CassoExplorerActions & actions, const IAppleDriveLocation & location)
-    : m_actions  (actions),
+ActionsDriveImage::ActionsDriveImage (CassoExplorerBrowser & browser, IImageWriteTarget & target, const IAppleDriveLocation & location)
+    : m_browser  (browser),
+      m_target   (target),
       m_location (location)
 {
 }
@@ -44,11 +45,11 @@ ActionsTypes::Outcome ActionsDriveImage::ReadSectors (
     const std::wstring         & target)
 {
     ActionsTypes::Outcome  outcome;
-    std::wstring           image   = target.empty() ? m_actions.GetFormatTarget() : target;
+    std::wstring           image   = target.empty() ? m_target.GetFormatTarget() : target;
 
 
 
-    CassoExplorerActions::Append (outcome, m_actions.m_browser.GetOperations().SectorRead (TextEncoding::WideToNarrow (image), numbering,
+    CassoExplorerActions::Append (outcome, m_browser.GetOperations().SectorRead (TextEncoding::WideToNarrow (image), numbering,
                                                           track, sector, count, TextEncoding::WideToNarrow (hostPath)));
 
     return outcome;
@@ -72,16 +73,16 @@ ActionsTypes::Outcome ActionsDriveImage::WriteSectors (
     const std::wstring         & image)
 {
     ActionsTypes::Outcome  outcome;
-    std::wstring           target  = image.empty() ? m_actions.GetFormatTarget() : image;
+    std::wstring           target  = image.empty() ? m_target.GetFormatTarget() : image;
 
 
 
-    CassoExplorerActions::Append (outcome, m_actions.m_browser.GetOperations().SectorWrite (TextEncoding::WideToNarrow (target), TextEncoding::WideToNarrow (hostPath),
+    CassoExplorerActions::Append (outcome, m_browser.GetOperations().SectorWrite (TextEncoding::WideToNarrow (target), TextEncoding::WideToNarrow (hostPath),
                                                            numbering, track, sector));
 
     if (outcome.written > 0)
     {
-        m_actions.FinishWrite (target);
+        m_target.FinishWrite (target);
     }
 
     return outcome;
@@ -100,11 +101,11 @@ ActionsTypes::Outcome ActionsDriveImage::WriteSectors (
 ActionsTypes::Outcome ActionsDriveImage::ReadBlocks (int block, int count, const std::wstring & hostPath, const std::wstring & target)
 {
     ActionsTypes::Outcome  outcome;
-    std::wstring           image   = target.empty() ? m_actions.GetFormatTarget() : target;
+    std::wstring           image   = target.empty() ? m_target.GetFormatTarget() : target;
 
 
 
-    CassoExplorerActions::Append (outcome, m_actions.m_browser.GetOperations().BlockRead (TextEncoding::WideToNarrow (image), block, count,
+    CassoExplorerActions::Append (outcome, m_browser.GetOperations().BlockRead (TextEncoding::WideToNarrow (image), block, count,
                                                          TextEncoding::WideToNarrow (hostPath)));
 
     return outcome;
@@ -123,15 +124,15 @@ ActionsTypes::Outcome ActionsDriveImage::ReadBlocks (int block, int count, const
 ActionsTypes::Outcome ActionsDriveImage::WriteBlocks (int block, const std::wstring & hostPath, const std::wstring & image)
 {
     ActionsTypes::Outcome  outcome;
-    std::wstring           target  = image.empty() ? m_actions.GetFormatTarget() : image;
+    std::wstring           target  = image.empty() ? m_target.GetFormatTarget() : image;
 
 
 
-    CassoExplorerActions::Append (outcome, m_actions.m_browser.GetOperations().BlockWrite (TextEncoding::WideToNarrow (target), TextEncoding::WideToNarrow (hostPath), block));
+    CassoExplorerActions::Append (outcome, m_browser.GetOperations().BlockWrite (TextEncoding::WideToNarrow (target), TextEncoding::WideToNarrow (hostPath), block));
 
     if (outcome.written > 0)
     {
-        m_actions.FinishWrite (target);
+        m_target.FinishWrite (target);
     }
 
     return outcome;
@@ -182,7 +183,7 @@ ActionsTypes::Outcome ActionsDriveImage::ReadDiskToImage (const std::string & li
                                                                     ActionsTypes::UnreadableFn onUnreadable, std::function<void()> onRead, std::optional<FullSendProtectionChoices> automatic)
 {
     ActionsTypes::Outcome    outcome;
-    CassoLinkConnections   * links   = m_actions.m_browser.GetLinks();
+    CassoLinkConnections   * links   = m_browser.GetLinks();
     std::string              path    = TextEncoding::WideToNarrow (imagePath);
     HRESULT                  hr      = S_OK;
 
@@ -228,7 +229,7 @@ ActionsTypes::Outcome ActionsDriveImage::ReadDiskToImage (const std::string & li
 ActionsTypes::Outcome ActionsDriveImage::CaptureDisk (const std::string & link, int drive, const std::wstring & imagePath, std::function<void (const std::wstring & report)> report)
 {
     ActionsTypes::Outcome    outcome;
-    CassoLinkConnections   * links   = m_actions.m_browser.GetLinks();
+    CassoLinkConnections   * links   = m_browser.GetLinks();
     std::string              path    = TextEncoding::WideToNarrow (imagePath);
     HRESULT                  hr      = S_OK;
 
@@ -304,7 +305,7 @@ ActionsTypes::Outcome ActionsDriveImage::WriteImageToAppleDrive (const std::stri
 
 
 
-    ActionsAppleDrive::SubmitWrite (*m_actions.m_browser.GetLinks(), link, drive, [drive, path, forceVerify] (CassoLinkSession & session) { return session.WriteDisk (drive, path, std::string(), forceVerify); }, outcome);
+    ActionsAppleDrive::SubmitWrite (*m_browser.GetLinks(), link, drive, [drive, path, forceVerify] (CassoLinkSession & session) { return session.WriteDisk (drive, path, std::string(), forceVerify); }, outcome);
 
     return outcome;
 }
@@ -322,7 +323,7 @@ ActionsTypes::Outcome ActionsDriveImage::WriteImageToAppleDrive (const std::stri
 ActionsTypes::Outcome ActionsDriveImage::CreateImageFromAppleDrive (const std::string & link, int drive, const std::wstring & hostFolder)
 {
     ActionsTypes::Outcome    outcome;
-    CassoLinkConnections   * links     = m_actions.m_browser.GetLinks();
+    CassoLinkConnections   * links     = m_browser.GetLinks();
     std::wstring             name;
     std::wstring             stem;
     std::wstring             extension;
@@ -337,7 +338,7 @@ ActionsTypes::Outcome ActionsDriveImage::CreateImageFromAppleDrive (const std::s
     extension = name.substr (name.rfind (L'.'));
     path      = hostFolder + L"\\" + name;
 
-    for (int copy = 2; m_actions.m_browser.GetOperations().GetFileIo().Exists (TextEncoding::WideToNarrow (path)); copy++)
+    for (int copy = 2; m_browser.GetOperations().GetFileIo().Exists (TextEncoding::WideToNarrow (path)); copy++)
     {
         path = std::format (L"{}\\{} ({}){}", hostFolder, stem, copy, extension);
     }
@@ -501,7 +502,7 @@ ActionsTypes::Outcome ActionsDriveImage::FormatAppleDrive (const std::string & l
     disk.containerType = blocks ? "po" : "dsk";
     path               = TextEncoding::WideToNarrow (std::format (L"{}\\casso-format-{}.{}", tempFolder, drive, blocks ? L"po" : L"dsk"));
 
-    hr = m_actions.m_browser.GetOperations().GetFileIo().WriteAllBytes (path, blank);
+    hr = m_browser.GetOperations().GetFileIo().WriteAllBytes (path, blank);
 
     if (FAILED (hr))
     {
@@ -509,7 +510,7 @@ ActionsTypes::Outcome ActionsDriveImage::FormatAppleDrive (const std::string & l
         return outcome;
     }
 
-    CassoExplorerActions::Append (outcome, m_actions.m_browser.GetOperations().Init (path, disk));
+    CassoExplorerActions::Append (outcome, m_browser.GetOperations().Init (path, disk));
 
     if (!outcome.Succeeded())
     {
@@ -519,7 +520,7 @@ ActionsTypes::Outcome ActionsDriveImage::FormatAppleDrive (const std::string & l
     outcome.written = 0;
 
     //  The new volume, as the Apple's label and history have it.
-    CassoExplorerActions::Append (outcome, m_actions.m_browser.GetOperations().List (path, listing, kind));
+    CassoExplorerActions::Append (outcome, m_browser.GetOperations().List (path, listing, kind));
 
     volume = isPascal                ? listing.volumeName + ":"
            : cpm                     ? std::string ("CP/M")
@@ -527,7 +528,7 @@ ActionsTypes::Outcome ActionsDriveImage::FormatAppleDrive (const std::string & l
            : listing.hasVolumeNumber ? std::format ("VOL {}", listing.volumeNumber)
                                      : std::string (prodos ? "ProDOS" : "DOS 3.3");
 
-    ActionsAppleDrive::SubmitWrite (*m_actions.m_browser.GetLinks(), link, drive, [drive, path, volume] (CassoLinkSession & session) { return session.WriteDisk (drive, path, volume); }, outcome);
+    ActionsAppleDrive::SubmitWrite (*m_browser.GetLinks(), link, drive, [drive, path, volume] (CassoLinkSession & session) { return session.WriteDisk (drive, path, volume); }, outcome);
 
     return outcome;
 }
@@ -544,7 +545,7 @@ ActionsTypes::Outcome ActionsDriveImage::FormatAppleDrive (const std::string & l
 
 bool ActionsDriveImage::IsDrivePascal (const std::string & link, int drive) const
 {
-    CassoLinkConnections  * links  = m_actions.m_browser.GetLinks();
+    CassoLinkConnections  * links  = m_browser.GetLinks();
     VolumeListing           listing;
     VolumeKind              kind   = VolumeKind::Unknown;
     HRESULT                 result = S_OK;
@@ -579,7 +580,7 @@ ActionsTypes::Outcome ActionsDriveImage::KrunchAppleDrive (const std::string & l
 
 
 
-    ActionsAppleDrive::SubmitWrite (*m_actions.m_browser.GetLinks(), link, drive, [drive, outOperation] (CassoLinkSession & session)
+    ActionsAppleDrive::SubmitWrite (*m_browser.GetLinks(), link, drive, [drive, outOperation] (CassoLinkSession & session)
     {
         std::shared_ptr<LinkOperation>  operation = session.Krunch (drive);
 

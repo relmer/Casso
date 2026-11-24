@@ -1776,6 +1776,7 @@
     <ClInclude Include="CassoExplorer\Actions\ActionsLinkDisk.h" />
     <ClInclude Include="CassoExplorer\Actions\ActionsDriveImage.h" />
     <ClInclude Include="CassoExplorer\Actions\IAppleDriveLocation.h" />
+    <ClInclude Include="CassoExplorer\Actions\IImageWriteTarget.h" />
     <ClInclude Include="CassoExplorer\Actions\LinkCompletionGuard.h" />
     <ClInclude Include="CassoExplorer\Actions\ActionsA2retroNet.h" />
     <ClInclude Include="CassoExplorer\Actions\ActionsPartition.h" />
