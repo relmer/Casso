@@ -122,7 +122,7 @@ FONT_GOTHIC = r"C:\Windows\Fonts\GOTHIC.TTF"
 
 CASE     = (0.905, 0.840, 0.700)    # the Disk ///'s cream
 LATCH    = (0.905, 0.860, 0.755)
-BROWN    = (0.440, 0.375, 0.300)    # the base, the fins and the logo plates
+BROWN    = (0.300, 0.250, 0.200)    # the base, the fins and the logo plates
 SLOT_DK  = (0.055, 0.055, 0.062)
 BLACK    = (0.070, 0.070, 0.075)
 WHITE    = (0.920, 0.920, 0.900)
@@ -238,11 +238,11 @@ KEY_Z0         = KB_THICK - KB_WELL_D
 KEY_TOP_IN     = 2.3                       # how far each side of the top is in from the base
 KEY_DISH       = 0.7
 
-DARK_KEY   = (0.440, 0.375, 0.300)
+DARK_KEY   = (0.390, 0.330, 0.262)
 LIGHT_KEY  = (0.700, 0.630, 0.500)
 BLANK_KEY  = (0.720, 0.710, 0.680)
 LEGEND     = (0.930, 0.925, 0.900)
-FONT_KEY   = r"C:\Windows\Fonts\GOTHICB.TTF"
+FONT_KEY   = r"C:\Windows\Fonts\ARLRDBD.TTF"
 
 
 def on_keyboard(wp):
@@ -285,7 +285,7 @@ def add_part(table, color, solid):
     table[color] = solid if color not in table else table[color].union(solid)
 
 
-DECAL_LO, DECAL_HI = 0.02, 0.10           # the printed legends' layer, above the key top
+DECAL_LO, DECAL_HI = 0.12, 0.30           # the printed legends' layer, above the key top
 KEY_ROUND          = 0.9                  # the keycaps' rounded edges
 SPACE_BULGE        = 0.8                  # how far the space bar's top rises, front to back
 LED_GLOW           = (1.000, 0.700, 0.660)
@@ -372,12 +372,14 @@ def key(u, row, w_u, labels=(), color=DARK_KEY, word=False, mark=None, convex=Fa
     if word:
         lines = labels[0].split("\n")
         for i, line in enumerate(lines):
-            legend(line, 2.4, cx, cy + 2.6 - i * 3.0, zt, skin, fit=w - 2.0 * KEY_TOP_IN - 1.5)
+            legend(line, 2.8, cx, cy - 1.8 + (len(lines) - 1) * 1.7 - i * 3.4, zt, skin, fit=w - 2.0 * KEY_TOP_IN - 1.5)
     elif len(labels) == 2:
-        legend(labels[0], 3.9, cx, cy + 2.7, zt, skin)
-        legend(labels[1], 3.9, cx, cy - 2.7, zt, skin)
+        legend(labels[0], 4.2, cx, cy + 0.8, zt, skin)
+        legend(labels[1], 4.2, cx, cy - 4.0, zt, skin)
+    elif len(labels) == 1 and labels[0] in ARROWS:
+        decal(arrow_solid(ARROWS[labels[0]], cx, cy - 1.8, zt - 1.5), skin, legend_part)
     elif len(labels) == 1:
-        legend(labels[0], 4.2, cx, cy + 1.0, zt, skin)
+        legend(labels[0], 5.0, cx, cy - 3.0, zt, skin)
 
     if mark is not None:
         outer = mark_solid(cx, cy, zt - 1.5, 6.0)
@@ -385,6 +387,16 @@ def key(u, row, w_u, labels=(), color=DARK_KEY, word=False, mark=None, convex=Fa
             # The open key's silhouette is an outline.
             outer = outer.cut(mark_solid(cx, cy - 0.15, zt - 1.6, 4.2))
         decal(outer, skin, legend_part)
+
+
+ARROWS = {"↑": 90.0, "←": 180.0, "→": 0.0, "↓": 270.0}
+
+
+def arrow_solid(angle, cx, cy, z):
+    """A bold arrow pointing at `angle` degrees, 7 mm long, 3 mm tall from z up."""
+    pts = [(-3.5, -0.55), (0.9, -0.55), (0.9, -1.8), (3.5, 0.0), (0.9, 1.8), (0.9, 0.55), (-3.5, 0.55)]
+    return (cq.Workplane("XY").polyline(pts).close().extrude(3.0)
+              .rotate((0, 0, 0), (0, 0, 1), angle).translate((cx, cy, z)))
 
 
 def mark_solid(cx, cy, z, height):
@@ -421,7 +433,7 @@ def power_lens(u, row):
     x1  = x0 + KEY_PITCH - 1.2
     top = KEY_Z0 + 3.0
     lx  = (x0 + x1) * 0.5
-    ly  = y0 + 4.0
+    ly  = y0 + (KEY_PITCH - 1.2) * 0.5
     lens = box(x0, y0, KEY_Z0, x1, y0 + KEY_PITCH - 1.2, top).edges("not <Z").fillet(0.6)
     add_part(key_parts, LENS_KEY, lens)
     lamp = box(lx - LAMP_W * 0.5, ly - LAMP_H * 0.5, top - 1.4, lx + LAMP_W * 0.5, ly + LAMP_H * 0.5, top - 0.6)
@@ -484,7 +496,7 @@ for color, solid in key_parts.items():
     m.add(name, on_keyboard(solid), color, tolerance=0.02)
 
 legends = cq.Workplane("XY").add(cq.Compound.makeCompound([part.val() for part in legend_part]))
-m.add("key_legends", on_keyboard(legends), LEGEND)
+m.add("key_legends", on_keyboard(legends), LEGEND, tolerance=0.02, angular=0.1)
 m.add("power_led", on_keyboard(power_led), LED_GLOW)
 
 # --------------------------------------------------------------------- cover
