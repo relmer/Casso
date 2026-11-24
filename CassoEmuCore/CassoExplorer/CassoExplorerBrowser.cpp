@@ -3,6 +3,10 @@
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Browser/BrowserRowPaths.h"
 #include "CassoExplorer/Model/CollectionQuery.h"
+#include "CassoExplorer/Model/CollectionWalk.h"
+#include "CassoExplorer/Model/IImageRecords.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
+#include "Seams/Win32DiskFileIo.h"
 #include "CassoExplorer/Model/CassoImagesListing.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "CassoExplorer/Model/StockDisksListing.h"
@@ -362,6 +366,50 @@ void CassoExplorerBrowser::SetShellVerbs (IShellItemVerbs * verbs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerBrowser::ReadVolumeFacts
+//
+//  On the facts worker's thread, so the read uses a file reader and catalog
+//  separate from the window's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+VolumeFacts CassoExplorerBrowser::ReadVolumeFacts (const std::string & path)
+{
+    IImageRecords     * records    = m_records.load();
+    std::wstring        wide       = TextEncoding::NarrowToWide (path);
+    VolumeFacts         facts;
+    ImageContents       contents;
+    Win32DiskFileIo     io;
+    DiskOperations      operations { io };
+    DiskImageCatalog    catalog    { operations };
+    HRESULT             hr         = S_OK;
+
+
+
+    if (records == nullptr)
+    {
+        return ImageVolumeFacts::Read (m_fileIo, path);
+    }
+
+    catalog.SetRecords (records);
+
+    hr = catalog.Describe (wide, std::string(), contents);
+
+    if (SUCCEEDED (hr) && contents.kind != VolumeKind::Unknown && contents.kind != VolumeKind::Archive)
+    {
+        facts.fileSystem = TextEncoding::NarrowToWide (VolumeImage::GetSystemName (contents.kind));
+        facts.volumeName = TextEncoding::NarrowToWide (CollectionWalk::GetVolumeName (contents.listing));
+    }
+
+    return facts;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerBrowser::QueueVolumeFacts
 //
 //  Each image row's file system and volume name: the ones already read go
@@ -668,7 +716,45 @@ bool CassoExplorerBrowser::OpenRow (int row)
 BrowserRowPaths::Listing CassoExplorerBrowser::GetRowListing()
 {
     return BrowserRowPaths::Listing { GetLocation(), m_list.rows, m_list.rootChildren, m_list.isPartitionList, IsVolumeLocation(),
-                                      [this] (const std::wstring & path) { return m_loader.CanListImage (path); } };
+                                      [this] (const std::wstring & path) { return CanOpenImage (path); } };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::CanOpenImage
+//
+//  The facts of the row at that path, read on the worker's thread, when the
+//  row's file hasn't changed since. An image not read yet is decoded here
+//  once, and its answer cached.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerBrowser::CanOpenImage (const std::wstring & path)
+{
+    VolumeFacts  facts;
+    Location     at = GetLocation();
+
+
+
+    for (const CatalogRow & row : m_list.rows)
+    {
+        std::wstring  rowPath = !row.hostPath.empty()                  ? row.hostPath
+                              : (at.kind == Location::Kind::HostFolder) ? BrowserRowPaths::JoinPath (at.path, row.name)
+                                                                        : std::wstring();
+
+
+
+        if (row.isDiskImage && rowPath == path && m_volumeFacts.TryGet (path, row.sizeBytes, row.modifiedUnix, facts))
+        {
+            return !facts.fileSystem.empty();
+        }
+    }
+
+    return m_loader.CanListImage (path);
 }
 
 

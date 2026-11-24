@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/Model/DiskImageCatalog.h"
 #include "CassoExplorer/Model/DiskMessageText.h"
+#include "CassoExplorer/Model/IImageRecords.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/FilePath.h"
 #include "Devices/Disk/IDiskFileIo.h"
@@ -34,7 +35,14 @@ HRESULT DiskImageCatalog::Describe (const std::wstring & path, const std::string
 
 
 
-    outContents        = ImageContents();
+    outContents = ImageContents();
+
+    //  A volume directory read before from the same bytes.
+    if (directory.empty() && m_records != nullptr && m_records->FindContents (path, outContents))
+    {
+        return outContents.result.hr;
+    }
+
     outContents.result = m_operations.OpenForListing (narrow, opened);
     outContents.kind   = opened.kind;
 
@@ -71,6 +79,13 @@ HRESULT DiskImageCatalog::Describe (const std::wstring & path, const std::string
         outContents.error  = DescribeFailure (path, outContents.result.message);
         outContents.broken = outContents.kind == VolumeKind::Unknown && outContents.partitions.empty() &&
                              outContents.result.message.find (DiskImageSession::kNoFilesystemText) == std::string::npos;
+    }
+
+    //  Stored only for an image file that was read, so a file that couldn't
+    //  be opened is read again next time.
+    if (directory.empty() && m_records != nullptr && opened.store == nullptr && !opened.opened.fileBytes.empty())
+    {
+        m_records->StoreContents (path, outContents);
     }
 
     hr = outContents.result.hr;

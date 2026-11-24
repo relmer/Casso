@@ -101,6 +101,9 @@ public:
     //  is; false for none.
     bool  TryGetInfoChipAt (POINT pointPx, RECT & outRect) const;
 
+    //  The rows the chips wrap onto in a width, two at the least.
+    int   CountRows (IDxuiTextRenderer * text, const DxuiDpiScaler & scaler, int widthPx) const;
+
 private:
     const DiskInspectorPalette  & m_palette;
     DxuiDpiScaler                 m_scaler;

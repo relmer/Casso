@@ -33,6 +33,7 @@
 #include "CassoExplorer/InspectorWindowSet.h"
 #include "CassoExplorer/Window/Managers/ExplorerImageTools.h"
 #include "Machines/Apple2/Common/DiskImageConverter.h"
+#include "CassoExplorer/Window/Managers/ExplorerThumbnails.h"
 
 
 
@@ -815,18 +816,9 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
             m_context.menus.GetMenuCommands().back()->menuImage = m_context.shellIcons.GetForKind (IShellIcons::Kind::DiskImage);
         }
 
-        //  Remove thumbnail removes the thumbnail the user set, or with none
-        //  set, the one made by booting.
-        if (selectedPaths.size() == 1 && m_context.app.pictures != nullptr && m_context.app.pictures->HasThumbnail (selectedPaths[0]))
+        if (selectedPaths.size() == 1 && m_context.app.pictures != nullptr && ExplorerThumbnails::IsDiskImage (selectedPaths[0]))
         {
-            std::wstring  path = selectedPaths[0];
-
-            m_context.menus.AddMenuCommand (items, L"Remove thum&bnail", [this, path]()
-            {
-                HRESULT  removed = m_context.app.pictures->RemoveThumbnail (path);
-
-                IGNORE_RETURN_VALUE (removed, S_OK);
-            });
+            ExplorerThumbnails::AddSubmenu (m_context, items, selectedPaths[0]);
         }
 
         //  File Explorer's rows follow in a separate group: Open with,

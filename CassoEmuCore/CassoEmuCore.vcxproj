@@ -314,6 +314,7 @@
     <ClCompile Include="CassoLink\Session\CassoLinkResume.cpp" />
     <ClCompile Include="CassoLink\Session\LinkImageSource.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkThirteenSector.cpp" />
+    <ClCompile Include="DiskCheck\ImageRecordStore.cpp" />
     <ClCompile Include="DiskCheck\ThumbnailStore.cpp" />
     <ClCompile Include="DiskCheck\GivenNames.cpp" />
     <ClCompile Include="DiskCheck\BootCheck.cpp" />
@@ -554,6 +555,7 @@
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerMenus.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerPreviewManager.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerPreviewOutput.cpp" />
+    <ClCompile Include="CassoExplorer\Window\Managers\ExplorerThumbnails.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerCollectionTools.cpp" />
     <ClCompile Include="CassoExplorer\Window\ExplorerWindowParts.cpp" />
     <ClCompile Include="CassoExplorer\Window\Panes\Preview\PreviewArchiveView.cpp" />
@@ -588,6 +590,7 @@
     <ClCompile Include="CassoExplorer\Model\CassoImagesListing.cpp" />
     <ClCompile Include="CassoExplorer\Model\StockDisksListing.cpp" />
     <ClCompile Include="CassoExplorer\Model\FileSystemCheckScheduler.cpp" />
+    <ClCompile Include="CassoExplorer\Model\ImageRecordCodec.cpp" />
     <ClCompile Include="CassoExplorer\Model\ImageVolumeFacts.cpp" />
     <ClCompile Include="CassoExplorer\Picker\FileMaskSet.cpp" />
     <ClCompile Include="CassoExplorer\Picker\ExplorerPickerHost.cpp" />
@@ -662,6 +665,7 @@
     <ClCompile Include="CassoExplorer\Model\CassoLinkShimBuilder.cpp" />
     <ClCompile Include="CassoExplorer\Model\CassoLinkLogFile.cpp" />
     <ClCompile Include="Machines\Apple2\Common\VolumeImage.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\SectorDecodeCache.cpp" />
     <ClCompile Include="Devices\Disk\CommitPlan.cpp" />
     <ClCompile Include="Devices\Disk\DurableCommit.cpp" />
     <ClCompile Include="Devices\Disk\DiskCommandResult.cpp" />
@@ -1855,6 +1859,7 @@
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerMenus.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerPreviewManager.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerPreviewOutput.h" />
+    <ClInclude Include="CassoExplorer\Window\Managers\ExplorerThumbnails.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerCollectionTools.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\Preview\PreviewArchiveView.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\Preview\PreviewListingView.h" />
@@ -1890,6 +1895,8 @@
     <ClInclude Include="CassoExplorer\Model\CassoImagesListing.h" />
     <ClInclude Include="CassoExplorer\Model\StockDisksListing.h" />
     <ClInclude Include="CassoExplorer\Model\FileSystemCheckScheduler.h" />
+    <ClInclude Include="CassoExplorer\Model\IImageRecords.h" />
+    <ClInclude Include="CassoExplorer\Model\ImageRecordCodec.h" />
     <ClInclude Include="CassoExplorer\Model\ImageVolumeFacts.h" />
     <ClInclude Include="CassoExplorer\Picker\FileMaskSet.h" />
     <ClInclude Include="CassoExplorer\Picker\PickerRequest.h" />
@@ -1976,6 +1983,7 @@
     <ClInclude Include="CassoExplorer\Model\CassoLinkLogFile.h" />
     <ClInclude Include="Devices\Disk\IDiskFileIo.h" />
     <ClInclude Include="Machines\Apple2\Common\VolumeImage.h" />
+    <ClInclude Include="Machines\Apple2\Common\SectorDecodeCache.h" />
     <ClInclude Include="Devices\Disk\CommitPlan.h" />
     <ClInclude Include="Devices\Disk\DurableCommit.h" />
     <ClInclude Include="Devices\Disk\DiskCommandResult.h" />
@@ -2216,6 +2224,7 @@
     <ClInclude Include="CassoLink\Session\LinkImageSource.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkThirteenSector.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkFullSend.h" />
+    <ClInclude Include="DiskCheck\ImageRecordStore.h" />
     <ClInclude Include="DiskCheck\ThumbnailStore.h" />
     <ClInclude Include="DiskCheck\GivenNames.h" />
     <ClInclude Include="DiskCheck\BootCheck.h" />

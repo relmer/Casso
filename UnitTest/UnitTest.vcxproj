@@ -312,6 +312,8 @@
     <ClCompile Include="EmuTests\ContainerIntegrityTests.cpp" />
     <ClCompile Include="EmuTests\NibbleImageCodecTests.cpp" />
     <ClCompile Include="EmuTests\DenibblizerTests.cpp" />
+    <ClCompile Include="EmuTests\SectorDecodeCacheTests.cpp" />
+    <ClCompile Include="CassoExplorer\ImageRecordCodecTests.cpp" />
     <ClCompile Include="EmuTests\NibbleFieldWriterTests.cpp" />
     <ClCompile Include="EmuTests\DiskGetStampCommandTests.cpp" />
     <ClCompile Include="EmuTests\FormatStampBuilderTests.cpp" />
