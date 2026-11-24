@@ -198,6 +198,8 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Window/IDxuiHostClient.h"
 #include "Window/DxuiHwndSource.h"
 #include "Window/DxuiPopupHost.h"
+#include "Window/IDxuiDialogHost.h"
+#include "Window/DxuiDialogController.h"
 #include "Window/DxuiWindow.h"
 #include "Window/DxuiDialogWindow.h"
 #include "Window/DxuiPropertyPage.h"

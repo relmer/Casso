@@ -4,11 +4,10 @@
 #include "Core/DxuiPanel.h"
 #include "Core/DxuiFocusManager.h"
 #include "Core/DxuiPointerPath.h"
+#include "Window/DxuiDialogController.h"
 #include "Window/DxuiHwndSource.h"
+#include "Window/IDxuiDialogHost.h"
 #include "Window/IDxuiHostClient.h"
-
-
-class DxuiButton;
 
 
 
@@ -46,7 +45,7 @@ class DxuiButton;
 ////////////////////////////////////////////////////////////////////////////////
 
 
-class DxuiWindow : public DxuiPanel, private IDxuiHostClient
+class DxuiWindow : public DxuiPanel, private IDxuiHostClient, private IDxuiDialogHost
 {
 public:
     struct CreateParams
@@ -154,7 +153,7 @@ public:
     //  keep animating (e.g. Settings over the running emulator).
     //
     void  ShowModelessDialog (int defaultButtonId, bool activate = true);
-    void  EndDialog          (int result);
+    void  EndDialog          (int result) override;
 
     //
     //  Window-level translucency for a composited window (CreateParams::
@@ -228,7 +227,7 @@ public:
     //  returns, except while a mouse event is dispatched: then it is
     //  painted once, after the event.
     //
-    void     Invalidate ();
+    void     Invalidate () override;
 
     void                SetTheme           (const IDxuiTheme * theme);
     const IDxuiTheme  * GetTheme           () const { return m_theme; }
@@ -307,14 +306,14 @@ protected:
     //  plain Tab still does focus traversal. Return true if consumed. Default
     //  no-op (a plain dialog has no page tabs).
     //
-    virtual bool  OnDialogTabSwitch (bool backward) { UNREFERENCED_PARAMETER (backward); return false; }
+    bool  OnDialogTabSwitch (bool backward) override { UNREFERENCED_PARAMETER (backward); return false; }
 
     //
     //  A dialog key (Tab, an arrow, Enter) was consumed, and `focused` holds
     //  the keyboard focus afterward (null for none). A scrolling window
     //  brings it into view here. Default no-op.
     //
-    virtual void  OnDialogKeyHandled (IDxuiControl * focused) { UNREFERENCED_PARAMETER (focused); }
+    void  OnDialogKeyHandled (IDxuiControl * focused) override { UNREFERENCED_PARAMETER (focused); }
 
     //
     //  The largest client size the user can drag a resizable window to, in
@@ -397,33 +396,14 @@ private:
 
     static bool        ShowScrollbarMenuIn (IDxuiControl & control, HWND hwnd, POINT clientPx);
 
-    //
-    //  Dialog support: enter dialog mode (wire buttons, attach/rebuild
-    //  focus, seed initial focus), route a key to the focused control,
-    //  and find / fire a button by command id. The button walks are
-    //  recursive over the panel tree so buttons may live in a nested
-    //  button-row panel.
-    //
-    void                 BeginDialogMode     (int defaultButtonId, bool modal);
-    void                 WireDialogButtons   ();
-    bool                 RouteKeyToFocused   (WPARAM vk, bool shift);
-    bool                 IsTriggerButtonById (int commandId);
-    static DxuiButton  * FindButtonById      (IDxuiControl * node, int commandId);
-    static void          ForEachButton       (IDxuiControl * node, const std::function<void (DxuiButton *)> & fn);
-
-
     std::unique_ptr<DxuiHwndSource>    m_source;
     SIZE                               m_minSizeDip      = { 0, 0 };
     HWND                               m_ownerHwnd       = nullptr;
     const IDxuiTheme                 * m_theme           = nullptr;
     IDxuiControl                     * m_initialFocus    = nullptr;
     DxuiFocusManager                   m_focus;
-    bool                               m_dialogActive    = false;   // dialog behaviors on (modal or modeless)
-    bool                               m_modal           = false;   // blocking-modal (owner disabled + private loop)
-    bool                               m_modalDone       = false;
+    DxuiDialogController               m_dialog          { *this, m_focus, *this };
     bool                               m_wheelCtrl       = false;   // Ctrl, by the flags of the wheel message being dispatched
-    int                                m_modalResult     = 0;
-    int                                m_defaultButtonId = 0;
     int                                m_mouseDepth      = 0;       // mouse events being dispatched, nested ones included
     bool                               m_paintAfterMouse = false;   // invalidated during the mouse event being dispatched
     UINT                               m_dialogTickMs    = kDefaultDialogTickMs;   // dialog repaint / tick cadence (caret-blink default)

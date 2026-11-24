@@ -973,6 +973,7 @@
     <ClCompile Include="Dxui\DxuiPropertyPageTests.cpp" />
     <ClCompile Include="Dxui\DxuiPropertySheetTests.cpp" />
     <ClCompile Include="Dxui\DxuiPointerPathTests.cpp" />
+    <ClCompile Include="Dxui\DxuiDialogControllerTests.cpp" />
     <ClCompile Include="Dxui\DxuiWindowSizeMathTests.cpp" />
     <ClCompile Include="Dxui\DxuiTextInputPasteTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockLayoutTests.cpp" />
