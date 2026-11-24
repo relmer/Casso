@@ -242,7 +242,7 @@ DARK_KEY   = (0.270, 0.262, 0.250)
 LIGHT_KEY  = (0.590, 0.580, 0.555)
 BLANK_KEY  = (0.720, 0.710, 0.680)
 LEGEND     = (0.930, 0.925, 0.900)
-FONT_KEY   = r"C:\Windows\Fonts\arial.ttf"
+FONT_KEY   = r"C:\Windows\Fonts\GOTHICB.TTF"
 
 
 def on_keyboard(wp):
@@ -377,7 +377,7 @@ def key(u, row, w_u, labels=(), color=DARK_KEY, word=False, mark=None, convex=Fa
         legend(labels[0], 3.9, cx, cy + 2.7, zt, skin)
         legend(labels[1], 3.9, cx, cy - 2.7, zt, skin)
     elif len(labels) == 1:
-        legend(labels[0], 4.6, cx, cy, zt, skin)
+        legend(labels[0], 4.2, cx, cy + 1.0, zt, skin)
 
     if mark is not None:
         outer = mark_solid(cx, cy, zt - 1.5, 6.0)
@@ -481,7 +481,7 @@ key(PAD + 1, 4, 2.0, ("ENTER",), word=True)
 
 for color, solid in key_parts.items():
     name = {DARK_KEY: "keys", LIGHT_KEY: "keys_light", BLANK_KEY: "keys_blank", LENS_KEY: "power_lens"}[color]
-    m.add(name, on_keyboard(solid), color)
+    m.add(name, on_keyboard(solid), color, tolerance=0.02)
 
 legends = cq.Workplane("XY").add(cq.Compound.makeCompound([part.val() for part in legend_part]))
 m.add("key_legends", on_keyboard(legends), LEGEND)

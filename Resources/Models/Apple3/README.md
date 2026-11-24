@@ -63,7 +63,7 @@ with their pages in `photo-sources.md` there.
   photograph.
 - **The keyboard** follows the close-up in `tcd\fig02.jpg`: every key's
   place, width, color and legend, on the 19.05 mm key pitch. The legends
-  are Arial, printed flat on the key tops. Casso's silhouette, open and
+  are Century Gothic Bold, printed flat on the key tops. Casso's silhouette, open and
   solid, replaces the logo on the two command keys. Each key's dish is as
   deep as a letter key's, whatever its width; the space bar's top is
   rounded up from front to back instead. The filler left of the space bar
