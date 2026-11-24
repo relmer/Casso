@@ -327,7 +327,7 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
     //  What the shell lists, such as the files inside a zip, copies, cuts and
     //  deletes through the shell, and has the shell's own menu; a match inside
     //  a disk image is the image's to act on.
-    else if (location.kind == Location::Kind::ShellFolder && selected > 0 && !onDisk && !m_browser.GetPreviewer().AreSelectedRowsSearchMatches())
+    else if (location.kind == Location::Kind::ShellFolder && selected > 0 && !onDisk && !m_browser.GetSearchMatches().AreSelectedRowsSearchMatches())
     {
         verbs.push_back (Verb::Cut);
         verbs.push_back (Verb::Copy);

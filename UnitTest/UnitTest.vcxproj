@@ -653,6 +653,7 @@
     <ClCompile Include="CassoExplorer\PreviewViewStateTests.cpp" />
     <ClCompile Include="CassoExplorer\PictureMonitorChoiceTests.cpp" />
     <ClCompile Include="CassoExplorer\DiskImagePreviewerTests.cpp" />
+    <ClCompile Include="CassoExplorer\BrowserSearchMatchesTests.cpp" />
     <ClCompile Include="CassoExplorer\ContentSnifferTests.cpp" />
     <ClCompile Include="CassoExplorer\CatalogModelTests.cpp" />
     <ClCompile Include="CassoExplorer\PickerColumnTests.cpp" />

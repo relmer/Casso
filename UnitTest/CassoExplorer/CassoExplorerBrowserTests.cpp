@@ -732,9 +732,9 @@ public:
 
         Assert::IsTrue  (host.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Listing, L"The match previews as the program it is");
         Assert::IsFalse (host.browser.GetPreviewer().GetPreview().lines.empty());
-        Assert::IsTrue  (host.browser.GetPreviewer().AreSelectedRowsSearchMatches());
+        Assert::IsTrue  (host.browser.GetSearchMatches().AreSelectedRowsSearchMatches());
 
-        host.browser.GetPreviewer().GetSelectedSearchMatches (matches);
+        host.browser.GetSearchMatches().GetSelectedSearchMatches (matches);
         Assert::AreEqual ((size_t) 1, matches.size(), L"and copies from its image");
         Assert::AreEqual (std::string ("HELLO"), matches[0].entry.name);
         Assert::IsTrue   (matches[0].kind == VolumeKind::Dos33);
@@ -841,7 +841,7 @@ public:
 
         Assert::IsTrue (host.browser.GetPreviewer().GetPreview().kind != PreviewContent::Kind::Error, L"It previews from its directory");
 
-        host.browser.GetPreviewer().GetSelectedSearchMatches (matches);
+        host.browser.GetSearchMatches().GetSelectedSearchMatches (matches);
         Assert::AreEqual ((size_t) 1, matches.size());
         Assert::AreEqual (directory, matches[0].directory, L"and copies from there");
     }

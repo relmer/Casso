@@ -15,6 +15,7 @@
 #include "Devices/Disk/Partitions/PartitionAccess.h"
 #include "Core/MemoryBus.h"
 
+class BrowserSearchMatches;
 class BrowserSelection;
 class IBrowserPreviewHost;
 
@@ -35,7 +36,7 @@ class IBrowserPreviewHost;
 class BrowserPreviewer : private IPreviewRefresh
 {
 public:
-    BrowserPreviewer (const BrowserParts & parts, const BrowserSelection & selection, IBrowserPreviewHost & host);
+    BrowserPreviewer (const BrowserParts & parts, const BrowserSelection & selection, BrowserSearchMatches & searchMatches, IBrowserPreviewHost & host);
 
     //  How much of a file with no file of its own, such as one inside a zip,
     //  is read for its preview.
@@ -69,12 +70,9 @@ public:
     //  The archive Extract all applies to, selected or open; empty for none.
     std::wstring  GetExtractTarget () const;
 
-    void  GetSelectedSearchMatches     (std::vector<BrowserSearchMatch> & outMatches);
-    bool  AreSelectedRowsSearchMatches () const;
-    bool  TryFindSearchMatch           (const CatalogRow & row, BrowserSearchMatch & outMatch, std::wstring & outError);
-    void  PreviewAppleEntry            (const std::string & entryPath, const FileEntry & entry);
-    bool  PreviewAppleDrive            (const CatalogRow & row);
-    void  PreviewCassoLinkItem         (const CatalogRow & row);
+    void  PreviewAppleEntry    (const std::string & entryPath, const FileEntry & entry);
+    bool  PreviewAppleDrive    (const CatalogRow & row);
+    void  PreviewCassoLinkItem (const CatalogRow & row);
 
     bool     TryPreviewAppleSingle (const std::wstring & folder, const CatalogRow & row);
     void     PreviewHostFile       (const std::wstring & folder, const CatalogRow & row);
@@ -103,6 +101,7 @@ private:
     BrowserParts              m_parts;
     const BrowserSelection  & m_selection;
     IBrowserPreviewHost     & m_host;
+    BrowserSearchMatches    & m_searchMatches;
 
     MemoryBus                           m_bus;
     PreviewContent                      m_preview;

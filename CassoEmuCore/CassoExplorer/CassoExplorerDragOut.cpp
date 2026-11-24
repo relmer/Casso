@@ -1006,7 +1006,7 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
 
     //  A search's matches inside disk images copy as they do from their
     //  images: each image's files planned as that image's, then put together.
-    browser.GetPreviewer().GetSelectedSearchMatches (matches);
+    browser.GetSearchMatches().GetSelectedSearchMatches (matches);
 
     if (!matches.empty())
     {

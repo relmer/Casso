@@ -201,7 +201,7 @@ bool ExplorerCommandManager::IsEnabled (int id) const
         case CassoExplorerCommands::kPreviousTab:       return model.GetTabCount() > 1;
         case CassoExplorerCommands::kUndo:              return m_context.undo.CanUndo();
         case CassoExplorerCommands::kCutItems:          return m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Cut);
-        case CassoExplorerCommands::kCopyItems:         return m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Copy) || m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Get) || m_context.browser.GetPreviewer().AreSelectedRowsSearchMatches();
+        case CassoExplorerCommands::kCopyItems:         return m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Copy) || m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Get) || m_context.browser.GetSearchMatches().AreSelectedRowsSearchMatches();
         case CassoExplorerCommands::kPasteItems:        return (m_context.browser.IsVolumeLocation() || m_context.dragDrop.TryGetPasteDrive (pasteDrive) || m_context.browser.GetLocation().kind == Location::Kind::HostFolder)
                                                          && m_context.shellVerbs.ClipboardHasFiles();
         case CassoExplorerCommands::kRenameItem:        return m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Rename);
@@ -452,7 +452,7 @@ void ExplorerCommandManager::Dispatch (int id)
         //  the shell, an entry in an image as the file a paste would write,
         //  in the style the Options dialog sets.
         case CassoExplorerCommands::kCopyItems:
-            if (m_context.browser.IsVolumeLocation() || m_context.browser.GetPreviewer().AreSelectedRowsSearchMatches())
+            if (m_context.browser.IsVolumeLocation() || m_context.browser.GetSearchMatches().AreSelectedRowsSearchMatches())
             {
                 m_context.clipboard.CopyEntriesToClipboard (m_context.verbs.GetNamingStyle());
             }

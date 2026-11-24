@@ -11,6 +11,7 @@
 #include "CassoExplorer/Browser/BrowserNavigator.h"
 #include "CassoExplorer/Browser/BrowserRowOrder.h"
 #include "CassoExplorer/Browser/BrowserRowPaths.h"
+#include "CassoExplorer/Browser/BrowserSearchMatches.h"
 #include "CassoExplorer/Browser/BrowserSelection.h"
 #include "CassoExplorer/Browser/IBrowserSelectionSource.h"
 #include "CassoExplorer/Browser/IBrowserListing.h"
@@ -109,12 +110,14 @@ public:
 
     //  The list's loading, the preview of the selection, and the cells and
     //  status text.
-    BrowserLoader           & GetLoader    ()       { return m_loader; }
-    const BrowserLoader     & GetLoader    () const { return m_loader; }
-    BrowserPreviewer        & GetPreviewer ()       { return m_previewer; }
-    const BrowserPreviewer  & GetPreviewer () const { return m_previewer; }
-    BrowserCells            & GetCells     ()       { return m_cells; }
-    const BrowserCells      & GetCells     () const { return m_cells; }
+    BrowserLoader               & GetLoader        ()       { return m_loader; }
+    const BrowserLoader         & GetLoader        () const { return m_loader; }
+    BrowserPreviewer            & GetPreviewer     ()       { return m_previewer; }
+    const BrowserPreviewer      & GetPreviewer     () const { return m_previewer; }
+    BrowserSearchMatches        & GetSearchMatches ()       { return m_searchMatches; }
+    const BrowserSearchMatches  & GetSearchMatches () const { return m_searchMatches; }
+    BrowserCells                & GetCells         ()       { return m_cells; }
+    const BrowserCells          & GetCells         () const { return m_cells; }
 
     //  Opens a folder or disk image row in place, as a double-click does.
     //  False, with nothing changed, for a row that is neither.
@@ -321,11 +324,12 @@ private:
     BrowserSources                          m_sources;
 
     //  The browser's components, each with the parts it uses.
-    BrowserParts      m_parts          { m_fs, m_fileIo, m_imageClasses, m_catalog, m_tree, m_hostFolders, m_model, m_operations, m_shellListings, m_list, m_sources };
-    BrowserSelection  m_selection      { m_model, m_list.rows, m_list.selectedRows, *this };
-    BrowserLoader     m_loader         { m_parts, *this };
-    BrowserPreviewer  m_previewer      { m_parts, m_selection, *this };
-    BrowserCells      m_cells          { m_parts, *this };
-    BrowserNavigator  m_navigator      { m_model, m_fs, m_hostFolders, *this };
-    BrowserRowOrder   m_rowOrder       { m_model, m_list.rows, m_list.selectedRows, m_columnFilters, *this };
+    BrowserParts          m_parts          { m_fs, m_fileIo, m_imageClasses, m_catalog, m_tree, m_hostFolders, m_model, m_operations, m_shellListings, m_list, m_sources };
+    BrowserSelection      m_selection      { m_model, m_list.rows, m_list.selectedRows, *this };
+    BrowserLoader         m_loader         { m_parts, *this };
+    BrowserSearchMatches  m_searchMatches  { m_parts };
+    BrowserPreviewer      m_previewer      { m_parts, m_selection, m_searchMatches, *this };
+    BrowserCells          m_cells          { m_parts, *this };
+    BrowserNavigator      m_navigator      { m_model, m_fs, m_hostFolders, *this };
+    BrowserRowOrder       m_rowOrder       { m_model, m_list.rows, m_list.selectedRows, m_columnFilters, *this };
 };

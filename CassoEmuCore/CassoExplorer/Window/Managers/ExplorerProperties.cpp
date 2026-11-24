@@ -79,7 +79,7 @@ void ExplorerProperties::ShowRowProperties (int row)
     }
 
     //  A search's match inside an image has the sheet it has in its image.
-    if (m_context.browser.GetPreviewer().TryFindSearchMatch (m_context.browser.GetRows()[(size_t) row], match, error))
+    if (m_context.browser.GetSearchMatches().TryFindSearchMatch (m_context.browser.GetRows()[(size_t) row], match, error))
     {
         CassoExplorerPropertiesDialog::Show (m_context.window.GetHwnd(), m_context.theme, m_context.browser.GetRows()[(size_t) row].name,
                                             CassoExplorerProperties::DescribeEntry (match.entry, match.kind,
