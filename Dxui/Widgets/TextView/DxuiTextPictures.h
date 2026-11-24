@@ -31,6 +31,7 @@ public:
         : m_layout (layout), m_geometry (geometry), m_viewport (viewport) {}
 
     bool   HitTest       (POINT point, int & outRow, int & outX, int & outY) const;
+    bool   IsOverMap     (POINT point) const;
     bool   SetOutline    (int row, const RECT & pictureRect);
     void   ClearOutline  () { m_outlineRow = -1; }
     void   Paint         (IDxuiTextRenderer & text, const IDxuiTheme & theme, int row) const;

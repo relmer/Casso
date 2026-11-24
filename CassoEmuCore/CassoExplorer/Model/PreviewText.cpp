@@ -173,8 +173,14 @@ std::vector<DxuiTextView::Row> PreviewText::BuildDocumentRows (const std::vector
                                                                TableForm form, std::vector<int> * outRowParagraph, int legendColumns)
 {
     std::vector<DxuiTextView::Row>  rows;
+    size_t                          lastMap = paragraphs.size();
 
 
+
+    for (size_t index = 0; index < paragraphs.size(); index++)
+    {
+        lastMap = (paragraphs[index].canZoom && !paragraphs[index].picture.empty()) ? index : lastMap;
+    }
 
     for (size_t index = 0; index < paragraphs.size(); index++)
     {
@@ -240,6 +246,17 @@ std::vector<DxuiTextView::Row> PreviewText::BuildDocumentRows (const std::vector
         }
 
         rows.push_back (std::move (row));
+
+        //  A map zooms only with Ctrl, so the wheel alone scrolls past it.
+        //  A hint is drawn once, under the last map.
+        if (index == lastMap)
+        {
+            Run                hint { L"Use Ctrl+scroll to zoom", false, false, false, RunColor::Muted };
+            DxuiTextView::Row  hintRow { { std::wstring() } };
+
+            AddRunText (hintRow, hint, GetRunColor (hint.color, colors), hint.text);
+            rows.push_back (std::move (hintRow));
+        }
 
         if (outRowParagraph != nullptr)
         {

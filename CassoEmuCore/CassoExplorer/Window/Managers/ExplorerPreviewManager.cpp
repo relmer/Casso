@@ -144,10 +144,11 @@ void ExplorerPreviewManager::Configure()
 
 void ExplorerPreviewManager::Layout (const RECT & rect)
 {
-    const DxuiDpiScaler  & scaler    = m_context.scaler;
-    RECT                   content   = rect;
-    int                    barPx     = 0;
-    int                    summaryPx = 0;
+    const DxuiDpiScaler  & scaler     = m_context.scaler;
+    RECT                   content    = rect;
+    int                    barPx      = 0;
+    int                    summaryPx  = 0;
+    int                    summaryTop = -1;
 
 
 
@@ -186,8 +187,17 @@ void ExplorerPreviewManager::Layout (const RECT & rect)
     //  the pane.
     m_headerTop = content.top;
 
+    //  The pane's bar is drawn at its right edge beside a thumbnail, so the
+    //  details and the view stop short of it, and the details are measured
+    //  at the width they're laid out at.
+    if (m_thumbnail.IsShown())
+    {
+        content.right -= scaler.ToPx (ThumbnailScrollbar::kWidthDip);
+    }
+
     if (m_summary->IsVisible())
     {
+        m_summary->GetScroll().SetVerticalScrollbarHidden (m_thumbnail.IsShown());
         m_summary->Layout  (content, scaler);
         m_summary->Measure (*m_context.window.GetTextRenderer(), *m_context.theme);
     }
@@ -196,7 +206,7 @@ void ExplorerPreviewManager::Layout (const RECT & rect)
     {
         //  The thumbnail is laid out no narrower than the pane's least width,
         //  and clipped at the pane's edge when the window forces it narrower.
-        int  thumbW    = (std::max) (static_cast<int> (content.right - content.left), scaler.ToPx (ExplorerLayout::kMinPreviewWidthDip));
+        int  thumbW    = (std::max) (static_cast<int> (m_rect.right - content.left), scaler.ToPx (ExplorerLayout::kMinPreviewWidthDip));
         int  height    = m_thumbnail.GetHeightPx (thumbW);
         int  detailsPx = m_summary->IsVisible() ? m_summary->GetContentHeightPx() + scaler.ToPx (kRuleBandDip) : 0;
         int  need      = 0;
@@ -211,7 +221,7 @@ void ExplorerPreviewManager::Layout (const RECT & rect)
         m_headerScroll = std::clamp (m_headerScroll, 0, m_headerMax);
         m_headerPage   = static_cast<int> (content.bottom - content.top);
         content.top    = m_thumbnail.Layout (RECT { content.left, content.top, content.left + thumbW - scaler.ToPx (ThumbnailScrollbar::kWidthDip), content.top + height },
-                                             (std::min) (m_headerScroll, height), content.bottom, content.right - scaler.ToPx (ThumbnailScrollbar::kWidthDip));
+                                             (std::min) (m_headerScroll, height), content.bottom, content.right);
 
         m_thumbnail.GetScrollbar().Layout     (RECT { m_rect.right - scaler.ToPx (ThumbnailScrollbar::kWidthDip), m_headerTop, m_rect.right, m_rect.bottom }, scaler);
         m_thumbnail.GetScrollbar().SetVisible (m_headerRange > 0);
@@ -225,9 +235,11 @@ void ExplorerPreviewManager::Layout (const RECT & rect)
             int  lines  = (hidden + lineH - 1) / lineH;
 
             m_summary->GetScroll().SetVerticalScrollbarHidden (true);
-            m_summary->GetScroll().SetTopLine (lines);
+            summaryTop = lines;
 
-            summaryPx = std::clamp (m_summary->GetContentHeightPx() - hidden, 0, (std::max) (0, static_cast<int> (content.bottom - content.top)));
+            //  The box shrinks by the lines scrolled away, not the pixels, so
+            //  its last line stays above the view under it.
+            summaryPx = std::clamp (m_summary->GetContentHeightPx() - lines * lineH, 0, (std::max) (0, static_cast<int> (content.bottom - content.top)));
         }
     }
     else
@@ -257,6 +269,13 @@ void ExplorerPreviewManager::Layout (const RECT & rect)
     if (m_summary->IsVisible())
     {
         m_summary->Layout (RECT { content.left, content.top, content.right, content.top + summaryPx }, scaler);
+
+        //  Scrolled once the box is its height, so the line isn't clamped to
+        //  the height it had before.
+        if (summaryTop >= 0)
+        {
+            m_summary->GetScroll().SetTopLine (summaryTop);
+        }
 
         m_ruleBand  = RECT { content.left, content.top + summaryPx, content.right, content.top + summaryPx + scaler.ToPx (kRuleBandDip) };
         content.top = (std::min) (m_ruleBand.bottom, content.bottom);

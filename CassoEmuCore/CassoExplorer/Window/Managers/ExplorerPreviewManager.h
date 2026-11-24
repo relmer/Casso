@@ -74,6 +74,7 @@ public:
     bool                              UpdateScrollbarHover   (POINT at);
     bool                              TickScrollbars         (int64_t nowMs);
     bool                              IsOverPane             (POINT point) const;
+    bool                              IsOverMap              (POINT point) const { return IsOverPane (point) && m_text.IsOverMap (point); }
 
     //  The wheel over the pane below its toolbar, with a disk image's
     //  thumbnail: down, the thumbnail scrolls away before the view does, and

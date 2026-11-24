@@ -289,7 +289,7 @@ Paragraph Ultima1Map::MakeLine (const std::wstring & text, bool isBold)
 //
 //  Ultima1Map::DecodeGameDisk
 //
-//  A heading, the legend, then each continent by name and its map.
+//  A heading, each continent by name and its map, then the legend.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -311,7 +311,6 @@ HRESULT Ultima1Map::DecodeGameDisk (const std::vector<Byte> & sectors, DecodedFi
 
     outFile.paragraphs.push_back (MakeLine (L"Ultima I: The Beginning", true));
     outFile.paragraphs.push_back (MakeLine (L"Game disk, the world's four continents", false));
-    AddLegend (outFile.paragraphs, false);
 
     for (int k = 0; k < kContinents; k++)
     {
@@ -323,6 +322,8 @@ HRESULT Ultima1Map::DecodeGameDisk (const std::vector<Byte> & sectors, DecodedFi
         outFile.paragraphs.push_back (MakeLine (GetContinentName (k), true));
         outFile.paragraphs.push_back (std::move (map));
     }
+
+    AddLegend (outFile.paragraphs, false);
 
 Error:
     return hr;

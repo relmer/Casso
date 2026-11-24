@@ -75,21 +75,22 @@ public:
     }
 
 
-    static void  Wheel (DxuiTextView & view, int x, int y, float notches)
+    static void  Wheel (DxuiTextView & view, int x, int y, float notches, bool ctrl = false)
     {
         DxuiMouseEvent  ev;
 
         ev.kind        = DxuiMouseEventKind::Wheel;
         ev.positionDip = POINT { x, y };
         ev.wheelDelta  = notches;
+        ev.ctrl        = ctrl;
 
         view.OnMouse (ev);
     }
 
 
-    //  The view routes the wheel and a drag over a map picture to its
-    //  pictures: the wheel zooms instead of scrolling, a drag pans instead
-    //  of selecting, and the map's ping animates.
+    //  The view routes Ctrl with the wheel and a drag over a map picture to
+    //  its pictures: Ctrl with the wheel zooms, the wheel alone doesn't, a
+    //  drag pans instead of selecting, and the map's ping animates.
     TEST_METHOD (WheelAndDragOverAMap_GoToThePictures)
     {
         DxuiTextView  view;
@@ -97,8 +98,12 @@ public:
         SetMapRows (view);
         Wheel (view, 6 + 50, 6 + 16 + 50, 4.0f);
 
+        Assert::AreEqual (1.0f, view.GetPictures().GetMapZoom(), L"the wheel alone doesn't zoom the map");
+
+        Wheel (view, 6 + 50, 6 + 16 + 50, 4.0f, true);
+
         Assert::IsTrue   (view.GetPictures().GetMapZoom() > 1.0f);
-        Assert::AreEqual (0, view.GetScroll().GetTopLine(), L"the wheel zooms the map rather than scroll the text");
+        Assert::AreEqual (0, view.GetScroll().GetTopLine(), L"Ctrl with the wheel zooms the map rather than scroll the text");
 
         Mouse (view, DxuiMouseEventKind::Down, 6 + 50, 6 + 16 + 50);
         Mouse (view, DxuiMouseEventKind::Move, 6 + 40, 6 + 16 + 50);
