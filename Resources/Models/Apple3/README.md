@@ -63,8 +63,12 @@ with their pages in `photo-sources.md` there.
   photograph.
 - **The keyboard** follows the close-up in `tcd\fig02.jpg`: every key's
   place, width, color and legend, on the 19.05 mm key pitch. The legends
-  are Arial. Casso's silhouette, open and solid, replaces the logo on the
-  two command keys. The reset button sits in a notch at the back right
-  corner of the housing.
+  are Arial, printed flat on the key tops. Casso's silhouette, open and
+  solid, replaces the logo on the two command keys. Each key's dish is as
+  deep as a letter key's, whatever its width; the space bar's top is
+  rounded up from front to back instead. The filler left of the space bar
+  is the power lamp's translucent lens; the lamp under it is the Disk ///'s
+  size and is drawn lit whenever the machine is on. The reset button is in
+  a notch at the back right corner of the housing.
 - **The feet, the inset panel and the side fins' pitch** are by eye.
 

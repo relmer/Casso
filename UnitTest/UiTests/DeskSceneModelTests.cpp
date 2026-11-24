@@ -441,6 +441,23 @@ public:
         Assert::IsTrue (disk.empty());
     }
 
+    //  A POWER LAMP is kept apart from the busy lamp, so it can be lit while
+    //  the drive is idle.
+    TEST_METHOD (Power_Lamp_Is_Kept_Apart_From_The_Busy_Lamp)
+    {
+        DeskSceneModel  model;
+        std::string     obj  = DriveObj (false);
+        int             base = 16;
+
+
+
+        AppendBox (obj, base, 20.0f, -2.6f, 13.0f, 25.0f, -0.6f, 16.6f, "power_led");
+
+        AssertSucceeded (LoadFromText (model, DeskDeviceKind::HardDisk20SC, obj, Mtl() + "newmtl power_led\nKd 1.0 0.7 0.66\n"));
+        Assert::AreEqual ((size_t) 12 * 3, model.PowerVerts().size());
+        Assert::AreEqual ((size_t) 12 * 3, model.LampVerts().size());
+    }
+
     //  A DISK IN A 3.5-INCH DRIVE is drawn as its back edge in the slot:
     //  inside the slot's width and height, behind the case's front, and in
     //  front of the back of the slot.

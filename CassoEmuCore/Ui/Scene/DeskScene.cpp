@@ -2574,6 +2574,12 @@ void DeskScene::RebuildLampVerts()
     {
         TintInto (m_extraModels[(size_t) kind].LampVerts(), kLampOffDim, m_extraLampVerts[(size_t) kind][0]);
         TintInto (m_extraModels[(size_t) kind].LampVerts(), 1.0f,        m_extraLampVerts[(size_t) kind][1]);
+
+        // A power lamp is lit whether or not the drive is busy.
+        for (std::vector<Dxui3DRenderer::Vertex> & lamp : m_extraLampVerts[(size_t) kind])
+        {
+            lamp.insert (lamp.end(), m_extraModels[(size_t) kind].PowerVerts().begin(), m_extraModels[(size_t) kind].PowerVerts().end());
+        }
     }
 
     m_lampsDirty = false;

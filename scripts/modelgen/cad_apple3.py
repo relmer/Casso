@@ -285,81 +285,148 @@ def add_part(table, color, solid):
     table[color] = solid if color not in table else table[color].union(solid)
 
 
-def keycap_solid(x0, y0, w, d, h):
+DECAL_LO, DECAL_HI = 0.02, 0.10           # the printed legends' layer, above the key top
+KEY_ROUND          = 0.9                  # the keycaps' rounded edges
+SPACE_BULGE        = 0.8                  # how far the space bar's top rises, front to back
+LED_GLOW           = (1.000, 0.700, 0.660)
+LENS_KEY           = (0.860, 0.850, 0.820)
+
+
+def keycap_solid(x0, y0, w, d, h, convex=False):
     """A keycap: tapered sides, its top set back toward the row behind, and
-    a shallow cylindrical dish across the top."""
+    rounded edges. The top is dished side to side, the dish sized to the
+    key's width so it is as deep on a wide key as on a letter. The space
+    bar's top is instead rounded up from front to back. Returns the cap and
+    a thin layer just above its top for the legends."""
+    zt  = KEY_Z0 + h
     bot = cq.Wire.makePolygon([cq.Vector(x0, y0, KEY_Z0), cq.Vector(x0 + w, y0, KEY_Z0),
                                cq.Vector(x0 + w, y0 + d, KEY_Z0), cq.Vector(x0, y0 + d, KEY_Z0)], close=True)
     tx0, tx1 = x0 + KEY_TOP_IN, x0 + w - KEY_TOP_IN
     ty0, ty1 = y0 + KEY_TOP_IN + 1.2, y0 + d - KEY_TOP_IN + 0.4
-    top = cq.Wire.makePolygon([cq.Vector(tx0, ty0, KEY_Z0 + h), cq.Vector(tx1, ty0, KEY_Z0 + h),
-                               cq.Vector(tx1, ty1, KEY_Z0 + h), cq.Vector(tx0, ty1, KEY_Z0 + h)], close=True)
-    cap  = cq.Workplane("XY").add(cq.Solid.makeLoft([bot, top], True))
-    r    = 30.0
-    dish = (cq.Workplane("XZ").center((tx0 + tx1) * 0.5, KEY_Z0 + h + r - KEY_DISH).circle(r)
-              .extrude(-(d + 4.0)).translate((0.0, y0 - 2.0, 0.0)))
+    top = cq.Wire.makePolygon([cq.Vector(tx0, ty0, zt), cq.Vector(tx1, ty0, zt),
+                               cq.Vector(tx1, ty1, zt), cq.Vector(tx0, ty1, zt)], close=True)
+    cap = cq.Workplane("XY").add(cq.Solid.makeLoft([bot, top], True))
+    cx  = (tx0 + tx1) * 0.5
+    cy  = (ty0 + ty1) * 0.5
 
-    return cap.cut(dish), (tx0 + tx1) * 0.5, (ty0 + ty1) * 0.5, KEY_Z0 + h - KEY_DISH
+    if convex:
+        prof = (cq.Workplane("YZ").moveTo(y0, KEY_Z0).lineTo(y0 + d, KEY_Z0).lineTo(ty1, zt - SPACE_BULGE)
+                  .threePointArc((cy, zt), (ty0, zt - SPACE_BULGE)).close().extrude(w).translate((x0, 0.0, 0.0)))
+        cap  = cap.intersect(prof)
+        skin = None
+        ztop = zt
+    else:
+        half = (tx1 - tx0) * 0.5
+        r    = (half * half + KEY_DISH * KEY_DISH) / (2.0 * KEY_DISH)
+        cz   = zt + r - KEY_DISH
+        dish = (cq.Workplane("XZ").center(cx, cz).circle(r).extrude(-(d + 4.0)).translate((0.0, y0 - 2.0, 0.0)))
+        cap  = cap.cut(dish)
+        ztop = zt - KEY_DISH
+        skin = box(x0, y0, ztop - 0.5, x0 + w, y0 + d, zt + 1.0)
+        skin = (skin.intersect(cq.Workplane("XZ").center(cx, cz).circle(r - DECAL_LO).extrude(-(d + 4.0)).translate((0.0, y0 - 2.0, 0.0)))
+                    .cut(cq.Workplane("XZ").center(cx, cz).circle(r - DECAL_HI).extrude(-(d + 4.0)).translate((0.0, y0 - 2.0, 0.0))))
+        ztop = zt - KEY_DISH
+
+    for radius in (KEY_ROUND, 0.7, 0.5):
+        try:
+            cap = cap.edges("not <Z").fillet(radius)
+            break
+        except Exception:
+            pass
+
+    return cap, skin, cx, cy, ztop
 
 
-def legend(text, size, cx, cy, z, fit=0.0):
-    wp = cq.Workplane("XY").text(text, size, 1.0, fontPath=FONT_KEY, halign="center", valign="center")
+def flat_skin(x0, y0, x1, y1, z):
+    return box(x0, y0, z + DECAL_LO, x1, y1, z + DECAL_HI)
+
+
+def decal(solid, skin, out):
+    """Prints `solid` on a surface: only the part of it inside the thin skin
+    above that surface is kept."""
+    skin_solid = skin.val()
+    for piece in solid.solids().vals():
+        printed = piece.intersect(skin_solid)
+        if printed.Volume() <= 0.0:
+            raise ValueError("a legend missed the key top")
+        out.append(cq.Workplane("XY").add(printed))
+
+
+def legend(text, size, cx, cy, z, skin, fit=0.0):
+    wp = cq.Workplane("XY").text(text, size, 3.0, fontPath=FONT_KEY, halign="center", valign="center")
     bb = wp.val().BoundingBox()
     if fit > 0.0 and bb.xmax - bb.xmin > fit:
         size *= fit / (bb.xmax - bb.xmin)
-        wp    = cq.Workplane("XY").text(text, size, 1.0, fontPath=FONT_KEY, halign="center", valign="center")
+        wp    = cq.Workplane("XY").text(text, size, 3.0, fontPath=FONT_KEY, halign="center", valign="center")
         bb    = wp.val().BoundingBox()
-    legend_part.append(wp.translate((cx - (bb.xmin + bb.xmax) * 0.5, cy - (bb.ymin + bb.ymax) * 0.5, z - 0.2)))
+    decal(wp.translate((cx - (bb.xmin + bb.xmax) * 0.5, cy - (bb.ymin + bb.ymax) * 0.5, z - 1.5)), skin, legend_part)
 
 
-def key(u, row, w_u, labels=(), color=DARK_KEY, word=False, mark=None):
+def key(u, row, w_u, labels=(), color=DARK_KEY, word=False, mark=None, convex=False):
     x0 = KEYS_X0 + u * KEY_PITCH + (KEY_PITCH - KEY_CAP) * 0.5
     y0 = KEYS_Y1 - (row + 1) * KEY_PITCH + (KEY_PITCH - KEY_CAP) * 0.5
     w  = w_u * KEY_PITCH - (KEY_PITCH - KEY_CAP)
-    cap, cx, cy, zt = keycap_solid(x0, y0, w, KEY_CAP, KEY_H)
+    cap, skin, cx, cy, zt = keycap_solid(x0, y0, w, KEY_CAP, KEY_H, convex)
     add_part(key_parts, color, cap)
 
     if word:
         lines = labels[0].split("\n")
         for i, line in enumerate(lines):
-            legend(line, 2.4, cx, cy + 2.6 - i * 3.0, zt, fit=w - 2.0 * KEY_TOP_IN - 1.5)
+            legend(line, 2.4, cx, cy + 2.6 - i * 3.0, zt, skin, fit=w - 2.0 * KEY_TOP_IN - 1.5)
     elif len(labels) == 2:
-        legend(labels[0], 3.9, cx, cy + 2.7, zt)
-        legend(labels[1], 3.9, cx, cy - 2.7, zt)
+        legend(labels[0], 3.9, cx, cy + 2.7, zt, skin)
+        legend(labels[1], 3.9, cx, cy - 2.7, zt, skin)
     elif len(labels) == 1:
-        legend(labels[0], 4.6, cx, cy, zt)
+        legend(labels[0], 4.6, cx, cy, zt, skin)
 
     if mark is not None:
-        add_mark(cx, cy, zt - 0.2, 6.0, legend_part)
+        outer = mark_solid(cx, cy, zt - 1.5, 6.0)
         if mark == "open":
-            # The open key's silhouette is an outline: its middle in the
-            # key's own color.
-            inner = []
-            add_mark(cx, cy - 0.15, zt + 0.55, 4.2, inner)
-            for part in inner:
-                add_part(key_parts, color, part)
+            # The open key's silhouette is an outline.
+            outer = outer.cut(mark_solid(cx, cy - 0.15, zt - 1.6, 4.2))
+        decal(outer, skin, legend_part)
 
 
-def add_mark(cx, cy, z, height, out):
-    """Casso's silhouette lying on a key top, centered at (cx, cy)."""
-    sil = Model()
+def mark_solid(cx, cy, z, height):
+    """Casso's silhouette, a few millimeters tall from z up, centered at (cx, cy)."""
+    sil  = Model()
     badge(sil, 0.0, 0.0, height, y=0.0, prefix="mark")
     flat = [part.solid.rotate((0, 0, 0), (1, 0, 0), -90.0) for part in sil.parts]
     bb   = flat[0].BoundingBox()
     for f in flat[1:]:
         bb = bb.add(f.BoundingBox())
+    out = None
     for f in flat:
-        out.append(cq.Workplane("XY").add(f.translate((cx - (bb.xmin + bb.xmax) * 0.5, cy - (bb.ymin + bb.ymax) * 0.5, z - bb.zmin))))
+        # Stretched 10 times in z, so it stands through the print layer.
+        solid = f.transformGeometry(cq.Matrix([[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 10.0, 0.0]]))
+        sb    = solid.BoundingBox()
+        solid = solid.translate(cq.Vector(cx - (bb.xmin + bb.xmax) * 0.5, cy - (bb.ymin + bb.ymax) * 0.5, z - sb.zmin))
+        out   = cq.Workplane("XY").add(solid) if out is None else out.union(cq.Workplane("XY").add(solid))
+    return out
 
 
-def blank(u, row, dot=False):
-    """A flat filler in the bottom row, flush with the well's floor plus a little."""
+def blank(u, row):
+    """A flat filler in the bottom row, a little above the well's floor."""
     x0 = KEYS_X0 + u * KEY_PITCH + 0.6
     y0 = KEYS_Y1 - (row + 1) * KEY_PITCH + 0.6
-    add_part(key_parts, BLANK_KEY, box(x0, y0, KEY_Z0, x0 + KEY_PITCH - 1.2, y0 + KEY_PITCH - 1.2, KEY_Z0 + 3.0))
-    if dot:
-        legend_part.append(cq.Workplane("XY").center(x0 + KEY_PITCH * 0.5 - 0.6, y0 + 4.0).circle(0.6).extrude(0.3)
-                             .translate((0.0, 0.0, KEY_Z0 + 2.95)))
+    add_part(key_parts, BLANK_KEY, box(x0, y0, KEY_Z0, x0 + KEY_PITCH - 1.2, y0 + KEY_PITCH - 1.2, KEY_Z0 + 3.0)
+                                     .edges("not <Z").fillet(0.6))
+
+
+def power_lens(u, row):
+    """The filler left of the space bar: a translucent white lens with the
+    power lamp under it, the Disk ///'s lamp in size, glowing through it."""
+    x0  = KEYS_X0 + u * KEY_PITCH + 0.6
+    y0  = KEYS_Y1 - (row + 1) * KEY_PITCH + 0.6
+    x1  = x0 + KEY_PITCH - 1.2
+    top = KEY_Z0 + 3.0
+    lx  = (x0 + x1) * 0.5
+    ly  = y0 + 4.0
+    lens = box(x0, y0, KEY_Z0, x1, y0 + KEY_PITCH - 1.2, top).edges("not <Z").fillet(0.6)
+    add_part(key_parts, LENS_KEY, lens)
+    lamp = box(lx - LAMP_W * 0.5, ly - LAMP_H * 0.5, top - 1.4, lx + LAMP_W * 0.5, ly + LAMP_H * 0.5, top - 0.6)
+    glow = flat_skin(lx - LAMP_W * 0.5 - 0.4, ly - LAMP_H * 0.5 - 0.4, lx + LAMP_W * 0.5 + 0.4, ly + LAMP_H * 0.5 + 0.4, top)
+    return lamp.union(glow)
 
 
 PAIRS = [("!", "1"), ("@", "2"), ("#", "3"), ("$", "4"), ("%", "5"), ("^", "6"), ("&", "7"), ("*", "8"),
@@ -396,8 +463,8 @@ key(13.25, 3, 1.0, ("\u2191",), color=LIGHT_KEY)
 key(0, 4, 1.0, ("ALPHA\nLOCK",), color=LIGHT_KEY, word=True)
 key(1, 4, 1.0, (), color=LIGHT_KEY, mark="open")
 key(2, 4, 1.0, (), color=LIGHT_KEY, mark="solid")
-blank(3, 4, dot=True)
-key(4, 4, 6.25)
+power_led = power_lens(3, 4)
+key(4, 4, 6.25, convex=True)
 blank(10.25, 4)
 key(11.25, 4, 1.0, ("\u2190",), color=LIGHT_KEY)
 key(12.25, 4, 1.0, ("\u2192",), color=LIGHT_KEY)
@@ -413,13 +480,12 @@ key(PAD, 4, 1.0, ("\u2013",))
 key(PAD + 1, 4, 2.0, ("ENTER",), word=True)
 
 for color, solid in key_parts.items():
-    name = {DARK_KEY: "keys", LIGHT_KEY: "keys_light", BLANK_KEY: "keys_blank"}[color]
+    name = {DARK_KEY: "keys", LIGHT_KEY: "keys_light", BLANK_KEY: "keys_blank", LENS_KEY: "power_lens"}[color]
     m.add(name, on_keyboard(solid), color)
 
-legends = legend_part[0]
-for part in legend_part[1:]:
-    legends = legends.union(part)
+legends = cq.Workplane("XY").add(cq.Compound.makeCompound([part.val() for part in legend_part]))
 m.add("key_legends", on_keyboard(legends), LEGEND)
+m.add("power_led", on_keyboard(power_led), LED_GLOW)
 
 # --------------------------------------------------------------------- cover
 

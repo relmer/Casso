@@ -509,6 +509,7 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, std::span<const uint8_t> mesh
     m_opaque.clear();
     m_glass.clear();
     m_lamp.clear();
+    m_powerLed.clear();
     m_door.clear();
     m_padlock.clear();
     m_lamps.clear();
@@ -646,6 +647,10 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, std::span<const uint8_t> mesh
             {
                 GrowTiltGrip ((part == s_kpszTiltUp) ? 1 : -1, first);
             }
+        }
+        else if (part == s_kpszPowerLed)
+        {
+            AppendFlatTri (m_powerLed, tri);
         }
         else if (part == s_kpszLamp || part == s_kpszLed)
         {

@@ -167,6 +167,7 @@ public:
     const std::vector<Dxui3DRenderer::Vertex> &   OpaqueVerts  () const { return m_opaque; }
     const std::vector<Dxui3DRenderer::Vertex> &   GlassVerts   () const { return m_glass; }
     const std::vector<Dxui3DRenderer::Vertex> &   LampVerts    () const { return m_lamp; }
+    const std::vector<Dxui3DRenderer::Vertex> &   PowerVerts   () const { return m_powerLed; }
     const std::vector<Dxui3DRenderer::Vertex> &   DoorVerts    () const { return m_door; }
 
     // The recorder's keys, each its own geometry so it can go down by itself,
@@ -444,6 +445,7 @@ public:
     static constexpr const char *  s_kpszGlass       = "glass";
     static constexpr const char *  s_kpszLamp        = "lamp";
     static constexpr const char *  s_kpszLed         = "led";
+    static constexpr const char *  s_kpszPowerLed    = "power_led";   // lit whenever the machine is on
     static constexpr const char *  s_kpszDoor        = "door";
     static constexpr const char *  s_kpszLever       = "lever";   // the //c's door
     static constexpr const char *  s_kpszTab         = "tab";     // the //c's latch
@@ -667,6 +669,7 @@ private:
     std::vector<Dxui3DRenderer::Vertex>                                 m_opaque;
     std::vector<Dxui3DRenderer::Vertex>                                 m_glass;
     std::vector<Dxui3DRenderer::Vertex>                                 m_lamp;
+    std::vector<Dxui3DRenderer::Vertex>                                 m_powerLed;
     std::vector<Dxui3DRenderer::Vertex>                                 m_door;
     std::array<std::vector<Dxui3DRenderer::Vertex>, kRecorderKeyCount>  m_keys;
     std::array<std::array<float, 6>, kRecorderKeyCount>                 m_keyBoxes         = {};

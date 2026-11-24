@@ -53,6 +53,11 @@ Ka 0 0 0
 Kd 0.59 0.58 0.555
 d 1
 
+newmtl power_lens
+Ka 0 0 0 
+Kd 0.86 0.85 0.82
+d 1
+
 newmtl keys_blank
 Ka 0 0 0 
 Kd 0.72 0.71 0.68
@@ -61,6 +66,11 @@ d 1
 newmtl key_legends
 Ka 0 0 0 
 Kd 0.93 0.925 0.9
+d 1
+
+newmtl power_led
+Ka 0 0 0 
+Kd 1 0.7 0.66
 d 1
 
 newmtl case
