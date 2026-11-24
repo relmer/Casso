@@ -723,8 +723,9 @@ void DiskInspectorWindow::OnCreate()
 //
 //  "Disk inspector - " and the file's path, with a lock before it while the
 //  disk is write-protected (FR-007, FR-065), a red dot after the path while
-//  edits are pending, "(read as CP/M)" while the disk is read as CP/M by the
-//  user's choice, and the machine and drive while the disk is mounted.
+//  edits are pending, and the machine and drive while the disk is mounted.
+//  The caption has a "Read as CP/M" chip after the title while the disk is
+//  read as CP/M by the user's choice.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -733,13 +734,14 @@ void DiskInspectorWindow::UpdateTitle()
     std::wstring  title  = s_kpszWindowTitle;
     size_t        markAt = std::wstring::npos;
     std::wstring  path   = (m_session.analysis.copy != nullptr) ? TextEncoding::Utf8ToWide (m_session.analysis.copy->fileName) : std::wstring();
+    bool          isCpm  = m_session.context.hasDisk && m_session.analysis.isCpmChosen;
 
 
 
     if (m_session.context.hasDisk)
     {
         title = InspectorText::FormatWindowTitle (path.empty() ? m_session.GetFileName() : path, m_session.IsWriteProtected(), !m_session.edits.IsEmpty(),
-                                                  m_session.host->GetMountDescription(), m_session.analysis.isCpmChosen, markAt);
+                                                  m_session.host->GetMountDescription(), markAt);
     }
 
     if (title != m_title || markAt != m_titleMark)
@@ -747,6 +749,12 @@ void DiskInspectorWindow::UpdateTitle()
         m_title     = title;
         m_titleMark = markAt;
         SetTitle (title, markAt);
+    }
+
+    if (isCpm != m_isTitleCpm)
+    {
+        m_isTitleCpm = isCpm;
+        SetTitleChips (isCpm ? std::vector<DxuiTitleChip> { InspectorText::MakeReadAsCpmTitleChip() } : std::vector<DxuiTitleChip>());
     }
 }
 

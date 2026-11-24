@@ -278,12 +278,36 @@ SummaryChip InspectorText::MakeReadAsCpmChip()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  InspectorText::MakeReadAsCpmTitleChip
+//
+//  The same chip for the caption, after the title, with its tip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiTitleChip InspectorText::MakeReadAsCpmTitleChip()
+{
+    DxuiTitleChip  chip;
+
+
+
+    chip.text = MakeReadAsCpmChip().text;
+    chip.tip  = kpszReadAsCpmTip;
+    chip.kind = DxuiTitleChipKind::Info;
+
+    return chip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  InspectorText::FormatWindowTitle
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring InspectorText::FormatWindowTitle (const std::wstring & path, bool isWriteProtected, bool hasEdits, const std::wstring & mount, bool isReadAsCpm,
-                                               size_t & outMarkAt)
+std::wstring InspectorText::FormatWindowTitle (const std::wstring & path, bool isWriteProtected, bool hasEdits, const std::wstring & mount, size_t & outMarkAt)
 {
     std::wstring  title = L"Disk inspector - ";
 
@@ -292,7 +316,6 @@ std::wstring InspectorText::FormatWindowTitle (const std::wstring & path, bool i
     title    += isWriteProtected ? std::wstring (s_kpszLock) + L" " : std::wstring();
     title    += path;
     outMarkAt = hasEdits ? title.size() : std::wstring::npos;
-    title    += isReadAsCpm ? L" (read as CP/M)" : L"";
     title    += mount.empty() ? std::wstring() : L" (mounted in " + mount + L")";
 
     return title;

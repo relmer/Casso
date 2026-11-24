@@ -93,15 +93,17 @@ public:
 
     //  The chip of a disk read as CP/M by the user's choice, and its tip.
     static SummaryChip          MakeReadAsCpmChip   ();
+
+    //  The same chip for the caption, after the title, with the tip.
+    static DxuiTitleChip        MakeReadAsCpmTitleChip ();
     static constexpr LPCWSTR    kpszReadAsCpmTip    = L"You chose to read this disk as CP/M. Choose Detect file system in the inspector's Disk menu to undo it.";
 
     //  The disk inspector's title: "Disk inspector - ", a lock while the disk
     //  is write-protected, the image's path, and "(mounted in ...)" while
-    //  the disk is in a drive, after "(read as CP/M)" while the disk is read
-    //  as CP/M by the user's choice. outMarkAt is the end of the path while edits
+    //  the disk is in a drive. outMarkAt is the end of the path while edits
     //  are unsaved, where the title bar draws the unsaved-changes dot, and
     //  npos otherwise.
-    static std::wstring         FormatWindowTitle   (const std::wstring & path, bool isWriteProtected, bool hasEdits, const std::wstring & mount, bool isReadAsCpm, size_t & outMarkAt);
+    static std::wstring         FormatWindowTitle   (const std::wstring & path, bool isWriteProtected, bool hasEdits, const std::wstring & mount, size_t & outMarkAt);
 
     //  "There are unsaved changes to 3 sectors in GAME.dsk." for the
     //  question before unsaved changes are discarded.

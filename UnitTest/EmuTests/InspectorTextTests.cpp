@@ -189,28 +189,29 @@ public:
     TEST_METHOD (TheTitleHasThePathTheMountAndWhereTheUnsavedDotGoes)
     {
         size_t        markAt = 0;
-        std::wstring  title  = InspectorText::FormatWindowTitle (L"C:\\Disks\\GAME.dsk", false, true, L"Apple //e drive 1", false, markAt);
+        std::wstring  title  = InspectorText::FormatWindowTitle (L"C:\\Disks\\GAME.dsk", false, true, L"Apple //e drive 1", markAt);
 
 
 
         Assert::AreEqual (std::wstring (L"Disk inspector - C:\\Disks\\GAME.dsk (mounted in Apple //e drive 1)"), title);
         Assert::AreEqual (title.find (L" (mounted"), markAt, L"the dot goes after the path, before the mount");
 
-        title = InspectorText::FormatWindowTitle (L"C:\\Disks\\GAME.dsk", true, false, L"", false, markAt);
+        title = InspectorText::FormatWindowTitle (L"C:\\Disks\\GAME.dsk", true, false, L"", markAt);
 
         Assert::AreEqual (std::wstring (L"Disk inspector - ") + s_kpszLock + L" C:\\Disks\\GAME.dsk", title, L"a lock while write-protected, no mount once ejected");
         Assert::AreEqual (std::wstring::npos, markAt, L"no dot without unsaved changes");
     }
 
 
-    TEST_METHOD (TheTitleOfADiskReadAsCpmByChoice_EndsInReadAsCpm)
+    TEST_METHOD (TheReadAsCpmTitleChipHasTheStatusBarChipsTextAndTip)
     {
-        size_t        markAt = 0;
-        std::wstring  title  = InspectorText::FormatWindowTitle (L"C:\\Disks\\CPM.dsk", false, false, L"", true, markAt);
+        DxuiTitleChip  chip = InspectorText::MakeReadAsCpmTitleChip();
 
 
 
-        Assert::AreEqual (std::wstring (L"Disk inspector - C:\\Disks\\CPM.dsk (read as CP/M)"), title);
+        Assert::AreEqual (InspectorText::MakeReadAsCpmChip().text, chip.text);
+        Assert::AreEqual (std::wstring (InspectorText::kpszReadAsCpmTip), chip.tip);
+        Assert::IsTrue   (chip.kind == DxuiTitleChipKind::Info, L"drawn in the accent");
     }
 
 
