@@ -21,8 +21,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  DiskImageConverterTests
 //
-//  Disk images converted between formats in memory: sector orders, 2IMG
-//  and WOZ, and a damaged nibble image that can't become a sector image.
+//  Disk images converted between formats in memory: sector orders, 2IMG,
+//  WOZ and nibbles, and a damaged nibble image that can't become a sector
+//  image.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,9 +64,11 @@ public:
 
 
         DiskImageConverter::GetTargets ("C:\\Disks\\game.dsk", NibbleFormat::kImageByteSize, targets);
-        Assert::AreEqual (size_t (3), targets.size());
+        Assert::AreEqual (size_t (5), targets.size());
         Assert::IsFalse  (HasTarget (targets, DiskImageFormat::Dsk));
         Assert::IsTrue   (HasTarget (targets, DiskImageFormat::Woz));
+        Assert::IsTrue   (HasTarget (targets, DiskImageFormat::Nib));
+        Assert::IsTrue   (HasTarget (targets, DiskImageFormat::Nb2));
 
         DiskImageConverter::GetTargets ("C:\\Disks\\big.po", kVolumeBytes, targets);
         Assert::AreEqual (size_t (2), targets.size());
@@ -77,9 +80,16 @@ public:
         Assert::IsTrue   (HasTarget (targets, DiskImageFormat::Woz));
 
         DiskImageConverter::GetTargets ("C:\\Disks\\copy.woz", kWozBytes, targets);
-        Assert::AreEqual (size_t (2), targets.size());
+        Assert::AreEqual (size_t (4), targets.size());
         Assert::IsTrue   (HasTarget (targets, DiskImageFormat::Dsk));
         Assert::IsTrue   (HasTarget (targets, DiskImageFormat::Po));
+        Assert::IsTrue   (HasTarget (targets, DiskImageFormat::Nib));
+        Assert::IsTrue   (HasTarget (targets, DiskImageFormat::Nb2));
+
+        DiskImageConverter::GetTargets ("C:\\Disks\\copy.nib", NibbleImageCodec::kNibImageSize, targets);
+        Assert::AreEqual (size_t (3), targets.size());
+        Assert::IsFalse  (HasTarget (targets, DiskImageFormat::Nib));
+        Assert::IsTrue   (HasTarget (targets, DiskImageFormat::Nb2));
 
         DiskImageConverter::GetTargets ("C:\\Disks\\notes.shk", kArchiveBytes, targets);
         Assert::IsTrue   (targets.empty());
@@ -116,6 +126,38 @@ public:
         Assert::IsTrue (woz.size() > 4 && woz[0] == 'W' && woz[1] == 'O' && woz[2] == 'Z' && woz[3] == '2');
 
         AssertSucceeded (DiskImageConverter::Convert (woz, "C:\\Disks\\game.woz", DiskImageFormat::Dsk, back, reason));
+        Assert::IsTrue (back == dsk);
+    }
+
+    TEST_METHOD (DskToNibToDsk_IsIdentical)
+    {
+        Image        dsk = MakeSectors (NibbleFormat::kImageByteSize);
+        Image        nib;
+        Image        back;
+        std::string  reason;
+
+
+
+        AssertSucceeded (DiskImageConverter::Convert (dsk, "C:\\Disks\\game.dsk", DiskImageFormat::Nib, nib, reason));
+        Assert::AreEqual (NibbleImageCodec::kNibImageSize, nib.size());
+
+        AssertSucceeded (DiskImageConverter::Convert (nib, "C:\\Disks\\game.nib", DiskImageFormat::Dsk, back, reason));
+        Assert::IsTrue (back == dsk);
+    }
+
+    TEST_METHOD (DskToNb2ToDsk_IsIdentical)
+    {
+        Image        dsk = MakeSectors (NibbleFormat::kImageByteSize);
+        Image        nb2;
+        Image        back;
+        std::string  reason;
+
+
+
+        AssertSucceeded (DiskImageConverter::Convert (dsk, "C:\\Disks\\game.dsk", DiskImageFormat::Nb2, nb2, reason));
+        Assert::AreEqual (NibbleImageCodec::kNb2ImageSize, nb2.size());
+
+        AssertSucceeded (DiskImageConverter::Convert (nb2, "C:\\Disks\\game.nb2", DiskImageFormat::Dsk, back, reason));
         Assert::IsTrue (back == dsk);
     }
 

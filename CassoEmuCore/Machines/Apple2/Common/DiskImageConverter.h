@@ -23,6 +23,8 @@ enum class DiskImageFormat
     TwoImg,
     Hdv,
     Woz,
+    Nib,
+    Nb2,
 };
 
 
@@ -34,9 +36,9 @@ enum class DiskImageFormat
 //  DiskImageConverter
 //
 //  A disk image's bytes rewritten in another image format. A sector image
-//  becomes another sector order, a 2IMG or a WOZ; a .nib or .woz becomes a
-//  sector image only when every track reads as 16 whole sectors. Pure: no
-//  I/O, no Win32.
+//  becomes another sector order, a 2IMG, a WOZ, a .nib or a .nb2; a .nib,
+//  .nb2 or .woz becomes another format only when every track reads as 16
+//  whole sectors. Pure: no I/O, no Win32.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,5 +61,6 @@ private:
     static bool         IsBitStream        (const std::string & extension);
     static HRESULT      CheckEveryTrack    (const SectorDecodeReport & report, std::string & outReason);
     static HRESULT      BuildWoz           (const std::vector<Byte> & sectors, std::vector<Byte> & outBytes, std::string & outReason);
+    static HRESULT      BuildNibbles       (const std::vector<Byte> & sectors, size_t trackSize, std::vector<Byte> & outBytes, std::string & outReason);
     static void         BuildTwoImg        (const std::vector<Byte> & sectors, std::vector<Byte> & outBytes);
 };

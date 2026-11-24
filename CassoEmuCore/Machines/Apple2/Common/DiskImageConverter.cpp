@@ -4,6 +4,8 @@
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/Containers/TwoImgContainer.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
+#include "Machines/Apple2/Common/NibbleImageCodec.h"
+#include "Machines/Apple2/Common/Dos33Geometry.h"
 #include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
@@ -19,16 +21,19 @@
 //
 //  DiskImageConverter::GetTargets
 //
-//  A 140K disk is offered every sector order, a 2IMG and a WOZ; a larger
-//  volume is offered the block-order formats. A container's file is larger
-//  than its disk, so any 2IMG or Disk Copy file under two floppies' size is
-//  taken to be a floppy. The source's format is left out.
+//  A 140K disk is offered every sector order, a 2IMG, a WOZ and both nibble
+//  formats; a larger volume is offered the block-order formats. A
+//  container's file is larger than its disk, so any 2IMG or Disk Copy file
+//  under two floppies' size is taken to be a floppy. A .nib, .nb2 or .woz is
+//  offered the sector orders and the nibble formats. The source's format is
+//  left out.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskImageConverter::GetTargets (const std::string & path, uint64_t fileBytes, std::vector<DiskImageFormat> & outTargets)
 {
-    static constexpr DiskImageFormat  kFloppy[]   = { DiskImageFormat::Dsk, DiskImageFormat::Po, DiskImageFormat::TwoImg, DiskImageFormat::Woz };
+    static constexpr DiskImageFormat  kFloppy[]   = { DiskImageFormat::Dsk, DiskImageFormat::Po, DiskImageFormat::TwoImg, DiskImageFormat::Woz,
+                                                    DiskImageFormat::Nib, DiskImageFormat::Nb2 };
     static constexpr DiskImageFormat  kVolume[]   = { DiskImageFormat::Po, DiskImageFormat::TwoImg, DiskImageFormat::Hdv };
     std::string                       extension   = GetLowerExtension (path);
     bool                              isTwoImg    = extension == ".2mg" || extension == ".2img";
@@ -54,6 +59,17 @@ void DiskImageConverter::GetTargets (const std::string & path, uint64_t fileByte
     {
         outTargets.push_back (DiskImageFormat::Dsk);
         outTargets.push_back (DiskImageFormat::Po);
+
+        if (extension != ".nib")
+        {
+            outTargets.push_back (DiskImageFormat::Nib);
+        }
+
+        if (extension != ".nb2")
+        {
+            outTargets.push_back (DiskImageFormat::Nb2);
+        }
+
         return;
     }
 
@@ -95,6 +111,8 @@ const wchar_t * DiskImageConverter::GetExtension (DiskImageFormat format)
         case DiskImageFormat::TwoImg: return L".2mg";
         case DiskImageFormat::Hdv:    return L".hdv";
         case DiskImageFormat::Woz:    return L".woz";
+        case DiskImageFormat::Nib:    return L".nib";
+        case DiskImageFormat::Nb2:    return L".nb2";
     }
 
     return L"";
@@ -157,6 +175,14 @@ HRESULT DiskImageConverter::Convert (const std::vector<Byte> & fileBytes, const 
         BAIL_OUT_IF (true, S_OK);
     }
 
+    if (target == DiskImageFormat::Nib || target == DiskImageFormat::Nb2)
+    {
+        hr = BuildNibbles (sectors, (target == DiskImageFormat::Nib) ? NibbleImageCodec::kNibTrackSize : NibbleImageCodec::kNb2TrackSize, outBytes, outReason);
+        CHR (hr);
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
     CBRFEx (!isThirteen, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outReason = "A 13-sector disk can't be written as a 16-sector image.");
 
     if (target == DiskImageFormat::Dsk)
@@ -212,7 +238,7 @@ std::string DiskImageConverter::GetLowerExtension (const std::string & path)
 
 bool DiskImageConverter::IsBitStream (const std::string & extension)
 {
-    return extension == ".nib" || extension == ".woz";
+    return extension == ".nib" || extension == ".nb2" || extension == ".woz";
 }
 
 
@@ -284,6 +310,39 @@ HRESULT DiskImageConverter::BuildWoz (const std::vector<Byte> & sectors, std::ve
     CHRA (hr);
 
     hr = WozLoader::Serialize (image, outBytes);
+    CHRA (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageConverter::BuildNibbles
+//
+//  A 140K disk nibblized as a drive would read it, each track padded or
+//  cut to the format's track size.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageConverter::BuildNibbles (const std::vector<Byte> & sectors, size_t trackSize, std::vector<Byte> & outBytes, std::string & outReason)
+{
+    HRESULT    hr       = S_OK;
+    bool       isFloppy = sectors.size() == (size_t) NibbleFormat::kImageByteSize;
+    DiskImage  image;
+
+
+
+    CBRFEx (isFloppy, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outReason = "Only a 140K disk can be written as nibbles.");
+
+    hr = Nibblizer::NibblizeDsk (sectors, image);
+    CHRA (hr);
+
+    hr = NibbleImageCodec::Build (image, trackSize, outBytes);
     CHRA (hr);
 
 Error:

@@ -132,6 +132,8 @@ const wchar_t * ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb verb)
         case CassoExplorerActions::Verb::ConvertToTwoImg: return L"Convert to .&2mg";
         case CassoExplorerActions::Verb::ConvertToHdv:   return L"Convert to .&hdv";
         case CassoExplorerActions::Verb::ConvertToWoz:   return L"Convert to .&woz";
+        case CassoExplorerActions::Verb::ConvertToNib:   return L"Convert to .&nib";
+        case CassoExplorerActions::Verb::ConvertToNb2:   return L"Convert to .n&b2";
         case CassoExplorerActions::Verb::AddToA2retroNet: return L"Add to A2&retroNET drives";
         case CassoExplorerActions::Verb::MakeArchive:    return L"Compress to &ShrinkIt archive (.shk)";
         case CassoExplorerActions::Verb::MakeShrinkItDisk: return L"Compress to &ShrinkIt archive (.shk)";

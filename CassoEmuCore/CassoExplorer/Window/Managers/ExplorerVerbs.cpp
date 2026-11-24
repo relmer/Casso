@@ -515,6 +515,8 @@ void ExplorerVerbs::RunVerb (CassoExplorerActions::Verb verb)
         case CassoExplorerActions::Verb::ConvertToTwoImg:
         case CassoExplorerActions::Verb::ConvertToHdv:
         case CassoExplorerActions::Verb::ConvertToWoz:
+        case CassoExplorerActions::Verb::ConvertToNib:
+        case CassoExplorerActions::Verb::ConvertToNb2:
             m_context.imageTools.ConvertImage (verb);
             break;
 

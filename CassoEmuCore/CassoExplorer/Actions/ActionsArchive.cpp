@@ -280,6 +280,8 @@ ActionsTypes::Verb ActionsArchive::GetConvertVerb (DiskImageFormat format)
         case DiskImageFormat::TwoImg: return ActionsTypes::Verb::ConvertToTwoImg;
         case DiskImageFormat::Hdv:    return ActionsTypes::Verb::ConvertToHdv;
         case DiskImageFormat::Woz:    return ActionsTypes::Verb::ConvertToWoz;
+        case DiskImageFormat::Nib:    return ActionsTypes::Verb::ConvertToNib;
+        case DiskImageFormat::Nb2:    return ActionsTypes::Verb::ConvertToNb2;
     }
 
     return ActionsTypes::Verb::Separator;
@@ -297,7 +299,8 @@ ActionsTypes::Verb ActionsArchive::GetConvertVerb (DiskImageFormat format)
 
 bool ActionsArchive::TryGetConvertFormat (ActionsTypes::Verb verb, DiskImageFormat & outFormat)
 {
-    static constexpr DiskImageFormat  kFormats[] = { DiskImageFormat::Dsk, DiskImageFormat::Po, DiskImageFormat::TwoImg, DiskImageFormat::Hdv, DiskImageFormat::Woz };
+    static constexpr DiskImageFormat  kFormats[] = { DiskImageFormat::Dsk, DiskImageFormat::Po, DiskImageFormat::TwoImg, DiskImageFormat::Hdv, DiskImageFormat::Woz,
+                                                     DiskImageFormat::Nib, DiskImageFormat::Nb2 };
 
 
 
