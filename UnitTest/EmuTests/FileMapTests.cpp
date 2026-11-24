@@ -371,6 +371,34 @@ public:
 
 
 
+    TEST_METHOD (ReadAsCpmMapsADirectoryDetectionDoesNotFind)
+    {
+        vector<Byte>     image    = Images::MakeCpm();
+        DiskAnalysis     analysis;
+        vector<FileMap>  maps;
+
+
+
+        for (int s = 0; s < 8; s++)
+        {
+            Byte *  sector = Images::GetCpmSector (image, 3, s);
+
+            std::fill (sector, sector + 256, (Byte) 0x40);
+        }
+
+        Images::Analyze (image, false, analysis);
+        maps = FileMapBuilder::Build (analysis);
+        Assert::IsTrue (maps[0].notMapped == NotMappedReason::NoFileSystem);
+
+        analysis.isCpmChosen = true;
+        maps = FileMapBuilder::Build (analysis);
+        Assert::AreEqual (static_cast<size_t> (1), maps.size());
+        Assert::IsTrue (maps[0].fileSystem == MapFileSystem::Cpm);
+        Assert::AreEqual (64, CountKind (maps[0], FindingKind::CpmInvalidEntry), L"every bad entry is a finding");
+    }
+
+
+
     TEST_METHOD (CpmExtentsAndBlocksAreChecked)
     {
         vector<Byte>  missing   = Images::MakeCpm();

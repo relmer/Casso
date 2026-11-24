@@ -249,6 +249,8 @@ HRESULT InspectorWindowSet::Open (HINSTANCE hInstance, HWND anchor, const std::w
     isBlock       = m_seams.isBlockImage (path);
     entry->window = isBlock ? m_seams.makeBlockWindow (path) : m_seams.makeWindow();
 
+    entry->host->SetFilesystemChoices (m_seams.filesystemChoices);
+
     hr = entry->window->Create (hInstance, anchor, m_theme, entry->host.get());
     CHR (hr);
 

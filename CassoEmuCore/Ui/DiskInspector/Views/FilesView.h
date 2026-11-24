@@ -56,6 +56,9 @@ public:
     const DxuiButton & GetCopyButton    () const { return *m_mapCopy; }
     const DxuiButton & GetFilePicker    () const { return *m_filePicker; }
 
+    //  Read as CP/M or Detect file system, for a test.
+    DxuiButton       & GetChoiceButton  () const { return *m_mapChoice; }
+
 private:
     void  OpenFilePicker     (bool isOpen);
     void  MeasureLabels      (IDxuiTextRenderer & text);
@@ -67,6 +70,7 @@ private:
     int   GetSelectedMapCell () const;
     bool  IsVerdictLinked    () const;
     void  ShowVerdictFinding ();
+    void  ChooseFilesystem   ();
 
     InspectorSession         & m_session;
     IInspectorComponentHost  & m_host;
@@ -80,10 +84,12 @@ private:
     DxuiButton               * m_mapNext            = nullptr;
     DxuiButton               * m_mapCopy            = nullptr;
     DxuiButton               * m_mapVerdict         = nullptr;
+    DxuiButton               * m_mapChoice          = nullptr;
     DxuiLabel                * m_mapStepLabel       = nullptr;
     DxuiButton               * m_filePicker         = nullptr;
     bool                       m_isPickerOpen       = true;
     bool                       m_isVerdictRoom      = true;    // the verdict fits between the picker and Copy map
+    bool                       m_isChoiceRoom       = true;    // Detect file system fits between the picker and the verdict
     std::wstring               m_pickerLabel        = L"Choose a file";
     float                      m_pickerTextPx       = 0.0f;
     float                      m_stepTextPx         = 0.0f;

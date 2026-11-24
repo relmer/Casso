@@ -50,6 +50,9 @@ public:
     void  SetSelected    (int cell, int file)     { m_selectedCell = cell; m_selectedFile = file; }
     void  SetOnChoose    (ChooseFn choose)        { m_choose = std::move (choose); }
 
+    //  Text drawn in place of why a disk isn't mapped, or empty for that.
+    void  SetNote        (const std::wstring & note) { m_note = note; }
+
     //  Called when a double-click zooms the grid a stop in, or with Shift a
     //  stop out.
 
@@ -123,6 +126,7 @@ private:
     int                                     m_selectedCell = -1;
     int                                     m_selectedFile = -1;
     ChooseFn                                m_choose;
+    std::wstring                            m_note;
     std::array<std::wstring, kRoleCount>    m_roleLabels;
     std::array<float, kRoleCount>           m_roleSizesPx  = {};
     double                                  m_zoom         = 1.0;

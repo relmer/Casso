@@ -112,7 +112,7 @@ void FileMapGridView::PaintMap (IDxuiPainter & painter, IDxuiTextRenderer & text
 
     if (m_map->notMapped != NotMappedReason::None)
     {
-        text.DrawString (FileMapText::FormatNotMapped (*m_map).c_str(), static_cast<float> (m_boundsDip.left), static_cast<float> (m_boundsDip.top), GetWidth(),
+        text.DrawString ((m_note.empty() ? FileMapText::FormatNotMapped (*m_map) : m_note).c_str(), static_cast<float> (m_boundsDip.left), static_cast<float> (m_boundsDip.top), GetWidth(),
                          m_scaler.ToPxf (s_kNoteDip), theme.Foreground(), m_scaler.ToPxf (kTextDip), DxuiTheme::kBodyFace, DxuiTextHAlign::Left,
                          DxuiTextVAlign::Top, DxuiFontWeight::Normal, true);
     }

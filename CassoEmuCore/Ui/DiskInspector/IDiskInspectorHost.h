@@ -60,6 +60,13 @@ public:
     //  the copy, so the confirmation offers it.
     virtual void  OnRepairedCopyWritten (const std::wstring & path) { (void) path; }
     virtual bool  CanOpenRepairedCopy   () const                     { return false; }
+
+    //  UI thread, for a host that stores a file system choice for the
+    //  window's image, as Casso Explorer does: whether it does, whether the
+    //  image is read as CP/M, and the choice set or cleared.
+    virtual bool  CanChooseFilesystem   () const                     { return false; }
+    virtual bool  IsReadAsCpm           () const                     { return false; }
+    virtual void  SetReadAsCpm          (bool isCpm)                 { (void) isCpm; }
 };
 
 

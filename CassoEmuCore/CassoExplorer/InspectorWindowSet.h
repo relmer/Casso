@@ -8,6 +8,7 @@
 #include "Ui/Chrome/CassoTheme.h"
 
 class ExplorerInspectorHost;
+class FilesystemChoices;
 class ICassoExplorerHost;
 class IDiskInspectorHost;
 class IIntentChannel;
@@ -76,7 +77,8 @@ public:
     //  Casso, and the file access the windows read and save through. Each
     //  one left empty is the real one. describePath returns the name a block
     //  mode window's title has for a path, such as a card's partition, or
-    //  empty for the file's name.
+    //  empty for the file's name. `filesystemChoices` is Casso Explorer's
+    //  file system choice for each image, which Read as CP/M in a window sets.
     struct Seams
     {
         std::function<std::unique_ptr<Window> ()>                      makeWindow;
@@ -88,6 +90,7 @@ public:
         IDiskFileIo                                                  * fileIo   = nullptr;
         ICassoExplorerHost                                           * explorer = nullptr;
         std::function<std::wstring (const std::wstring &)>             describePath;
+        FilesystemChoices                                            * filesystemChoices = nullptr;
     };
 
     InspectorWindowSet (IImageWatcher & watcher, DiskInspectorPrefs & prefs, Seams seams = {});
