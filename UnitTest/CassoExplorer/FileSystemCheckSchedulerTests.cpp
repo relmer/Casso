@@ -233,11 +233,11 @@ public:
 
     TEST_METHOD (FormatInfobar_ForEachVerdict)
     {
-        Assert::AreEqual (std::wstring (L"Bad: The catalog's file count differs from the VTOC's."),
+        Assert::AreEqual (std::wstring (L"Bad: The catalog's file count differs from the VTOC's. Click Inspect to see the problems."),
                           FileSystemCheckScheduler::FormatInfobar ({ FileSystemVerdict::Bad, L"the catalog's file count differs from the VTOC's" }));
-        Assert::AreEqual (std::wstring (L"Possible inconsistencies: Marked used, in no file."),
-                          FileSystemCheckScheduler::FormatInfobar ({ FileSystemVerdict::Suspect, L"Marked used, in no file" }));
-        Assert::AreEqual (std::wstring (L"Bad."),
+        Assert::AreEqual (std::wstring (L"Possible inconsistencies: 7 blocks in use are marked free. Click Inspect to see the problems."),
+                          FileSystemCheckScheduler::FormatInfobar ({ FileSystemVerdict::Suspect, L"7 blocks in use are marked free" }));
+        Assert::AreEqual (std::wstring (L"Bad. Click Inspect to see the problems."),
                           FileSystemCheckScheduler::FormatInfobar ({ FileSystemVerdict::Bad, L"" }));
         Assert::AreEqual (std::wstring (L"No standard file system was found."),
                           FileSystemCheckScheduler::FormatInfobar ({ FileSystemVerdict::None, L"" }));

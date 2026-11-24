@@ -268,6 +268,8 @@ bool FileSystemCheckScheduler::TryGetOutcome (FileSystemCheckOutcome & outOutcom
 //
 //  FileSystemCheckScheduler::FormatInfobar
 //
+//  A problem ends with a pointer to Inspect..., under the preview.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring FileSystemCheckScheduler::FormatInfobar (const FileSystemCheckOutcome & outcome)
@@ -293,7 +295,7 @@ std::wstring FileSystemCheckScheduler::FormatInfobar (const FileSystemCheckOutco
     }
     else if (outcome.verdict == FileSystemVerdict::Bad || outcome.verdict == FileSystemVerdict::Suspect)
     {
-        text = FileSystemCheck::FormatVerdict (outcome.verdict) + (sentence.empty() ? std::wstring (L".") : L": " + sentence);
+        text = FileSystemCheck::FormatVerdict (outcome.verdict) + (sentence.empty() ? std::wstring (L".") : L": " + sentence) + L" Click Inspect to see the problems.";
     }
 
     return text;

@@ -179,44 +179,19 @@ void ThumbnailChips::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 //
 //  PreviewDiskThumbnail::FormatVerdict
 //
-//  "File system damaged." or "Possible inconsistencies found.", the finding
-//  as a sentence on the next line, and after a blank line, the pointer to
-//  Inspect...; nothing for OK or a disk with no standard file system.
+//  The verdict and the finding as a sentence, as the infobar of an image of
+//  blocks has them, then the pointer to Inspect...; nothing for OK or a disk
+//  with no standard file system.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring PreviewDiskThumbnail::FormatVerdict (FileSystemVerdict verdict, const std::wstring & finding)
 {
-    std::wstring  text;
-    std::wstring  sentence = finding;
+    bool  isProblem = verdict == FileSystemVerdict::Bad || verdict == FileSystemVerdict::Suspect;
 
 
 
-    if (!sentence.empty())
-    {
-        sentence[0] = static_cast<wchar_t> (towupper (sentence[0]));
-    }
-
-    if (!sentence.empty() && !sentence.ends_with (L'.'))
-    {
-        sentence += L".";
-    }
-
-    if (verdict == FileSystemVerdict::Bad)
-    {
-        text = L"File system damaged." + (sentence.empty() ? std::wstring() : L"\n" + sentence);
-    }
-    else if (verdict == FileSystemVerdict::Suspect)
-    {
-        text = L"Possible inconsistencies found." + (sentence.empty() ? std::wstring() : L"\n" + sentence);
-    }
-
-    if (!text.empty())
-    {
-        text += L"\n\nInspect for more details.";
-    }
-
-    return text;
+    return isProblem ? FileSystemCheckScheduler::FormatInfobar ({ verdict, finding }) : std::wstring();
 }
 
 
@@ -469,7 +444,6 @@ void PreviewDiskThumbnail::Create()
 
     m_header->SetScrollbarShown (false);
     m_inspect->SetOnClick       ([this] () { m_context.imageTools.InspectDiskImages ({ m_path }); });
-    m_verdict->SetOnAction      ([this] (size_t) { m_context.imageTools.InspectDiskImages ({ m_path }); });
 
     m_context.window.SetMouseHandler (m_header, [this] (const DxuiMouseEvent & ev) { return HandleHeaderMouse (ev); });
 
@@ -732,7 +706,8 @@ void PreviewDiskThumbnail::ArmCheckTimer (int64_t delayMs)
 //
 //  The check of the selected image of blocks, in the infobar once its block
 //  map is drawn: Bad as an error, Possible inconsistencies and no standard
-//  file system as info, each with Inspect / repair, and nothing for OK.
+//  file system as info, with no button, since Inspect... is under the map,
+//  and nothing for OK.
 //  Returns whether the infobar is visible.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -751,7 +726,6 @@ bool PreviewDiskThumbnail::ShowCheck()
     if (m_isVerdictShown)
     {
         m_verdict->SetText     (text);
-        m_verdict->SetActions  ({ L"Inspect / repair" });
         m_verdict->SetSeverity ((outcome.verdict == FileSystemVerdict::Bad) ? DxuiInfoBanner::Severity::Error : DxuiInfoBanner::Severity::Info);
     }
 
