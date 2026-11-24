@@ -36,6 +36,14 @@ HRESULT FileAssociations::Register (IUserClasses & classes, const std::wstring &
     hr = classes.SetValue (std::wstring (L"Applications\\") + kExplorerApp + L"\\shell\\open\\command", L"", L"\"" + explorerExe + L"\" \"%1\"");
     CHR (hr);
 
+    //  File Explorer offers Casso Explorer under Open with for these types
+    //  alone, not for every file it was once used on.
+    for (const wchar_t * extension : kExtensions)
+    {
+        hr = classes.SetValue (std::wstring (L"Applications\\") + kExplorerApp + L"\\SupportedTypes", extension, L"");
+        CHR (hr);
+    }
+
     for (const wchar_t * extension : kExtensions)
     {
         hr = TakeType (classes, extension);
@@ -305,6 +313,11 @@ bool FileAssociations::IsRegistered (const IUserClasses & classes, const std::ws
     for (const wchar_t * extension : kExtensions)
     {
         std::wstring  progId = GetProgId (extension);
+
+        if (!classes.GetValue (std::wstring (L"Applications\\") + kExplorerApp + L"\\SupportedTypes", extension, value))
+        {
+            return false;
+        }
 
         if (!classes.GetValue (extension, L"", value) || value != progId)
         {

@@ -118,6 +118,8 @@ public:
                              L"Casso Explorer is under Open with for every type");
             Assert::IsFalse (classes.GetValue (std::wstring (extension) + L"\\OpenWithProgids", L"CassoExplorer.DiskImage", value),
                              L"and is not a second type");
+            Assert::IsTrue  (classes.GetValue (L"Applications\\CassoExplorer.exe\\SupportedTypes", extension, value),
+                             L"and Open with offers it for the disk image types alone");
         }
     }
 
