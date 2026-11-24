@@ -32,6 +32,7 @@ public:
     static bool  TryGetTrackMarks (const FormatStamp & stamp, int track, TrackMarks & outMarks);
     static bool  TryLoadStamp     (const WozMetadata & meta, FormatStamp & outStamp);
     static void  ToDecodeSettings (const FormatStamp & stamp, DecodeSettings & outSettings);
+    static void  GetStartSettings (const WozMetadata & meta, DecodeSettings & outSettings);
 
 private:
     static bool  TryGetCustomMarks (const FormatStamp & stamp, int track, FieldMarks & outMarks);

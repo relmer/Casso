@@ -38,6 +38,8 @@ enum class SummaryChipKind
     Blocks,
     BlocksUsed,
     Files,
+    Stamp,
+    StampMarks,
     CrossLinked,
     FileSystem,
 };
@@ -83,6 +85,7 @@ class InspectorText
 public:
     static vector<SummaryChip>  BuildChips          (const DiskSummary & summary);
     static vector<SummaryChip>  BuildBlockChips     (const BlockInspectorModel & model);
+    static vector<SummaryChip>  BuildStampChips     (const ImageDetails & image);
     static std::wstring         FormatFileSystem    (BlockFileSystem fileSystem);
     static vector<SummaryChip>  BuildChips          (const DiskSummary & summary, FileSystemVerdict verdict);
     static std::wstring         FormatDiskFormat    (DiskFormatClass format);

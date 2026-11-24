@@ -1,7 +1,6 @@
 #include "Pch.h"
 
 #include "Ui/DiskInspector/Components/HostLink.h"
-#include "Devices/Disk/Stamp/FormatStamp.h"
 #include "Devices/Disk/Stamp/StampedTrackMarks.h"
 #include "Devices/Disk/Inspector/DiskAnalyzer.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
@@ -189,13 +188,12 @@ void HostLink::TakeReplies()
 DecodeSettings HostLink::GetStartSettings (const std::shared_ptr<const DiskCopy> & copy)
 {
     DecodeSettings  settings = DecodeSettings::MakeStandard();
-    FormatStamp     stamp;
 
 
 
-    if (copy != nullptr && StampedTrackMarks::TryLoadStamp (copy->woz, stamp))
+    if (copy != nullptr)
     {
-        StampedTrackMarks::ToDecodeSettings (stamp, settings);
+        StampedTrackMarks::GetStartSettings (copy->woz, settings);
     }
 
     return settings;

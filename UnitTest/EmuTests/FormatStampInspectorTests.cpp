@@ -12,7 +12,10 @@
 #include "Devices/Disk/Stamp/FormatStampChunk.h"
 #include "Devices/Disk/Stamp/StampedTrackMarks.h"
 #include "Machines/Apple2/Common/WozMetadata.h"
+#include "CassoExplorer/Model/DiskThumbnailWorker.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 #include "Shell/InspectorRequestQueue.h"
+#include "Ui/DiskInspector/InspectorText.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -318,5 +321,65 @@ public:
 
         Assert::IsTrue   (details.stampState == StampState::Readable);
         Assert::AreEqual ((size_t) StampDiskFixtures::kTracks, details.stamp.tracks.size());
+    }
+
+
+    TEST_METHOD (BuildStampChips_D4Disk_ListsTheStampAndItsMark)
+    {
+        DiskImage            image;
+        WozMetadata          meta;
+        ImageDetails         details;
+        vector<SummaryChip>  chips;
+
+
+
+        MakeD4Disk (image);
+        meta = image.GetWozMetadata();
+        FormatStampChunk::SetStamp (meta, BuildStamp (image));
+        image.SetWozMetadata (meta);
+
+        details = ImageDetails::MakeFromCopy (*StampDiskFixtures::MakeCopy (image));
+        chips   = InspectorText::BuildStampChips (details);
+
+        Assert::AreEqual ((size_t) 2, chips.size());
+        Assert::AreEqual (std::wstring (L"Format stamp"),     chips[0].text);
+        Assert::AreEqual (std::wstring (L"Address D4 AA 96"), chips[1].text);
+    }
+
+
+
+    TEST_METHOD (BuildStampChips_NoStamp_IsEmpty)
+    {
+        DiskImage  image;
+
+
+
+        StampDiskFixtures::MakeSixteenSector (image);
+
+        Assert::IsTrue (InspectorText::BuildStampChips (ImageDetails::MakeFromCopy (*StampDiskFixtures::MakeCopy (image))).empty());
+    }
+
+
+
+    TEST_METHOD (Preview_StampedD4Disk_IsAnalyzedWithTheStampsMarks)
+    {
+        DiskImage            image;
+        WozMetadata          meta;
+        vector<Byte>         woz;
+        DiskThumbnailResult  result;
+
+
+
+        MakeD4Disk (image);
+        meta = image.GetWozMetadata();
+        FormatStampChunk::SetStamp (meta, BuildStamp (image));
+        image.SetWozMetadata (meta);
+        WozLoader::Serialize (image, woz);
+
+        result = DiskThumbnailWorker::BuildFromBytes (woz, L"d4.woz");
+
+        Assert::IsNotNull (result.analysis.get());
+        Assert::AreEqual  (0, result.analysis->summary.nonstandardTracks, L"the stamp's marks are used, so no track is nonstandard");
+        Assert::IsTrue    (std::ranges::any_of (result.chips, [] (const SummaryChip & chip) { return chip.text == L"Address D4 AA 96"; }));
     }
 };

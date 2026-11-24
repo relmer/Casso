@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Ui/DiskInspector/InspectorText.h"
+#include "Core/TextEncoding.h"
+#include "Devices/Disk/Stamp/FormatStampJson.h"
 #include "Core/UnicodeSymbols.h"
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
 #include "Devices/Disk/Inspector/FindingFormatter.h"
@@ -18,6 +20,93 @@
 
 //  Between items on a line.
 static const std::wstring  s_kSeparator = std::wstring (L" ") + s_kpszMiddleDot + L" ";
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::BuildStampChips
+//
+//  The image's format stamp: whether it has one and where it came from, the
+//  address and data prologs it lists other than the standard ones, the
+//  first kMaxMarkChips of each with a count of the rest, and how many tracks
+//  changed after it was written.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<SummaryChip> InspectorText::BuildStampChips (const ImageDetails & image)
+{
+    constexpr size_t           kMaxMarkChips = 3;
+    static const vector<Byte>  kStandard[]   = { { 0xD5, 0xAA, 0x96 }, { 0xD5, 0xAA, 0xB5 }, { 0xD5, 0xAA, 0xAD } };
+    vector<SummaryChip>        chips;
+    vector<vector<Byte>>       address;
+    vector<vector<Byte>>       data;
+    int                        changed       = 0;
+
+
+
+    if (image.stampState == StampState::Absent)
+    {
+        return chips;
+    }
+
+    if (image.stampState == StampState::Unreadable)
+    {
+        chips.push_back ({ SummaryChipKind::Stamp, L"Format stamp from a later Casso", false });
+        return chips;
+    }
+
+    chips.push_back ({ SummaryChipKind::Stamp, image.stamp.source == StampSource::Capture ? L"Format stamp from a capture" : L"Format stamp", false });
+
+    for (const StampTrack & track : image.stamp.tracks)
+    {
+        auto  collect = [] (const vector<vector<Byte>> & marks, vector<vector<Byte>> & ioList)
+        {
+            for (const vector<Byte> & mark : marks)
+            {
+                bool  isStandard = std::ranges::find (kStandard, mark) != std::end (kStandard);
+
+                if (!isStandard && std::ranges::find (ioList, mark) == ioList.end())
+                {
+                    ioList.push_back (mark);
+                }
+            }
+        };
+
+        collect (track.addressPrologs, address);
+        collect (track.dataPrologs,    data);
+        changed += track.isChangedAfterCapture ? 1 : 0;
+    }
+
+    for (size_t i = 0; i < address.size() && i < kMaxMarkChips; i++)
+    {
+        chips.push_back ({ SummaryChipKind::StampMarks, L"Address " + TextEncoding::Utf8ToWide (FormatStampJson::NibblesToText (address[i])), false });
+    }
+
+    if (address.size() > kMaxMarkChips)
+    {
+        chips.push_back ({ SummaryChipKind::StampMarks, FormatCount ((int) (address.size() - kMaxMarkChips), L"more address mark", L"more address marks"), false });
+    }
+
+    for (size_t i = 0; i < data.size() && i < kMaxMarkChips; i++)
+    {
+        chips.push_back ({ SummaryChipKind::StampMarks, L"Data " + TextEncoding::Utf8ToWide (FormatStampJson::NibblesToText (data[i])), false });
+    }
+
+    if (data.size() > kMaxMarkChips)
+    {
+        chips.push_back ({ SummaryChipKind::StampMarks, FormatCount ((int) (data.size() - kMaxMarkChips), L"more data mark", L"more data marks"), false });
+    }
+
+    if (changed > 0)
+    {
+        chips.push_back ({ SummaryChipKind::Stamp, FormatCount (changed, L"track changed since stamped", L"tracks changed since stamped"), false });
+    }
+
+    return chips;
+}
 
 
 

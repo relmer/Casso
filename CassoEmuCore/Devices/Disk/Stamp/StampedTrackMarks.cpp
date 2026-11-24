@@ -145,6 +145,34 @@ void StampedTrackMarks::ToDecodeSettings (const FormatStamp & stamp, DecodeSetti
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  StampedTrackMarks::GetStartSettings
+//
+//  The decode settings a disk is analyzed with when it opens: the stamp's
+//  ranges for an image with a stamp this build reads, or the standard
+//  settings.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void StampedTrackMarks::GetStartSettings (const WozMetadata & meta, DecodeSettings & outSettings)
+{
+    FormatStamp  stamp;
+
+
+
+    outSettings = DecodeSettings::MakeStandard();
+
+    if (TryLoadStamp (meta, stamp))
+    {
+        ToDecodeSettings (stamp, outSettings);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  StampedTrackMarks::TryGetCustomMarks
 //
 //  The track's stamped marks that the standard ones don't match. False when
