@@ -36,13 +36,13 @@ The 16-sector decoder (`TrackSectorDecoder`) compares against constants; the 13-
 
 ## R6. Where the image carries the parsed stamp
 
-- **Decision**: `WozMetadata` gains a parsed `std::optional<FormatStamp>` beside `passThrough`, plus the original chunk bytes. `WozLoader::Load` parses the first `CSSO` chunk; a parse failure, a newer major version or a size over 1 MB results in an empty optional, and the bytes stay in `passThrough` as any unknown chunk's do.
+- **Decision**: the chunk stays in `WozMetadata::passThrough` as any unknown chunk does, and `FormatStampChunk::GetStamp` parses it when a reader needs it. A parse failure, a newer major version or a size over 1 MB reads as an unreadable stamp.
 - **Rationale**: every host reader already has the `DiskImage`, and through it `GetWozMetadata()`, so no signature outside the decoders changes.
 
 ## R7. Keeping the stamp accurate on save
 
-- **Decision**: `WozLoader::Serialize` calls a `FormatStampRefresher` before writing chunks. When no track is dirty, the chunk is written from its original bytes (FR-024). When tracks are dirty and the stamp parsed, the refresher reanalyzes the dirty tracks, replaces their entries, clears their capture facts, sets `changedAfterCapture`, and writes the stamp again. When tracks are dirty and the stamp did not parse, the chunk is removed (FR-023).
-- **Rationale**: `DiskImage` has per-track dirty bits until the flush clears them, so `Serialize` is the one point with access to both the bits and the set of changed tracks. File commits (put, replace) go through the same flush.
+- **Decision**: each entry records a CRC-32 of its track's bits. `WozLoader::Serialize` calls `FormatStampRefresher`, which compares each entry's CRC with its track. When none differs, the chunk is written from its original bytes (FR-024). Entries that differ are analyzed again, their capture facts cleared and `changedAfterCapture` set. When the stamp did not parse and a track is dirty, the chunk is removed (FR-023).
+- **Rationale**: `Serialize` takes a const image, so it can't update the stamp in the image it saves. Dirty bits are cleared by the flush, so the next save would write the old stamp back. A CRC needs no state in the image, and it also finds tracks another program rewrote.
 - **Alternatives considered**: invalidate at write time in the drive (runs analysis on the emulation thread for every sector write).
 
 ## R8. Capture facts

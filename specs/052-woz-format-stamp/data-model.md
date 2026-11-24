@@ -35,6 +35,7 @@ Validation: at most 160 tracks (WOZ quarter-track positions); positions unique; 
 | sectorsGood | int | |
 | verified | bool | sectorsGood == sectorsFound and sectorsFound > 0 |
 | changedAfterCapture | bool | set by the refresher |
+| bitsCrc | optional<uint32_t> | CRC-32 of the track record's bytes, compared on save to find rewritten tracks |
 | capture | `optional<TrackCaptureFacts>` | |
 | notes | `vector<ProtectionNote>` | |
 

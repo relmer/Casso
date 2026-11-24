@@ -218,7 +218,7 @@ compare the output with a known table and JSON.
 **Consumers**
 
 - **FR-014**: Every host-side read of a WOZ image (Casso Explorer, CassoCli disk commands, the saved game viewers, the file system readers) MUST decode each track with the marks its stamp entry lists before using detection.
-- **FR-015**: A sector decoded with stamped marks MUST pass its address and data checksums to be accepted, unless the stamp lists that track's checksums as not checked.
+- **FR-015**: A sector decoded with stamped marks MUST pass its address and data checksums to be accepted.
 - **FR-016**: When a track's stamped marks do not produce the sectors that detection would produce, the read MUST fall back to detection for that track. A read of a stamped image MUST never return less data, or different data, than a read of the same image without the stamp.
 - **FR-017**: The emulated drive MUST NOT use the stamp. The guest reads the raw bits, as it does today.
 - **FR-018**: The disk inspector MUST seed its decode settings from the stamp when it opens a stamped image, and MUST label those ranges as coming from the stamp. The owner MUST be able to turn them off.
@@ -227,7 +227,7 @@ compare the output with a known table and JSON.
 
 **Writes**
 
-- **FR-021**: When Casso saves a stamped WOZ, every track whose bits changed since the stamp was written MUST have its entry analyzed again from its new bits, and its capture facts MUST be removed.
+- **FR-021**: When Casso saves a stamped WOZ, every track whose bits changed since the stamp was written MUST have its entry analyzed again from its new bits, and its capture facts MUST be removed. Each entry MUST record a CRC of its track's bits, so any later save finds the changed tracks whatever program changed them.
 - **FR-022**: A track entry analyzed again after a write MUST be marked as changed after capture.
 - **FR-023**: When Casso saves a stamped WOZ whose stamp it cannot parse, or whose version it does not understand, and any track changed, the stamp MUST be removed from the file.
 - **FR-024**: Saving a stamped WOZ whose tracks did not change MUST write the stamp back byte for byte.
