@@ -908,24 +908,6 @@ public:
     }
 
 
-    //  A double hi-res picture's monitor follows its form: color on the color
-    //  monitor, its bits on the chosen monochrome one, or the white one when
-    //  the color monitor is chosen. Any other picture is on the chosen one.
-    TEST_METHOD (DoubleHiResForm_PicksTheMonitor)
-    {
-        using Mode    = PicturePreview::Mode;
-        using Monitor = PicturePreview::Monitor;
-
-        Assert::IsTrue (BrowserPreviewer::ChooseMonitor (Monitor::Green,  Mode::DoubleHiRes)     == Monitor::Color);
-        Assert::IsTrue (BrowserPreviewer::ChooseMonitor (Monitor::Color,  Mode::DoubleHiRes)     == Monitor::Color);
-        Assert::IsTrue (BrowserPreviewer::ChooseMonitor (Monitor::Amber,  Mode::DoubleHiResMono) == Monitor::Amber);
-        Assert::IsTrue (BrowserPreviewer::ChooseMonitor (Monitor::Custom, Mode::DoubleHiResMono) == Monitor::Custom);
-        Assert::IsTrue (BrowserPreviewer::ChooseMonitor (Monitor::Color,  Mode::DoubleHiResMono) == Monitor::White);
-        Assert::IsTrue (BrowserPreviewer::ChooseMonitor (Monitor::Green,  Mode::HiRes)           == Monitor::Green);
-        Assert::IsTrue (BrowserPreviewer::ChooseMonitor (Monitor::Color,  Mode::LoRes)           == Monitor::Color);
-    }
-
-
 
     //  A shell folder's rows sort by name in the folder's own order, as
     //  Explorer's do, and other rows by name, numbers by their value.

@@ -246,7 +246,7 @@ bool PreviewPictureView::HandlePictureMouse (const DxuiMouseEvent & ev)
 
 
 
-    if (press && ev.button == DxuiMouseButton::Right && m_context.browser.GetPreviewer().CanTogglePictureColor())
+    if (press && ev.button == DxuiMouseButton::Right && m_context.browser.GetPreviewer().GetMonitorChoice().CanTogglePictureColor())
     {
         m_context.input.SetFocusPane (ExplorerPane::Preview);
         m_context.input.ReleasePressed();
@@ -413,8 +413,8 @@ void PreviewPictureView::UpdateCrtPicture (bool force)
         return;
     }
 
-    found    = m_context.prefs.crtOverrides.find (CassoExplorerPrefs::kMonitorNames[(int) m_context.browser.GetPreviewer().GetPictureMonitor()]);
-    resolved = CrtResolver::Resolve (CrtPresets::GetPreset (PicturePreview::GetPresetIndex (m_context.browser.GetPreviewer().GetPictureMonitor())), GetCrtDefaults(),
+    found    = m_context.prefs.crtOverrides.find (CassoExplorerPrefs::kMonitorNames[(int) m_context.browser.GetPreviewer().GetMonitorChoice().GetPictureMonitor()]);
+    resolved = CrtResolver::Resolve (CrtPresets::GetPreset (PicturePreview::GetPresetIndex (m_context.browser.GetPreviewer().GetMonitorChoice().GetPictureMonitor())), GetCrtDefaults(),
                                      (found != m_context.prefs.crtOverrides.end()) ? found->second : CrtOverrides());
     params             = MakeCrtParams (resolved, (float) width, (float) height);
     params.persistence = 0.0f;
@@ -447,7 +447,7 @@ void PreviewPictureView::UpdateCrtPicture (bool force)
 void PreviewPictureView::SelectMonitor (PicturePreview::Monitor monitor)
 {
     m_context.prefs.previewMonitor = CassoExplorerPrefs::kMonitorNames[(int) monitor];
-    m_context.browser.GetPreviewer().SetPreviewMonitor (monitor, m_context.prefs.previewCustomArgb);
+    m_context.browser.GetPreviewer().GetMonitorChoice().SetPreviewMonitor (monitor, m_context.prefs.previewCustomArgb);
     m_manager.FillPreview();
     m_context.window.Invalidate();
 }
@@ -468,7 +468,7 @@ void PreviewPictureView::SelectMonitor (PicturePreview::Monitor monitor)
 
 void PreviewPictureView::ShowForm (bool color)
 {
-    if ((m_context.browser.GetPreviewer().GetPreview().pictureMode != PicturePreview::Mode::DoubleHiResMono) != color && m_context.browser.GetPreviewer().TogglePictureColor())
+    if ((m_context.browser.GetPreviewer().GetPreview().pictureMode != PicturePreview::Mode::DoubleHiResMono) != color && m_context.browser.GetPreviewer().GetMonitorChoice().TogglePictureColor())
     {
         m_manager.FillPreview();
         m_context.window.Invalidate();

@@ -331,7 +331,7 @@ void ExplorerPreviewManager::FillPreview()
     bool                    vars     = preview.kind == PreviewContent::Kind::Variables;
     bool                    columns  = (preview.kind == PreviewContent::Kind::Catalog && preview.lines.empty()) || vars || preview.kind == PreviewContent::Kind::Grid;
     bool                    program  = preview.kind == PreviewContent::Kind::Listing && !preview.bytes.empty();
-    bool                    forms    = picture && m_context.browser.GetPreviewer().CanTogglePictureColor();
+    bool                    forms    = picture && m_context.browser.GetPreviewer().GetMonitorChoice().CanTogglePictureColor();
     bool                    shell    = preview.kind == PreviewContent::Kind::Shell;
     bool                    woz      = !preview.wozPath.empty();
     bool                    random   = preview.recordLength > 0;

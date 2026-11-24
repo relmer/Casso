@@ -5,6 +5,8 @@
 #include "CassoExplorer/Browser/BrowserParts.h"
 #include "CassoExplorer/Browser/BrowserTypes.h"
 #include "CassoExplorer/Browser/Preview/IPreviewRefresh.h"
+#include "CassoExplorer/Browser/Preview/PictureMonitorChoice.h"
+#include "CassoExplorer/Browser/Preview/PreviewParts.h"
 #include "CassoExplorer/Browser/Preview/PreviewViewState.h"
 #include "CassoExplorer/Model/BrowserModel.h"
 
@@ -73,25 +75,6 @@ public:
 
     const PreviewContent  & GetPreview () const { return m_preview; }
 
-    //  The monitor a picture preview is drawn for, with the custom monitor's
-    //  color; a change draws the current picture again.
-    void                     SetPreviewMonitor (PicturePreview::Monitor monitor, uint32_t customArgb = PicturePreview::kDefaultCustomArgb);
-    PicturePreview::Monitor  GetPreviewMonitor () const { return m_previewMonitor; }
-
-    //  The monitor the current picture is drawn on: the chosen one, except
-    //  for a double hi-res picture, whose monitor follows its form. Its color
-    //  form is drawn on the color monitor, and its monochrome form on the
-    //  chosen monochrome monitor, or the white one when the color monitor is
-    //  chosen.
-    PicturePreview::Monitor  GetPictureMonitor () const;
-
-    static PicturePreview::Monitor  ChooseMonitor (PicturePreview::Monitor chosen, PicturePreview::Mode mode);
-
-    //  A double hi-res picture drawn in color or as its bits, whichever the
-    //  automatic choice was not; again to go back. False for any other preview.
-    bool  TogglePictureColor    ();
-    bool  CanTogglePictureColor () const;
-
     //  The archive Extract all applies to, selected or open; empty for none.
     std::wstring  GetExtractTarget () const;
 
@@ -119,6 +102,10 @@ public:
     PreviewViewState        & GetViewState ()       { return m_viewState; }
     const PreviewViewState  & GetViewState () const { return m_viewState; }
 
+    //  The monitor a picture preview is drawn for.
+    PictureMonitorChoice        & GetMonitorChoice ()       { return m_monitor; }
+    const PictureMonitorChoice  & GetMonitorChoice () const { return m_monitor; }
+
 private:
     Location  GetLocation () const { return m_parts.model.HasTabs() ? m_parts.model.GetActiveTab().location : Location(); }
 
@@ -127,8 +114,8 @@ private:
     IBrowserPreviewHost     & m_host;
 
     MemoryBus                           m_bus;
-    PicturePreview::Monitor             m_previewMonitor = PicturePreview::Monitor::Color;
-    uint32_t                            m_customArgb     = PicturePreview::kDefaultCustomArgb;
     PreviewContent                      m_preview;
     PreviewViewState                    m_viewState      { *this };
+    PictureMonitorChoice                m_monitor        { m_preview, m_bus };
+    PreviewParts                        m_previewParts   { m_preview, m_bus, m_viewState, m_monitor };
 };

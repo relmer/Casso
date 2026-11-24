@@ -228,7 +228,7 @@ void ExplorerWindowParts::Configure()
     services.shellIcons->SetSizePx (MulDiv (DxuiTreeView::s_kIconDip, dpi, (int) DxuiDpiScaler::kBaseDpi));
     context.browser.SetShellIcons (services.shellIcons.get());
     context.browser.SetShellVerbs (services.shellVerbs.get());
-    context.browser.GetPreviewer().SetPreviewMonitor (preview.GetPicture().GetMonitor(), context.prefs.previewCustomArgb);
+    context.browser.GetPreviewer().GetMonitorChoice().SetPreviewMonitor (preview.GetPicture().GetMonitor(), context.prefs.previewCustomArgb);
     context.browser.GetPreviewer().GetViewState().SetDefaultDecodeOptions (context.prefs.copyOptions);
     explorerOptions = FolderOptions::ReadFromShell();
     context.browser.SetFolderOptions (explorerOptions);

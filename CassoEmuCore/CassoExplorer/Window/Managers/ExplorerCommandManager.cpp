@@ -159,7 +159,7 @@ bool ExplorerCommandManager::IsEnabled (int id) const
         case CassoExplorerCommands::kLineAddresses:
         case CassoExplorerCommands::kCrossReference:    return m_context.preview.GetBarMode() == CassoExplorerCommands::kPreviewBarListing;
         case CassoExplorerCommands::kPictureMonochrome:
-        case CassoExplorerCommands::kPictureColor:      return m_context.browser.GetPreviewer().CanTogglePictureColor();
+        case CassoExplorerCommands::kPictureColor:      return m_context.browser.GetPreviewer().GetMonitorChoice().CanTogglePictureColor();
         case CassoExplorerCommands::kSavePicture:       return m_context.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Picture && !m_context.browser.GetPreviewer().GetPreview().bgra.empty();
         case CassoExplorerCommands::kExpandPreview:     return m_context.preview.IsShown();
         case CassoExplorerCommands::kViewAs:            return !m_context.browser.GetPreviewer().GetPreview().viewChoices.empty();
@@ -284,8 +284,8 @@ bool ExplorerCommandManager::IsChecked (int id) const
         case CassoExplorerCommands::kCrossReference:    return m_context.preview.GetText().IsCrossReference();
         case CassoExplorerCommands::kShowDisassembly:   return m_context.browser.GetPreviewer().GetPreview().disassembly;
         case CassoExplorerCommands::kShowBytes:         return m_context.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Hex && !m_context.browser.GetPreviewer().GetPreview().disassembly;
-        case CassoExplorerCommands::kPictureMonochrome: return m_context.browser.GetPreviewer().CanTogglePictureColor() && m_context.browser.GetPreviewer().GetPreview().pictureMode == PicturePreview::Mode::DoubleHiResMono;
-        case CassoExplorerCommands::kPictureColor:      return m_context.browser.GetPreviewer().CanTogglePictureColor() && m_context.browser.GetPreviewer().GetPreview().pictureMode != PicturePreview::Mode::DoubleHiResMono;
+        case CassoExplorerCommands::kPictureMonochrome: return m_context.browser.GetPreviewer().GetMonitorChoice().CanTogglePictureColor() && m_context.browser.GetPreviewer().GetPreview().pictureMode == PicturePreview::Mode::DoubleHiResMono;
+        case CassoExplorerCommands::kPictureColor:      return m_context.browser.GetPreviewer().GetMonitorChoice().CanTogglePictureColor() && m_context.browser.GetPreviewer().GetPreview().pictureMode != PicturePreview::Mode::DoubleHiResMono;
         case CassoExplorerCommands::kCharsetAppleText:  return m_context.browser.GetPreviewer().GetPreview().charset == Charset::AppleText;
         case CassoExplorerCommands::kCharsetMacOsRoman: return m_context.browser.GetPreviewer().GetPreview().charset == Charset::MacOsRoman;
         case CassoExplorerCommands::kCharsetIso8859:    return m_context.browser.GetPreviewer().GetPreview().charset == Charset::Iso8859_1;

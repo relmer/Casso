@@ -480,6 +480,7 @@
     <ClCompile Include="CassoExplorer\Browser\BrowserNavigator.cpp" />
     <ClCompile Include="CassoExplorer\Browser\BrowserLoader.cpp" />
     <ClCompile Include="CassoExplorer\Browser\BrowserPreviewer.cpp" />
+    <ClCompile Include="CassoExplorer\Browser\Preview\PictureMonitorChoice.cpp" />
     <ClCompile Include="CassoExplorer\Browser\Preview\PreviewViewState.cpp" />
     <ClCompile Include="CassoExplorer\Browser\BrowserRowOrder.cpp" />
     <ClCompile Include="CassoExplorer\Browser\BrowserRowPaths.cpp" />
@@ -1744,6 +1745,8 @@
     <ClInclude Include="CassoExplorer\Browser\BrowserLoader.h" />
     <ClInclude Include="CassoExplorer\Browser\BrowserPreviewer.h" />
     <ClInclude Include="CassoExplorer\Browser\Preview\IPreviewRefresh.h" />
+    <ClInclude Include="CassoExplorer\Browser\Preview\PictureMonitorChoice.h" />
+    <ClInclude Include="CassoExplorer\Browser\Preview\PreviewParts.h" />
     <ClInclude Include="CassoExplorer\Browser\Preview\PreviewViewState.h" />
     <ClInclude Include="CassoExplorer\Browser\BrowserRowOrder.h" />
     <ClInclude Include="CassoExplorer\Browser\BrowserRowPaths.h" />

@@ -187,7 +187,7 @@ void BrowserPreviewer::PreviewAppleEntry (const std::string & entryPath, const F
     {
         PreviewDecoder::HexForm  hexForm = m_viewState.GetHexForm (GetLocation().path + L"|" + TextEncoding::NarrowToWide (entryPath));
 
-        hr = PreviewViewChoices::Render (m_viewState.GetViewAs(), entry, m_parts.list.kind, payload, hexForm, m_bus, m_preview, m_previewMonitor, m_customArgb,
+        hr = PreviewViewChoices::Render (m_viewState.GetViewAs(), entry, m_parts.list.kind, payload, hexForm, m_bus, m_preview, m_monitor.GetPreviewMonitor(), m_monitor.GetCustomArgb(),
                                          m_viewState.GetDecodeOptions (GetLocation().path, entryPath));
     }
 
@@ -925,128 +925,6 @@ void BrowserPreviewer::ReadTextPreview (const std::wstring & path, const std::ws
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BrowserPreviewer::SetPreviewMonitor
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BrowserPreviewer::SetPreviewMonitor (PicturePreview::Monitor monitor, uint32_t customArgb)
-{
-    HRESULT  hr = S_OK;
-
-
-
-    if (monitor == m_previewMonitor && customArgb == m_customArgb)
-    {
-        return;
-    }
-
-    m_previewMonitor = monitor;
-    m_customArgb     = customArgb;
-
-    if (m_preview.kind == PreviewContent::Kind::Picture && m_preview.pictureMode != PicturePreview::Mode::None)
-    {
-        hr = PicturePreview::Render (m_preview.pictureMode, m_preview.bytes, m_preview.origin, m_bus,
-                                     m_preview.bgra, m_preview.width, m_preview.height, GetPictureMonitor(), m_customArgb);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BrowserPreviewer::GetPictureMonitor
-//
-////////////////////////////////////////////////////////////////////////////////
-
-PicturePreview::Monitor BrowserPreviewer::GetPictureMonitor() const
-{
-    return CanTogglePictureColor() ? ChooseMonitor (m_previewMonitor, m_preview.pictureMode) : m_previewMonitor;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BrowserPreviewer::ChooseMonitor
-//
-////////////////////////////////////////////////////////////////////////////////
-
-PicturePreview::Monitor BrowserPreviewer::ChooseMonitor (PicturePreview::Monitor chosen, PicturePreview::Mode mode)
-{
-    PicturePreview::Monitor  monitor = chosen;
-
-
-
-    if (mode == PicturePreview::Mode::DoubleHiRes || mode == PicturePreview::Mode::DoubleHiResWindowed || mode == PicturePreview::Mode::DoubleHiResLatched)
-    {
-        monitor = PicturePreview::Monitor::Color;
-    }
-    else if (mode == PicturePreview::Mode::DoubleHiResMono && chosen == PicturePreview::Monitor::Color)
-    {
-        monitor = PicturePreview::Monitor::White;
-    }
-
-    return monitor;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BrowserPreviewer::CanTogglePictureColor
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool BrowserPreviewer::CanTogglePictureColor() const
-{
-    return m_preview.kind == PreviewContent::Kind::Picture && PicturePreview::IsDoubleHiRes (m_preview.pictureChosen);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BrowserPreviewer::TogglePictureColor
-//
-//  Lasts for this picture: the next picture's mode is chosen afresh.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool BrowserPreviewer::TogglePictureColor()
-{
-    HRESULT  hr = S_OK;
-
-
-
-    if (!CanTogglePictureColor())
-    {
-        return false;
-    }
-
-    m_preview.pictureMode = (m_preview.pictureMode != PicturePreview::Mode::DoubleHiResMono) ? PicturePreview::Mode::DoubleHiResMono
-                                                                                             : PicturePreview::Mode::DoubleHiRes;
-
-    hr = PicturePreview::Render (m_preview.pictureMode, m_preview.bytes, m_preview.origin, m_bus,
-                                 m_preview.bgra, m_preview.width, m_preview.height, GetPictureMonitor(), m_customArgb);
-
-    return SUCCEEDED (hr);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  BrowserPreviewer::PreviewShellItem
 //
 //  A file the shell lists shows its bytes: one on a disk from the file, as in
@@ -1143,14 +1021,13 @@ void BrowserPreviewer::PreviewEntry (const std::wstring & imagePath, const std::
     hexForm = m_viewState.GetHexForm (imagePath + L"|" + TextEncoding::NarrowToWide (entryPath));
     options.diskSectors = diskSectors;
     options.otherDisks  = otherDisks;
-    hr                  = PreviewViewChoices::Render (m_viewState.GetViewAs(), entry, kind, payload, hexForm, m_bus, m_preview, m_previewMonitor, m_customArgb, options);
+    hr                  = PreviewViewChoices::Render (m_viewState.GetViewAs(), entry, kind, payload, hexForm, m_bus, m_preview, m_monitor.GetPreviewMonitor(), m_monitor.GetCustomArgb(), options);
 
     //  A double hi-res picture's monitor follows its form, which is known once
     //  it is decoded.
-    if (SUCCEEDED (hr) && GetPictureMonitor() != m_previewMonitor)
+    if (SUCCEEDED (hr))
     {
-        hr = PicturePreview::Render (m_preview.pictureMode, m_preview.bytes, m_preview.origin, m_bus,
-                                     m_preview.bgra, m_preview.width, m_preview.height, GetPictureMonitor(), m_customArgb);
+        hr = m_monitor.RedrawForForm();
     }
 
     if (FAILED (hr) && m_preview.message.empty())
@@ -1425,7 +1302,7 @@ void BrowserPreviewer::PreviewHostFile (const std::wstring & folder, const Catal
 
     if (typed)
     {
-        hr = PreviewViewChoices::Render (m_viewState.GetViewAs(), entry, VolumeKind::ProDos, payload, hexForm, m_bus, m_preview, m_previewMonitor, m_customArgb, DecodeOptions());
+        hr = PreviewViewChoices::Render (m_viewState.GetViewAs(), entry, VolumeKind::ProDos, payload, hexForm, m_bus, m_preview, m_monitor.GetPreviewMonitor(), m_monitor.GetCustomArgb(), DecodeOptions());
 
         if (SUCCEEDED (hr))
         {
@@ -1566,7 +1443,7 @@ void BrowserPreviewer::AttachHostViews (const FileEntry & entry, const FilePaylo
 
     if (applies)
     {
-        hr = PreviewViewChoices::RenderAs (m_viewState.GetViewAs(), entry, VolumeKind::ProDos, payload, hexForm, m_bus, chosen, m_previewMonitor, m_customArgb);
+        hr = PreviewViewChoices::RenderAs (m_viewState.GetViewAs(), entry, VolumeKind::ProDos, payload, hexForm, m_bus, chosen, m_monitor.GetPreviewMonitor(), m_monitor.GetCustomArgb());
     }
 
     if (SUCCEEDED (hr))
