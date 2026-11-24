@@ -2,7 +2,10 @@
 
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/IDiskFileIo.h"
+#include "Devices/Disk/DiskInspectCommand.h"
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
+#include "Devices/Disk/Inspector/Blocks/BlockRepair.h"
+#include "Devices/Disk/Inspector/Repair/FileSystemCheck.h"
 #include "Devices/Disk/Inspector/Repair/RepairCopy.h"
 #include "Seams/IDriveSpace.h"
 #include "Seams/IHostDialogs.h"
@@ -50,6 +53,90 @@ int BlockRepairController::GetVolume() const
     }
 
     return volume;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockRepairController::GetNotice
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring BlockRepairController::GetNotice (bool & outIsBad, bool & outCanRepair)
+{
+    BlockInspectorModel                       & model   = m_parts.model;
+    int                                         volume  = model.IsOpen() ? GetVolume() : -1;
+    uint32_t                                    current = model.GetMapGeneration();
+    FileSystemVerdict                           verdict = FileSystemVerdict::None;
+    RepairPlan                                  plan;
+    vector<DiskInspectCommand::BlockFinding>    findings;
+
+
+
+    if (current != m_noticeGeneration || volume != m_noticeVolume)
+    {
+        m_noticeGeneration = current;
+        m_noticeVolume     = volume;
+        m_notice.clear();
+        m_isNoticeBad      = false;
+        m_canNoticeRepair  = false;
+
+        verdict = (volume >= 0) ? BlockRepair::GetVerdict (model.GetVolumeMap (volume)) : FileSystemVerdict::None;
+
+        if (verdict == FileSystemVerdict::Bad || verdict == FileSystemVerdict::Suspect)
+        {
+            findings          = DiskInspectCommand::GetBlockFindings (model.GetVolumeMap (volume));
+            plan              = model.PlanRepair (volume, {});
+            m_notice          = FormatNotice (verdict, findings.empty() ? std::wstring() : findings.front().sentence, plan);
+            m_isNoticeBad     = verdict == FileSystemVerdict::Bad;
+            m_canNoticeRepair = plan.canRepair;
+        }
+    }
+
+    outIsBad     = m_isNoticeBad;
+    outCanRepair = m_canNoticeRepair;
+
+    return m_notice;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockRepairController::FormatNotice
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring BlockRepairController::FormatNotice (FileSystemVerdict verdict, const std::wstring & finding, const RepairPlan & plan)
+{
+    std::wstring  sentence = finding;
+    std::wstring  text;
+
+
+
+    if (!sentence.empty())
+    {
+        sentence[0] = static_cast<wchar_t> (towupper (sentence[0]));
+    }
+
+    if (!sentence.empty() && !sentence.ends_with (L'.'))
+    {
+        sentence += L".";
+    }
+
+    text = FileSystemCheck::FormatVerdict (verdict) + (sentence.empty() ? std::wstring (L".") : L": " + sentence);
+
+    if (!plan.canRepair)
+    {
+        text += L" Repair isn't available. " + plan.reason;
+    }
+
+    return text;
 }
 
 

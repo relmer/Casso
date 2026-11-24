@@ -106,6 +106,7 @@ protected:
 private:
     void  CreateParts  ();
     void  TransferRaw  (bool isSave);
+    void  UpdateNotice ();
 
     //  m_worker follows m_model, so it is destroyed first and its thread
     //  ends before the model goes away.

@@ -43,10 +43,24 @@ public:
     bool  CanRepair () const override { return GetVolume() >= 0; }
     void  Repair    () override;
 
+    //  The infobar's text for the current volume while it is Bad or Suspect,
+    //  or empty, with whether it is Bad and whether Repair is available.
+    //  Worked out again only when the map or the volume changes.
+    std::wstring  GetNotice (bool & outIsBad, bool & outCanRepair);
+
+    //  "Bad: 7 blocks in use are marked free.", and when Repair isn't
+    //  available, its reason after.
+    static std::wstring  FormatNotice (FileSystemVerdict verdict, const std::wstring & finding, const RepairPlan & plan);
+
 private:
     int   GetVolume  () const;
     bool  PickTarget (const std::wstring & why, uint64_t bytes, std::filesystem::path & ioTarget);
     void  QueueCopy  (int volume, const RepairPlan & plan, bool isCard, const std::filesystem::path & target);
 
-    Parts  m_parts;
+    Parts         m_parts;
+    uint32_t      m_noticeGeneration = UINT32_MAX;
+    int           m_noticeVolume     = -1;
+    std::wstring  m_notice;
+    bool          m_isNoticeBad      = false;
+    bool          m_canNoticeRepair  = false;
 };

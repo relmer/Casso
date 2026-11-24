@@ -181,6 +181,30 @@ void BlockInspectorWindow::CreateParts()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BlockInspectorWindow::UpdateNotice
+//
+//  The panel's infobar from the current volume, with Repair... running the
+//  Disk menu's Repair.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorWindow::UpdateNotice()
+{
+    bool          isBad     = false;
+    bool          canRepair = false;
+    std::wstring  text      = m_repair->GetNotice (isBad, canRepair);
+
+
+
+    m_panel->SetNotice (text, isBad, canRepair, [this] () { BlockCommandSet::Run (m_commands.repair); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BlockInspectorWindow::TransferRaw
 //
 //  The host's save or overwrite of blocks, starting at the selected block.
@@ -225,6 +249,7 @@ void BlockInspectorWindow::RenderIfChanged()
     m_session.RunPendingReload();
 
     m_panel->UpdateBusy();
+    UpdateNotice();
     m_edits->UpdateEditControls();
     m_session.UpdateTitle();
     DxuiPanel::Tick ((int64_t) GetTickCount64());

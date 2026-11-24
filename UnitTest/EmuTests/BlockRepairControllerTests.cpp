@@ -105,4 +105,38 @@ public:
         Assert::IsTrue (rig.dialogs.warnings[0].starts_with (L"Repair isn't available. "));
         Assert::IsTrue (rig.dialogs.warnings[0].size() > std::wstring (L"Repair isn't available. ").size(), L"the plan's reason follows");
     }
+
+
+    TEST_METHOD (GetNotice_HealthyVolumeHasNone)
+    {
+        Rig           rig;
+        bool          isBad     = true;
+        bool          canRepair = true;
+        std::wstring  text;
+
+
+
+        text = rig.repair.GetNotice (isBad, canRepair);
+
+        Assert::IsTrue  (text.empty());
+        Assert::IsFalse (isBad);
+        Assert::IsFalse (canRepair);
+    }
+
+
+    TEST_METHOD (FormatNotice_HasTheVerdictTheFindingAndTheReason)
+    {
+        RepairPlan  plan;
+
+
+
+        plan.canRepair = true;
+        Assert::AreEqual (std::wstring (L"Bad: 7 blocks in use are marked free."),
+                          BlockRepairController::FormatNotice (FileSystemVerdict::Bad, L"7 blocks in use are marked free", plan));
+
+        plan.canRepair = false;
+        plan.reason    = L"The card is read-only.";
+        Assert::AreEqual (std::wstring (L"Bad: 7 blocks in use are marked free. Repair isn't available. The card is read-only."),
+                          BlockRepairController::FormatNotice (FileSystemVerdict::Bad, L"7 blocks in use are marked free", plan));
+    }
 };
