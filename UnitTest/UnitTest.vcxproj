@@ -591,6 +591,7 @@
     <ClCompile Include="CassoExplorer\ExplorerPreviewPaneTests.cpp" />
     <ClCompile Include="CassoExplorer\ExplorerWindowPartsTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerCommandsTests.cpp" />
+    <ClCompile Include="CassoExplorer\ActionsGoToTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerActionsTests.cpp" />
     <ClCompile Include="CassoExplorer\ScratchImages.cpp" />
     <ClCompile Include="CassoExplorer\A2PicoCardActionsTests.cpp" />
