@@ -133,6 +133,10 @@ Error:
 //
 //  Win32RecycleBin::Recycle
 //
+//  The shell is told first that each file changed, so its confirmation has
+//  the file's size and time as they are now, not as the shell last saw
+//  them, such as a file written since it was created empty.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Win32RecycleBin::Recycle (HWND owner, const std::vector<std::wstring> & paths)
@@ -143,6 +147,11 @@ HRESULT Win32RecycleBin::Recycle (HWND owner, const std::vector<std::wstring> & 
     ComPtr<IShellItemArray>  items;
 
 
+
+    for (const std::wstring & path : paths)
+    {
+        SHChangeNotify (SHCNE_UPDATEITEM, SHCNF_PATHW | SHCNF_FLUSH, path.c_str(), nullptr);
+    }
 
     hr = GetItemArray (paths, &items);
     CHR (hr);
