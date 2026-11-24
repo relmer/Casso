@@ -228,6 +228,7 @@
     <ClCompile Include="GuestVisibleFluxTests.cpp" />
     <ClCompile Include="RealPascalCpmDiskTests.cpp" />
     <ClCompile Include="CassoLinkDosProbeTests.cpp" />
+    <ClCompile Include="CassoLinkDriveLinksTests.cpp" />
     <ClCompile Include="CassoLinkNetworkTests.cpp" />
     <ClCompile Include="CassoLinkSuperSerialTests.cpp" />
     <ClCompile Include="TcpStreamTests.cpp" />
@@ -241,6 +242,7 @@
     <ClCompile Include="GuestVisibleTextScreenTests.cpp" />
     <ClCompile Include="..\UnitTest\ModuleSetup.cpp" />
     <ClCompile Include="..\UnitTest\EhmTestHelper.cpp" />
+    <ClCompile Include="..\UnitTest\Dxui\MockDxuiTextRenderer.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\FixtureProvider.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\DiskRunnerFixtures.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\ProDosVolumeFixtures.cpp" />
