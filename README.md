@@ -725,6 +725,7 @@ Casso also builds on several third-party components and assets:
 - **[stb_vorbis](https://github.com/nothings/stb)**: Sean Barrett's public-domain Ogg Vorbis decoder ([nothings.org/stb_vorbis](http://nothings.org/stb_vorbis/)), used to decode the Disk II and printer audio samples.
 - **ImageWriter II printer sounds**: recorded from a real ImageWriter II by [Scott Lawrence](https://github.com/BleuLlama/ImageWriterIISimulator), licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 - **Disk II mechanical sounds**: recordings from the [OpenEmulator](https://github.com/openemulator/libemulation) project.
+- **[Visual6502](http://www.visual6502.org/) die photographs**: the project's [die shots of the Silicon Systems SSI 263P](http://www.visual6502.org/images/pages/Silicon_Systems_SSI_263P_die_shots.html) are the source the Mockingboard C's phoneme parameter ROM was read from. All 64 phonemes — the formant, amplitude and class fields no datasheet publishes — were decoded from those images, so Casso's speech is driven by the chip's own ROM rather than by fitted approximations. Without those photographs the data would not exist outside the silicon.
 
 ## Contributing
 
