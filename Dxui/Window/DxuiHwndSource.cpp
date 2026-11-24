@@ -4158,6 +4158,34 @@ void DxuiHwndSource::SetTitle (const std::wstring & title, size_t markAt)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiHwndSource::SetTitleChips
+//
+//  Chips drawn after the title in the host-owned caption. The window text
+//  has the title alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::SetTitleChips (const std::vector<DxuiTitleChip> & chips)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    if (m_caption)
+    {
+        m_caption->SetTitleChips (chips);
+
+        if (m_hwnd != nullptr)
+        {
+            InvalidateRect (m_hwnd, nullptr, FALSE);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetCaptionIcon
 //
 ////////////////////////////////////////////////////////////////////////////////

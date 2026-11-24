@@ -533,6 +533,26 @@ void DxuiWindow::SetTitle (const std::wstring & title, size_t markAt)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetTitleChips
+//
+//  Chips drawn after the title in the caption, such as "Read as CP/M".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::SetTitleChips (const std::vector<DxuiTitleChip> & chips)
+{
+    if (m_source != nullptr)
+    {
+        m_source->SetTitleChips (chips);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnLButtonDown
 //
 //  Captures the mouse + takes focus so a drag begun on a scrollbar thumb
