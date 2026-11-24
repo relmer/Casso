@@ -391,6 +391,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
     bool                                             browsable      = false;
     std::vector<std::shared_ptr<const DxuiCommand>>  iconCommands;
     std::vector<DxuiPopupMenuItem>                   newChoices;
+    std::vector<DxuiPopupMenuItem>                   openWith;
     std::shared_ptr<const DxuiCommand>               newFolder;
     std::shared_ptr<const DxuiCommand>               newDisk;
     bool                                             background     = m_context.browser.GetSelectedRows().empty() && group < 0;
@@ -582,7 +583,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
         if (verb == CassoExplorerActions::Verb::OpenWith)
         {
-            AddOpenWithMenu (items);
+            AddOpenWithMenu (openWith);
             continue;
         }
 
@@ -793,13 +794,51 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
     {
         std::vector<std::wstring>              selectedPaths;
         Win32ExplorerCommandEntries::ItemKind  kind          = Win32ExplorerCommandEntries::ItemKind::File;
+        bool                                   onHost        = (m_context.browser.GetLocation().kind == Location::Kind::HostFolder || m_context.browser.IsHomeLocation() || m_context.browser.GetSelection().AreSelectedRowsSearchFiles())
+                                                               && m_context.menus.GetSelectionKind (selectedPaths, kind);
 
-        //  Windows' commands lead into Share and Copy as path in one
-        //  group, as in File Explorer.
-        AddSeparator (items);
+        //  Casso's rows for a file on the PC end Casso's group. An Apple file on the PC has its Apple properties beside Windows'.
+        if (selectedPaths.size() == 1 && ExplorerProperties::IsHostAppleFile (selectedPaths[0]))
+        {
+            std::wstring  path = selectedPaths[0];
 
-        if ((m_context.browser.GetLocation().kind == Location::Kind::HostFolder || m_context.browser.IsHomeLocation() || m_context.browser.GetSelection().AreSelectedRowsSearchFiles())
-            && m_context.menus.GetSelectionKind (selectedPaths, kind))
+            m_context.menus.AddMenuCommand (items, L"&Apple properties", [this, path]() { m_context.properties.ShowHostAppleProperties (path); });
+            m_context.menus.GetMenuCommands().back()->menuImage = m_context.shellIcons.GetForKind (IShellIcons::Kind::AppleMachine);
+        }
+
+        //  A WOZ image on the PC has its INFO and META beside Windows' properties.
+        if (selectedPaths.size() == 1 && ExplorerProperties::IsWozImage (selectedPaths[0]))
+        {
+            std::wstring  path = selectedPaths[0];
+
+            m_context.menus.AddMenuCommand (items, L"&Disk properties", [this, path]() { m_context.properties.ShowWozProperties (path, WozPropertiesDialog::kInfoTab); });
+            m_context.menus.GetMenuCommands().back()->menuImage = m_context.shellIcons.GetForKind (IShellIcons::Kind::DiskImage);
+        }
+
+        //  Remove thumbnail removes the thumbnail the user set, or with none
+        //  set, the one made by booting.
+        if (selectedPaths.size() == 1 && m_context.app.pictures != nullptr && m_context.app.pictures->HasThumbnail (selectedPaths[0]))
+        {
+            std::wstring  path = selectedPaths[0];
+
+            m_context.menus.AddMenuCommand (items, L"Remove thum&bnail", [this, path]()
+            {
+                HRESULT  removed = m_context.app.pictures->RemoveThumbnail (path);
+
+                IGNORE_RETURN_VALUE (removed, S_OK);
+            });
+        }
+
+        //  File Explorer's rows follow in a separate group: Open with,
+        //  then Windows' commands leading into Copy as path.
+        if (!items.empty() && items.back().kind != DxuiPopupMenuItem::Kind::Separator)
+        {
+            items.push_back (DxuiPopupMenuItem::ForSeparator());
+        }
+
+        std::move (openWith.begin(), openWith.end(), std::back_inserter (items));
+
+        if (onHost)
         {
             std::vector<std::wstring>  homeIds;
 
@@ -848,11 +887,16 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
             m_context.menus.AddShellMenuCommands (items, rowPaths);
 
             selectedDrives = !rowPaths.empty() && std::all_of (rowPaths.begin(), rowPaths.end(), [] (const std::wstring & path) { return path.size() == 3 && path[1] == L':'; });
+
+            if (!selectedDrives)
+            {
+                m_context.menus.AddFileActions (items, rowPaths);
+            }
         }
 
         //  File Explorer's drive has no Copy as path, and a stock disk has no
         //  file at its path until it is downloaded.
-        if (!selectedDrives && !m_context.listPane.IsStockDiskToFetchSelected())
+        if (!selectedDrives && !m_context.listPane.IsStockDiskToFetchSelected() && m_context.menus.ReadLayout().copyAsPath)
         {
             m_context.menus.AddMenuCommand (items, L"Copy as &path", [this]() { m_context.clipboard.CopySelectedPaths(); }, L"Ctrl+Shift+C", s_kpszMdl2CopyPath);
             m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.copyaspath");
@@ -882,38 +926,6 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
             m_context.menus.GetMenuCommands().back()->menuSvg   = m_context.menus.GetMenuSvg (L"windows.properties");
         }
 
-        //  An Apple file on the PC has its Apple properties beside Windows'.
-        if (selectedPaths.size() == 1 && ExplorerProperties::IsHostAppleFile (selectedPaths[0]))
-        {
-            std::wstring  path = selectedPaths[0];
-
-            m_context.menus.AddMenuCommand (items, L"&Apple properties", [this, path]() { m_context.properties.ShowHostAppleProperties (path); });
-            m_context.menus.GetMenuCommands().back()->menuImage = m_context.shellIcons.GetForKind (IShellIcons::Kind::AppleMachine);
-        }
-
-        //  A WOZ image on the PC has its INFO and META beside Windows' properties.
-        if (selectedPaths.size() == 1 && ExplorerProperties::IsWozImage (selectedPaths[0]))
-        {
-            std::wstring  path = selectedPaths[0];
-
-            m_context.menus.AddMenuCommand (items, L"&Disk properties", [this, path]() { m_context.properties.ShowWozProperties (path, WozPropertiesDialog::kInfoTab); });
-            m_context.menus.GetMenuCommands().back()->menuImage = m_context.shellIcons.GetForKind (IShellIcons::Kind::DiskImage);
-        }
-
-        //  Remove thumbnail removes the thumbnail the user set, or with none
-        //  set, the one made by booting.
-        if (selectedPaths.size() == 1 && m_context.app.pictures != nullptr && m_context.app.pictures->HasThumbnail (selectedPaths[0]))
-        {
-            std::wstring  path = selectedPaths[0];
-
-            m_context.menus.AddMenuCommand (items, L"Remove thum&bnail", [this, path]()
-            {
-                HRESULT  removed = m_context.app.pictures->RemoveThumbnail (path);
-
-                IGNORE_RETURN_VALUE (removed, S_OK);
-            });
-        }
-
         if (m_context.browser.GetSelectedRows().size() > 1 && m_context.browser.IsVolumeLocation())
         {
             m_context.menus.AddMenuCommand (items, L"P&roperties", [this]() { m_context.properties.ShowAppleProperties(); }, L"Alt+Enter");
@@ -936,8 +948,10 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
     if (!iconCommands.empty())
     {
+        std::vector<DxuiPopupMenuItem>  primary = m_context.menus.GetPrimaryItems (std::move (iconCommands));
+
         items.insert (items.begin(), DxuiPopupMenuItem::ForSeparator());
-        items.insert (items.begin(), DxuiPopupMenuItem::ForIconRow (std::move (iconCommands)));
+        items.insert (items.begin(), std::make_move_iterator (primary.begin()), std::make_move_iterator (primary.end()));
     }
 
     //  The commands installed apps add for these items, as Explorer lists
@@ -1159,18 +1173,34 @@ void ExplorerListMenus::AddOpenWithMenu (std::vector<DxuiPopupMenuItem> & items)
 
     for (i = 0; i < handlers.size(); i++)
     {
-        m_context.menus.AddMenuCommand (children, ExplorerAddressBar::EscapeMnemonics (handlers[i].name).c_str(), [this, path, i]()
+        IShellItemVerbs::Handler  handler = handlers[i];
+
+        m_context.menus.AddMenuCommand (children, ExplorerAddressBar::EscapeMnemonics (handlers[i].name).c_str(), [this, path, handler]()
         {
-            HRESULT  opened = m_context.shellVerbs.OpenWith (m_context.window.GetHwnd(), path, i);
+            HRESULT  opened = m_context.shellVerbs.OpenWith (m_context.window.GetHwnd(), path, handler);
 
             IGNORE_RETURN_VALUE (opened, S_OK);
         });
+
+        if (_wcsicmp (std::filesystem::path (handlers[i].iconFile).extension().c_str(), L".png") == 0)
+        {
+            m_context.menus.GetMenuCommands().back()->menuImage = m_context.shellIcons.GetForIconResource (handlers[i].iconFile);
+        }
+        else if (!handlers[i].iconFile.empty())
+        {
+            m_context.menus.GetMenuCommands().back()->menuImage = m_context.menus.GetIconFileMenuImage (handlers[i].iconFile, handlers[i].iconIndex);
+        }
     }
 
-    if (!children.empty())
+    //  Then the Store's apps for the type, as File Explorer offers them.
+    m_context.menus.AddMenuCommand (children, L"Search the &Microsoft Store", [path]()
     {
-        children.push_back (DxuiPopupMenuItem::ForSeparator());
-    }
+        std::wstring  extension = std::filesystem::path (path).extension().wstring();
+        std::wstring  link      = L"ms-windows-store://assoc/?Ext=" + (extension.empty() ? std::wstring() : extension.substr (1));
+
+        ShellExecuteW (nullptr, L"open", link.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+    });
+    m_context.menus.GetMenuCommands().back()->menuImage = m_context.menus.GetFileMenuImage (L"shell:AppsFolder\\Microsoft.WindowsStore_8wekyb3d8bbwe!App");
 
     m_context.menus.AddMenuCommand (children, L"&Choose another app", [this, path]()
     {

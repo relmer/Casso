@@ -28,6 +28,10 @@ public:
     struct Handler
     {
         std::wstring  name;
+        std::wstring  iconFile;                     // the program's icon, or empty
+        int           iconIndex   = 0;
+        size_t        assocIndex  = SIZE_MAX;       // the handler's place in the type's list, or SIZE_MAX
+        std::wstring  application;                  // a recently used program's file name, run by its Applications key
     };
 
     //  An item in the Recycle Bin, with the columns Explorer shows for it.
@@ -114,7 +118,7 @@ public:
     //  The programs Windows recommends for the file's type, in its order,
     //  and opening the file in one of them by its index in that list.
     virtual HRESULT  GetOpenWithHandlers (const std::wstring & path, std::vector<Handler> & outHandlers) = 0;
-    virtual HRESULT  OpenWith            (HWND owner, const std::wstring & path, size_t handlerIndex) = 0;
+    virtual HRESULT  OpenWith            (HWND owner, const std::wstring & path, const Handler & handler) = 0;
 
     //  Windows' own Open with dialog, for a program not on the list.
     virtual HRESULT  ChooseOtherApp (HWND owner, const std::wstring & path) = 0;
@@ -152,6 +156,23 @@ public:
         outFound.clear();
         return S_OK;
     }
+
+    //  The SendTo folder's shortcuts, as File Explorer's Send to lists them,
+    //  and sending items to one, as a drop on it does.
+    struct SendToTarget
+    {
+        std::wstring  path;
+        std::wstring  label;
+    };
+
+    virtual HRESULT  ListSendToTargets (std::vector<SendToTarget> & outTargets)                              { outTargets.clear(); return S_OK; }
+
+    //  Which of the file actions Print, Create shortcut and Rotate apply to
+    //  every item, by their verbs print, link, rotate90 and rotate270, from
+    //  the items' file types rather than the shell's menu, which is slow to
+    //  build.
+    virtual HRESULT  ListFileActions   (const std::vector<std::wstring> & paths, const std::vector<std::string> & verbs, std::vector<ItemVerb> & outFound) { (void) paths; (void) verbs; outFound.clear(); return S_OK; }
+    virtual HRESULT  SendTo            (const std::vector<std::wstring> & paths, const std::wstring & target) { (void) paths; (void) target; return E_NOTIMPL; }
 
     //  Explorer's own file operations, with its progress, conflict and undo
     //  handling: deleting to the Recycle Bin, renaming, and cut, copy and

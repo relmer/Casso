@@ -278,7 +278,10 @@ void PreviewArchiveView::ShowContextMenu (int x, int y)
         m_context.menus.GetMenuCommands().push_back (std::move (command));
     }
 
-    items.push_back (DxuiPopupMenuItem::ForIconRow (std::move (iconCommands)));
+    for (DxuiPopupMenuItem & item : m_context.menus.GetPrimaryItems (std::move (iconCommands)))
+    {
+        items.push_back (std::move (item));
+    }
     items.push_back (DxuiPopupMenuItem::ForSeparator());
 
     m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::Open), [this]()

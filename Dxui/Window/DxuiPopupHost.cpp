@@ -1971,7 +1971,7 @@ void DxuiPopupHost::BeginReveal (int durationMs, bool fade)
     m_revealing        = true;
     m_revealFade       = fade;
     m_revealDurationMs = durationMs;
-    m_revealStartMs    = (int64_t) GetTickCount64();
+    m_revealStartMs    = GetRevealNowMs();
     m_revealUpward     = m_placedRectScreenPx.top < m_params.anchorRectScreen.top;
     m_revealOut        = false;
     m_revealAlpha      = fade ? 0.0f : 1.0f;
@@ -2000,7 +2000,7 @@ void DxuiPopupHost::BeginFadeOut (int durationMs)
     m_revealFade       = true;
     m_revealOut        = true;
     m_revealDurationMs = durationMs;
-    m_revealStartMs    = (int64_t) GetTickCount64();
+    m_revealStartMs    = GetRevealNowMs();
     m_revealAlpha      = 1.0f;
 
     //  A fade out can start before the compositor's fade in finishes.
@@ -2693,7 +2693,12 @@ bool DxuiPopupHost::AdvanceReveal (int64_t nowMs)
         return false;
     }
 
-    t = (float) (nowMs - m_revealStartMs) / (float) m_revealDurationMs;
+    //  The reveal's clock, not the caller's: a caller's clock can count
+    //  from another start, and against it every reveal read as finished on
+    //  its first frame.
+    (void) nowMs;
+
+    t = (float) (GetRevealNowMs() - m_revealStartMs) / (float) m_revealDurationMs;
 
     if (t >= 1.0f || m_hwnd == nullptr)
     {
@@ -2789,3 +2794,18 @@ Error:
     return hr;
 }
 
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetRevealNowMs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int64_t DxuiPopupHost::GetRevealNowMs()
+{
+    return (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (std::chrono::steady_clock::now().time_since_epoch()).count();
+}

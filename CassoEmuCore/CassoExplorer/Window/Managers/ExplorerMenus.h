@@ -4,6 +4,7 @@
 
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
+#include "Seams/Win32ContextMenuLayout.h"
 #include "Seams/Win32ExplorerCommandEntries.h"
 #include "Seams/Win32PackagedCommands.h"
 #include "Seams/Win32RegistryReader.h"
@@ -108,6 +109,10 @@ public:
     HRESULT                         RunAskCopilot          (const std::wstring & path);
     void                            AddPackagedCommandsFor (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32ExplorerCommandEntries::ItemKind kind);
     void                            AddMenuEnd             (std::vector<DxuiPopupMenuItem> & items, std::function<void()> showMore);
+    std::vector<DxuiPopupMenuItem>  GetPrimaryItems        (std::vector<std::shared_ptr<const DxuiCommand>> commands) const;
+    Win32ContextMenuLayout          ReadLayout             () const;
+    void                            AddFileActions         (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths);
+    void                            AddSendToMenu          (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths);
     void                            AddPackagedEntry       (std::vector<DxuiPopupMenuItem> & items, const Win32ExplorerCommandEntries::Entry & entry, const std::vector<std::wstring> & paths);
     bool                            AddWindowsCommands     (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32ExplorerCommandEntries::ItemKind kind);
     void                            SetCommandItemIds      (std::vector<std::wstring> ids) { m_packagedCommands.SetItemIds (ids); m_windowsCommands.SetItemIds (std::move (ids)); }
@@ -134,8 +139,11 @@ public:
     std::shared_ptr<const DxuiIconImage>    GetVerbMenuImage       (CassoExplorerActions::Verb verb);
     std::shared_ptr<const DxuiIconImage>    GetStockMenuImage      (SHSTOCKICONID id);
     std::shared_ptr<const DxuiIconImage>    GetIconFileMenuImage   (const std::wstring & file, int index);
+    std::shared_ptr<const DxuiIconImage>    GetFileMenuImage       (const std::wstring & path);
 
 private:
+    std::vector<DxuiPopupMenuItem>  TakePropertiesItems    (std::vector<DxuiPopupMenuItem> & items);
+
     ExplorerContext  & m_context;
     std::vector<std::shared_ptr<DxuiCommand>>  m_menuCommands;
     Win32PackagedCommands                      m_packagedCommands;

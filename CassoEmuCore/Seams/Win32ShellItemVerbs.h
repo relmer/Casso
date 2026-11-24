@@ -37,7 +37,7 @@ public:
 
     HRESULT      Open                   (HWND owner, const std::wstring & path) override { return m_menus.Open (owner, path); }
     HRESULT      GetOpenWithHandlers    (const std::wstring & path, std::vector<Handler> & outHandlers) override { return m_menus.GetOpenWithHandlers (path, outHandlers); }
-    HRESULT      OpenWith               (HWND owner, const std::wstring & path, size_t handlerIndex) override { return m_menus.OpenWith (owner, path, handlerIndex); }
+    HRESULT      OpenWith               (HWND owner, const std::wstring & path, const Handler & handler) override { return m_menus.OpenWith (owner, path, handler); }
     HRESULT      ChooseOtherApp         (HWND owner, const std::wstring & path) override { return m_menus.ChooseOtherApp (owner, path); }
     HRESULT      ShowShellMenu          (HWND owner, const std::vector<std::wstring> & paths, POINT screenPx, const std::function<void()> & rename) override { return m_menus.ShowShellMenu (owner, paths, screenPx, rename); }
     HRESULT      ShowBackgroundMenu     (HWND owner, const std::wstring & folder, POINT screenPx) override { return m_menus.ShowBackgroundMenu (owner, folder, screenPx); }
@@ -45,6 +45,9 @@ public:
     HRESULT      GetItemVerbLabels      (HWND owner, const std::vector<std::wstring> & paths, std::vector<std::wstring> & outLabels) override { return m_menus.GetItemVerbLabels (owner, paths, outLabels); }
     HRESULT      RunItemVerbByLabel     (HWND owner, const std::vector<std::wstring> & paths, const std::wstring & label) override { return m_menus.RunItemVerbByLabel (owner, paths, label); }
     HRESULT      ListItemVerbs          (const std::vector<std::wstring> & paths, const std::vector<std::string> & verbs, std::vector<ItemVerb> & outFound) override { return m_menus.ListItemVerbs (paths, verbs, outFound); }
+    HRESULT      ListSendToTargets      (std::vector<SendToTarget> & outTargets) override                                { return m_menus.ListSendToTargets (outTargets); }
+    HRESULT      ListFileActions        (const std::vector<std::wstring> & paths, const std::vector<std::string> & verbs, std::vector<ItemVerb> & outFound) override { return m_menus.ListFileActions (paths, verbs, outFound); }
+    HRESULT      SendTo                 (const std::vector<std::wstring> & paths, const std::wstring & target) override { return m_menus.SendTo (paths, target); }
     bool         HasShellPreview        (const std::wstring & path) override { return Win32ShellPreview::HasPreview (path); }
     HRESULT      Recycle                (HWND owner, const std::vector<std::wstring> & paths) override { return m_recycleBin.Recycle (owner, paths, true); }
     HRESULT      RecycleCopies          (HWND owner, const std::vector<std::wstring> & paths) override { return m_recycleBin.Recycle (owner, paths, false); }

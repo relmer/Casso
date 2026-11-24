@@ -60,7 +60,7 @@ public:
 
     HRESULT  Open                (HWND, const std::wstring &) override                                  { return E_NOTIMPL; }
     HRESULT  GetOpenWithHandlers (const std::wstring &, std::vector<Handler> &) override                 { return E_NOTIMPL; }
-    HRESULT  OpenWith            (HWND, const std::wstring &, size_t) override                          { return E_NOTIMPL; }
+    HRESULT  OpenWith            (HWND, const std::wstring &, const Handler &) override                 { return E_NOTIMPL; }
     HRESULT  ChooseOtherApp      (HWND, const std::wstring &) override                                  { return E_NOTIMPL; }
     HRESULT  ShowShellMenu       (HWND, const std::vector<std::wstring> &, POINT, const std::function<void()> &) override { return E_NOTIMPL; }
     HRESULT  ShowBackgroundMenu  (HWND, const std::wstring &, POINT) override                                     { return E_NOTIMPL; }

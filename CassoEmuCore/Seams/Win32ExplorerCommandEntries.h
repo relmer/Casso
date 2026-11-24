@@ -31,6 +31,7 @@ public:
         Microsoft::WRL::ComPtr<IExplorerCommand>    command;
         std::string                                 verb;           // a static verb, invoked by name, when there is no command
         std::wstring                                explorerIcon;   // File Explorer's own icon for one of Windows' commands
+        std::wstring                                package;        // the app's package family, or empty
         std::vector<Entry>                          children;
     };
 

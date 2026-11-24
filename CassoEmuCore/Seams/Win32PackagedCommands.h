@@ -88,6 +88,7 @@ private:
     static void          AddRegistration   (const Registration & registration, std::vector<Registration> & outRegistrations);
     static bool          Applies           (const Registration & registration, const std::vector<std::wstring> & paths, Win32ExplorerCommandEntries::ItemKind kind);
     static bool          IsInSyncRootOf    (const std::wstring & package, const std::wstring & path);
+    static std::wstring  GetFamilyName     (const std::wstring & fullName);
     static void          AddPackageEntries (const Registration & package, size_t applies, std::vector<Win32ExplorerCommandEntries::Entry> & own, std::vector<Win32ExplorerCommandEntries::Entry> & outEntries);
 
     std::thread                 m_reader;

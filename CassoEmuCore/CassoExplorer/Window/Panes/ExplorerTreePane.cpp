@@ -1497,7 +1497,10 @@ void ExplorerTreePane::AddAppleDriveIconRow (std::vector<DxuiPopupMenuItem> & it
     iconCommands.push_back (command);
     m_context.menus.GetMenuCommands().push_back (std::move (command));
 
-    items.push_back (DxuiPopupMenuItem::ForIconRow (std::move (iconCommands)));
+    for (DxuiPopupMenuItem & item : m_context.menus.GetPrimaryItems (std::move (iconCommands)))
+    {
+        items.push_back (std::move (item));
+    }
     items.push_back (DxuiPopupMenuItem::ForSeparator());
 }
 
@@ -1584,7 +1587,10 @@ void ExplorerTreePane::AddTreeIconRow (std::vector<DxuiPopupMenuItem> & items, c
         m_context.menus.GetMenuCommands().push_back (std::move (command));
     }
 
-    items.push_back (DxuiPopupMenuItem::ForIconRow (std::move (iconCommands)));
+    for (DxuiPopupMenuItem & item : m_context.menus.GetPrimaryItems (std::move (iconCommands)))
+    {
+        items.push_back (std::move (item));
+    }
     items.push_back (DxuiPopupMenuItem::ForSeparator());
 }
 
