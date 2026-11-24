@@ -216,7 +216,7 @@ public:
 
 
 
-    TEST_METHOD (TheIssuesTabHasOneRepairButtonUnderTheListAndCenteredIcons_At100And150Percent)
+    TEST_METHOD (TheIssuesTabHasARepairInfobarOverTheListAndCenteredIcons_At100And150Percent)
     {
         for (UINT dpi : { 96u, 144u })
         {
@@ -226,6 +226,7 @@ public:
             RepairPlan                         plan;
             std::set<std::wstring>             chosen  = { L"none" };
             RECT                               button  = {};
+            RECT                               banner  = {};
             RECT                               icon    = {};
             RECT                               cell    = {};
 
@@ -241,11 +242,13 @@ public:
 
             Assert::AreEqual (InspectorTables::GetFindingColumns().size(), static_cast<size_t> (6), L"no Repair column");
 
-            button = issues.GetRepairButton().GetBounds();
-            Assert::IsTrue (issues.GetRepairButton().IsVisible(), std::format (L"Repair disk image... at {} dpi", dpi).c_str());
-            Assert::IsTrue (button.bottom <= scaler.ToPx (400) && button.top >= scaler.ToPx (400) - scaler.ToPx (IssuesView::kButtonBandDip), L"under the list");
-            Assert::IsTrue (std::abs ((button.left + button.right) / 2 - scaler.ToPx (900) / 2) <= 1, L"centered");
-            Assert::AreEqual (static_cast<long> (scaler.ToPx (IssuesView::kButtonWideDip)), button.right - button.left, L"a normal button's size");
+            banner = issues.GetBanner().GetBounds();
+            Assert::IsTrue   (issues.GetBanner().IsVisible(), std::format (L"the infobar at {} dpi", dpi).c_str());
+            Assert::AreEqual ((size_t) 1, issues.GetBanner().GetActionCount(), L"Repair...");
+            Assert::IsTrue   (issues.GetBanner().GetText().starts_with (L"Bad: "), issues.GetBanner().GetText().c_str());
+            Assert::IsTrue   (banner.top == 0 && banner.bottom <= issues.GetList().GetBounds().top, L"over the list");
+
+            button = issues.GetBanner().GetAction (0)->GetBounds();
 
             icon = issues.GetSeverityRect (0);
             Assert::IsTrue (icon.right > icon.left, L"the first row has its icon");
@@ -253,8 +256,62 @@ public:
             Assert::IsTrue (std::abs ((icon.left + icon.right) / 2 - (cell.left + cell.right) / 2) <= 1, std::format (L"the icon centered in its column at {} dpi", dpi).c_str());
 
             Click (issues, button);
-            Assert::IsTrue (chosen.empty(), L"Repair disk image... checks every change");
+            Assert::IsTrue (chosen.empty(), L"Repair... checks every change");
         }
+    }
+
+
+
+    TEST_METHOD (TheIssuesFindingColumn_TakesTheRestAndNeverGetsNarrow)
+    {
+        auto           session = std::make_unique<InspectorSession>();
+        IssuesView     issues  { session->context };
+        DxuiDpiScaler  scaler;
+        RECT           finding = {};
+        RECT           cell    = {};
+        long           others  = 0;
+
+
+
+        Images::Analyze (RepairFixtures::MakeDos33Bitmap().damaged, false, session->analysis);
+        session->context.hasDisk = true;
+        issues.Refresh();
+        issues.Layout ({ 0, 0, 900, 400 }, scaler);
+
+        Assert::IsTrue (issues.GetList().GetCellRectPx (0, IssuesView::kFindingColumn, finding));
+
+        for (int column = 0; column < (int) InspectorTables::GetFindingColumns().size(); column++)
+        {
+            if (column != (int) IssuesView::kFindingColumn && issues.GetList().GetCellRectPx (0, column, cell))
+            {
+                others += cell.right - cell.left;
+            }
+        }
+
+        Assert::IsTrue (finding.right - finding.left > others, L"the finding takes the width the others leave");
+
+        issues.Layout ({ 0, 0, 300, 400 }, scaler);
+        Assert::IsTrue (issues.GetList().GetCellRectPx (0, IssuesView::kFindingColumn, finding));
+        Assert::IsTrue (finding.right - finding.left >= IssuesView::kFindingMinDip, L"no narrower than its least width");
+    }
+
+
+
+    TEST_METHOD (TheIssuesInfobar_HasTheReasonWhenRepairIsNotAvailable)
+    {
+        DiskAnalysis  analysis;
+        RepairPlan    plan;
+        std::wstring  text;
+
+
+
+        Images::Analyze (RepairFixtures::MakeDos33Bitmap().damaged, false, analysis);
+        plan.canRepair = false;
+        plan.reason    = L"The image is read-only.";
+
+        text = IssuesView::FormatBanner (analysis, plan);
+
+        Assert::AreEqual (std::wstring (L"Bad: Track 18, sector $E is used by HELLO but marked free. Repair isn't available. The image is read-only."), text);
     }
 
 
