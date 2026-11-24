@@ -387,6 +387,9 @@
     <ClCompile Include="Devices\Disk\Inspector\Blocks\PascalBlockLayout.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\ProDosBlockLayout.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\DecodeSettings.cpp" />
+    <ClCompile Include="Devices\Disk\Stamp\FormatStampChunk.cpp" />
+    <ClCompile Include="Devices\Disk\Stamp\FormatStampJson.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\WozChunkWalker.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\DiskAnalyzer.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\DiskCopy.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\FindingFormatter.cpp" />
@@ -1629,6 +1632,10 @@
     <ClInclude Include="Devices\Disk\Inspector\Blocks\PascalBlockLayout.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\ProDosBlockLayout.h" />
     <ClInclude Include="Devices\Disk\Inspector\DecodeSettings.h" />
+    <ClInclude Include="Devices\Disk\Stamp\FormatStamp.h" />
+    <ClInclude Include="Devices\Disk\Stamp\FormatStampChunk.h" />
+    <ClInclude Include="Devices\Disk\Stamp\FormatStampJson.h" />
+    <ClInclude Include="Machines\Apple2\Common\WozChunkWalker.h" />
     <ClInclude Include="Devices\Disk\Inspector\DiskAnalysis.h" />
     <ClInclude Include="Devices\Disk\Inspector\DiskAnalyzer.h" />
     <ClInclude Include="Devices\Disk\Inspector\DiskCopy.h" />
