@@ -168,43 +168,6 @@ void WizardryMaze::FindSides (IDiskFileIo & fileIo, const std::string & imagePat
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WizardryMaze::LoadSaveDisks
-//
-//  The sectors of a saved game's image, for the item text on it, and the
-//  maze sides in its folder. outSectors is empty when the image can't be
-//  read.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void WizardryMaze::LoadSaveDisks (IDiskFileIo & fileIo, const std::string & imagePath, std::vector<Byte> & outSectors, std::vector<std::vector<Byte>> & outSides)
-{
-    std::vector<Byte>   bytes;
-    SectorDecodeReport  report;
-    HRESULT             hr     = fileIo.ReadAllBytes (imagePath, bytes);
-
-
-
-    outSectors.clear();
-
-    if (SUCCEEDED (hr))
-    {
-        hr = VolumeImage::Load (bytes, imagePath, outSectors, report);
-    }
-
-    if (FAILED (hr))
-    {
-        outSectors.clear();
-    }
-
-    FindSides (fileIo, imagePath, outSides);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  WizardryMaze::LoadSide
 //
 //  A file's sectors, when it is small enough to be a disk side, loads as a

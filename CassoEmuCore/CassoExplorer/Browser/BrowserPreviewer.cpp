@@ -14,6 +14,7 @@
 #include "Devices/Disk/DiskImageSession.h"
 #include "FileTypes/DiskSaveTable.h"
 #include "FileTypes/WizardryMaze.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Devices/Disk/IDiskFileIo.h"
 #include "Devices/Disk/Partitions/PartitionAccess.h"
@@ -660,8 +661,11 @@ void BrowserPreviewer::SetSavedGameShown (bool shown)
 const FileEntry * BrowserPreviewer::FindSavedGame (const VolumeListing & listing, VolumeKind kind)
 {
     auto  scenario = std::find_if (listing.entries.begin(), listing.entries.end(),
-                                   [] (const FileEntry & entry) { return !entry.isDirectory && (_stricmp (entry.name.c_str(), "SCENARIO.DATA") == 0
-                                                                      || _stricmp (entry.name.c_str(), "PLAYER.DATA") == 0 || _stricmp (entry.name.c_str(), "WERDNA.DATA") == 0); });
+                                   [] (const FileEntry & entry)
+                                   {
+                                       return !entry.isDirectory && (_stricmp (entry.name.c_str(), "SCENARIO.DATA") == 0 || _stricmp (entry.name.c_str(), "PLAYER.DATA") == 0
+                                                                   || _stricmp (entry.name.c_str(), "WERDNA.DATA") == 0);
+                                   });
 
 
 
@@ -685,8 +689,11 @@ const FileEntry * BrowserPreviewer::FindSavedGame (const VolumeListing & listing
 bool BrowserPreviewer::PreviewSavedGame (const std::wstring & imagePath, const VolumeListing & listing, VolumeKind kind)
 {
     const FileEntry                 * scenario = FindSavedGame (listing, kind);
+    std::vector<Byte>                 bytes;
     std::vector<Byte>                 sectors;
     std::vector<std::vector<Byte>>    sides;
+    SectorDecodeReport                report;
+    std::string                       narrow   = TextEncoding::WideToNarrow (imagePath);
 
 
 
@@ -699,7 +706,17 @@ bool BrowserPreviewer::PreviewSavedGame (const std::wstring & imagePath, const V
     //  elsewhere on the disk. Its maze is on the other disks.
     if (_stricmp (scenario->name.c_str(), "PLAYER.DATA") == 0)
     {
-        WizardryMaze::LoadSaveDisks (m_parts.operations.GetFileIo(), TextEncoding::WideToNarrow (imagePath), sectors, sides);
+        HRESULT  read = m_parts.operations.GetFileIo().ReadAllBytes (narrow, bytes);
+
+        IGNORE_RETURN_VALUE (read, S_OK);
+        WizardryMaze::FindSides (m_parts.operations.GetFileIo(), narrow, sides);
+    }
+
+    if (!bytes.empty())
+    {
+        HRESULT  loaded = VolumeImage::Load (bytes, narrow, sectors, report);
+
+        IGNORE_RETURN_VALUE (loaded, S_OK);
     }
 
     PreviewEntry (imagePath, scenario->name, *scenario, kind, sectors, sides);
