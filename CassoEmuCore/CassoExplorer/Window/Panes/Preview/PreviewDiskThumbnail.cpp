@@ -108,14 +108,16 @@ void ThumbnailBlockMap::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
 {
     RECT   bounds = GetBounds();
     float  stroke = GetScaler().ToPxf (s_kHotRingDip);
+    float  out    = GetScaler().ToPxf (2.0f) + stroke / 2.0f;
 
 
 
     BlockMapView::Paint (painter, text, theme);
 
+    //  The box is drawn outside the map, so it covers none of the blocks.
     if (m_isHot && IsVisible())
     {
-        painter.OutlineRoundedRect (bounds.left + stroke / 2.0f, bounds.top + stroke / 2.0f, (bounds.right - bounds.left) - stroke, (bounds.bottom - bounds.top) - stroke,
+        painter.OutlineRoundedRect (bounds.left - out, bounds.top - out, (bounds.right - bounds.left) + 2 * out, (bounds.bottom - bounds.top) + 2 * out,
                                     GetScaler().ToPxf (s_kHotBoxDip), stroke, theme.Accent());
     }
 }
