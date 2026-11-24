@@ -57,6 +57,7 @@ private:
     static HRESULT      ReadTrack         (const JsonValue & value, StampTrack & outTrack);
     static HRESULT      ReadHeader        (const JsonValue & root, FormatStamp & outStamp);
     static HRESULT      ReadVersion       (const std::string & text, int & outMajor, int & outMinor);
+    static HRESULT      ReadCrc           (const std::string & text, uint32_t & outCrc);
 
     static bool         TryParseEncoding  (const std::string & text, StampEncoding & outEncoding);
     static bool         TryParseChecksum  (const std::string & text, StampChecksum & outChecksum);

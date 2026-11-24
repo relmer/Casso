@@ -7,6 +7,7 @@
 class DiskCopy;
 struct LocatedField;
 struct TrackAnalysis;
+struct TrackCopy;
 
 
 
@@ -62,6 +63,7 @@ public:
     static void         FillTrack         (const TrackAnalysis & analysis, StampTrack & outTrack);
     static vector<int>  GetStampPositions (const DiskCopy & copy);
     static std::string  GetWriter         ();
+    static uint32_t     ComputeTrackCrc   (const TrackCopy & track);
 
 private:
     static StampEncoding  GetEncoding     (const TrackAnalysis & analysis);

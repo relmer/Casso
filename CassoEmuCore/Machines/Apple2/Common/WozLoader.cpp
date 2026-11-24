@@ -3,6 +3,7 @@
 #include "Version.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Machines/Apple2/Common/WozChunkWalker.h"
+#include "Devices/Disk/Stamp/FormatStampRefresher.h"
 
 
 
@@ -1847,7 +1848,7 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
     size_t               pos                     = 0;
     int                  slot                    = 0;
     int                  qt                      = 0;
-    const WozMetadata  & meta                    = img.GetWozMetadata();
+    WozMetadata          meta;
     bool                 hasSourceInfo           = false;
     size_t               chunkCount              = 0;
     size_t               chunkIdx                = 0;
@@ -1857,6 +1858,8 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
     {
         slotCount = static_cast<int> (kV2TrkRecordCount);
     }
+
+    FormatStampRefresher::GetMetadataForSave (img, meta);
 
     hasSourceInfo = (meta.infoPayload.size() >= kInfoChunkSize);
     chunkCount    = meta.passThrough.size();

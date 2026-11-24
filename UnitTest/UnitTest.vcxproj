@@ -319,6 +319,7 @@
     <ClCompile Include="EmuTests\StampDiskFixtures.cpp" />
     <ClCompile Include="EmuTests\StampedDecodeTests.cpp" />
     <ClCompile Include="EmuTests\FormatStampJsonTests.cpp" />
+    <ClCompile Include="EmuTests\FormatStampRefresherTests.cpp" />
     <ClCompile Include="EmuTests\NibblizationTests.cpp" />
     <ClCompile Include="EmuTests\SectorInterleaveTests.cpp" />
     <ClCompile Include="EmuTests\TrackBitReaderTests.cpp" />

@@ -254,6 +254,36 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FormatStampJson::ReadCrc
+//
+//  Eight hex digits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT FormatStampJson::ReadCrc (const std::string & text, uint32_t & outCrc)
+{
+    constexpr size_t        kDigits  = 8;
+    constexpr int           kHexBase = 16;
+    HRESULT                 hr       = S_OK;
+    std::from_chars_result  result;
+    bool                    isRead   = false;
+
+
+
+    result = std::from_chars (text.data(), text.data() + text.size(), outCrc, kHexBase);
+    isRead = text.size() == kDigits && result.ec == std::errc() && result.ptr == text.data() + text.size();
+    CBREx (isRead, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FormatStampJson::IsNestingInLimit
 //
 //  Whether no array or object in the text is nested deeper than
@@ -752,6 +782,11 @@ JsonValue FormatStampJson::MakeTrack (const StampTrack & track)
     object.push_back ({ "verified",            JsonValue (track.isVerified) });
     object.push_back ({ "changedAfterCapture", JsonValue (track.isChangedAfterCapture) });
 
+    if (track.hasBitsCrc)
+    {
+        object.push_back ({ "bitsCrc", JsonValue (std::format ("{:08X}", track.bitsCrc)) });
+    }
+
     if (track.hasCapture)
     {
         capture.push_back ({ "weak",            JsonValue (track.capture.isWeak) });
@@ -1113,6 +1148,7 @@ HRESULT FormatStampJson::ReadTrack (const JsonValue & value, StampTrack & outTra
     HRESULT              hr          = S_OK;
     std::string          encoding;
     std::string          checksum;
+    std::string          crc;
     const JsonValue    * capture     = nullptr;
     bool                 isObject    = value.GetType() == JsonType::Object;
     bool                 isInRange   = false;
@@ -1168,6 +1204,14 @@ HRESULT FormatStampJson::ReadTrack (const JsonValue & value, StampTrack & outTra
     value.HasInt  ("sectorsGood",         outTrack.sectorsGood);
     value.HasBool ("verified",            outTrack.isVerified);
     value.HasBool ("changedAfterCapture", outTrack.isChangedAfterCapture);
+
+    if (value.HasString ("bitsCrc", crc))
+    {
+        hr = ReadCrc (crc, outTrack.bitsCrc);
+        CHR (hr);
+
+        outTrack.hasBitsCrc = true;
+    }
 
     if (value.HasObject ("capture", capture))
     {

@@ -12,6 +12,7 @@
 #include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Machines/Apple2/Common/ThirteenSectorCodec.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Machines/Apple2/Common/WozMetadata.h"
 
@@ -213,5 +214,59 @@ public:
         }
 
         Assert::AreEqual ((int) std::size (s_kImages), checked);
+    }
+
+
+    //  A write through the save path a file put takes: the rewritten tracks'
+    //  entries match a fresh analysis of the saved image, and the other
+    //  entries are as they were.
+    TEST_METHOD (SavedWrite_LeavesAStampThatMatchesTheTracks)
+    {
+        constexpr int     kSectors         = 16;
+        constexpr size_t  kSectorBytes     = 256;
+        constexpr int     kWrittenTracks[] = { 20, 30 };
+
+        DiskImage           image;
+        DiskImage           saved;
+        vector<Byte>        woz;
+        vector<Byte>        sectors;
+        vector<Byte>        written;
+        SectorDecodeReport  report;
+        std::string         reason;
+        FormatStamp         stamp;
+        FormatStamp         fresh;
+
+
+
+        LoadImage (s_kImages[0], image);
+        AssertSucceeded (WozLoader::Serialize (image, woz));
+        AssertSucceeded (WozLoader::Load (woz, image));
+        AssertSucceeded (FormatStampChunk::SetStampInFile (woz, BuildStamp (image)));
+
+        AssertSucceeded (VolumeImage::Load (woz, "stamped.woz", sectors, report));
+
+        for (int track : kWrittenTracks)
+        {
+            std::fill_n (sectors.begin() + (ptrdiff_t) (((size_t) track * kSectors + 5) * kSectorBytes), kSectorBytes, (Byte) 0x5A);
+        }
+
+        AssertSucceeded (VolumeImage::Save (woz, "stamped.woz", sectors, written, reason));
+        AssertSucceeded (WozLoader::Load (written, saved));
+
+        Assert::IsTrue (FormatStampChunk::GetStamp (saved.GetWozMetadata(), stamp) == StampState::Readable);
+        fresh = BuildStamp (saved);
+
+        Assert::AreEqual (fresh.tracks.size(), stamp.tracks.size());
+
+        for (size_t i = 0; i < stamp.tracks.size(); i++)
+        {
+            int   track     = stamp.tracks[i].position / DiskImage::kQuarterTracksPerWholeTrack;
+            bool  isWritten = std::ranges::find (kWrittenTracks, track) != std::end (kWrittenTracks);
+
+            Assert::AreEqual (fresh.tracks[i].bitsCrc,     stamp.tracks[i].bitsCrc);
+            Assert::AreEqual (fresh.tracks[i].sectorsGood, stamp.tracks[i].sectorsGood);
+            Assert::IsTrue   (fresh.tracks[i].addressPrologs == stamp.tracks[i].addressPrologs);
+            Assert::AreEqual (isWritten, stamp.tracks[i].isChangedAfterCapture);
+        }
     }
 };

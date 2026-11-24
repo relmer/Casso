@@ -69,6 +69,8 @@ public:
         track.sectorsGood           = 12;
         track.isVerified            = false;
         track.isChangedAfterCapture = true;
+        track.hasBitsCrc            = true;
+        track.bitsCrc               = 0x1A2B3C4D;
         track.hasCapture            = true;
         track.capture.isWeak        = true;
         track.capture.isUnstable    = false;
@@ -137,6 +139,8 @@ public:
         Assert::AreEqual (12, track.sectorsGood);
         Assert::IsFalse  (track.isVerified);
         Assert::IsTrue   (track.isChangedAfterCapture);
+        Assert::IsTrue   (track.hasBitsCrc);
+        Assert::AreEqual (0x1A2B3C4Du, track.bitsCrc);
         Assert::IsTrue   (track.hasCapture);
         Assert::IsTrue   (track.capture.isWeak);
         Assert::IsTrue   (track.capture.hasSeparateStream);

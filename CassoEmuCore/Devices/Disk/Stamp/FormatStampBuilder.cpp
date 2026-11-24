@@ -6,7 +6,9 @@
 #include "Devices/Disk/Inspector/DiskAnalyzer.h"
 #include "Devices/Disk/Inspector/DiskCopy.h"
 #include "Devices/Disk/Inspector/TrackAnalysis.h"
+#include "Devices/Disk/Inspector/TrackCopy.h"
 #include "Devices/Disk/Stamp/MarkDiscovery.h"
+#include "Update/ZipArchive.h"
 
 
 
@@ -143,6 +145,12 @@ void FormatStampBuilder::BuildTrack (const DiskCopy & copy, int position, const 
     outTrack          = StampTrack();
     outTrack.position = position;
 
+    if (slot >= 0 && slot < (int) copy.tracks.size() && copy.tracks[(size_t) slot] != nullptr)
+    {
+        outTrack.bitsCrc    = ComputeTrackCrc (*copy.tracks[(size_t) slot]);
+        outTrack.hasBitsCrc = true;
+    }
+
     if (analysis == nullptr)
     {
         return;
@@ -172,6 +180,31 @@ void FormatStampBuilder::BuildTrack (const DiskCopy & copy, int position, const 
     }
 
     FillTrack (*analysis, outTrack);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FormatStampBuilder::ComputeTrackCrc
+//
+//  The CRC-32 of a track record's bits, or of its flux bytes for a flux
+//  track. A save compares it with the entry's to find the tracks rewritten
+//  since the stamp was built.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t FormatStampBuilder::ComputeTrackCrc (const TrackCopy & track)
+{
+    constexpr size_t  kByteBits = 8;
+    size_t            bytes     = std::min (track.bits.size(), (track.bitCount + kByteBits - 1) / kByteBits);
+
+
+
+    return track.kind == TrackKind::Flux ? ZipArchive::ComputeCrc32 (track.fluxBytes)
+                                         : ZipArchive::ComputeCrc32 (std::span<const Byte> (track.bits.data(), bytes));
 }
 
 

@@ -391,6 +391,7 @@
     <ClCompile Include="Devices\Disk\Stamp\FormatStampBuilder.cpp" />
     <ClCompile Include="Devices\Disk\Stamp\FormatStampChunk.cpp" />
     <ClCompile Include="Devices\Disk\Stamp\FormatStampJson.cpp" />
+    <ClCompile Include="Devices\Disk\Stamp\FormatStampRefresher.cpp" />
     <ClCompile Include="Devices\Disk\Stamp\MarkDiscovery.cpp" />
     <ClCompile Include="Devices\Disk\Stamp\StampedTrackMarks.cpp" />
     <ClCompile Include="Machines\Apple2\Common\WozChunkWalker.cpp" />
@@ -1640,6 +1641,7 @@
     <ClInclude Include="Devices\Disk\Stamp\FormatStampBuilder.h" />
     <ClInclude Include="Devices\Disk\Stamp\FormatStampChunk.h" />
     <ClInclude Include="Devices\Disk\Stamp\FormatStampJson.h" />
+    <ClInclude Include="Devices\Disk\Stamp\FormatStampRefresher.h" />
     <ClInclude Include="Devices\Disk\Stamp\MarkDiscovery.h" />
     <ClInclude Include="Devices\Disk\Stamp\StampedTrackMarks.h" />
     <ClInclude Include="Machines\Apple2\Common\TrackMarks.h" />

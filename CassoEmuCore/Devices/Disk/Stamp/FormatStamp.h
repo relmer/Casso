@@ -92,6 +92,8 @@ struct StampTrack
     int                     sectorsGood           = 0;
     bool                    isVerified            = false;
     bool                    isChangedAfterCapture = false;
+    bool                    hasBitsCrc            = false;
+    uint32_t                bitsCrc               = 0;
     bool                    hasCapture            = false;
     TrackCaptureFacts       capture;
     vector<ProtectionNote>  notes;
