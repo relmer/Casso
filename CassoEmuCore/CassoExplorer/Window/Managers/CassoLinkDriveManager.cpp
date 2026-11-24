@@ -879,7 +879,7 @@ std::wstring CassoLinkDriveManager::GetProDosDiskNote()
 {
     return L"This boot disk contains a ProDOS driver that allows an Apple to access virtual drives via a CassoLink connection to "
            L"Casso Explorer. Edit the CassoLink connection to configure the virtual drives connected to it.\n\n"
-           L"Select a ProDOS disk with PRODOS and BASIC.SYSTEM to use as the template for the virtual drive disk.";
+           L"Select a ProDOS disk with PRODOS and BASIC.SYSTEM to use as the template for the virtual drives disk.";
 }
 
 

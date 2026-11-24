@@ -143,7 +143,7 @@ void CassoLinkDriveManager::StartBlockImageWrite (const Location & drive, const 
     BAIL_OUT_IF (!TryGetBlockDevice (link, number, device), S_OK);
     BAIL_OUT_IF (!AskToResume (title, device, image, false, resume), S_OK);
 
-    text = std::format (L"Overwrite {} with {}?\n\nEverything on that device is replaced.", title, image.filename().wstring());
+    text = std::format (L"Overwrite {} with {}?", title, image.filename().wstring());
 
     BAIL_OUT_IF (!resume && DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, text.c_str(), L"Write image",
                                             MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Overwrite", L"Cancel" }) != IDOK, S_OK);
