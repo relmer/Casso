@@ -324,7 +324,7 @@ public:
     }
 
 
-    TEST_METHOD (BuildStampChips_D4Disk_ListsTheStampAndItsMark)
+    TEST_METHOD (BuildStampChips_D4Disk_IsOneNonstandardMarksChip)
     {
         DiskImage            image;
         WozMetadata          meta;
@@ -341,9 +341,25 @@ public:
         details = ImageDetails::MakeFromCopy (*StampDiskFixtures::MakeCopy (image));
         chips   = InspectorText::BuildStampChips (details);
 
-        Assert::AreEqual ((size_t) 2, chips.size());
-        Assert::AreEqual (std::wstring (L"Format stamp"),     chips[0].text);
-        Assert::AreEqual (std::wstring (L"Address D4 AA 96"), chips[1].text);
+        Assert::AreEqual ((size_t) 1, chips.size());
+        Assert::AreEqual (std::wstring (L"Uses nonstandard address marks"), chips[0].text);
+    }
+
+
+
+    TEST_METHOD (BuildStampChips_StandardStamp_IsEmpty)
+    {
+        DiskImage     image;
+        WozMetadata   meta;
+
+
+
+        StampDiskFixtures::MakeSixteenSector (image);
+        meta = image.GetWozMetadata();
+        FormatStampChunk::SetStamp (meta, BuildStamp (image));
+        image.SetWozMetadata (meta);
+
+        Assert::IsTrue (InspectorText::BuildStampChips (ImageDetails::MakeFromCopy (*StampDiskFixtures::MakeCopy (image))).empty());
     }
 
 
@@ -380,6 +396,6 @@ public:
 
         Assert::IsNotNull (result.analysis.get());
         Assert::AreEqual  (0, result.analysis->summary.nonstandardTracks, L"the stamp's marks are used, so no track is nonstandard");
-        Assert::IsTrue    (std::ranges::any_of (result.chips, [] (const SummaryChip & chip) { return chip.text == L"Address D4 AA 96"; }));
+        Assert::IsTrue    (std::ranges::any_of (result.chips, [] (const SummaryChip & chip) { return chip.text == L"Uses nonstandard address marks"; }));
     }
 };
