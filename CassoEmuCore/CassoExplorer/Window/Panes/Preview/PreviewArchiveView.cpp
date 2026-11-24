@@ -282,6 +282,7 @@ void PreviewArchiveView::ShowContextMenu (int x, int y)
     {
         items.push_back (std::move (item));
     }
+
     items.push_back (DxuiPopupMenuItem::ForSeparator());
 
     m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::Open), [this]()

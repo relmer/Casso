@@ -1501,6 +1501,7 @@ void ExplorerTreePane::AddAppleDriveIconRow (std::vector<DxuiPopupMenuItem> & it
     {
         items.push_back (std::move (item));
     }
+
     items.push_back (DxuiPopupMenuItem::ForSeparator());
 }
 
@@ -1591,6 +1592,7 @@ void ExplorerTreePane::AddTreeIconRow (std::vector<DxuiPopupMenuItem> & items, c
     {
         items.push_back (std::move (item));
     }
+
     items.push_back (DxuiPopupMenuItem::ForSeparator());
 }
 

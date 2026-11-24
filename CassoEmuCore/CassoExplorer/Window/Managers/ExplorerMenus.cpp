@@ -1408,6 +1408,7 @@ void ExplorerMenus::AddPackagedEntry (std::vector<DxuiPopupMenuItem> & items, co
     {
         command->menuImage = GetFileMenuImage (L"." + entry.title.substr (0, entry.title.size() - 5));
     }
+
     command->isEnabled = [enabled]() { return enabled; };
 
     if (!entry.children.empty())
@@ -1545,6 +1546,7 @@ std::vector<DxuiPopupMenuItem> ExplorerMenus::TakePropertiesItems (std::vector<D
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ExplorerMenus::AddFileActions
@@ -1659,6 +1661,7 @@ void ExplorerMenus::AddSendToMenu (std::vector<DxuiPopupMenuItem> & items, const
     items.push_back (DxuiPopupMenuItem::ForSubmenu (parent, std::move (children)));
     m_menuCommands.push_back (std::move (parent));
 }
+
 
 
 
