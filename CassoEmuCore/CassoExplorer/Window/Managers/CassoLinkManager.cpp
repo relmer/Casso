@@ -948,7 +948,7 @@ void CassoLinkManager::AddConnectionRows (std::vector<DxuiPopupMenuItem> & items
         }
 
         //  As a Pascal image's menu has it, with its icon.
-        if (TreeModel::TryParseLinkId (location.path, link, slot, drive) && m_context.actions.IsDrivePascal (TextEncoding::WideToNarrow (link), drive))
+        if (TreeModel::TryParseLinkId (location.path, link, slot, drive) && m_context.actions.GetDriveImages().IsDrivePascal (TextEncoding::WideToNarrow (link), drive))
         {
             m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::Krunch), [this, location]() { m_context.linkDrives.KrunchAppleDisk (location); },
                                             L"", ExplorerMenus::GetVerbMenuGlyph (CassoExplorerActions::Verb::Krunch));

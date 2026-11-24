@@ -3,6 +3,8 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Actions/ActionsTypes.h"
+#include "CassoExplorer/Actions/IAppleDriveLocation.h"
+#include "CassoExplorer/Actions/LinkCompletionGuard.h"
 #include "CassoExplorer/Model/AppleFileProperties.h"
 #include "CassoExplorer/Model/BasicConversion.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
@@ -21,12 +23,12 @@ struct AppleSingleFile;
 //  ActionsAppleDrive
 //
 //  Operations on a linked Apple's drives: files put, got, deleted,
-//  renamed and made, whole disks read into images and written back, raw
-//  sectors and blocks, and formatting.
+//  renamed and made, the file system of a drive, and the check for the
+//  link disk.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class ActionsAppleDrive
+class ActionsAppleDrive : public IAppleDriveLocation
 {
 public:
     explicit ActionsAppleDrive (CassoExplorerActions & actions);
@@ -49,7 +51,7 @@ public:
         std::vector<Item>  items;
     };
 
-    bool     TryGetAppleDrive (std::string & outLink, int & outDrive, std::string & outDirectory) const;
+    bool     TryGetAppleDrive (std::string & outLink, int & outDrive, std::string & outDirectory) const override;
 
     ActionsTypes::Outcome  CopyEntriesToAppleDrive (const std::string & sourceImage, VolumeKind sourceKind, const std::vector<std::string> & catalogPaths);
 
@@ -65,42 +67,7 @@ public:
     //  A host file as the payload a put plan makes of it.
     static HRESULT  MakePayload (const std::wstring & hostPath, const ActionsTypes::PutPlan & plan, const std::vector<Byte> & bytes, VolumeKind kind, FilePayload & outPayload);
 
-    ActionsTypes::Outcome  ReadSectors  (int track, int sector, int count, const std::wstring & hostPath, DiskOperations::Numbering numbering = DiskOperations::Numbering::Logical, const std::wstring & target = {});
-    ActionsTypes::Outcome  WriteSectors (int track, int sector, const std::wstring & hostPath, DiskOperations::Numbering numbering = DiskOperations::Numbering::Logical, const std::wstring & target = {});
-    ActionsTypes::Outcome  ReadBlocks   (int block, int count, const std::wstring & hostPath, const std::wstring & target = {});
-    ActionsTypes::Outcome  WriteBlocks  (int block, const std::wstring & hostPath, const std::wstring & target = {});
-
-    ActionsTypes::Outcome  ReadDiskToImage  (const std::wstring & imagePath, bool blankUnreadable, ActionsTypes::UnreadableFn onUnreadable);
-    ActionsTypes::Outcome  ReadDiskToImage  (const std::string & link, int drive, const std::wstring & imagePath, bool blankUnreadable, bool forceVerify, ActionsTypes::UnreadableFn onUnreadable,
-                                             std::function<void ()> onRead = nullptr, std::optional<FullSendProtectionChoices> automatic = std::nullopt);
-
-    //  A raw capture of a linked drive's disk into a WOZ, for a copy-protected
-    //  disk; `report` is called with the tracks whose reads differ, if any.
-    ActionsTypes::Outcome  CaptureDisk      (const std::string & link, int drive, const std::wstring & imagePath, std::function<void (const std::wstring & report)> report);
-    ActionsTypes::Outcome  WriteImageToDisk (const std::wstring & imagePath);
-
-    ActionsTypes::Outcome  WriteImageToAppleDrive (const std::string & link, int drive, const std::wstring & imagePath, bool forceVerify = false);
-
-    ActionsTypes::Outcome  CreateImageFromAppleDrive (const std::string & link, int drive, const std::wstring & hostFolder);
-
     HRESULT  CheckLinkDisk (const std::string & link, int drive, ActionsTypes::LinkDiskFn then);
-
-    //  The file name a drive's image is given: its ProDOS volume's name with
-    //  .po, a DOS 3.3 volume as "DOS 3.3 volume 254.dsk", or the drive.
-    static std::wstring  MakeDriveImageName (const VolumeListing & listing, VolumeKind kind, int slot, int drive);
-
-    //  MakeDriveImageName for a linked drive, from the catalog last read, or
-    //  from the drive's number before a catalog is read.
-    static std::wstring  GetDriveImageName (CassoLinkConnections * links, const std::string & link, int slot, int drive);
-
-    ActionsTypes::Outcome  FormatAppleDrive (const DiskOperations::NewDiskRequest & request, const std::wstring & tempFolder);
-    ActionsTypes::Outcome  FormatAppleDrive (const std::string & link, int drive, const DiskOperations::NewDiskRequest & request, const std::wstring & tempFolder);
-
-    //  Whether the drive's last catalog read is of an Apple Pascal disk, the
-    //  only kind KrunchAppleDrive applies to. outOperation, when given, is the
-    //  queued krunch.
-    bool                   IsDrivePascal    (const std::string & link, int drive) const;
-    ActionsTypes::Outcome  KrunchAppleDrive (const std::string & link, int drive, std::shared_ptr<LinkOperation> * outOperation = nullptr);
 
     std::wstring  DescribeAppleDrive () const;
 
@@ -125,15 +92,9 @@ public:
 
     static void  SubmitWrite (CassoLinkConnections & links, const std::string & link, int drive, CassoLinkConnections::Queuer queue, ActionsTypes::Outcome & inOutOutcome);
 
-    //  A completion that does nothing once this object is gone. Jobs are in
-    //  the shell's connections, which every window shares, and can finish
-    //  after the window that queued them, and this object, have closed.
-    CassoLinkConnections::Completion  Guard (CassoLinkConnections::Completion inner) const;
-
 private:
     friend class CassoExplorerActions;
 
     CassoExplorerActions  & m_actions;
-
-    std::shared_ptr<int>    m_alive = std::make_shared<int> (0);
+    LinkCompletionGuard     m_guard;
 };

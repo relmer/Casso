@@ -93,7 +93,7 @@ void CassoLinkDriveManager::ReadDiskToImage (const Location & drive, bool forceV
     }
 
     is13 = m_context.browser.GetTreeModel().IsThirteenSectorDrive (target.path);
-    name = ActionsAppleDrive::GetDriveImageName (m_context.browser.GetLinks(), TextEncoding::WideToNarrow (link), 6, number);
+    name = ActionsDriveImage::GetDriveImageName (m_context.browser.GetLinks(), TextEncoding::WideToNarrow (link), 6, number);
 
     if (name.size() > 4 && _wcsicmp (name.c_str() + name.size() - 4, L".dsk") == 0)
     {
@@ -182,7 +182,7 @@ void CassoLinkDriveManager::ReadDiskToImage (const Location & drive, bool forceV
 
     //  The second read goes to the link and drive the first one read, not to
     //  whatever drive the window has open by the time the first one fails.
-    outcome = m_context.actions.ReadDiskToImage (TextEncoding::WideToNarrow (link), number, picked.wstring(), false, forceVerify, [this, picked, forceVerify, automatic] (const LinkOperation & operation, const std::string & link, int drive)
+    outcome = m_context.actions.GetDriveImages().ReadDiskToImage (TextEncoding::WideToNarrow (link), number, picked.wstring(), false, forceVerify, [this, picked, forceVerify, automatic] (const LinkOperation & operation, const std::string & link, int drive)
     {
         std::filesystem::path  woz = picked;
 
@@ -191,7 +191,7 @@ void CassoLinkDriveManager::ReadDiskToImage (const Location & drive, bool forceV
 
         m_context.linkJobs.SetOffer (link, [this, link, drive, woz]() { CaptureToImage (TextEncoding::NarrowToWide (link), drive, woz); }, [this, link, drive, picked, forceVerify, automatic]()
         {
-            CassoExplorerActions::Outcome  again = m_context.actions.ReadDiskToImage (link, drive, picked.wstring(), true, forceVerify, nullptr, nullptr, automatic);
+            CassoExplorerActions::Outcome  again = m_context.actions.GetDriveImages().ReadDiskToImage (link, drive, picked.wstring(), true, forceVerify, nullptr, nullptr, automatic);
 
             if (!again.Succeeded())
             {
@@ -289,7 +289,7 @@ void CassoLinkDriveManager::CaptureRawDisk (const Location & drive, const std::w
 
     spec.filters          = { FileDialogFilter { L"WOZ disk images (*.woz)", L"*.woz" } };
     spec.clientGuid       = s_kLinkDiskPickerGuid;
-    spec.defaultFileName  = !suggested.empty() ? suggested : std::filesystem::path (ActionsAppleDrive::GetDriveImageName (m_context.browser.GetLinks(), TextEncoding::WideToNarrow (link), 6, number)).replace_extension (L".woz").wstring();
+    spec.defaultFileName  = !suggested.empty() ? suggested : std::filesystem::path (ActionsDriveImage::GetDriveImageName (m_context.browser.GetLinks(), TextEncoding::WideToNarrow (link), 6, number)).replace_extension (L".woz").wstring();
     spec.defaultExtension = L"woz";
     spec.title            = std::format (L"Capture raw disk from {}", m_context.browser.GetTreeModel().GetLinkDriveTitle (target.path));
     spec.content          = FileDialogContent::Images;
@@ -324,7 +324,7 @@ void CassoLinkDriveManager::CaptureToImage (const std::wstring & link, int numbe
 
     //  The job window opens on the capture's tab when it ends, with what it
     //  found.
-    outcome = m_context.actions.CaptureDisk (TextEncoding::WideToNarrow (link), number, image.wstring(), [this] (const std::wstring &) { m_context.linkJobs.Update(); });
+    outcome = m_context.actions.GetDriveImages().CaptureDisk (TextEncoding::WideToNarrow (link), number, image.wstring(), [this] (const std::wstring &) { m_context.linkJobs.Update(); });
 
     if (!outcome.Succeeded())
     {
@@ -455,7 +455,7 @@ void CassoLinkDriveManager::StartImageWrite (const Location & drive, const std::
             return;
         }
 
-        outcome = m_context.actions.WriteImageToAppleDrive (name, number, imagePath, forceVerify);
+        outcome = m_context.actions.GetDriveImages().WriteImageToAppleDrive (name, number, imagePath, forceVerify);
 
         if (!outcome.Succeeded())
         {
@@ -690,7 +690,7 @@ void CassoLinkDriveManager::FormatAppleDisk (const Location & location)
         return;
     }
 
-    outcome = m_context.actions.FormatAppleDrive (TextEncoding::WideToNarrow (link), number, choice.request, std::wstring (temp).substr (0, wcslen (temp) - 1));
+    outcome = m_context.actions.GetDriveImages().FormatAppleDrive (TextEncoding::WideToNarrow (link), number, choice.request, std::wstring (temp).substr (0, wcslen (temp) - 1));
 
     if (!outcome.Succeeded())
     {
@@ -731,7 +731,7 @@ void CassoLinkDriveManager::KrunchAppleDisk (const Location & location)
     }
 
     name    = TextEncoding::WideToNarrow (link);
-    outcome = m_context.actions.KrunchAppleDrive (name, number, &operation);
+    outcome = m_context.actions.GetDriveImages().KrunchAppleDrive (name, number, &operation);
 
     if (!outcome.Succeeded())
     {

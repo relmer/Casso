@@ -1426,7 +1426,7 @@ void ExplorerDragDrop::HandleDrop (IDataObject * data, int tag, POINT screen)
 
         if (TreeModel::TryParseLinkId (driveId, link, slot, drive))
         {
-            outcome = m_context.actions.CreateImageFromAppleDrive (TextEncoding::WideToNarrow (link), drive, hostFolder);
+            outcome = m_context.actions.GetDriveImages().CreateImageFromAppleDrive (TextEncoding::WideToNarrow (link), drive, hostFolder);
 
             if (!outcome.Succeeded())
             {

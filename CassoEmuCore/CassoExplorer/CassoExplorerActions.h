@@ -7,6 +7,7 @@
 #include "CassoExplorer/Actions/ActionsAppleDrive.h"
 #include "CassoExplorer/Actions/ActionsArchive.h"
 #include "CassoExplorer/Actions/ActionsCopy.h"
+#include "CassoExplorer/Actions/ActionsDriveImage.h"
 #include "CassoExplorer/Actions/ActionsGoTo.h"
 #include "CassoExplorer/Actions/ActionsLinkDisk.h"
 #include "CassoExplorer/Actions/ActionsPartition.h"
@@ -90,6 +91,9 @@ public:
 
     //  The CassoLink boot disks and the cassette bootstrap.
     ActionsLinkDisk   & GetLinkDisks  () { return m_linkDisks; }
+
+    //  Whole disks on a linked Apple's drive, and raw sectors and blocks.
+    ActionsDriveImage & GetDriveImages() { return m_driveImages; }
 
     //  One partition of a card image: the one selected or open, its copy as
     //  an image file beside the card image, and an image file written over it
@@ -245,40 +249,7 @@ public:
     //  The blocks the format target has, for a raw block read or write.
     int           GetTargetBlockCount (const std::wstring & target = {}) const;
 
-    //  Raw access through the runner's sector and block verbs. Sectors are
-    //  numbered as DOS 3.3 numbers them.
-    Outcome  ReadSectors  (int track, int sector, int count, const std::wstring & hostPath, DiskOperations::Numbering numbering = DiskOperations::Numbering::Logical, const std::wstring & target = {}) { return m_appleDrive.ReadSectors (track, sector, count, hostPath, numbering, target); }
-    Outcome  WriteSectors (int track, int sector, const std::wstring & hostPath, DiskOperations::Numbering numbering = DiskOperations::Numbering::Logical, const std::wstring & target = {}) { return m_appleDrive.WriteSectors (track, sector, hostPath, numbering, target); }
-    Outcome  ReadBlocks   (int block, int count, const std::wstring & hostPath, const std::wstring & target = {}) { return m_appleDrive.ReadBlocks (block, count, hostPath, target); }
-    Outcome  WriteBlocks  (int block, const std::wstring & hostPath, const std::wstring & target = {}) { return m_appleDrive.WriteBlocks (block, hostPath, target); }
-
-    //  The open drive's disk, or the given link's drive, so a second read
-    //  goes to the drive the first one did, wherever the window is by then.
-    Outcome  ReadDiskToImage  (const std::wstring & imagePath, bool blankUnreadable, UnreadableFn onUnreadable) { return m_appleDrive.ReadDiskToImage (imagePath, blankUnreadable, onUnreadable); }
-    Outcome  ReadDiskToImage  (const std::string & link, int drive, const std::wstring & imagePath, bool blankUnreadable, bool forceVerify, UnreadableFn onUnreadable, std::function<void ()> onRead = nullptr,
-                               std::optional<FullSendProtectionChoices> automatic = std::nullopt) { return m_appleDrive.ReadDiskToImage (link, drive, imagePath, blankUnreadable, forceVerify, onUnreadable, std::move (onRead), automatic); }
-    Outcome  CaptureDisk      (const std::string & link, int drive, const std::wstring & imagePath, std::function<void (const std::wstring &)> report) { return m_appleDrive.CaptureDisk (link, drive, imagePath, std::move (report)); }
-    Outcome  WriteImageToDisk (const std::wstring & imagePath) { return m_appleDrive.WriteImageToDisk (imagePath); }
-
-    //  The same for any drive of any link, as a drop onto a drive's node
-    //  writes to a drive that may not be open.
-    Outcome  WriteImageToAppleDrive (const std::string & link, int drive, const std::wstring & imagePath, bool forceVerify = false) { return m_appleDrive.WriteImageToAppleDrive (link, drive, imagePath, forceVerify); }
-
-    //  A drive's whole disk read into an image in hostFolder, with its volume
-    //  in the file name, as a drag of the drive's node onto a folder does. The name is
-    //  made free of any file already there.
-    Outcome  CreateImageFromAppleDrive (const std::string & link, int drive, const std::wstring & hostFolder) { return m_appleDrive.CreateImageFromAppleDrive (link, drive, hostFolder); }
-
     HRESULT  CheckLinkDisk (const std::string & link, int drive, LinkDiskFn then) { return m_appleDrive.CheckLinkDisk (link, drive, then); }
-
-    //  The open Apple drive formatted as DOS 3.3 or ProDOS, bootable or not,
-    //  by writing it a new disk built in tempFolder from the request.
-    Outcome  FormatAppleDrive (const DiskOperations::NewDiskRequest & request, const std::wstring & tempFolder) { return m_appleDrive.FormatAppleDrive (request, tempFolder); }
-    Outcome  FormatAppleDrive (const std::string & link, int drive, const DiskOperations::NewDiskRequest & request, const std::wstring & tempFolder) { return m_appleDrive.FormatAppleDrive (link, drive, request, tempFolder); }
-
-    //  A linked drive's Apple Pascal disk krunched by the program on the Apple.
-    bool     IsDrivePascal    (const std::string & link, int drive) const                                                 { return m_appleDrive.IsDrivePascal (link, drive); }
-    Outcome  KrunchAppleDrive (const std::string & link, int drive, std::shared_ptr<LinkOperation> * outOperation = nullptr) { return m_appleDrive.KrunchAppleDrive (link, drive, outOperation); }
 
     //  The open Apple drive as the menus and confirmations name it: its slot,
     //  its drive and its volume, as "Slot 6, Drive 1 (DOS 3.3 volume 254)".
@@ -375,10 +346,12 @@ private:
     friend class       ActionsAppleDrive;
     friend class       ActionsArchive;
     friend class       ActionsCopy;
+    friend class       ActionsDriveImage;
     friend class       ActionsGoTo;
     friend class       ActionsPartition;
     friend class       ActionsTape;
     ActionsAppleDrive  m_appleDrive      { *this };
+    ActionsDriveImage  m_driveImages     { *this, m_appleDrive };
     ActionsCopy        m_copier          { *this };
     ActionsArchive     m_archiver        { *this };
     ActionsGoTo        m_goTo            { *this };

@@ -1838,11 +1838,11 @@ public:
 
         host.OpenImage();
 
-        Assert::IsTrue (host.actions.ReadSectors (17, 0, 1, L"C:\\Out\\vtoc.sec").Succeeded());
+        Assert::IsTrue (host.actions.GetDriveImages().ReadSectors (17, 0, 1, L"C:\\Out\\vtoc.sec").Succeeded());
         Assert::IsTrue (host.io.files.count ("C:\\Out\\vtoc.sec") == 1);
         Assert::AreEqual ((size_t) 256, host.io.files["C:\\Out\\vtoc.sec"].size());
 
-        Assert::IsTrue   (host.actions.WriteSectors (20, 5, L"C:\\Out\\vtoc.sec").Succeeded());
+        Assert::IsTrue   (host.actions.GetDriveImages().WriteSectors (20, 5, L"C:\\Out\\vtoc.sec").Succeeded());
         Assert::AreEqual ((size_t) 1, host.written.size());
     }
 

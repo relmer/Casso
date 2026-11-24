@@ -482,6 +482,8 @@
     <ClCompile Include="CassoExplorer\Actions\ActionsArchive.cpp" />
     <ClCompile Include="CassoExplorer\Actions\ActionsTape.cpp" />
     <ClCompile Include="CassoExplorer\Actions\ActionsLinkDisk.cpp" />
+    <ClCompile Include="CassoExplorer\Actions\ActionsDriveImage.cpp" />
+    <ClCompile Include="CassoExplorer\Actions\LinkCompletionGuard.cpp" />
     <ClCompile Include="CassoExplorer\Actions\ActionsA2retroNet.cpp" />
     <ClCompile Include="CassoExplorer\Actions\ActionsPartition.cpp" />
     <ClCompile Include="CassoExplorer\Actions\ActionsGoTo.cpp" />
@@ -1772,6 +1774,9 @@
     <ClInclude Include="CassoExplorer\Actions\ActionsArchive.h" />
     <ClInclude Include="CassoExplorer\Actions\ActionsTape.h" />
     <ClInclude Include="CassoExplorer\Actions\ActionsLinkDisk.h" />
+    <ClInclude Include="CassoExplorer\Actions\ActionsDriveImage.h" />
+    <ClInclude Include="CassoExplorer\Actions\IAppleDriveLocation.h" />
+    <ClInclude Include="CassoExplorer\Actions\LinkCompletionGuard.h" />
     <ClInclude Include="CassoExplorer\Actions\ActionsA2retroNet.h" />
     <ClInclude Include="CassoExplorer\Actions\ActionsPartition.h" />
     <ClInclude Include="CassoExplorer\Actions\ActionsGoTo.h" />
