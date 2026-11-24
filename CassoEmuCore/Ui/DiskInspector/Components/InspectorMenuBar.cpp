@@ -173,6 +173,9 @@ vector<DxuiMenuBarItem> InspectorMenuBar::BuildItems (const InspectorCommands & 
     separator();
     add (c.decodeSettings);
     separator();
+    add (c.readAsCpm);
+    add (c.detectFilesystem);
+    separator();
     add (c.repair);
     menu (L"&Disk");
 

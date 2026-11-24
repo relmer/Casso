@@ -69,6 +69,8 @@ FileMapGridView::FileMapGridView (InspectorViewContext & context) : InspectorVie
 
 void FileMapGridView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
+    m_linkRects.clear();
+
     if (m_map != nullptr)
     {
         PaintMap (painter, text, theme);
@@ -115,6 +117,7 @@ void FileMapGridView::PaintMap (IDxuiPainter & painter, IDxuiTextRenderer & text
         text.DrawString ((m_note.empty() ? FileMapText::FormatNotMapped (*m_map) : m_note).c_str(), static_cast<float> (m_boundsDip.left), static_cast<float> (m_boundsDip.top), GetWidth(),
                          m_scaler.ToPxf (s_kNoteDip), theme.Foreground(), m_scaler.ToPxf (kTextDip), DxuiTheme::kBodyFace, DxuiTextHAlign::Left,
                          DxuiTextVAlign::Top, DxuiFontWeight::Normal, true);
+        PaintLink (painter, text, theme);
     }
 
     //  The selected file's sectors numbered in file order.
@@ -742,6 +745,103 @@ void FileMapGridView::PaintMarquee (IDxuiPainter & painter, const Grid & g, cons
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FileMapGridView::SetNote
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FileMapGridView::SetNote (const std::wstring & note, const std::wstring & link, std::function<void()> onLink)
+{
+    m_note   = note;
+    m_link   = link;
+    m_onLink = std::move (onLink);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMapGridView::PaintLink
+//
+//  The note's link in the accent color, underlined, where the note has
+//  drawn it. A link that wraps onto a second line is underlined only.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FileMapGridView::PaintLink (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    HRESULT                                     hr      = S_OK;
+    size_t                                      at      = m_note.find (m_link);
+    float                                       left    = static_cast<float> (m_boundsDip.left);
+    float                                       top     = static_cast<float> (m_boundsDip.top);
+    float                                       textPx  = m_scaler.ToPxf (kTextDip);
+    bool                                        isLink  = !m_link.empty() && at != std::wstring::npos;
+    vector<IDxuiTextRenderer::TextRangeRect>    rects;
+
+
+
+    CBR (isLink);
+
+    hr = text.GetTextRangeRects (m_note.c_str(), textPx, DxuiTheme::kBodyFace, GetWidth(), m_scaler.ToPxf (s_kNoteDip),
+                                 DxuiTextHAlign::Left, DxuiTextVAlign::Top, at, m_link.size(), rects);
+    CHR (hr);
+
+    for (const IDxuiTextRenderer::TextRangeRect & r : rects)
+    {
+        if (rects.size() == 1)
+        {
+            painter.FillRect (left + r.x, top + r.y, r.width, r.height, theme.Background());
+            text.DrawString (m_link.c_str(), left + r.x, top + r.y, r.width + textPx, r.height, theme.Accent(), textPx, DxuiTheme::kBodyFace,
+                             DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
+        }
+
+        painter.DrawLine (left + r.x, top + r.y + r.height - 1.0f, left + r.x + r.width, top + r.y + r.height - 1.0f, 1.0f, theme.Accent());
+
+        m_linkRects.push_back (RECT { static_cast<LONG> (left + r.x), static_cast<LONG> (top + r.y),
+                                      static_cast<LONG> (std::ceil (left + r.x + r.width)), static_cast<LONG> (std::ceil (top + r.y + r.height)) });
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMapGridView::IsOnLink
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FileMapGridView::IsOnLink (POINT pointPx) const
+{
+    return m_onLink && std::any_of (m_linkRects.begin(), m_linkRects.end(), [pointPx] (const RECT & r) { return PtInRect (&r, pointPx) != FALSE; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMapGridView::GetCursorForPoint
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LPCWSTR FileMapGridView::GetCursorForPoint (POINT clientPx) const
+{
+    return IsOnLink (clientPx) ? IDC_HAND : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FileMapGridView::OnMouse
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -756,6 +856,17 @@ bool FileMapGridView::OnMouse (const DxuiMouseEvent & ev)
     int64_t  now       = static_cast<int64_t> (GetTickCount64());
 
 
+
+    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && IsOnLink (p))
+    {
+        //  A copy, since the link's action sets the note again.
+        std::function<void()>  onLink = m_onLink;
+
+
+
+        onLink();
+        return true;
+    }
 
     //  A scrollbar takes the press on it and the drag that follows.
     if (m_vBar.IsDragging() || m_hBar.IsDragging())

@@ -75,6 +75,8 @@ struct InspectorCommands
     Command  bSettings;
     Command  endComparison;
     Command  decodeSettings;
+    Command  readAsCpm;
+    Command  detectFilesystem;
     Command  repair;
 
     //  Window

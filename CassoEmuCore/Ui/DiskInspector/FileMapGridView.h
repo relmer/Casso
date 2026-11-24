@@ -41,17 +41,20 @@ public:
 
     explicit FileMapGridView (InspectorViewContext & context);
 
-    void  Paint              (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    bool  OnMouse            (const DxuiMouseEvent & ev) override;
-    bool  GetTooltip         (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const override;
-    bool  GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch> & outSwatches) const override;
+    void     Paint              (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool     OnMouse            (const DxuiMouseEvent & ev) override;
+    LPCWSTR  GetCursorForPoint  (POINT clientPx) const override;
+    bool     GetTooltip         (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const override;
+    bool     GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch> & outSwatches) const override;
 
     void  SetMap         (const FileMap * map)    { m_map = map; }
     void  SetSelected    (int cell, int file)     { m_selectedCell = cell; m_selectedFile = file; }
     void  SetOnChoose    (ChooseFn choose)        { m_choose = std::move (choose); }
 
     //  Text drawn in place of why a disk isn't mapped, or empty for that.
-    void  SetNote        (const std::wstring & note) { m_note = note; }
+    //  `link`, a part of the note, is drawn as a link, and a click on it
+    //  calls `onLink`.
+    void  SetNote        (const std::wstring & note, const std::wstring & link = {}, std::function<void ()> onLink = {});
 
     //  Called when a double-click zooms the grid a stop in, or with Shift a
     //  stop out.
@@ -105,6 +108,8 @@ private:
     Grid  MakeGrid  () const;
     int   HitTest   (POINT pointPx) const;
     void  PaintMap  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
+    void  PaintLink (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
+    bool  IsOnLink  (POINT pointPx) const;
     void  PaintCell (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const Grid & g, int cell, int number, bool isDimmed,
                      const SectorSource * source);
     void      PaintMarquee (IDxuiPainter & painter, const Grid & g, const vector<int> & numbers) const;
@@ -127,6 +132,9 @@ private:
     int                                     m_selectedFile = -1;
     ChooseFn                                m_choose;
     std::wstring                            m_note;
+    std::wstring                            m_link;
+    std::function<void ()>                  m_onLink;
+    vector<RECT>                            m_linkRects;
     std::array<std::wstring, kRoleCount>    m_roleLabels;
     std::array<float, kRoleCount>           m_roleSizesPx  = {};
     double                                  m_zoom         = 1.0;

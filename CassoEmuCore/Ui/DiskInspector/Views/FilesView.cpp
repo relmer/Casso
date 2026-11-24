@@ -21,7 +21,6 @@ static constexpr int      s_kMapButtonDip    = 30;
 static constexpr int      s_kMapStepLabelDip = 150;
 static constexpr int      s_kMapVolumeDip    = 150;
 static constexpr int      s_kMapVerdictDip   = 250;
-static constexpr int      s_kMapChoiceDip    = 140;
 static constexpr int      s_kPickerPadDip    = 8;
 static constexpr int      s_kChevronDip      = 5;
 static constexpr wchar_t  s_kpszStepLabel[]  = L"Previous/next sector in";
@@ -72,7 +71,6 @@ void FilesView::Create()
     m_filePicker   = parent.CreateChild<DxuiButton> (L"");
     m_mapCopy      = parent.CreateChild<DxuiButton> (L"Copy map");
     m_mapVerdict   = parent.CreateChild<DxuiButton> (L"");
-    m_mapChoice    = parent.CreateChild<DxuiButton> (L"");
 
     m_mapGrid->SetOnChoose    ([this] (int cell) { SelectMapCell (cell); });
     m_fileList->SetOnSelect   ([this] (const TableRow & row) { ChooseFile (row.finding); });
@@ -86,8 +84,6 @@ void FilesView::Create()
     m_mapCopy->SetOnClick     ([this] () { CopyFileMap(); });
     m_mapVerdict->SetOnClick  ([this] () { ShowVerdictFinding(); });
     m_mapVerdict->SetVariant  (DxuiButton::Variant::Link);
-    m_mapChoice->SetOnClick   ([this] () { ChooseFilesystem(); });
-    m_mapChoice->SetVisible   (false);
 }
 
 
@@ -111,10 +107,8 @@ std::wstring FilesView::GetTip (POINT pointPx, RECT & outAnchorPx) const
 
 
 
-    std::wstring                     tip;
-    RECT                             verdict = m_mapVerdict->GetBounds();
-    RECT                             choice  = m_mapChoice->GetBounds();
-    InspectorFilesystemOffer::Offer  offer   = InspectorFilesystemOffer::GetOffer (m_session.analysis, *m_session.host);
+    std::wstring  tip;
+    RECT          verdict = m_mapVerdict->GetBounds();
 
 
 
@@ -133,13 +127,6 @@ std::wstring FilesView::GetTip (POINT pointPx, RECT & outAnchorPx) const
     {
         tip         = L"Go to this issue on the Issues tab";
         outAnchorPx = RECT { pointPx.x, pointPx.y, pointPx.x + 1, pointPx.y + 1 };
-    }
-
-    if (tip.empty() && m_mapChoice->IsVisible() && PtInRect (&choice, pointPx))
-    {
-        tip         = (offer == InspectorFilesystemOffer::Offer::ReadAsCpm) ? std::wstring (L"Read the disk as CP/M, with its invalid directory entries on the Issues tab")
-                                                                            : InspectorFilesystemOffer::GetNote (offer) + L" Look for a standard file system instead.";
-        outAnchorPx = choice;
     }
 
     return tip;
@@ -327,8 +314,6 @@ void FilesView::Layout (const RECT & area, const DxuiDpiScaler & scaler)
     int                          verdict     = scaler.ToPx (s_kMapVerdictDip);
     int                          verdictLeft = copyLeft - margin - verdict;
     int                          pickerRight = area.left + 2 * button + margin + label + picker;
-    int                          choice      = scaler.ToPx (s_kMapChoiceDip);
-    bool                         isOffered   = InspectorFilesystemOffer::GetOffer (m_session.analysis, *m_session.host) == InspectorFilesystemOffer::Offer::ReadAsCpm;
     vector<DxuiTabStrip::Tab>    tabs;
 
 
@@ -363,22 +348,7 @@ void FilesView::Layout (const RECT & area, const DxuiDpiScaler & scaler)
     m_mapVolumes->SetSelected (m_session.mapIndex);
     m_mapVolumes->Layout      ({ area.left + 2 * button + 2 * margin + label + picker, y, verdictLeft - margin, y + row }, scaler);
 
-    //  Read as CP/M is alone on the row over the grid's note; Detect file
-    //  system is after the picker when it fits.
-    m_isChoiceRoom = isOffered || pickerRight + 2 * margin + choice <= verdictLeft;
-
-    if (isOffered)
-    {
-        m_mapChoice->Layout ({ area.left, y, area.left + choice, y + row }, scaler);
-    }
-    else
-    {
-        m_mapChoice->Layout ({ pickerRight + margin, y, pickerRight + margin + choice, y + row }, scaler);
-    }
-
-    m_mapChoice->SetVisible (m_isChoiceRoom && m_mapScroll->IsVisible() && InspectorFilesystemOffer::GetOffer (m_session.analysis, *m_session.host) != InspectorFilesystemOffer::Offer::None);
-
-    y += (isList || isOffered || m_session.analysis.fileMaps.size() > 1) ? row + margin / 2 : 0;
+    y += (isList || m_session.analysis.fileMaps.size() > 1) ? row + margin / 2 : 0;
 
     //  Open, the picker has the list's filters and the file list in the rest
     //  of the tab; closed, the tab has the grid, its rows at least as tall as its
@@ -457,7 +427,6 @@ void FilesView::Show (bool isShown)
     m_mapVerdict->SetVisible (isList && m_isVerdictRoom && map->verdict != FileSystemVerdict::None);
     m_mapVerdict->SetEnabled (IsVerdictLinked());
     m_mapVolumes->SetVisible (isShown && m_session.analysis.fileMaps.size() > 1);
-    m_mapChoice->SetVisible  (isShown && m_isChoiceRoom && InspectorFilesystemOffer::GetOffer (m_session.analysis, *m_session.host) != InspectorFilesystemOffer::Offer::None);
 }
 
 
@@ -631,9 +600,17 @@ void FilesView::RefreshFileList()
         m_fileList->SetRows (vector<TableRow>());
     }
 
+    //  The note's "Read as CP/M" reads the disk that way.
     offer = InspectorFilesystemOffer::GetOffer (m_session.analysis, *m_session.host);
-    m_mapChoice->SetLabel (InspectorFilesystemOffer::GetButtonLabel (offer));
-    m_mapGrid->SetNote    ((offer == InspectorFilesystemOffer::Offer::ReadAsCpm) ? InspectorFilesystemOffer::GetNote (offer) : std::wstring());
+
+    if (offer == InspectorFilesystemOffer::Offer::ReadAsCpm)
+    {
+        m_mapGrid->SetNote (InspectorFilesystemOffer::GetNote (offer), InspectorFilesystemOffer::GetButtonLabel (offer), [this] () { ChooseFilesystem(); });
+    }
+    else
+    {
+        m_mapGrid->SetNote (std::wstring());
+    }
 
     m_session.context.fileMap      = map;
     m_session.context.selectedFile = m_session.mapFile;

@@ -11,6 +11,8 @@
 #include "Ui/DiskInspector/Components/PlatterCorners.h"
 #include "Ui/DiskInspector/Components/SelectionPart.h"
 #include "Ui/DiskInspector/Components/TrackColumn.h"
+#include "Ui/DiskInspector/IDiskInspectorHost.h"
+#include "Ui/DiskInspector/InspectorFilesystemOffer.h"
 #include "Ui/DiskInspector/PlatterCells.h"
 #include "Ui/DiskInspector/PlatterView.h"
 #include "Ui/DiskInspector/TrackStripView.h"
@@ -237,6 +239,20 @@ void InspectorCommandSet::Build()
     c.decodeSettings            = make (L"&Decode settings...", L"", [this] () { m_parts.GetDialogs().OpenDecodeSettings(); });
     c.decodeSettings->isEnabled = hasDisk;
     c.decodeSettings->glyph     = kpszGlyphSettings;
+
+    if (m_session.host->CanChooseFilesystem())
+    {
+        auto  isOffered = [this] (InspectorFilesystemOffer::Offer offer)
+        {
+            return m_session.context.hasDisk && InspectorFilesystemOffer::GetOffer (m_session.analysis, *m_session.host) == offer;
+        };
+
+        c.readAsCpm                    = make (L"Read as C&P/M", L"", [this] () { m_parts.GetFiles().ChooseFilesystem(); });
+        c.readAsCpm->isEnabled         = [isOffered] () { return isOffered (InspectorFilesystemOffer::Offer::ReadAsCpm); };
+        c.detectFilesystem             = make (L"Detect file s&ystem", L"", [this] () { m_parts.GetFiles().ChooseFilesystem(); });
+        c.detectFilesystem->isEnabled  = [isOffered] () { return isOffered (InspectorFilesystemOffer::Offer::DetectFilesystem); };
+    }
+
     c.repair                    = make (L"&Repair disk image...", L"", [this] () { m_host.OpenRepair ({}); });
     c.repair->isEnabled         = [this] () { return m_session.repairPlan.canRepair; };
 
