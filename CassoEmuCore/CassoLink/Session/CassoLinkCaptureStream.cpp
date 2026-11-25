@@ -255,6 +255,8 @@ bool CassoLinkCapture::CollectMarks (const Position & position, Stream & outStre
         outStream.weak[at] = differing[at] >= weakReads && (size_t) differs[at] * 2 >= alignments.size();
     }
 
+    MarkProtectedEndings (outStream.bytes, differing, outStream.weak);
+
     //  A //c's IWM reads a write splice otherwise on each pass, so a stretch
     //  each pass reads otherwise is random only with a quiet baseline, and
     //  only that baseline lets the moments a byte was caught be followed;
@@ -275,6 +277,45 @@ bool CassoLinkCapture::CollectMarks (const Position & position, Stream & outStre
     }
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::MarkProtectedEndings
+//
+//  After an address field whose ending isn't DE AA, the bytes up to the next
+//  sync byte are the protection's, as Ultima IV's weak bits after its track
+//  0 checksum are. A drive whose head reads them more steadily than another
+//  differs on fewer than half its reads there, and on a track read three
+//  times a byte can differ on one: a byte after the ending's first that any
+//  read differs on is weak.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkCapture::MarkProtectedEndings (const std::vector<Byte> & bytes, const std::vector<int> & differing, std::vector<bool> & ioWeak)
+{
+    size_t  n     = bytes.size();
+    size_t  field = 3 + s_kAddressNibbles;
+
+
+
+    for (size_t at = 0; n > field + s_kSpliceBytes && at < n; at++)
+    {
+        size_t  ending      = at + field;
+        bool    isProtected = IsAddressPrologAt (bytes, at)
+                              && ((bytes[ending % n] | 0x80) != s_kEpilog0 || (bytes[(ending + 1) % n] | 0x80) != s_kEpilog1);
+
+        for (size_t k = 1; isProtected && k < s_kSpliceBytes && (bytes[(ending + k) % n] | 0x80) != s_kSyncByte; k++)
+        {
+            size_t  each = (ending + k) % n;
+
+            ioWeak[each] = ioWeak[each] || differing[each] > 0;
+        }
+    }
 }
 
 
@@ -818,6 +859,7 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const std::v
     std::vector<bool>                       values (length, false);
     std::vector<bool>                       pooled (length, false);
     std::vector<bool>                       inData (length, false);
+    std::vector<bool>                       bodies;
     bool                                    quiet     = false;
     size_t                                  shortest  = fine ? s_kShortestRun : s_kPooledRun;
 
@@ -914,6 +956,7 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const std::v
         }
 
         isData   = (quiet || (base[0] <= s_kQuietBase && end - at < s_kShortestRun)) && runSet[0] * 2 < runRead[0] && (runRead[1] == 0 || runSet[1] * 2 < runRead[1]);
+        isData   = isData || (end > at && IsFourAndFourRun (bytes, at, end, true));
         dataLike = !fine && base[0] <= s_kQuietBase && end - at >= s_kShortestRun && runSet[0] * 2 < runRead[0] && (runRead[1] == 0 || runSet[1] * 2 < runRead[1]);
 
         outUnsure += dataLike ? end - at : 0;
@@ -978,6 +1021,15 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const std::v
     }
 
     CountEndingZeros (bytes, weak, marks, outZeros);
+
+    bodies = FindAddressBodies (bytes);
+
+    for (size_t each = 0; each < length; each++)
+    {
+        bool  inField = (bytes[each] | 0x80) != s_kSyncByte && IsFourAndFourRun (bytes, each, each + 1, false);
+
+        outZeros[each] = (bodies[each] || inField) ? 0 : outZeros[each];
+    }
 }
 
 
@@ -996,23 +1048,39 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const std::v
 //  its address fields' first ending byte, and its check passes with two.
 //  A read at 12 cycles marks a byte followed by two zero bits only about
 //  half the time, so one zero bit and two look alike in a track's few reads.
+//  A protection times every address field of its track, so a byte marked
+//  after only a few of them is chance. An RWTS such as Microsoft Adventure's
+//  reads the byte after DF at once, and two zero bits there make it read DF
+//  twice and fail.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassoLinkCapture::CountEndingZeros (const std::vector<Byte> & bytes, const std::vector<bool> & weak, const Marks & marks, std::vector<uint8_t> & ioZeros)
 {
-    std::vector<bool>  endings = FindAddressEndings (bytes);
+    std::vector<bool>  endings      = FindAddressEndings (bytes);
+    std::vector<bool>  counted      (bytes.size(), false);
+    size_t             fields       = 0;
+    size_t             markedFields = 0;
+    bool               fieldMarked  = false;
 
 
 
     for (size_t each = 0; each < bytes.size(); each++)
     {
         bool  marked = marks.read[0][each] >= s_kEndingMarks && marks.set[0][each] == marks.read[0][each];
+        bool  first  = endings[each] && (each == 0 || !endings[each - 1]);
 
-        if (endings[each] && !weak[each] && ioZeros[each] == 0 && marked)
-        {
-            ioZeros[each] = s_kEndingZeros;
-        }
+        fields       += first ? 1 : 0;
+        fieldMarked   = first ? false : fieldMarked;
+        counted[each] = endings[each] && !weak[each] && ioZeros[each] == 0 && marked;
+
+        markedFields += (counted[each] && !fieldMarked) ? 1 : 0;
+        fieldMarked   = fieldMarked || counted[each];
+    }
+
+    for (size_t each = 0; markedFields * s_kEndingFieldShare >= fields && each < bytes.size(); each++)
+    {
+        ioZeros[each] = counted[each] ? s_kEndingZeros : ioZeros[each];
     }
 }
 
@@ -1044,6 +1112,45 @@ uint8_t CassoLinkCapture::CountByteZeros (const Marks & marks, size_t at, const 
 
 
     return at8 ? ((at12 || all8) ? 2 : 1) : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::IsFourAndFourRun
+//
+//  Whether the bytes from first to end have s_kFourAndFourBytes 4-and-4
+//  bytes (1x1x1x1x) on both sides of them, or with either, on one side, the
+//  revolution continuing at its start. A 4-and-4 field writes a value of $FF
+//  as FF FF, and a loader that reads the field as fast as the bytes arrive
+//  reads a byte twice when zero bits follow it. A gap of sync bytes starts
+//  after an epilog such as DE AA EB and ends at a prolog's D5, neither of
+//  them 4-and-4, so a run of FF on one side of a field's marker is its data.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkCapture::IsFourAndFourRun (const std::vector<Byte> & bytes, size_t first, size_t end, bool either)
+{
+    static constexpr Byte  kFourAndFour = 0xAA;
+    size_t                 length       = bytes.size();
+    bool                   fits         = length > end - first + 2 * s_kFourAndFourBytes;
+    bool                   before       = fits;
+    bool                   after        = fits;
+
+
+
+    auto  isFourAndFour = [&bytes, length] (size_t at) { return ((bytes[at % length] | 0x80) & kFourAndFour) == kFourAndFour; };
+
+    for (size_t each = 0; fits && each < s_kFourAndFourBytes; each++)
+    {
+        before = before && isFourAndFour (first + length - 1 - each);
+        after  = after  && isFourAndFour (end + each);
+    }
+
+    return either ? (before || after) : (before && after);
 }
 
 

@@ -492,7 +492,7 @@ void ExplorerImageTools::ChooseFilesystem (VolumeKind kind)
 {
     if (m_context.browser.IsAppleDriveLocation())
     {
-        m_context.actions.ChooseDriveFilesystem (kind);
+        m_context.actions.GetAppleDrive().ChooseDriveFilesystem (kind);
     }
     else
     {

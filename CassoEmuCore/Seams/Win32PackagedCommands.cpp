@@ -859,6 +859,12 @@ void Win32PackagedCommands::AddPackageEntries (const Registration & package, siz
         return;
     }
 
+    for (Win32ExplorerCommandEntries::Entry & entry : own)
+    {
+        entry.package = GetFamilyName (package.package);
+        entry.cloud   = entry.cloud || package.itemType == s_kpszCloudItemType;
+    }
+
     if (applies < 2 || package.appName.empty())
     {
         std::move (own.begin(), own.end(), std::back_inserter (outEntries));
@@ -868,6 +874,7 @@ void Win32PackagedCommands::AddPackageEntries (const Registration & package, siz
     group.cloud    = package.itemType == s_kpszCloudItemType;
     group.title    = package.appName;
     group.icon     = package.logo.empty() ? own.front().icon : package.logo;
+    group.package  = own.front().package;
     group.children = std::move (own);
 
     outEntries.push_back (std::move (group));
@@ -977,4 +984,32 @@ HRESULT Win32PackagedCommands::InvokeGuarded (IExplorerCommand * command, IShell
     {
         return E_UNEXPECTED;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32PackagedCommands::GetFamilyName
+//
+//  The package family of a package's full name, which Settings' Context
+//  menu page keys its choices by.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring Win32PackagedCommands::GetFamilyName (const std::wstring & fullName)
+{
+    wchar_t  family[PACKAGE_FAMILY_NAME_MAX_LENGTH + 1] = {};
+    UINT32   length = ARRAYSIZE (family);
+
+
+
+    if (PackageFamilyNameFromFullName (fullName.c_str(), &length, family) != ERROR_SUCCESS)
+    {
+        return std::wstring();
+    }
+
+    return family;
 }

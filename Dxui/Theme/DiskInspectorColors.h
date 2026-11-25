@@ -94,7 +94,7 @@ struct DiskInspectorColors
 
         c.mapFree          = 0xFF2C3036;
         c.mapBoot          = 0xFF8E6BD8;
-        c.mapVolumeHeader  = 0xFFE0A030;
+        c.mapVolumeHeader  = 0xFF5CC060;
         c.mapDirectory     = 0xFF3FB5C8;
         c.mapUnusedCatalog = 0xFF6E7A70;
         c.mapBitmap        = 0xFFD8D040;
@@ -152,7 +152,7 @@ struct DiskInspectorColors
 
         c.mapFree          = 0xFFEDEFF2;
         c.mapBoot          = 0xFF7A52C8;
-        c.mapVolumeHeader  = 0xFFD08A10;
+        c.mapVolumeHeader  = 0xFF2E8B3A;
         c.mapDirectory     = 0xFF1FA0B8;
         c.mapUnusedCatalog = 0xFF7A9AA0;
         c.mapBitmap        = 0xFFC8C020;

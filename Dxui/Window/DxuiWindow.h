@@ -3,11 +3,11 @@
 #include "Pch.h"
 #include "Core/DxuiPanel.h"
 #include "Core/DxuiFocusManager.h"
+#include "Core/DxuiPointerPath.h"
+#include "Window/DxuiDialogController.h"
 #include "Window/DxuiHwndSource.h"
+#include "Window/IDxuiDialogHost.h"
 #include "Window/IDxuiHostClient.h"
-
-
-class DxuiButton;
 
 
 
@@ -45,7 +45,7 @@ class DxuiButton;
 ////////////////////////////////////////////////////////////////////////////////
 
 
-class DxuiWindow : public DxuiPanel, private IDxuiHostClient
+class DxuiWindow : public DxuiPanel, private IDxuiHostClient, private IDxuiDialogHost
 {
 public:
     struct CreateParams
@@ -153,7 +153,7 @@ public:
     //  keep animating (e.g. Settings over the running emulator).
     //
     void  ShowModelessDialog (int defaultButtonId, bool activate = true);
-    void  EndDialog          (int result);
+    void  EndDialog          (int result) override;
 
     //
     //  Window-level translucency for a composited window (CreateParams::
@@ -204,36 +204,18 @@ public:
     void     FocusControl    (IDxuiControl * ctl) { m_focus.SetFocused (ctl); }
 
     //
-    //  Each dimension of size held within [minSize, maxSize], a maximum
-    //  below the minimum giving way to it.
+    //  Resizes the window to TryGetMaxClientSizePx within its monitor's work
+    //  area. Fit grows or shrinks it, for a window opened before its content
+    //  was laid out. Grow never shrinks it, for content that grows while the
+    //  window is open.
     //
-    static SIZE  ClampSize (const SIZE & size, const SIZE & minSize, const SIZE & maxSize);
+    enum class MaxSizeMode
+    {
+        Fit,
+        Grow,
+    };
 
-    //
-    //  The window rect at maxPx, cut to the work area and moved only as far
-    //  as it takes to stay inside it.
-    //
-    static RECT  FitRectToMaxSize (const RECT & windowPx, const SIZE & maxPx, const RECT & workPx);
-
-    //
-    //  Grows or shrinks the window to TryGetMaxClientSizePx within its
-    //  monitor's work area. For a window opened before its content was laid
-    //  out.
-    //
-    void     FitToMaxSize ();
-
-    //
-    //  The window rect grown to maxPx in whichever dimension maxPx exceeds
-    //  it, cut to the work area and kept inside it; false when it would not
-    //  grow in either dimension.
-    //
-    static bool  TryGetGrownRect (const RECT & windowPx, const SIZE & maxPx, const RECT & workPx, RECT & outPx);
-
-    //
-    //  Like FitToMaxSize, but never shrinks the window. For content that
-    //  grows while the window is open.
-    //
-    void     GrowToMaxSize ();
+    void     ResizeToMaxSize (MaxSizeMode mode);
 
     bool     IsCreated  () const { return m_source != nullptr; }
     HWND     GetHwnd    () const { return m_source != nullptr ? m_source->GetHwnd() : nullptr; }
@@ -242,10 +224,29 @@ public:
     //  Request a repaint of the window (the backend's WM_PAINT pump
     //  walks this panel tree). Consumers with a per-frame data model
     //  call this after mutating state. The window is painted before this
-    //  returns, except while a mouse event is dispatched: then it is
-    //  painted once, after the event.
+    //  returns, except between BeginPaintBatch and EndPaintBatch: then it
+    //  is painted once, by the outermost EndPaintBatch.
     //
-    void     Invalidate ();
+    void     Invalidate () override;
+
+    //  Every mouse event, key and character is a batch. A subclass makes
+    //  one of its other messages a batch with these two, or with a
+    //  PaintBatch for the length of a scope.
+    void     BeginPaintBatch ();
+    void     EndPaintBatch   ();
+
+    class PaintBatch
+    {
+    public:
+        explicit PaintBatch (DxuiWindow & window) : m_window (window) { m_window.BeginPaintBatch(); }
+        ~PaintBatch () { m_window.EndPaintBatch(); }
+
+        PaintBatch (const PaintBatch &)             = delete;
+        PaintBatch & operator= (const PaintBatch &) = delete;
+
+    private:
+        DxuiWindow  & m_window;
+    };
 
     void                SetTheme           (const IDxuiTheme * theme);
     const IDxuiTheme  * GetTheme           () const { return m_theme; }
@@ -272,15 +273,6 @@ public:
 
 
 protected:
-    //  The controls under the pointer, outermost first. Each control the
-    //  pointer moves off, and each on the path when the pointer moves out of
-    //  the window, is sent a move to kNowherePx and a
-    //  DxuiMouseEventKind::Leave event, so a hover can't outlast the pointer,
-    //  however the window routes its input.
-    static constexpr int  kNowherePx = -32768;
-
-    void  UpdatePointerPath (POINT clientPx, bool leftWindow);
-
     //
     //  THE TAB ORDER IS A SNAPSHOT of the visible, enabled subtree, taken when
     //  the dialog enters dialog mode. A subclass that later SHOWS OR HIDES part
@@ -333,14 +325,14 @@ protected:
     //  plain Tab still does focus traversal. Return true if consumed. Default
     //  no-op (a plain dialog has no page tabs).
     //
-    virtual bool  OnDialogTabSwitch (bool backward) { UNREFERENCED_PARAMETER (backward); return false; }
+    bool  OnDialogTabSwitch (bool backward) override { UNREFERENCED_PARAMETER (backward); return false; }
 
     //
     //  A dialog key (Tab, an arrow, Enter) was consumed, and `focused` holds
     //  the keyboard focus afterward (null for none). A scrolling window
     //  brings it into view here. Default no-op.
     //
-    virtual void  OnDialogKeyHandled (IDxuiControl * focused) { UNREFERENCED_PARAMETER (focused); }
+    void  OnDialogKeyHandled (IDxuiControl * focused) override { UNREFERENCED_PARAMETER (focused); }
 
     //
     //  The largest client size the user can drag a resizable window to, in
@@ -420,28 +412,8 @@ private:
                                       bool               wheelHorizontal = false);
     DxuiMessageResult  DispatchKey       (DxuiKeyEventKind kind, WPARAM code);
     DxuiMessageResult  DispatchDialogKey (WPARAM vk);
-    void               ResizeToMaxSize   (bool growOnly);
 
     static bool        ShowScrollbarMenuIn (IDxuiControl & control, HWND hwnd, POINT clientPx);
-
-    static void  CollectPathAt     (const IDxuiControl & control, POINT clientPx, std::vector<IDxuiControl *> & outPath);
-    static bool  IsInTree          (const IDxuiControl & root, const IDxuiControl * control);
-    static void  SendPointerAway   (IDxuiControl & control);
-
-    //
-    //  Dialog support: enter dialog mode (wire buttons, attach/rebuild
-    //  focus, seed initial focus), route a key to the focused control,
-    //  and find / fire a button by command id. The button walks are
-    //  recursive over the panel tree so buttons may live in a nested
-    //  button-row panel.
-    //
-    void                 BeginDialogMode     (int defaultButtonId, bool modal);
-    void                 WireDialogButtons   ();
-    bool                 RouteKeyToFocused   (WPARAM vk, bool shift);
-    bool                 IsTriggerButtonById (int commandId);
-    static DxuiButton  * FindButtonById      (IDxuiControl * node, int commandId);
-    static void          ForEachButton       (IDxuiControl * node, const std::function<void (DxuiButton *)> & fn);
-
 
     std::unique_ptr<DxuiHwndSource>    m_source;
     SIZE                               m_minSizeDip      = { 0, 0 };
@@ -449,16 +421,12 @@ private:
     const IDxuiTheme                 * m_theme           = nullptr;
     IDxuiControl                     * m_initialFocus    = nullptr;
     DxuiFocusManager                   m_focus;
-    bool                               m_dialogActive    = false;   // dialog behaviors on (modal or modeless)
-    bool                               m_modal           = false;   // blocking-modal (owner disabled + private loop)
-    bool                               m_modalDone       = false;
+    DxuiDialogController               m_dialog          { *this, m_focus, *this };
     bool                               m_wheelCtrl       = false;   // Ctrl, by the flags of the wheel message being dispatched
-    int                                m_modalResult     = 0;
-    int                                m_defaultButtonId = 0;
-    int                                m_mouseDepth      = 0;       // mouse events being dispatched, nested ones included
-    bool                               m_paintAfterMouse = false;   // invalidated during the mouse event being dispatched
+    int                                m_batchDepth      = 0;       // paint batches open, nested ones included
+    bool                               m_paintAfterBatch = false;   // invalidated during the open batch
     UINT                               m_dialogTickMs    = kDefaultDialogTickMs;   // dialog repaint / tick cadence (caret-blink default)
     std::function<void (int)>        m_onDialogEnd;            // modeless close callback
     std::function<void ()>           m_onModalLoopTick;        // OS size/move-loop keep-alive tick
-    std::vector<IDxuiControl *>      m_pointerPath;            // the controls under the pointer, outermost first
+    DxuiPointerPath                  m_pointerPath;            // the controls under the pointer, outermost first
 };

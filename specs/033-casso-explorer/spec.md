@@ -700,6 +700,31 @@ hardware.
 - Q: Is a failed track sent again whole, or only its failed sectors? -> A: Only its failed sectors (owner, 2026-11-17: "per-sector retries are fine"). A track is about 15 seconds of audio, so each sector has a CRC in the track's packet, and the reply lists those that failed.
 - Q: What does Casso's audio encoding have to tolerate? -> A: Each bit is one full cycle, 500 microseconds for a 0 and 1,000 for a 1, as the monitor's tape format has, so an offset comparator, an inverted cable and resampling at 44.1 or 48 kHz don't change a bit; a turn starts with a tone and a mark that data can't contain; and the Apple's side is half duplex, sending what it has put when it next waits for a byte. The scenario tests run each direction through resampling, filtering, noise, inverted polarity, an offset threshold and jitter.
 
+### Session 2026-11-24
+
+- Q: Where does a 140K, 400K or 800K block image go, since the SCSI card's
+  drive rejects those sizes as floppies? -> A: On a UniDisk 3.5 (owner,
+  2026-11-24): a UniDisk 3.5 interface card in slot 7 of a model with slots,
+  replacing the copy's slot 7 card so the image boots before slot 6's empty
+  Disk II stops the search; the //c's disk port; the //c Plus's internal
+  drive. The Apple ][ isn't a host of that card, so it reports the image. A
+  hard disk image on a //c is reported, since its disk port takes 3.5-inch
+  and 5.25-inch drives only.
+- Q: How does a disk image opened from File Explorer or Casso Explorer
+  boot, without changing the user's machines? -> A: In a temporary copy of
+  a stock machine (owner, 2026-11-24). `--launch <image>` copies the stock
+  configuration, changes it so the image can be mounted, and never saves
+  it; `--machine` picks the stock model, Apple2eEnhanced by default. An Open
+  on submenu offers the other models. Names weighed: `--ephemeral` was
+  rejected as obscure, `--class` and `--model` in favor of the existing
+  `--machine`. A saved "launch machine" in the picker was weighed and
+  dropped for the temporary copy, which never goes out of date.
+- Q: Is .d13 registered, and what labels go in File Explorer? -> A: .d13 is
+  registered, since Casso swaps in the Disk II's 13-sector ROM, which the ROM
+  download fetches with the 16-sector one, so a 13-sector disk boots without BOOT13 (owner,
+  2026-11-24). File Explorer's submenu is "Open in Casso on", since its menu
+  lists other programs' rows; Casso Explorer's is "Open on".
+
 ## User Scenarios & Testing *(mandatory)*
 ### User Story 1 - Browse and inspect a disk (Priority: P1)
 
@@ -2354,6 +2379,54 @@ as they arrive.
     number.
 11. **Given** an image is deleted in Casso Explorer, **When** the delete is
     done, **Then** its thumbnail is removed with it.
+
+### User Story 44 - Open a disk image without changing a saved machine (Priority: P1)
+
+A user double-clicks a disk image in File Explorer, or chooses Open in
+Casso in Casso Explorer, and the image boots in a temporary copy of a stock
+machine. The user's machines, with their cards, drives and remembered disks,
+are as they left them afterward.
+
+**Why this priority**: Opening a file used to put it in drive 1 of the
+user's current machine, which changed that machine's remembered disk, and a
+block image couldn't be opened at all: the card or port that takes it
+depends on the machine, and a file type's command is fixed. On 2026-11-24 the owner chose a
+temporary machine for every open from File Explorer or Casso Explorer.
+
+**Independent Test**: Note each saved machine's configuration. Double-click
+a .dsk, a .woz, an 800K .2mg and a .hdv in File Explorer; each boots. Choose
+Open on > Apple //c for each. Close every window: every saved machine is as
+it was.
+
+**Acceptance Scenarios**:
+
+1. **Given** a 5.25-inch image, **When** it is opened from File Explorer,
+   **Then** it boots in drive 1 of a temporary enhanced //e, and the title
+   bar indicates the machine is temporary.
+2. **Given** a block image, **When** it is opened from File Explorer,
+   **Then** it boots from the SCSI card of a temporary enhanced //e.
+3. **Given** any image, **When** Open on > Apple //c is chosen, **Then** a
+   block image boots from the disk port and a 5.25-inch image from the
+   built-in drive.
+4. **Given** a model with nowhere to mount the image, **When** it is
+   chosen, **Then** Casso reports why and doesn't boot.
+5. **Given** a temporary machine, **When** its settings are changed and it
+   is closed, **Then** no configuration file is written.
+6. **Given** a build that registered the types before this change, **When**
+   it next starts, **Then** every type opens with `--launch`.
+7. **Given** a block image, **When** Open on > Apple ][ is chosen, **Then**
+   the temporary copy gets a language card in slot 0 and a hard disk card,
+   and boots; if the hard disk card can't run on a 6502, Casso reports why
+   and doesn't boot.
+
+**Edge cases for this story**:
+
+- **A block image on a 48K machine**: the stock Apple ][ and ][+ have no
+  language card, and ProDOS requires 64K. The temporary copy gets one in slot
+  0, as most real ][ and ][+ owners added.
+- **A card that requires a 65C02**: a hard disk card whose firmware uses 65C02
+  instructions isn't added to a 6502 machine; Casso reports that the model
+  can't take the image instead of booting a machine that hangs.
 
 ### Edge Cases
 
@@ -4209,6 +4282,47 @@ as they arrive.
 - **FR-242**: Every format and protocol in FR-190 to FR-241 and FR-304 to
   FR-310 MUST be
   implemented by the rule FR-171 sets.
+- **FR-311**: Casso MUST take `--launch <image>`: it copies a stock machine
+  configuration in memory, changes the copy so the image can be mounted,
+  and boots it. The copy MUST NOT be saved, and settings changed during
+  that session MUST NOT be written back. The title bar MUST indicate that
+  the machine is temporary.
+- **FR-312**: With `--launch`, `--machine <id>` MUST pick the stock machine
+  copied: Apple2, Apple2Plus, Apple2e, Apple2eEnhanced, Apple2c or
+  Apple2cPlus, and the Apple /// once Casso emulates it. It MUST NOT refer to
+  a saved machine of the user's. Without it, Apple2eEnhanced is copied.
+- **FR-313**: A 5.25-inch image MUST go in drive 1. A 140K, 400K or 800K
+  block image MUST go on a UniDisk 3.5: on a model with slots, a UniDisk 3.5
+  interface card in slot 7 of the copy, where the Apple II looks first; on
+  the //c, the disk port's first drive; on the //c Plus, the internal 3.5-inch
+  drive. Any other block image MUST go on the copy's SCSI card, or on one
+  added to slot 7 when it has none; the //c's disk port takes no hard disk,
+  so Casso reports it there. When the model has nowhere to
+  mount the image, Casso MUST report why and MUST NOT boot. The placement
+  MUST be computed from the image and the configuration alone, so unit
+  tests can check every model and image size.
+- **FR-314**: Every registered disk image type MUST open with
+  `"Casso.exe" --launch "%1"`: .dsk, .do, .po, .woz, .nib, .nb2 and .d13,
+  and the block types .2mg, .2img, .hdv, .dc, .dc42 and .image. A 13-sector
+  image boots on the Disk II's 13-sector ROM, which Casso swaps in for it.
+  A registration
+  made at startup by an earlier build MUST be updated on the next start.
+- **FR-315**: File Explorer's menu for these types and Casso Explorer's
+  context menu for a disk image MUST have an Open on submenu with one row
+  per stock model, each passing `--machine`. Every row MUST be listed for
+  every image; a model that can't take the image reports why when chosen.
+- **FR-316**: Casso Explorer's Open in Casso MUST launch with `--launch`.
+- **FR-317**: The proposed UI text MUST be approved by the owner before it
+  ships: the submenu label, "Open in Casso on" in File Explorer and "Open
+  on" in Casso Explorer; the model rows ("Apple ][", "Apple ][+", "Apple
+  //e", "Apple //e Enhanced", "Apple //c", "Apple //c Plus"); the title bar suffix "(temporary)"; the `--launch` and `--machine` help
+  lines; and the notices in contracts/temporary-launch.md.
+- **FR-318**: Placement MUST check the model as well as the slots. For a
+  block image on a machine with less than 64K, the temporary copy MUST get a
+  language card in slot 0. A hard disk card MUST NOT be added to a 6502
+  machine when its firmware requires a 65C02; Casso then reports that the model
+  can't take the image. Unit tests MUST include the Apple ][ and ][+ with
+  a block image.
 
 ### Key Entities
 
@@ -4506,6 +4620,13 @@ as they arrive.
   window's thread doesn't stall for more than 100 ms while the level fills.
 - **SC-078**: With the region set to German (Germany), block 47790 is
   written as 47.790 and a Go to of 47.790 steps to it.
+- **SC-079**: A double-click on each of the 13 registered disk image types
+  in File Explorer boots it in a temporary machine within 5 seconds, and
+  afterward every saved machine's configuration file is byte-identical to
+  its copy from before the launch.
+- **SC-080**: Each row of the Open on submenu boots an image on that model,
+  or reports why that model can't take it, for a 5.25-inch image, an 800K
+  image and a 32 MB image.
 
 ## Assumptions
 

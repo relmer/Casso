@@ -15,6 +15,7 @@
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/RdosVolume.h"
+#include "Machines/Apple2/Common/SectorDecodeCache.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Machines/Apple2/Common/SectorInterleave.h"
 #include "Machines/Apple2/Common/ThirteenSectorCodec.h"
@@ -222,6 +223,14 @@ HRESULT VolumeImage::Load (
     CBRFEx (hasData, HRESULT_FROM_WIN32 (ERROR_BAD_LENGTH),
             outDiagnosis.failure = MountFailure::EmptyFile);
 
+    //  The same bytes decode the same way, so a decode already made is reused.
+    if ((format == DiskFormat::Woz || format == DiskFormat::Nib) && SectorDecodeCache::Find (fileBytes, hr, outSectors, outReport))
+    {
+        CHRF (hr, outDiagnosis.failure = MountFailure::Unrecognized);
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
     if (format == DiskFormat::Woz || format == DiskFormat::Nib)
     {
         hr = LoadBitStream (format, fileBytes, image);
@@ -232,6 +241,7 @@ HRESULT VolumeImage::Load (
         //  not decode is a track they cannot act on. Its refusal is the strict
         //  one, and correctly so.
         hr = DenibblizeBitStream (image, outSectors, outReport);
+        SectorDecodeCache::Store (fileBytes, hr, outSectors, outReport);
         CHRF (hr, outDiagnosis.failure = MountFailure::Unrecognized);
 
         BAIL_OUT_IF (true, S_OK);

@@ -314,6 +314,7 @@
     <ClCompile Include="CassoLink\Session\CassoLinkResume.cpp" />
     <ClCompile Include="CassoLink\Session\LinkImageSource.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkThirteenSector.cpp" />
+    <ClCompile Include="DiskCheck\ImageRecordStore.cpp" />
     <ClCompile Include="DiskCheck\ThumbnailStore.cpp" />
     <ClCompile Include="DiskCheck\GivenNames.cpp" />
     <ClCompile Include="DiskCheck\BootCheck.cpp" />
@@ -480,6 +481,9 @@
     <ClCompile Include="CassoExplorer\Actions\ActionsCopy.cpp" />
     <ClCompile Include="CassoExplorer\Actions\ActionsArchive.cpp" />
     <ClCompile Include="CassoExplorer\Actions\ActionsTape.cpp" />
+    <ClCompile Include="CassoExplorer\Actions\ActionsLinkDisk.cpp" />
+    <ClCompile Include="CassoExplorer\Actions\ActionsDriveImage.cpp" />
+    <ClCompile Include="CassoExplorer\Actions\LinkCompletionGuard.cpp" />
     <ClCompile Include="CassoExplorer\Actions\ActionsA2retroNet.cpp" />
     <ClCompile Include="CassoExplorer\Actions\ActionsPartition.cpp" />
     <ClCompile Include="CassoExplorer\Actions\ActionsGoTo.cpp" />
@@ -503,6 +507,7 @@
     <ClCompile Include="CassoExplorer\Browser\BrowserSelection.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerCommands.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerDragOut.cpp" />
+    <ClCompile Include="CassoExplorer\OpenOnCommand.cpp" />
     <ClCompile Include="CassoExplorer\RawCopyDropHandler.cpp" />
     <ClCompile Include="CassoExplorer\ShellExtensionMain.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerNewDiskDialog.cpp" />
@@ -554,6 +559,7 @@
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerMenus.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerPreviewManager.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerPreviewOutput.cpp" />
+    <ClCompile Include="CassoExplorer\Window\Managers\ExplorerThumbnails.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerCollectionTools.cpp" />
     <ClCompile Include="CassoExplorer\Window\ExplorerWindowParts.cpp" />
     <ClCompile Include="CassoExplorer\Window\Panes\Preview\PreviewArchiveView.cpp" />
@@ -588,6 +594,7 @@
     <ClCompile Include="CassoExplorer\Model\CassoImagesListing.cpp" />
     <ClCompile Include="CassoExplorer\Model\StockDisksListing.cpp" />
     <ClCompile Include="CassoExplorer\Model\FileSystemCheckScheduler.cpp" />
+    <ClCompile Include="CassoExplorer\Model\ImageRecordCodec.cpp" />
     <ClCompile Include="CassoExplorer\Model\ImageVolumeFacts.cpp" />
     <ClCompile Include="CassoExplorer\Picker\FileMaskSet.cpp" />
     <ClCompile Include="CassoExplorer\Picker\ExplorerPickerHost.cpp" />
@@ -662,6 +669,7 @@
     <ClCompile Include="CassoExplorer\Model\CassoLinkShimBuilder.cpp" />
     <ClCompile Include="CassoExplorer\Model\CassoLinkLogFile.cpp" />
     <ClCompile Include="Machines\Apple2\Common\VolumeImage.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\SectorDecodeCache.cpp" />
     <ClCompile Include="Devices\Disk\CommitPlan.cpp" />
     <ClCompile Include="Devices\Disk\DurableCommit.cpp" />
     <ClCompile Include="Devices\Disk\DiskCommandResult.cpp" />
@@ -1440,7 +1448,9 @@
     <ClCompile Include="Seams\Win32NetworkAdapters.cpp" />
     <ClCompile Include="Seams\Win32NetworkChanges.cpp" />
     <ClCompile Include="Devices\Network\W5100.cpp" />
+    <ClCompile Include="Config\LaunchPlacement.cpp" />
     <ClCompile Include="Config\MacAddress.cpp" />
+    <ClCompile Include="Config\StockMachines.cpp" />
     <ClCompile Include="Config\NetworkCardSettings.cpp" />
     <ClCompile Include="Devices\Network\PacketCodec.cpp" />
     <ClCompile Include="Devices\Network\DhcpServer.cpp" />
@@ -1766,6 +1776,11 @@
     <ClInclude Include="CassoExplorer\Actions\ActionsCopy.h" />
     <ClInclude Include="CassoExplorer\Actions\ActionsArchive.h" />
     <ClInclude Include="CassoExplorer\Actions\ActionsTape.h" />
+    <ClInclude Include="CassoExplorer\Actions\ActionsLinkDisk.h" />
+    <ClInclude Include="CassoExplorer\Actions\ActionsDriveImage.h" />
+    <ClInclude Include="CassoExplorer\Actions\IAppleDriveLocation.h" />
+    <ClInclude Include="CassoExplorer\Actions\IImageWriteTarget.h" />
+    <ClInclude Include="CassoExplorer\Actions\LinkCompletionGuard.h" />
     <ClInclude Include="CassoExplorer\Actions\ActionsA2retroNet.h" />
     <ClInclude Include="CassoExplorer\Actions\ActionsPartition.h" />
     <ClInclude Include="CassoExplorer\Actions\ActionsGoTo.h" />
@@ -1798,6 +1813,7 @@
     <ClInclude Include="CassoExplorer\Browser\IBrowserSelectionSource.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerCommands.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerDragOut.h" />
+    <ClInclude Include="CassoExplorer\OpenOnCommand.h" />
     <ClInclude Include="CassoExplorer\RawCopyDropHandler.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerNamedControl.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerNewDiskDialog.h" />
@@ -1855,6 +1871,7 @@
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerMenus.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerPreviewManager.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerPreviewOutput.h" />
+    <ClInclude Include="CassoExplorer\Window\Managers\ExplorerThumbnails.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerCollectionTools.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\Preview\PreviewArchiveView.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\Preview\PreviewListingView.h" />
@@ -1890,6 +1907,8 @@
     <ClInclude Include="CassoExplorer\Model\CassoImagesListing.h" />
     <ClInclude Include="CassoExplorer\Model\StockDisksListing.h" />
     <ClInclude Include="CassoExplorer\Model\FileSystemCheckScheduler.h" />
+    <ClInclude Include="CassoExplorer\Model\IImageRecords.h" />
+    <ClInclude Include="CassoExplorer\Model\ImageRecordCodec.h" />
     <ClInclude Include="CassoExplorer\Model\ImageVolumeFacts.h" />
     <ClInclude Include="CassoExplorer\Picker\FileMaskSet.h" />
     <ClInclude Include="CassoExplorer\Picker\PickerRequest.h" />
@@ -1976,6 +1995,7 @@
     <ClInclude Include="CassoExplorer\Model\CassoLinkLogFile.h" />
     <ClInclude Include="Devices\Disk\IDiskFileIo.h" />
     <ClInclude Include="Machines\Apple2\Common\VolumeImage.h" />
+    <ClInclude Include="Machines\Apple2\Common\SectorDecodeCache.h" />
     <ClInclude Include="Devices\Disk\CommitPlan.h" />
     <ClInclude Include="Devices\Disk\DurableCommit.h" />
     <ClInclude Include="Devices\Disk\DiskCommandResult.h" />
@@ -2216,6 +2236,7 @@
     <ClInclude Include="CassoLink\Session\LinkImageSource.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkThirteenSector.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkFullSend.h" />
+    <ClInclude Include="DiskCheck\ImageRecordStore.h" />
     <ClInclude Include="DiskCheck\ThumbnailStore.h" />
     <ClInclude Include="DiskCheck\GivenNames.h" />
     <ClInclude Include="DiskCheck\BootCheck.h" />
@@ -2625,7 +2646,10 @@
     <ClInclude Include="Devices\Network\W5100.h" />
     <ClInclude Include="Devices\Network\W5100Registers.h" />
     <ClInclude Include="Devices\Network\IW5100Backend.h" />
+    <ClInclude Include="Config\LaunchPlacement.h" />
     <ClInclude Include="Config\MacAddress.h" />
+    <ClInclude Include="Config\StockMachineList.h" />
+    <ClInclude Include="Config\StockMachines.h" />
     <ClInclude Include="Config\NetworkCardSettings.h" />
     <ClInclude Include="Devices\Network\IGuestPacketSink.h" />
     <ClInclude Include="Devices\Network\VirtualSubnet.h" />

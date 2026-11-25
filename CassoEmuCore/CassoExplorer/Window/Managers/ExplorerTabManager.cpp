@@ -279,7 +279,8 @@ void ExplorerTabManager::OpenInNewWindow (const std::wstring & path)
 //
 //  The item's folder in the tab already on it, switched to, or in a new tab,
 //  with the item selected once it is listed. A disk image, an archive or a
-//  folder is selected in its parent as a file is, not opened.
+//  folder is selected in its parent as a file is, not opened. The preview
+//  pane is turned on, so the selected item is previewed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -289,6 +290,13 @@ void ExplorerTabManager::SelectInFolder (const std::wstring & path)
     std::wstring  name   = std::filesystem::path (path).filename().wstring();
 
 
+
+    if (!m_context.prefs.previewVisible)
+    {
+        m_context.prefs.previewVisible = true;
+        m_context.preview.SetPinned (true);
+        m_context.layout.RecomputeLayout();
+    }
 
     for (size_t tab = 0; tab < m_context.browser.GetBrowserModel().GetTabCount(); tab++)
     {

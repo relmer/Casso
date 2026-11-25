@@ -118,7 +118,7 @@ void ExplorerClipboard::CutEntriesToClipboard (HostFileNaming::Style style)
     {
         cut.onDrive = true;
 
-        if (!m_context.actions.TryPlanDriveDeletion (cut.drive))
+        if (!m_context.actions.GetAppleDrive().TryPlanDeletion ({}, cut.drive))
         {
             return;
         }
@@ -178,7 +178,7 @@ void ExplorerClipboard::FinishCut()
         return;
     }
 
-    outcome = cut.onDrive ? m_context.actions.RunDriveDeletion (cut.drive)
+    outcome = cut.onDrive ? m_context.actions.GetAppleDrive().RunDeletion (cut.drive)
                           : m_context.actions.DeleteEntries (cut.image, cut.catalogPaths);
 
     m_context.verbs.ReportOutcome (outcome, L"Move");
@@ -354,7 +354,7 @@ void ExplorerClipboard::PasteIntoVolume()
 
     if (m_context.browser.IsAppleDriveLocation())
     {
-        outcome = source.fromImage ? m_context.actions.CopyEntriesToAppleDrive (source.image, source.kind, source.catalogPaths)
+        outcome = source.fromImage ? m_context.actions.GetAppleDrive().CopyEntriesToAppleDrive (source.image, source.kind, source.catalogPaths)
                                    : m_context.actions.PutFiles (source.hostPaths, m_context.prompts.MakeAddressPrompt());
 
         m_context.verbs.ReportOutcome (outcome, L"Put");

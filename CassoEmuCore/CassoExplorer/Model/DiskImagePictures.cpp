@@ -354,6 +354,31 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskImagePictures::SetThumbnail
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImagePictures::SetThumbnail (const std::wstring & path, std::span<const Byte> png)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    hr = m_store.SetByUser (path, png);
+    CHR (hr);
+
+    NotifyReady (kPicturesChanged);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskImagePictures::GetKeys
 //
 //  A file that can't be read, or isn't a disk image, has no key. A folder's

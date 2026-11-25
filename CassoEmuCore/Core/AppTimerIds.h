@@ -24,7 +24,6 @@ enum class AppTimerId : UINT_PTR
     ExplorerRecycleBin   = 0x5156,
     ExplorerDrive        = 0x5157,
     ExplorerShellPreview = 0x5158,
-    ExplorerAutoPreview  = 0x5259,
     ExplorerRefresh      = 0x5159,
     ExplorerUpdateIndicator = 0x515A,
     ExplorerLinkTransfer = 0x515B,

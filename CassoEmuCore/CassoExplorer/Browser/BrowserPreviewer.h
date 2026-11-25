@@ -61,6 +61,9 @@ public:
     ShellItemPreviewer        & GetShellItems ()       { return m_shellItems; }
     const ShellItemPreviewer  & GetShellItems () const { return m_shellItems; }
 
+    //  The preview of a disk image or a file in one.
+    DiskImagePreviewer  & GetDiskImages () { return m_diskImages; }
+
 private:
     void      PreviewSearchMatch (const CatalogRow & row);
     Location  GetLocation        () const { return m_parts.model.HasTabs() ? m_parts.model.GetActiveTab().location : Location(); }

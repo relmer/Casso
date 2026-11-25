@@ -250,33 +250,38 @@ private:
     static std::vector<size_t>  FindAnchors    (std::span<const Byte> revolution, std::span<const Byte> read);
     static bool                 Align          (std::span<const Byte> revolution, std::span<const Byte> read, size_t from,
                                                 std::vector<int> & outMap, size_t & outDiffer, std::vector<bool> & outStretch);
-    static std::vector<bool>  FindAddressEndings (std::span<const Byte> revolution);
-    static void               CountEndingZeros   (const std::vector<Byte> & bytes, const std::vector<bool> & weak, const Marks & marks, std::vector<uint8_t> & ioZeros);
-    static int                CountSectors       (std::span<const Byte> revolution, int track, bool & outThirteen, int & outAddressed);
-    static bool               IsCrosstalk        (std::span<const Byte> revolution, int position);
+    static std::vector<bool>  FindAddressEndings   (std::span<const Byte> revolution);
+    static std::vector<bool>  FindAddressBodies    (std::span<const Byte> revolution);
+    static bool               IsAddressFieldAt     (std::span<const Byte> revolution, size_t at);
+    static bool               IsAddressPrologAt    (std::span<const Byte> revolution, size_t at);
+    static void               MarkProtectedEndings (const std::vector<Byte> & bytes, const std::vector<int> & differing, std::vector<bool> & ioWeak);
+    static void               CountEndingZeros     (const std::vector<Byte> & bytes, const std::vector<bool> & weak, const Marks & marks, std::vector<uint8_t> & ioZeros);
+    static int                CountSectors         (std::span<const Byte> revolution, int track, bool & outThirteen, int & outAddressed);
+    static bool               IsCrosstalk          (std::span<const Byte> revolution, int position);
     static void                 CountZeros     (const std::vector<Byte> & bytes, const std::vector<bool> & weak, const Marks & marks, const std::vector<int> & timed, bool fine,
                                                 std::vector<uint8_t> & outZeros, size_t & outUnsure, size_t & outUnsureData);
-    static void         TimeZeros      (const Position & position, const std::vector<Byte> & bytes, const std::vector<Alignment> & alignments, std::vector<int> & outZeros);
-    static bool         IsAboveBase    (double set, double read, double base);
-    static uint8_t      CountByteZeros (const Marks & marks, size_t at, const double (&base)[2]);
-    static bool         IsMarkedOften  (int set, int read, double base);
-    static bool         IsQuiet        (const std::vector<Byte> & bytes, const std::vector<bool> & weak, const Marks & marks);
-    static bool         MakeStream     (const Position & position, Stream & outStream, bool & outUnstable, bool tolerant = false);
-    static bool         BuildStream    (const Position & position, Stream & outStream, bool & outUnstable, bool tolerant);
-    static uint64_t     HashReads      (const Position & position, bool tolerant);
-    static int          FindWholeTrack (const std::map<int, Stream> & streams, int position);
-    static bool         IsSameStream   (std::span<const Byte> a, std::span<const Byte> b);
-    static size_t       FindDataField  (std::span<const Byte> bytes, size_t at);
-    static bool         RepairFields   (const Position & position, std::vector<Byte> & ioRevolution);
-    static bool         RepairProlog   (const Position & position, std::vector<Byte> & ioRevolution, std::vector<int> & outSectors);
-    static std::string  DescribeResult (const Result & result, Byte drive);
-    static bool         IsAddressAt    (std::span<const Byte> bytes, size_t at);
-    static size_t       FindNextField  (std::span<const Byte> bytes, size_t at);
-    static void         UniteSyncZeros (std::map<int, Stream> & ioStreams);
-    static bool         FindGap        (const Stream & stream, size_t & outFirst, size_t & outEnd);
-    static void         FitGap         (Stream & ioStream, double bits);
-    static void         FindGapMarker  (const std::vector<Byte> & revolution, std::vector<Byte> & outMarker);
-    static void         ToBits         (const Stream & stream, std::vector<uint8_t> & outBits, std::vector<size_t> & outStarts);
+    static void         TimeZeros        (const Position & position, const std::vector<Byte> & bytes, const std::vector<Alignment> & alignments, std::vector<int> & outZeros);
+    static bool         IsAboveBase      (double set, double read, double base);
+    static uint8_t      CountByteZeros   (const Marks & marks, size_t at, const double (&base)[2]);
+    static bool         IsMarkedOften    (int set, int read, double base);
+    static bool         IsQuiet          (const std::vector<Byte> & bytes, const std::vector<bool> & weak, const Marks & marks);
+    static bool         IsFourAndFourRun (const std::vector<Byte> & bytes, size_t first, size_t end, bool either);
+    static bool         MakeStream       (const Position & position, Stream & outStream, bool & outUnstable, bool tolerant = false);
+    static bool         BuildStream      (const Position & position, Stream & outStream, bool & outUnstable, bool tolerant);
+    static uint64_t     HashReads        (const Position & position, bool tolerant);
+    static int          FindWholeTrack   (const std::map<int, Stream> & streams, int position);
+    static bool         IsSameStream     (std::span<const Byte> a, std::span<const Byte> b);
+    static size_t       FindDataField    (std::span<const Byte> bytes, size_t at);
+    static bool         RepairFields     (const Position & position, std::vector<Byte> & ioRevolution);
+    static bool         RepairProlog     (const Position & position, std::vector<Byte> & ioRevolution, std::vector<int> & outSectors);
+    static std::string  DescribeResult   (const Result & result, Byte drive);
+    static bool         IsAddressAt      (std::span<const Byte> bytes, size_t at);
+    static size_t       FindNextField    (std::span<const Byte> bytes, size_t at);
+    static void         UniteSyncZeros   (std::map<int, Stream> & ioStreams);
+    static bool         FindGap          (const Stream & stream, size_t & outFirst, size_t & outEnd);
+    static void         FitGap           (Stream & ioStream, double bits);
+    static void         FindGapMarker    (const std::vector<Byte> & revolution, std::vector<Byte> & outMarker);
+    static void         ToBits           (const Stream & stream, std::vector<uint8_t> & outBits, std::vector<size_t> & outStarts);
 
     static constexpr Byte    s_kSyncByte      = 0xFF;
     static constexpr size_t  s_kMaxZeros      = 2;
@@ -333,6 +338,7 @@ private:
     static constexpr size_t  s_kAddressNibbles     = 8;      // volume, track, sector and checksum, two 4-and-4 nibbles each
     static constexpr int     s_kEndingMarks        = 2;      // the reads at 8 cycles that mark an ending's byte, at least, to count its zero bits
     static constexpr uint8_t s_kEndingZeros        = 2;
+    static constexpr size_t  s_kEndingFieldShare   = 2;      // one address field in this many, at least, has a marked ending for any to count
     static constexpr size_t  s_kProbeShare         = 4;
     static constexpr int     s_kWeakReads          = 2;
     static constexpr size_t  s_kConsensusGap       = 4;
@@ -346,6 +352,7 @@ private:
     //  a run's share must be.
     static constexpr size_t  s_kShortestRun        = 3;
     static constexpr size_t  s_kPooledRun          = 2;        // the shortest run counted as sync bytes on a track read only kWholeReads times
+    static constexpr size_t  s_kFourAndFourBytes   = 4;        // the 4-and-4 bytes on each side of a run of FF that make it a 4-and-4 field's data
     static constexpr double  s_kThreeZeroShare     = 0.8;
     static constexpr double  s_kMinimumGain        = 0.05;
     static constexpr double  s_kDeviations         = 3.0;

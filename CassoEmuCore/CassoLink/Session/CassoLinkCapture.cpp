@@ -1446,6 +1446,22 @@ HRESULT CassoLinkCapture::BuildWoz (const std::vector<Position> & positions, int
         image.SetQuarterTrackSlot (position, found->second);
     }
 
+    //  A half track dropped as read across two tracks, between two quarter
+    //  tracks a protection wrote, each with its own stream: a head there
+    //  reads their data, and a loader can step there to read it, so it reads
+    //  the lower one's stream rather than random bits.
+    for (int position = 2; position + 1 < CassoLinkCodec::kQuarterTracks; position += 4)
+    {
+        auto  lower = slots.find (position - 1);
+
+        if (read.contains (position) || streams.contains (position) || lower == slots.end() || !slots.contains (position + 1) || !std::ranges::any_of (positions, [position] (const Position & each) { return each.position == position; }))
+        {
+            continue;
+        }
+
+        image.SetQuarterTrackSlot (position, lower->second);
+    }
+
     hr = WozLoader::Serialize (image, outResult.woz);
     CHR (hr);
 

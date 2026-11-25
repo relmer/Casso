@@ -51,7 +51,7 @@ public:
         io.files["C:/Disks/Sos.dsk"]  = GuestSession::RequireSosDemoDisk();
         io.stamps["C:/Disks/Sos.dsk"] = FileStamp { io.files["C:/Disks/Sos.dsk"].size(), 1 };
 
-        AssertSucceeded (actions.SaveLinkSosDisk (L"C:/Disks/Sos.dsk", L"C:/Disks/Link.dsk", serial).hr);
+        AssertSucceeded (actions.GetLinkDisks().SaveLinkSosDisk (L"C:/Disks/Sos.dsk", L"C:/Disks/Link.dsk", serial).hr);
 
         for (const char * name : { "SOS.KERNEL", "SOS.DRIVER", "SOS.INTERP" })
         {
@@ -62,12 +62,12 @@ public:
         io.files["C:/Disks/Empty.dsk"]  = blank;
         io.stamps["C:/Disks/Empty.dsk"] = FileStamp { blank.size(), 1 };
 
-        outcome = actions.SaveLinkSosDisk (L"C:/Disks/Empty.dsk", L"C:/Disks/Link2.dsk", serial);
+        outcome = actions.GetLinkDisks().SaveLinkSosDisk (L"C:/Disks/Empty.dsk", L"C:/Disks/Link2.dsk", serial);
         Assert::IsFalse (outcome.Succeeded());
         Assert::IsTrue (outcome.message.find (L"SOS loader") != std::wstring::npos, outcome.message.c_str());
 
         serial.baud = 115200;
-        outcome     = actions.SaveLinkSosDisk (L"C:/Disks/Sos.dsk", L"C:/Disks/Link3.dsk", serial);
+        outcome     = actions.GetLinkDisks().SaveLinkSosDisk (L"C:/Disks/Sos.dsk", L"C:/Disks/Link3.dsk", serial);
         Assert::IsTrue (outcome.message.find (L"19,200") != std::wstring::npos, outcome.message.c_str());
     }
 };

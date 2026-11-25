@@ -3,6 +3,7 @@
 #include "Core/MachineConfig.h"
 #include "Devices/BlockDevice/BlockDeviceAttachments.h"
 #include "Devices/BlockDevice/BlockDeviceCatalog.h"
+#include "Machines/MachineDefinitions.h"
 
 
 
@@ -17,13 +18,16 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT BlockDeviceAttachments::Apply (
-    const std::vector<Attachment>  & hd,
-    const std::vector<Attachment>  & smartPort,
-    MachineConfig                  & ioConfig,
-    std::string                    & outError)
+    const std::vector<Attachment>             & hd,
+    const std::vector<Attachment>             & smartPort,
+    MachineConfig                             & ioConfig,
+    std::string                               & outError,
+    const std::vector<fs::path>               & searchPaths,
+    const MachineConfigLoader::FileResolver   & resolver)
 {
-    HRESULT        hr     = S_OK;
-    MachineConfig  config = ioConfig;
+    HRESULT                    hr         = S_OK;
+    MachineConfig              config     = ioConfig;
+    const MachineDefinition  * definition = MachineDefinitions::Find (ioConfig.machineId);
 
 
 
@@ -37,6 +41,31 @@ HRESULT BlockDeviceAttachments::Apply (
     {
         hr = ApplySmartPort (attachment, config, outError);
         CHR (hr);
+    }
+
+    if (resolver)
+    {
+        for (const Attachment & attachment : hd)
+        {
+            for (SlotConfig & slot : config.slots)
+            {
+                for (PortConfig & port : slot.ports)
+                {
+                    if (slot.slot == attachment.slot && port.image == attachment.image)
+                    {
+                        MachineConfigLoader::ResolveDriveFirmware (searchPaths, resolver, port, slot.deviceProblem);
+                    }
+                }
+            }
+        }
+
+        if (!smartPort.empty())
+        {
+            hr = MachineConfigLoader::ResolveDiskPortChains (searchPaths, resolver, config.ports, outError,
+                                                             definition != nullptr ? (size_t) definition->diskPortFloppyCount : 1,
+                                                             definition != nullptr ? (size_t) definition->diskPortApple35Count : 0);
+            CHR (hr);
+        }
     }
 
     ioConfig = std::move (config);

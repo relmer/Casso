@@ -710,8 +710,8 @@ void ExplorerVerbs::RunRawTransfer (
                                (picked.filename().wstring() + L" already exists. Overwrite it?").c_str(),
                                L"Confirm save as", MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Overwrite", L"Cancel" }) != IDOK);
 
-        outcome = sectors ? m_context.actions.ReadSectors (where.start, where.sector, where.count, picked.wstring(), where.numbering, target)
-                          : m_context.actions.ReadBlocks  (where.start, where.count, picked.wstring(), target);
+        outcome = sectors ? m_context.actions.GetDriveImages().ReadSectors (where.start, where.sector, where.count, picked.wstring(), where.numbering, target)
+                          : m_context.actions.GetDriveImages().ReadBlocks  (where.start, where.count, picked.wstring(), target);
 
         ReportRawOutcome (owner, outcome, title);
         return;
@@ -727,8 +727,8 @@ void ExplorerVerbs::RunRawTransfer (
         return;
     }
 
-    outcome = sectors ? m_context.actions.WriteSectors (where.start, where.sector, picked.wstring(), where.numbering, target)
-                      : m_context.actions.WriteBlocks  (where.start, picked.wstring(), target);
+    outcome = sectors ? m_context.actions.GetDriveImages().WriteSectors (where.start, where.sector, picked.wstring(), where.numbering, target)
+                      : m_context.actions.GetDriveImages().WriteBlocks  (where.start, picked.wstring(), target);
 
     ReportRawOutcome (owner, outcome, title);
     m_context.listPane.FillList();

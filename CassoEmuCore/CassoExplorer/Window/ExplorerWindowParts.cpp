@@ -326,6 +326,14 @@ bool ExplorerWindowParts::HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lPar
             listPane.HandleShellListed (key);
         }
 
+        //  A disk image decoded for the preview: the preview is made again,
+        //  and the decode is now cached.
+        if (!context.browser.GetPreviewer().GetDiskImages().GetDecodes().TakeArrivedKeys().empty())
+        {
+            context.browser.GetPreviewer().UpdatePreview();
+            preview.FillPreview();
+        }
+
         return true;
     }
 
@@ -482,14 +490,6 @@ bool ExplorerWindowParts::HandleTimer (UINT_PTR timerId)
     HWND  hwnd = context.window.GetHwnd();
 
 
-
-    if (timerId == (UINT_PTR) AppTimerId::ExplorerAutoPreview)
-    {
-        KillTimer (hwnd, timerId);
-        preview.HandleAutoPreviewTimer();
-        context.window.Invalidate();
-        return true;
-    }
 
     if (timerId == (UINT_PTR) AppTimerId::ExplorerFileSystemCheck)
     {

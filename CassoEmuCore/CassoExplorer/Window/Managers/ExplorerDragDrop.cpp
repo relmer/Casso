@@ -1426,7 +1426,7 @@ void ExplorerDragDrop::HandleDrop (IDataObject * data, int tag, POINT screen)
 
         if (TreeModel::TryParseLinkId (driveId, link, slot, drive))
         {
-            outcome = m_context.actions.CreateImageFromAppleDrive (TextEncoding::WideToNarrow (link), drive, hostFolder);
+            outcome = m_context.actions.GetDriveImages().CreateImageFromAppleDrive (TextEncoding::WideToNarrow (link), drive, hostFolder);
 
             if (!outcome.Succeeded())
             {
@@ -1764,7 +1764,7 @@ void ExplorerDragDrop::BeginDragOut()
     else if (moved && onDrive && !entries.empty())
     {
         //  Deleted over the link, after the reads the drop made.
-        outcome = m_context.actions.DeleteDriveEntries (entries);
+        outcome = m_context.actions.GetAppleDrive().DeleteOnAppleDrive (entries);
         m_context.verbs.ReportOutcome (outcome, L"Move");
     }
     else if (moved && inImage && !paths.empty())

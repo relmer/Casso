@@ -103,6 +103,11 @@ void ExplorerLayout::ConfigureWidgets()
     //  of their own and post a message when done.
     m_context.browser.GetShellListings().SetTarget (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerShellListed);
     m_context.browser.GetLoader().GetHostListings().SetTarget (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerShellListed);
+
+    //  What each image contains, stored for every window of the process.
+    m_context.browser.SetImageRecords (m_context.app.records);
+
+    m_context.browser.GetPreviewer().GetDiskImages().GetDecodes().SetTarget (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerShellListed);
     m_context.browser.GetLoader().GetHostListings().SetLister ([] (const std::wstring & path, std::vector<FileSystemEntry> & outEntries)
     {
         Win32FileSystem  fs;

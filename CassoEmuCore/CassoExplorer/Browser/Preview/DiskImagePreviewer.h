@@ -5,6 +5,7 @@
 #include "CassoExplorer/Browser/BrowserParts.h"
 #include "CassoExplorer/Browser/Preview/IImagePreviews.h"
 #include "CassoExplorer/Browser/Preview/PreviewParts.h"
+#include "CassoExplorer/CassoExplorerShellListings.h"
 #include "CassoExplorer/Model/PreviewDecoder.h"
 #include "Devices/Disk/Partitions/PartitionAccess.h"
 
@@ -25,7 +26,13 @@
 class DiskImagePreviewer : public IImagePreviews
 {
 public:
+    using ImageDecodes = CassoExplorerListings<Byte>;
+
     DiskImagePreviewer (const BrowserParts & parts, const PreviewParts & previewParts);
+
+    //  The first decode of a WOZ or NIB image, made on a separate thread so a
+    //  slow decode never blocks the window.
+    ImageDecodes  & GetDecodes () { return m_decodes; }
 
     void  PreviewImageCatalog (const std::wstring & imagePath) override;
     void  PreviewEntry        (const std::wstring                      & imagePath,
@@ -40,12 +47,16 @@ private:
 
     static constexpr const wchar_t *  kAnalysisHeading = L"Casso analysis";
 
+    bool                      IsDecodeReady     (const std::wstring & imagePath);
+    static HRESULT            Decode            (const std::wstring & imagePath, std::vector<Byte> & outUnused);
     bool                      TryDecodeDiskSave (const std::wstring & imagePath, DecodedFile & outFile);
     bool                      PreviewSavedGame  (const std::wstring & imagePath, const VolumeListing & listing, VolumeKind kind);
     static const FileEntry  * FindSavedGame     (const VolumeListing & listing, VolumeKind kind);
     bool                      PreviewPartitions (const std::wstring & imagePath, PartitionLayoutKind layout, const std::vector<PartitionEntry> & entries);
     void                      AddWozDetails     (const std::wstring & imagePath);
 
-    BrowserParts  m_parts;
-    PreviewParts  m_previewParts;
+    BrowserParts                      m_parts;
+    PreviewParts                      m_previewParts;
+    ImageDecodes                      m_decodes;
+    std::unordered_set<std::wstring>  m_decoded;
 };

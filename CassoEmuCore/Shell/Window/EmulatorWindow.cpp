@@ -54,6 +54,7 @@
 #include "Machines/Apple2/Common/AppleMouse.h"
 #include "Core/Prng.h"
 #include "Config/DiskSettings.h"
+#include "Config/FileAssociations.h"
 #include "Core/UnicodeSymbols.h"
 #include "Core/MachineConfig.h"
 #include "Core/JsonParser.h"
@@ -1186,6 +1187,7 @@ int EmulatorShell::RunMessageLoop()
             // After the first frame is on screen, so the update check never
             // stands between a launch and a picture.
             m_updater->StartAutomaticUpdateCheck();
+            FileAssociations::StartInstallRegistration();
         }
     }
 

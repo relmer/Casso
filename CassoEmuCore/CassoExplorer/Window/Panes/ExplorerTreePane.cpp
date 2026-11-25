@@ -1313,6 +1313,7 @@ void ExplorerTreePane::AddCassoSubmenu (std::vector<DxuiPopupMenuItem> & items, 
     m_context.menus.GetMenuCommands().back()->menuSvg   = m_context.menus.GetMenuSvg (L"casso.floppy525");
     m_context.menus.AddMenuCommand (choices, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::OpenInNewCasso), [this, image]() { m_context.cassoTarget.OpenInNewCasso (image); });
     m_context.menus.GetMenuCommands().back()->menuImage = m_context.shellIcons.GetForKind (IShellIcons::Kind::Casso);
+    m_context.menus.AddOpenOnMenu (choices, [image]() { return image; });
 
     parent->label     = L"C&asso";
     parent->menuImage = m_context.shellIcons.GetForKind (IShellIcons::Kind::Casso);
@@ -1497,7 +1498,11 @@ void ExplorerTreePane::AddAppleDriveIconRow (std::vector<DxuiPopupMenuItem> & it
     iconCommands.push_back (command);
     m_context.menus.GetMenuCommands().push_back (std::move (command));
 
-    items.push_back (DxuiPopupMenuItem::ForIconRow (std::move (iconCommands)));
+    for (DxuiPopupMenuItem & item : m_context.menus.GetPrimaryItems (std::move (iconCommands)))
+    {
+        items.push_back (std::move (item));
+    }
+
     items.push_back (DxuiPopupMenuItem::ForSeparator());
 }
 
@@ -1584,7 +1589,11 @@ void ExplorerTreePane::AddTreeIconRow (std::vector<DxuiPopupMenuItem> & items, c
         m_context.menus.GetMenuCommands().push_back (std::move (command));
     }
 
-    items.push_back (DxuiPopupMenuItem::ForIconRow (std::move (iconCommands)));
+    for (DxuiPopupMenuItem & item : m_context.menus.GetPrimaryItems (std::move (iconCommands)))
+    {
+        items.push_back (std::move (item));
+    }
+
     items.push_back (DxuiPopupMenuItem::ForSeparator());
 }
 

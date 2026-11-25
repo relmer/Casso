@@ -218,11 +218,16 @@ public:
 
         //  The host may block in another read before it waits for Ready, so
         //  the time moves in steps until the wait is reported, well short of
-        //  the operation's timeout.
+        //  the operation's timeout. Each step waits for the host's thread to run:
+        //  its read is marked blocked until that thread runs, and a step taken
+        //  before then moves the time past the notice time.
         for (int step = 0; step < 100 && IsEmpty (events, lock); step++)
         {
             client.clientEnd->AdvanceWhenBlocked (50);
-            std::this_thread::yield();
+
+            std::unique_lock  guard (lock);
+
+            changed.wait_for (guard, std::chrono::milliseconds (200), [&events] () { return !events.empty(); });
         }
 
         client.SendReady (LinkProgram::kProgramVersion);

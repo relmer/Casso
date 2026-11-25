@@ -188,17 +188,18 @@ bool BlockDeviceCatalog::AcceptsDrive (const BlockCardSpec & card, const std::st
 std::string BlockDeviceCatalog::GetHostList (const BlockCardSpec & card)
 {
     std::string  list;
+    size_t       count = card.hosts.size();
 
 
 
-    for (const char * host : card.hosts)
+    for (size_t i = 0; i < count; i++)
     {
-        if (!list.empty())
+        if (i > 0)
         {
-            list += ", ";
+            list += (i + 1 == count) ? " and " : ", ";
         }
 
-        list += GetMachineLabel (host);
+        list += GetMachineLabel (card.hosts[i]);
     }
 
     return list;

@@ -596,7 +596,7 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildDiskFormats (
         return formats;
     }
 
-    descriptor.relativePath = ActionsAppleDrive::GetDriveImageName (links, TextEncoding::WideToNarrow (link), slot, drive);
+    descriptor.relativePath = ActionsDriveImage::GetDriveImageName (links, TextEncoding::WideToNarrow (link), slot, drive);
     group                   = std::make_shared<std::vector<uint8_t>> (MakeFileGroupDescriptor ({ descriptor }));
 
     memcpy (id.data(), driveId.c_str(), driveId.size() * sizeof (wchar_t));

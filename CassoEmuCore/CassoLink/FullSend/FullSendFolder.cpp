@@ -3,6 +3,7 @@
 #include "CassoLink/FullSend/FullSendFolder.h"
 
 #include "CassoLink/FullSend/FullSendDisk.h"
+#include "CassoLink/FullSend/FullSendManifestFile.h"
 #include "CassoLink/Session/CassoLinkDiskTransfer.h"
 #include "Devices/Disk/Store/DiskSourceFormat.h"
 #include "Devices/Disk/DurableCommit.h"
@@ -149,12 +150,11 @@ Error:
 
 HRESULT FullSendFolder::WriteManifest()
 {
-    HRESULT               hr = S_OK;
-    CommitPlan::Progress  progress;
+    HRESULT  hr = S_OK;
 
 
 
-    hr = DurableCommit::Commit (m_fileIo, GetPath (FullSendManifest::kFileName), m_manifest.Format(), m_commitTag++, CommitMode::Replace, progress);
+    hr = FullSendManifestFile::Write (m_fileIo, GetPath (FullSendManifest::kFileName), m_manifest, m_commitTag++);
     CHR (hr);
 
 Error:

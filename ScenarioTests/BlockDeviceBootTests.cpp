@@ -238,6 +238,45 @@ public:
     }
 
 
+    //  A TEMPORARY ][ STARTS SLOT 7 after power on: its monitor doesn't boot
+    //  a disk, and otherwise stops at the * prompt. The catalog doesn't list
+    //  the SCSI card for the ][, so the card runs Casso's firmware, as
+    //  --launch builds it.
+    TEST_METHOD (CassoFirmware_BootSlotStartsTheCardOnII)
+    {
+        FakeDiskFileIo     io;
+        std::vector<Byte>  image = ToHardDiskImage (GuestSession::RequireProDosUsersDisk());
+
+
+
+        io.files[kHardDiskPath]  = image;
+        io.stamps[kHardDiskPath] = FileStamp { image.size(), 1 };
+
+        TestMachine  machine ("Apple2", TestMachine::Slots::AsShipped, {}, io,
+                              [] (MachineConfig & config, MachineBuildServices &)
+                              {
+                                  InternalDevice  lc;
+                                  SlotConfig      scsi;
+
+
+
+                                  lc.type            = kpszLanguageCardDevice;
+                                  scsi.slot          = 7;
+                                  scsi.device        = kpszAppleScsiCardDevice;
+                                  scsi.ports         = MakeScsiPorts (6, kHardDiskPath);
+                                  scsi.cassoFirmware = true;
+                                  config.bootSlot    = 7;
+                                  config.internalDevices.push_back (lc);
+                                  config.slots.push_back (scsi);
+                              });
+
+        Assert::AreEqual ((size_t) 1, machine.GetRefs().scsiCards.size(), L"the card is built");
+
+        machine.PowerCycle();
+
+        Assert::IsTrue (RunUntilScreenShows (machine, "PRODOS 1.0", kBootCap), L"ProDOS boots from the card in slot 7");
+    }
+
     //  PRODOS 2.4 BOOTS WITH THREE SCSI DRIVES THROUGH CASSO'S FIRMWARE: the
     //  first two are the slot's drives 1 and 2, and ProDOS moves the third,
     //  found through SmartPort, to a free slot. Bitsy Bye's Tab key steps
