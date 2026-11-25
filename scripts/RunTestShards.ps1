@@ -142,9 +142,10 @@ for ($i = 0; $i -lt $shardCount; $i++) {
     }
 }
 
-$failed     = $false
-$totalRun   = 0
-$totalPass  = 0
+$failed      = $false
+$totalRun    = 0
+$totalPass   = 0
+$failedNames = @()
 
 foreach ($p in $processes) {
     $p.Process.WaitForExit()
@@ -158,6 +159,9 @@ foreach ($p in $processes) {
 
     $totalRun  += $total
     $totalPass += $passed
+
+    #  Failed tests are listed again after the totals.
+    $failedNames += $log | Select-String '^\s*Failed\s+(\S+)' | ForEach-Object { $_.Matches[0].Groups[1].Value }
 
     $status  = 'OK'
     $asanHit = $log | Select-String -SimpleMatch 'ERROR: AddressSanitizer' -Quiet
@@ -185,6 +189,12 @@ Write-Host ("Total: {0} of {1} tests run, {2} passed" -f $totalRun, $allTests.Co
 if ($totalRun -ne $allTests.Count) {
     Write-Host 'The shards did not run every listed test.' -ForegroundColor Red
     $failed = $true
+}
+
+if ($failedNames.Count -gt 0) {
+    Write-Host ''
+    Write-Host 'Failed tests:' -ForegroundColor Red
+    $failedNames | Sort-Object -Unique | ForEach-Object { Write-Host "  $_" -ForegroundColor Red }
 }
 
 Remove-Item -Recurse -Force $workDir -ErrorAction SilentlyContinue
