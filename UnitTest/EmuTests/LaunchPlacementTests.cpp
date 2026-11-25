@@ -443,6 +443,7 @@ public:
 
         Assert::IsTrue (plan.IsRefused());
         Assert::IsTrue (plan.refusal.starts_with (L"The Apple ][ can't open 800.2mg: the UniDisk 3.5 interface card works in the "), plan.refusal.c_str());
+        Assert::IsTrue (plan.refusal.find (L" and Apple ") != std::wstring::npos, plan.refusal.c_str());
         Assert::IsTrue (plan.config.slots.empty(), L"a plan with a refusal has no config");
     }
 
