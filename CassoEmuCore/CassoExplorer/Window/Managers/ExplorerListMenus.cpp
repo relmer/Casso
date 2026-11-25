@@ -1991,6 +1991,11 @@ std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetSearchOptionChoices()
     items.push_back (DxuiPopupMenuItem::ForCommand (option (L"File contents", L"windows.searchoptioncontents", false, [this]() { return m_context.prefs.searchContents; },
         [this, bar]() { m_context.prefs.searchContents = !m_context.prefs.searchContents; bar->ApplySearchPrefs(); })));
     items.push_back (DxuiPopupMenuItem::ForSeparator());
+
+    std::shared_ptr<DxuiCommand>  clearHistory = option (L"Clear search history", nullptr, false, nullptr, [this]() { m_context.prefs.searchHistory.clear(); });
+
+    clearHistory->isEnabled = [this]() { return !m_context.prefs.searchHistory.empty(); };
+    items.push_back (DxuiPopupMenuItem::ForCommand (std::move (clearHistory)));
     items.push_back (DxuiPopupMenuItem::ForCommand (option (L"Change indexed locations", L"windows.changeindexedlocations", false, nullptr, []()
     {
         ShellExecuteW (nullptr, L"open", L"control.exe", L"srchadmin.dll", nullptr, SW_SHOWNORMAL);

@@ -42,6 +42,7 @@ public:
     void                   AcceptTab          (BrowserModel::Tab tab);
     void                   FillTabs           ();
     bool                   IsLoading          () const;
+    bool                   IsSpinning         () const { return IsLoading() || m_spinnerFrame >= 0; }
     bool                   TickSpinner        (int64_t nowMs);
     void                   SwitchToTab        (size_t index);
     void                   CancelTabDrag      ();

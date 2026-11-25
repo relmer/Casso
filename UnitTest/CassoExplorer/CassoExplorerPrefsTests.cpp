@@ -78,6 +78,7 @@ public:
         saved.treeCassoLinkOpen   = true;
         saved.typedPaths.push_back (L"C:\\Disks\\Merlin.po");
         saved.typedPaths.push_back (L"C:\\Games");
+        saved.searchHistory.push_back (L"wizardry.code");
         saved.columnWidthsDip = { 240, 0, 90 };
         saved.tabs.push_back (Location::MakeHostFolder (L"C:\\Disks"));
         saved.tabs.push_back (Location::MakeDiskDirectory (L"C:\\Disks\\a.po", "SUBDIR"));
@@ -109,6 +110,8 @@ public:
         Assert::AreEqual ((size_t) 2, loaded.typedPaths.size());
         Assert::AreEqual (std::wstring (L"C:\\Disks\\Merlin.po"), loaded.typedPaths[0]);
         Assert::AreEqual (std::wstring (L"C:\\Games"),            loaded.typedPaths[1]);
+        Assert::AreEqual ((size_t) 1, loaded.searchHistory.size());
+        Assert::AreEqual (std::wstring (L"wizardry.code"), loaded.searchHistory[0]);
     }
 
 
