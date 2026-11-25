@@ -711,6 +711,11 @@ hardware.
   rejected as obscure, `--class` and `--model` in favor of the existing
   `--machine`. A saved "launch machine" in the picker was weighed and
   dropped for the temporary copy, which never goes out of date.
+- Q: Is .d13 registered, and what labels go in File Explorer? -> A: .d13 is
+  registered, since Casso swaps in the Disk II's 13-sector ROM; without that
+  ROM the notice points to BRUN BOOT13 on a DOS 3.3 System Master (owner,
+  2026-11-24). File Explorer's submenu is "Open in Casso on", since its menu
+  lists other programs' rows; Casso Explorer's is "Open on".
 
 ## User Scenarios & Testing *(mandatory)*
 ### User Story 1 - Browse and inspect a disk (Priority: P1)
@@ -4286,9 +4291,11 @@ it was.
   MUST be computed from the image and the configuration alone, so unit
   tests can check every model and image size.
 - **FR-314**: Every registered disk image type MUST open with
-  `"Casso.exe" --launch "%1"`: .dsk, .do, .po, .woz, .nib and .nb2, and the
-  block types .2mg, .2img, .hdv, .dc, .dc42 and .image. .d13 MUST NOT be
-  registered, since the 5.25-inch drive doesn't take it. A registration
+  `"Casso.exe" --launch "%1"`: .dsk, .do, .po, .woz, .nib, .nb2 and .d13,
+  and the block types .2mg, .2img, .hdv, .dc, .dc42 and .image. A 13-sector
+  image boots on the Disk II's 13-sector ROM, which Casso swaps in for it.
+  When that ROM isn't installed, Casso reports that it's required, or that
+  BRUN BOOT13 from a DOS 3.3 System Master boots the disk. A registration
   made at startup by an earlier build MUST be updated on the next start.
 - **FR-315**: File Explorer's menu for these types and Casso Explorer's
   context menu for a disk image MUST have an Open on submenu with one row
@@ -4296,10 +4303,12 @@ it was.
   every image; a model that can't take the image reports why when chosen.
 - **FR-316**: Casso Explorer's Open in Casso MUST launch with `--launch`.
 - **FR-317**: The proposed UI text MUST be approved by the owner before it
-  ships: the submenu label "Open on", the model rows ("Apple ][", "Apple ][+",
-  "Apple //e", "Apple //e Enhanced", "Apple //c", "Apple //c Plus"), the
-  title bar suffix "(temporary)", and the `--launch` and `--machine` help
-  lines.
+  ships: the submenu label, "Open in Casso on" in File Explorer and "Open
+  on" in Casso Explorer; the model rows ("Apple ][", "Apple ][+", "Apple
+  //e", "Apple //e Enhanced", "Apple //c", "Apple //c Plus"), and in the
+  installed package, which has no submenu, "Casso: Apple //c" and so on;
+  the title bar suffix "(temporary)"; the `--launch` and `--machine` help
+  lines; and the notices in contracts/temporary-launch.md.
 - **FR-318**: Placement MUST check the model as well as the slots. For a
   block image on a machine with less than 64K, the temporary copy MUST get a
   language card in slot 0. A hard disk card MUST NOT be added to a 6502
@@ -4603,7 +4612,7 @@ it was.
   window's thread doesn't stall for more than 100 ms while the level fills.
 - **SC-078**: With the region set to German (Germany), block 47790 is
   written as 47.790 and a Go to of 47.790 steps to it.
-- **SC-079**: A double-click on each of the 12 registered disk image types
+- **SC-079**: A double-click on each of the 13 registered disk image types
   in File Explorer boots it in a temporary machine within 5 seconds, and
   afterward every saved machine's configuration file is byte-identical to
   its copy from before the launch.

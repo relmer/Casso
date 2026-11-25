@@ -1302,8 +1302,10 @@ CiderPress II's file viewer, from its GUI manual, was compared feature by featur
   `apple-scsi-card` in slot 7 of the stock //e and enhanced //e; on a model
   with slots and no hard disk card, an `apple-scsi-card` is added to slot 7,
   or to the highest empty slot when 7 is taken. On the //c and //c Plus it
-  goes on the disk port's first drive. Casso reports that a 13-sector image can't be opened, since
-  the 5.25-inch drive doesn't take it.
+  goes on the disk port's first drive. A 13-sector image goes in drive 1,
+  and `MachineHost::MatchDisk2Rom` swaps in the 13-sector ROM; whether the
+  swap works on the //c's built-in drive is checked first, and if it doesn't,
+  the //c and //c Plus report the BOOT13 notice.
 - **Rationale**: slot 7 is where ProDOS looks first and where the stock //e
   has its card, so the image boots without a change to the boot order.
 - **Alternatives**: the ProFile card, which takes a single 5 or 10 MB drive

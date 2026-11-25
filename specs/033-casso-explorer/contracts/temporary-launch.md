@@ -30,18 +30,31 @@ Proposed help lines, for the owner's approval (FR-317):
 HKCU\Software\Classes\Casso.DiskImage.<ext>\shell\open\command
     = "<Casso.exe>" --launch "%1"
 HKCU\Software\Classes\Casso.DiskImage.<ext>\shell\OpenOn
-    MUIVerb = Open on
+    MUIVerb = Open in Casso on
     ExtendedSubCommandsKey = Casso.OpenOn
 HKCU\Software\Classes\Casso.OpenOn\shell\<nn><id>
     MUIVerb = <label>
     command = "<Casso.exe>" --launch "%1" --machine <id>
 ```
 
-`<ext>`: .dsk .do .po .woz .nib .nb2 .2mg .2img .hdv .dc .dc42 .image.
+`<ext>`: .dsk .do .po .woz .nib .nb2 .d13 .2mg .2img .hdv .dc .dc42 .image.
 `<nn>` is a two-digit prefix that sorts the rows in model order.
+
+## Notices, for the owner's approval (FR-317)
+
+- A model that can't take the image: "The Apple //c can't open <name>:
+  <reason>."
+- No 13-sector ROM: "<name> is a 13-sector disk. To boot it, install the
+  13-sector Disk II ROM, or BRUN BOOT13 from a DOS 3.3 System
+  Master."
+- An unknown model: "--machine takes Apple2, Apple2Plus, Apple2e,
+  Apple2eEnhanced, Apple2c or Apple2cPlus."
+- A drive switch with `--launch`: "--launch chooses the drive, so it can't
+  be combined with --disk1, --disk2, --hd or --smartport."
 
 ## Package
 
 Each `uap3:FileTypeAssociation` uses `--launch "%1"` for its default and
-Open verbs and has one `uap3:Verb` per stock model with
+Open verbs and has one `uap3:Verb` per stock model, labeled "Casso: Apple
+//c" and so on, with
 `--launch "%1" --machine <id>`. The block types are added as separate associations.
