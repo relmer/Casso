@@ -493,8 +493,9 @@ void ExplorerPreviewManager::FillPreview()
     {
         m_context.layout.RecomputeLayout();
 
-        //  A view sized to the pane has the pane's size only now.
-        FillPreview();
+        //  A shell preview is made at the pane's size, which the pane has only
+        //  now. A document's tables are built again for the width in Layout.
+        m_shell.Update (preview, m_content);
     }
 
     m_context.window.Invalidate();
@@ -537,8 +538,18 @@ void ExplorerPreviewManager::HandlePicturesReady()
 
 void ExplorerPreviewManager::TakeThumbnail()
 {
+    const PreviewContent  & preview = m_context.browser.GetPreviewer().GetPreview();
+
+
+
     m_thumbnail.TakeResult();
-    FillText (m_context.browser.GetPreviewer().GetPreview());
+
+    //  Only an image's details include the file system the thumbnail found.
+    if (preview.kind == PreviewContent::Kind::Details)
+    {
+        FillText (preview);
+    }
+
     m_context.layout.RecomputeLayout();
     m_context.window.Invalidate();
 }
