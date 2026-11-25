@@ -147,9 +147,11 @@ public:
 
         MachineBuilder  &  GetBuilder() noexcept { return m_builder; }
 
+    //  The machine's shipped config, loaded out of the fixtures.
+    static void  LoadConfig (const std::string & machineId, MachineConfig & outConfig);
+
 private:
 
-    static void                               LoadConfig          (const std::string & machineId, MachineConfig & outConfig);
     static MachineConfigLoader::FileResolver  MakeFixtureResolver ();
     void                                      BuildFrom           (const std::string & machineId, const MachineConfig & config);
 

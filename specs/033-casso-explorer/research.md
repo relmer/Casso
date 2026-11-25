@@ -1317,6 +1317,14 @@ CiderPress II's file viewer, from its GUI manual, was compared feature by featur
   port, or the //c Plus's internal drive. The //c's disk port takes no hard
   disk, so a hard disk image is reported there (spec Clarifications).
 
+- **Update (2026-11-25)**: what boots depends on the model's ROM,
+  `StockMachine::romBoot`. The ][ monitor boots nothing, so a floppy
+  starts slot 6. The Autostart and unenhanced //e ROMs pass over a card
+  without the Disk II's signature, so a block image starts its card's
+  slot. The enhanced //e and the //c ROMs boot the card themselves. The
+  //c Plus has no 5.25-inch drive, so a floppy gets a Disk IIc on its
+  disk port. LaunchBootTests boots each case.
+
 ## R66. A block image on a 6502 machine (Story 44, FR-318)
 
 - **Decision**: on a copy with less than 64K, a `language-card` is added to
