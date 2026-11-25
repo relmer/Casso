@@ -1043,6 +1043,7 @@ void EmulatorShell::InitAssetPathsAndStores()
 
     m_machine.SetAssetBaseDir (assetBaseDir.wstring());
     m_settings->CreateConfigStore (assetBaseDir.wstring());
+    m_settings->GetConfigStore()->SetRunningMachine (m_machine.GetConfig());
 
     // The stock hard disk image is made here the first time a machine lists
     // it. A folder that can't be made leaves those drives empty.
