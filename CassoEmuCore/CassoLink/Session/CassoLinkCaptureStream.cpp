@@ -1048,23 +1048,39 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const std::v
 //  its address fields' first ending byte, and its check passes with two.
 //  A read at 12 cycles marks a byte followed by two zero bits only about
 //  half the time, so one zero bit and two look alike in a track's few reads.
+//  A protection times every address field of its track, so a byte marked
+//  after only a few of them is chance. An RWTS such as Microsoft Adventure's
+//  reads the byte after DF at once, and two zero bits there make it read DF
+//  twice and fail.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassoLinkCapture::CountEndingZeros (const std::vector<Byte> & bytes, const std::vector<bool> & weak, const Marks & marks, std::vector<uint8_t> & ioZeros)
 {
-    std::vector<bool>  endings = FindAddressEndings (bytes);
+    std::vector<bool>  endings      = FindAddressEndings (bytes);
+    std::vector<bool>  counted      (bytes.size(), false);
+    size_t             fields       = 0;
+    size_t             markedFields = 0;
+    bool               fieldMarked  = false;
 
 
 
     for (size_t each = 0; each < bytes.size(); each++)
     {
         bool  marked = marks.read[0][each] >= s_kEndingMarks && marks.set[0][each] == marks.read[0][each];
+        bool  first  = endings[each] && (each == 0 || !endings[each - 1]);
 
-        if (endings[each] && !weak[each] && ioZeros[each] == 0 && marked)
-        {
-            ioZeros[each] = s_kEndingZeros;
-        }
+        fields       += first ? 1 : 0;
+        fieldMarked   = first ? false : fieldMarked;
+        counted[each] = endings[each] && !weak[each] && ioZeros[each] == 0 && marked;
+
+        markedFields += (counted[each] && !fieldMarked) ? 1 : 0;
+        fieldMarked   = fieldMarked || counted[each];
+    }
+
+    for (size_t each = 0; markedFields * s_kEndingFieldShare >= fields && each < bytes.size(); each++)
+    {
+        ioZeros[each] = counted[each] ? s_kEndingZeros : ioZeros[each];
     }
 }
 
