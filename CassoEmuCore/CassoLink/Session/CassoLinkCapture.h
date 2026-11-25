@@ -265,6 +265,7 @@ private:
     static uint8_t      CountByteZeros (const Marks & marks, size_t at, const double (&base)[2]);
     static bool         IsMarkedOften  (int set, int read, double base);
     static bool         IsQuiet        (const std::vector<Byte> & bytes, const std::vector<bool> & weak, const Marks & marks);
+    static bool         IsFourAndFourRun (const std::vector<Byte> & bytes, size_t first, size_t end, bool either);
     static bool         MakeStream     (const Position & position, Stream & outStream, bool & outUnstable, bool tolerant = false);
     static bool         BuildStream    (const Position & position, Stream & outStream, bool & outUnstable, bool tolerant);
     static uint64_t     HashReads      (const Position & position, bool tolerant);
@@ -350,6 +351,7 @@ private:
     //  a run's share must be.
     static constexpr size_t  s_kShortestRun        = 3;
     static constexpr size_t  s_kPooledRun          = 2;        // the shortest run counted as sync bytes on a track read only kWholeReads times
+    static constexpr size_t  s_kFourAndFourBytes   = 4;        // the 4-and-4 bytes on each side of a run of FF that make it a 4-and-4 field's data
     static constexpr double  s_kThreeZeroShare     = 0.8;
     static constexpr double  s_kMinimumGain        = 0.05;
     static constexpr double  s_kDeviations         = 3.0;
