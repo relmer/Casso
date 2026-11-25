@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Config/FileAssociations.h"
+#include "Config/StockMachines.h"
+#include "Core/TextEncoding.h"
 #include "CassoExplorer/Model/CatalogModel.h"
 #include "CassoExplorer/Model/LaunchCommand.h"
 #include "Seams/Win32UserClasses.h"
@@ -26,9 +28,18 @@ HRESULT FileAssociations::Register (IUserClasses & classes, const std::wstring &
     for (const wchar_t * extension : kExtensions)
     {
         hr = WriteProgId (classes, GetProgId (extension), CatalogModel::GetDiskImageTypeName (extension), L"Casso", cassoExe,
-                          L"\"" + cassoExe + L"\" --disk1 \"%1\"");
+                          GetOpenCommand (cassoExe));
+        CHR (hr);
+
+        hr = classes.SetValue (GetProgId (extension) + L"\\shell\\OpenOn", L"MUIVerb", kOpenOnLabel);
+        CHR (hr);
+
+        hr = classes.SetValue (GetProgId (extension) + L"\\shell\\OpenOn", L"ExtendedSubCommandsKey", kOpenOnKey);
         CHR (hr);
     }
+
+    hr = WriteOpenOn (classes, cassoExe);
+    CHR (hr);
 
     //  The single type an earlier build registered goes.
     hr = classes.DeleteKey (kCassoProgId);
@@ -170,6 +181,9 @@ HRESULT FileAssociations::Unregister (IUserClasses & classes, IUserClasses & fil
     }
 
     hr = classes.DeleteKey (kCassoProgId);
+    CHR (hr);
+
+    hr = classes.DeleteKey (kOpenOnKey);
     CHR (hr);
 
     hr = classes.DeleteKey (kExplorerProgId);
@@ -328,7 +342,7 @@ bool FileAssociations::IsRegistered (const IUserClasses & classes, const std::ws
             return false;
         }
 
-        if (!classes.GetValue (progId + L"\\shell\\open\\command", L"", value) || value != L"\"" + cassoExe + L"\" --disk1 \"%1\"")
+        if (!classes.GetValue (progId + L"\\shell\\open\\command", L"", value) || value != GetOpenCommand (cassoExe))
         {
             return false;
         }
@@ -337,9 +351,14 @@ bool FileAssociations::IsRegistered (const IUserClasses & classes, const std::ws
         {
             return false;
         }
+
+        if (!classes.GetValue (progId + L"\\shell\\OpenOn", L"ExtendedSubCommandsKey", value) || value != kOpenOnKey)
+        {
+            return false;
+        }
     }
 
-    return true;
+    return IsOpenOnCurrent (classes, cassoExe);
 }
 
 
@@ -478,4 +497,126 @@ std::wstring FileAssociations::GetRegisteredCasso (const IUserClasses & classes)
     close = command.find (L'"', 1);
 
     return close == std::wstring::npos ? std::wstring() : command.substr (1, close - 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileAssociations::WriteOpenOn
+//
+//  One row per stock model under the submenu's key, in model order. Rows an
+//  earlier registration made are replaced.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT FileAssociations::WriteOpenOn (IUserClasses & classes, const std::wstring & cassoExe)
+{
+    HRESULT                         hr       = S_OK;
+    std::span<const StockMachine>   machines = StockMachines::GetAll();
+
+
+
+    hr = classes.DeleteKey (kOpenOnKey);
+    CHR (hr);
+
+    for (size_t i = 0; i < machines.size(); i++)
+    {
+        std::wstring  row = GetOpenOnRowKey (i, machines[i].id);
+
+        hr = classes.SetValue (row, L"MUIVerb", machines[i].label);
+        CHR (hr);
+
+        hr = classes.SetValue (row + L"\\command", L"", GetOpenOnCommand (cassoExe, machines[i].id));
+        CHR (hr);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileAssociations::IsOpenOnCurrent
+//
+//  Every model's row is there and opens in this copy of Casso.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FileAssociations::IsOpenOnCurrent (const IUserClasses & classes, const std::wstring & cassoExe)
+{
+    std::span<const StockMachine>  machines = StockMachines::GetAll();
+    std::wstring                   value;
+
+
+
+    for (size_t i = 0; i < machines.size(); i++)
+    {
+        std::wstring  row = GetOpenOnRowKey (i, machines[i].id);
+
+        if (!classes.GetValue (row + L"\\command", L"", value) || value != GetOpenOnCommand (cassoExe, machines[i].id))
+        {
+            return false;
+        }
+
+        if (!classes.GetValue (row, L"MUIVerb", value) || value != machines[i].label)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileAssociations::GetOpenCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring FileAssociations::GetOpenCommand (const std::wstring & cassoExe)
+{
+    return L"\"" + cassoExe + L"\" --launch \"%1\"";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileAssociations::GetOpenOnCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring FileAssociations::GetOpenOnCommand (const std::wstring & cassoExe, const char * machineId)
+{
+    return GetOpenCommand (cassoExe) + L" --machine " + TextEncoding::NarrowToWide (machineId);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileAssociations::GetOpenOnRowKey
+//
+//  The two-digit prefix sorts File Explorer's rows in model order.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring FileAssociations::GetOpenOnRowKey (size_t index, const char * machineId)
+{
+    return std::format (L"{}\\shell\\{:02}{}", kOpenOnKey, index + 1, TextEncoding::NarrowToWide (machineId));
 }
