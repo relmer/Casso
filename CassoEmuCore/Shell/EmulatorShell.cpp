@@ -978,7 +978,9 @@ HRESULT EmulatorShell::Initialize (
     m_disks->InstallMountReporting();
 
     // On the //c Plus, drive 1 is the internal 3.5 drive and drive 2 is the
-    // 5.25 drive on the disk port, which is slot 6 drive 1.
+    // first drive on the disk port. The 5.25 drive is last on the port, so
+    // it is drive 2 only when no 3.5 drive is ahead of it. It is slot 6
+    // drive 1.
     if (m_machine.GetRefs().apple2cPlusDiskPort != nullptr)
     {
         if (!disk1Path.empty())
@@ -986,7 +988,19 @@ HRESULT EmulatorShell::Initialize (
             m_disks->InsertFloppy35 (0, 0, disk1Path);
         }
 
-        m_disks->GetManager()->MountCommandLineDisks (disk2Path, std::string());
+        if (m_machine.FindFloppy35 (0, 1) != nullptr)
+        {
+            if (!disk2Path.empty())
+            {
+                m_disks->InsertFloppy35 (0, 1, disk2Path);
+            }
+
+            m_disks->GetManager()->MountCommandLineDisks (std::string(), std::string());
+        }
+        else
+        {
+            m_disks->GetManager()->MountCommandLineDisks (disk2Path, std::string());
+        }
     }
     else
     {
