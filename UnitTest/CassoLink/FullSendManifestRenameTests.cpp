@@ -431,4 +431,46 @@ public:
         AssertSucceeded (io.ReadAllBytes (ManifestPath(), after));
         Assert::IsTrue  (after == damaged);
     }
+
+    //  Another process with the manifest open fails a write for a moment.
+    TEST_METHOD (Write_ToABusyManifest_TriesAgain)
+    {
+        FakeDiskFileIo     io;
+        std::vector<Byte>  bytes;
+        FullSendManifest   read;
+        int                sleeps = 0;
+        auto               saved  = FullSendManifestFile::s_sleep;
+
+        FullSendManifestFile::s_sleep = [&sleeps] (DWORD) { sleeps++; };
+        io.failNextReplace  = true;
+        io.nextReplaceError = HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED);
+
+        HRESULT  written = FullSendManifestFile::Write (io, ManifestPath(), MakeManifest(), 1);
+
+        FullSendManifestFile::s_sleep = saved;
+        AssertSucceeded (written);
+        AssertSucceeded (io.ReadAllBytes (ManifestPath(), bytes));
+        AssertSucceeded (read.Parse (bytes));
+
+        Assert::AreEqual (1, sleeps);
+        Assert::IsFalse  (read.GetRows().empty());
+    }
+
+    //  A failure other than a busy file returns at once.
+    TEST_METHOD (Write_ThatFailsOtherwise_DoesNotTryAgain)
+    {
+        FakeDiskFileIo  io;
+        int             sleeps = 0;
+        auto            saved  = FullSendManifestFile::s_sleep;
+
+        FullSendManifestFile::s_sleep = [&sleeps] (DWORD) { sleeps++; };
+        io.failNextReplace  = true;
+        io.nextReplaceError = HRESULT_FROM_WIN32 (ERROR_DISK_FULL);
+
+        HRESULT  written = FullSendManifestFile::Write (io, ManifestPath(), MakeManifest(), 1);
+
+        FullSendManifestFile::s_sleep = saved;
+        Assert::IsTrue   (FAILED (written));
+        Assert::AreEqual (0, sleeps);
+    }
 };
