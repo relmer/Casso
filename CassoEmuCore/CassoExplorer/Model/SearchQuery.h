@@ -39,6 +39,14 @@ public:
     //  This PC: the whole index, and each fixed drive walked for what the index leaves out.
     static constexpr const wchar_t *  kThisPc     = L"thispc:";
 
+    //  The Casso node's stock disks, which have no folder: a search from its
+    //  root lists those whose names match.
+    static constexpr const wchar_t *  kStockDisks = L"stock:";
+
+    //  Whether one of a search's scopes is a folder on a drive, and not one
+    //  of the tokens above.
+    static bool  IsFolderScope (const std::wstring & scope) { return scope != kEverywhere && scope != kThisPc && scope != kStockDisks; }
+
     //  File Explorer's Search options, after the query in the id. The defaults
     //  add nothing to it.
     struct Options

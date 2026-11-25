@@ -664,7 +664,7 @@ bool BrowserNavigator::TryGetUpTarget (Location & outTarget) const
         //  root for one that searched all of Casso's folders.
         SearchQuery::TryParseId (location.path, scope, query);
         folders   = SearchQuery::SplitScopes (scope);
-        outTarget = (folders.size() == 1) ? Location::MakeHostFolder (folders[0]) : Location::MakeRoot (TreeModel::kCassoRootId);
+        outTarget = (folders.size() == 1 && SearchQuery::IsFolderScope (folders[0])) ? Location::MakeHostFolder (folders[0]) : Location::MakeRoot (TreeModel::kCassoRootId);
     }
     else if (location.kind == Location::Kind::ShellFolder && CollectionQuery::IsId (location.path))
     {

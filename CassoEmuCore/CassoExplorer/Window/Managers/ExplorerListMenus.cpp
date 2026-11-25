@@ -2027,7 +2027,7 @@ bool ExplorerListMenus::IsSearchIndexed()
 
     for (const std::wstring & folder : SearchQuery::SplitScopes (scope))
     {
-        if (folder == SearchQuery::kThisPc || folder == SearchQuery::kEverywhere || m_context.shellVerbs.IsIndexed (folder))
+        if (folder == SearchQuery::kThisPc || folder == SearchQuery::kEverywhere || (SearchQuery::IsFolderScope (folder) && m_context.shellVerbs.IsIndexed (folder)))
         {
             return true;
         }

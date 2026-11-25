@@ -1400,7 +1400,8 @@ void ExplorerAddressBar::ApplySearchPrefs()
 //
 //  ExplorerAddressBar::GetCassoSearchScope
 //
-//  A search from Casso's root covers each of Casso's own folders on the host.
+//  A search from Casso's root covers each of Casso's folders on the host, and
+//  the stock disks when the root lists them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1419,6 +1420,10 @@ std::wstring ExplorerAddressBar::GetCassoSearchScope()
         if (node.location.kind == Location::Kind::HostFolder && !node.location.path.empty())
         {
             folders.push_back (node.location.path);
+        }
+        else if (node.id == TreeModel::kStockDisksId)
+        {
+            folders.push_back (SearchQuery::kStockDisks);
         }
     }
 
