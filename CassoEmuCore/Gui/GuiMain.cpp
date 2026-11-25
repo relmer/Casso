@@ -624,21 +624,8 @@ static HRESULT LoadLaunchConfig (
     canOpen = !plan.IsRefused();
     CBRN (canOpen, plan.refusal.c_str());
 
-    // A card the placement added has no firmware path yet. The catalog's
-    // host list leaves one out on a model it doesn't list, and that card
-    // runs Casso's firmware.
-    for (SlotConfig & slot : plan.config.slots)
-    {
-        const BlockCardSpec  * card    = BlockDeviceCatalog::FindCard (slot.device);
-        bool                   isAdded = std::find (plan.addedSlots.begin(), plan.addedSlots.end(), slot.slot) != plan.addedSlots.end();
-
-
-
-        if (isAdded && card != nullptr && BlockDeviceCatalog::CanHost (*card, machine->id))
-        {
-            MachineConfigLoader::ResolveBlockCard (machine->id, romSearchPaths, PathResolver::FindFile, slot);
-        }
-    }
+    hr = LaunchPlacement::ResolveFirmware (plan, machine->id, romSearchPaths, PathResolver::FindFile, error);
+    CHRN (hr, format (L"Failed to load machine config:\n{}", TextEncoding::NarrowToWide (error)).c_str());
 
     outConfig    = std::move (plan.config);
     outDisk1Path = TextEncoding::Utf8ToWide (plan.disk1Path);

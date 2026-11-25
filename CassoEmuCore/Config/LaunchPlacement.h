@@ -75,8 +75,8 @@ private:
 //  config      The temporary copy, with `isTemporary` set and a block image on
 //              its drive.
 //  disk1Path   Drive 1's image, for a 5.25-inch or 13-sector image.
-//  addedSlots  The slots of cards added to the copy. The caller resolves
-//              their firmware.
+//  addedSlots  The slots of cards added to the copy. ResolveFirmware looks
+//              up their firmware.
 //  refusal     Why the model can't open the image; empty when it can.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -115,6 +115,14 @@ public:
                               const std::string     & imagePath,
                               const StockMachine    & machine,
                               const MachineConfig   & stockConfig);
+
+    //  Looks up the firmware of the cards the plan added and of the drives
+    //  on the disk port, which the stock config's load didn't include.
+    static HRESULT     ResolveFirmware (LaunchPlan                                & plan,
+                                        const std::string                         & machineId,
+                                        const std::vector<fs::path>               & searchPaths,
+                                        const MachineConfigLoader::FileResolver   & resolver,
+                                        std::string                               & outError);
 
 private:
     static void          PlaceOnPort       (LaunchPlan & plan, const DiskImageFacts & facts, const std::string & imagePath, std::wstring & outReason);

@@ -5,6 +5,7 @@
 #include "Devices/BlockDevice/BlockDeviceAttachments.h"
 #include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "Devices/Disk/ImageClassifier.h"
+#include "Machines/MachineDefinitions.h"
 #include "Shell/BootDriveRule.h"
 
 
@@ -182,6 +183,64 @@ LaunchPlan LaunchPlacement::Place (
     return plan;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LaunchPlacement::ResolveFirmware
+//
+//  A card the placement added has no firmware path yet, and neither does a
+//  drive it put on the disk port. A card the catalog doesn't list for the
+//  model runs Casso's firmware, so only its drives are looked up.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LaunchPlacement::ResolveFirmware (
+    LaunchPlan                                & plan,
+    const std::string                         & machineId,
+    const std::vector<fs::path>               & searchPaths,
+    const MachineConfigLoader::FileResolver   & resolver,
+    std::string                               & outError)
+{
+    HRESULT                    hr         = S_OK;
+    const MachineDefinition  * definition = MachineDefinitions::Find (machineId);
+
+
+
+    for (SlotConfig & slot : plan.config.slots)
+    {
+        const BlockCardSpec  * card    = BlockDeviceCatalog::FindCard (slot.device);
+        bool                   isAdded = std::ranges::find (plan.addedSlots, slot.slot) != plan.addedSlots.end();
+
+
+
+        if (!isAdded || card == nullptr)
+        {
+            continue;
+        }
+
+        if (BlockDeviceCatalog::CanHost (*card, machineId))
+        {
+            MachineConfigLoader::ResolveBlockCard (machineId, searchPaths, resolver, slot);
+            continue;
+        }
+
+        for (PortConfig & port : slot.ports)
+        {
+            MachineConfigLoader::ResolveDriveFirmware (searchPaths, resolver, port, slot.deviceProblem);
+        }
+    }
+
+    hr = MachineConfigLoader::ResolveDiskPortChains (searchPaths, resolver, plan.config.ports, outError,
+                                                     definition != nullptr ? (size_t) definition->diskPortFloppyCount : 1,
+                                                     definition != nullptr ? (size_t) definition->diskPortApple35Count : 0);
+    CHR (hr);
+
+Error:
+    return hr;
+}
 
 
 

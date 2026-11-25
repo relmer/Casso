@@ -1,11 +1,13 @@
 #include "Pch.h"
 
 #include "Config/LaunchPlacement.h"
+#include "Core/TextEncoding.h"
 #include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "Devices/Disk/ImageClassifier.h"
 #include "Devices/Disk/Inspector/Blocks/BlockImageFile.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+namespace fs = std::filesystem;
 
 
 
@@ -516,4 +518,42 @@ public:
 
         Assert::AreEqual (std::wstring (L"The Apple //e Enhanced can't open x.woz: it isn't a disk image Casso can boot."), plan.refusal);
     }
-};
+
+    //  Runs ResolveFirmware on the plan and returns each path passed to the resolver.
+    static std::vector<std::string> ResolveAndRecord (LaunchPlan & plan, const char * machineId)
+    {
+        std::vector<std::string>             asked;
+        std::string                          error;
+        MachineConfigLoader::FileResolver    resolver = [&asked] (const std::vector<fs::path> &, const fs::path & relPath)
+        {
+            asked.push_back (relPath.generic_string());
+            return fs::path();
+        };
+
+
+
+        Assert::AreEqual (S_OK, LaunchPlacement::ResolveFirmware (plan, machineId, {}, resolver, error), TextEncoding::NarrowToWide (error).c_str());
+        return asked;
+    }
+
+    TEST_METHOD (ResolveFirmware_800KOnIIc_LooksUpTheUniDiskRom)
+    {
+        LaunchPlan                plan  = LaunchPlacement::Place (MakeFacts (LaunchImageKind::FloppyBlocks, 1600), "C:\\800.po",
+                                                                  *StockMachines::Find ("Apple2c"), MakeIIc (false));
+        std::vector<std::string>  asked = ResolveAndRecord (plan, "Apple2c");
+
+
+
+        Assert::IsTrue (std::ranges::find (asked, "Devices/UniDisk35/UniDisk35.rom") != asked.end());
+    }
+
+    TEST_METHOD (ResolveFirmware_800KOnIIe_LooksUpTheAddedCardsDriveRom)
+    {
+        LaunchPlan                plan  = LaunchPlacement::Place (MakeFacts (LaunchImageKind::FloppyBlocks, 1600), "C:\\800.po",
+                                                                  StockMachines::GetDefault(), MakeIIe());
+        std::vector<std::string>  asked = ResolveAndRecord (plan, "Apple2eEnhanced");
+
+
+
+        Assert::IsTrue (std::ranges::find (asked, "Devices/UniDisk35/UniDisk35.rom") != asked.end());
+    }};
