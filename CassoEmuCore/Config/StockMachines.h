@@ -52,7 +52,7 @@ public:
     static const StockMachine          *  Find          (std::string_view id);
 
     // The error for an id Find doesn't match.
-    static std::wstring                   FormatUnknown ();
+    static std::wstring                   FormatUnknown (std::string_view id);
 
     static HRESULT                        LoadConfig    (HINSTANCE                      hInstance,
                                                          const StockMachine           & machine,

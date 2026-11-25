@@ -15,11 +15,12 @@ Casso.exe --launch <image> [--machine <id>] [--title <text>]
   for an unknown id or a missing image. A model that can't take the image
   Casso displays the reason and exits without building a machine.
 
-Proposed help lines, for the owner's approval (FR-317):
+Help lines (FR-317):
 
 ```text
---launch <image>   Boot this image in a temporary copy of a stock machine,
-                   which is never saved.
+--launch <image>   Boot this image in a stock machine, set up with the cards and
+                   drives the image needs. Changes made while it runs, to the
+                   machine or to Casso's settings, aren't saved.
 --machine <name>   Which machine to boot, such as Apple2e. With --launch, which
                    stock machine to copy.
 ```
@@ -44,8 +45,8 @@ HKCU\Software\Classes\Casso.OpenOn\shell\<nn><id>
 
 - A model that can't take the image: "The Apple //c can't open <name>:
   <reason>."
-- An unknown model: "--machine takes Apple2, Apple2Plus, Apple2e,
-  Apple2eEnhanced, Apple2c or Apple2cPlus."
+- An unknown model: "Unknown machine 'Foo'. Expected Apple2,
+  Apple2Plus, Apple2e, Apple2eEnhanced, Apple2c or Apple2cPlus."
 - A drive switch with `--launch`: "--launch chooses the drive, so it can't
   be combined with --disk1, --disk2, --hd or --smartport."
 

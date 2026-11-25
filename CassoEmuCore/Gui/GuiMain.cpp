@@ -1092,7 +1092,7 @@ extern "C" int WINAPI wCassoMain (
         && parsed.verdict == CommandLineOptions::EmulatorOptions::Verdict::Clean)
     {
         parsed.verdict        = CommandLineOptions::EmulatorOptions::Verdict::Refused;
-        parsed.refusalMessage = "Error: " + TextEncoding::WideToUtf8 (StockMachines::FormatUnknown());
+        parsed.refusalMessage = "Error: " + TextEncoding::WideToUtf8 (StockMachines::FormatUnknown (parsed.machine));
     }
 
     answered = parsed.verdict != CommandLineOptions::EmulatorOptions::Verdict::Clean;

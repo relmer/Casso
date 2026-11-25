@@ -87,13 +87,13 @@ const StockMachine * StockMachines::Find (std::string_view id)
 //
 //  StockMachines::FormatUnknown
 //
-//  "--machine takes Apple2, Apple2Plus, ... or Apple2cPlus."
+//  "Unknown machine 'Foo'. Expected Apple2, Apple2Plus, ... or Apple2cPlus."
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring StockMachines::FormatUnknown()
+std::wstring StockMachines::FormatUnknown (std::string_view id)
 {
-    std::wstring  text  = L"--machine takes ";
+    std::wstring  text  = std::format (L"Unknown machine '{}'. Expected ", TextEncoding::NarrowToWide (std::string (id)));
     size_t        count = std::size (s_kStockMachines);
 
 

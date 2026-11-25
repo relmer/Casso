@@ -80,7 +80,7 @@ public:
 
     TEST_METHOD (FormatUnknown_ListsEveryModel)
     {
-        Assert::AreEqual (std::wstring (L"--machine takes Apple2, Apple2Plus, Apple2e, Apple2eEnhanced, Apple2c or Apple2cPlus."),
-                          StockMachines::FormatUnknown());
+        Assert::AreEqual (std::wstring (L"Unknown machine 'Foo'. Expected Apple2, Apple2Plus, Apple2e, Apple2eEnhanced, Apple2c or Apple2cPlus."),
+                          StockMachines::FormatUnknown ("Foo"));
     }
 };

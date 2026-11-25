@@ -397,8 +397,9 @@ static constexpr CommandLineParser::EmulatorFlag  s_kEmulatorFlags[] =
                                "which stock machine to copy." },
     { "--disk1",   " <image>", "Insert this image into drive 1." },
     { "--disk2",   " <image>", "Insert this image into drive 2." },
-    { "--launch",  " <image>", "Boot this image in a temporary copy of a stock machine, "
-                               "which is never saved." },
+    { "--launch",  " <image>", "Boot this image in a stock machine, set up with the cards and "
+                               "drives the image needs. Changes made while it runs, to the "
+                               "machine or to Casso's settings, aren't saved." },
     { "--hd",      " <slot>[.<unit>]=<image>",
                                "Attach this image to the hard disk or UniDisk 3.5 card "
                                "in the slot, for this run. The unit is a SCSI ID or a "
