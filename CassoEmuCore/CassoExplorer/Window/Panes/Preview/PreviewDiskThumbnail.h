@@ -4,6 +4,7 @@
 
 #include "CassoExplorer/Model/DiskThumbnailWorker.h"
 #include "CassoExplorer/Model/FileSystemCheckScheduler.h"
+#include "Devices/Disk/IDiskFileIo.h"
 #include "Shell/BackgroundWorkQueue.h"
 #include "Ui/DiskInspector/Blocks/BlockMapView.h"
 #include "Ui/DiskInspector/InspectorView.h"
@@ -296,6 +297,10 @@ private:
     void  ShowChipTip        (const DxuiMouseEvent & ev);
     void  SetHot             (bool isHot);
 
+    using KeptResult = std::pair<FileStamp, DiskThumbnailResult>;
+
+    static constexpr size_t  kRecentCount = 8;
+
     enum class State
     {
         Analyzing,
@@ -313,6 +318,9 @@ private:
     void  ArmCheckTimer      (int64_t delayMs);
     bool  ShowCheck          ();
     void  ApplyVerdict       ();
+    bool  GetStamp           (const std::wstring & path, FileStamp & outStamp) const;
+    bool  FindRecent         (const std::wstring & path, DiskThumbnailResult & outResult) const;
+    void  KeepRecent         (const DiskThumbnailResult & result);
 
     //  The result's chips, and the chip of a disk read as CP/M by the
     //  user's choice.
@@ -335,6 +343,7 @@ private:
     BackgroundWorkQueue                     m_checkQueue;                    // before m_checks, so a check is canceled before the queue is joined
     FileSystemCheckScheduler                m_checks;
     DiskThumbnailResult                     m_result;
+    std::list<KeptResult>                   m_recent;   // the results read last, newest first, so a pane opened again isn't read again
     DxuiScrollPanel                       * m_header            = nullptr;   // the controls below, clipped where the pane scrolls them away
     ThumbnailPlatterView                  * m_platter           = nullptr;
     ThumbnailBlockMap                     * m_blockMap          = nullptr;

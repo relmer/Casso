@@ -448,9 +448,9 @@ void DxuiWindow::SetComposedOpacity (float opacity)
 //  Invalidate
 //
 //  Each paint waits for the next vertical blank to present, so a mouse event
-//  whose controls invalidate three times would wait three frames. During one
-//  the window is only marked, and it is painted once, when the event
-//  returns. Windows sends WM_PAINT only once no input is queued, so a hover
+//  whose controls invalidate three times would wait three frames. During a
+//  paint batch, such as a mouse event, the window is only marked, and it is
+//  painted once, when the batch ends. Windows sends WM_PAINT only once no input is queued, so a hover
 //  drawn on a move would trail the pointer while it moves.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -465,13 +465,55 @@ void DxuiWindow::Invalidate()
     {
         InvalidateRect (hwnd, nullptr, FALSE);
 
-        if (m_mouseDepth == 0)
+        if (m_batchDepth == 0)
         {
             UpdateWindow (hwnd);
         }
         else
         {
-            m_paintAfterMouse = true;
+            m_paintAfterBatch = true;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BeginPaintBatch
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::BeginPaintBatch()
+{
+    m_batchDepth++;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EndPaintBatch
+//
+//  The window is painted once if it was invalidated in the batch.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::EndPaintBatch()
+{
+    m_batchDepth--;
+
+    if (m_batchDepth == 0 && m_paintAfterBatch)
+    {
+        m_paintAfterBatch = false;
+
+        if (GetHwnd() != nullptr)
+        {
+            UpdateWindow (GetHwnd());
         }
     }
 }
@@ -827,6 +869,8 @@ DxuiMessageResult DxuiWindow::OnKeyDown (WPARAM vk, LPARAM lParam)
 
     UNREFERENCED_PARAMETER (lParam);
 
+    BeginPaintBatch();
+
     // A modal overlay swallows every key (routing the ones it wants to its own
     // handler) so dialog navigation can't leak to the page behind it. The
     // overlay's own return is discarded on purpose: handled or not, the key
@@ -848,6 +892,8 @@ DxuiMessageResult DxuiWindow::OnKeyDown (WPARAM vk, LPARAM lParam)
         result = m_dialog.IsActive() ? DispatchDialogKey (vk)
                                 : DispatchKey (DxuiKeyEventKind::Down, vk);
     }
+
+    EndPaintBatch();
 
     return result;
 }
@@ -887,6 +933,8 @@ DxuiMessageResult DxuiWindow::OnChar (WPARAM ch, LPARAM lParam)
 
     UNREFERENCED_PARAMETER (lParam);
 
+    BeginPaintBatch();
+
     // A modal overlay owns text entry (e.g. the color picker's hex field).
     if (HasModalOverlay())
     {
@@ -910,6 +958,8 @@ DxuiMessageResult DxuiWindow::OnChar (WPARAM ch, LPARAM lParam)
     {
         result = DispatchKey (DxuiKeyEventKind::Char, ch);
     }
+
+    EndPaintBatch();
 
     return result;
 }
@@ -1246,7 +1296,7 @@ DxuiMessageResult DxuiWindow::DispatchMouse (DxuiMouseEventKind kind,
     ev.ctrl        = m_wheelCtrl || (GetKeyState (VK_CONTROL) & 0x8000) != 0;
     ev.alt         = (GetKeyState (VK_MENU)    & 0x8000) != 0;
 
-    m_mouseDepth++;
+    BeginPaintBatch();
 
     // A modal overlay captures all mouse input so the page beneath it stays
     // inert (clicks outside the overlay dialog are simply ignored).
@@ -1309,17 +1359,7 @@ DxuiMessageResult DxuiWindow::DispatchMouse (DxuiMouseEventKind kind,
         }
     }
 
-    m_mouseDepth--;
-
-    if (m_mouseDepth == 0 && m_paintAfterMouse)
-    {
-        m_paintAfterMouse = false;
-
-        if (GetHwnd() != nullptr)
-        {
-            UpdateWindow (GetHwnd());
-        }
-    }
+    EndPaintBatch();
 
     return result;
 }

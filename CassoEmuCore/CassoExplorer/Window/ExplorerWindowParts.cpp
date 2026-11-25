@@ -491,14 +491,6 @@ bool ExplorerWindowParts::HandleTimer (UINT_PTR timerId)
 
 
 
-    if (timerId == (UINT_PTR) AppTimerId::ExplorerAutoPreview)
-    {
-        KillTimer (hwnd, timerId);
-        preview.HandleAutoPreviewTimer();
-        context.window.Invalidate();
-        return true;
-    }
-
     if (timerId == (UINT_PTR) AppTimerId::ExplorerFileSystemCheck)
     {
         KillTimer (hwnd, timerId);
