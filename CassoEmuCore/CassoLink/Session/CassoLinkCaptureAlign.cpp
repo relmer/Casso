@@ -225,25 +225,44 @@ std::vector<size_t> CassoLinkCapture::FindAnchors (std::span<const Byte> revolut
 
 
 
-    for (size_t window = 0; window + kAlignBytes <= revolution.size(); window += s_kWindowStep)
+    //  When a revolution starts at a write splice and every window after
+    //  it is in a sector with the same data as others, no window matches,
+    //  so the windows are taken again s_kStartStep apart, where some are on
+    //  an address field, which is unique. Two address fields can differ in
+    //  two bytes, so those windows must match exactly. The first of them
+    //  that matches gives each revolution's place.
+    for (size_t step : { s_kWindowStep, s_kStartStep })
     {
-        if (window > 0 && !IsUnique (revolution, window, revolution.size() - window))
+        bool    isFine   = step == s_kStartStep;
+        size_t  mismatch = isFine ? 0 : s_kAnchorMismatch;
+
+
+
+        if (isFine && !anchors.empty())
         {
-            continue;
+            break;
         }
 
-        for (size_t at = window; at + kAlignBytes <= read.size(); at++)
+        for (size_t window = 0; !(isFine && !anchors.empty()) && window + kAlignBytes <= revolution.size(); window += step)
         {
-            size_t  start = at - window;
-
-            if (start + revolution.size() + s_kBand > read.size() || CountDiffer (revolution, window, read, at, s_kAnchorMismatch) > s_kAnchorMismatch)
+            if (window > 0 && !IsUnique (revolution, window, revolution.size() - window))
             {
                 continue;
             }
 
-            if (std::none_of (anchors.begin(), anchors.end(), [start] (size_t known) { return (start > known ? start - known : known - start) <= s_kWindowDrift; }))
+            for (size_t at = window; at + kAlignBytes <= read.size(); at++)
             {
-                anchors.push_back (start);
+                size_t  start = at - window;
+
+                if (start + revolution.size() + s_kBand > read.size() || CountDiffer (revolution, window, read, at, mismatch) > mismatch)
+                {
+                    continue;
+                }
+
+                if (std::none_of (anchors.begin(), anchors.end(), [start] (size_t known) { return (start > known ? start - known : known - start) <= s_kWindowDrift; }))
+                {
+                    anchors.push_back (start);
+                }
             }
         }
     }
@@ -448,12 +467,13 @@ bool CassoLinkCapture::Align (std::span<const Byte> revolution, std::span<const 
         }
         else if (endings[marked[first]])
         {
-            //  Only the bytes read otherwise: a byte the read has one more or
-            //  one fewer of beside them is framing, and the bytes between
-            //  them read the same.
+            //  Only the ending's bytes read otherwise: a byte the read has one
+            //  more or one fewer of beside them is framing, the bytes between
+            //  them read the same, and DOS's write splice falls just after
+            //  DE AA EB.
             for (size_t at = first; at <= last; at++)
             {
-                outStretch[marked[at]] = misread[marked[at]];
+                outStretch[marked[at]] = misread[marked[at]] && endings[marked[at]];
             }
         }
 
