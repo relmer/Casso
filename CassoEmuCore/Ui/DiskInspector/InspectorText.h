@@ -41,14 +41,16 @@ enum class SummaryChipKind
     StampMarks,
     CrossLinked,
     FileSystem,
+    ReadAsCpm,
 };
 
 
 struct SummaryChip
 {
-    SummaryChipKind  kind  = SummaryChipKind::Format;
+    SummaryChipKind  kind   = SummaryChipKind::Format;
     std::wstring     text;
-    bool             isBad = false;
+    bool             isBad  = false;
+    bool             isInfo = false;   // drawn in the accent, as a note of a choice the user made
 };
 
 
@@ -105,6 +107,13 @@ public:
     static std::wstring         FormatDiskFormat    (DiskFormatClass format);
     static std::wstring         FormatOrdinal       (int n);
     static std::wstring         FormatCount         (int count, LPCWSTR singular, LPCWSTR plural);
+
+    //  The chip of a disk read as CP/M by the user's choice, and its tip.
+    static SummaryChip          MakeReadAsCpmChip   ();
+
+    //  The same chip for the caption, after the title, with the tip.
+    static DxuiTitleChip        MakeReadAsCpmTitleChip ();
+    static constexpr LPCWSTR    kpszReadAsCpmTip    = L"You chose to read this disk as CP/M. Choose Detect file system in the inspector's Disk menu to undo it.";
 
     //  The disk inspector's title: "Disk inspector - ", a lock while the disk
     //  is write-protected, the image's path, and "(mounted in ...)" while

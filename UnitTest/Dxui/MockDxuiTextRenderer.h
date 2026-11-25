@@ -113,6 +113,25 @@ public:
                                     float         & outWidthDip,
                                     float         & outHeightDip) override;
 
+    //  A line kLineFactor times the font size tall, with its baseline
+    //  kBaselineFactor times the font size below the line's top.
+    static constexpr float  kLineFactor     = 1.33f;
+    static constexpr float  kBaselineFactor = 1.06f;
+
+    HRESULT  GetLineMetrics (float           fontSizeDip,
+                             const wchar_t * fontFamily,
+                             DxuiFontWeight  weight,
+                             float         & outHeightDip,
+                             float         & outBaselineDip) override
+    {
+        (void) fontFamily;
+        (void) weight;
+
+        outHeightDip   = fontSizeDip * kLineFactor;
+        outBaselineDip = fontSizeDip * kBaselineFactor;
+        return S_OK;
+    }
+
     //  Wrapped measurement, modeled rather than laid out, but broken at WORDS
     //  the way a real renderer breaks. Canned metrics still win outright -- a
     //  test that states the size of a block means that size, wrapped or not.

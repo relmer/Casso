@@ -721,3 +721,71 @@ seconds of one core, so a folder of hundreds is minutes of background work;
 the queue takes the images in view first. An alternate data stream changes
 a file's last write time unless it is restored, and the manifest's hash is
 of the unnamed stream alone, so the stream doesn't change it.
+
+## Phase 35: Opening an image in a temporary machine (Session 2026-11-24)
+
+User Story 44, FR-311 to FR-318, SC-079 and SC-080, R65 to R69.
+
+**What exists.** `CommandLineParser` takes `--machine`, `--disk1`, `--hd`
+and `--smartport`. `EmulatorShell::BuildMachineDevices` applies `--hd` and
+`--smartport` through `BlockDeviceAttachments::Apply` to a copy of the
+config that is never saved, but `Apply` fails when the slot has no card.
+The embedded stock configs are what `UserConfigStore::SaveDelta` diffs a
+saved machine against. A hard disk card runs `CassoBlockFirmware` when its
+ROM is missing or the slot sets `cassoFirmware`, and `CassoBlock.s` uses
+6502 instructions only. `FileAssociations` registers six floppy types with
+`--disk1`, and `Package.appxmanifest` registers the same six with an Open
+verb and an Open in Casso Explorer verb. `LaunchCommand` composes Casso
+Explorer's Open in Casso as `--disk1`.
+
+**What is added, in the core, so the unit tests cover it.**
+
+- `CassoEmuCore/Config/LaunchPlacement`: a pure function from the image's
+  facts (`DiskImageFacts`: 5.25-inch or block, size in blocks) and a stock
+  `MachineConfig` to a `LaunchPlan`: the changed copy and the attachment, or
+  a reason the model can't take the image (R65, R66).
+- `CassoEmuCore/Config/StockMachines`: the stock model ids accepted with
+  `--launch`, and the embedded config for each, without the user's delta
+  (R67).
+- `--launch <image>` in `CommandLineParser` and its usage row; `--machine`
+  with `--launch` resolves through `StockMachines` only.
+- `MachineConfig::isTemporary`, set on the copy `LaunchPlacement`
+  returns. `UserConfigStore`'s writes of `UserPrefs.json` return S_OK
+  without writing while the running machine's config has it (R68).
+- `FileAssociations`: the block types, the `--launch` command, and an Open
+  on submenu under each type's ProgID (R69). `RegisterForInstall` already
+  replaces a registration whose command differs.
+
+**What is added in Casso.** The title bar suffix for a temporary machine,
+and the notice that reports why a model can't take an image, displayed before
+any machine is built.
+
+**What is added in Casso Explorer.** An Open on submenu on a disk image's
+context menu, and `LaunchCommand` composing `--launch` and `--machine`.
+
+**What is added in the package.** `Package.appxmanifest`: the block types,
+`--launch` on every Open verb, and one verb per stock model (R69).
+
+**Order.** `LaunchPlacement` and its tests first, since SC-080 checks
+every model against three image sizes. Then `StockMachines`, `--launch`
+and the save guard, which SC-079 checks. Then the associations, the
+package and the two menus.
+
+**Risks.** The guard covers the store's writes of `UserPrefs.json`; a save
+written around the store would escape it, so a unit test runs a temporary
+session through a settings change and asserts the mock file system has no
+writes. A user who changed a stock machine's ROM files on disk gets those
+files, since ROMs aren't part of the config.
+
+### Constitution check for Phase 35
+
+| Principle | Status | Notes |
+|---|---|---|
+| I. Code Quality | PASS | EHM, VerbNoun; `LaunchPlacement` and `StockMachines` are class-static. |
+| II. Testing Discipline | PASS | Placement is pure and tested per model and image size; the save guard is tested on a mock file system; associations on the mock registry. |
+| III. UX Consistency | PASS | The Open on submenu matches File Explorer's other submenus; a refusal is a notice, as `--hd` refusals are. |
+| IV. Performance | PASS | Placement reads the image's header only. |
+| V. Simplicity | PASS | One config flag, checked at the one write; the placement adds a card through the existing config, not a new device path. |
+| VI. Thin Executable | PASS | `--launch` is parsed in `CassoCore` and acted on in `CassoEmuCore`. |
+
+Post-design re-check: PASS.

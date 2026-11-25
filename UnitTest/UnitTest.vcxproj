@@ -297,7 +297,9 @@
     <ClCompile Include="EmuTests\DataFolderResolverTests.cpp" />
     <ClCompile Include="EmuTests\PathResolverTests.cpp" />
     <ClCompile Include="EmuTests\MachineConfigSourceTests.cpp" />
+    <ClCompile Include="EmuTests\LaunchPlacementTests.cpp" />
     <ClCompile Include="EmuTests\MachineConfigTests.cpp" />
+    <ClCompile Include="EmuTests\StockMachinesTests.cpp" />
     <ClCompile Include="EmuTests\Apple2cRomBankTests.cpp" />
     <ClCompile Include="EmuTests\Apple2cBootTests.cpp" />
     <ClCompile Include="EmuTests\AppleMouseTests.cpp" />
@@ -329,6 +331,7 @@
     <ClCompile Include="EmuTests\TrackBitReaderTests.cpp" />
     <ClCompile Include="EmuTests\TrackSectorDecoderTests.cpp" />
     <ClCompile Include="EmuTests\TrackLayoutWriterTests.cpp" />
+    <ClCompile Include="EmuTests\DiskImageConverterTests.cpp" />
     <ClCompile Include="AppleTextCodecTests.cpp" />
     <ClCompile Include="ApplesoftTokenizerTests.cpp" />
     <ClCompile Include="BasicCorpusTests.cpp" />
@@ -475,6 +478,7 @@
     <ClCompile Include="Inspector\RepairFixtures.cpp" />
     <ClCompile Include="Inspector\RepairWindowPartsTests.cpp" />
     <ClCompile Include="EmuTests\FileMapTests.cpp" />
+    <ClCompile Include="EmuTests\InspectorFilesystemOfferTests.cpp" />
     <ClCompile Include="EmuTests\FluxViewTests.cpp" />
     <ClCompile Include="EmuTests\InspectorClipboardTests.cpp" />
     <ClCompile Include="EmuTests\InspectorSearchTests.cpp" />
@@ -645,9 +649,12 @@
     <ClCompile Include="CassoExplorer\ExplorerPreviewPaneTests.cpp" />
     <ClCompile Include="CassoExplorer\ExplorerWindowPartsTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerCommandsTests.cpp" />
+    <ClCompile Include="CassoExplorer\ActionsGoToTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerActionsTests.cpp" />
     <ClCompile Include="CassoExplorer\ScratchImages.cpp" />
     <ClCompile Include="CassoExplorer\A2PicoCardActionsTests.cpp" />
+    <ClCompile Include="CassoExplorer\ImageConversionActionsTests.cpp" />
+    <ClCompile Include="CassoExplorer\ExplorerUndoPathTests.cpp" />
     <ClCompile Include="CassoExplorer\ExplorerPartitionTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerAboutTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerDragOutTests.cpp" />
@@ -673,6 +680,9 @@
     <ClCompile Include="CassoExplorer\CatalogModelTests.cpp" />
     <ClCompile Include="CassoExplorer\PickerColumnTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoImagesListingTests.cpp" />
+    <ClCompile Include="CassoExplorer\FileSystemBindDataTests.cpp" />
+    <ClCompile Include="CassoExplorer\Win32RecycleBinTests.cpp" />
+    <ClCompile Include="CassoExplorer\FileSystemCheckSchedulerTests.cpp" />
     <ClCompile Include="CassoExplorer\ImageVolumeFactsTests.cpp" />
     <ClCompile Include="CassoExplorer\FileMaskSetTests.cpp" />
     <ClCompile Include="CassoExplorer\ExplorerPickerHostTests.cpp" />
@@ -696,7 +706,12 @@
     <ClCompile Include="CassoExplorer\CassoLinkConnectionsTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoLinkLogFileTests.cpp" />
     <ClCompile Include="CassoExplorer\AppleDriveActionsTests.cpp" />
+    <ClCompile Include="CassoExplorer\LinkDiskActionsTests.cpp" />
+    <ClCompile Include="CassoExplorer\DriveImageActionsTests.cpp" />
+    <ClCompile Include="CassoExplorer\LinkCompletionGuardTests.cpp" />
     <ClCompile Include="CassoExplorer\FileAssociationsTests.cpp" />
+    <ClCompile Include="CassoExplorer\Win32ShellMenuHandlersTests.cpp" />
+    <ClCompile Include="CassoExplorer\Win32WindowsCommandsTests.cpp" />
     <ClCompile Include="CassoExplorer\AppleFilePropertiesTests.cpp" />
     <ClCompile Include="CassoExplorer\BasicConversionTests.cpp" />
     <ClCompile Include="CassoExplorer\BasicListingOutputTests.cpp" />
@@ -705,6 +720,7 @@
     <ClCompile Include="CassoExplorer\SearchExpressionTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoLinkJobViewTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoLinkListActionsTests.cpp" />
+    <ClCompile Include="CassoExplorer\ExplorerMenuEndTests.cpp" />
     <ClCompile Include="CassoExplorer\FullSendDialogTests.cpp" />
     <ClCompile Include="CassoExplorer\KrunchMapTests.cpp" />
     <ClCompile Include="CassoExplorer\SearchQueryTests.cpp" />
@@ -959,6 +975,8 @@
     <ClCompile Include="Dxui\DxuiPropertyPageTests.cpp" />
     <ClCompile Include="Dxui\DxuiPropertySheetTests.cpp" />
     <ClCompile Include="Dxui\DxuiPointerPathTests.cpp" />
+    <ClCompile Include="Dxui\DxuiDialogControllerTests.cpp" />
+    <ClCompile Include="Dxui\DxuiWindowSizeMathTests.cpp" />
     <ClCompile Include="Dxui\DxuiTextInputPasteTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockLayoutTests.cpp" />
     <ClCompile Include="Dxui\DxuiLayoutTests.cpp" />
@@ -1123,6 +1141,7 @@
     <ClInclude Include="CassoLink\CassoLinkCaptures.h" />
     <ClInclude Include="CassoLink\InMemoryCassoLinkFolder.h" />
     <ClInclude Include="CassoLink\ScriptedCassetteAudio.h" />
+    <ClInclude Include="CassoExplorer\AppleDriveRig.h" />
     <ClInclude Include="CassoLink\FakeApple.h" />
     <ClInclude Include="CassoLink\FakeNetworkCards.h" />
     <ClInclude Include="CassoLink\FakeScc8530.h" />

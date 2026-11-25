@@ -1043,6 +1043,7 @@ void EmulatorShell::InitAssetPathsAndStores()
 
     m_machine.SetAssetBaseDir (assetBaseDir.wstring());
     m_settings->CreateConfigStore (assetBaseDir.wstring());
+    m_settings->GetConfigStore()->SetRunningMachine (m_machine.GetConfig());
 
     // The stock hard disk image is made here the first time a machine lists
     // it. A folder that can't be made leaves those drives empty.
@@ -1169,6 +1170,12 @@ HRESULT EmulatorShell::BuildMachineDevices (const MachineConfig & config)
     std::string    error;
 
 
+
+    // A temporary machine's settings aren't saved; a later machine's are.
+    if (m_settings != nullptr && m_settings->GetConfigStore() != nullptr)
+    {
+        m_settings->GetConfigStore()->SetRunningMachine (config);
+    }
 
     // --hd and --smartport apply to the first machine only, and are never
     // saved: the copy built from has them, the config does not.

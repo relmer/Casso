@@ -35,7 +35,7 @@ vector<BlockCapsule> BlockHeaderText::BuildCapsules (const BlockInspectorModel &
 
     if (!isFree)
     {
-        capsules.push_back ({ label != nullptr ? label : BlockMap::GetRoleName (role), isBad });
+        capsules.push_back ({ label != nullptr ? std::wstring (label) : isBad ? BlockMap::FormatBlockFinding (role) : std::wstring (BlockMap::GetRoleName (role)), isBad });
     }
 
     while (start < owners.size())

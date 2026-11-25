@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "CassoExplorer/Actions/ActionsTypes.h"
 #include "CassoExplorer/CassoExplorerNewDiskDialog.h"
 #include "FileTypes/DecodedFile.h"
 #include "Machines/Apple2/Common/StockBootDisks.h"
@@ -35,6 +36,7 @@ public:
     int   ChooseFormatDefault       (const std::wstring & image);
     void  ChooseFilesystem          (VolumeKind kind);
     void  MakeArchive               (bool shrinkItDisk);
+    void  ConvertImage              (ActionsTypes::Verb verb);
     void  CopyPartitionToImage      (const std::wstring & partition);
     void  ReplacePartition          (const std::wstring & partition);
     void  TestImage                 ();
@@ -43,6 +45,7 @@ public:
     void  InspectDiskImages         (const std::vector<std::wstring> & paths);
     void  RepairDiskImage           (const std::wstring & path);
     void  CompareSelectedDiskImages ();
+    void  CompareToPick             (const std::wstring & image);
 
 private:
     ExplorerContext  & m_context;

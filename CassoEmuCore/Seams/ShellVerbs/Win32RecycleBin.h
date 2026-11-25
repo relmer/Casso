@@ -25,7 +25,7 @@ class Win32RecycleBin
 public:
     explicit Win32RecycleBin (Win32ShellItemVerbs & verbs);
 
-    HRESULT  Recycle           (HWND owner, const std::vector<std::wstring> & paths);
+    HRESULT  Recycle           (HWND owner, const std::vector<std::wstring> & paths, bool hasPrompt);
     HRESULT  RestoreRecycled   (HWND owner, const std::vector<std::wstring> & paths);
     HRESULT  ListRecycled      (std::vector<IShellItemVerbs::RecycledItem> & outItems);
     HRESULT  RunRecycledVerb   (HWND owner, const std::vector<std::wstring> & ids, IShellItemVerbs::RecycledVerb verb);
@@ -45,6 +45,10 @@ public:
     static constexpr PROPERTYKEY  s_kDateDeleted  = { { 0x9B174B33, 0x40FF, 0x11D2, { 0xA2, 0x7E, 0x00, 0xC0, 0x4F, 0xC3, 0x08, 0x71 } }, 3 };
 
     static int64_t  ToUnixSeconds (const FILETIME & when);
+
+    //  The flags of a deletion to the Recycle Bin, with Windows' confirmation
+    //  or without it.
+    static DWORD    GetRecycleFlags (bool hasPrompt);
 
 private:
     friend class Win32ShellItemVerbs;

@@ -1266,6 +1266,20 @@ void MachineBuilder::WireBankedRom()
         m_host.SetApple2cRomBank (std::make_unique<Apple2cRomBank> (*lc, *mmu));
         m_host.GetApple2cRomBank()->SetBankImages (std::move (bank0), std::move (bank1));
         sw->SetRomBankSwitch (m_host.GetApple2cRomBank());
+
+        //  The built-in drive's boot page, and the 13-sector ROM that a
+        //  13-sector disk swaps in over it.
+        if (!m_host.GetConfig().builtInDisk2Rom13Path.empty())
+        {
+            std::vector<Byte>  rom16 = m_host.GetApple2cRomBank()->GetMainBankPage (0xC600);
+            std::vector<Byte>  rom13;
+            HRESULT            hr13  = ReadRomFileBytes (m_host.GetConfig().builtInDisk2Rom13Path, rom13);
+
+            if (SUCCEEDED (hr13) && rom13.size() == rom16.size())
+            {
+                m_host.SetDisk2Roms (std::move (rom16), std::move (rom13), nullptr);
+            }
+        }
     }
 }
 

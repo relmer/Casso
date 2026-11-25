@@ -4,7 +4,12 @@
 
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
+#include "Seams/Win32ContextMenuLayout.h"
+#include "Seams/Win32ExplorerCommandEntries.h"
 #include "Seams/Win32PackagedCommands.h"
+#include "Seams/Win32RegistryReader.h"
+#include "Seams/Win32ShellMenuHandlers.h"
+#include "Seams/Win32WindowsCommands.h"
 
 struct ExplorerContext;
 
@@ -84,7 +89,7 @@ public:
     std::vector<std::shared_ptr<DxuiCommand>> &  GetMenuCommands () { return m_menuCommands; }
 
     //  The commands installed apps add to Explorer's menus, and New's choices.
-    void  StartPackagedCommands   (HWND hwnd, UINT message, UINT assocMessage) { m_packagedCommands.Start (hwnd, message, assocMessage); }
+    void  StartPackagedCommands   (HWND hwnd, UINT message, UINT assocMessage);
     void  RefreshPackagedCommands ()                                          { m_packagedCommands.Refresh(); }
 
     void  AddPinMenuCommand     (std::vector<DxuiPopupMenuItem> & items, const std::wstring & folder);
@@ -102,17 +107,23 @@ public:
     bool                            ShowScrollbarMenu      (const DxuiMouseEvent & ev);
     void                            AddPackagedCommands    (std::vector<DxuiPopupMenuItem> & items);
     HRESULT                         RunAskCopilot          (const std::wstring & path);
-    void                            AddPackagedCommandsFor (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind);
-    void                            AddPackagedEntry       (std::vector<DxuiPopupMenuItem> & items, const Win32PackagedCommands::Entry & entry, const std::vector<std::wstring> & paths);
-    bool                            AddWindowsCommands     (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind);
-    void                            SetCommandItemIds      (std::vector<std::wstring> ids) { m_packagedCommands.SetItemIds (std::move (ids)); }
+    void                            AddPackagedCommandsFor (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32ExplorerCommandEntries::ItemKind kind);
+    void                            AddMenuEnd             (std::vector<DxuiPopupMenuItem> & items, std::function<void()> showMore);
+    std::vector<DxuiPopupMenuItem>  GetPrimaryItems        (std::vector<std::shared_ptr<const DxuiCommand>> commands) const;
+    Win32ContextMenuLayout          ReadLayout             () const;
+    void                            AddFileActions         (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths);
+    void                            AddSendToMenu          (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths);
+    void                            AddPackagedEntry       (std::vector<DxuiPopupMenuItem> & items, const Win32ExplorerCommandEntries::Entry & entry, const std::vector<std::wstring> & paths);
+    bool                            AddWindowsCommands     (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32ExplorerCommandEntries::ItemKind kind);
+    void                            SetCommandItemIds      (std::vector<std::wstring> ids) { m_packagedCommands.SetItemIds (ids); m_windowsCommands.SetItemIds (std::move (ids)); }
     void                            AddShellMenuCommands   (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths);
     static const wchar_t *          GetShellVerbSvgName    (const std::string & verb);
-    bool                            GetSelectionKind       (std::vector<std::wstring> & outPaths, Win32PackagedCommands::ItemKind & outKind) const;
+    bool                            GetSelectionKind       (std::vector<std::wstring> & outPaths, Win32ExplorerCommandEntries::ItemKind & outKind) const;
     void                            ShowListHeaderMenu     (int x, int y, int column);
     void                            ShowListContextMenu    (int x, int y, int group = -1);
     void  AddMenuCommand         (std::vector<DxuiPopupMenuItem> & items, const wchar_t * label, std::function<void()> dispatch, const wchar_t * accelerator = L"", const wchar_t * menuGlyph = nullptr);
     void                                    AddOpenWithMenu        (std::vector<DxuiPopupMenuItem> & items);
+    void                                    AddOpenOnMenu          (std::vector<DxuiPopupMenuItem> & items, std::function<std::wstring()> imagePath);
     static const wchar_t                  * GetVerbGlyph           (CassoExplorerActions::Verb verb);
     static int                              GetIconOrder           (CassoExplorerActions::Verb verb);
     void                                    ShowViewOnButton       ();
@@ -126,13 +137,21 @@ public:
     void                                    ApplyMenuSvgs          ();
     const std::string                     * GetMenuSvg             (const wchar_t * name);
     std::shared_ptr<const DxuiIconImage>    GetOpenMenuImage       (bool browsable, const std::wstring & path);
+    std::shared_ptr<const DxuiIconImage>    GetVerbMenuImage       (CassoExplorerActions::Verb verb);
     std::shared_ptr<const DxuiIconImage>    GetStockMenuImage      (SHSTOCKICONID id);
     std::shared_ptr<const DxuiIconImage>    GetIconFileMenuImage   (const std::wstring & file, int index);
+    std::shared_ptr<const DxuiIconImage>    GetFileMenuImage       (const std::wstring & path);
 
 private:
+    std::vector<DxuiPopupMenuItem>  TakePropertiesItems    (std::vector<DxuiPopupMenuItem> & items);
+
     ExplorerContext  & m_context;
     std::vector<std::shared_ptr<DxuiCommand>>  m_menuCommands;
     Win32PackagedCommands                      m_packagedCommands;
+    Win32ShellMenuHandlers                     m_shellMenuHandlers;
+    Win32RegistryReader                        m_registryReader;
+    Win32WindowsCommands                       m_windowsCommands { m_registryReader };
+    bool                                       m_commandsStarted = false;    // the Context menu page is read from the registry once started
     std::map<std::wstring, std::unique_ptr<std::string>>  m_menuSvgs;
     std::map<std::wstring, std::shared_ptr<const DxuiIconImage>>  m_openMenuImages;
 };

@@ -49,6 +49,7 @@
 #include "CassoExplorer/Browser/BrowserRowPaths.h"
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
+#include "Machines/Apple2/Common/DiskImageConverter.h"
 
 
 
@@ -94,6 +95,34 @@ void ExplorerImageTools::CompareSelectedDiskImages()
 
         m_context.app.host->CompareDiskImages (m_context.window.GetHwnd(), paths[a], paths[1 - a], *m_context.theme);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerImageTools::CompareToPick
+//
+//  The image picked by Select for compare is A and this one is B. Once the
+//  comparison opens, the pick is cleared.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerImageTools::CompareToPick (const std::wstring & image)
+{
+    std::wstring  pick = m_context.actions.GetComparePick();
+
+
+
+    if (m_context.app.host == nullptr || m_context.theme == nullptr || !m_context.actions.CanCompareToPick (image))
+    {
+        return;
+    }
+
+    m_context.app.host->CompareDiskImages (m_context.window.GetHwnd(), pick, image, *m_context.theme);
+    m_context.actions.ClearComparePick();
 }
 
 
@@ -163,6 +192,45 @@ void ExplorerImageTools::MakeArchive (bool shrinkItDisk)
     outcome = shrinkItDisk ? m_context.actions.MakeShrinkItDisk (hostPaths[0], created) : m_context.actions.MakeArchive (hostPaths, created);
 
     m_context.verbs.ReportOutcome (outcome, shrinkItDisk ? L"Make a ShrinkIt disk" : L"Add to ShrinkIt archive");
+    m_context.folderSync.RefreshAfterHostChange();
+
+    if (!created.empty())
+    {
+        m_context.listPane.SelectRowNamed (std::filesystem::path (created).filename().wstring());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerImageTools::ConvertImage
+//
+//  The new image is selected once the folder is listed again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerImageTools::ConvertImage (ActionsTypes::Verb verb)
+{
+    std::vector<std::wstring>      hostPaths;
+    std::wstring                   created;
+    CassoExplorerActions::Outcome  outcome;
+    DiskImageFormat                format = DiskImageFormat::Dsk;
+
+
+
+    m_context.browser.GetSelection().GetSelectedHostPaths (hostPaths);
+
+    if (hostPaths.size() != 1 || !ActionsArchive::TryGetConvertFormat (verb, format))
+    {
+        return;
+    }
+
+    outcome = m_context.actions.ConvertImage (hostPaths[0], format, created);
+
+    m_context.verbs.ReportOutcome (outcome, L"Convert");
     m_context.folderSync.RefreshAfterHostChange();
 
     if (!created.empty())
@@ -424,7 +492,7 @@ void ExplorerImageTools::ChooseFilesystem (VolumeKind kind)
 {
     if (m_context.browser.IsAppleDriveLocation())
     {
-        m_context.actions.ChooseDriveFilesystem (kind);
+        m_context.actions.GetAppleDrive().ChooseDriveFilesystem (kind);
     }
     else
     {

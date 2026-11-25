@@ -340,7 +340,7 @@ void FileMapWriter::Finalize()
 
     if (m_map.usesUnchecked)
     {
-        AddFinding (FindingKind::FileMapUnchecked, -1, std::format (L"{} sectors of the file map were read with checksum checks turned off in Decode settings", CountUnchecked()));
+        AddFinding (FindingKind::FileMapUnchecked, -1, std::format (L"The file map has {} sectors that were read with checksum checks turned off in Decode settings", CountUnchecked()));
     }
 }
 
@@ -566,7 +566,7 @@ void FileMapWriter::CheckAlmostBlank()
 
     if (fileCells > 0 && blank * kPercent >= kBlankPercent * sectors && blankCells * kPercent >= kBlankFilePercent * fileCells)
     {
-        AddFinding (FindingKind::ImageAlmostBlank, -1, std::format (L"{} of the disk's {} sectors are filled with one repeated byte", blank, sectors));
+        AddFinding (FindingKind::ImageAlmostBlank, -1, std::format (L"Of the disk's {} sectors, {} are filled with one repeated byte", sectors, blank));
     }
 }
 
@@ -637,6 +637,10 @@ bool FileMapWriter::IsOneByte (const vector<Byte> & bytes, size_t count)
 //
 //  FileMapWriter::DescribeCell
 //
+//  A sector by the number in its address field, as the inspector's sector
+//  buttons and the findings' Sector column have it, not the file system's
+//  own numbering.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring FileMapWriter::DescribeCell (int cell) const
@@ -655,8 +659,7 @@ std::wstring FileMapWriter::DescribeCell (int cell) const
     }
     else
     {
-        text = std::format (L"track {}, {}sector {}", m_map.GetTrack (cell), m_map.fileSystem == MapFileSystem::Cpm ? L"CP/M " : L"",
-                            InspectorFormat::FormatSector (m_map.GetColumn (cell)));
+        text = std::format (L"track {}, sector {}", m_map.GetTrack (cell), InspectorFormat::FormatSector (GetPhysical (cell)));
     }
 
     return text;

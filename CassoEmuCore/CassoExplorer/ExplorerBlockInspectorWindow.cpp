@@ -65,6 +65,11 @@ HRESULT ExplorerBlockInspectorWindow::Create (HINSTANCE hInstance, HWND anchor, 
         }
     });
 
+    if (host != nullptr && host->CanTransferRaw())
+    {
+        m_window->SetOnTransferRaw ([host] (const InspectorRawTransfer & transfer) { host->TransferRaw (transfer); });
+    }
+
     hr = m_window->Open (hInstance, anchor, theme, m_fileIo, m_path, error);
 
     if (FAILED (hr))
@@ -261,4 +266,19 @@ HWND ExplorerBlockInspectorWindow::GetHwnd() const
 void ExplorerBlockInspectorWindow::CompareWith (const std::wstring & pathB)
 {
     m_window->GetFileSession().CompareWithFile (pathB);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBlockInspectorWindow::Close
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerBlockInspectorWindow::Close()
+{
+    m_window->CloseWindow();
 }

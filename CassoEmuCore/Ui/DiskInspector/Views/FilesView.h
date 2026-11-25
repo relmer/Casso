@@ -56,6 +56,9 @@ public:
     const DxuiButton & GetCopyButton    () const { return *m_mapCopy; }
     const DxuiButton & GetFilePicker    () const { return *m_filePicker; }
 
+    //  Read as CP/M or Detect file system, whichever is offered.
+    void  ChooseFilesystem ();
+
 private:
     void  OpenFilePicker     (bool isOpen);
     void  MeasureLabels      (IDxuiTextRenderer & text);

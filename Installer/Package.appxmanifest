@@ -79,85 +79,261 @@
                      type for one application only, so Casso Explorer is
                      reached by the second command, which Casso passes on. -->
                 <uap3:Extension Category="windows.fileTypeAssociation">
-                    <uap3:FileTypeAssociation Name="appleiidskimage" Parameters="--disk1 &quot;%1&quot;">
+                    <uap3:FileTypeAssociation Name="appleiidskimage" Parameters="--launch &quot;%1&quot;">
                         <uap:DisplayName>Apple II disk image</uap:DisplayName>
                         <uap:Logo>Assets\DiskImageLogo.png</uap:Logo>
                         <uap:SupportedFileTypes>
                             <uap:FileType>.dsk</uap:FileType>
                         </uap:SupportedFileTypes>
                         <uap2:SupportedVerbs>
-                            <uap3:Verb Id="open" Parameters="--disk1 &quot;%1&quot;">Open</uap3:Verb>
+                            <uap3:Verb Id="open" Parameters="--launch &quot;%1&quot;">Open</uap3:Verb>
                             <uap3:Verb Id="explore" Parameters="--explore &quot;%1&quot;">Open in Casso Explorer</uap3:Verb>
+                            <uap3:Verb Id="openonapple2" Parameters="--launch &quot;%1&quot; --machine Apple2">Casso: Apple ][</uap3:Verb>
+                            <uap3:Verb Id="openonapple2plus" Parameters="--launch &quot;%1&quot; --machine Apple2Plus">Casso: Apple ][+</uap3:Verb>
+                            <uap3:Verb Id="openonapple2e" Parameters="--launch &quot;%1&quot; --machine Apple2e">Casso: Apple //e</uap3:Verb>
+                            <uap3:Verb Id="openonapple2eenhanced" Parameters="--launch &quot;%1&quot; --machine Apple2eEnhanced">Casso: Apple //e Enhanced</uap3:Verb>
+                            <uap3:Verb Id="openonapple2c" Parameters="--launch &quot;%1&quot; --machine Apple2c">Casso: Apple //c</uap3:Verb>
+                            <uap3:Verb Id="openonapple2cplus" Parameters="--launch &quot;%1&quot; --machine Apple2cPlus">Casso: Apple //c Plus</uap3:Verb>
                         </uap2:SupportedVerbs>
                     </uap3:FileTypeAssociation>
                 </uap3:Extension>
 
                 <uap3:Extension Category="windows.fileTypeAssociation">
-                    <uap3:FileTypeAssociation Name="appleiidoimage" Parameters="--disk1 &quot;%1&quot;">
+                    <uap3:FileTypeAssociation Name="appleiidoimage" Parameters="--launch &quot;%1&quot;">
                         <uap:DisplayName>DOS-order disk image</uap:DisplayName>
                         <uap:Logo>Assets\DiskImageLogo.png</uap:Logo>
                         <uap:SupportedFileTypes>
                             <uap:FileType>.do</uap:FileType>
                         </uap:SupportedFileTypes>
                         <uap2:SupportedVerbs>
-                            <uap3:Verb Id="open" Parameters="--disk1 &quot;%1&quot;">Open</uap3:Verb>
+                            <uap3:Verb Id="open" Parameters="--launch &quot;%1&quot;">Open</uap3:Verb>
                             <uap3:Verb Id="explore" Parameters="--explore &quot;%1&quot;">Open in Casso Explorer</uap3:Verb>
+                            <uap3:Verb Id="openonapple2" Parameters="--launch &quot;%1&quot; --machine Apple2">Casso: Apple ][</uap3:Verb>
+                            <uap3:Verb Id="openonapple2plus" Parameters="--launch &quot;%1&quot; --machine Apple2Plus">Casso: Apple ][+</uap3:Verb>
+                            <uap3:Verb Id="openonapple2e" Parameters="--launch &quot;%1&quot; --machine Apple2e">Casso: Apple //e</uap3:Verb>
+                            <uap3:Verb Id="openonapple2eenhanced" Parameters="--launch &quot;%1&quot; --machine Apple2eEnhanced">Casso: Apple //e Enhanced</uap3:Verb>
+                            <uap3:Verb Id="openonapple2c" Parameters="--launch &quot;%1&quot; --machine Apple2c">Casso: Apple //c</uap3:Verb>
+                            <uap3:Verb Id="openonapple2cplus" Parameters="--launch &quot;%1&quot; --machine Apple2cPlus">Casso: Apple //c Plus</uap3:Verb>
                         </uap2:SupportedVerbs>
                     </uap3:FileTypeAssociation>
                 </uap3:Extension>
 
                 <uap3:Extension Category="windows.fileTypeAssociation">
-                    <uap3:FileTypeAssociation Name="appleiipoimage" Parameters="--disk1 &quot;%1&quot;">
+                    <uap3:FileTypeAssociation Name="appleiipoimage" Parameters="--launch &quot;%1&quot;">
                         <uap:DisplayName>ProDOS-order disk image</uap:DisplayName>
                         <uap:Logo>Assets\DiskImageLogo.png</uap:Logo>
                         <uap:SupportedFileTypes>
                             <uap:FileType>.po</uap:FileType>
                         </uap:SupportedFileTypes>
                         <uap2:SupportedVerbs>
-                            <uap3:Verb Id="open" Parameters="--disk1 &quot;%1&quot;">Open</uap3:Verb>
+                            <uap3:Verb Id="open" Parameters="--launch &quot;%1&quot;">Open</uap3:Verb>
                             <uap3:Verb Id="explore" Parameters="--explore &quot;%1&quot;">Open in Casso Explorer</uap3:Verb>
+                            <uap3:Verb Id="openonapple2" Parameters="--launch &quot;%1&quot; --machine Apple2">Casso: Apple ][</uap3:Verb>
+                            <uap3:Verb Id="openonapple2plus" Parameters="--launch &quot;%1&quot; --machine Apple2Plus">Casso: Apple ][+</uap3:Verb>
+                            <uap3:Verb Id="openonapple2e" Parameters="--launch &quot;%1&quot; --machine Apple2e">Casso: Apple //e</uap3:Verb>
+                            <uap3:Verb Id="openonapple2eenhanced" Parameters="--launch &quot;%1&quot; --machine Apple2eEnhanced">Casso: Apple //e Enhanced</uap3:Verb>
+                            <uap3:Verb Id="openonapple2c" Parameters="--launch &quot;%1&quot; --machine Apple2c">Casso: Apple //c</uap3:Verb>
+                            <uap3:Verb Id="openonapple2cplus" Parameters="--launch &quot;%1&quot; --machine Apple2cPlus">Casso: Apple //c Plus</uap3:Verb>
                         </uap2:SupportedVerbs>
                     </uap3:FileTypeAssociation>
                 </uap3:Extension>
 
                 <uap3:Extension Category="windows.fileTypeAssociation">
-                    <uap3:FileTypeAssociation Name="appleiiwozimage" Parameters="--disk1 &quot;%1&quot;">
+                    <uap3:FileTypeAssociation Name="appleiiwozimage" Parameters="--launch &quot;%1&quot;">
                         <uap:DisplayName>WOZ disk image</uap:DisplayName>
                         <uap:Logo>Assets\DiskImageLogo.png</uap:Logo>
                         <uap:SupportedFileTypes>
                             <uap:FileType>.woz</uap:FileType>
                         </uap:SupportedFileTypes>
                         <uap2:SupportedVerbs>
-                            <uap3:Verb Id="open" Parameters="--disk1 &quot;%1&quot;">Open</uap3:Verb>
+                            <uap3:Verb Id="open" Parameters="--launch &quot;%1&quot;">Open</uap3:Verb>
                             <uap3:Verb Id="explore" Parameters="--explore &quot;%1&quot;">Open in Casso Explorer</uap3:Verb>
+                            <uap3:Verb Id="openonapple2" Parameters="--launch &quot;%1&quot; --machine Apple2">Casso: Apple ][</uap3:Verb>
+                            <uap3:Verb Id="openonapple2plus" Parameters="--launch &quot;%1&quot; --machine Apple2Plus">Casso: Apple ][+</uap3:Verb>
+                            <uap3:Verb Id="openonapple2e" Parameters="--launch &quot;%1&quot; --machine Apple2e">Casso: Apple //e</uap3:Verb>
+                            <uap3:Verb Id="openonapple2eenhanced" Parameters="--launch &quot;%1&quot; --machine Apple2eEnhanced">Casso: Apple //e Enhanced</uap3:Verb>
+                            <uap3:Verb Id="openonapple2c" Parameters="--launch &quot;%1&quot; --machine Apple2c">Casso: Apple //c</uap3:Verb>
+                            <uap3:Verb Id="openonapple2cplus" Parameters="--launch &quot;%1&quot; --machine Apple2cPlus">Casso: Apple //c Plus</uap3:Verb>
                         </uap2:SupportedVerbs>
                     </uap3:FileTypeAssociation>
                 </uap3:Extension>
 
                 <uap3:Extension Category="windows.fileTypeAssociation">
-                    <uap3:FileTypeAssociation Name="appleiinibimage" Parameters="--disk1 &quot;%1&quot;">
+                    <uap3:FileTypeAssociation Name="appleiinibimage" Parameters="--launch &quot;%1&quot;">
                         <uap:DisplayName>Nibble disk image</uap:DisplayName>
                         <uap:Logo>Assets\DiskImageLogo.png</uap:Logo>
                         <uap:SupportedFileTypes>
                             <uap:FileType>.nib</uap:FileType>
                         </uap:SupportedFileTypes>
                         <uap2:SupportedVerbs>
-                            <uap3:Verb Id="open" Parameters="--disk1 &quot;%1&quot;">Open</uap3:Verb>
+                            <uap3:Verb Id="open" Parameters="--launch &quot;%1&quot;">Open</uap3:Verb>
                             <uap3:Verb Id="explore" Parameters="--explore &quot;%1&quot;">Open in Casso Explorer</uap3:Verb>
+                            <uap3:Verb Id="openonapple2" Parameters="--launch &quot;%1&quot; --machine Apple2">Casso: Apple ][</uap3:Verb>
+                            <uap3:Verb Id="openonapple2plus" Parameters="--launch &quot;%1&quot; --machine Apple2Plus">Casso: Apple ][+</uap3:Verb>
+                            <uap3:Verb Id="openonapple2e" Parameters="--launch &quot;%1&quot; --machine Apple2e">Casso: Apple //e</uap3:Verb>
+                            <uap3:Verb Id="openonapple2eenhanced" Parameters="--launch &quot;%1&quot; --machine Apple2eEnhanced">Casso: Apple //e Enhanced</uap3:Verb>
+                            <uap3:Verb Id="openonapple2c" Parameters="--launch &quot;%1&quot; --machine Apple2c">Casso: Apple //c</uap3:Verb>
+                            <uap3:Verb Id="openonapple2cplus" Parameters="--launch &quot;%1&quot; --machine Apple2cPlus">Casso: Apple //c Plus</uap3:Verb>
                         </uap2:SupportedVerbs>
                     </uap3:FileTypeAssociation>
                 </uap3:Extension>
 
                 <uap3:Extension Category="windows.fileTypeAssociation">
-                    <uap3:FileTypeAssociation Name="appleiinb2image" Parameters="--disk1 &quot;%1&quot;">
+                    <uap3:FileTypeAssociation Name="appleiinb2image" Parameters="--launch &quot;%1&quot;">
                         <uap:DisplayName>NB2 nibble disk image</uap:DisplayName>
                         <uap:Logo>Assets\DiskImageLogo.png</uap:Logo>
                         <uap:SupportedFileTypes>
                             <uap:FileType>.nb2</uap:FileType>
                         </uap:SupportedFileTypes>
                         <uap2:SupportedVerbs>
-                            <uap3:Verb Id="open" Parameters="--disk1 &quot;%1&quot;">Open</uap3:Verb>
+                            <uap3:Verb Id="open" Parameters="--launch &quot;%1&quot;">Open</uap3:Verb>
                             <uap3:Verb Id="explore" Parameters="--explore &quot;%1&quot;">Open in Casso Explorer</uap3:Verb>
+                            <uap3:Verb Id="openonapple2" Parameters="--launch &quot;%1&quot; --machine Apple2">Casso: Apple ][</uap3:Verb>
+                            <uap3:Verb Id="openonapple2plus" Parameters="--launch &quot;%1&quot; --machine Apple2Plus">Casso: Apple ][+</uap3:Verb>
+                            <uap3:Verb Id="openonapple2e" Parameters="--launch &quot;%1&quot; --machine Apple2e">Casso: Apple //e</uap3:Verb>
+                            <uap3:Verb Id="openonapple2eenhanced" Parameters="--launch &quot;%1&quot; --machine Apple2eEnhanced">Casso: Apple //e Enhanced</uap3:Verb>
+                            <uap3:Verb Id="openonapple2c" Parameters="--launch &quot;%1&quot; --machine Apple2c">Casso: Apple //c</uap3:Verb>
+                            <uap3:Verb Id="openonapple2cplus" Parameters="--launch &quot;%1&quot; --machine Apple2cPlus">Casso: Apple //c Plus</uap3:Verb>
+                        </uap2:SupportedVerbs>
+                    </uap3:FileTypeAssociation>
+                </uap3:Extension>
+
+                <uap3:Extension Category="windows.fileTypeAssociation">
+                    <uap3:FileTypeAssociation Name="appleiid13image" Parameters="--launch &quot;%1&quot;">
+                        <uap:DisplayName>13-sector disk image</uap:DisplayName>
+                        <uap:Logo>Assets\DiskImageLogo.png</uap:Logo>
+                        <uap:SupportedFileTypes>
+                            <uap:FileType>.d13</uap:FileType>
+                        </uap:SupportedFileTypes>
+                        <uap2:SupportedVerbs>
+                            <uap3:Verb Id="open" Parameters="--launch &quot;%1&quot;">Open</uap3:Verb>
+                            <uap3:Verb Id="explore" Parameters="--explore &quot;%1&quot;">Open in Casso Explorer</uap3:Verb>
+                            <uap3:Verb Id="openonapple2" Parameters="--launch &quot;%1&quot; --machine Apple2">Casso: Apple ][</uap3:Verb>
+                            <uap3:Verb Id="openonapple2plus" Parameters="--launch &quot;%1&quot; --machine Apple2Plus">Casso: Apple ][+</uap3:Verb>
+                            <uap3:Verb Id="openonapple2e" Parameters="--launch &quot;%1&quot; --machine Apple2e">Casso: Apple //e</uap3:Verb>
+                            <uap3:Verb Id="openonapple2eenhanced" Parameters="--launch &quot;%1&quot; --machine Apple2eEnhanced">Casso: Apple //e Enhanced</uap3:Verb>
+                            <uap3:Verb Id="openonapple2c" Parameters="--launch &quot;%1&quot; --machine Apple2c">Casso: Apple //c</uap3:Verb>
+                            <uap3:Verb Id="openonapple2cplus" Parameters="--launch &quot;%1&quot; --machine Apple2cPlus">Casso: Apple //c Plus</uap3:Verb>
+                        </uap2:SupportedVerbs>
+                    </uap3:FileTypeAssociation>
+                </uap3:Extension>
+
+                <uap3:Extension Category="windows.fileTypeAssociation">
+                    <uap3:FileTypeAssociation Name="appleii2mgimage" Parameters="--launch &quot;%1&quot;">
+                        <uap:DisplayName>2IMG disk image</uap:DisplayName>
+                        <uap:Logo>Assets\DiskImageLogo.png</uap:Logo>
+                        <uap:SupportedFileTypes>
+                            <uap:FileType>.2mg</uap:FileType>
+                        </uap:SupportedFileTypes>
+                        <uap2:SupportedVerbs>
+                            <uap3:Verb Id="open" Parameters="--launch &quot;%1&quot;">Open</uap3:Verb>
+                            <uap3:Verb Id="explore" Parameters="--explore &quot;%1&quot;">Open in Casso Explorer</uap3:Verb>
+                            <uap3:Verb Id="openonapple2" Parameters="--launch &quot;%1&quot; --machine Apple2">Casso: Apple ][</uap3:Verb>
+                            <uap3:Verb Id="openonapple2plus" Parameters="--launch &quot;%1&quot; --machine Apple2Plus">Casso: Apple ][+</uap3:Verb>
+                            <uap3:Verb Id="openonapple2e" Parameters="--launch &quot;%1&quot; --machine Apple2e">Casso: Apple //e</uap3:Verb>
+                            <uap3:Verb Id="openonapple2eenhanced" Parameters="--launch &quot;%1&quot; --machine Apple2eEnhanced">Casso: Apple //e Enhanced</uap3:Verb>
+                            <uap3:Verb Id="openonapple2c" Parameters="--launch &quot;%1&quot; --machine Apple2c">Casso: Apple //c</uap3:Verb>
+                            <uap3:Verb Id="openonapple2cplus" Parameters="--launch &quot;%1&quot; --machine Apple2cPlus">Casso: Apple //c Plus</uap3:Verb>
+                        </uap2:SupportedVerbs>
+                    </uap3:FileTypeAssociation>
+                </uap3:Extension>
+
+                <uap3:Extension Category="windows.fileTypeAssociation">
+                    <uap3:FileTypeAssociation Name="appleii2imgimage" Parameters="--launch &quot;%1&quot;">
+                        <uap:DisplayName>2IMG disk image</uap:DisplayName>
+                        <uap:Logo>Assets\DiskImageLogo.png</uap:Logo>
+                        <uap:SupportedFileTypes>
+                            <uap:FileType>.2img</uap:FileType>
+                        </uap:SupportedFileTypes>
+                        <uap2:SupportedVerbs>
+                            <uap3:Verb Id="open" Parameters="--launch &quot;%1&quot;">Open</uap3:Verb>
+                            <uap3:Verb Id="explore" Parameters="--explore &quot;%1&quot;">Open in Casso Explorer</uap3:Verb>
+                            <uap3:Verb Id="openonapple2" Parameters="--launch &quot;%1&quot; --machine Apple2">Casso: Apple ][</uap3:Verb>
+                            <uap3:Verb Id="openonapple2plus" Parameters="--launch &quot;%1&quot; --machine Apple2Plus">Casso: Apple ][+</uap3:Verb>
+                            <uap3:Verb Id="openonapple2e" Parameters="--launch &quot;%1&quot; --machine Apple2e">Casso: Apple //e</uap3:Verb>
+                            <uap3:Verb Id="openonapple2eenhanced" Parameters="--launch &quot;%1&quot; --machine Apple2eEnhanced">Casso: Apple //e Enhanced</uap3:Verb>
+                            <uap3:Verb Id="openonapple2c" Parameters="--launch &quot;%1&quot; --machine Apple2c">Casso: Apple //c</uap3:Verb>
+                            <uap3:Verb Id="openonapple2cplus" Parameters="--launch &quot;%1&quot; --machine Apple2cPlus">Casso: Apple //c Plus</uap3:Verb>
+                        </uap2:SupportedVerbs>
+                    </uap3:FileTypeAssociation>
+                </uap3:Extension>
+
+                <uap3:Extension Category="windows.fileTypeAssociation">
+                    <uap3:FileTypeAssociation Name="appleiihdvimage" Parameters="--launch &quot;%1&quot;">
+                        <uap:DisplayName>ProDOS hard disk image</uap:DisplayName>
+                        <uap:Logo>Assets\DiskImageLogo.png</uap:Logo>
+                        <uap:SupportedFileTypes>
+                            <uap:FileType>.hdv</uap:FileType>
+                        </uap:SupportedFileTypes>
+                        <uap2:SupportedVerbs>
+                            <uap3:Verb Id="open" Parameters="--launch &quot;%1&quot;">Open</uap3:Verb>
+                            <uap3:Verb Id="explore" Parameters="--explore &quot;%1&quot;">Open in Casso Explorer</uap3:Verb>
+                            <uap3:Verb Id="openonapple2" Parameters="--launch &quot;%1&quot; --machine Apple2">Casso: Apple ][</uap3:Verb>
+                            <uap3:Verb Id="openonapple2plus" Parameters="--launch &quot;%1&quot; --machine Apple2Plus">Casso: Apple ][+</uap3:Verb>
+                            <uap3:Verb Id="openonapple2e" Parameters="--launch &quot;%1&quot; --machine Apple2e">Casso: Apple //e</uap3:Verb>
+                            <uap3:Verb Id="openonapple2eenhanced" Parameters="--launch &quot;%1&quot; --machine Apple2eEnhanced">Casso: Apple //e Enhanced</uap3:Verb>
+                            <uap3:Verb Id="openonapple2c" Parameters="--launch &quot;%1&quot; --machine Apple2c">Casso: Apple //c</uap3:Verb>
+                            <uap3:Verb Id="openonapple2cplus" Parameters="--launch &quot;%1&quot; --machine Apple2cPlus">Casso: Apple //c Plus</uap3:Verb>
+                        </uap2:SupportedVerbs>
+                    </uap3:FileTypeAssociation>
+                </uap3:Extension>
+
+                <uap3:Extension Category="windows.fileTypeAssociation">
+                    <uap3:FileTypeAssociation Name="appleiidcimage" Parameters="--launch &quot;%1&quot;">
+                        <uap:DisplayName>Disk Copy 4.2 disk image</uap:DisplayName>
+                        <uap:Logo>Assets\DiskImageLogo.png</uap:Logo>
+                        <uap:SupportedFileTypes>
+                            <uap:FileType>.dc</uap:FileType>
+                        </uap:SupportedFileTypes>
+                        <uap2:SupportedVerbs>
+                            <uap3:Verb Id="open" Parameters="--launch &quot;%1&quot;">Open</uap3:Verb>
+                            <uap3:Verb Id="explore" Parameters="--explore &quot;%1&quot;">Open in Casso Explorer</uap3:Verb>
+                            <uap3:Verb Id="openonapple2" Parameters="--launch &quot;%1&quot; --machine Apple2">Casso: Apple ][</uap3:Verb>
+                            <uap3:Verb Id="openonapple2plus" Parameters="--launch &quot;%1&quot; --machine Apple2Plus">Casso: Apple ][+</uap3:Verb>
+                            <uap3:Verb Id="openonapple2e" Parameters="--launch &quot;%1&quot; --machine Apple2e">Casso: Apple //e</uap3:Verb>
+                            <uap3:Verb Id="openonapple2eenhanced" Parameters="--launch &quot;%1&quot; --machine Apple2eEnhanced">Casso: Apple //e Enhanced</uap3:Verb>
+                            <uap3:Verb Id="openonapple2c" Parameters="--launch &quot;%1&quot; --machine Apple2c">Casso: Apple //c</uap3:Verb>
+                            <uap3:Verb Id="openonapple2cplus" Parameters="--launch &quot;%1&quot; --machine Apple2cPlus">Casso: Apple //c Plus</uap3:Verb>
+                        </uap2:SupportedVerbs>
+                    </uap3:FileTypeAssociation>
+                </uap3:Extension>
+
+                <uap3:Extension Category="windows.fileTypeAssociation">
+                    <uap3:FileTypeAssociation Name="appleiidc42image" Parameters="--launch &quot;%1&quot;">
+                        <uap:DisplayName>Disk Copy 4.2 disk image</uap:DisplayName>
+                        <uap:Logo>Assets\DiskImageLogo.png</uap:Logo>
+                        <uap:SupportedFileTypes>
+                            <uap:FileType>.dc42</uap:FileType>
+                        </uap:SupportedFileTypes>
+                        <uap2:SupportedVerbs>
+                            <uap3:Verb Id="open" Parameters="--launch &quot;%1&quot;">Open</uap3:Verb>
+                            <uap3:Verb Id="explore" Parameters="--explore &quot;%1&quot;">Open in Casso Explorer</uap3:Verb>
+                            <uap3:Verb Id="openonapple2" Parameters="--launch &quot;%1&quot; --machine Apple2">Casso: Apple ][</uap3:Verb>
+                            <uap3:Verb Id="openonapple2plus" Parameters="--launch &quot;%1&quot; --machine Apple2Plus">Casso: Apple ][+</uap3:Verb>
+                            <uap3:Verb Id="openonapple2e" Parameters="--launch &quot;%1&quot; --machine Apple2e">Casso: Apple //e</uap3:Verb>
+                            <uap3:Verb Id="openonapple2eenhanced" Parameters="--launch &quot;%1&quot; --machine Apple2eEnhanced">Casso: Apple //e Enhanced</uap3:Verb>
+                            <uap3:Verb Id="openonapple2c" Parameters="--launch &quot;%1&quot; --machine Apple2c">Casso: Apple //c</uap3:Verb>
+                            <uap3:Verb Id="openonapple2cplus" Parameters="--launch &quot;%1&quot; --machine Apple2cPlus">Casso: Apple //c Plus</uap3:Verb>
+                        </uap2:SupportedVerbs>
+                    </uap3:FileTypeAssociation>
+                </uap3:Extension>
+
+                <uap3:Extension Category="windows.fileTypeAssociation">
+                    <uap3:FileTypeAssociation Name="appleiiimageimage" Parameters="--launch &quot;%1&quot;">
+                        <uap:DisplayName>Disk Copy 4.2 disk image</uap:DisplayName>
+                        <uap:Logo>Assets\DiskImageLogo.png</uap:Logo>
+                        <uap:SupportedFileTypes>
+                            <uap:FileType>.image</uap:FileType>
+                        </uap:SupportedFileTypes>
+                        <uap2:SupportedVerbs>
+                            <uap3:Verb Id="open" Parameters="--launch &quot;%1&quot;">Open</uap3:Verb>
+                            <uap3:Verb Id="explore" Parameters="--explore &quot;%1&quot;">Open in Casso Explorer</uap3:Verb>
+                            <uap3:Verb Id="openonapple2" Parameters="--launch &quot;%1&quot; --machine Apple2">Casso: Apple ][</uap3:Verb>
+                            <uap3:Verb Id="openonapple2plus" Parameters="--launch &quot;%1&quot; --machine Apple2Plus">Casso: Apple ][+</uap3:Verb>
+                            <uap3:Verb Id="openonapple2e" Parameters="--launch &quot;%1&quot; --machine Apple2e">Casso: Apple //e</uap3:Verb>
+                            <uap3:Verb Id="openonapple2eenhanced" Parameters="--launch &quot;%1&quot; --machine Apple2eEnhanced">Casso: Apple //e Enhanced</uap3:Verb>
+                            <uap3:Verb Id="openonapple2c" Parameters="--launch &quot;%1&quot; --machine Apple2c">Casso: Apple //c</uap3:Verb>
+                            <uap3:Verb Id="openonapple2cplus" Parameters="--launch &quot;%1&quot; --machine Apple2cPlus">Casso: Apple //c Plus</uap3:Verb>
                         </uap2:SupportedVerbs>
                     </uap3:FileTypeAssociation>
                 </uap3:Extension>

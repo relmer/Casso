@@ -92,8 +92,57 @@ void BlockInspectorPanel::Init (BlockInspectorModel * model, BlockInspectorWorke
     InitCorners();
     InitRightColumn (theme, hwnd);
 
+    m_notice = CreateChild<DxuiInfoBanner>();
+    m_notice->SetVisible  (false);
+    m_notice->SetOnAction ([this] (size_t)
+    {
+        if (m_onRepair)
+        {
+            m_onRepair();
+        }
+    });
+
     m_hexPane.GetHexView().SetOwnerWindow (hwnd);
     Refresh();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorPanel::SetNotice
+//
+//  The infobar over the list, laid out again when its text or its button
+//  changes. Empty text hides it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorPanel::SetNotice (const std::wstring & text, bool isBad, bool canRepair, ActionFn onRepair)
+{
+    bool  isChanged = text != m_notice->GetText() || m_notice->IsVisible() == text.empty() || (m_notice->GetActionCount() > 0) != canRepair;
+
+
+
+    m_onRepair = std::move (onRepair);
+
+    if (!isChanged)
+    {
+        return;
+    }
+
+    m_notice->SetText     (text);
+    m_notice->SetVisible  (!text.empty());
+    m_notice->SetSeverity (isBad ? DxuiInfoBanner::Severity::Error : DxuiInfoBanner::Severity::Warning);
+    m_notice->SetActions  (canRepair ? vector<std::wstring> { L"Repair..." } : vector<std::wstring>());
+
+    Layout (GetBounds(), m_scaler);
+
+    if (m_onChanged)
+    {
+        m_onChanged();
+    }
 }
 
 
@@ -1066,11 +1115,11 @@ void BlockInspectorPanel::LayoutGrid (const RECT & column, const DxuiDpiScaler &
 //
 //  BlockInspectorPanel::LayoutMiddle
 //
-//  The list at the top, then a splitter, then the current block: its title
-//  row with Copy block at its right end, the field line, the edit bar or
-//  a long job's progress row, then the hex view beside the fields, with a
-//  splitter between them. The hex view is as wide as its columns, and the
-//  fields list has the rest.
+//  The infobar and the list at the top, then a splitter, then the current
+//  block: its title row with Copy block at its right end, the field line,
+//  the edit bar or a long job's progress row, then the hex view beside the
+//  fields, with a splitter between them. The hex view is as wide as its
+//  columns, and the fields list has the rest.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1081,13 +1130,22 @@ void BlockInspectorPanel::LayoutMiddle (const RECT & column, const DxuiDpiScaler
     int  listEnd  = m_splitters.PlaceListEnd (column);
     int  y        = 0;
     int  hexEnd   = 0;
+    int  notice   = 0;
 
 
 
     m_laidOutLevel = (int) m_nav.GetPlace().kind;
 
+    //  The infobar over the list, while the volume is damaged.
+    if (m_notice != nullptr && m_notice->IsVisible())
+    {
+        notice = static_cast<int> (std::ceil (m_notice->GetPreferredHeightPx (static_cast<float> (column.right - column.left), scaler)));
+        m_notice->Layout ({ column.left, column.top, column.right, column.top + notice }, scaler);
+        notice += pad;
+    }
+
     m_nav.GetList().SetVisible (true);
-    m_nav.GetList().Layout ({ column.left, column.top, column.right, listEnd }, scaler);
+    m_nav.GetList().Layout ({ column.left, column.top + notice, column.right, std::max (listEnd, (int) column.top + notice) }, scaler);
 
     m_splitters.SetBarRect (BlockPanelSplitters::Bar::List, { column.left, listEnd + pad / 2, column.right, listEnd + pad / 2 + splitter });
 

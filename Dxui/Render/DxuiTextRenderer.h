@@ -217,6 +217,12 @@ public:
                                     float         & outWidthDip,
                                     float         & outHeightDip) override;
 
+    HRESULT  GetLineMetrics (float           fontSizeDip,
+                             const wchar_t * fontFamily,
+                             DxuiFontWeight  weight,
+                             float         & outHeightDip,
+                             float         & outBaselineDip) override;
+
     HRESULT  MeasureStringWrapped (const wchar_t * text,
                                    float           fontSizeDip,
                                    const wchar_t * fontFamily,

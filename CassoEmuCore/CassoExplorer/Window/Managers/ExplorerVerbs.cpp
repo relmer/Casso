@@ -369,6 +369,14 @@ void ExplorerVerbs::RunVerb (CassoExplorerActions::Verb verb)
             m_context.imageTools.CompareSelectedDiskImages();
             break;
 
+        case CassoExplorerActions::Verb::SelectForCompare:
+            m_context.actions.SetComparePick (m_context.cassoTarget.GetSelectedImagePath());
+            break;
+
+        case CassoExplorerActions::Verb::CompareToPick:
+            m_context.imageTools.CompareToPick (m_context.cassoTarget.GetSelectedImagePath());
+            break;
+
         case CassoExplorerActions::Verb::Paste:
             if (m_context.dragDrop.TryGetPasteDrive (pasteDrive))
             {
@@ -515,6 +523,16 @@ void ExplorerVerbs::RunVerb (CassoExplorerActions::Verb verb)
             m_context.imageTools.MakeArchive (verb == CassoExplorerActions::Verb::MakeShrinkItDisk);
             break;
 
+        case CassoExplorerActions::Verb::ConvertToDsk:
+        case CassoExplorerActions::Verb::ConvertToPo:
+        case CassoExplorerActions::Verb::ConvertToTwoImg:
+        case CassoExplorerActions::Verb::ConvertToHdv:
+        case CassoExplorerActions::Verb::ConvertToWoz:
+        case CassoExplorerActions::Verb::ConvertToNib:
+        case CassoExplorerActions::Verb::ConvertToNb2:
+            m_context.imageTools.ConvertImage (verb);
+            break;
+
         case CassoExplorerActions::Verb::Test:
             m_context.imageTools.TestImage();
             break;
@@ -611,19 +629,26 @@ std::wstring ExplorerVerbs::GetVerbTitle (CassoExplorerActions::Verb verb)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerVerbs::RunRawVerb
+//  ExplorerVerbs::RunRawTransfer
 //
-//  A read asks where the bytes start and how many, then where to save them;
-//  a write asks for the file, then where it goes, then confirms, since it
-//  overwrites whatever is there with no file system to stop it.
+//  A save asks where the bytes start and how many, then where to save them;
+//  an overwrite asks for the file, then where it goes, then confirms, since
+//  it overwrites whatever is there with no file system to stop it. The
+//  dialogs open over `owner`, the inspector window the command came from,
+//  and start at `initial`, its selection.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerVerbs::RunRawVerb (CassoExplorerActions::Verb verb)
+void ExplorerVerbs::RunRawTransfer (
+    HWND                                       owner,
+    const std::wstring                       & target,
+    bool                                       sectors,
+    bool                                       reading,
+    const CassoExplorerRawDialog::Outcome    & initial)
 {
     HRESULT                          hr       = S_OK;
-    bool                             sectors  = verb == CassoExplorerActions::Verb::ReadSectors || verb == CassoExplorerActions::Verb::WriteSectors;
-    bool                             reading  = verb == CassoExplorerActions::Verb::ReadSectors || verb == CassoExplorerActions::Verb::ReadBlocks;
+    CassoExplorerActions::Verb       verb     = sectors ? (reading ? CassoExplorerActions::Verb::ReadSectors : CassoExplorerActions::Verb::WriteSectors)
+                                                        : (reading ? CassoExplorerActions::Verb::ReadBlocks  : CassoExplorerActions::Verb::WriteBlocks);
     std::wstring                     title    = GetVerbTitle (verb);
     std::filesystem::path            picked;
     bool                             chosen   = false;
@@ -631,14 +656,8 @@ void ExplorerVerbs::RunRawVerb (CassoExplorerActions::Verb verb)
     int                              answer   = 0;
     CassoExplorerActions::Outcome    outcome;
     CassoExplorerRawDialog::Outcome  where;
-    std::wstring                     target   = m_context.actions.GetFormatTarget();
 
 
-
-    if (target.empty())
-    {
-        return;
-    }
 
     //  The raw files are bytes as they lie on the disk; the picker keeps its
     //  own folder and names typed, apart from Casso's other pickers.
@@ -649,7 +668,7 @@ void ExplorerVerbs::RunRawVerb (CassoExplorerActions::Verb verb)
     if (!reading)
     {
         spec.title = title;
-        hr         = m_context.dialogs.PickFileToOpen (m_context.window.GetHwnd(), spec, picked, chosen);
+        hr         = m_context.dialogs.PickFileToOpen (owner, spec, picked, chosen);
 
         if (FAILED (hr) || !chosen)
         {
@@ -657,8 +676,8 @@ void ExplorerVerbs::RunRawVerb (CassoExplorerActions::Verb verb)
         }
     }
 
-    where = CassoExplorerRawDialog::Ask (m_context.window.GetHwnd(), m_context.theme, title, sectors, reading,
-                                         sectors ? CassoExplorerRawChoices::kBlocks : m_context.actions.GetTargetBlockCount());
+    where = CassoExplorerRawDialog::Ask (owner, m_context.theme, title, sectors, reading,
+                                         sectors ? CassoExplorerRawChoices::kBlocks : m_context.actions.GetTargetBlockCount (target), &initial);
 
     if (!where.confirmed)
     {
@@ -676,7 +695,7 @@ void ExplorerVerbs::RunRawVerb (CassoExplorerActions::Verb verb)
         //  theme, and No goes back to the picker.
         do
         {
-            hr = m_context.dialogs.PickFileToSave (m_context.window.GetHwnd(), spec, picked, chosen);
+            hr = m_context.dialogs.PickFileToSave (owner, spec, picked, chosen);
 
             if (FAILED (hr) || !chosen)
             {
@@ -687,36 +706,31 @@ void ExplorerVerbs::RunRawVerb (CassoExplorerActions::Verb verb)
             spec.defaultFileName = picked.filename().wstring();
         }
         while (GetFileAttributesW (picked.c_str()) != INVALID_FILE_ATTRIBUTES &&
-               DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme,
+               DxuiMessageBox (owner, m_context.theme,
                                (picked.filename().wstring() + L" already exists. Overwrite it?").c_str(),
                                L"Confirm save as", MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Overwrite", L"Cancel" }) != IDOK);
 
-        if (!IsRawTargetCurrent (target))
-        {
-            return;
-        }
+        outcome = sectors ? m_context.actions.GetDriveImages().ReadSectors (where.start, where.sector, where.count, picked.wstring(), where.numbering, target)
+                          : m_context.actions.GetDriveImages().ReadBlocks  (where.start, where.count, picked.wstring(), target);
 
-        outcome = sectors ? m_context.actions.ReadSectors (where.start, where.sector, where.count, picked.wstring(), where.numbering)
-                          : m_context.actions.ReadBlocks  (where.start, where.count, picked.wstring());
-
-        ReportOutcome (outcome, reading ? L"Read" : L"Write");
+        ReportRawOutcome (owner, outcome, title);
         return;
     }
 
-    answer = DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme,
+    answer = DxuiMessageBox (owner, m_context.theme,
                              (L"The file's bytes will be written straight onto " + CassoExplorerActions::GetLeafName (target) + L", over what is there now.").c_str(),
                              title.c_str(),
                              MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Overwrite", L"Cancel" });
 
-    if (answer != IDOK || !IsRawTargetCurrent (target))
+    if (answer != IDOK)
     {
         return;
     }
 
-    outcome = sectors ? m_context.actions.WriteSectors (where.start, where.sector, picked.wstring(), where.numbering)
-                      : m_context.actions.WriteBlocks  (where.start, picked.wstring());
+    outcome = sectors ? m_context.actions.GetDriveImages().WriteSectors (where.start, where.sector, picked.wstring(), where.numbering, target)
+                      : m_context.actions.GetDriveImages().WriteBlocks  (where.start, picked.wstring(), target);
 
-    ReportOutcome (outcome, L"Write");
+    ReportRawOutcome (owner, outcome, title);
     m_context.listPane.FillList();
 }
 
@@ -726,20 +740,31 @@ void ExplorerVerbs::RunRawVerb (CassoExplorerActions::Verb verb)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerVerbs::IsRawTargetCurrent
+//  ExplorerVerbs::ReportRawOutcome
 //
-//  The window's timers run while the dialogs are open, and a refresh can move
-//  the list off the image the raw read or write was chosen for.
+//  A failure is shown over the inspector window the transfer came from; a
+//  success is quiet.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ExplorerVerbs::IsRawTargetCurrent (const std::wstring & target)
+void ExplorerVerbs::ReportRawOutcome (HWND owner, const CassoExplorerActions::Outcome & outcome, const std::wstring & title)
 {
-    if (m_context.actions.GetFormatTarget() == target)
+    int  shown = 0;
+
+
+
+    if (outcome.Succeeded())
     {
-        return true;
+        return;
     }
 
-    m_context.window.ShowMessage (CassoExplorerActions::GetLeafName (target) + L" is no longer selected, so nothing was read or written.", MB_ICONWARNING);
-    return false;
+    shown = DxuiMessageBox (owner, m_context.theme,
+                            (outcome.message.empty() ? title + L" did not complete." : outcome.message).c_str(),
+                            title.c_str(), MB_OK | MB_ICONERROR);
+    IGNORE_RETURN_VALUE (shown, 0);
 }
+
+
+
+
+

@@ -41,6 +41,8 @@ struct FakeInspectorWindowLog
     int                   reloads      = 0;
     int                   goneNotes    = 0;
     int                   exitPrompts  = 0;
+    int                   closes       = 0;
+    int                   destroyed    = 0;
     bool                  isExitOk     = true;
     vector<std::wstring>  compared;
     const DxuiTheme     * theme        = nullptr;
@@ -53,6 +55,7 @@ class FakeInspectorWindow : public InspectorWindowSet::Window
 {
 public:
     explicit FakeInspectorWindow (FakeInspectorWindowLog & log) : m_log (log) {}
+    ~FakeInspectorWindow() override { m_log.destroyed++; }
 
     HRESULT  Create (HINSTANCE, HWND, const DxuiTheme * theme, IDiskInspectorHost * host) override { m_log.created++; m_log.theme = theme; m_log.host = host; return S_OK; }
     void     Front() override { m_log.fronted++; }
@@ -67,6 +70,7 @@ public:
     void     ChangeTheme (const DxuiTheme * theme) override { m_log.theme = theme; }
     HWND     GetHwnd() const override { return nullptr; }
     bool     ConfirmExit() override { m_log.exitPrompts++; return m_log.isExitOk; }
+    void     Close() override { m_log.closes++; }
 
     static constexpr int  kSavedX = 321;
 
@@ -381,6 +385,34 @@ public:
 
 
 
+    TEST_METHOD (AClosedWindowIsNoLongerDrawnAndIsFreed)
+    {
+        Rig  rig;
+
+
+
+        Assert::AreEqual (S_OK, rig.Open (kMist));
+        Assert::AreEqual (S_OK, rig.Open (kGame));
+        Assert::IsTrue (rig.set->IsTimerRunning());
+
+        rig.logs[0]->host->OnInspectorClosed();
+        rig.set->Tick();
+        rig.set->Tick();
+
+        Assert::AreEqual (0, rig.logs[0]->frames, L"a closed window isn't drawn");
+        Assert::AreEqual (1, rig.logs[0]->destroyed, L"a closed window is freed");
+        Assert::AreEqual (2, rig.logs[1]->frames);
+        Assert::IsTrue (rig.set->IsTimerRunning(), L"the timer runs while a window is open");
+
+        rig.logs[1]->host->OnInspectorClosed();
+        rig.set->Tick();
+
+        Assert::AreEqual (1, rig.logs[1]->destroyed);
+        Assert::IsFalse (rig.set->IsTimerRunning(), L"the timer stops with no window open");
+    }
+
+
+
     TEST_METHOD (EveryWindowClosesWithTheApp)
     {
         Rig  rig;
@@ -395,6 +427,9 @@ public:
         Assert::AreEqual ((size_t) 0, rig.set->GetCount());
         Assert::AreEqual (FakeInspectorWindow::kSavedX, rig.prefs.x);
         Assert::AreEqual ((size_t) 2, rig.watcher.unwatched.size());
+        Assert::AreEqual (1, rig.logs[0]->closes, L"each window is hidden as the app exits");
+        Assert::AreEqual (1, rig.logs[1]->destroyed);
+        Assert::IsFalse (rig.set->IsTimerRunning());
     }
 
 

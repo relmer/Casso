@@ -370,6 +370,72 @@ public:
     }
 
 
+    //  An image copied to an A2Pico card in DOS order is written as a .po and
+    //  set as the first free drive. A DOS 3.3 disk and an image that arrives
+    //  when each drive is set are left on the card, in the warning, and a
+    //  file that isn't an image is passed over.
+    TEST_METHOD (AddArrived_SetsEachImageAsADrive)
+    {
+        Host                           host;
+        FixtureProvider                fixtures;
+        std::vector<Byte>              po;
+        std::vector<Byte>              dsk (NibbleFormat::kImageByteSize, 0);
+        CassoExplorerActions::Outcome                       outcome;
+        std::vector<std::pair<std::wstring, std::wstring>>  replaced;
+
+
+
+        AssertSucceeded (fixtures.OpenFixture ("CassoExplorer/prodos.po", po));
+
+        for (size_t at = 0; at < po.size(); at++)
+        {
+            dsk[ProDosSkeleton::GetBlockByteOffset ((int) (at / 512), at % 512)] = po[at];
+        }
+
+        host.SeedBytes   (Bytes ("[drives]\nnumber=2\n1=system.po\n"), L"E:\\A2retroNET.txt");
+        host.SeedBytes   (po, L"E:\\system.po");
+        host.SeedBytes   (dsk, L"E:\\games\\zork.dsk");
+        host.SeedBytes   (po, L"E:\\games\\late.po");
+        host.SeedBytes   (Bytes ("notes"), L"E:\\games\\notes.txt");
+        host.SeedFixture ("CassoExplorer/dos33.dsk", L"E:\\games\\dos33.dsk");
+
+        outcome = host.actions.GetA2retroNet().AddArrived ({ L"E:\\games\\notes.txt", L"E:\\games\\zork.dsk", L"E:\\games\\dos33.dsk", L"E:\\games\\late.po" }, replaced);
+
+        Assert::IsTrue   (outcome.Succeeded(), outcome.message.c_str());
+        Assert::AreEqual (1, outcome.written);
+        Assert::AreEqual (std::wstring (L"zork.dsk is written as zork.po.\nzork.po is drive 2."), outcome.message);
+        Assert::IsTrue   (host.io.files["E:\\games\\zork.po"] == po);
+        Assert::IsFalse  (host.io.files.contains ("E:\\games\\zork.dsk"), L"the .dsk is replaced");
+        Assert::AreEqual (size_t (1), replaced.size());
+        Assert::AreEqual (std::wstring (L"E:\\games\\zork.dsk"), replaced[0].first);
+        Assert::AreEqual (std::wstring (L"E:\\games\\zork.po"), replaced[0].second);
+        Assert::AreEqual (std::string ("[drives]\nnumber=2\n1=system.po\n2=games/zork.po\n"), std::string (host.io.files["E:\\A2retroNET.txt"].begin(), host.io.files["E:\\A2retroNET.txt"].end()));
+
+        Assert::IsTrue   (outcome.warning.empty(), L"an image that isn't added is no warning: the copy succeeded");
+        Assert::IsTrue   (host.io.files.contains ("E:\\games\\dos33.dsk"), L"an image the firmware can't mount is left as copied");
+    }
+
+
+    //  An image copied anywhere but an A2Pico card is left as it is.
+    TEST_METHOD (AddArrived_PassesOverAFileOffTheCard)
+    {
+        Host                           host;
+        std::vector<Byte>              image (280 * 512, 0);
+        CassoExplorerActions::Outcome                       outcome;
+        std::vector<std::pair<std::wstring, std::wstring>>  replaced;
+
+
+
+        host.SeedBytes (image, L"C:\\Disks\\new.po");
+
+        outcome = host.actions.GetA2retroNet().AddArrived ({ L"C:\\Disks\\new.po" }, replaced);
+
+        Assert::IsTrue   (outcome.Succeeded());
+        Assert::AreEqual (0, outcome.written);
+        Assert::IsTrue   (outcome.message.empty() && outcome.warning.empty());
+    }
+
+
     //  An image the firmware reads that isn't a drive is offered the first
     //  free drive. One that is a drive, one it doesn't read, one off the card
     //  and one on a card with each drive set aren't.

@@ -276,14 +276,15 @@ public:
     //  closes the popup once `AdvanceReveal` reports it is finished. A
     //  tooltip that vanished on the frame its time ran out looked like a
     //  glitch rather than a dismissal.
-    void  BeginFadeOut         (int durationMs);
-    bool  AdvanceReveal        (int64_t nowMs);
-    void  ApplyReveal          (float t);
-    void  StartCompositorSlide (int fullW, int fullH);
-    void  StartCompositorFade  ();
-    void  SetSlideCloaked      (bool cloaked);
-    void  SetSlide             (float offsetY, const D2D1_RECT_F * clip);
-    void  SetSlideOpacity      (float opacity);
+    void            BeginFadeOut         (int durationMs);
+    bool            AdvanceReveal        (int64_t nowMs);
+    void            ApplyReveal          (float t);
+    void            StartCompositorSlide (int fullW, int fullH);
+    void            StartCompositorFade  ();
+    void            SetSlideCloaked      (bool cloaked);
+    void            SetSlide             (float offsetY, const D2D1_RECT_F * clip);
+    void            SetSlideOpacity      (float opacity);
+    static int64_t  GetRevealNowMs       ();
     static constexpr float  kSlideFraction = 0.5f;
 
     //  Whether a popup that asks for acrylic gets it: the system's

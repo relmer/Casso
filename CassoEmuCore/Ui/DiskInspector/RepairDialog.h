@@ -166,7 +166,8 @@ public:
     static constexpr int  kFixGapDip = 4;
     static constexpr int  kMinDip    = 300;
 
-    void  Init (const std::wstring & heading, const vector<std::wstring> & fixes, const std::wstring & footer);
+    void  Init         (const std::wstring & heading, const vector<std::wstring> & fixes, const std::wstring & footer);
+    void  SetMarkColor (uint32_t argb);
 
     //  The height with each line on one line, for the dialog's first size.
     int   GetPreferredHeightDip () const;

@@ -513,6 +513,113 @@ public:
     }
 
 
+    TEST_METHOD (AnImage_ListsCassosCommandsThenTheConversions)
+    {
+        Host                                     host;
+        std::vector<CassoExplorerActions::Verb>  verbs;
+        auto                                     at    = [&verbs] (CassoExplorerActions::Verb verb) { return std::find (verbs.begin(), verbs.end(), verb) - verbs.begin(); };
+        auto                                     has   = [&verbs] (CassoExplorerActions::Verb verb) { return std::find (verbs.begin(), verbs.end(), verb) != verbs.end(); };
+
+
+
+        host.OpenImage();
+        host.browser.GetNavigator().GoUp();
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"dos33.dsk") });
+        verbs = host.actions.GetListVerbs();
+
+        Assert::AreEqual ((ptrdiff_t) 0, at (CassoExplorerActions::Verb::Open), L"Open is first");
+        Assert::IsTrue   (at (CassoExplorerActions::Verb::Open)             < at (CassoExplorerActions::Verb::OpenWith));
+        Assert::IsTrue   (at (CassoExplorerActions::Verb::OpenWith)         < at (CassoExplorerActions::Verb::InsertDrive1));
+        Assert::IsTrue   (at (CassoExplorerActions::Verb::OpenInNewCasso)   < at (CassoExplorerActions::Verb::InspectDiskImage));
+        Assert::IsTrue   (at (CassoExplorerActions::Verb::InspectDiskImage) < at (CassoExplorerActions::Verb::SelectForCompare));
+        Assert::IsTrue   (at (CassoExplorerActions::Verb::SelectForCompare) < at (CassoExplorerActions::Verb::Separator));
+        Assert::IsTrue   (at (CassoExplorerActions::Verb::Separator)        < at (CassoExplorerActions::Verb::ExtractFiles));
+        Assert::IsTrue   (at (CassoExplorerActions::Verb::ExtractFiles)     < at (CassoExplorerActions::Verb::Format));
+        Assert::IsTrue   (at (CassoExplorerActions::Verb::Format)           < at (CassoExplorerActions::Verb::MoreOptions));
+
+        Assert::IsFalse  (has (CassoExplorerActions::Verb::Test));
+        Assert::IsFalse  (has (CassoExplorerActions::Verb::AddToA2retroNet));
+        Assert::IsFalse  (has (CassoExplorerActions::Verb::ReadAsCpm));
+        Assert::IsFalse  (has (CassoExplorerActions::Verb::DetectFilesystem));
+        Assert::IsFalse  (has (CassoExplorerActions::Verb::MakeArchive),   L"An image has its ShrinkIt disk under Convert");
+        Assert::IsFalse  (has (CassoExplorerActions::Verb::CompareToPick), L"Nothing is picked yet");
+    }
+
+
+    TEST_METHOD (ComparePick_OffersCompareToOnAnyOtherImage)
+    {
+        Host                                     host;
+        std::vector<CassoExplorerActions::Verb>  verbs;
+        auto                                     has   = [&verbs] (CassoExplorerActions::Verb verb) { return std::find (verbs.begin(), verbs.end(), verb) != verbs.end(); };
+
+
+
+        host.SeedBytes (ScratchImages::GetDos33 (false), L"C:\\Disks\\second.dsk");
+        host.OpenImage();
+        host.browser.GetNavigator().GoUp();
+
+        host.actions.SetComparePick (L"C:\\Disks\\dos33.dsk");
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\dos33.dsk"), host.actions.GetComparePick());
+
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"second.dsk") });
+        verbs = host.actions.GetListVerbs();
+        Assert::IsTrue  (has (CassoExplorerActions::Verb::CompareToPick),    L"another image");
+        Assert::IsTrue  (has (CassoExplorerActions::Verb::SelectForCompare), L"and it can replace the pick");
+
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"dos33.dsk") });
+        verbs = host.actions.GetListVerbs();
+        Assert::IsFalse (has (CassoExplorerActions::Verb::CompareToPick), L"the picked image itself");
+        Assert::IsFalse (host.actions.CanCompareToPick (L"c:\\disks\\DOS33.DSK"), L"paths that differ only in case match");
+
+        host.actions.SetComparePick (L"C:\\Disks\\second.dsk");
+        verbs = host.actions.GetListVerbs();
+        Assert::IsTrue  (has (CassoExplorerActions::Verb::CompareToPick), L"a new pick replaces the old one");
+
+        host.actions.ClearComparePick();
+        verbs = host.actions.GetListVerbs();
+        Assert::IsFalse (has (CassoExplorerActions::Verb::CompareToPick), L"cleared once a comparison opens");
+    }
+
+
+    TEST_METHOD (AFileInAnImage_ListsOpenAndCopyBeforeAddingFiles)
+    {
+        Host                                     host;
+        std::vector<CassoExplorerActions::Verb>  verbs;
+        auto                                     at    = [&verbs] (CassoExplorerActions::Verb verb) { return std::find (verbs.begin(), verbs.end(), verb) - verbs.begin(); };
+
+
+
+        host.OpenImage();
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"HELLO") });
+        verbs = host.actions.GetListVerbs();
+
+        Assert::IsTrue (at (CassoExplorerActions::Verb::Open)           < at (CassoExplorerActions::Verb::Get));
+        Assert::IsTrue (at (CassoExplorerActions::Verb::Get)            < at (CassoExplorerActions::Verb::GetWithOptions));
+        Assert::IsTrue (at (CassoExplorerActions::Verb::GetWithOptions) < at (CassoExplorerActions::Verb::Boot));
+        Assert::IsTrue (at (CassoExplorerActions::Verb::Boot)           < at (CassoExplorerActions::Verb::Lock));
+        Assert::IsTrue (at (CassoExplorerActions::Verb::Lock)           < at (CassoExplorerActions::Verb::Separator));
+        Assert::IsTrue (at (CassoExplorerActions::Verb::Separator)      < at (CassoExplorerActions::Verb::Put));
+    }
+
+
+    TEST_METHOD (RemoveExtraSeparators_KeepsOnlySeparatorsBetweenRows)
+    {
+        using Verb = CassoExplorerActions::Verb;
+
+        std::vector<Verb>  verbs    = { Verb::Separator, Verb::Open, Verb::Separator, Verb::Separator, Verb::Format, Verb::Separator };
+        std::vector<Verb>  expected = { Verb::Open, Verb::Separator, Verb::Format };
+
+
+
+        CassoExplorerActions::RemoveExtraSeparators (verbs);
+        Assert::IsTrue (verbs == expected);
+
+        verbs = { Verb::Separator };
+        CassoExplorerActions::RemoveExtraSeparators (verbs);
+        Assert::IsTrue (verbs.empty());
+    }
+
+
     TEST_METHOD (CanInspectAndCanCompare_FollowTheSelectionAndTheOpenImage)
     {
         Host  host;
@@ -1725,156 +1832,17 @@ public:
     }
 
 
-    TEST_METHOD (Address_ParsesTheUsualForms)
-    {
-        Word  address = 0;
-
-        Assert::IsTrue   (ActionsGoTo::TryParseAddress (L"$2000", address));
-        Assert::AreEqual ((int) 0x2000, (int) address);
-        Assert::IsTrue   (ActionsGoTo::TryParseAddress (L" 0x0803 ", address));
-        Assert::AreEqual ((int) 0x0803, (int) address);
-        Assert::IsTrue   (ActionsGoTo::TryParseAddress (L"#768", address));
-        Assert::AreEqual ((int) 768, (int) address);
-        Assert::IsFalse  (ActionsGoTo::TryParseAddress (L"$10000", address));
-        Assert::IsFalse  (ActionsGoTo::TryParseAddress (L"zz", address));
-        Assert::IsFalse  (ActionsGoTo::TryParseAddress (L"", address));
-    }
-
-
-    TEST_METHOD (GoTo_ParsesAddressesAndOffsetsFromTheCaret)
-    {
-        int64_t  address = 0;
-        int64_t  last    = 0;
-
-        Assert::IsTrue   (ActionsGoTo::TryParseGoTo (L"$08FF", 0x0800, address, last));
-        Assert::AreEqual ((int64_t) 0x08FF, address);
-        Assert::AreEqual (address, last, L"One address is a range of one");
-        Assert::IsTrue   (ActionsGoTo::TryParseGoTo (L"+10", 0x0800, address, last));
-        Assert::AreEqual ((int64_t) 0x0810, address, L"An offset is hex, as addresses are");
-        Assert::IsTrue   (ActionsGoTo::TryParseGoTo (L"+$A0", 0x0800, address, last));
-        Assert::AreEqual ((int64_t) 0x08A0, address);
-        Assert::IsTrue   (ActionsGoTo::TryParseGoTo (L" -#16 ", 0x0800, address, last));
-        Assert::AreEqual ((int64_t) 0x07F0, address, L"and # marks decimal");
-        Assert::IsFalse  (ActionsGoTo::TryParseGoTo (L"+", 0x0800, address, last));
-        Assert::IsFalse  (ActionsGoTo::TryParseGoTo (L"", 0x0800, address, last));
-        Assert::IsFalse  (ActionsGoTo::TryParseGoTo (L"zz", 0x0800, address, last));
-    }
-
-
-    TEST_METHOD (GoTo_ReachesPastSixteenBitsInALargeFile)
-    {
-        int64_t  first = 0;
-        int64_t  last  = 0;
-
-        Assert::IsTrue   (ActionsGoTo::TryParseGoTo (L"10000", 0, first, last));
-        Assert::AreEqual ((int64_t) 0x10000, first, L"An offset is not an Apple II address and is not capped at $FFFF");
-        Assert::IsTrue   (ActionsGoTo::TryParseGoTo (L"+#1000000", 0x10, first, last));
-        Assert::AreEqual ((int64_t) 1000016, first);
-    }
-
-
-    TEST_METHOD (GoTo_ParsesARangeByLastAddressOrByLength)
-    {
-        int64_t  first = 0;
-        int64_t  last  = 0;
-
-        Assert::IsTrue   (ActionsGoTo::TryParseGoTo (L"$0803-$0810", 0x0800, first, last));
-        Assert::AreEqual ((int64_t) 0x0803, first);
-        Assert::AreEqual ((int64_t) 0x0810, last, L"A hyphen gives the last address");
-
-        Assert::IsTrue   (ActionsGoTo::TryParseGoTo (L"$0803,+10", 0x0800, first, last));
-        Assert::AreEqual ((int64_t) 0x0812, last, L"A comma and a plus give a length of sixteen");
-
-        Assert::IsFalse  (ActionsGoTo::TryParseGoTo (L"$0810-$0803", 0x0800, first, last),
-            L"A range cannot end before it starts");
-        Assert::IsFalse  (ActionsGoTo::TryParseGoTo (L"$0803,+0", 0x0800, first, last),
-            L"or be empty");
-    }
-
-
-    TEST_METHOD (Search_ParsesHexBytesAndQuotedText)
-    {
-        std::vector<Byte>  bytes;
-        bool               isText = false;
-
-        Assert::IsTrue  (ActionsGoTo::TryParseSearch (L" A9 00 8d ", bytes, isText));
-        Assert::IsFalse (isText);
-        Assert::IsTrue  (bytes == std::vector<Byte> { 0xA9, 0x00, 0x8D });
-
-        Assert::IsTrue  (ActionsGoTo::TryParseSearch (L"\"HI\"", bytes, isText));
-        Assert::IsTrue  (isText);
-        Assert::IsTrue  (bytes == std::vector<Byte> { 'H', 'I' });
-
-        Assert::IsTrue  (ActionsGoTo::TryParseSearch (L"ZZ", bytes, isText));
-        Assert::IsTrue  (isText, L"What is not hex digits is text");
-        Assert::IsTrue  (bytes == std::vector<Byte> { 'Z', 'Z' });
-        Assert::IsFalse (ActionsGoTo::TryParseSearch (L"\"\"", bytes, isText));
-        Assert::IsFalse (ActionsGoTo::TryParseSearch (L"", bytes, isText));
-    }
-
-
-    TEST_METHOD (Search_FindsForwardWrapsAndMatchesTextEitherWay)
-    {
-        std::vector<Byte>  haystack = { 0x01, 0xC8, 0xC9, 0x02, 0x48, 0x49 };
-
-        //  "hi" matches high-bit "HI" at 1, then plain "HI" at 4, then wraps.
-        Assert::AreEqual ((size_t) 1, ActionsGoTo::FindBytes (haystack, { 'h', 'i' }, true, 0));
-        Assert::AreEqual ((size_t) 4, ActionsGoTo::FindBytes (haystack, { 'h', 'i' }, true, 2));
-        Assert::AreEqual ((size_t) 1, ActionsGoTo::FindBytes (haystack, { 'h', 'i' }, true, 5));
-
-        //  Bytes match exactly.
-        Assert::AreEqual ((size_t) 4, ActionsGoTo::FindBytes (haystack, { 0x48 }, false, 0));
-        Assert::AreEqual (CassoExplorerActions::kNotFound, ActionsGoTo::FindBytes (haystack, { 0x77 }, false, 0));
-    }
-
-
-    TEST_METHOD (Search_InSourceFindsAMatchAcrossTwoChunksAndWraps)
-    {
-        std::vector<Byte>       haystack (CassoExplorerActions::kSearchChunkBytes * 2 + 100, (Byte) 0);
-        uint64_t                across = CassoExplorerActions::kSearchChunkBytes - 2;
-        CassoExplorerActions::ReadFn  read   = [&haystack] (uint64_t offset, std::span<uint8_t> out)
-        {
-            std::copy_n (haystack.begin() + (ptrdiff_t) offset, out.size(), out.begin());
-        };
-
-        haystack[(size_t) across]     = 0xDE;
-        haystack[(size_t) across + 1] = 0xAD;
-        haystack[(size_t) across + 2] = 0xBE;
-        haystack[(size_t) across + 3] = 0xEF;
-
-        Assert::AreEqual (across, ActionsGoTo::FindInSource (read, haystack.size(), { 0xDE, 0xAD, 0xBE, 0xEF }, false, 0),
-            L"A match that straddles the first chunk's end is found");
-        Assert::AreEqual (across, ActionsGoTo::FindInSource (read, haystack.size(), { 0xDE, 0xAD, 0xBE, 0xEF }, false, across + 1),
-            L"and a search past it wraps back to it");
-        Assert::AreEqual (CassoExplorerActions::kNotFoundOffset, ActionsGoTo::FindInSource (read, haystack.size(), { 0x77 }, false, 0));
-    }
-
-
-    TEST_METHOD (Numbers_ParseSpacesAndCommas)
-    {
-        std::vector<int>  numbers;
-
-        Assert::IsTrue   (ActionsGoTo::TryParseNumbers (L"17 0 2", 2, numbers));
-        Assert::AreEqual ((size_t) 3, numbers.size());
-        Assert::AreEqual (17, numbers[0]);
-        Assert::IsTrue   (ActionsGoTo::TryParseNumbers (L"17,0", 2, numbers));
-        Assert::IsFalse  (ActionsGoTo::TryParseNumbers (L"17", 2, numbers));
-        Assert::IsFalse  (ActionsGoTo::TryParseNumbers (L"1 2 3 4", 1, numbers));
-        Assert::IsFalse  (ActionsGoTo::TryParseNumbers (L"17 x", 1, numbers));
-    }
-
-
     TEST_METHOD (Sectors_RoundTripThroughAHostFile)
     {
         Host  host;
 
         host.OpenImage();
 
-        Assert::IsTrue (host.actions.ReadSectors (17, 0, 1, L"C:\\Out\\vtoc.sec").Succeeded());
+        Assert::IsTrue (host.actions.GetDriveImages().ReadSectors (17, 0, 1, L"C:\\Out\\vtoc.sec").Succeeded());
         Assert::IsTrue (host.io.files.count ("C:\\Out\\vtoc.sec") == 1);
         Assert::AreEqual ((size_t) 256, host.io.files["C:\\Out\\vtoc.sec"].size());
 
-        Assert::IsTrue   (host.actions.WriteSectors (20, 5, L"C:\\Out\\vtoc.sec").Succeeded());
+        Assert::IsTrue   (host.actions.GetDriveImages().WriteSectors (20, 5, L"C:\\Out\\vtoc.sec").Succeeded());
         Assert::AreEqual ((size_t) 1, host.written.size());
     }
 

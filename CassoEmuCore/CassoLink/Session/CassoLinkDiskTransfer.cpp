@@ -414,7 +414,7 @@ HRESULT CassoLinkDiskTransfer::ReadWholeDisk (LinkOperation & operation)
 
     if (!complete)
     {
-        operation.message = std::format ("{} sectors could not be read, the first on track {}, sector {}.",
+        operation.message = std::format ("There are {} sectors that could not be read, the first on track {}, sector {}.",
                                          operation.unreadable.size(), operation.unreadable[0].first, operation.unreadable[0].second);
     }
 
@@ -1124,7 +1124,7 @@ HRESULT CassoLinkDiskTransfer::ReadThirteenSectorDisk (LinkOperation & operation
 
     if (!complete && !operation.blankUnreadable)
     {
-        operation.message = std::format ("{} sectors could not be read, the first on track {}, sector {}.",
+        operation.message = std::format ("There are {} sectors that could not be read, the first on track {}, sector {}.",
                                          operation.unreadable.size(), operation.unreadable[0].first, operation.unreadable[0].second);
     }
 

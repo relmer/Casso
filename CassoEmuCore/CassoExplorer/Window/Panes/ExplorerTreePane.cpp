@@ -35,6 +35,8 @@
 #include "CassoExplorer/Window/Managers/ExplorerOpen.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
 #include "Seams/IDiskPictures.h"
+#include "Seams/IShellIcons.h"
+#include "CassoExplorer/Window/Managers/ExplorerListMenus.h"
 
 
 
@@ -1045,36 +1047,73 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
         std::wstring  card = location.path;
 
         items.push_back (DxuiPopupMenuItem::ForSeparator());
+        AddOpenRow (items, location);
+
+        if (InspectorWindowSet::CanInspect (card))
+        {
+            m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::InspectDiskImage), [this, card]() { m_context.imageTools.InspectDiskImages ({ card }); });
+        }
+
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
         m_context.menus.AddMenuCommand (items, L"&Initialize card for Apple...", [this, card]() { m_context.opener.InitializeCard (card); });
         m_context.menus.GetMenuCommands().back()->menuImage = m_context.shellIcons.GetForKind (IShellIcons::Kind::AppleMachine);
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
     }
 
     //  A disk image's Casso commands, as its row in the list has them.
     if (hasLocation && !isCard && location.kind == Location::Kind::DiskImage)
     {
-        std::wstring  image = location.path;
+        std::wstring  image     = location.path;
+        bool          partition = ActionsPartition::IsPartitionPath (image);
+        bool          inspect   = InspectorWindowSet::CanInspect (image);
 
         items.push_back (DxuiPopupMenuItem::ForSeparator());
-        m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::InsertDrive1),   [this, image]() { m_context.cassoTarget.InsertIntoDrive (image, 1); });
-        m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::InsertDrive2),   [this, image]() { m_context.cassoTarget.InsertIntoDrive (image, 2); });
-        m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::OpenInNewCasso), [this, image]() { m_context.cassoTarget.OpenInNewCasso (image); });
 
-        if (InspectorWindowSet::CanInspect (image))
+        //  A partition has Open, Inspect / repair and the partition commands,
+        //  as its row in the list has.
+        if (partition)
+        {
+            AddOpenRow (items, location);
+        }
+        else
+        {
+            AddCassoSubmenu (items, image);
+        }
+
+        if (inspect)
         {
             m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::InspectDiskImage), [this, image]() { m_context.imageTools.InspectDiskImages ({ image }); });
         }
 
-        m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::ExtractFiles),   [this, image]() { m_context.imageTools.ExtractImageFiles (image); });
-        m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.compressedfile.extract");
+        if (inspect && !partition)
+        {
+            AddCompareRows (items, image);
+        }
+
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
 
         //  Format and Krunch act on the image the list shows, so the image is
-        //  opened first. A partition has the partition commands instead of
-        //  Format, as its row in the list has.
-        if (ActionsPartition::IsPartitionPath (image))
+        //  opened first.
+        if (partition)
         {
             AddPartitionRows (items, image);
         }
         else
+        {
+            m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::ExtractFiles), [this, image]() { m_context.imageTools.ExtractImageFiles (image); });
+            m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.compressedfile.extract");
+        }
+
+        if (!partition && m_context.actions.IsImagePascal (image))
+        {
+            m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::Krunch), [this, location]()
+            {
+                m_context.addressBar.GoToLocation (location);
+                m_context.verbs.RunVerb (CassoExplorerActions::Verb::Krunch);
+            }, L"", ExplorerMenus::GetVerbMenuGlyph (CassoExplorerActions::Verb::Krunch));
+        }
+
+        if (!partition)
         {
             m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::Format), [this, location]()
             {
@@ -1084,25 +1123,7 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
             m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::Format));
         }
 
-        if (m_context.actions.IsImagePascal (image))
-        {
-            m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::Krunch), [this, location]()
-            {
-                m_context.addressBar.GoToLocation (location);
-                m_context.verbs.RunVerb (CassoExplorerActions::Verb::Krunch);
-            }, L"", ExplorerMenus::GetVerbMenuGlyph (CassoExplorerActions::Verb::Krunch));
-        }
-
-        if (m_context.actions.CanChooseFilesystem (image))
-        {
-            bool  chosen = m_context.browser.GetFilesystemChoices()->GetChoice (image) != VolumeKind::Unknown;
-
-            m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (chosen ? CassoExplorerActions::Verb::DetectFilesystem : CassoExplorerActions::Verb::ReadAsCpm), [this, image, chosen]()
-            {
-                m_context.actions.ChooseImageFilesystem (image, chosen ? VolumeKind::Unknown : VolumeKind::Cpm);
-                m_context.listPane.FillList();
-            });
-        }
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
 
         if (ExplorerProperties::IsWozImage (image))
         {
@@ -1124,8 +1145,19 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
     //  A partition with no volume to open has the partition commands too.
     if (hasLocation && location.kind == Location::Kind::Partition && ActionsPartition::IsPartitionPath (location.path))
     {
+        std::wstring  partition = location.path;
+
         items.push_back (DxuiPopupMenuItem::ForSeparator());
-        AddPartitionRows (items, location.path);
+        AddOpenRow (items, location);
+
+        if (InspectorWindowSet::CanInspect (partition))
+        {
+            m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::InspectDiskImage), [this, partition]() { m_context.imageTools.InspectDiskImages ({ partition }); });
+        }
+
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
+        AddPartitionRows (items, partition);
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
     }
 
     if (hasFolder && m_context.browser.CanRemoveFromCasso (id))
@@ -1164,7 +1196,7 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
         //  New and Properties follow the open and pin rows.
         if (location.kind == Location::Kind::HostFolder && location.path.size() > 3)
         {
-            m_context.menus.AddWindowsCommands (items, { location.path }, Win32PackagedCommands::ItemKind::Folder);
+            m_context.menus.AddWindowsCommands (items, { location.path }, Win32ExplorerCommandEntries::ItemKind::Folder);
         }
 
         if (location.kind == Location::Kind::HostFolder)
@@ -1221,22 +1253,101 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
 
         ClientToScreen (m_context.window.GetHwnd(), &screen);
 
-        m_context.menus.AddPackagedCommandsFor (items, { location.path }, (location.path.size() <= 3) ? Win32PackagedCommands::ItemKind::Drive : Win32PackagedCommands::ItemKind::Folder);
+        m_context.menus.AddPackagedCommandsFor (items, { location.path }, (location.path.size() <= 3) ? Win32ExplorerCommandEntries::ItemKind::Drive : Win32ExplorerCommandEntries::ItemKind::Folder);
 
-        items.push_back (DxuiPopupMenuItem::ForSeparator());
-        m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::MoreOptions), [this, location, screen]()
+        m_context.menus.AddMenuEnd (items, [this, location, screen]()
         {
             HRESULT  hr = m_context.shellVerbs.ShowShellMenu (m_context.window.GetHwnd(), { location.path }, screen, {});
 
             IGNORE_RETURN_VALUE (hr, S_OK);
         });
-        m_context.menus.GetMenuCommands().back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
-        m_context.menus.GetMenuCommands().back()->menuSvg   = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::MoreOptions));
     }
+
+    ExplorerListMenus::RemoveExtraSeparators (items);
 
     if (!items.empty())
     {
         DxuiContextMenu::Show (*m_context.window.GetPopupHost(), x, y, std::move (items));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerTreePane::AddOpenRow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerTreePane::AddOpenRow (std::vector<DxuiPopupMenuItem> & items, const Location & location)
+{
+    m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::Open), [this, location]() { m_context.addressBar.GoToLocation (location); }, L"Enter");
+    m_context.menus.GetMenuCommands().back()->menuGlyph = ExplorerMenus::GetVerbMenuGlyph (CassoExplorerActions::Verb::Open);
+    m_context.menus.GetMenuCommands().back()->menuSvg   = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::Open));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerTreePane::AddCassoSubmenu
+//
+//  Casso's drive commands for an image, in a submenu as the list has them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerTreePane::AddCassoSubmenu (std::vector<DxuiPopupMenuItem> & items, const std::wstring & image)
+{
+    std::vector<DxuiPopupMenuItem>  choices;
+    std::shared_ptr<DxuiCommand>    parent  = std::make_shared<DxuiCommand>();
+
+
+
+    m_context.menus.AddMenuCommand (choices, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::InsertDrive1),   [this, image]() { m_context.cassoTarget.InsertIntoDrive (image, 1); });
+    m_context.menus.GetMenuCommands().back()->menuSvg   = m_context.menus.GetMenuSvg (L"casso.floppy525");
+    m_context.menus.AddMenuCommand (choices, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::InsertDrive2),   [this, image]() { m_context.cassoTarget.InsertIntoDrive (image, 2); });
+    m_context.menus.GetMenuCommands().back()->menuSvg   = m_context.menus.GetMenuSvg (L"casso.floppy525");
+    m_context.menus.AddMenuCommand (choices, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::OpenInNewCasso), [this, image]() { m_context.cassoTarget.OpenInNewCasso (image); });
+    m_context.menus.GetMenuCommands().back()->menuImage = m_context.shellIcons.GetForKind (IShellIcons::Kind::Casso);
+    m_context.menus.AddOpenOnMenu (choices, [image]() { return image; });
+
+    parent->label     = L"C&asso";
+    parent->menuImage = m_context.shellIcons.GetForKind (IShellIcons::Kind::Casso);
+
+    items.push_back (DxuiPopupMenuItem::ForSubmenu (parent, std::move (choices)));
+    m_context.menus.GetMenuCommands().push_back (std::move (parent));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerTreePane::AddCompareRows
+//
+//  Select for compare stores the image. Compare to opens the stored image
+//  against this one, once a different image is stored.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerTreePane::AddCompareRows (std::vector<DxuiPopupMenuItem> & items, const std::wstring & image)
+{
+    std::wstring  label;
+
+
+
+    m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::SelectForCompare), [this, image]() { m_context.actions.SetComparePick (image); });
+
+    if (m_context.actions.CanCompareToPick (image))
+    {
+        label = std::format (L"Co&mpare to \"{}\"", std::filesystem::path (m_context.actions.GetComparePick()).filename().wstring());
+
+        m_context.menus.AddMenuCommand (items, label.c_str(), [this, image]() { m_context.imageTools.CompareToPick (image); });
     }
 }
 
@@ -1287,7 +1398,8 @@ void ExplorerTreePane::AddPartitionRows (std::vector<DxuiPopupMenuItem> & items,
 //  ExplorerTreePane::AddRootRows
 //
 //  File Explorer's rows for This PC's node: the network commands and
-//  Properties; and for This PC and Home, Show more options.
+//  Properties; and for This PC and Home, Customize menu and, when Settings
+//  turns it on, Show more options.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1347,14 +1459,12 @@ void ExplorerTreePane::AddRootRows (std::vector<DxuiPopupMenuItem> & items, cons
         m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.properties");
     }
 
-    items.push_back (DxuiPopupMenuItem::ForSeparator());
-    m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::MoreOptions), [this, owner, shellId, screen]()
+    m_context.menus.AddMenuEnd (items, [this, owner, shellId, screen]()
     {
         HRESULT  hr = m_context.shellVerbs.ShowShellMenu (owner, { shellId }, screen, {});
 
         IGNORE_RETURN_VALUE (hr, S_OK);
     });
-    m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::MoreOptions));
 }
 
 
@@ -1388,7 +1498,11 @@ void ExplorerTreePane::AddAppleDriveIconRow (std::vector<DxuiPopupMenuItem> & it
     iconCommands.push_back (command);
     m_context.menus.GetMenuCommands().push_back (std::move (command));
 
-    items.push_back (DxuiPopupMenuItem::ForIconRow (std::move (iconCommands)));
+    for (DxuiPopupMenuItem & item : m_context.menus.GetPrimaryItems (std::move (iconCommands)))
+    {
+        items.push_back (std::move (item));
+    }
+
     items.push_back (DxuiPopupMenuItem::ForSeparator());
 }
 
@@ -1438,11 +1552,12 @@ void ExplorerTreePane::AddTreeIconRow (std::vector<DxuiPopupMenuItem> & items, c
             command->isEnabled = [this]() { return m_context.shellVerbs.ClipboardHasFiles(); };
         }
 
-        command->id       = (int) verb;
-        command->label    = ExplorerMenus::GetVerbLabel (verb);
-        command->glyph    = ExplorerMenus::GetVerbGlyph (verb);
-        command->menuSvg  = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (verb));
-        command->dispatch = [this, verb, folder, id]()
+        command->id        = (int) verb;
+        command->label     = ExplorerMenus::GetVerbLabel (verb);
+        command->glyph     = ExplorerMenus::GetVerbGlyph (verb);
+        command->menuSvg   = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (verb));
+        command->menuImage = m_context.menus.GetVerbMenuImage (verb);
+        command->dispatch  = [this, verb, folder, id]()
         {
             HRESULT  hr = S_OK;
 
@@ -1474,7 +1589,11 @@ void ExplorerTreePane::AddTreeIconRow (std::vector<DxuiPopupMenuItem> & items, c
         m_context.menus.GetMenuCommands().push_back (std::move (command));
     }
 
-    items.push_back (DxuiPopupMenuItem::ForIconRow (std::move (iconCommands)));
+    for (DxuiPopupMenuItem & item : m_context.menus.GetPrimaryItems (std::move (iconCommands)))
+    {
+        items.push_back (std::move (item));
+    }
+
     items.push_back (DxuiPopupMenuItem::ForSeparator());
 }
 

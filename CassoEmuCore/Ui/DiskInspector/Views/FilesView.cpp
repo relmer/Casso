@@ -6,7 +6,9 @@
 #include "Ui/DiskInspector/Components/InspectorSession.h"
 #include "Ui/DiskInspector/FileMapGridView.h"
 #include "Ui/DiskInspector/FileMapText.h"
+#include "Ui/DiskInspector/InspectorFilesystemOffer.h"
 #include "Ui/DiskInspector/InspectorTableView.h"
+#include "Devices/Disk/Inspector/DiskAnalyzer.h"
 #include "Devices/Disk/Inspector/Repair/FileSystemCheck.h"
 
 
@@ -345,6 +347,7 @@ void FilesView::Layout (const RECT & area, const DxuiDpiScaler & scaler)
     m_mapVolumes->SetTabs     (std::move (tabs));
     m_mapVolumes->SetSelected (m_session.mapIndex);
     m_mapVolumes->Layout      ({ area.left + 2 * button + 2 * margin + label + picker, y, verdictLeft - margin, y + row }, scaler);
+
     y += (isList || m_session.analysis.fileMaps.size() > 1) ? row + margin / 2 : 0;
 
     //  Open, the picker has the list's filters and the file list in the rest
@@ -576,7 +579,8 @@ int FilesView::GetPickerWidthPx (const DxuiDpiScaler & scaler) const
 
 void FilesView::RefreshFileList()
 {
-    const FileMap *  map = m_session.GetFileMap();
+    const FileMap *                  map   = m_session.GetFileMap();
+    InspectorFilesystemOffer::Offer  offer = InspectorFilesystemOffer::Offer::None;
 
 
 
@@ -594,6 +598,18 @@ void FilesView::RefreshFileList()
     else
     {
         m_fileList->SetRows (vector<TableRow>());
+    }
+
+    //  The note's "Read as CP/M" reads the disk that way.
+    offer = InspectorFilesystemOffer::GetOffer (m_session.analysis, *m_session.host);
+
+    if (offer == InspectorFilesystemOffer::Offer::ReadAsCpm)
+    {
+        m_mapGrid->SetNote (InspectorFilesystemOffer::GetNote (offer), InspectorFilesystemOffer::GetButtonLabel (offer), [this] () { ChooseFilesystem(); });
+    }
+    else
+    {
+        m_mapGrid->SetNote (std::wstring());
     }
 
     m_session.context.fileMap      = map;
@@ -919,4 +935,40 @@ void FilesView::ShowVerdictFinding()
     {
         m_host.ShowFinding (static_cast<int> (finding - m_session.analysis.findings.data()));
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FilesView::ChooseFilesystem
+//
+//  Read as CP/M or Detect file system: the host's choice set, and the disk's
+//  maps and findings assembled again with it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FilesView::ChooseFilesystem()
+{
+    InspectorFilesystemOffer::Offer  offer = InspectorFilesystemOffer::GetOffer (m_session.analysis, *m_session.host);
+
+
+
+    if (offer == InspectorFilesystemOffer::Offer::None || !m_session.context.hasDisk)
+    {
+        return;
+    }
+
+    InspectorFilesystemOffer::Accept (offer, *m_session.host, m_session.analysis);
+    DiskAnalyzer::Assemble (m_session.analysis);
+
+    m_session.model.SetAnalysis (&m_session.analysis);
+    m_session.mapIndex      = 0;
+    m_session.mapFile       = -1;
+    m_session.isTablesDirty = true;
+    m_session.isLayoutStale = true;
+    m_host.NotifyAnalysisChanged();
+    RefreshFileList();
 }

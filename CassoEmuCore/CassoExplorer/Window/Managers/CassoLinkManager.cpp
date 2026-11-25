@@ -621,7 +621,7 @@ void CassoLinkManager::SaveCassetteBootstrap (const std::string & name)
     CHR (hr);
     BAIL_OUT_IF (!chosen, S_OK);
 
-    outcome = m_context.actions.SaveCassetteBootstrap (picked.wstring(), link, command);
+    outcome = m_context.actions.GetLinkDisks().SaveCassetteBootstrap (picked.wstring(), link, command);
 
     if (!outcome.Succeeded())
     {
@@ -948,7 +948,7 @@ void CassoLinkManager::AddConnectionRows (std::vector<DxuiPopupMenuItem> & items
         }
 
         //  As a Pascal image's menu has it, with its icon.
-        if (TreeModel::TryParseLinkId (location.path, link, slot, drive) && m_context.actions.IsDrivePascal (TextEncoding::WideToNarrow (link), drive))
+        if (TreeModel::TryParseLinkId (location.path, link, slot, drive) && m_context.actions.GetDriveImages().IsDrivePascal (TextEncoding::WideToNarrow (link), drive))
         {
             m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::Krunch), [this, location]() { m_context.linkDrives.KrunchAppleDisk (location); },
                                             L"", ExplorerMenus::GetVerbMenuGlyph (CassoExplorerActions::Verb::Krunch));
@@ -957,18 +957,6 @@ void CassoLinkManager::AddConnectionRows (std::vector<DxuiPopupMenuItem> & items
 #if defined (_DEBUG)
         m_context.menus.AddMenuCommand (items, L"Arm link fa&ults...",        [this]() { ArmLinkFaults(); });
 #endif
-
-        if (TreeModel::TryParseLinkId (location.path, link, slot, drive) && m_context.actions.CanChooseDriveFilesystem (TextEncoding::WideToNarrow (link), drive))
-        {
-            std::string  name   = TextEncoding::WideToNarrow (link);
-            bool         chosen = m_context.app.links->GetChosenKind (name, drive) != VolumeKind::Unknown;
-
-            m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (chosen ? CassoExplorerActions::Verb::DetectFilesystem : CassoExplorerActions::Verb::ReadAsCpm), [this, name, drive, chosen]()
-            {
-                m_context.actions.ChooseDriveFilesystem (name, drive, chosen ? VolumeKind::Unknown : VolumeKind::Cpm);
-                m_context.listPane.FillList();
-            });
-        }
     }
 
     if (m_context.app.links != nullptr && hasLocation && location.kind == Location::Kind::Root && location.path == TreeModel::kCassoLinkRootId)

@@ -352,7 +352,14 @@ bool CassoExplorerRawPanel::OnMouse (const DxuiMouseEvent & ev)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CassoExplorerRawDialog::Outcome CassoExplorerRawDialog::Ask (HWND owner, const IDxuiTheme * theme, const std::wstring & title, bool sectors, bool reading, int blockCount)
+CassoExplorerRawDialog::Outcome CassoExplorerRawDialog::Ask (
+    HWND                  owner,
+    const IDxuiTheme    * theme,
+    const std::wstring  & title,
+    bool                  sectors,
+    bool                  reading,
+    int                   blockCount,
+    const Outcome       * initial)
 {
     HRESULT                   hr     = S_OK;
     CassoExplorerRawDialog    dialog;
@@ -365,6 +372,12 @@ CassoExplorerRawDialog::Outcome CassoExplorerRawDialog::Ask (HWND owner, const I
     dialog.m_sectors = sectors;
     dialog.m_reading = reading;
     dialog.m_blocks  = blockCount;
+
+    if (initial != nullptr)
+    {
+        dialog.m_initial    = *initial;
+        dialog.m_hasInitial = true;
+    }
 
     params.title                    = title;
     params.hInstance                = GetModuleHandleW (nullptr);
@@ -422,6 +435,11 @@ void CassoExplorerRawDialog::OnCreate()
                                    : (m_reading ? L"Starts at block 2, where a ProDOS disk's volume directory begins."
                                                 : L"Writing past the end of a block goes on into the next."));
 
+    if (m_hasInitial && m_reading)
+    {
+        m_note.SetText (m_sectors ? L"Starts at the selected sector." : L"Starts at the selected block.");
+    }
+
     for (DxuiTextInput * input : { &m_start, &m_sector, &m_count })
     {
         input->SetTheme        (m_theme);
@@ -434,13 +452,19 @@ void CassoExplorerRawDialog::OnCreate()
     m_start.SetText  (std::to_wstring (m_sectors ? CassoExplorerRawChoices::kDefaultTrack : CassoExplorerRawChoices::kDefaultBlock));
     m_sector.SetText (std::to_wstring (CassoExplorerRawChoices::kDefaultSector));
     m_count.SetText  (std::to_wstring (m_sectors ? CassoExplorerRawChoices::kDefaultSectorCount : CassoExplorerRawChoices::kDefaultBlockCount));
+    if (m_hasInitial)
+    {
+        m_start.SetText  (std::to_wstring (m_initial.start));
+        m_sector.SetText (std::to_wstring (m_initial.sector));
+    }
+
     m_start.SelectAll();
 
     //  Logical first: the numbering catalogs, DOS tools and reference books
     //  use. Physical is the order a boot loader reads off the drive.
     m_numbering.SetPopupHost (GetPopupHost());
     m_numbering.SetItems     ({ L"Logical (DOS order)", L"Physical (drive order)" });
-    m_numbering.SetSelected  (0);
+    m_numbering.SetSelected  ((m_hasInitial && m_initial.numbering == DiskOperations::Numbering::Physical) ? 1 : 0);
 
     rows.push_back (CassoExplorerRawPanel::Row { &m_startLabel, &m_start, &m_startError });
 

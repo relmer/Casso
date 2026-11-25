@@ -354,6 +354,10 @@ private:
     //  reading in the current cycle.
     Byte  ReadFloatingBus();
 
+    //  Sets the PC to the config's boot slot when the PC is in slot 6's ROM
+    //  or at the monitor's keyboard input routine, as PR#n or Cn00G does.
+    void  StartBootSlot();
+
     //  Power-on bytes the fill must not decide: the power-up byte and the
     //  monitor's random seed.
     void  ApplyPowerOnOverrides();
@@ -444,6 +448,7 @@ private:
     std::vector<Byte>                 m_disk2Rom13;
     class RomDevice                 * m_disk2RomDevice = nullptr;
     bool                              m_isDisk2Rom13   = false;
+    bool                              m_isBootPending  = false;
     std::string                       m_stockImageFolder;
 
     std::wstring  m_currentMachineName;

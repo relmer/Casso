@@ -3136,6 +3136,45 @@ namespace CommandLineTests
             Assert::AreEqual (std::string ("c.woz"),   slashed.disk1);
         }
 
+        TEST_METHOD (Emulator_LaunchTakesAnImageAndAMachine)
+        {
+            ArgVector  dashes  = { "--launch", "C:\\disks\\big.hdv", "--machine", "apple2c" };
+            ArgVector  slashes = { "/launch", "a.2mg" };
+            ArgVector  bare    = { "--launch" };
+
+            CommandLineOptions::EmulatorOptions  dashed  =
+                CommandLineParser::ParseEmulator (dashes.Count(),  dashes.Data());
+            CommandLineOptions::EmulatorOptions  slashed =
+                CommandLineParser::ParseEmulator (slashes.Count(), slashes.Data());
+            CommandLineOptions::EmulatorOptions  missing =
+                CommandLineParser::ParseEmulator (bare.Count(),    bare.Data());
+
+            Assert::IsTrue (dashed.verdict == CommandLineOptions::EmulatorOptions::Verdict::Clean);
+            Assert::AreEqual (std::string ("C:\\disks\\big.hdv"), dashed.launch);
+            Assert::AreEqual (std::string ("apple2c"),            dashed.machine);
+            Assert::IsTrue (dashed.disk1.empty(), L"--launch's image isn't drive 1's");
+            Assert::AreEqual (std::string ("a.2mg"), slashed.launch);
+            Assert::AreEqual (std::string ("Error: missing value for --launch"), missing.refusalMessage);
+        }
+
+        TEST_METHOD (Emulator_LaunchWithADriveSwitch_IsAnError)
+        {
+            const char *  kpszDriveSwitches[][2] = { { "--disk1", "a.dsk" }, { "--disk2", "b.dsk" }, { "--hd", "7=c.hdv" }, { "--smartport", "1=d.2mg" } };
+
+
+
+            for (const auto & pair : kpszDriveSwitches)
+            {
+                ArgVector                            args   = { "--launch", "x.dsk", pair[0], pair[1] };
+                CommandLineOptions::EmulatorOptions  parsed = CommandLineParser::ParseEmulator (args.Count(), args.Data());
+
+                Assert::IsTrue (parsed.verdict == CommandLineOptions::EmulatorOptions::Verdict::Refused);
+                Assert::AreEqual (std::string ("Error: --launch chooses the drive, so it can't be combined with "
+                                               "--disk1, --disk2, --hd or --smartport."),
+                                  parsed.refusalMessage);
+            }
+        }
+
         //  A tape goes in by name either way, and a missing name is an error
         //  rather than the next flag taken for a file.
         TEST_METHOD (Emulator_TapeTakesAFileInEitherPrefix)

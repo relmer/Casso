@@ -73,6 +73,11 @@ public:
     void  SetOnCopy         (ActionFn fn)  { m_onCopy    = std::move (fn); }
     void  SetOnHint         (HintFn fn)    { m_onHint    = std::move (fn); }
 
+    //  The infobar over the list: the volume's verdict and first finding,
+    //  with Repair... while Repair is available; empty text hides it.
+    void                    SetNotice (const std::wstring & text, bool isBad, bool canRepair, ActionFn onRepair);
+    const DxuiInfoBanner  & GetNotice () const { return *m_notice; }
+
     //  Reads the model again after a change, once the current block is
     //  loaded. A block not loaded yet is loaded by a job first.
     void  Refresh () override;
@@ -184,6 +189,8 @@ private:
     ActionFn                m_onQueued;
 
     ActionFn                m_onCopy;
+    ActionFn                m_onRepair;
+    DxuiInfoBanner        * m_notice          = nullptr;
     HintFn                  m_onHint;
     bool                    m_isFilesOn       = true;
     bool                    m_isDiffsOn       = true;

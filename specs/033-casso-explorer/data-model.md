@@ -294,3 +294,16 @@ never stored in `links`.
   SHA-256.
 - **Manifest row**: one column more, `boot`: `booted`, `did-not-boot`,
   `not-bootable`, `unclear`, or empty for a row written before the check.
+
+## A temporary launch machine (Story 44, R65 to R68)
+
+- **DiskImageFacts**: `kind` (5.25-inch, 13-sector or block), `blocks` for
+  a block image, read from the image's header and size.
+- **LaunchPlan**: `config`, the changed stock copy; `attachment`, the drive
+  1 path, a slot and unit, or a disk port position; `addedCards`, the slots
+  given a card; or `refusal`, the reason as text, with no config.
+- **StockModel**: `id` (Apple2, Apple2Plus, Apple2e, Apple2eEnhanced,
+  Apple2c, Apple2cPlus), `label` for the Open on row, `hasSlots`,
+  `cpu` (6502 or 65C02).
+- **MachineConfig.isTemporary**: set on a launch copy only; never read
+  from or written to JSON.

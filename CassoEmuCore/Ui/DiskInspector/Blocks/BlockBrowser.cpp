@@ -888,7 +888,7 @@ void BlockBrowser::AddVolumeRows (BlockListing & listing, int volume) const
 
     for (const auto & [role, blocks] : damage)
     {
-        findings.rows.push_back (MakeBlocksRow (BlockListRow::Kind::Finding, volume, BlockMap::GetRoleName (role), blocks));
+        findings.rows.push_back (MakeBlocksRow (BlockListRow::Kind::Finding, volume, BlockMap::FormatRoleFinding (role, blocks.size(), m_model->IsSectorVolume (volume)), blocks));
     }
 
     for (const BlockCount & count : map.counts)

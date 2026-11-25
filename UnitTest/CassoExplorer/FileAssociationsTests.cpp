@@ -92,7 +92,7 @@ public:
         Assert::IsTrue (classes.notified > 0, L"File Explorer is told to redraw its icons");
 
         Assert::IsTrue (classes.GetValue (L"Casso.DiskImage.woz\\shell\\open\\command", L"", value));
-        Assert::AreEqual (std::wstring (L"\"C:\\Casso\\Casso.exe\" --disk1 \"%1\""), value);
+        Assert::AreEqual (std::wstring (L"\"C:\\Casso\\Casso.exe\" --launch \"%1\""), value);
 
         Assert::IsTrue (classes.GetValue (L"Applications\\CassoExplorer.exe\\shell\\open\\command", L"", value));
         Assert::AreEqual (std::wstring (L"\"C:\\Casso\\CassoExplorer.exe\" \"%1\""), value);
@@ -118,7 +118,60 @@ public:
                              L"Casso Explorer is under Open with for every type");
             Assert::IsFalse (classes.GetValue (std::wstring (extension) + L"\\OpenWithProgids", L"CassoExplorer.DiskImage", value),
                              L"and is not a second type");
+            Assert::IsTrue  (classes.GetValue (L"Applications\\CassoExplorer.exe\\SupportedTypes", extension, value),
+                             L"and Open with offers it for the disk image types alone");
         }
+    }
+
+
+
+    //  Every type's Open in Casso on submenu lists every stock model in order,
+    //  each opening the image on that model.
+    TEST_METHOD (Register_AddsAnOpenOnSubmenuWithARowPerModel)
+    {
+        FakeUserClasses  classes;
+        std::wstring     value;
+
+        AssertSucceeded (FileAssociations::Register (classes, L"C:\\Casso\\Casso.exe", L"C:\\Casso\\CassoExplorer.exe"));
+
+        for (const wchar_t * extension : { L".d13", L".2mg", L".hdv", L".image", L".dsk" })
+        {
+            std::wstring  openOn = FileAssociations::GetProgId (extension) + L"\\shell\\OpenOn";
+
+            Assert::IsTrue   (classes.GetValue (extension, L"", value));
+            Assert::AreEqual (FileAssociations::GetProgId (extension), value);
+            Assert::IsTrue   (classes.GetValue (openOn, L"MUIVerb", value));
+            Assert::AreEqual (std::wstring (L"Open in Casso on"), value);
+            Assert::IsTrue   (classes.GetValue (openOn, L"ExtendedSubCommandsKey", value));
+            Assert::AreEqual (std::wstring (L"Casso.OpenOn"), value);
+        }
+
+        Assert::IsTrue   (classes.GetValue (L"Casso.OpenOn\\shell\\01Apple2", L"MUIVerb", value));
+        Assert::AreEqual (std::wstring (L"Apple ]["), value);
+        Assert::IsTrue   (classes.GetValue (L"Casso.OpenOn\\shell\\05Apple2c\\command", L"", value));
+        Assert::AreEqual (std::wstring (L"\"C:\\Casso\\Casso.exe\" --launch \"%1\" --machine Apple2c"), value);
+    }
+
+
+
+    //  A registration from a build that opened the images with --disk1 is out
+    //  of date, so startup registers again with --launch.
+    TEST_METHOD (RegisterForInstall_ReplacesADisk1Registration)
+    {
+        FakeUserClasses  classes;
+        FakeUserClasses  settings;
+        std::wstring     value;
+
+        AssertSucceeded (FileAssociations::Register (classes, kCasso, kExplorer));
+        classes.SetValue (L"Casso.DiskImage.dsk\\shell\\open\\command", L"", std::wstring (L"\"") + kCasso + L"\" --disk1 \"%1\"");
+        classes.DeleteKey (L"Casso.OpenOn");
+        Assert::IsFalse (FileAssociations::IsRegistered (classes, kCasso, kExplorer));
+
+        AssertSucceeded (FileAssociations::RegisterForInstall (classes, settings, InstallType::Developer, kCasso, kExplorer, IsAnywhere));
+
+        Assert::IsTrue   (FileAssociations::IsRegistered (classes, kCasso, kExplorer));
+        Assert::IsTrue   (classes.GetValue (L"Casso.DiskImage.dsk\\shell\\open\\command", L"", value));
+        Assert::AreEqual (std::wstring (L"\"") + kCasso + L"\" --launch \"%1\"", value);
     }
 
 
@@ -211,6 +264,100 @@ public:
         Assert::IsFalse (FileAssociations::IsRegistered (classes, L"C:\\Casso\\Casso.exe", L"C:\\Casso\\CassoExplorer.exe"));
         Assert::IsTrue  (classes.keys == before.keys, L"Registering twice gives the type back, and nothing Casso wrote is left");
         Assert::IsTrue  (fileExts.keys == beforeExts.keys, L"File Explorer's record lists Casso's type nowhere");
+    }
+
+
+
+    static constexpr const wchar_t *  kCasso    = L"C:\\Build\\Casso.exe";
+    static constexpr const wchar_t *  kExplorer = L"C:\\Build\\CassoExplorer.exe";
+
+    static bool  IsAnywhere (const std::wstring &) { return true; }
+    static bool  IsNowhere  (const std::wstring &) { return false; }
+
+
+
+    TEST_METHOD (RegisterForInstall_WithNoCassoRegistered_RegistersABuildOrZip)
+    {
+        for (InstallType type : { InstallType::Developer, InstallType::Zip })
+        {
+            FakeUserClasses  classes;
+            FakeUserClasses  settings;
+
+            AssertSucceeded (FileAssociations::RegisterForInstall (classes, settings, type, kCasso, kExplorer, IsAnywhere));
+            Assert::IsTrue (FileAssociations::IsRegistered (classes, kCasso, kExplorer));
+        }
+    }
+
+
+
+    TEST_METHOD (RegisterForInstall_LeavesAPackageAlone)
+    {
+        for (InstallType type : { InstallType::Msix, InstallType::Unknown })
+        {
+            FakeUserClasses  classes;
+            FakeUserClasses  settings;
+
+            AssertSucceeded (FileAssociations::RegisterForInstall (classes, settings, type, kCasso, kExplorer, IsAnywhere));
+            Assert::IsTrue (classes.keys.empty());
+        }
+    }
+
+
+
+    TEST_METHOD (RegisterForInstall_LeavesAnotherCopyThatExists)
+    {
+        FakeUserClasses  classes;
+        FakeUserClasses  settings;
+
+        AssertSucceeded (FileAssociations::Register (classes, L"C:\\Installed\\Casso.exe", L"C:\\Installed\\CassoExplorer.exe"));
+        AssertSucceeded (FileAssociations::RegisterForInstall (classes, settings, InstallType::Developer, kCasso, kExplorer, IsAnywhere));
+
+        Assert::IsTrue  (FileAssociations::IsRegistered (classes, L"C:\\Installed\\Casso.exe", L"C:\\Installed\\CassoExplorer.exe"));
+        Assert::IsFalse (FileAssociations::IsRegistered (classes, kCasso, kExplorer));
+    }
+
+
+
+    TEST_METHOD (RegisterForInstall_ReplacesADeletedCopy)
+    {
+        FakeUserClasses  classes;
+        FakeUserClasses  settings;
+
+        AssertSucceeded (FileAssociations::Register (classes, L"C:\\Gone\\Casso.exe", L"C:\\Gone\\CassoExplorer.exe"));
+        AssertSucceeded (FileAssociations::RegisterForInstall (classes, settings, InstallType::Developer, kCasso, kExplorer, IsNowhere));
+
+        Assert::IsTrue (FileAssociations::IsRegistered (classes, kCasso, kExplorer));
+    }
+
+
+
+    TEST_METHOD (RegisterForInstall_UpdatesThisCopysOlderRegistration)
+    {
+        FakeUserClasses  classes;
+        FakeUserClasses  settings;
+
+        AssertSucceeded (FileAssociations::Register (classes, kCasso, kExplorer));
+        classes.DeleteKey (std::wstring (L"Applications\\") + FileAssociations::kExplorerApp + L"\\SupportedTypes");
+        Assert::IsFalse (FileAssociations::IsRegistered (classes, kCasso, kExplorer));
+
+        AssertSucceeded (FileAssociations::RegisterForInstall (classes, settings, InstallType::Developer, kCasso, kExplorer, IsAnywhere));
+        Assert::IsTrue (FileAssociations::IsRegistered (classes, kCasso, kExplorer));
+    }
+
+
+
+    TEST_METHOD (RegisterForInstall_AfterTheUserTurnedTheTypesOff_LeavesThemOff)
+    {
+        FakeUserClasses  classes;
+        FakeUserClasses  settings;
+
+        AssertSucceeded (FileAssociations::SetDeclined (settings, true));
+        AssertSucceeded (FileAssociations::RegisterForInstall (classes, settings, InstallType::Developer, kCasso, kExplorer, IsAnywhere));
+        Assert::IsTrue (classes.keys.empty());
+
+        AssertSucceeded (FileAssociations::SetDeclined (settings, false));
+        AssertSucceeded (FileAssociations::RegisterForInstall (classes, settings, InstallType::Developer, kCasso, kExplorer, IsAnywhere));
+        Assert::IsTrue (FileAssociations::IsRegistered (classes, kCasso, kExplorer));
     }
 };
 
@@ -313,4 +460,4 @@ public:
         AssertSucceeded (ShellExtensionRegistration::RegisterForInstall (classes, environment, verifier, kDll));
         Assert::AreEqual (0, classes.notified, L"a registration that matches is not written again");
     }
-};
+};

@@ -153,6 +153,8 @@
     <ClCompile Include="Core\DxuiAnimation.cpp" />
     <ClCompile Include="Core\DxuiDockLayout.cpp" />
     <ClCompile Include="Core\DxuiFocusManager.cpp" />
+    <ClCompile Include="Core\DxuiPointerPath.cpp" />
+    <ClCompile Include="Core\DxuiWindowSizeMath.cpp" />
     <ClCompile Include="Core\DxuiFormLayout.cpp" />
     <ClCompile Include="Core\DxuiGridLayout.cpp" />
     <ClCompile Include="Core\DxuiHitTester.cpp" />
@@ -270,6 +272,7 @@
     <ClCompile Include="Window\DxuiMessageBox.cpp" />
     <ClCompile Include="Window\DxuiPropertyPage.cpp" />
     <ClCompile Include="Window\DxuiPropertySheet.cpp" />
+    <ClCompile Include="Window\DxuiDialogController.cpp" />
     <ClCompile Include="Window\DxuiWindow.cpp" />
     <ClCompile Include="Window\DxuiPopupHost.cpp" />
   </ItemGroup>
@@ -287,6 +290,8 @@
     <ClInclude Include="Core\DxuiDpiScaler.h" />
     <ClInclude Include="Core\DxuiEvents.h" />
     <ClInclude Include="Core\DxuiFocusManager.h" />
+    <ClInclude Include="Core\DxuiPointerPath.h" />
+    <ClInclude Include="Core\DxuiWindowSizeMath.h" />
     <ClInclude Include="Core\DxuiFormLayout.h" />
     <ClInclude Include="Core\DxuiGridLayout.h" />
     <ClInclude Include="Core\DxuiHitTester.h" />
@@ -425,7 +430,9 @@
     <ClInclude Include="Window\DxuiPropertyPage.h" />
     <ClInclude Include="Window\DxuiButtonRow.h" />
     <ClInclude Include="Window\DxuiPropertySheet.h" />
+    <ClInclude Include="Window\DxuiDialogController.h" />
     <ClInclude Include="Window\DxuiWindow.h" />
+    <ClInclude Include="Window\IDxuiDialogHost.h" />
     <ClInclude Include="Window\IDxuiHostClient.h" />
     <ClInclude Include="Window\DxuiPopupHost.h" />
     <ClInclude Include="Window\DxuiWinRt.h" />

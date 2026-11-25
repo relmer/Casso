@@ -205,12 +205,12 @@ std::wstring ComparisonText::FormatDetail (const Difference & difference)
             break;
 
         case DifferenceKind::Timing:
-            text = std::format (L"{} {} differ by more than {:.0f}%", NumberFormat::FormatInteger (static_cast<uint64_t> (d.count)), d.count == 1 ? L"cell" : L"cells",
+            text = std::format (L"{} {} {} by more than {:.0f}%", d.count == 1 ? L"There is" : L"There are", NumberFormat::FormatInteger (static_cast<uint64_t> (d.count)), d.count == 1 ? L"cell that differs" : L"cells that differ",
                                 DiskComparer::kTimingTolerance * 100.0);
             break;
 
         case DifferenceKind::SectorBytes:
-            text = std::format (L"{} {} differ, the first at {}", d.count, d.count == 1 ? L"byte" : L"bytes", InspectorFormat::FormatHexOffset (d.firstOffset));
+            text = std::format (L"{} {} {}, the first at {}", d.count == 1 ? L"There is" : L"There are", d.count, d.count == 1 ? L"byte that differs" : L"bytes that differ", InspectorFormat::FormatHexOffset (d.firstOffset));
             break;
 
         case DifferenceKind::FileContents:

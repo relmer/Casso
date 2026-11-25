@@ -360,7 +360,7 @@ struct CassoTheme : public DxuiTheme
         c.mapFileData      = 0xFF1E7140;
         c.mapBadBlocks     = 0xFF7A2A2A;
         c.mapUnowned       = 0xFF7B7B28;
-        c.mapOwnedFree     = 0xFF35A12B;
+        c.mapOwnedFree     = 0xFFE0A030;
         c.mapCrossLinked   = kError;
 
         c.timingFast       = bright;

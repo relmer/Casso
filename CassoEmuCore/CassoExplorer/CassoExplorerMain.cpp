@@ -122,6 +122,20 @@ extern "C" int WINAPI wCassoExplorerMain (
 
     CassoExplorerShell::WaitForUpdatedProcess (options.cleanupOldPid);
 
+    //  A file opened from File Explorer, such as a disk image through Open
+    //  with, is selected in its folder rather than browsed into.
+    if (!options.openPath.empty() && options.selectPath.empty())
+    {
+        std::error_code  error;
+        std::wstring     fullPath = CassoExplorerShell::GetFullPath (options.openPath);
+
+        if (std::filesystem::is_regular_file (fullPath, error))
+        {
+            options.selectPath = fullPath;
+            options.openPath.clear();
+        }
+    }
+
     //  A /select goes through the running app, which picks the tab.
     existing = (options.newWindow || !options.selectPath.empty()) ? nullptr : ExplorerWindowFinder::FindWindowForOwner (options.owner);
 

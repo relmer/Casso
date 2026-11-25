@@ -417,6 +417,7 @@ void ExplorerPreviewManager::FillPreview()
 
         m_headerScroll = (InspectorWindowSet::CanInspect (path) && path == m_thumbnail.GetPath()) ? m_headerScroll : 0;
         m_thumbnail.SetPath (InspectorWindowSet::CanInspect (path) ? path : std::wstring());
+        m_thumbnail.SetListingWarning (preview.kind == PreviewContent::Kind::Catalog ? preview.warning : std::wstring());
 
         if (m_thumbnail.IsShown() != wasShown || m_thumbnail.IsShown())
         {
@@ -560,6 +561,28 @@ void ExplorerPreviewManager::TakeThumbnail()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerPreviewManager::TakeFileSystemCheck
+//
+//  A finished file-system check, on the UI thread; the pane is laid out
+//  again when its infobar appears.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPreviewManager::TakeFileSystemCheck()
+{
+    if (m_thumbnail.TakeCheck())
+    {
+        m_context.layout.RecomputeLayout();
+        m_context.window.Invalidate();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerPreviewManager::FillText
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -570,6 +593,17 @@ void ExplorerPreviewManager::FillText (const PreviewContent & preview)
     PreviewContent  found;
 
 
+
+    //  A catalog's damage is shown in the thumbnail's infobar, not below the
+    //  catalog.
+    if (preview.kind == PreviewContent::Kind::Catalog && m_thumbnail.IsShown() && !preview.warning.empty())
+    {
+        found         = preview;
+        found.warning.clear();
+
+        m_text.Fill (found);
+        return;
+    }
 
     if (preview.kind != PreviewContent::Kind::Details || system.empty())
     {
@@ -1165,8 +1199,9 @@ bool ExplorerPreviewManager::HandleWheel (const DxuiMouseEvent & ev)
 //  The preview's text -- a listing, a catalog, a hex dump -- selects as text
 //  does, so the cursor over it is the I-beam, except over its scrollbars.
 //  The pane's bar beside a disk image's thumbnail is drawn over the view, so
-//  the bar is checked first. Over the thumbnail's platter or block map,
-//  which opens the inspector on a click, the cursor is IDC_HAND.
+//  the bar is checked first. Over the thumbnail's platter, block map or file
+//  system infobar, which open the inspector on a click, the cursor is
+//  IDC_HAND.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1176,7 +1211,7 @@ LPCWSTR ExplorerPreviewManager::GetCursorForPoint (POINT clientPx) const
 
 
 
-    cursor = (cursor != nullptr) ? cursor : (m_thumbnail.IsShown() && m_thumbnail.IsOverPlatter (clientPx) ? IDC_HAND : nullptr);
+    cursor = (cursor != nullptr) ? cursor : (m_thumbnail.IsShown() && (m_thumbnail.IsOverPlatter (clientPx) || m_thumbnail.IsOverVerdict (clientPx)) ? IDC_HAND : nullptr);
     cursor = (cursor != nullptr) ? cursor : m_text.GetCursorForPoint (clientPx);
     cursor = (cursor != nullptr) ? cursor : m_hex.GetCursorForPoint (clientPx);
     cursor = (cursor != nullptr) ? cursor : m_listing.GetCursorForPoint (clientPx);

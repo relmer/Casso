@@ -11,12 +11,16 @@
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewOutput.h"
+#include "CassoExplorer/Window/Managers/ExplorerTips.h"
+#include "CassoExplorer/Model/DiskOperations.h"
 #include "CassoExplorer/Window/Managers/ExplorerThumbnails.h"
 #include "Core/AppMessages.h"
+#include "Core/AppTimerIds.h"
 #include "Core/TextEncoding.h"
 #include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
 #include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
 #include "CassoExplorer/Window/Panes/Preview/PreviewListingView.h"
+#include "Devices/Disk/IDiskFileIo.h"
 #include "Devices/Disk/Inspector/Blocks/BlockImageFile.h"
 #include "Devices/Disk/Inspector/FindingFormatter.h"
 #include "Devices/Disk/Inspector/Repair/FileSystemCheck.h"
@@ -126,7 +130,8 @@ void ThumbnailBlockMap::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
 //  ThumbnailChips::Paint
 //
 //  Each chip as the status band draws it, wrapped onto the next row where
-//  it does not fit; a bad chip in the bad sector color.
+//  it does not fit; a bad chip in the bad sector color, and an info chip in
+//  the accent.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -152,8 +157,12 @@ void ThumbnailChips::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                          DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     }
 
+    m_chipRects.clear();
+
     for (const SummaryChip & chip : m_chips)
     {
+        uint32_t  ink = chip.isBad ? m_palette.colors.sectorBad : chip.isInfo ? theme.Accent() : theme.Foreground();
+
         text.MeasureString (chip.text.c_str(), textPx, DxuiTheme::kBodyFace, w, h);
 
         if (x > left && x + w + 2 * pad > right)
@@ -163,11 +172,39 @@ void ThumbnailChips::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
         }
 
         painter.FillRoundedRect    (x, y, w + 2 * pad, chipH, chipH / 2, theme.ButtonIdle());
-        painter.OutlineRoundedRect (x, y, w + 2 * pad, chipH, chipH / 2, m_scaler.ToPxf (1.0f), chip.isBad ? m_palette.colors.sectorBad : theme.ButtonBorder());
-        text.DrawString (chip.text.c_str(), x, y, w + 2 * pad, chipH, chip.isBad ? m_palette.colors.sectorBad : theme.Foreground(), textPx,
+        painter.OutlineRoundedRect (x, y, w + 2 * pad, chipH, chipH / 2, m_scaler.ToPxf (1.0f), (chip.isBad || chip.isInfo) ? ink : theme.ButtonBorder());
+        text.DrawString (chip.text.c_str(), x, y, w + 2 * pad, chipH, ink, textPx,
                          DxuiTheme::kBodyFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        m_chipRects.push_back (RECT { static_cast<LONG> (x), static_cast<LONG> (y), static_cast<LONG> (x + w + 2 * pad), static_cast<LONG> (y + chipH) });
         x += w + 2 * pad + gap;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThumbnailChips::TryGetInfoChipAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ThumbnailChips::TryGetInfoChipAt (POINT pointPx, RECT & outRect) const
+{
+    bool  isFound = false;
+
+
+
+    outRect = {};
+
+    for (size_t i = 0; i < m_chipRects.size() && i < m_chips.size() && !isFound; i++)
+    {
+        isFound = m_chips[i].isInfo && PtInRect (&m_chipRects[i], pointPx) != FALSE;
+        outRect = isFound ? m_chipRects[i] : outRect;
+    }
+
+    return isFound;
 }
 
 
@@ -223,44 +260,19 @@ int ThumbnailChips::CountRows (IDxuiTextRenderer * text, const DxuiDpiScaler & s
 //
 //  PreviewDiskThumbnail::FormatVerdict
 //
-//  "File system damaged." or "Possible inconsistencies found.", the finding
-//  as a sentence on the next line, and after a blank line, the pointer to
-//  Inspect...; nothing for OK or a disk with no standard file system.
+//  The verdict and the finding as a sentence, as the infobar of an image of
+//  blocks has them, then the pointer to Inspect...; nothing for OK or a disk
+//  with no standard file system.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring PreviewDiskThumbnail::FormatVerdict (FileSystemVerdict verdict, const std::wstring & finding)
 {
-    std::wstring  text;
-    std::wstring  sentence = finding;
+    bool  isProblem = verdict == FileSystemVerdict::Bad || verdict == FileSystemVerdict::Suspect;
 
 
 
-    if (!sentence.empty())
-    {
-        sentence[0] = static_cast<wchar_t> (towupper (sentence[0]));
-    }
-
-    if (!sentence.empty() && !sentence.ends_with (L'.'))
-    {
-        sentence += L".";
-    }
-
-    if (verdict == FileSystemVerdict::Bad)
-    {
-        text = L"File system damaged." + (sentence.empty() ? std::wstring() : L"\n" + sentence);
-    }
-    else if (verdict == FileSystemVerdict::Suspect)
-    {
-        text = L"Possible inconsistencies found." + (sentence.empty() ? std::wstring() : L"\n" + sentence);
-    }
-
-    if (!text.empty())
-    {
-        text += L"\n\nInspect for more details.";
-    }
-
-    return text;
+    return isProblem ? FileSystemCheckScheduler::FormatInfobar ({ verdict, finding }) : std::wstring();
 }
 
 
@@ -429,14 +441,27 @@ void ThumbnailScreen::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
 //  PreviewDiskThumbnail::PreviewDiskThumbnail
 //
 //  A finished thumbnail is posted to the window, which takes it on the UI
-//  thread.
+//  thread. So is a finished file-system check, which runs on the check
+//  queue's thread and reads the image through the browser's file I/O, as the
+//  thumbnail does. Only an image of blocks is checked: the thumbnail's
+//  analysis of any other image has its verdict.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 PreviewDiskThumbnail::PreviewDiskThumbnail (ExplorerContext & context) :
     m_context (context),
     m_worker  ([this] () { PostMessageW (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerThumbnail, 0, 0); },
-               [this] (const std::wstring & path) { return BuildThumbnail (path); })
+               [this] (const std::wstring & path) { return BuildThumbnail (path); }),
+    m_checks  ([] () { return CassoExplorerWindow::GetNowMs(); },
+               [this] (FileSystemCheckScheduler::Job job) { m_checkQueue.Post (std::move (job)); },
+               [this] (const FileSystemCheckKey & key, const std::atomic<bool> & isCanceled, FileSystemCheckOutcome & outOutcome)
+               {
+                   IDiskFileIo  & fileIo   = m_context.browser.GetOperations().GetFileIo();
+                   bool           isBlocks = BlockImageFile::IsBlockImage (fileIo, TextEncoding::WideToUtf8 (key.path));
+
+                   return isBlocks && FileSystemCheckScheduler::CheckBlockImage (fileIo, key, isCanceled, outOutcome);
+               },
+               [this] () { PostMessageW (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerFileSystemCheck, 0, 0); })
 {
     m_view.model = &m_model;
 }
@@ -576,6 +601,7 @@ void PreviewDiskThumbnail::SetPath (const std::wstring & path)
         (void) m_worker.Request (path);
     }
 
+    StartCheck();
     RefreshScreen();
 }
 
@@ -672,6 +698,153 @@ void PreviewDiskThumbnail::TakeResult()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PreviewDiskThumbnail::TickCheck
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewDiskThumbnail::TickCheck()
+{
+    ArmCheckTimer (m_checks.Tick());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::TakeCheck
+//
+//  A check of an image that is no longer selected is cached, and the infobar
+//  changes only for the selected one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PreviewDiskThumbnail::TakeCheck()
+{
+    bool  isSelected = m_checks.TakeFinished();
+
+
+
+    return isSelected && ShowCheck();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::StartCheck
+//
+//  The selected image's check, by its path, length and modified time, starts
+//  after the debounce delay. No image, or one whose length and time can't
+//  be read, has no check.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewDiskThumbnail::StartCheck()
+{
+    HRESULT             hr      = S_OK;
+    FileSystemCheckKey  key;
+    FileStamp           stamp;
+    bool                hasPath = !m_path.empty();
+
+
+
+    m_checks.Clear();
+    ArmCheckTimer (-1);
+    CBR (hasPath);
+
+    hr = m_context.browser.GetOperations().GetFileIo().Stat (TextEncoding::WideToUtf8 (m_path), stamp);
+    CHR (hr);
+
+    key.path         = m_path;
+    key.sizeBytes    = stamp.sizeBytes;
+    key.modifiedUnix = stamp.modifiedUnix;
+
+    m_checks.Select (key);
+    ArmCheckTimer (m_checks.Tick());
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::ArmCheckTimer
+//
+//  A negative delay stops the timer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewDiskThumbnail::ArmCheckTimer (int64_t delayMs)
+{
+    HWND  hwnd = m_context.window.GetHwnd();
+
+
+
+    if (hwnd == nullptr)
+    {
+        return;
+    }
+
+    if (delayMs < 0)
+    {
+        KillTimer (hwnd, (UINT_PTR) AppTimerId::ExplorerFileSystemCheck);
+    }
+    else
+    {
+        SetTimer (hwnd, (UINT_PTR) AppTimerId::ExplorerFileSystemCheck, (UINT) std::max<int64_t> (delayMs, USER_TIMER_MINIMUM), nullptr);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::ShowCheck
+//
+//  The check of the selected image of blocks, in the infobar once its block
+//  map is drawn: Bad as an error, Possible inconsistencies and no standard
+//  file system as info, with no button, since Inspect... is under the map,
+//  and nothing for OK.
+//  Returns whether the infobar is visible.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PreviewDiskThumbnail::ShowCheck()
+{
+    FileSystemCheckOutcome  outcome;
+    std::wstring            text;
+    bool                    hasOutcome = m_state == State::Ready && IsBlocks() && m_checks.TryGetOutcome (outcome);
+
+
+
+    text             = hasOutcome ? FileSystemCheckScheduler::FormatInfobar (outcome) : std::wstring();
+    m_isVerdictShown = !text.empty();
+
+    if (m_isVerdictShown)
+    {
+        m_verdict->SetText     (text);
+        m_verdict->SetSeverity ((outcome.verdict == FileSystemVerdict::Bad) ? DxuiInfoBanner::Severity::Error : DxuiInfoBanner::Severity::Info);
+    }
+
+    return m_isVerdictShown;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PreviewDiskThumbnail::ApplyResult
 //
 //  Each quarter track's ring set from its record's levels, as the
@@ -683,10 +856,8 @@ void PreviewDiskThumbnail::TakeResult()
 void PreviewDiskThumbnail::ApplyResult()
 {
     const DiskCopy  * copy    = (m_result.analysis != nullptr) ? m_result.analysis->copy.get() : nullptr;
-    const Finding   * finding = nullptr;
     int               qt      = 0;
     int               slot    = 0;
-    std::wstring      text;
 
 
 
@@ -698,6 +869,7 @@ void PreviewDiskThumbnail::ApplyResult()
         m_blockMap->SetModel (m_result.blocks.get());
         m_blockMap->Refresh();
         m_chips->SetChips (m_result.chips);
+        (void) ShowCheck();
         return;
     }
 
@@ -738,15 +910,91 @@ void PreviewDiskThumbnail::ApplyResult()
         }
     }
 
-    m_chips->SetChips (m_result.chips);
+    m_chips->SetChips (GetChips());
     m_platter->SetVisible (m_chips->IsVisible());
 
-    finding          = FileSystemCheck::GetVerdictFinding (*m_result.analysis);
-    text             = FormatVerdict (m_result.analysis->verdict, finding != nullptr ? FindingFormatter::Format (*finding) : std::wstring());
+    ApplyVerdict();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::ApplyVerdict
+//
+//  The analysis's verdict in the infobar, or with none to show, the
+//  listing's damage as a warning.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewDiskThumbnail::ApplyVerdict()
+{
+    const Finding            * finding  = FileSystemCheck::GetVerdictFinding (*m_result.analysis);
+    std::wstring               text     = FormatVerdict (m_result.analysis->verdict, finding != nullptr ? FindingFormatter::Format (*finding) : std::wstring());
+    DxuiInfoBanner::Severity   severity = (m_result.analysis->verdict == FileSystemVerdict::Bad) ? DxuiInfoBanner::Severity::Error : DxuiInfoBanner::Severity::Info;
+
+
+
+    if (text.empty() && !m_listingWarning.empty())
+    {
+        text     = FormatListingWarning (m_listingWarning);
+        severity = DxuiInfoBanner::Severity::Warning;
+    }
+
     m_isVerdictShown = !text.empty();
 
     m_verdict->SetText     (text);
-    m_verdict->SetSeverity ((m_result.analysis->verdict == FileSystemVerdict::Bad) ? DxuiInfoBanner::Severity::Error : DxuiInfoBanner::Severity::Info);
+    m_verdict->SetActions  ({});
+    m_verdict->SetSeverity (severity);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::FormatListingWarning
+//
+//  The listing's damage as the infobar of a damaged file system has its
+//  finding, with the pointer to Inspect... on the next line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring PreviewDiskThumbnail::FormatListingWarning (const std::wstring & warning)
+{
+    return warning.empty() ? std::wstring() : FileSystemCheckScheduler::FormatInfobar ({ FileSystemVerdict::Suspect, warning });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::SetListingWarning
+//
+//  The damage the image's listing reports, such as a CP/M directory's
+//  entries that aren't valid. A disk analyzed already has its infobar
+//  updated.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewDiskThumbnail::SetListingWarning (const std::wstring & warning)
+{
+    if (warning == m_listingWarning)
+    {
+        return;
+    }
+
+    m_listingWarning = warning;
+
+    if (m_state == State::Ready && !IsBlocks() && m_result.analysis != nullptr)
+    {
+        ApplyVerdict();
+    }
 }
 
 
@@ -1089,6 +1337,28 @@ bool PreviewDiskThumbnail::IsOverPlatter (POINT pointPx) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PreviewDiskThumbnail::IsOverVerdict
+//
+//  Whether a point is on the file system's infobar, which opens the
+//  inspector on a click, as Inspect... does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PreviewDiskThumbnail::IsOverVerdict (POINT pointPx) const
+{
+    RECT  verdict = m_verdict->GetBounds();
+
+
+
+    return HasVerdict() && m_verdict->IsVisible() && PtInRect (&verdict, pointPx) != FALSE;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PreviewDiskThumbnail::HandleHeaderMouse
 //
 //  The platter's and the picture's clicks, then the infobar's action. The
@@ -1101,6 +1371,7 @@ bool PreviewDiskThumbnail::HandleHeaderMouse (const DxuiMouseEvent & ev)
     if (ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Leave)
     {
         SetHot (ev.kind == DxuiMouseEventKind::Move && IsOverPlatter (ev.positionDip));
+        ShowChipTip (ev);
     }
 
     if (ev.kind == DxuiMouseEventKind::Wheel)
@@ -1197,15 +1468,73 @@ void PreviewDiskThumbnail::SetHot (bool isHot)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PreviewDiskThumbnail::GetChips
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<SummaryChip> PreviewDiskThumbnail::GetChips() const
+{
+    vector<SummaryChip>  chips  = m_result.chips;
+    bool                 isCpm  = m_context.browser.GetOperations().IsReadAsCpmByChoice (TextEncoding::WideToNarrow (m_path));
+
+
+
+    if (isCpm)
+    {
+        chips.push_back (InspectorText::MakeReadAsCpmChip());
+    }
+
+    return chips;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::ShowChipTip
+//
+//  The tip of the chip under the pointer, for the chip of a disk read as
+//  CP/M by the user's choice; hidden once the pointer is off it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewDiskThumbnail::ShowChipTip (const DxuiMouseEvent & ev)
+{
+    RECT  chip   = {};
+    bool  isOver = ev.kind == DxuiMouseEventKind::Move && m_chips->IsVisible() && m_chips->TryGetInfoChipAt (ev.positionDip, chip);
+
+
+
+    if (isOver && !m_isChipTipShown)
+    {
+        m_context.tips.ShowHoverTip (ExplorerTips::TipOwner::Preview, chip, InspectorText::kpszReadAsCpmTip);
+    }
+    else if (!isOver && m_isChipTipShown)
+    {
+        m_context.tips.HideHoverTip (ExplorerTips::TipOwner::Preview);
+    }
+
+    m_isChipTipShown = isOver;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PreviewDiskThumbnail::HandlePlatterMouse
 //
-//  A click on the small platter or the block map opens the inspector.
+//  A click on the small platter, the block map or the file system's infobar
+//  opens the inspector.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool PreviewDiskThumbnail::HandlePlatterMouse (const DxuiMouseEvent & ev)
 {
-    if (!IsOverPlatter (ev.positionDip))
+    if (!IsOverPlatter (ev.positionDip) && !IsOverVerdict (ev.positionDip))
     {
         return false;
     }

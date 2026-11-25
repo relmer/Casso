@@ -438,7 +438,7 @@ void DiskRepair::PlanRelink (Work & work, const FileMap & map)
     if (!map.isCatalogComplete && map.unreadableCell >= 0 && !IsReadable (work, map.unreadableCell / s_kSectors, map.unreadableCell % s_kSectors))
     {
         work.plan.reason = std::format (L"Track {}, sector ${:X} of the catalog can't be read.",
-                                        map.unreadableCell / s_kSectors, map.unreadableCell % s_kSectors);
+                                        map.unreadableCell / s_kSectors, SectorSource::GetDos33Physical (map.unreadableCell % s_kSectors));
         return;
     }
 
@@ -785,6 +785,8 @@ void DiskRepair::CheckChains (Work & work, const FileMap & map)
 void DiskRepair::AddBitmapChanges (Work & work, const FileMap & map, const BitmapTally & tally, LPCWSTR unit, LPCWSTR structure)
 {
     auto  plural = [] (int count) { return (count == 1) ? L"" : L"s"; };
+    auto  there  = [] (int count) { return (count == 1) ? L"There is" : L"There are"; };
+    auto  that   = [] (int count) { return (count == 1) ? L"that is" : L"that are"; };
 
 
 
@@ -794,20 +796,20 @@ void DiskRepair::AddBitmapChanges (Work & work, const FileMap & map, const Bitma
         {
             AddChange (work, map, L"used:" + map.files[f].path,
                        std::format (L"Mark {} {}{} of {} as used in the bitmap", tally.markedUsed[f], unit, plural (tally.markedUsed[f]), map.files[f].path), tally.usedFixes[f],
-                       std::format (L"{} {}s used by {} are marked free", tally.markedUsed[f], unit, map.files[f].path));
+                       std::format (L"{} {} {}{} used by {} {} marked free", there (tally.markedUsed[f]), tally.markedUsed[f], unit, plural (tally.markedUsed[f]), map.files[f].path, that (tally.markedUsed[f])));
         }
     }
 
     if (tally.structures > 0)
     {
         AddChange (work, map, L"structures", std::format (L"Mark {} {} {}{} as used in the bitmap", tally.structures, structure, unit, plural (tally.structures)), tally.structureFixes,
-                   std::format (L"{} {} {}{} {} marked free", tally.structures, structure, unit, plural (tally.structures), (tally.structures == 1) ? L"is" : L"are"));
+                   std::format (L"{} {} {} {}{} {} marked free", there (tally.structures), tally.structures, structure, unit, plural (tally.structures), that (tally.structures)));
     }
 
     if (tally.unowned > 0)
     {
         AddChange (work, map, L"unowned", std::format (L"Mark {} {}{} not in any file as free in the bitmap", tally.unowned, unit, plural (tally.unowned)), tally.unownedFixes,
-                   std::format (L"{} {}s not in any file are marked used", tally.unowned, unit));
+                   std::format (L"{} {} {}{} not in any file {} marked used", there (tally.unowned), tally.unowned, unit, plural (tally.unowned), that (tally.unowned)));
     }
 }
 
@@ -877,7 +879,7 @@ void DiskRepair::CollectSectors (Work & work)
 
         if (!work.isReadable[index] && work.plan.reason.empty())
         {
-            work.plan.reason = std::format (L"Track {}, sector ${:X} can't be read.", index / s_kSectors, index % s_kSectors);
+            work.plan.reason = std::format (L"Track {}, sector ${:X} can't be read.", index / s_kSectors, SectorSource::GetDos33Physical (index % s_kSectors));
         }
 
         out.track  = index / s_kSectors;

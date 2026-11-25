@@ -20,6 +20,7 @@
 #include "Shell/Components/ShellUpdater.h"
 #include "Seams/Win32IntentChannel.h"
 #include "Core/AppMessages.h"
+#include "Config/FileAssociations.h"
 #include "Config/ShellExtensionRegistration.h"
 
 
@@ -905,7 +906,7 @@ HRESULT CassoExplorerShell::Initialize (HINSTANCE instance, const CassoExplorerL
     m_instance    = instance;
     m_showCommand = showCommand;
     m_baseDir     = AssetBootstrap::GetAssetBaseDirectory().wstring();
-    m_inspectors  = std::make_unique<InspectorWindowSet> (m_imageWatcher, m_prefs.diskInspector, InspectorWindowSet::Seams { .fileIo = &m_containerIo, .explorer = this, .describePath = [this] (const std::wstring & path) { return DescribeInspectedPath (path); } });
+    m_inspectors  = std::make_unique<InspectorWindowSet> (m_imageWatcher, m_prefs.diskInspector, InspectorWindowSet::Seams { .fileIo = &m_containerIo, .explorer = this, .describePath = [this] (const std::wstring & path) { return DescribeInspectedPath (path); }, .filesystemChoices = &m_prefs.filesystemChoices });
 
 #if defined (_DEBUG)
     StartLinkFaults();
@@ -959,6 +960,7 @@ HRESULT CassoExplorerShell::Initialize (HINSTANCE instance, const CassoExplorerL
 
     m_updaterHost->PostAutomaticCheck();
     ShellExtensionRegistration::StartInstallRegistration();
+    FileAssociations::StartInstallRegistration();
 
 Error:
     return hr;
@@ -1152,6 +1154,31 @@ void CassoExplorerShell::SelectInFolder (const std::wstring & path)
         {
             slot->window->SelectInFolder (path);
             slot->window->Invalidate();
+            break;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::TransferRaw
+//
+//  Run by the first open window, which refreshes its list after an
+//  overwrite.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerShell::TransferRaw (HWND owner, const std::wstring & path, const InspectorRawTransfer & transfer)
+{
+    for (const std::unique_ptr<WindowSlot> & slot : m_windows)
+    {
+        if (!slot->closed)
+        {
+            slot->window->TransferRaw (owner, path, transfer);
             break;
         }
     }

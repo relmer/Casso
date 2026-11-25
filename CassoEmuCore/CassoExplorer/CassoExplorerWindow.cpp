@@ -18,6 +18,8 @@
 #include "CassoExplorer/Model/FolderWatch.h"
 #include "Core/AppTimerIds.h"
 #include "Core/AppMessages.h"
+#include "Ui/DiskInspector/IDiskInspectorHost.h"
+#include "CassoExplorer/Window/Managers/ExplorerVerbs.h"
 
 #pragma comment(lib, "winmm.lib")
 
@@ -831,6 +833,29 @@ void CassoExplorerWindow::ShowMessage (const std::wstring & text, UINT icon)
 void CassoExplorerWindow::SelectInFolder (const std::wstring & path)
 {
     m_parts->tabManager.SelectInFolder (path);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::TransferRaw
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::TransferRaw (HWND owner, const std::wstring & path, const InspectorRawTransfer & transfer)
+{
+    CassoExplorerRawDialog::Outcome  initial;
+
+
+
+    initial.start     = transfer.start;
+    initial.sector    = transfer.sector;
+    initial.numbering = transfer.isPhysical ? DiskOperations::Numbering::Physical : DiskOperations::Numbering::Logical;
+
+    m_parts->verbs.RunRawTransfer (owner, path, transfer.isSectors, transfer.isSave, initial);
 }
 
 

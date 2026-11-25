@@ -203,6 +203,31 @@ public:
     }
 
 
+    TEST_METHOD (TheReadAsCpmTitleChipHasTheStatusBarChipsTextAndTip)
+    {
+        DxuiTitleChip  chip = InspectorText::MakeReadAsCpmTitleChip();
+
+
+
+        Assert::AreEqual (InspectorText::MakeReadAsCpmChip().text, chip.text);
+        Assert::AreEqual (std::wstring (InspectorText::kpszReadAsCpmTip), chip.tip);
+        Assert::IsTrue   (chip.kind == DxuiTitleChipKind::Info, L"drawn in the accent");
+    }
+
+
+    TEST_METHOD (TheReadAsCpmChipIsAnInfoChip)
+    {
+        SummaryChip  chip = InspectorText::MakeReadAsCpmChip();
+
+
+
+        Assert::AreEqual (std::wstring (L"Read as CP/M"), chip.text);
+        Assert::IsTrue   (chip.kind == SummaryChipKind::ReadAsCpm);
+        Assert::IsTrue   (chip.isInfo, L"drawn in the accent");
+        Assert::IsFalse  (chip.isBad);
+    }
+
+
     TEST_METHOD (TheUnsavedChangesQuestionHasTheFileName)
     {
         Assert::AreEqual (std::wstring (L"There are unsaved changes to 1 sector in GAME.dsk."),   InspectorText::FormatUnsavedChanges (1, L"sector", L"sectors", L"GAME.dsk"));

@@ -877,7 +877,7 @@ public:
         Assert::IsTrue (listing.entries[0].isSystem);
 
         result = RunOn (io, "C:\\disks\\c.dsk", CommandLineOptions::DiskOptions::Command::List);
-        Assert::IsTrue (result.output.find ("R/O (A:TOOL.COM)") != std::string::npos, TextEncoding::NarrowToWide (result.output).c_str());
+        Assert::IsTrue (result.output.find ("R/O (2:TOOL.COM)") != std::string::npos, TextEncoding::NarrowToWide (result.output).c_str());
 
         options.disk.typeName = "B";
 

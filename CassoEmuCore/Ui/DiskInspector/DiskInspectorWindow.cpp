@@ -537,7 +537,7 @@ bool DiskInspectorWindow::ConfirmDiscardEdits (const std::wstring & action, std:
 //
 //  Once per host frame: replies from the host, then analysis results, then
 //  a repaint. The palette is resolved each frame, so a theme change shows
-//  without reopening (FR-077).
+//  without reopening (FR-077). A hidden or minimized window isn't drawn.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -547,7 +547,7 @@ HRESULT DiskInspectorWindow::RenderFrame()
 
 
 
-    BAIL_OUT_IF (!IsCreated() || !IsWindowVisible (GetHwnd()), S_OK);
+    BAIL_OUT_IF (!IsCreated() || !IsWindowVisible (GetHwnd()) || IsIconic (GetHwnd()), S_OK);
 
     m_session.context.palette = DiskInspectorPalette::Resolve (*m_session.theme);
     m_tooltip.SetTheme (*m_session.theme);
@@ -732,6 +732,8 @@ void DiskInspectorWindow::OnCreate()
 //  "Disk inspector - " and the file's path, with a lock before it while the
 //  disk is write-protected (FR-007, FR-065), a red dot after the path while
 //  edits are pending, and the machine and drive while the disk is mounted.
+//  The caption has a "Read as CP/M" chip after the title while the disk is
+//  read as CP/M by the user's choice.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -740,6 +742,7 @@ void DiskInspectorWindow::UpdateTitle()
     std::wstring  title  = s_kpszWindowTitle;
     size_t        markAt = std::wstring::npos;
     std::wstring  path   = (m_session.analysis.copy != nullptr) ? TextEncoding::Utf8ToWide (m_session.analysis.copy->fileName) : std::wstring();
+    bool          isCpm  = m_session.context.hasDisk && m_session.analysis.isCpmChosen;
 
 
 
@@ -754,6 +757,12 @@ void DiskInspectorWindow::UpdateTitle()
         m_title     = title;
         m_titleMark = markAt;
         SetTitle (title, markAt);
+    }
+
+    if (isCpm != m_isTitleCpm)
+    {
+        m_isTitleCpm = isCpm;
+        SetTitleChips (isCpm ? std::vector<DxuiTitleChip> { InspectorText::MakeReadAsCpmTitleChip() } : std::vector<DxuiTitleChip>());
     }
 }
 

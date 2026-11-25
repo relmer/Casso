@@ -9,11 +9,15 @@
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 #include "Seams/Win32ShellItemVerbs.h"
+#include "Seams/Win32ContextMenuLayout.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "Seams/Win32ShellIcons.h"
+#include "CassoExplorer/Window/Managers/ExplorerCassoTarget.h"
+#include "Config/StockMachines.h"
+#include "Core/TextEncoding.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Window/Managers/ExplorerUndo.h"
 #include "CassoExplorer/Window/Managers/ExplorerRename.h"
@@ -31,6 +35,29 @@
 ExplorerMenus::ExplorerMenus (ExplorerContext & context)
     : m_context (context)
 {
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerMenus::StartPackagedCommands
+//
+//  Start reading the commands installed apps add and New's choices. Once
+//  the window is started, each menu reads Settings' Context menu page from
+//  the registry; before then, and in a test with no window, the menus take
+//  the page's defaults.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerMenus::StartPackagedCommands (HWND hwnd, UINT message, UINT assocMessage)
+{
+    m_commandsStarted = hwnd != nullptr;
+
+    m_shellMenuHandlers.Start (hwnd, message);
+    m_packagedCommands.Start (hwnd, assocMessage);
 }
 
 
@@ -105,10 +132,10 @@ const wchar_t * ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb verb)
         case CassoExplorerActions::Verb::NewFolder:      return L"&Folder";
         case CassoExplorerActions::Verb::Format:         return L"&Format disk image...";
         case CassoExplorerActions::Verb::Krunch:         return L"&Krunch disk";
-        case CassoExplorerActions::Verb::ReadSectors:    return L"Read &sectors to file...";
-        case CassoExplorerActions::Verb::WriteSectors:   return L"&Write sectors from file...";
-        case CassoExplorerActions::Verb::ReadBlocks:     return L"Read &blocks to file...";
-        case CassoExplorerActions::Verb::WriteBlocks:    return L"Write b&locks from file...";
+        case CassoExplorerActions::Verb::ReadSectors:    return L"Save &sectors to a file...";
+        case CassoExplorerActions::Verb::WriteSectors:   return L"&Overwrite sectors from a file...";
+        case CassoExplorerActions::Verb::ReadBlocks:     return L"Save &blocks to a file...";
+        case CassoExplorerActions::Verb::WriteBlocks:    return L"Overwrite b&locks from a file...";
         case CassoExplorerActions::Verb::Refresh:        return L"&Refresh";
         case CassoExplorerActions::Verb::OpenWith:       return L"Open wit&h";
         case CassoExplorerActions::Verb::MoreOptions:    return L"Show more &options";
@@ -126,15 +153,24 @@ const wchar_t * ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb verb)
         case CassoExplorerActions::Verb::Unlock:         return L"&Unlock";
         case CassoExplorerActions::Verb::ConvertTo:      return L"Con&vert to";
         case CassoExplorerActions::Verb::ConvertToTapeAudio: return L"Convert to tap&e audio...";
-        case CassoExplorerActions::Verb::ConvertToDiskAudio: return L"Convert to dis&k audio...";
+        case CassoExplorerActions::Verb::ConvertToDiskAudio: return L"Convert to Apple &cassette tape...";
+        case CassoExplorerActions::Verb::ConvertToDsk:   return L"Convert to .&dsk";
+        case CassoExplorerActions::Verb::ConvertToPo:    return L"Convert to .&po";
+        case CassoExplorerActions::Verb::ConvertToTwoImg: return L"Convert to .&2mg";
+        case CassoExplorerActions::Verb::ConvertToHdv:   return L"Convert to .&hdv";
+        case CassoExplorerActions::Verb::ConvertToWoz:   return L"Convert to .&woz";
+        case CassoExplorerActions::Verb::ConvertToNib:   return L"Convert to .&nib";
+        case CassoExplorerActions::Verb::ConvertToNb2:   return L"Convert to .n&b2";
         case CassoExplorerActions::Verb::AddToA2retroNet: return L"Add to A2&retroNET drives";
-        case CassoExplorerActions::Verb::MakeArchive:    return L"Add to &ShrinkIt archive";
-        case CassoExplorerActions::Verb::MakeShrinkItDisk: return L"Make a ShrinkIt &disk";
+        case CassoExplorerActions::Verb::MakeArchive:    return L"Compress to &ShrinkIt archive (.shk)";
+        case CassoExplorerActions::Verb::MakeShrinkItDisk: return L"Compress to &ShrinkIt archive (.shk)";
         case CassoExplorerActions::Verb::Test:           return L"&Test";
         case CassoExplorerActions::Verb::CopyPartitionToImage: return L"Create ima&ge from partition...";
-        case CassoExplorerActions::Verb::ReplacePartition: return L"Replace &partition...";
-        case CassoExplorerActions::Verb::InspectDiskImage: return L"&Inspect disk image";
-        case CassoExplorerActions::Verb::CompareDiskImages: return L"Co&mpare disk images";
+        case CassoExplorerActions::Verb::ReplacePartition: return L"Replace &partition with image...";
+        case CassoExplorerActions::Verb::InspectDiskImage: return L"&Inspect / repair";
+        case CassoExplorerActions::Verb::CompareDiskImages: return L"Co&mpare";
+        case CassoExplorerActions::Verb::SelectForCompare: return L"Se&lect for compare";
+        case CassoExplorerActions::Verb::CompareToPick:  return L"Co&mpare to";
         default:                                   return L"";
     }
 }
@@ -261,6 +297,28 @@ const wchar_t * ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb ve
         case CassoExplorerActions::Verb::MakeShrinkItDisk: return L"Windows.Zip.Action";
         default:                                       return nullptr;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerMenus::GetVerbMenuImage
+//
+//  The insert rows have the icon of a disk image file, as the list draws it;
+//  null for every other verb, which has an SVG or a glyph instead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<const DxuiIconImage> ExplorerMenus::GetVerbMenuImage (CassoExplorerActions::Verb verb)
+{
+    bool  isInsert = verb == CassoExplorerActions::Verb::InsertDrive1 || verb == CassoExplorerActions::Verb::InsertDrive2;
+
+
+
+    return isInsert ? m_context.shellIcons.GetForKind (IShellIcons::Kind::DiskImage) : nullptr;
 }
 
 
@@ -651,7 +709,7 @@ void ExplorerMenus::AddPinMenuCommand (std::vector<DxuiPopupMenuItem> & items, c
 
 void ExplorerMenus::AddOpenRows (std::vector<DxuiPopupMenuItem> & items, const Location & location, bool withOpen)
 {
-    Win32PackagedCommands::Entry  startPin;
+    Win32ExplorerCommandEntries::Entry  startPin;
 
 
 
@@ -684,7 +742,7 @@ void ExplorerMenus::AddOpenRows (std::vector<DxuiPopupMenuItem> & items, const L
 
     AddPinMenuCommand (items, location.path);
 
-    if (m_packagedCommands.GetStartPinEntry (location.path, startPin))
+    if (m_shellMenuHandlers.GetStartPinEntry (location.path, startPin))
     {
         AddPackagedEntry (items, startPin, { location.path });
     }
@@ -709,9 +767,9 @@ void ExplorerMenus::AddOpenRows (std::vector<DxuiPopupMenuItem> & items, const L
 void ExplorerMenus::AddNewChoices (std::vector<DxuiPopupMenuItem> & items, const Location & target,
                                    std::shared_ptr<const DxuiCommand> folder, std::shared_ptr<const DxuiCommand> disk)
 {
-    std::vector<Win32PackagedCommands::NewChoice>  choices = m_packagedCommands.GetNewChoices();
-    bool                                           host    = target.kind == Location::Kind::HostFolder;
-    bool                                           types   = false;
+    std::vector<Win32ShellMenuHandlers::NewChoice>  choices = m_shellMenuHandlers.GetNewChoices();
+    bool                                            host    = target.kind == Location::Kind::HostFolder;
+    bool                                            types   = false;
 
 
 
@@ -727,9 +785,9 @@ void ExplorerMenus::AddNewChoices (std::vector<DxuiPopupMenuItem> & items, const
         items.push_back (DxuiPopupMenuItem::ForCommand (std::move (colored)));
     }
 
-    for (const Win32PackagedCommands::NewChoice & choice : choices)
+    for (const Win32ShellMenuHandlers::NewChoice & choice : choices)
     {
-        if (host && _wcsicmp (choice.verb.c_str(), Win32PackagedCommands::kNewLinkVerb) == 0)
+        if (host && _wcsicmp (choice.verb.c_str(), Win32ShellMenuHandlers::kNewLinkVerb) == 0)
         {
             AddMenuCommand (items, choice.title.c_str(), [this, target, verb = choice.verb]() { RunNewChoice (target, verb); });
             m_menuCommands.back()->menuImage = GetIconFileMenuImage (L"shell32.dll", -16769);
@@ -741,7 +799,7 @@ void ExplorerMenus::AddNewChoices (std::vector<DxuiPopupMenuItem> & items, const
         items.push_back (DxuiPopupMenuItem::ForCommand (disk));
     }
 
-    for (const Win32PackagedCommands::NewChoice & choice : choices)
+    for (const Win32ShellMenuHandlers::NewChoice & choice : choices)
     {
         if (!host || choice.verb.empty() || choice.verb[0] != L'.')
         {
@@ -863,13 +921,13 @@ void ExplorerMenus::RunNewChoice (const Location & target, const std::wstring & 
 {
     std::wstring  created;
     HRESULT       hr      = S_OK;
-    bool          named   = _wcsicmp (verb.c_str(), Win32PackagedCommands::kNewLinkVerb) != 0;
+    bool          named   = _wcsicmp (verb.c_str(), Win32ShellMenuHandlers::kNewLinkVerb) != 0;
 
 
 
     m_context.addressBar.GoToLocation (target);
 
-    hr = m_packagedCommands.CreateNew (m_context.window.GetHwnd(), target.path, verb, created);
+    hr = m_shellMenuHandlers.CreateNew (m_context.window.GetHwnd(), target.path, verb, created);
 
     if (FAILED (hr))
     {
@@ -923,6 +981,40 @@ void ExplorerMenus::AddMenuCommand (std::vector<DxuiPopupMenuItem> & items, cons
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerMenus::AddOpenOnMenu
+//
+//  A row per stock model, each opening the image in a new Casso on a
+//  temporary copy of that model. Every row is listed for every image, and
+//  choosing a model that can't take the image shows why.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerMenus::AddOpenOnMenu (std::vector<DxuiPopupMenuItem> & items, std::function<std::wstring()> imagePath)
+{
+    std::vector<DxuiPopupMenuItem>  rows;
+    std::shared_ptr<DxuiCommand>    parent = std::make_shared<DxuiCommand>();
+
+
+
+    for (const StockMachine & machine : StockMachines::GetAll())
+    {
+        std::wstring  id = TextEncoding::NarrowToWide (machine.id);
+
+        AddMenuCommand (rows, machine.label, [this, imagePath, id]() { m_context.cassoTarget.OpenInNewCasso (imagePath(), id); });
+    }
+
+    parent->label = L"Open o&n";
+
+    items.push_back (DxuiPopupMenuItem::ForSubmenu (parent, std::move (rows)));
+    m_menuCommands.push_back (std::move (parent));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerMenus::RunAskCopilot
 //
 //  Copilot's command, which isn't offered for every type, is found through a
@@ -943,7 +1035,7 @@ HRESULT ExplorerMenus::RunAskCopilot (const std::wstring & path)
 
     for (const std::wstring & probe : { path, std::wstring (windows, length) + L"\\win.ini" })
     {
-        for (const Win32PackagedCommands::Entry & entry : m_packagedCommands.GetEntries ({ probe }, Win32PackagedCommands::ItemKind::File))
+        for (const Win32ExplorerCommandEntries::Entry & entry : m_packagedCommands.GetEntries ({ probe }, Win32ExplorerCommandEntries::ItemKind::File))
         {
             if (entry.command && entry.title == s_kpszTitle)
             {
@@ -963,16 +1055,16 @@ HRESULT ExplorerMenus::RunAskCopilot (const std::wstring & path)
 //
 //  ExplorerMenus::AddPackagedCommands
 //
-//  After a separator, each command an installed app adds for the selected
-//  files or folders, with the app's own title and icon. A selection of files
+//  After a separator, an App extensions submenu with each command an installed
+//  app adds for the selected files or folders. A selection of files
 //  and folders together has none, as no registration covers both.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerMenus::AddPackagedCommands (std::vector<DxuiPopupMenuItem> & items)
 {
-    std::vector<std::wstring>        paths;
-    Win32PackagedCommands::ItemKind  kind = Win32PackagedCommands::ItemKind::File;
+    std::vector<std::wstring>              paths;
+    Win32ExplorerCommandEntries::ItemKind  kind  = Win32ExplorerCommandEntries::ItemKind::File;
 
 
 
@@ -996,13 +1088,13 @@ void ExplorerMenus::AddPackagedCommands (std::vector<DxuiPopupMenuItem> & items)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ExplorerMenus::AddWindowsCommands (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind)
+bool ExplorerMenus::AddWindowsCommands (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32ExplorerCommandEntries::ItemKind kind)
 {
-    std::vector<Win32PackagedCommands::Entry>  entries = m_packagedCommands.GetWindowsEntries (paths, kind);
+    std::vector<Win32ExplorerCommandEntries::Entry>  entries = m_windowsCommands.GetWindowsEntries (paths, kind);
 
 
 
-    for (const Win32PackagedCommands::Entry & entry : entries)
+    for (const Win32ExplorerCommandEntries::Entry & entry : entries)
     {
         AddPackagedEntry (items, entry, paths);
     }
@@ -1031,10 +1123,10 @@ void ExplorerMenus::AddShellMenuCommands (std::vector<DxuiPopupMenuItem> & items
     static const std::vector<std::string>   kDriveVerbs = { "encrypt-bde-elev", "encrypt-bde", "format", "eject" };
     static const std::vector<std::string>   kFileVerbs  = { "runas", "opencontaining" };
     std::vector<IShellItemVerbs::ItemVerb>  found;
-    Win32PackagedCommands::Entry            startPin;
-    bool                                    drives      = false;
-    bool                                    files       = false;
-    HRESULT                                 hr          = S_OK;
+    Win32ExplorerCommandEntries::Entry      startPin;
+    bool                                    drives   = false;
+    bool                                    files    = false;
+    HRESULT                                 hr       = S_OK;
 
 
 
@@ -1087,7 +1179,7 @@ void ExplorerMenus::AddShellMenuCommands (std::vector<DxuiPopupMenuItem> & items
     }
 
     //  A program or shortcut pins to Start, as a folder does.
-    if (files && paths.size() == 1 && m_packagedCommands.GetStartPinEntry (paths[0], startPin))
+    if (files && paths.size() == 1 && m_shellMenuHandlers.GetStartPinEntry (paths[0], startPin))
     {
         AddPackagedEntry (items, startPin, paths);
     }
@@ -1125,6 +1217,16 @@ const wchar_t * ExplorerMenus::GetShellVerbSvgName (const std::string & verb)
         return L"RunAsAdmin";
     }
 
+    if (verb == "print")
+    {
+        return L"Print";
+    }
+
+    if (verb == "rotate90" || verb == "rotate270")
+    {
+        return (verb == "rotate90") ? L"windows.rotate90" : L"windows.rotate270";
+    }
+
     return (verb == "opencontaining") ? L"windows.shortcut.opencontaining" : nullptr;
 }
 
@@ -1142,7 +1244,7 @@ const wchar_t * ExplorerMenus::GetShellVerbSvgName (const std::string & verb)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ExplorerMenus::GetSelectionKind (std::vector<std::wstring> & outPaths, Win32PackagedCommands::ItemKind & outKind) const
+bool ExplorerMenus::GetSelectionKind (std::vector<std::wstring> & outPaths, Win32ExplorerCommandEntries::ItemKind & outKind) const
 {
     size_t  folders = 0;
 
@@ -1154,7 +1256,7 @@ bool ExplorerMenus::GetSelectionKind (std::vector<std::wstring> & outPaths, Win3
     }
 
     m_context.browser.GetSelection().GetSelectedHostPaths (outPaths);
-    outKind = (folders != 0) ? Win32PackagedCommands::ItemKind::Folder : Win32PackagedCommands::ItemKind::File;
+    outKind = (folders != 0) ? Win32ExplorerCommandEntries::ItemKind::Folder : Win32ExplorerCommandEntries::ItemKind::File;
 
     return !outPaths.empty() && (folders == 0 || folders == outPaths.size());
 }
@@ -1169,10 +1271,16 @@ bool ExplorerMenus::GetSelectionKind (std::vector<std::wstring> & outPaths, Win3
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerMenus::AddPackagedCommandsFor (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind)
+void ExplorerMenus::AddPackagedCommandsFor (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32ExplorerCommandEntries::ItemKind kind)
 {
-    std::vector<Win32PackagedCommands::Entry>  entries = m_packagedCommands.GetEntries (paths, kind);
+    std::vector<Win32ExplorerCommandEntries::Entry>  entries;
+    std::vector<DxuiPopupMenuItem>                   children;
+    std::shared_ptr<DxuiCommand>                     flyout   = std::make_shared<DxuiCommand>();
+    Win32ContextMenuLayout                           layout   = ReadLayout();
 
+
+
+    entries = m_packagedCommands.GetEntries (paths, kind);
 
 
     //  On the background of a folder not on the disk, File Explorer doesn't list
@@ -1180,10 +1288,32 @@ void ExplorerMenus::AddPackagedCommandsFor (std::vector<DxuiPopupMenuItem> & ite
     //  PowerRename hides itself for one, and is listed. Network is the test.
     if (paths.empty())
     {
-        for (const Win32PackagedCommands::Entry & folderEntry : m_packagedCommands.GetEntries ({ L"::{F02C1A0D-BE21-4350-88B0-7367FC96EF3C}" }, kind))
+        for (const Win32ExplorerCommandEntries::Entry & folderEntry : m_packagedCommands.GetEntries ({ L"::{F02C1A0D-BE21-4350-88B0-7367FC96EF3C}" }, kind))
         {
-            std::erase_if (entries, [&folderEntry] (const Win32PackagedCommands::Entry & entry) { return entry.title == folderEntry.title; });
+            std::erase_if (entries, [&folderEntry] (const Win32ExplorerCommandEntries::Entry & entry) { return entry.title == folderEntry.title; });
         }
+    }
+
+    if (entries.empty())
+    {
+        return;
+    }
+
+    //  A sync client's commands, as OneDrive's, go in a separate section when
+    //  that choice is on in Settings' Context menu page.
+    if (layout.cloudSection && std::any_of (entries.begin(), entries.end(), [] (const Win32ExplorerCommandEntries::Entry & entry) { return entry.cloud; }))
+    {
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
+
+        for (const Win32ExplorerCommandEntries::Entry & entry : entries)
+        {
+            if (entry.cloud)
+            {
+                AddPackagedEntry (items, entry, paths);
+            }
+        }
+
+        std::erase_if (entries, [] (const Win32ExplorerCommandEntries::Entry & entry) { return entry.cloud; });
     }
 
     if (entries.empty())
@@ -1193,11 +1323,93 @@ void ExplorerMenus::AddPackagedCommandsFor (std::vector<DxuiPopupMenuItem> & ite
 
     items.push_back (DxuiPopupMenuItem::ForSeparator());
 
-    //  A sync client's commands, as OneDrive's, are among the rest in the order
-    //  Windows lists them, as in File Explorer.
-    for (const Win32PackagedCommands::Entry & entry : entries)
+    //  The page puts each app in the main menu or in the App extensions
+    //  submenu, and can turn the submenu off.
+    for (const Win32ExplorerCommandEntries::Entry & entry : entries)
     {
-        AddPackagedEntry (items, entry, paths);
+        if (m_commandsStarted && Win32ContextMenuLayout::IsExtensionInMainMenu (entry.package))
+        {
+            AddPackagedEntry (items, entry, paths);
+        }
+        else if (layout.showExtensions)
+        {
+            AddPackagedEntry (children, entry, paths);
+        }
+    }
+
+    if (!layout.showExtensions)
+    {
+        if (items.back().kind == DxuiPopupMenuItem::Kind::Separator)
+        {
+            items.pop_back();
+        }
+
+        return;
+    }
+
+    AddMenuCommand (children, L"Manage extensions", []()
+    {
+        ShellExecuteW (nullptr, L"open", L"ms-settings:personalization-contextmenu-extensions", nullptr, nullptr, SW_SHOWNORMAL);
+    });
+
+    flyout->label   = L"App extensions";
+    flyout->menuSvg = GetMenuSvg (L"windows.extensionsflyout");
+
+    items.push_back (DxuiPopupMenuItem::ForSubmenu (flyout, std::move (children)));
+    m_menuCommands.push_back (std::move (flyout));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerMenus::AddMenuEnd
+//
+//  The bottom of File Explorer's menu, after a separator: Properties, when
+//  Settings' Context menu page moves it there, Show more options, which runs
+//  showMore, when the page turns it on, and Customize menu, which opens the
+//  page.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerMenus::AddMenuEnd (std::vector<DxuiPopupMenuItem> & items, std::function<void()> showMore)
+{
+    Win32ContextMenuLayout          layout     = ReadLayout();
+    std::vector<DxuiPopupMenuItem>  properties;
+
+
+
+    showMore = layout.showMore ? std::move (showMore) : std::function<void()>();
+
+    if (layout.propertiesAtBottom)
+    {
+        properties = TakePropertiesItems (items);
+    }
+
+    if (!showMore && !layout.showCustomize && properties.empty())
+    {
+        return;
+    }
+
+    items.push_back (DxuiPopupMenuItem::ForSeparator());
+    std::move (properties.begin(), properties.end(), std::back_inserter (items));
+
+    if (showMore)
+    {
+        AddMenuCommand (items, GetVerbLabel (CassoExplorerActions::Verb::MoreOptions), std::move (showMore), L"Shift+F10");
+        m_menuCommands.back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
+        m_menuCommands.back()->menuSvg   = GetMenuSvg (GetVerbMenuSvgName (CassoExplorerActions::Verb::MoreOptions));
+    }
+
+    if (layout.showCustomize)
+    {
+        AddMenuCommand (items, L"Customize menu", []()
+        {
+            ShellExecuteW (nullptr, L"open", L"ms-settings:personalization-contextmenu", nullptr, nullptr, SW_SHOWNORMAL);
+        });
+        m_menuCommands.back()->menuSvg = GetMenuSvg (L"windows.customizemenu");
     }
 }
 
@@ -1213,7 +1425,7 @@ void ExplorerMenus::AddPackagedCommandsFor (std::vector<DxuiPopupMenuItem> & ite
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerMenus::AddPackagedEntry (std::vector<DxuiPopupMenuItem> & items, const Win32PackagedCommands::Entry & entry, const std::vector<std::wstring> & paths)
+void ExplorerMenus::AddPackagedEntry (std::vector<DxuiPopupMenuItem> & items, const Win32ExplorerCommandEntries::Entry & entry, const std::vector<std::wstring> & paths)
 {
     std::shared_ptr<DxuiCommand>     command  = std::make_shared<DxuiCommand>();
     std::vector<DxuiPopupMenuItem>   children;
@@ -1226,11 +1438,19 @@ void ExplorerMenus::AddPackagedEntry (std::vector<DxuiPopupMenuItem> & items, co
     command->label     = entry.title;
     command->menuSvg   = entry.explorerIcon.empty() ? nullptr : GetMenuSvg (entry.explorerIcon.c_str());
     command->menuImage = (command->menuSvg == nullptr) ? m_context.shellIcons.GetForIconResource (entry.icon) : nullptr;
+
+    //  Compress to's choices come without icons: File Explorer draws
+    //  each with its file type's, as "ZIP File" with a .zip file's.
+    if (command->menuSvg == nullptr && command->menuImage == nullptr && entry.title.ends_with (L" File") && entry.title.find (L' ') == entry.title.size() - 5)
+    {
+        command->menuImage = GetFileMenuImage (L"." + entry.title.substr (0, entry.title.size() - 5));
+    }
+
     command->isEnabled = [enabled]() { return enabled; };
 
     if (!entry.children.empty())
     {
-        for (const Win32PackagedCommands::Entry & child : entry.children)
+        for (const Win32ExplorerCommandEntries::Entry & child : entry.children)
         {
             AddPackagedEntry (children, child, paths);
         }
@@ -1257,4 +1477,308 @@ void ExplorerMenus::AddPackagedEntry (std::vector<DxuiPopupMenuItem> & items, co
 
     items.push_back (DxuiPopupMenuItem::ForCommand (command));
     m_menuCommands.push_back (std::move (command));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerMenus::ReadLayout
+//
+//  Settings' Context menu page, read once the menus have started, so a unit
+//  test's menus have the defaults.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Win32ContextMenuLayout ExplorerMenus::ReadLayout() const
+{
+    return m_commandsStarted ? Win32ContextMenuLayout::Read() : Win32ContextMenuLayout();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerMenus::GetPrimaryItems
+//
+//  Cut, Copy, Paste, Rename, Share and Delete as the icon row atop the menu,
+//  or as rows when Settings' Context menu page arranges them inline.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPopupMenuItem> ExplorerMenus::GetPrimaryItems (std::vector<std::shared_ptr<const DxuiCommand>> commands) const
+{
+    std::vector<DxuiPopupMenuItem>  items;
+
+
+
+    if (!ReadLayout().inlinePrimary)
+    {
+        items.push_back (DxuiPopupMenuItem::ForIconRow (std::move (commands)));
+        return items;
+    }
+
+    for (std::shared_ptr<const DxuiCommand> & command : commands)
+    {
+        items.push_back (DxuiPopupMenuItem::ForCommand (std::move (command)));
+    }
+
+    return items;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerMenus::TakePropertiesItems
+//
+//  Remove the menu's Properties rows and return them. A separator that ends
+//  up doubled or last is removed too.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPopupMenuItem> ExplorerMenus::TakePropertiesItems (std::vector<DxuiPopupMenuItem> & items)
+{
+    const std::string *             svg   = GetMenuSvg (L"windows.properties");
+    std::vector<DxuiPopupMenuItem>  taken;
+    std::vector<DxuiPopupMenuItem>  kept;
+
+
+
+    if (svg == nullptr)
+    {
+        return taken;
+    }
+
+    for (DxuiPopupMenuItem & item : items)
+    {
+        bool  separator = item.kind == DxuiPopupMenuItem::Kind::Separator;
+
+        if (item.kind == DxuiPopupMenuItem::Kind::Command && item.command != nullptr && item.command->menuSvg == svg)
+        {
+            taken.push_back (std::move (item));
+        }
+        else if (!separator || (!kept.empty() && kept.back().kind != DxuiPopupMenuItem::Kind::Separator))
+        {
+            kept.push_back (std::move (item));
+        }
+    }
+
+    if (!kept.empty() && kept.back().kind == DxuiPopupMenuItem::Kind::Separator)
+    {
+        kept.pop_back();
+    }
+
+    items = std::move (kept);
+
+    return taken;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerMenus::AddFileActions
+//
+//  The file actions Settings' Context menu page turns on: Send to, with the
+//  SendTo folder's targets, and Print, Create shortcut and Rotate, offered
+//  by the items' file types and run through the items' shell menu.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerMenus::AddFileActions (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths)
+{
+    Win32ContextMenuLayout                  layout = ReadLayout();
+    std::vector<std::string>                verbs;
+    std::vector<IShellItemVerbs::ItemVerb>  found;
+    HRESULT                                 hr     = S_OK;
+
+
+
+    if (paths.empty())
+    {
+        return;
+    }
+
+    if (layout.sendTo)
+    {
+        AddSendToMenu (items, paths);
+    }
+
+    if (layout.print)
+    {
+        verbs.push_back ("print");
+    }
+
+    if (layout.createShortcut)
+    {
+        verbs.push_back ("link");
+    }
+
+    if (layout.rotate)
+    {
+        verbs.push_back ("rotate90");
+        verbs.push_back ("rotate270");
+    }
+
+    if (verbs.empty())
+    {
+        return;
+    }
+
+    hr = m_context.shellVerbs.ListFileActions (paths, verbs, found);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    for (const IShellItemVerbs::ItemVerb & each : found)
+    {
+        std::string  verb = each.verb;
+
+        AddMenuCommand (items, each.label.c_str(), [this, paths, verb]()
+        {
+            HRESULT  ran = m_context.shellVerbs.RunItemVerb (m_context.window.GetHwnd(), paths, verb.c_str());
+
+            IGNORE_RETURN_VALUE (ran, S_OK);
+            m_context.folderSync.RefreshAfterHostChange();
+        });
+        m_menuCommands.back()->menuSvg = GetMenuSvg (GetShellVerbSvgName (verb));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerMenus::AddSendToMenu
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerMenus::AddSendToMenu (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths)
+{
+    std::vector<IShellItemVerbs::SendToTarget>  targets;
+    std::vector<DxuiPopupMenuItem>              children;
+    std::shared_ptr<DxuiCommand>                parent = std::make_shared<DxuiCommand>();
+    HRESULT                                     hr     = S_OK;
+
+
+
+    hr = m_context.shellVerbs.ListSendToTargets (targets);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    if (targets.empty())
+    {
+        return;
+    }
+
+    for (const IShellItemVerbs::SendToTarget & target : targets)
+    {
+        std::wstring  path = target.path;
+
+        AddMenuCommand (children, target.label.c_str(), [this, paths, path]()
+        {
+            HRESULT  sent = m_context.shellVerbs.SendTo (paths, path);
+
+            IGNORE_RETURN_VALUE (sent, S_OK);
+            m_context.folderSync.RefreshAfterHostChange();
+        });
+        m_menuCommands.back()->menuImage = GetFileMenuImage (path);
+    }
+
+    parent->label   = L"Se&nd to";
+    parent->menuSvg = GetMenuSvg (L"windows.sendto");
+    items.push_back (DxuiPopupMenuItem::ForSubmenu (parent, std::move (children)));
+    m_menuCommands.push_back (std::move (parent));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerMenus::GetFileMenuImage
+//
+//  A file's icon as the shell lists it, a shortcut's being its target's, at
+//  the menu's icon size. Cached for the window's life.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<const DxuiIconImage> ExplorerMenus::GetFileMenuImage (const std::wstring & path)
+{
+    int           sizePx = m_context.scaler.ToPx (kMenuIconDip);
+    std::wstring  key    = std::format (L"{}:file:{}", sizePx, path);
+    SHFILEINFOW   info   = {};
+    HRESULT       hr     = S_OK;
+    auto          image  = std::make_shared<DxuiIconImage>();
+
+
+
+    if (m_openMenuImages.count (key) != 0)
+    {
+        return m_openMenuImages[key];
+    }
+
+    m_openMenuImages[key] = nullptr;
+
+    //  A shell path, as an app in the Apps folder, is read by its item.
+    if (path.starts_with (L"shell:"))
+    {
+        PIDLIST_ABSOLUTE  pidl   = nullptr;
+        HRESULT           parsed = SHParseDisplayName (path.c_str(), nullptr, &pidl, 0, nullptr);
+
+        if (SUCCEEDED (parsed))
+        {
+            if (SHGetFileInfoW ((LPCWSTR) pidl, 0, &info, sizeof (info), SHGFI_PIDL | SHGFI_ICON | (sizePx > 16 ? SHGFI_LARGEICON : SHGFI_SMALLICON)) == 0)
+            {
+                info.hIcon = nullptr;
+            }
+
+            CoTaskMemFree (pidl);
+        }
+
+        if (info.hIcon != nullptr)
+        {
+            hr = DxuiIconImage::FromHicon (info.hIcon, sizePx, *image);
+            DestroyIcon (info.hIcon);
+            m_openMenuImages[key] = SUCCEEDED (hr) ? image : nullptr;
+        }
+
+        return m_openMenuImages[key];
+    }
+
+    //  An extension alone, as ".zip", is drawn with its type's icon, and a
+    //  type with no icon registered has none drawn, not the blank page.
+    if (path.starts_with (L"."))
+    {
+        wchar_t  icon[MAX_PATH] = {};
+        DWORD    length         = (DWORD) std::size (icon);
+        HRESULT  found          = AssocQueryStringW (ASSOCF_INIT_IGNOREUNKNOWN, ASSOCSTR_DEFAULTICON, path.c_str(), nullptr, icon, &length);
+
+        if (FAILED (found))
+        {
+            return nullptr;
+        }
+    }
+
+    if (SHGetFileInfoW (path.c_str(), FILE_ATTRIBUTE_NORMAL, &info, sizeof (info), SHGFI_ICON | (sizePx > 16 ? SHGFI_LARGEICON : SHGFI_SMALLICON) | (path.starts_with (L".") ? SHGFI_USEFILEATTRIBUTES : 0)) != 0 && info.hIcon != nullptr)
+    {
+        hr = DxuiIconImage::FromHicon (info.hIcon, sizePx, *image);
+        DestroyIcon (info.hIcon);
+
+        if (SUCCEEDED (hr))
+        {
+            m_openMenuImages[key] = image;
+        }
+    }
+
+    return m_openMenuImages[key];
 }

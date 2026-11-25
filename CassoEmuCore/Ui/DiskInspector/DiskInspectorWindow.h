@@ -218,6 +218,7 @@ private:
     InspectorCommands                     m_commands;
     std::wstring                          m_title;
     size_t                                m_titleMark      = std::wstring::npos;
+    bool                                  m_isTitleCpm     = false;
     DxuiTooltip                           m_tooltip;
     DxuiTooltip                           m_zoomNote;
     bool                                  m_isSplitting    = false;

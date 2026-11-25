@@ -311,7 +311,8 @@ Disk2Controller * DiskManager::FindSlot6Controller()
 //  MountCommandLineDisks
 //
 //  Resolves the per-drive image to mount: explicit command-line path
-//  wins, otherwise the last-session registry remembers it. A missing
+//  wins, otherwise the last-session registry remembers it, except on a
+//  temporary machine. A missing
 //  remembered file is cleared on the spot (FR-047) so a moved or
 //  deleted image stops resurrecting every launch.
 //
@@ -324,10 +325,12 @@ void DiskManager::MountCommandLineDisks (
     HRESULT      hr            = S_OK;
     std::string  resolvedDisk1 = disk1Path;
     std::string  resolvedDisk2 = disk2Path;
+    bool         useSaved      = !m_machine.GetConfig().isTemporary && !m_currentMachineName.empty();
 
 
 
-    if (resolvedDisk1.empty() && !m_currentMachineName.empty())
+    // A temporary machine starts with only the image it was opened with.
+    if (resolvedDisk1.empty() && useSaved)
     {
         std::wstring  saved;
         HRESULT       hrRead = DiskSettings::ReadSavedDiskPath (m_userConfigStore, m_fileSystem,
@@ -349,7 +352,7 @@ void DiskManager::MountCommandLineDisks (
         }
     }
 
-    if (resolvedDisk2.empty() && !m_currentMachineName.empty())
+    if (resolvedDisk2.empty() && useSaved)
     {
         std::wstring  saved;
         HRESULT       hrRead = DiskSettings::ReadSavedDiskPath (m_userConfigStore, m_fileSystem,

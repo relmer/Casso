@@ -5,6 +5,8 @@
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/A2retroNetConfig.h"
+#include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/DiskSourceFormat.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 
@@ -944,6 +946,71 @@ void ActionsA2retroNet::TakeArrived (std::vector<std::wstring> & outArrived)
 
         return true;
     });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsA2retroNet::AddArrived
+//
+//  A file that isn't a disk image is passed over, and so is an image that
+//  can't be added, as one the firmware can't mount or one past a full drive
+//  list: the copy succeeded, so there is nothing to report. A file that
+//  can't be read or written is a failure.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ActionsTypes::Outcome ActionsA2retroNet::AddArrived (const std::vector<std::wstring> & paths, std::vector<std::pair<std::wstring, std::wstring>> & outReplaced)
+{
+    ActionsTypes::Outcome  outcome;
+    ActionsTypes::Outcome  step;
+    std::wstring           image;
+    Layout                 layout;
+    bool                   isPassed = false;
+
+
+
+    outReplaced.clear();
+
+    for (const std::wstring & path : paths)
+    {
+        if (!CanAdd (path) || !DiskSourceFormat::IsMountableImageExtension (path))
+        {
+            continue;
+        }
+
+        image = path;
+
+        if (TryGetConvertibleLayout (path, layout))
+        {
+            step = ReplaceWithPo (path, image);
+
+            if (!step.Succeeded())
+            {
+                ActionsCopy::AppendMessage (outcome, step.hr, step.message);
+                continue;
+            }
+
+            outReplaced.emplace_back (path, image);
+            ActionsCopy::AppendMessage (outcome, outcome.hr, step.message);
+        }
+
+        step     = Add (image);
+        isPassed = step.hr == HRESULT_FROM_WIN32 (ERROR_INVALID_DATA) || step.hr == HRESULT_FROM_WIN32 (ERROR_DISK_FULL);
+
+        if (isPassed)
+        {
+            continue;
+        }
+
+        ActionsCopy::AppendMessage (outcome, step.Succeeded() ? outcome.hr : step.hr, step.message);
+        outcome.written += step.written;
+    }
+
+    return outcome;
 }
 
 

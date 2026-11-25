@@ -961,6 +961,13 @@ VolumeKind VolumeImage::DetectFilesystem (const vector<Byte> & sectors)
         return VolumeKind::Cpm;
     }
 
+    //  A CP/M directory with damaged entries among good ones, read with the
+    //  damaged ones skipped, once no other file system is found.
+    if (CpmVolume::IsFoundLenient (sectors))
+    {
+        return VolumeKind::Cpm;
+    }
+
     return VolumeKind::Unknown;
 }
 

@@ -1,11 +1,13 @@
 #include "Pch.h"
 
 #include "CassoExplorer/ExplorerInspectorHost.h"
+#include "CassoExplorer/Model/FilesystemChoices.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/Store/DiskSourceFormat.h"
 #include "Devices/Disk/IDiskFileIo.h"
 #include "Devices/Disk/Inspector/InspectorImageLoader.h"
 #include "Devices/Disk/MountDiagnosis.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
 #include "Devices/Disk/Inspector/Repair/RepairCopy.h"
 #include "Seams/IIntentChannel.h"
 #include "Seams/Win32IntentChannel.h"
@@ -28,6 +30,39 @@ ExplorerInspectorHost::ExplorerInspectorHost (const std::wstring & path, IDiskFi
     m_intents  (intents),
     m_mediaId  (InspectorImageLoader::MakeMediaId())
 {
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerInspectorHost::IsReadAsCpm
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerInspectorHost::IsReadAsCpm() const
+{
+    return m_choices != nullptr && m_choices->GetChoice (m_path) == VolumeKind::Cpm;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerInspectorHost::SetReadAsCpm
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerInspectorHost::SetReadAsCpm (bool isCpm)
+{
+    if (m_choices != nullptr)
+    {
+        m_choices->SetChoice (m_path, isCpm ? VolumeKind::Cpm : VolumeKind::Unknown);
+    }
 }
 
 

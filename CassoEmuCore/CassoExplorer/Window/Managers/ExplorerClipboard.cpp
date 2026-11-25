@@ -118,7 +118,7 @@ void ExplorerClipboard::CutEntriesToClipboard (HostFileNaming::Style style)
     {
         cut.onDrive = true;
 
-        if (!m_context.actions.TryPlanDriveDeletion (cut.drive))
+        if (!m_context.actions.GetAppleDrive().TryPlanDeletion ({}, cut.drive))
         {
             return;
         }
@@ -178,7 +178,7 @@ void ExplorerClipboard::FinishCut()
         return;
     }
 
-    outcome = cut.onDrive ? m_context.actions.RunDriveDeletion (cut.drive)
+    outcome = cut.onDrive ? m_context.actions.GetAppleDrive().RunDeletion (cut.drive)
                           : m_context.actions.DeleteEntries (cut.image, cut.catalogPaths);
 
     m_context.verbs.ReportOutcome (outcome, L"Move");
@@ -277,8 +277,8 @@ void ExplorerClipboard::PasteHere (const std::wstring & folder)
         m_context.actions.GetA2retroNet().NoteMove (pasted.sources[i], pasted.created[i]);
     }
 
-    //  An image pasted onto an A2Pico card that A2retroNET doesn't read is
-    //  offered as a .po once it is listed.
+    //  An image pasted onto an A2Pico card is set as a drive once Windows
+    //  has written it.
     m_context.actions.GetA2retroNet().ExpectArrivals (pasted.created);
 
     if (!pasted.created.empty())
@@ -306,6 +306,7 @@ void ExplorerClipboard::PasteHere (const std::wstring & folder)
     }
 
     m_context.folderSync.RefreshAfterHostChange();
+    m_context.folderSync.RefreshTreeFolder (folder);
 }
 
 
@@ -353,7 +354,7 @@ void ExplorerClipboard::PasteIntoVolume()
 
     if (m_context.browser.IsAppleDriveLocation())
     {
-        outcome = source.fromImage ? m_context.actions.CopyEntriesToAppleDrive (source.image, source.kind, source.catalogPaths)
+        outcome = source.fromImage ? m_context.actions.GetAppleDrive().CopyEntriesToAppleDrive (source.image, source.kind, source.catalogPaths)
                                    : m_context.actions.PutFiles (source.hostPaths, m_context.prompts.MakeAddressPrompt());
 
         m_context.verbs.ReportOutcome (outcome, L"Put");

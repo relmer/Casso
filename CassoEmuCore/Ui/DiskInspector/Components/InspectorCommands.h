@@ -25,6 +25,8 @@ struct InspectorCommands
     Command  stampFormat;
     Command  save;
     Command  saveEditedCopy;
+    Command  saveRaw;
+    Command  overwriteRaw;
     Command  close;
 
     //  Edit
@@ -76,6 +78,8 @@ struct InspectorCommands
     Command  bSettings;
     Command  endComparison;
     Command  decodeSettings;
+    Command  readAsCpm;
+    Command  detectFilesystem;
     Command  repair;
 
     //  Window

@@ -252,11 +252,12 @@ void HostLink::StartDisk (std::shared_ptr<const DiskCopy> copy, const std::wstri
     {
         m_session.model.SetDisk (copy->mediaId);
 
-        m_session.analysis           = DiskAnalysis();
-        m_session.analysis.mediaId   = copy->mediaId;
-        m_session.analysis.copy      = copy;
-        m_session.analysis.settings  = settings;
-        m_session.analysis.headLimit = Disk2Controller::kMaxQuarterTrack;
+        m_session.analysis             = DiskAnalysis();
+        m_session.analysis.mediaId     = copy->mediaId;
+        m_session.analysis.copy        = copy;
+        m_session.analysis.settings    = settings;
+        m_session.analysis.headLimit   = Disk2Controller::kMaxQuarterTrack;
+        m_session.analysis.isCpmChosen = m_session.host->IsReadAsCpm();
         m_session.analysis.tracks.resize (copy->tracks.size());
         DiskAnalyzer::Assemble (m_session.analysis);
         m_session.scheduler->Restart (copy, m_session.analysis.settings);

@@ -10,6 +10,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerVerbs.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
+#include "CassoExplorer/Window/Managers/ExplorerUndo.h"
 #include "CassoExplorer/Window/Managers/ExplorerOpen.h"
 
 
@@ -155,26 +156,28 @@ bool ExplorerListBars::FillSearchBar()
 //  a form A2retroNET doesn't read, with Convert to .po, which replaces each
 //  with a .po. A warning when a drive has a problem, the settings file has
 //  CR LF line ends, or an image is offered.
-//  And a selected, copied or written image the firmware reads that isn't a
-//  drive, with Set as drive for a free drive.
+//  And a selected or converted image the firmware reads that isn't a
+//  drive, with Set as drive for a free drive. An image copied to the card
+//  is set as a free drive right away.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ExplorerListBars::FillCardBar()
 {
-    const Location             & location  = m_context.browser.GetLocation();
-    std::wstring                 root      = std::filesystem::path (location.path).root_path().wstring();
-    std::vector<std::wstring>    labels;
-    std::vector<std::wstring>    arrived;
-    std::wstring                 text;
-    HRESULT                      hr        = S_OK;
-    bool                         visible   = m_cardBar->IsVisible();
-    bool                         onCard    = false;
-    bool                         atRoot    = false;
-    bool                         problem   = false;
-    bool                         show      = false;
-    bool                         relabeled = false;
-    bool                         isOne     = false;
+    const Location                                      & location  = m_context.browser.GetLocation();
+    std::wstring                                          root      = std::filesystem::path (location.path).root_path().wstring();
+    std::vector<std::wstring>                             labels;
+    std::vector<std::wstring>                             arrived;
+    std::vector<std::pair<std::wstring, std::wstring>>    replaced;
+    std::wstring                                          text;
+    HRESULT                                               hr        = S_OK;
+    bool                                                  visible   = m_cardBar->IsVisible();
+    bool                                                  onCard    = false;
+    bool                                                  atRoot    = false;
+    bool                                                  problem   = false;
+    bool                                                  show      = false;
+    bool                                                  relabeled = false;
+    bool                                                  isOne     = false;
 
 
 
@@ -186,8 +189,24 @@ bool ExplorerListBars::FillCardBar()
     //  Files dropped on or from a card that Windows has moved since.
     m_context.actions.GetA2retroNet().ResolveMoves();
 
+    //  Images copied to a card are set as its drives once Windows has
+    //  written them.
     m_context.actions.GetA2retroNet().TakeArrived (arrived);
-    m_settable.insert (m_settable.end(), arrived.begin(), arrived.end());
+
+    if (!arrived.empty())
+    {
+        m_context.verbs.ReportOutcome (m_context.actions.GetA2retroNet().AddArrived (arrived, replaced), L"Add to A2retroNET drives");
+
+        //  Undoing the copy of an image replaced with a .po removes the .po,
+        //  and the tree lists the .po in its folder.
+        for (const auto & [from, to] : replaced)
+        {
+            m_context.undo.ReplacePath (from, to);
+            m_context.folderSync.RefreshTreeFolder (std::filesystem::path (to).parent_path().wstring());
+        }
+
+        m_context.folderSync.RefreshAfterHostChange();
+    }
 
     onCard = location.kind == Location::Kind::HostFolder && !root.empty() && m_context.actions.IsA2PicoCard (root) && location.path != m_cardBarClosed;
     atRoot = onCard && location.path == root;

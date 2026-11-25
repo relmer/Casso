@@ -9,6 +9,7 @@ class CassoLinkManager;
 class ExplorerTabManager;
 struct ExplorerWindowParts;
 struct CassoExplorerSessionWindow;
+struct InspectorRawTransfer;
 
 
 
@@ -103,6 +104,7 @@ public:
     CassoLinkManager               & GetCassoLinkManager   ();
     void                             OpenPathInNewTab      (const std::wstring & path);
     void                             SelectInFolder        (const std::wstring & path);
+    void                             TransferRaw           (HWND owner, const std::wstring & path, const InspectorRawTransfer & transfer);
     static int64_t                   GetNowMs              ();
     void                             TakeLinkNotifications ();
     void                             CloseForApp           ();

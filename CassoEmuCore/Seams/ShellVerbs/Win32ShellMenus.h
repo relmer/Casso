@@ -25,17 +25,23 @@ class Win32ShellMenus
 public:
     explicit Win32ShellMenus (Win32ShellItemVerbs & verbs);
 
-    HRESULT  Open                (HWND owner, const std::wstring & path);
-    HRESULT  GetOpenWithHandlers (const std::wstring & path, std::vector<IShellItemVerbs::Handler> & outHandlers);
-    HRESULT  OpenWith            (HWND owner, const std::wstring & path, size_t handlerIndex);
-    HRESULT  ChooseOtherApp      (HWND owner, const std::wstring & path);
-    HRESULT  ShowShellMenu       (HWND owner, const std::vector<std::wstring> & paths, POINT screenPx, const std::function<void()> & rename);
-    HRESULT  ShowBackgroundMenu  (HWND owner, const std::wstring & folder, POINT screenPx);
-    HRESULT  RunItemVerb         (HWND owner, const std::vector<std::wstring> & paths, const char * verb);
-    HRESULT  GetItemVerbLabels   (HWND owner, const std::vector<std::wstring> & paths, std::vector<std::wstring> & outLabels);
-    HRESULT  RunItemVerbByLabel  (HWND owner, const std::vector<std::wstring> & paths, const std::wstring & label);
-    HRESULT  WalkItemVerbs       (HWND owner, const std::vector<std::wstring> & paths, const std::wstring * run, std::vector<std::wstring> * outLabels);
-    HRESULT  ListItemVerbs       (const std::vector<std::wstring> & paths, const std::vector<std::string> & verbs, std::vector<IShellItemVerbs::ItemVerb> & outFound);
+    HRESULT      Open                  (HWND owner, const std::wstring & path);
+    HRESULT      GetOpenWithHandlers   (const std::wstring & path, std::vector<IShellItemVerbs::Handler> & outHandlers);
+    HRESULT      OpenWith              (HWND owner, const std::wstring & path, const IShellItemVerbs::Handler & handler);
+    static void  AddRecentApplications (const std::wstring & path, std::vector<IShellItemVerbs::Handler> & handlers);
+    static bool  IsThisProgram         (const std::wstring & program);
+    HRESULT      ChooseOtherApp        (HWND owner, const std::wstring & path);
+    HRESULT      ShowShellMenu         (HWND owner, const std::vector<std::wstring> & paths, POINT screenPx, const std::function<void()> & rename);
+    HRESULT      ShowBackgroundMenu    (HWND owner, const std::wstring & folder, POINT screenPx);
+    HRESULT      RunItemVerb           (HWND owner, const std::vector<std::wstring> & paths, const char * verb);
+    HRESULT      GetItemVerbLabels     (HWND owner, const std::vector<std::wstring> & paths, std::vector<std::wstring> & outLabels);
+    HRESULT      RunItemVerbByLabel    (HWND owner, const std::vector<std::wstring> & paths, const std::wstring & label);
+    HRESULT      WalkItemVerbs         (HWND owner, const std::vector<std::wstring> & paths, const std::wstring * run, std::vector<std::wstring> * outLabels);
+    HRESULT      ListItemVerbs         (const std::vector<std::wstring> & paths, const std::vector<std::string> & verbs, std::vector<IShellItemVerbs::ItemVerb> & outFound);
+    HRESULT      ListSendToTargets     (std::vector<IShellItemVerbs::SendToTarget> & outTargets);
+    HRESULT      ListFileActions       (const std::vector<std::wstring> & paths, const std::vector<std::string> & verbs, std::vector<IShellItemVerbs::ItemVerb> & outFound);
+    static bool  AppliesToFile         (const std::wstring & path, const std::string & verb);
+    HRESULT      SendTo                (const std::vector<std::wstring> & paths, const std::wstring & target);
     static constexpr const wchar_t * s_kClassName      = L"CassoExplorerShellMenuHost";
 
     static LRESULT CALLBACK  MenuHostProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);

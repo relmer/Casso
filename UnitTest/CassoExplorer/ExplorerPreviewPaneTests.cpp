@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "ExplorerWindowPartsRig.h"
 #include "Devices/Disk/Store/DiskFileCommit.h"
+#include "CassoExplorer/Window/Panes/Preview/PreviewDiskThumbnail.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -181,6 +182,19 @@ public:
     }
 
 
+    //  The damage a disk's listing reports, such as a CP/M directory's entries
+    //  that aren't valid, is the infobar's finding, with the pointer to
+    //  Inspect... under it.
+    TEST_METHOD (ListingDamage_IsTheInfobarsWarningText)
+    {
+        std::wstring  damage = L"There are 6 directory entries that aren't valid CP/M entries, so the disk is treated as read-only to prevent further damage";
+
+
+
+        Assert::AreEqual (damage + L".\nClick Inspect for more information.", PreviewDiskThumbnail::FormatListingWarning (damage));
+        Assert::AreEqual (std::wstring(), PreviewDiskThumbnail::FormatListingWarning (L""), L"no damage, no infobar");
+    }
+
     //  The preview of a disk image has its file-system verdict at the top, at
     //  100% and at 150%: Bad as an error infobar with its first finding of
     //  damage and Repair disk image, Suspect as an info infobar with its
@@ -193,9 +207,9 @@ public:
 
         const Case  cases[] =
         {
-            { L"bad.dsk",     RepairFixtures::MakeDos33Bitmap().damaged,       L"File system damaged.\nTrack 18, sector $E is used by HELLO but marked free.\n\nInspect for more details.",
+            { L"bad.dsk",     RepairFixtures::MakeDos33Bitmap().damaged,       L"Track 18, sector $2 is used by HELLO but marked free.\nClick Inspect for more information.",
               DxuiInfoBanner::Severity::Error, L"" },
-            { L"suspect.dsk", RepairFixtures::MakeDos33NextTrackOff().damaged, L"Possible inconsistencies found.\nThe VTOC's next track to allocate, track 40, is off the disk.\n\nInspect for more details.",
+            { L"suspect.dsk", RepairFixtures::MakeDos33NextTrackOff().damaged, L"The VTOC's next track to allocate, track 40, is off the disk.\nClick Inspect for more information.",
               DxuiInfoBanner::Severity::Info,  L"" },
             { L"ok.dsk",      RepairFixtures::MakeDos33(),                     L"", DxuiInfoBanner::Severity::Info, L"" },
         };

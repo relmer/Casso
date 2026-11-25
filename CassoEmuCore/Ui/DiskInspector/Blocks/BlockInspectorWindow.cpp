@@ -11,6 +11,7 @@
 #include "Ui/DiskInspector/Blocks/BlockRepairController.h"
 #include "Ui/DiskInspector/Components/InspectorDialogs.h"
 #include "Ui/DiskInspector/DiskInspectorPalette.h"
+#include "Ui/DiskInspector/IDiskInspectorHost.h"
 #include "Ui/DiskInspector/InspectorMarquee.h"
 
 
@@ -160,6 +161,67 @@ void BlockInspectorWindow::CreateParts()
 
     m_tips->SetPopupHost (GetPopupHost());
     m_commandSet->Build();
+
+    if (m_onTransferRaw)
+    {
+        m_commands.saveRaw                 = std::make_shared<DxuiCommand>();
+        m_commands.saveRaw->label          = L"Save bloc&ks to a file...";
+        m_commands.saveRaw->dispatch       = [this] () { TransferRaw (true); };
+        m_commands.saveRaw->isEnabled      = [this] () { return m_model.IsOpen(); };
+        m_commands.overwriteRaw            = std::make_shared<DxuiCommand>();
+        m_commands.overwriteRaw->label     = L"&Overwrite blocks from a file...";
+        m_commands.overwriteRaw->dispatch  = [this] () { TransferRaw (false); };
+        m_commands.overwriteRaw->isEnabled = [this] () { return m_model.IsOpen() && m_model.GetEdits().IsEmpty(); };
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorWindow::UpdateNotice
+//
+//  The panel's infobar from the current volume, with Repair... running the
+//  Disk menu's Repair.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorWindow::UpdateNotice()
+{
+    bool          isBad     = false;
+    bool          canRepair = false;
+    std::wstring  text      = m_repair->GetNotice (isBad, canRepair);
+
+
+
+    m_panel->SetNotice (text, isBad, canRepair, [this] () { BlockCommandSet::Run (m_commands.repair); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorWindow::TransferRaw
+//
+//  The host's save or overwrite of blocks, starting at the selected block.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorWindow::TransferRaw (bool isSave)
+{
+    InspectorRawTransfer  transfer;
+
+
+
+    transfer.isSectors = false;
+    transfer.isSave    = isSave;
+    transfer.start     = m_model.GetBlock();
+
+    m_onTransferRaw (transfer);
 }
 
 
@@ -187,6 +249,7 @@ void BlockInspectorWindow::RenderIfChanged()
     m_session.RunPendingReload();
 
     m_panel->UpdateBusy();
+    UpdateNotice();
     m_edits->UpdateEditControls();
     m_session.UpdateTitle();
     DxuiPanel::Tick ((int64_t) GetTickCount64());

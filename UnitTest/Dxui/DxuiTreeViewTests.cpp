@@ -662,6 +662,39 @@ public:
     }
 
 
+    //  A removable drive is a row at the top level and another under This PC,
+    //  with one id; a change to the drive's folder is shown in both.
+    TEST_METHOD (ReplaceChildren_ChangesEveryRowWithTheId)
+    {
+        DxuiTreeView               tv;
+        std::vector<DxuiTreeNode>  roots;
+        DxuiTreeNode               pc    = MakeUnread (L"pc");
+        DxuiTreeNode               drive = MakeUnread (L"H");
+        std::vector<DxuiTreeNode>  fresh;
+
+
+
+        drive.childrenLoaded = true;
+        drive.expanded       = true;
+        drive.children.push_back (MakeUnread (L"H\\old.dsk"));
+
+        pc.childrenLoaded = true;
+        pc.expanded       = true;
+        pc.children.push_back (drive);
+
+        roots.push_back (pc);
+        roots.push_back (drive);
+
+        tv.SetRect      (RECT { 0, 0, 200, 400 });
+        tv.SetRowHeight (20);
+        tv.SetNodes     (std::move (roots));
+
+        fresh.push_back (MakeUnread (L"H\\new.po"));
+
+        Assert::IsTrue (tv.ReplaceChildren (L"H", std::move (fresh)));
+        Assert::IsTrue (RowIds (tv) == std::vector<std::wstring> { L"pc", L"H", L"H\\new.po", L"H", L"H\\new.po" }, L"both rows of the drive have the new image");
+    }
+
     TEST_METHOD (ReplaceChildren_OpensANodeAskedOpenBeforeItsChildrenWereRead)
     {
         DxuiTreeView               tv;

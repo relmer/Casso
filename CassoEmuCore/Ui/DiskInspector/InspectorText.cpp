@@ -323,6 +323,54 @@ std::wstring InspectorText::FormatFileSystem (BlockFileSystem fileSystem)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  InspectorText::MakeReadAsCpmChip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SummaryChip InspectorText::MakeReadAsCpmChip()
+{
+    SummaryChip  chip;
+
+
+
+    chip.kind   = SummaryChipKind::ReadAsCpm;
+    chip.text   = L"Read as CP/M";
+    chip.isInfo = true;
+
+    return chip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::MakeReadAsCpmTitleChip
+//
+//  The same chip for the caption, after the title, with its tip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiTitleChip InspectorText::MakeReadAsCpmTitleChip()
+{
+    DxuiTitleChip  chip;
+
+
+
+    chip.text = MakeReadAsCpmChip().text;
+    chip.tip  = kpszReadAsCpmTip;
+    chip.kind = DxuiTitleChipKind::Info;
+
+    return chip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  InspectorText::FormatWindowTitle
 //
 ////////////////////////////////////////////////////////////////////////////////
