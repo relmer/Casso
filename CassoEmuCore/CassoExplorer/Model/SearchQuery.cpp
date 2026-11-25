@@ -264,7 +264,7 @@ std::wstring SearchQuery::GetLabel (const std::wstring & scope)
     }
 
     //  Several folders are Casso's own, searched from its root.
-    if (scope.find (kScopeSeparator) != std::wstring::npos)
+    if (scope.find (kScopeSeparator) != std::wstring::npos || scope == kStockDisks)
     {
         return L"Search results in Casso";
     }

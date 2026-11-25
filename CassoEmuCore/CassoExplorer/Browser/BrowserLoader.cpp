@@ -7,6 +7,9 @@
 #include "CassoExplorer/Model/CassoImagesListing.h"
 #include "CassoExplorer/Model/DiskMessageText.h"
 #include "CassoExplorer/Model/StockDisksListing.h"
+#include "CassoExplorer/Model/ISearchSources.h"
+#include "CassoExplorer/Model/SearchExpression.h"
+#include "CassoExplorer/Model/SearchQuery.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
@@ -332,7 +335,75 @@ HRESULT BrowserLoader::LoadShellFolder (const std::wstring & id)
         m_parts.list.rows.push_back (std::move (row));
     }
 
+    AddStockDiskMatches (id);
+
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserLoader::AddStockDiskMatches
+//
+//  A search from Casso's root covers its stock disks too. They have no
+//  folder for the shell to search, so each one the query matches is listed
+//  after the shell's results, unless one of those is the same file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BrowserLoader::AddStockDiskMatches (const std::wstring & id)
+{
+    std::wstring                      scope;
+    std::wstring                      query;
+    bool                              parsed  = SearchQuery::TryParseId (id, scope, query);
+    std::vector<std::wstring>         scopes  = parsed ? SearchQuery::SplitScopes (scope) : std::vector<std::wstring>();
+    bool                              covered = std::find (scopes.begin(), scopes.end(), SearchQuery::kStockDisks) != scopes.end();
+    SearchExpression::MatchOptions    options;
+    SearchExpression                  expression;
+    NullSearchSources                 sources;
+    std::vector<CatalogRow>           stock;
+    std::set<std::wstring>            listed;
+
+
+
+    if (!covered)
+    {
+        return;
+    }
+
+    //  A stock disk has no file to read until it is downloaded, so only its
+    //  name, path and size are tested.
+    options.contents = false;
+    expression       = SearchExpression::Parse (query, options);
+
+    for (const CatalogRow & row : m_parts.list.rows)
+    {
+        listed.insert (CassoImagesListing::MakePathKey (row.hostPath));
+    }
+
+    StockDisksListing::Build (m_parts.sources.stockDisks, stock);
+
+    for (CatalogRow & row : stock)
+    {
+        SearchExpression::FileFacts  facts;
+
+        facts.name      = row.name;
+        facts.path      = row.hostPath;
+        facts.hasSize   = row.stockDownloaded;
+        facts.sizeBytes = row.sizeBytes;
+
+        if (!expression.Matches (facts, sources) || (!row.hostPath.empty() && !listed.insert (CassoImagesListing::MakePathKey (row.hostPath)).second))
+        {
+            continue;
+        }
+
+        row.folderShown = L"Stock disks";
+        row.sourceIndex = m_parts.list.rows.size();
+        m_parts.list.rows.push_back (std::move (row));
+    }
 }
 
 
