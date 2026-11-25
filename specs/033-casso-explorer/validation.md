@@ -1398,7 +1398,7 @@ children to read. Now the node opens to the four partitions.
 ## A 13-sector disk on the owner's //c (T611, 2026-11-22)
 
 CiderPress II's `3.2.1-master.d13` was written to a blank floppy in the //c's
-drive 2 over CassoLink on COM3, and the disk booted DOS 3.2.1. Create image
+drive 2 over CassoLink on COM3, and the disk booted DOS 3.2.1 through Apple's 13-sector boot utility (BOOT13), since the //c's ROM boots only 16-sector disks. Create image
 from read it back as `DOS 3.2.1 Master.d13` in 0:45, with no sectors that
 couldn't be read. The two files are byte-identical, 116,480 bytes each.
 
