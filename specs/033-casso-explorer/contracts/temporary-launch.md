@@ -21,8 +21,7 @@ Help lines (FR-317):
 --launch <image>   Boot this image in a stock machine, set up with the cards and
                    drives the image needs. Changes made while it runs, to the
                    machine or to Casso's settings, aren't saved.
---machine <name>   Which machine to boot, such as Apple2e. With --launch, which
-                   stock machine to copy.
+--machine <name>   Which machine to boot, such as Apple2e.
 ```
 
 ## Registry, unpackaged builds

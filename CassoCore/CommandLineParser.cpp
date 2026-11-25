@@ -393,8 +393,7 @@ static constexpr CommandLineParser::EmulatorRelaunchRule  s_kEmulatorRelaunchRul
 //  exactly and has no `/` name to rewrite.
 static constexpr CommandLineParser::EmulatorFlag  s_kEmulatorFlags[] =
 {
-    { "--machine", " <name>",  "Which machine to boot, such as Apple2e. With --launch, "
-                               "which stock machine to copy." },
+    { "--machine", " <name>",  "Which machine to boot, such as Apple2e." },
     { "--disk1",   " <image>", "Insert this image into drive 1." },
     { "--disk2",   " <image>", "Insert this image into drive 2." },
     { "--launch",  " <image>", "Boot this image in a stock machine, set up with the cards and "
