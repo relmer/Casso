@@ -44,9 +44,6 @@ HKCU\Software\Classes\Casso.OpenOn\shell\<nn><id>
 
 - A model that can't take the image: "The Apple //c can't open <name>:
   <reason>."
-- No 13-sector ROM: "<name> is a 13-sector disk. To boot it, install the
-  13-sector Disk II ROM, or BRUN BOOT13 from a DOS 3.3 System
-  Master."
 - An unknown model: "--machine takes Apple2, Apple2Plus, Apple2e,
   Apple2eEnhanced, Apple2c or Apple2cPlus."
 - A drive switch with `--launch`: "--launch chooses the drive, so it can't

@@ -712,8 +712,8 @@ hardware.
   `--machine`. A saved "launch machine" in the picker was weighed and
   dropped for the temporary copy, which never goes out of date.
 - Q: Is .d13 registered, and what labels go in File Explorer? -> A: .d13 is
-  registered, since Casso swaps in the Disk II's 13-sector ROM; without that
-  ROM the notice points to BRUN BOOT13 on a DOS 3.3 System Master (owner,
+  registered, since Casso swaps in the Disk II's 13-sector ROM, which the ROM
+  download fetches with the 16-sector one, so a 13-sector disk boots without BOOT13 (owner,
   2026-11-24). File Explorer's submenu is "Open in Casso on", since its menu
   lists other programs' rows; Casso Explorer's is "Open on".
 
@@ -4294,8 +4294,7 @@ it was.
   `"Casso.exe" --launch "%1"`: .dsk, .do, .po, .woz, .nib, .nb2 and .d13,
   and the block types .2mg, .2img, .hdv, .dc, .dc42 and .image. A 13-sector
   image boots on the Disk II's 13-sector ROM, which Casso swaps in for it.
-  When that ROM isn't installed, Casso reports that it's required, or that
-  BRUN BOOT13 from a DOS 3.3 System Master boots the disk. A registration
+  A registration
   made at startup by an earlier build MUST be updated on the next start.
 - **FR-315**: File Explorer's menu for these types and Casso Explorer's
   context menu for a disk image MUST have an Open on submenu with one row
