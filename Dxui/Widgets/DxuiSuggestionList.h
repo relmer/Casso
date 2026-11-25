@@ -61,13 +61,13 @@ public:
     static constexpr int  kPadLeftDip     = 12;
 
 private:
-    void  Render      (IDxuiPainter & painter, IDxuiTextRenderer & text);
-    void  OnMove      (POINT localPx);
-    void  OnClick     (POINT localPx);
-    void  OnWheel     (int delta);
-    int   HitTestRow  (POINT localPx) const;
+    void  Render       (IDxuiPainter & painter, IDxuiTextRenderer & text);
+    void  OnMove       (POINT localPx);
+    void  OnClick      (POINT localPx);
+    void  OnWheel      (int delta);
+    int   HitTestRow   (POINT localPx) const;
     bool  IsOverRemove (POINT localPx) const;
-    void  Scroll      (int rows);
+    void  Scroll       (int rows);
 
     DxuiHwndSource             * m_popupHost = nullptr;
     DxuiPopupHost              * m_popup     = nullptr;

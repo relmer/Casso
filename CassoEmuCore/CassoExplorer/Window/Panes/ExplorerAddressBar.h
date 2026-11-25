@@ -109,10 +109,10 @@ public:
     bool  HandleKey             (const DxuiKeyEvent & ev) { return m_address->OnKey (ev); }
     void  HandleFocusChanged    (ExplorerPane focus);
     bool  HandleFindBoxKey      (const DxuiKeyEvent & ev);
+    bool  HandleAddressKey      (WPARAM vk);
 
     //  The search box's earlier queries, newest first, that contain `typed`.
     static std::vector<std::wstring>  GetSearchSuggestions (const std::vector<std::wstring> & history, const std::wstring & typed);
-    bool  HandleAddressKey      (WPARAM vk);
 
 private:
     bool  HandleAddressMouse  (const DxuiMouseEvent & ev);
