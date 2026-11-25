@@ -73,7 +73,7 @@ Tests are required by the constitution: every component gets unit tests with in-
 
 - [ ] T034 Add the stamp to `CHANGELOG.md` under the next release and to the README's disk image section (approved by the owner before pushing)
 - [ ] T035 Build Debug and Release x64 and ARM64; run `scripts/CheckStyle.ps1 -Mode Tree`, the full unit suite, and the disk scenario tests
-- [ ] T036 Merge into `033-casso-explorer`
+- [X] T036 Merge into `033-casso-explorer`
 
 ## Dependencies
 
