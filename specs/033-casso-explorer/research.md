@@ -1294,3 +1294,62 @@ CiderPress II's file viewer, from its GUI manual, was compared feature by featur
   is a track name, not a quantity, and is written with a period.
 - **Alternatives**: `std::format` with `{:L}` and a C++ locale. Not used:
   a C++ locale's facets aren't the user's Windows settings.
+
+## R65. Where a temporary machine mounts an image (Story 44, FR-313)
+
+- **Decision**: a 5.25-inch image goes in drive 1 of the Disk II in slot 6.
+  A block image goes on the first hard disk card in the copy, the
+  `apple-scsi-card` in slot 7 of the stock //e and enhanced //e; on a model
+  with slots and no hard disk card, an `apple-scsi-card` is added to slot 7,
+  or to the highest empty slot when 7 is taken. On the //c and //c Plus it
+  goes on the disk port's first drive. Casso reports that a 13-sector image can't be opened, since
+  the 5.25-inch drive doesn't take it.
+- **Rationale**: slot 7 is where ProDOS looks first and where the stock //e
+  has its card, so the image boots without a change to the boot order.
+- **Alternatives**: the ProFile card, which takes a single 5 or 10 MB drive
+  and can't take a 32 MB image; the UniDisk 3.5 card, limited to 800K.
+
+## R66. A block image on a 6502 machine (Story 44, FR-318)
+
+- **Decision**: on a copy with less than 64K, a `language-card` is added to
+  slot 0. A card added to a 6502 machine sets `cassoFirmware`.
+- **Rationale**: ProDOS requires 64K, and the stock Apple ][ and ][+ have
+  48K. `CassoBlock.s` uses 6502 instructions only, measured 2026-11-24, so
+  Casso's firmware runs on every model; whether Apple's SCSI ROM does is
+  not established, and the firmware avoids the question. So no stock model
+  turns away a block image on CPU grounds, and FR-318's report applies to a
+  card whose firmware requires a 65C02, which no stock copy gets.
+- **Alternatives**: refusing a block image on the ][ and ][+, which turns
+  away a setup most real owners had.
+
+## R67. A stock machine, not the user's (Story 44, FR-312)
+
+- **Decision**: `StockMachines` returns the embedded default config for a
+  model id, the one `SaveDelta` diffs against, and doesn't apply the user's
+  saved delta. For an id outside the list, Casso reports the list.
+- **Rationale**: `--launch` exists so the user's changes to a model stay as they are, and an embedded default is never out of date.
+
+## R68. Never writing a temporary session's settings (Story 44, FR-311)
+
+- **Decision**: `ShellSettings` has a temporary flag, set from `--launch`
+  before the preferences load. `UserConfigStore::SaveAll` and `SaveDelta`
+  return S_OK without writing while it is set.
+- **Rationale**: there are more than a dozen save sites across the shell,
+  the desk scene and the settings dialog. Guarding the store's two entry
+  points covers all of them and any added later.
+- **Alternatives**: a guard at each save site, which a new site would miss.
+
+## R69. The Open on submenu in File Explorer (Story 44, FR-314, FR-315)
+
+- **Decision**: unpackaged builds write a `shell\OpenOn` verb under each
+  ProgID with `MUIVerb` and `ExtendedSubCommandsKey` pointing to
+  `Casso.OpenOn`, whose `shell` key has one verb per stock model. The
+  package declares one `uap3:Verb` per model, since a package's file type
+  association has no submenu; File Explorer lists them under its Open with
+  rows.
+- **Rationale**: `ExtendedSubCommandsKey` is the registry form of a cascading
+  menu, with no shell extension to load. Both appear in Windows 11's full
+  menu; only a packaged `IExplorerCommand` appears in the
+  compact menu, which Casso doesn't ship.
+- **Alternatives**: an `IExplorerCommand` handler, a COM server in the
+  package for a menu that the static verbs already provide.
