@@ -536,6 +536,31 @@ public:
         return asked;
     }
 
+    TEST_METHOD (Place_BlockImageOn6502Models_StartsSlot7)
+    {
+        LaunchPlan  plus = LaunchPlacement::Place (MakeFacts (LaunchImageKind::FloppyBlocks, 1600), "C:\\800.po",
+                                                   *StockMachines::Find ("Apple2Plus"), MakeII());
+        LaunchPlan  ii   = LaunchPlacement::Place (MakeFacts (LaunchImageKind::HardDisk, 65535), "C:\\big.hdv",
+                                                   *StockMachines::Find ("Apple2"), MakeII());
+
+
+
+        Assert::IsFalse (plus.IsRefused(), plus.refusal.c_str());
+        Assert::IsFalse (ii.IsRefused(), ii.refusal.c_str());
+        Assert::AreEqual (7, plus.config.bootSlot);
+        Assert::AreEqual (7, ii.config.bootSlot);
+    }
+
+    TEST_METHOD (Place_BlockImageOnIIe_LeavesTheBootToTheRom)
+    {
+        LaunchPlan  plan = LaunchPlacement::Place (MakeFacts (LaunchImageKind::FloppyBlocks, 1600), "C:\\800.po",
+                                                   StockMachines::GetDefault(), MakeIIe());
+
+
+
+        Assert::AreEqual (0, plan.config.bootSlot);
+    }
+
     TEST_METHOD (ResolveFirmware_800KOnIIc_LooksUpTheUniDiskRom)
     {
         LaunchPlan                plan  = LaunchPlacement::Place (MakeFacts (LaunchImageKind::FloppyBlocks, 1600), "C:\\800.po",

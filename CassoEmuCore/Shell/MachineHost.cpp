@@ -317,6 +317,36 @@ std::filesystem::path MachineHost::GetPendingPrintDir() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MachineHost::StartBootSlot
+//
+//  After the monitor's setup, a ][+'s ROM jumps to slot 6, and a ]['s
+//  monitor reads the keyboard at the * prompt. Either point is where a user
+//  types PR#7 or C700G. Slot 6's ROM hasn't run yet, so its drive is off.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::StartBootSlot()
+{
+    constexpr Word  kSlot6Page = 0xC600;
+    constexpr Word  kKeyIn     = 0xFD1B;
+    Word            pc         = m_cpu->GetPC();
+    bool            isAtBoot   = (pc & 0xFF00) == kSlot6Page || pc == kKeyIn;
+
+
+
+    if (isAtBoot)
+    {
+        m_cpu->SetPC ((Word) (0xC000 | (m_config->bootSlot << 8)));
+        m_isBootPending = false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MachineHost::StepOne
 //
 //  One instruction, and the devices that measure time in instructions.
@@ -344,6 +374,11 @@ Byte MachineHost::StepOne()
     if (m_cpu == nullptr)
     {
         return (0);
+    }
+
+    if (m_isBootPending)
+    {
+        StartBootSlot();
     }
 
     // StepOne polls the interrupt lines itself and dispatches a pending
@@ -1146,6 +1181,8 @@ void MachineHost::PowerCycle()
     {
         m_cpu->PowerCycle (*m_prng);
     }
+
+    m_isBootPending = m_config != nullptr && m_config->bootSlot != 0;
 
     // After the CPU's power cycle, which is what fills main RAM.
     ApplyPowerOnOverrides();

@@ -245,6 +245,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  LaunchPlacement::PlaceOnPort
@@ -357,6 +358,11 @@ void LaunchPlacement::PlaceOnCard (LaunchPlan & plan, const DiskImageFacts & fac
 
     hd[0].slot  = slot;
     hd[0].image = imagePath;
+
+    if (machine.is6502)
+    {
+        plan.config.bootSlot = slot;
+    }
 
     hr = BlockDeviceAttachments::Apply (hd, {}, plan.config, error);
 

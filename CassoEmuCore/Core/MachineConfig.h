@@ -387,6 +387,10 @@ struct MachineConfig
     // sets it.
     bool                        isTemporary       = false;
 
+    // The slot a temporary ][ or ][+ starts after power on, since its ROM
+    // boots only a Disk II card; 0 for none. JSON never sets it.
+    int                         bootSlot          = 0;
+
     // True when an enabled slot hosts the given device type -- e.g. a query for
     // "parallel-printer" tells the UI whether this machine can print. A slot the
     // user disabled in Settings > Hardware does not count.
