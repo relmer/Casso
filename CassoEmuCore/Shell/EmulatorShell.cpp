@@ -1170,6 +1170,12 @@ HRESULT EmulatorShell::BuildMachineDevices (const MachineConfig & config)
 
 
 
+    // A temporary machine's settings aren't saved; a later machine's are.
+    if (m_settings != nullptr && m_settings->GetConfigStore() != nullptr)
+    {
+        m_settings->GetConfigStore()->SetRunningMachine (config);
+    }
+
     // --hd and --smartport apply to the first machine only, and are never
     // saved: the copy built from has them, the config does not.
     if (!m_runHdAttachments.empty() || !m_runSmartPortAttachments.empty())

@@ -3,6 +3,7 @@
 #include "InMemoryFileSystem.h"
 
 #include "Config/UserConfigStore.h"
+#include "Core/MachineConfig.h"
 
 #include "Core/JsonParser.h"
 #include "Core/JsonWriter.h"
@@ -1523,6 +1524,67 @@ public:
     // three saves below fires from one. Writing constructed defaults there
     // resets every global preference the user ever set, and the only visible
     // symptom is settings that quietly revert on the next launch.
+
+    TEST_METHOD (TemporaryMachine_SaveAllAndSaveDelta_WriteNothing)
+    {
+        InMemoryFileSystem  fs;
+        HRESULT             hr          = S_OK;
+        std::string         before;
+        std::string         after;
+        UserConfigStore     store (L"C:\\Casso");
+        GlobalUserPrefs     prefs;
+        MachineConfig       running;
+        JsonValue           defaultJson = ParseOrFail ("{\"$cassoMachineVersion\":1,\"speedMode\":\"Authentic\"}");
+        JsonValue           currentJson = ParseOrFail ("{\"$cassoMachineVersion\":1,\"speedMode\":\"Double\"}");
+
+
+        hr = fs.WriteAllText (store.GetUserPrefsFilePath(), kpszSeededPrefs);
+        AssertSucceeded (hr);
+        hr = fs.ReadAllText (store.GetUserPrefsFilePath(), before);
+        AssertSucceeded (hr);
+
+        running.isTemporary = true;
+        store.SetRunningMachine (running);
+        prefs.activeTheme   = "changed";
+
+        hr = store.SaveAll (prefs, fs);
+        AssertSucceeded (hr);
+        hr = store.SaveDelta ("Apple2e", currentJson, defaultJson, fs);
+        AssertSucceeded (hr);
+        hr = store.Reset ("Apple2e", fs);
+        AssertSucceeded (hr);
+
+        hr = fs.ReadAllText (store.GetUserPrefsFilePath(), after);
+        AssertSucceeded (hr);
+        Assert::AreEqual (before, after);
+        Assert::AreEqual (size_t (1), fs.FileCount());
+    }
+
+
+    TEST_METHOD (SavedMachine_AfterTemporary_WritesAgain)
+    {
+        InMemoryFileSystem  fs;
+        HRESULT             hr          = S_OK;
+        std::string         text;
+        UserConfigStore     store (L"C:\\Casso");
+        MachineConfig       running;
+        JsonValue           defaultJson = ParseOrFail ("{\"$cassoMachineVersion\":1,\"speedMode\":\"Authentic\"}");
+        JsonValue           currentJson = ParseOrFail ("{\"$cassoMachineVersion\":1,\"speedMode\":\"Double\"}");
+
+
+        running.isTemporary = true;
+        store.SetRunningMachine (running);
+        running.isTemporary = false;
+        store.SetRunningMachine (running);
+
+        hr = store.SaveDelta ("Apple2e", currentJson, defaultJson, fs);
+        AssertSucceeded (hr);
+
+        hr = fs.ReadAllText (store.GetUserPrefsFilePath(), text);
+        AssertSucceeded (hr);
+        Assert::IsTrue (text.find ("Double") != std::string::npos);
+    }
+
 
     TEST_METHOD (SaveDelta_WithoutLoadAll_PreservesGlobalSection)
     {
