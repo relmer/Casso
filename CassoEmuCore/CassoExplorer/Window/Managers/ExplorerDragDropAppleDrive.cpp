@@ -74,7 +74,7 @@ bool ExplorerDragDrop::DropOnAppleDrive (IDataObject * data, DropSource & source
         return true;
     }
 
-    outcome = source.fromImage ? m_context.actions.CopyEntriesToAppleDrive (source.image, source.kind, source.catalogPaths)
+    outcome = source.fromImage ? m_context.actions.GetAppleDrive().CopyEntriesToAppleDrive (source.image, source.kind, source.catalogPaths)
                                : m_context.actions.PutFiles (source.hostPaths, m_context.prompts.MakeAddressPrompt());
 
     m_context.verbs.ReportOutcome (outcome, L"Put");

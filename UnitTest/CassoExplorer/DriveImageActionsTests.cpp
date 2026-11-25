@@ -102,13 +102,13 @@ public:
         rig.io.files["C:\\Images\\in.dsk"] = Rig::BuildProDos();
 
         rig.Open (1);
-        Assert::AreEqual (std::wstring (L"Slot 6, Drive 1 (DOS 3.3 volume 254)"), rig.actions->DescribeAppleDrive());
+        Assert::AreEqual (std::wstring (L"Slot 6, Drive 1 (DOS 3.3 volume 254)"), rig.actions->GetAppleDrive().DescribeAppleDrive());
 
         AssertSucceeded (rig.actions->GetDriveImages().WriteImageToDisk (L"C:\\Images\\in.dsk").hr);
         Assert::IsTrue (rig.Finish().empty());
 
         Assert::IsTrue (rig.Drive (1) == rig.io.files["C:\\Images\\in.dsk"]);
-        Assert::AreEqual (std::wstring (L"Slot 6, Drive 1 (/LINKED)"), rig.actions->DescribeAppleDrive());
+        Assert::AreEqual (std::wstring (L"Slot 6, Drive 1 (/LINKED)"), rig.actions->GetAppleDrive().DescribeAppleDrive());
     }
 
 
@@ -128,13 +128,13 @@ public:
         AssertSucceeded (rig.actions->GetDriveImages().FormatAppleDrive (prodos, L"C:\\Temp").hr);
         Assert::IsTrue   (rig.Finish().empty());
         Assert::IsTrue   (rig.browser->GetRows().empty(), L"no files on the new disk");
-        Assert::AreEqual (std::wstring (L"Slot 6, Drive 1 (/BLANK)"), rig.actions->DescribeAppleDrive());
+        Assert::AreEqual (std::wstring (L"Slot 6, Drive 1 (/BLANK)"), rig.actions->GetAppleDrive().DescribeAppleDrive());
 
         rig.Open (2);
         AssertSucceeded (rig.actions->GetDriveImages().FormatAppleDrive (dos, L"C:\\Temp").hr);
         Assert::IsTrue   (rig.Finish().empty());
         Assert::IsTrue   (rig.browser->GetRows().empty());
-        Assert::AreEqual (std::wstring (L"Slot 6, Drive 2 (DOS 3.3 volume 100)"), rig.actions->DescribeAppleDrive());
+        Assert::AreEqual (std::wstring (L"Slot 6, Drive 2 (DOS 3.3 volume 100)"), rig.actions->GetAppleDrive().DescribeAppleDrive());
     }
 
 
@@ -170,7 +170,7 @@ public:
 
         AssertSucceeded (rig.actions->GetDriveImages().FormatAppleDrive (prodos, L"C:\\Temp").hr);
         Assert::IsTrue   (rig.Finish().empty());
-        Assert::AreEqual (std::wstring (L"Slot 6, Drive 1 (/FRESH)"), rig.actions->DescribeAppleDrive());
+        Assert::AreEqual (std::wstring (L"Slot 6, Drive 1 (/FRESH)"), rig.actions->GetAppleDrive().DescribeAppleDrive());
     }
 
 

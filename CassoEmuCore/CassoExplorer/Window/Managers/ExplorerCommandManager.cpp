@@ -440,7 +440,7 @@ void ExplorerCommandManager::Dispatch (int id)
         case CassoExplorerCommands::kInitializeCard:    m_context.opener.InitializeShownCard();                   break;
         case CassoExplorerCommands::kReadDiskToImage:     m_context.linkDrives.ReadDiskToImage();                         break;
         case CassoExplorerCommands::kWriteImageToDisk:    m_context.linkDrives.WriteImageToDisk();                        break;
-        case CassoExplorerCommands::kCancelLinkOperation: m_context.actions.CancelLinkOperation();     break;
+        case CassoExplorerCommands::kCancelLinkOperation: m_context.actions.GetAppleDrive().CancelLinkOperation();     break;
         case CassoExplorerCommands::kDeleteItems:  m_context.verbs.RunVerb (CassoExplorerActions::Verb::Delete); break;
         case CassoExplorerCommands::kCloseSearch:     m_context.addressBar.CloseSearch(); break;
         case CassoExplorerCommands::kEmptyRecycleBin: m_context.verbs.RunRecycleBinVerb (CassoExplorerActions::Verb::EmptyRecycleBin); break;
@@ -877,7 +877,7 @@ std::wstring ExplorerCommandManager::GetCommandLabel (int id) const
     //  the drive selected on its machine.
     if (m_context.browser.IsAppleDriveOpen())
     {
-        title = m_context.actions.DescribeAppleDrive();
+        title = m_context.actions.GetAppleDrive().DescribeAppleDrive();
     }
     else if (m_context.linkDrives.TryGetSelectedLinkDrive (drive))
     {

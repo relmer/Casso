@@ -96,6 +96,9 @@ public:
     //  Whole disks on a linked Apple's drive, and raw sectors and blocks.
     ActionsDriveImage & GetDriveImages() { return m_driveImages; }
 
+    //  The linked Apple drive the list is on: its files, its file system and its link.
+    ActionsAppleDrive & GetAppleDrive () { return m_appleDrive; }
+
     //  One partition of a card image: the one selected or open, its copy as
     //  an image file beside the card image, and an image file written over it
     //  after the question DescribeReplace returns.
@@ -109,14 +112,6 @@ public:
     Outcome  ReplacePartition         (const std::wstring & partitionPath, const std::wstring & imagePath)                             { return m_partitions.Replace (partitionPath, imagePath); }
     Outcome  DescribePartitionReplace (const std::wstring & partitionPath, const std::wstring & imagePath, std::wstring & outQuestion) { return m_partitions.DescribeReplace (partitionPath, imagePath, outQuestion); }
 
-    //  The list's Apple drive: its link, drive and directory. False when the
-    //  list is not on one.
-    bool     TryGetAppleDrive (std::string & outLink, int & outDrive, std::string & outDirectory) const { return m_appleDrive.TryGetAppleDrive (outLink, outDrive, outDirectory); }
-
-    //  Files from an image onto the list's Apple drive, as one image's files
-    //  copy onto another: the bytes as stored, the type mapped between file
-    //  systems. A folder is not copied.
-    Outcome  CopyEntriesToAppleDrive (const std::string & sourceImage, VolumeKind sourceKind, const std::vector<std::string> & catalogPaths) { return m_appleDrive.CopyEntriesToAppleDrive (sourceImage, sourceKind, catalogPaths); }
     Outcome  PutFiles                (const std::vector<std::wstring> & hostPaths, const AddressFn & askAddress = {}) { return m_copier.PutFiles (hostPaths, askAddress); }
 
     //  Host files and folders into a directory of an image, by Put's rules. A
@@ -167,12 +162,6 @@ public:
     //  lists is a directory, and goes with everything under it.
     Outcome  DeleteEntries  (const std::string & image, const std::vector<std::string> & catalogPaths);
 
-    //  Entries on the open linked drive, for the second half of a move.
-    Outcome  DeleteDriveEntries (const std::vector<FileEntry> & entries) { return m_appleDrive.DeleteOnAppleDrive (entries); }
-
-    //  The selected entries of the drive on display, to delete later.
-    bool     TryPlanDriveDeletion (ActionsAppleDrive::DriveDeletion & outPlan) const { return m_appleDrive.TryPlanDeletion ({}, outPlan); }
-    Outcome  RunDriveDeletion     (const ActionsAppleDrive::DriveDeletion & plan)    { return m_appleDrive.RunDeletion (plan); }
     Outcome  BootSelected         ();
     Outcome  RenameSelected       (const std::wstring & newName);
 
@@ -250,23 +239,10 @@ public:
     //  The blocks the format target has, for a raw block read or write.
     int           GetTargetBlockCount (const std::wstring & target = {}) const;
 
-    HRESULT  CheckLinkDisk (const std::string & link, int drive, LinkDiskFn then) { return m_appleDrive.CheckLinkDisk (link, drive, then); }
-
-    //  The open Apple drive as the menus and confirmations name it: its slot,
-    //  its drive and its volume, as "Slot 6, Drive 1 (DOS 3.3 volume 254)".
-    std::wstring  DescribeAppleDrive () const { return m_appleDrive.DescribeAppleDrive(); }
-
-    //  Stops the open Apple drive's link's running operation.
-    void  CancelLinkOperation () { m_appleDrive.CancelLinkOperation(); }
-
     //  An image that detection doesn't recognize, whose file system is chosen.
     bool  CanChooseFilesystem   (const std::wstring & image) const;
     void  ChooseImageFilesystem (const std::wstring & image, VolumeKind kind);
 
-    //  The same for the open Apple drive's disk.
-    void  ChooseDriveFilesystem    (VolumeKind kind) { m_appleDrive.ChooseDriveFilesystem (kind); }
-    void  ChooseDriveFilesystem    (const std::string & link, int drive, VolumeKind kind) { m_appleDrive.ChooseDriveFilesystem (link, drive, kind); }
-    bool  CanChooseDriveFilesystem (const std::string & link, int drive) const { return m_appleDrive.CanChooseDriveFilesystem (link, drive); }
 
     static Encoding  GetEncoding (const FileEntry & entry, VolumeKind kind);
 
@@ -274,7 +250,6 @@ public:
     void  FindCopyOptionRows (std::vector<CopyOptionRows::Row> & outRows);
 
     static PutPlan       PlanPut         (const std::wstring & hostName, const std::vector<Byte> & bytes, VolumeKind kind);
-    void                 GetAppleSingle  (const std::string & image, const FileEntry & entry, const std::wstring & hostPath, Outcome & inOutOutcome) { m_appleDrive.GetAppleSingle (image, entry, hostPath, inOutOutcome); }
     static std::wstring  DescribePlan    (const PutPlan & plan, VolumeKind kind);
     static PutPlan       PlanForced      (const std::wstring & hostName, const std::vector<Byte> & bytes, VolumeKind kind, Conversion conversion);
     static PutPlan       PlanAppleSingle (const std::wstring & hostName, const AppleSingleFile & file, VolumeKind kind);

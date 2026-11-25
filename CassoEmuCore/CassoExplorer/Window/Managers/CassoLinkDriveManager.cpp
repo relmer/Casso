@@ -432,7 +432,7 @@ void CassoLinkDriveManager::StartImageWrite (const Location & drive, const std::
 
     name = TextEncoding::WideToNarrow (link);
 
-    hr = m_context.actions.CheckLinkDisk (name, number, [this, name, number, title, file, imagePath, forceVerify] (bool linkDisk, HRESULT result)
+    hr = m_context.actions.GetAppleDrive().CheckLinkDisk (name, number, [this, name, number, title, file, imagePath, forceVerify] (bool linkDisk, HRESULT result)
     {
         std::wstring                   message;
         CassoExplorerActions::Outcome  outcome;

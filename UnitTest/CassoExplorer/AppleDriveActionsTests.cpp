@@ -282,7 +282,7 @@ public:
         AssertSucceeded (Dos33Volume (rig.io.files["C:\\Disks\\source.dsk"]).Read (FilePath::Parse ("HELLO"), source));
 
         rig.Open (2);
-        AssertSucceeded (rig.actions->CopyEntriesToAppleDrive ("C:\\Disks\\source.dsk", VolumeKind::Dos33, { "HELLO" }).hr);
+        AssertSucceeded (rig.actions->GetAppleDrive().CopyEntriesToAppleDrive ("C:\\Disks\\source.dsk", VolumeKind::Dos33, { "HELLO" }).hr);
         Assert::IsTrue (rig.Finish().empty());
 
         AssertSucceeded (ProDosVolume (rig.Drive (2)).Read (FilePath::Parse ("HELLO"), copied));
@@ -392,8 +392,8 @@ public:
         }
 
         rig.Open (1);
-        AssertSucceeded (rig.actions->CheckLinkDisk ("Test", 1, [&] (bool found, HRESULT result) { AssertSucceeded (result); dataDisk = found; calls++; }));
-        AssertSucceeded (rig.actions->CheckLinkDisk ("Test", 2, [&] (bool found, HRESULT result) { AssertSucceeded (result); linkDisk = found; calls++; }));
+        AssertSucceeded (rig.actions->GetAppleDrive().CheckLinkDisk ("Test", 1, [&] (bool found, HRESULT result) { AssertSucceeded (result); dataDisk = found; calls++; }));
+        AssertSucceeded (rig.actions->GetAppleDrive().CheckLinkDisk ("Test", 2, [&] (bool found, HRESULT result) { AssertSucceeded (result); linkDisk = found; calls++; }));
         Assert::IsTrue (rig.Finish().empty());
 
         Assert::AreEqual (2, calls);
