@@ -1181,7 +1181,9 @@ HRESULT EmulatorShell::BuildMachineDevices (const MachineConfig & config)
     // saved: the copy built from has them, the config does not.
     if (!m_runHdAttachments.empty() || !m_runSmartPortAttachments.empty())
     {
-        hrAttach = BlockDeviceAttachments::Apply (m_runHdAttachments, m_runSmartPortAttachments, built, error);
+        hrAttach = BlockDeviceAttachments::Apply (m_runHdAttachments, m_runSmartPortAttachments, built, error,
+                                                  PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(), PathResolver::GetWorkingDirectory()),
+                                                  PathResolver::FindFile);
 
         if (FAILED (hrAttach))
         {
