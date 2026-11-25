@@ -214,6 +214,100 @@ public:
         Assert::IsTrue  (classes.keys == before.keys, L"Registering twice gives the type back, and nothing Casso wrote is left");
         Assert::IsTrue  (fileExts.keys == beforeExts.keys, L"File Explorer's record lists Casso's type nowhere");
     }
+
+
+
+    static constexpr const wchar_t *  kCasso    = L"C:\\Build\\Casso.exe";
+    static constexpr const wchar_t *  kExplorer = L"C:\\Build\\CassoExplorer.exe";
+
+    static bool  IsAnywhere (const std::wstring &) { return true; }
+    static bool  IsNowhere  (const std::wstring &) { return false; }
+
+
+
+    TEST_METHOD (RegisterForInstall_WithNoCassoRegistered_RegistersABuildOrZip)
+    {
+        for (InstallType type : { InstallType::Developer, InstallType::Zip })
+        {
+            FakeUserClasses  classes;
+            FakeUserClasses  settings;
+
+            AssertSucceeded (FileAssociations::RegisterForInstall (classes, settings, type, kCasso, kExplorer, IsAnywhere));
+            Assert::IsTrue (FileAssociations::IsRegistered (classes, kCasso, kExplorer));
+        }
+    }
+
+
+
+    TEST_METHOD (RegisterForInstall_LeavesAPackageAlone)
+    {
+        for (InstallType type : { InstallType::Msix, InstallType::Unknown })
+        {
+            FakeUserClasses  classes;
+            FakeUserClasses  settings;
+
+            AssertSucceeded (FileAssociations::RegisterForInstall (classes, settings, type, kCasso, kExplorer, IsAnywhere));
+            Assert::IsTrue (classes.keys.empty());
+        }
+    }
+
+
+
+    TEST_METHOD (RegisterForInstall_LeavesAnotherCopyThatExists)
+    {
+        FakeUserClasses  classes;
+        FakeUserClasses  settings;
+
+        AssertSucceeded (FileAssociations::Register (classes, L"C:\\Installed\\Casso.exe", L"C:\\Installed\\CassoExplorer.exe"));
+        AssertSucceeded (FileAssociations::RegisterForInstall (classes, settings, InstallType::Developer, kCasso, kExplorer, IsAnywhere));
+
+        Assert::IsTrue  (FileAssociations::IsRegistered (classes, L"C:\\Installed\\Casso.exe", L"C:\\Installed\\CassoExplorer.exe"));
+        Assert::IsFalse (FileAssociations::IsRegistered (classes, kCasso, kExplorer));
+    }
+
+
+
+    TEST_METHOD (RegisterForInstall_ReplacesADeletedCopy)
+    {
+        FakeUserClasses  classes;
+        FakeUserClasses  settings;
+
+        AssertSucceeded (FileAssociations::Register (classes, L"C:\\Gone\\Casso.exe", L"C:\\Gone\\CassoExplorer.exe"));
+        AssertSucceeded (FileAssociations::RegisterForInstall (classes, settings, InstallType::Developer, kCasso, kExplorer, IsNowhere));
+
+        Assert::IsTrue (FileAssociations::IsRegistered (classes, kCasso, kExplorer));
+    }
+
+
+
+    TEST_METHOD (RegisterForInstall_UpdatesThisCopysOlderRegistration)
+    {
+        FakeUserClasses  classes;
+        FakeUserClasses  settings;
+
+        AssertSucceeded (FileAssociations::Register (classes, kCasso, kExplorer));
+        classes.DeleteKey (std::wstring (L"Applications\\") + FileAssociations::kExplorerApp + L"\\SupportedTypes");
+        Assert::IsFalse (FileAssociations::IsRegistered (classes, kCasso, kExplorer));
+
+        AssertSucceeded (FileAssociations::RegisterForInstall (classes, settings, InstallType::Developer, kCasso, kExplorer, IsAnywhere));
+        Assert::IsTrue (FileAssociations::IsRegistered (classes, kCasso, kExplorer));
+    }
+
+
+
+    TEST_METHOD (RegisterForInstall_AfterTheUserTurnedTheTypesOff_LeavesThemOff)
+    {
+        FakeUserClasses  classes;
+        FakeUserClasses  settings;
+
+        AssertSucceeded (FileAssociations::SetDeclined (settings, true));
+        AssertSucceeded (FileAssociations::RegisterForInstall (classes, settings, InstallType::Developer, kCasso, kExplorer, IsAnywhere));
+        Assert::IsTrue (classes.keys.empty());
+
+        AssertSucceeded (FileAssociations::SetDeclined (settings, false));
+        AssertSucceeded (FileAssociations::RegisterForInstall (classes, settings, InstallType::Developer, kCasso, kExplorer, IsAnywhere));
+        Assert::IsTrue (FileAssociations::IsRegistered (classes, kCasso, kExplorer));
+    }
 };
 
 

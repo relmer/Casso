@@ -2,6 +2,10 @@
 
 #include "Config/FileAssociations.h"
 #include "CassoExplorer/Model/CatalogModel.h"
+#include "CassoExplorer/Model/LaunchCommand.h"
+#include "Seams/Win32UserClasses.h"
+#include "Update/AuthenticodeVerifier.h"
+#include "Update/Win32InstallEnvironment.h"
 
 
 
@@ -353,4 +357,125 @@ bool FileAssociations::IsRegistered (const IUserClasses & classes, const std::ws
 bool FileAssociations::IsCassoType (const std::wstring & extension, const std::wstring & progId)
 {
     return progId == GetProgId (extension) || progId == kCassoProgId;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileAssociations::RegisterForInstall
+//
+//  A package is left alone. Otherwise this copy registers when no copy of
+//  Casso has the types, when an earlier registration of this copy is out of
+//  date, or when the copy that has them was deleted.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT FileAssociations::RegisterForInstall (IUserClasses & classes, const IUserClasses & settings, InstallType type, const std::wstring & cassoExe,
+                                              const std::wstring & explorerExe, const std::function<bool (const std::wstring &)> & exists)
+{
+    HRESULT       hr       = S_OK;
+    std::wstring  declined;
+    std::wstring  owner    = GetRegisteredCasso (classes);
+    bool          isFree   = owner.empty() || _wcsicmp (owner.c_str(), cassoExe.c_str()) == 0 || !exists (owner);
+
+
+
+    BAIL_OUT_IF (type != InstallType::Zip && type != InstallType::Developer, S_OK);
+    BAIL_OUT_IF (settings.GetValue (kSettingsKey, kDeclinedName, declined) && declined == L"1", S_OK);
+    BAIL_OUT_IF (!isFree || IsRegistered (classes, cassoExe, explorerExe), S_OK);
+
+    hr = Register (classes, cassoExe, explorerExe);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileAssociations::StartInstallRegistration
+//
+//  The thread creates everything it touches, so it can run past the window
+//  that started it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FileAssociations::StartInstallRegistration()
+{
+    std::thread ([]()
+    {
+        Win32UserClasses         classes;
+        Win32UserClasses         settings         (Win32UserClasses::kCassoRoot);
+        Win32InstallEnvironment  environment;
+        AuthenticodeVerifier     verifier;
+        InstallType              type             = InstallType::Unknown;
+        wchar_t                  module[MAX_PATH] = {};
+        DWORD                    length           = GetModuleFileNameW (nullptr, module, MAX_PATH);
+        std::wstring             folder           = std::filesystem::path (module).parent_path().wstring();
+        HRESULT                  hr               = S_OK;
+
+
+
+        hr = InstallTypeDetector::Detect (environment, verifier, type);
+
+        if (length > 0 && length < MAX_PATH && SUCCEEDED (hr))
+        {
+            hr = RegisterForInstall (classes, settings, type, LaunchCommand::GetSiblingPath (folder, LaunchCommand::kCassoExe),
+                                     LaunchCommand::GetSiblingPath (folder, kExplorerApp),
+                                     [] (const std::wstring & path) { std::error_code  error; return std::filesystem::exists (path, error); });
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+    }).detach();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileAssociations::SetDeclined
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT FileAssociations::SetDeclined (IUserClasses & settings, bool declined)
+{
+    return declined ? settings.SetValue (kSettingsKey, kDeclinedName, L"1") : settings.DeleteValue (kSettingsKey, kDeclinedName);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileAssociations::GetRegisteredCasso
+//
+//  The Casso program the first type opens in, from its quoted command, or
+//  empty when no copy of Casso has the type.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring FileAssociations::GetRegisteredCasso (const IUserClasses & classes)
+{
+    std::wstring  command;
+    size_t        close   = std::wstring::npos;
+
+
+
+    if (!classes.GetValue (GetProgId (kExtensions[0]) + L"\\shell\\open\\command", L"", command) || !command.starts_with (L"\""))
+    {
+        return {};
+    }
+
+    close = command.find (L'"', 1);
+
+    return close == std::wstring::npos ? std::wstring() : command.substr (1, close - 1);
 }

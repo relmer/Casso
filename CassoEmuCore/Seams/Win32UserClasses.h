@@ -22,6 +22,7 @@ class Win32UserClasses : public IUserClasses
 public:
     static constexpr const wchar_t *  kClassesRoot  = L"Software\\Classes";
     static constexpr const wchar_t *  kFileExtsRoot = L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\FileExts";
+    static constexpr const wchar_t *  kCassoRoot    = L"Software\\Casso";
 
     explicit Win32UserClasses (std::wstring root = kClassesRoot) : m_root (std::move (root)) {}
 

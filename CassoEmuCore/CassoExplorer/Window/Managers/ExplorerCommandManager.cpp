@@ -738,6 +738,7 @@ void ExplorerCommandManager::ShowOptions()
 
     Win32UserClasses         classes;
     Win32UserClasses         fileExts         (Win32UserClasses::kFileExtsRoot);
+    Win32UserClasses         settings         (Win32UserClasses::kCassoRoot);
     Win32InstallEnvironment  install;
     wchar_t                  module[MAX_PATH] = {};
     DWORD                    length           = GetModuleFileNameW (nullptr, module, MAX_PATH);
@@ -834,6 +835,12 @@ void ExplorerCommandManager::ShowOptions()
         {
             hr = choices.registered ? FileAssociations::Register (classes, cassoExe, module)
                                     : FileAssociations::Unregister (classes, fileExts);
+        }
+
+        //  Turned off here, the types stay off when a copy next starts.
+        if (SUCCEEDED (hr))
+        {
+            hr = FileAssociations::SetDeclined (settings, !choices.registered);
         }
 
         if (FAILED (hr))

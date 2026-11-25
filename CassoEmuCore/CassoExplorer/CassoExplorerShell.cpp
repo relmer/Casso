@@ -20,6 +20,7 @@
 #include "Shell/Components/ShellUpdater.h"
 #include "Seams/Win32IntentChannel.h"
 #include "Core/AppMessages.h"
+#include "Config/FileAssociations.h"
 #include "Config/ShellExtensionRegistration.h"
 
 
@@ -959,6 +960,7 @@ HRESULT CassoExplorerShell::Initialize (HINSTANCE instance, const CassoExplorerL
 
     m_updaterHost->PostAutomaticCheck();
     ShellExtensionRegistration::StartInstallRegistration();
+    FileAssociations::StartInstallRegistration();
 
 Error:
     return hr;

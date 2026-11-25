@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Seams/IUserClasses.h"
+#include "Update/InstallTypeDetector.h"
 #include "resource.h"
 
 
@@ -19,9 +20,12 @@
 //  extension is a separate type, with the text Casso Explorer's Type column
 //  has for it, so File Explorer sorts and groups them apart.
 //
-//  ONLY BY THE USER'S CHOICE. Nothing calls Register but a command the user
-//  picks; installing or starting Casso writes nothing. No administrator
-//  rights are needed, since everything is the user's own.
+//  REGISTERED AT STARTUP FOR A COPY WITHOUT AN INSTALLER. An installed
+//  package declares the types in its manifest. A zip release or a developer
+//  build registers itself when it starts, unless the types are already this
+//  copy's, another copy of Casso on this PC has them, or the user turned
+//  them off in Options. Everything is written below the current user's
+//  key, so administrator rights aren't required.
 //
 //  UNDONE COMPLETELY. Register stores each type's previous program beside it,
 //  and Unregister restores that program, then removes every value and key
@@ -54,16 +58,31 @@ public:
     static constexpr const wchar_t *  kExplorerProgId   = L"CassoExplorer.DiskImage";
     static constexpr const wchar_t *  kPreviousName     = L"Casso.PreviousProgId";
     static constexpr int              kDiskIconId       = IDI_DISK_IMAGE;
+    static constexpr const wchar_t *  kSettingsKey      = L"FileAssociations";
+    static constexpr const wchar_t *  kDeclinedName     = L"Declined";
 
     static HRESULT  Register     (IUserClasses & classes, const std::wstring & cassoExe, const std::wstring & explorerExe);
     static HRESULT  Unregister   (IUserClasses & classes, IUserClasses & fileExts);
     static bool     IsRegistered (const IUserClasses & classes, const std::wstring & cassoExe, const std::wstring & explorerExe);
 
+    //  Registers this copy at startup when it has no installer, by the rules
+    //  in the class comment. `exists` returns whether a program file is on disk.
+    static HRESULT  RegisterForInstall (IUserClasses & classes, const IUserClasses & settings, InstallType type, const std::wstring & cassoExe,
+                                        const std::wstring & explorerExe, const std::function<bool (const std::wstring &)> & exists);
+
+    //  RegisterForInstall for the programs beside this one, on a separate
+    //  thread, since checking the program's signature takes a moment.
+    static void     StartInstallRegistration ();
+
+    //  Marks the types as turned off by the user, so startup doesn't register them.
+    static HRESULT  SetDeclined (IUserClasses & settings, bool declined);
+
 private:
     static HRESULT  WriteProgId  (IUserClasses & classes, const std::wstring & progId, const std::wstring & typeName,
                                   const std::wstring & appName, const std::wstring & iconExe, const std::wstring & command);
-    static bool     IsCassoType  (const std::wstring & extension, const std::wstring & progId);
-    static HRESULT  TakeType     (IUserClasses & classes, const std::wstring & extension);
-    static HRESULT  ReturnType   (IUserClasses & classes, const std::wstring & extension);
-    static HRESULT  ClearRecord  (IUserClasses & fileExts, const std::wstring & extension);
+    static bool          IsCassoType        (const std::wstring & extension, const std::wstring & progId);
+    static HRESULT       TakeType           (IUserClasses & classes, const std::wstring & extension);
+    static HRESULT       ReturnType         (IUserClasses & classes, const std::wstring & extension);
+    static HRESULT       ClearRecord        (IUserClasses & fileExts, const std::wstring & extension);
+    static std::wstring  GetRegisteredCasso (const IUserClasses & classes);
 };
