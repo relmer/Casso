@@ -561,6 +561,46 @@ public:
         Assert::AreEqual (0, plan.config.bootSlot);
     }
 
+    //  The unenhanced //e's ROM passes over a card without the Disk II's
+    //  signature, so the card's slot is started for it.
+    TEST_METHOD (Place_BlockImageOnUnenhancedIIe_StartsSlot7)
+    {
+        LaunchPlan  plan = LaunchPlacement::Place (MakeFacts (LaunchImageKind::FloppyBlocks, 1600), "C:\800.po",
+                                                   *StockMachines::Find ("Apple2e"), MakeIIe());
+
+
+
+        Assert::AreEqual (LaunchPlacement::kBootSlot, plan.config.bootSlot);
+    }
+
+    //  The ][ monitor doesn't boot a disk, so a floppy starts slot 6.
+    TEST_METHOD (Place_FloppyOnII_StartsSlot6)
+    {
+        LaunchPlan  plan = LaunchPlacement::Place (MakeFacts (LaunchImageKind::Floppy525, 280), "C:\a.dsk",
+                                                   *StockMachines::Find ("Apple2"), MakeIIe());
+
+
+
+        Assert::AreEqual (std::string ("C:\a.dsk"), plan.disk1Path);
+        Assert::AreEqual (LaunchPlacement::kDiskIiSlot, plan.config.bootSlot);
+    }
+
+    //  The //c Plus has no built-in 5.25-inch drive, so one goes on its disk
+    //  port for the image.
+    TEST_METHOD (Place_FloppyOnIIcPlus_AddsADriveToTheDiskPort)
+    {
+        LaunchPlan          plan     = LaunchPlacement::Place (MakeFacts (LaunchImageKind::Floppy525, 280), "C:\a.dsk",
+                                                               *StockMachines::Find ("Apple2cPlus"), MakeIIc (true));
+        const PortConfig  * diskPort = plan.config.FindPort ("disk");
+
+
+
+        Assert::IsTrue   (plan.refusal.empty());
+        Assert::IsNotNull (diskPort);
+        Assert::AreEqual (std::string (kpszDiskIicDevice), diskPort->chain.back().device);
+        Assert::AreEqual (0, plan.config.bootSlot);
+    }
+
     TEST_METHOD (ResolveFirmware_800KOnIIc_LooksUpTheUniDiskRom)
     {
         LaunchPlan                plan  = LaunchPlacement::Place (MakeFacts (LaunchImageKind::FloppyBlocks, 1600), "C:\\800.po",

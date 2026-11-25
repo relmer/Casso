@@ -978,7 +978,35 @@ HRESULT EmulatorShell::Initialize (
     // installed before the command-line disks go in so those are covered too.
     m_disks->InstallMountReporting();
 
-    m_disks->GetManager()->MountCommandLineDisks (disk1Path, disk2Path);
+    // On the //c Plus, drive 1 is the internal 3.5 drive and drive 2 is the
+    // first drive on the disk port. The 5.25 drive is last on the port, so
+    // it is drive 2 only when no 3.5 drive is ahead of it. It is slot 6
+    // drive 1.
+    if (m_machine.GetRefs().apple2cPlusDiskPort != nullptr)
+    {
+        if (!disk1Path.empty())
+        {
+            m_disks->InsertFloppy35 (0, 0, disk1Path);
+        }
+
+        if (m_machine.FindFloppy35 (0, 1) != nullptr)
+        {
+            if (!disk2Path.empty())
+            {
+                m_disks->InsertFloppy35 (0, 1, disk2Path);
+            }
+
+            m_disks->GetManager()->MountCommandLineDisks (std::string(), std::string());
+        }
+        else
+        {
+            m_disks->GetManager()->MountCommandLineDisks (disk2Path, std::string());
+        }
+    }
+    else
+    {
+        m_disks->GetManager()->MountCommandLineDisks (disk1Path, disk2Path);
+    }
 
     m_tapeDeck->InsertStartupTape (tapePath);
 
@@ -1181,7 +1209,9 @@ HRESULT EmulatorShell::BuildMachineDevices (const MachineConfig & config)
     // saved: the copy built from has them, the config does not.
     if (!m_runHdAttachments.empty() || !m_runSmartPortAttachments.empty())
     {
-        hrAttach = BlockDeviceAttachments::Apply (m_runHdAttachments, m_runSmartPortAttachments, built, error);
+        hrAttach = BlockDeviceAttachments::Apply (m_runHdAttachments, m_runSmartPortAttachments, built, error,
+                                                  PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(), PathResolver::GetWorkingDirectory()),
+                                                  PathResolver::FindFile);
 
         if (FAILED (hrAttach))
         {
