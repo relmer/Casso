@@ -84,7 +84,7 @@ vector<Byte> ScratchImages::Build (bool isProDos, bool hasPictures)
         0x0C, 0x0A, 0x00, 0x62, 0x28, 0xC8, 0xC5, 0xCC, 0xCC, 0xCF, 0x29, 0x01, 0x06, 0x0F, 0x00, 0x7B, 0xC9, 0x01, 0x0E, 0x14, 0x00, 0x55, 0xC9, 0x56, 0xB1,
         0x01, 0x00, 0x57, 0xB3, 0x03, 0x00, 0x01, 0x06, 0x1E, 0x00, 0x61, 0xC9, 0x01, 0x06, 0x28, 0x00, 0x59, 0xC9, 0x01, 0x05, 0x32, 0x00, 0x51, 0x01,
     };
-    static const char  kNotes[] = "CASSQUE TEST NOTES\r\n\r\nThis file is ordinary printable text.\r\nIt has a tab\there and ends with a newline.\r\n";
+    static const char  kNotes[] = "CASSO TEST NOTES\r\n\r\nThis file is ordinary printable text.\r\nIt has a tab\there and ends with a newline.\r\n";
     FakeDiskFileIo                  io;
     DiskOperations                  ops     (io);
     DiskOperations::NewDiskRequest  request;
@@ -101,7 +101,7 @@ vector<Byte> ScratchImages::Build (bool isProDos, bool hasPictures)
     io.files["C:\\Host\\integer.tok"]   = vector<Byte> (std::begin (kIntegerTokens), std::end (kIntegerTokens));
 
     request.formatName = isProDos ? "prodos" : "dos33";
-    request.volumeName = isProDos ? "CASSQUE" : "77";
+    request.volumeName = isProDos ? "CASSO" : "77";
 
     Assert::IsTrue (ops.Create (path, request).Succeeded());
     Assert::IsTrue (ops.Put (path, "C:\\Host\\applesoft.txt", "HELLO", "", false, 0, DiskOperations::Encoding::Basic).Succeeded());

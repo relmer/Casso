@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoLink/CassoLinkHost.h"
+#include "Seams/IByteStream.h"
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/LinkProgram.h"
 #include "CassoLink/Session/CaptureStream.h"
@@ -78,18 +79,8 @@ HRESULT CassoLinkHost::LoadModule (std::span<const Byte> module)
 
         chunk.insert (chunk.end(), module.begin() + (ptrdiff_t) at, module.begin() + (ptrdiff_t) (at + count));
 
-        hr = AwaitReady();
+        hr = LoadChunk (chunk);
         CHR (hr);
-
-        hr = SendPacket (CassoLinkCodec::kLoadModule, chunk);
-        CHR (hr);
-
-        hr = ReadReply (reply);
-        CHR (hr);
-
-        valid = reply.command == CassoLinkCodec::kAcknowledge && reply.payload.size() == 3
-             && reply.payload[0] == CassoLinkCodec::kAck && reply.payload[1] == chunk[0] && reply.payload[2] == chunk[1];
-        CBREx (valid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
     }
 
     hr = AwaitReady();
@@ -104,6 +95,88 @@ HRESULT CassoLinkHost::LoadModule (std::span<const Byte> module)
     valid = reply.command == CassoLinkCodec::kLoadModule && reply.payload.size() == 2
          && reply.payload[0] == module[2] && reply.payload[1] == module[3];
     CBREx (valid, HRESULT_FROM_WIN32 (ERROR_CRC));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::LoadChunk
+//
+//  One chunk of a module, sent again by itself after the line is
+//  recovered when the client doesn't take it or its reply is damaged, up to
+//  kMaxResends times. The chunk has its offset, so a chunk sent twice is
+//  stored once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::LoadChunk (const std::vector<Byte> & chunk)
+{
+    HRESULT          hr    = S_OK;
+    CassoLinkPacket  reply;
+    bool             valid = false;
+
+
+
+    for (int sent = 0; sent <= kMaxResends; sent++)
+    {
+        if (sent > 0)
+        {
+            hr = RecoverLine();
+            CHR (hr);
+        }
+
+        hr = AwaitRequest();
+        CHR (hr);
+
+        hr = SendPacket (CassoLinkCodec::kLoadModule, chunk);
+        CHR (hr);
+
+        hr = ReadReply (reply);
+        valid = SUCCEEDED (hr) && reply.command == CassoLinkCodec::kAcknowledge && reply.payload.size() == 3
+             && reply.payload[0] == CassoLinkCodec::kAck && reply.payload[1] == chunk[0] && reply.payload[2] == chunk[1];
+
+        hr = valid ? S_OK : FAILED (hr) ? hr : HRESULT_FROM_WIN32 (ERROR_INVALID_DATA);
+        BAIL_OUT_IF (valid || (hr != kLostRequest && hr != HRESULT_FROM_WIN32 (ERROR_INVALID_DATA)), hr);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::RecoverLine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::RecoverLine()
+{
+    HRESULT      hr     = S_OK;
+    std::string  errors;
+
+
+
+    hr = m_stream->ResetLine (errors);
+    CHR (hr);
+
+    hr = DiscardReceived();
+    CHR (hr);
+
+    if (m_adtProServer.m_activity)
+    {
+        m_adtProServer.m_activity (errors.empty() ? std::string ("The link was reset after a missed reply. The serial port didn't report an error.")
+                                                  : "The link was reset after a missed reply. The serial port reported: " + errors + ".");
+    }
 
 Error:
     return hr;
@@ -241,6 +314,21 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkHost::GetTrackPercents
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::array<Byte, 2> CassoLinkHost::GetTrackPercents (Byte track)
+{
+    return { (Byte) (track * 100 / kNibbleTracks), (Byte) ((track + 1) * 100 / kNibbleTracks) };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkHost::WriteNibbleTrack
 //
 //  The Apple requests the stream with an Acknowledge, and requests it again
@@ -253,9 +341,10 @@ HRESULT CassoLinkHost::WriteNibbleTrack (Byte drive, Byte track, std::span<const
     HRESULT            hr      = S_OK;
     CassoLinkPacket    packet;
     std::vector<Byte>  payload (stream.begin(), stream.end());
-    std::vector<Byte>  request = { drive, track, (Byte) (stream.size() & 0xFF), (Byte) (stream.size() >> 8) };
-    Word               crc     = CassoLinkCodec::ComputeCrc (stream);
-    bool               valid   = !stream.empty() && stream.size() <= CassoLinkCodec::kMaxNibbleStream;
+    std::array<Byte, 2>  percents = GetTrackPercents (track);
+    std::vector<Byte>    request  = { drive, track, (Byte) (stream.size() & 0xFF), (Byte) (stream.size() >> 8), percents[0], percents[1] };
+    Word                 crc      = CassoLinkCodec::ComputeCrc (stream);
+    bool                 valid    = !stream.empty() && stream.size() <= CassoLinkCodec::kMaxNibbleStream;
 
 
 
@@ -286,6 +375,8 @@ HRESULT CassoLinkHost::WriteNibbleTrack (Byte drive, Byte track, std::span<const
         valid = packet.command == CassoLinkCodec::kAcknowledge && packet.payload.size() == 3;
         CBREx (valid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
+        ReportNak (packet, std::format ("track {}'s nibbles", track));
+
         hr = SendPacket (CassoLinkCodec::kNibbleData, payload);
         CHR (hr);
     }
@@ -309,9 +400,10 @@ Error:
 
 HRESULT CassoLinkHost::ReadThirteenTrack (Byte drive, Byte track, Word requested, std::vector<std::vector<Byte>> & outFields, Word & outUnwritten, CassoLinkStatus & outStatus)
 {
-    HRESULT            hr      = S_OK;
-    CassoLinkPacket    packet;
-    std::vector<Byte>  request = { drive, track, (Byte) (requested & 0xFF), (Byte) (requested >> 8) };
+    HRESULT              hr       = S_OK;
+    CassoLinkPacket      packet;
+    std::array<Byte, 2>  percents = GetTrackPercents (track);
+    std::vector<Byte>    request  = { drive, track, (Byte) (requested & 0xFF), (Byte) (requested >> 8), percents[0], percents[1] };
 
 
 

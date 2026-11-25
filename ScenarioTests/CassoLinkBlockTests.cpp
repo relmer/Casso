@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "EhmTestHelper.h"
+#include "EmulatorLink.h"
 #include "FakeDiskFileIo.h"
 #include "GuestSession.h"
 #include "TestMachine.h"
@@ -11,6 +12,7 @@
 #include "CassoLink/SteppedByteStream.h"
 #include "Core/TextEncoding.h"
 #include "Devices/BlockDevice/BlockDeviceCatalog.h"
+#include "Devices/Disk/DiskImageStore.h"
 #include "Seams/InProcessByteStream.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -104,8 +106,9 @@ public:
 
 
 
-    //  An emulated //c with the disk in a UniDisk 3.5 on its disk port, and
-    //  the shim on port 2 with the host on the test's thread.
+    //  An emulated //c with the disk in a UniDisk 3.5 on its disk port, or
+    //  with nothing on it, and the shim on port 2 with the host on the test's
+    //  thread.
     struct Rig
     {
         FakeDiskFileIo                        io;
@@ -119,8 +122,6 @@ public:
         explicit Rig (const std::vector<Byte> & disk)
         {
             std::vector<PortConfig>  diskPort (1);
-            std::vector<Byte>        shim;
-            Word                     at = LinkProgram::kShimAddress;
 
 
 
@@ -132,16 +133,39 @@ public:
             diskPort[0].chain[0].device = kpszUniDisk35Device;
             diskPort[0].chain[0].image  = kDiskPath;
 
-            machine = std::make_unique<TestMachine> ("Apple2c", diskPort, io);
-            machine->SetVideoTiming (std::make_unique<VideoTiming>());
-            machine->GetCpu()->SetVideoTiming (machine->GetVideoTiming());
-            machine->PowerCycle();
+            Start (diskPort);
 
             //  The ROM boots ProDOS from the UniDisk first, as a real //c has
             //  booted before the link starts: its SmartPort firmware assigns
             //  the bus's units their numbers when it boots.
             GuestSession::StartFromPowerOn (*machine);
             Assert::IsTrue (RunUntilScreenShows (*machine, "PRODOS", kBootCap), L"ProDOS boots from the UniDisk");
+
+            StartShim();
+        }
+
+        //  A //c with nothing on its disk port, started from power on.
+        Rig()
+        {
+            Start (std::vector<PortConfig>());
+            GuestSession::StartFromPowerOn (*machine);
+            StartShim();
+        }
+
+        void  Start (const std::vector<PortConfig> & ports)
+        {
+            machine = std::make_unique<TestMachine> ("Apple2c", ports, io);
+            machine->SetVideoTiming (std::make_unique<VideoTiming>());
+            machine->GetCpu()->SetVideoTiming (machine->GetVideoTiming());
+            machine->PowerCycle();
+        }
+
+        void  StartShim()
+        {
+            std::vector<Byte>  shim;
+            Word               at = LinkProgram::kShimAddress;
+
+
 
             InProcessByteStream::CreatePair (machineEnd, pcEnd);
             AssertSucceeded (machine->AttachSerialStream (kPort, machineEnd));
@@ -207,6 +231,41 @@ public:
 
 
 
+    //  A //c with no memory card, right after a floppy read, as a session
+    //  lists its block devices: the list is empty, and the RAM disk firmware
+    //  in slot 4 isn't called. The floppy's motor runs on after the read,
+    //  and the SmartPort firmware in slot 5 loops until it stops. The RAM
+    //  disk firmware's first call formats the RAM disk, and with no card the
+    //  format loops on the card's registers, which read as the screen's
+    //  bytes, so whether it ends depends on the cycle it starts on.
+    TEST_METHOD (AfterAFloppyRead_TheBlockDevicesAreListed_AndTheRamDiskIsPassedOver)
+    {
+        static constexpr Byte  kSectors[] = { 0, 1, 2, 3 };
+        static constexpr Word  kRamReady  = 0x077C;
+        static constexpr Byte  kSetUp     = 0xA5;
+
+        Rig                                rig;
+        std::vector<Byte>                  module;
+        std::vector<Byte>                  data;
+        std::vector<CassoLinkBlockDevice>  devices;
+        CassoLinkStatus                    status;
+
+
+
+        AssertSucceeded (rig.machine->GetDiskStore().MountFromBytes (6, 0, "master.dsk", DiskFormat::Dsk, GuestSession::RequireDos33Master()));
+        AssertSucceeded (rig.host->ReadSectors (1, 17, kSectors, data, status));
+        Assert::AreEqual ((Byte) 0, status.error);
+
+        AssertSucceeded (LinkProgram::BuildBlockModule (module));
+        AssertSucceeded (rig.host->EnsureModule (module));
+        AssertSucceeded (rig.host->ListBlockDevices (devices));
+
+        Assert::AreEqual    ((size_t) 0, devices.size());
+        Assert::AreNotEqual (kSetUp, rig.machine->GetCpu()->ReadByte (kRamReady), L"The RAM disk firmware was called");
+    }
+
+
+
     TEST_METHOD (Blocks_AreReadAsTheDiskHasThem)
     {
         static constexpr uint32_t  kFirst = 275;     // across the Users Disk's end into the pattern
@@ -225,6 +284,125 @@ public:
         Assert::AreEqual ((Byte) 0, status.error, TextEncoding::NarrowToWide (CassoLinkHost::DescribeBlockError (status.error, kFirst + status.done)).c_str());
         Assert::AreEqual (kCount, status.done);
         Assert::IsTrue   (std::equal (data.begin(), data.end(), disk.begin() + (ptrdiff_t) (kFirst * kBlock)) && data.size() == kCount * kBlock, L"The blocks are the disk's");
+    }
+
+
+
+    //  Where the Apple's cycles go while it reads blocks, by routine, for
+    //  work on the read's speed. It measures rather than checks, so it runs
+    //  only with CASSO_PROFILE_BLOCKS set. The profile is written to the
+    //  test's output and to CassoBlockProfile.txt in the temporary folder.
+    TEST_METHOD (BlockReads_AreProfiled)
+    {
+        static constexpr Byte      kRun   = 32;
+        static constexpr uint32_t  kRuns  = 4;
+        static constexpr size_t    kShown = 30;
+
+        std::vector<Byte>                              disk;
+        std::unique_ptr<Rig>                           rig;
+        CassoLinkBlockDevice                           device;
+        std::unordered_map<Word, uint64_t>             profile;
+        std::unordered_map<std::string, Word>          programSymbols;
+        std::unordered_map<std::string, Word>          moduleSymbols;
+        std::map<Word, std::string>                    names;
+        std::map<std::string, uint64_t>                byRoutine;
+        std::vector<std::pair<uint64_t, std::string>>  ranked;
+        uint64_t                                       total          = 0;
+        uint32_t                                       blocks         = kRun * kRuns;
+        std::string                                    report;
+
+
+
+        if (EmulatorLink::GetSetting ("CASSO_PROFILE_BLOCKS").empty())
+        {
+            Logger::WriteMessage ("NOT RUN: set CASSO_PROFILE_BLOCKS to profile block reads\n");
+            return;
+        }
+
+        disk   = MakeDisk();
+        rig    = std::make_unique<Rig> (disk);
+        device = rig->ListOne();
+
+        AssertSucceeded (LinkProgram::GetProgramSymbols (LinkChip::Acia, programSymbols));
+        AssertSucceeded (LinkProgram::GetBlockModuleSymbols (LinkChip::Acia, moduleSymbols));
+
+        for (const auto & [name, address] : programSymbols)
+        {
+            if (address >= LinkProgram::kProgramAddress && address < LinkProgram::kZeroPageSave)
+            {
+                names[address] = name;
+            }
+        }
+
+        for (const auto & [name, address] : moduleSymbols)
+        {
+            if (!name.starts_with ("p_") && address >= LinkProgram::kModuleAddress && address < LinkProgram::kModuleAddress + LinkProgram::kModuleLimit)
+            {
+                names[address] = "module " + name;
+            }
+        }
+
+        rig->stream->SetProfile (&profile);
+
+        for (uint32_t run = 0; run < kRuns; run++)
+        {
+            std::vector<Byte>  data;
+            CassoLinkStatus    status;
+
+            AssertSucceeded (rig->host->ReadBlocks (device, run * kRun, kRun, false, data, status));
+            Assert::AreEqual (kRun, status.done);
+        }
+
+        rig->stream->SetProfile (nullptr);
+
+        for (const auto & [pc, cycles] : profile)
+        {
+            std::string  routine;
+            bool         named = (pc >= LinkProgram::kProgramAddress && pc < LinkProgram::kZeroPageSave)
+                              || (pc >= LinkProgram::kModuleAddress && pc < LinkProgram::kModuleAddress + LinkProgram::kModuleLimit);
+            auto         at    = names.upper_bound (pc);
+
+            if (named && at != names.begin())
+            {
+                routine = std::prev (at)->second;
+            }
+            else if (pc >= LinkProgram::kShimAddress && pc < LinkProgram::kShimAddress + LinkProgram::kShimLimit)
+            {
+                routine = "shim";
+            }
+            else if (pc >= 0xC100 && pc < 0xD000)
+            {
+                routine = "slot firmware";
+            }
+            else if (pc >= 0xD000)
+            {
+                routine = "ROM";
+            }
+            else
+            {
+                routine = std::format ("page ${:02X}", pc >> 8);
+            }
+
+            byRoutine[routine] += cycles;
+            total              += cycles;
+        }
+
+        for (const auto & [routine, cycles] : byRoutine)
+        {
+            ranked.emplace_back (cycles, routine);
+        }
+
+        std::sort (ranked.rbegin(), ranked.rend());
+
+        report = std::format ("{} blocks, {} cycles, {} cycles a block\n", blocks, total, total / blocks);
+
+        for (size_t i = 0; i < ranked.size() && i < kShown; i++)
+        {
+            report += std::format ("{:>9} a block  {:5.1f}%  {}\n", ranked[i].first / blocks, 100.0 * (double) ranked[i].first / (double) total, ranked[i].second);
+        }
+
+        Logger::WriteMessage (report.c_str());
+        std::ofstream (std::filesystem::temp_directory_path() / "CassoBlockProfile.txt") << report;
     }
 
 

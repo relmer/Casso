@@ -94,7 +94,7 @@ struct DiskInspectorColors
 
         c.mapFree          = 0xFF2C3036;
         c.mapBoot          = 0xFF8E6BD8;
-        c.mapVolumeHeader  = 0xFFE0A030;
+        c.mapVolumeHeader  = 0xFF5CC060;
         c.mapDirectory     = 0xFF3FB5C8;
         c.mapUnusedCatalog = 0xFF6E7A70;
         c.mapBitmap        = 0xFFD8D040;
@@ -103,7 +103,7 @@ struct DiskInspectorColors
         c.mapFileData      = 0xFF4A8FE0;
         c.mapBadBlocks     = 0xFF8A5A3A;
         c.mapUnowned       = 0xFFA0A0A0;
-        c.mapOwnedFree     = 0xFF60C060;
+        c.mapOwnedFree     = 0xFFE8A838;
         c.mapCrossLinked   = 0xFFE03C3C;
 
         c.timingFast       = 0xFF40A0FF;
@@ -152,7 +152,7 @@ struct DiskInspectorColors
 
         c.mapFree          = 0xFFEDEFF2;
         c.mapBoot          = 0xFF7A52C8;
-        c.mapVolumeHeader  = 0xFFD08A10;
+        c.mapVolumeHeader  = 0xFF2E8B3A;
         c.mapDirectory     = 0xFF1FA0B8;
         c.mapUnusedCatalog = 0xFF7A9AA0;
         c.mapBitmap        = 0xFFC8C020;
@@ -161,7 +161,7 @@ struct DiskInspectorColors
         c.mapFileData      = 0xFF2F6FC8;
         c.mapBadBlocks     = 0xFF8A5A3A;
         c.mapUnowned       = 0xFF9A9A9A;
-        c.mapOwnedFree     = 0xFF3E9E3E;
+        c.mapOwnedFree     = 0xFFC8860E;
         c.mapCrossLinked   = 0xFFD02828;
 
         c.timingFast       = 0xFF1060D0;

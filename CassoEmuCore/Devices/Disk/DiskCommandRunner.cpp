@@ -4,10 +4,12 @@
 #include "Seams/IIntentChannel.h"
 #include "DiskCommandText.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
+#include "Machines/Apple2/Common/Dos33StartupProgram.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "CassoExplorer/Model/FilesystemChoices.h"
 #include "Devices/Disk/DiskCollectionCommands.h"
 #include "Devices/Disk/DiskInspectCommand.h"
+#include "Devices/Disk/DiskGetStampCommand.h"
 #include "Devices/Disk/DiskRepairCommand.h"
 #include "Devices/Disk/DiskThumbnailCommand.h"
 #include "DiskCheck/ThumbnailStore.h"
@@ -340,7 +342,7 @@ Error:
 bool DiskCommandRunner::IsRunnableAsDos33Greeting (const VolumeListing  & listing,
                                                    const std::string    & name)
 {
-    return Dos33Volume::IsRunnableAsGreeting (listing, name);
+    return Dos33StartupProgram::IsRunnableAsGreeting (listing, name);
 }
 
 
@@ -446,6 +448,10 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
 
         case CommandLineOptions::DiskOptions::Command::Inspect:
             DiskInspectCommand::Run (m_fileIo, options.disk.imagePath, result);
+            break;
+
+        case CommandLineOptions::DiskOptions::Command::GetStamp:
+            DiskGetStampCommand::Run (m_fileIo, options.disk.imagePath, options.disk.isJson, result);
             break;
 
         case CommandLineOptions::DiskOptions::Command::Repair:

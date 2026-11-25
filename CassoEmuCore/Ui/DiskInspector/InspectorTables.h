@@ -93,6 +93,7 @@ private:
 
     static void          AddInfoRows       (vector<TableRow> & inOut, const WozInfo & info, const DriveHeadState * drive);
     static void          AddMetaRows       (vector<TableRow> & inOut, const WozFileLayout & layout);
+    static void          AddStampRows      (vector<TableRow> & inOut, const ImageDetails & image);
     static void          AddMapRows        (vector<TableRow> & inOut, LPCWSTR title, const std::array<Byte, WozFileLayout::kMapEntries> & map);
     static void          AddRecordRows     (vector<TableRow> & inOut, const WozFileLayout & layout, const DiskCopy * live);
     static int           FindRecordRing    (const std::array<Byte, WozFileLayout::kMapEntries> & map, size_t record);

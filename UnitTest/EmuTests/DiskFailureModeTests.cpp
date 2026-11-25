@@ -1,11 +1,13 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
-#include "FixtureProvider.h"
 #include "FakeDiskFileIo.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Devices/Disk/DiskImage.h"
+#include "Devices/Disk/FilePath.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/WozLoader.h"
@@ -52,10 +54,7 @@ public:
     static constexpr const char *  kBlankWoz  = "C:\\disks\\blank.woz";
     static constexpr const char *  kHostFile  = "C:\\build\\prog.bin";
 
-    static constexpr const char *  kRealFixture = "Disks/Merlin-proDos2.23.dsk";
-
-    //  A file that is really on the vendor's disk, so the locked cases run
-    //  against a catalog entry nobody here invented.
+    //  The file the locked cases run against.
     static constexpr const char *  kRealFile = "MAKE DUMP";
 
     //  The same name as the listing renders it. The trailing newline is load
@@ -116,9 +115,8 @@ public:
     //  ------------------------------------------------------------------
     //
 
-    //  Byte for byte against an oracle the failing operation could not have
-    //  reached -- read again from the fixture on disk, or rebuilt by a pure
-    //  function, never lifted out of the fake after the fact.
+    //  Byte for byte against an oracle built by a pure function, never taken
+    //  out of the fake after the fact.
     void AssertImageIsTheOracle (FakeDiskFileIo      & io,
                                  const char          * imagePath,
                                  const vector<Byte>  & oracle)
@@ -238,20 +236,33 @@ public:
     //  ------------------------------------------------------------------
     //
 
-    vector<Byte> RealDiskBytes()
+    //  A DOS 3.3 volume with MAKE DUMP and MAKE DUMP.S on it.
+    vector<Byte> DiskWithFilesBytes()
     {
-        FixtureProvider  fixtures;
-        vector<Byte>     bytes;
+        vector<Byte>  bytes = BlankDos33Sectors();
+        vector<Byte>  next;
+        FilePayload   payload;
 
-        AssertSucceeded (fixtures.OpenFixture (kRealFixture, bytes));
-        Assert::IsTrue (bytes.size() > 0, L"the fixture must actually have been read");
+        payload.type           = Dos33Volume::kTypeBinary;
+        payload.bytes          = MakePayload();
+        payload.loadAddress    = kLoadAddress;
+        payload.hasLoadAddress = true;
+
+        for (const char * name : { kRealFile, "MAKE DUMP.S" })
+        {
+            Dos33Volume  volume (bytes);
+
+            AssertSucceeded (volume.Write (FilePath::Parse (name), payload, next));
+
+            bytes = next;
+        }
 
         return bytes;
     }
 
     vector<Byte> BlankDos33Sectors()
     {
-        vector<Byte>  buffer (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>  buffer (NibbleFormat::kImageByteSize, 0);
 
         AssertSucceeded (Dos33Skeleton::Write (buffer, kBlankVolumeNumber));
 
@@ -374,11 +385,10 @@ public:
         return false;
     }
 
-    //  The vendor's disk with one of its real files locked, rebuilt from the
-    //  fixture every time it is asked for.
-    vector<Byte> RealDiskWithALockedFile()
+    //  That disk with MAKE DUMP locked, built again on every call.
+    vector<Byte> DiskWithALockedFile()
     {
-        vector<Byte>  bytes  = RealDiskBytes();
+        vector<Byte>  bytes  = DiskWithFilesBytes();
         bool          locked = TryLockCatalogEntryNamed (bytes, kRealFile);
 
         Assert::IsTrue (locked, L"the file the locked cases run against must be on the disk");
@@ -391,7 +401,7 @@ public:
         DiskImage     image;
         vector<Byte>  woz;
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, image));
+        AssertSucceeded (Nibblizer::NibblizeDsk (sectors, image));
         AssertSucceeded (WozLoader::Serialize (image, woz));
 
         return woz;
@@ -406,7 +416,7 @@ public:
         size_t        from  = 0;
         size_t        i     = 0;
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, image));
+        AssertSucceeded (Nibblizer::NibblizeDsk (sectors, image));
 
         {
             vector<Byte> &  bits = image.GetTrackBitsForWrite (track);
@@ -462,7 +472,7 @@ public:
         DiskCommandRunner  runner (io);
         DiskCommandResult  result;
 
-        SeedFile (io, kRealImage, RealDiskWithALockedFile());
+        SeedFile (io, kRealImage, DiskWithALockedFile());
         SeedFile (io, kHostFile,  MakePayload());
 
         result = runner.Run (MakePutOptions (kRealImage, kRealFile));
@@ -474,7 +484,7 @@ public:
         AssertNamesNoPlatformCode (result.diagnostics);
         AssertNamesOneReason      (result.diagnostics);
 
-        AssertRefusalLeftEverythingAsItWas (io, kRealImage, RealDiskWithALockedFile(),
+        AssertRefusalLeftEverythingAsItWas (io, kRealImage, DiskWithALockedFile(),
                                             kRealFileListed,
                                             { kRealImage, kHostFile });
     }
@@ -487,7 +497,7 @@ public:
         DiskCommandRunner  runner (io);
         DiskCommandResult  result;
 
-        SeedFile (io, kRealImage, RealDiskWithALockedFile());
+        SeedFile (io, kRealImage, DiskWithALockedFile());
 
         result = runner.Run (MakeDeleteOptions (kRealImage, kRealFile));
 
@@ -498,7 +508,7 @@ public:
         AssertNamesNoPlatformCode (result.diagnostics);
         AssertNamesOneReason      (result.diagnostics);
 
-        AssertRefusalLeftEverythingAsItWas (io, kRealImage, RealDiskWithALockedFile(),
+        AssertRefusalLeftEverythingAsItWas (io, kRealImage, DiskWithALockedFile(),
                                             kRealFileListed,
                                             { kRealImage });
     }
@@ -652,7 +662,7 @@ public:
         DiskCommandRunner  runner (io);
         DiskCommandResult  result;
 
-        SeedFile (io, kRealImage, RealDiskBytes());
+        SeedFile (io, kRealImage, DiskWithFilesBytes());
         SeedFile (io, kHostFile,  MakePayload());
 
         io.mutateStampOnNextStat = true;
@@ -668,7 +678,7 @@ public:
 
         Assert::AreEqual (0, io.writeCount, L"and nothing was written anywhere at all");
 
-        AssertRefusalLeftEverythingAsItWas (io, kRealImage, RealDiskBytes(),
+        AssertRefusalLeftEverythingAsItWas (io, kRealImage, DiskWithFilesBytes(),
                                             kRealFileListed,
                                             { kRealImage, kHostFile });
     }
@@ -679,7 +689,7 @@ public:
         DiskCommandRunner  runner (io);
         DiskCommandResult  result;
 
-        SeedFile (io, kRealImage, RealDiskBytes());
+        SeedFile (io, kRealImage, DiskWithFilesBytes());
         SeedFile (io, kHostFile,  MakePayload());
 
         io.reportHeldByOther = true;
@@ -702,7 +712,7 @@ public:
 
         Assert::AreEqual (0, io.writeCount, L"and nothing was written anywhere at all");
 
-        AssertRefusalLeftEverythingAsItWas (io, kRealImage, RealDiskBytes(),
+        AssertRefusalLeftEverythingAsItWas (io, kRealImage, DiskWithFilesBytes(),
                                             kRealFileListed,
                                             { kRealImage, kHostFile });
     }

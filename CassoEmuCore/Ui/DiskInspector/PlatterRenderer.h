@@ -71,6 +71,9 @@ public:
     void     SetPalette (const DiskInspectorPalette & palette);
     HRESULT  Render     (const DxuiCustomDrawArgs & args, const PlatterPlacement & view);
 
+    //  Whether the next draw uploads the rings.
+    bool     IsDirty    () const { return m_isDirty; }
+
 private:
     struct Constants
     {

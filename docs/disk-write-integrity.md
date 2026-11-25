@@ -25,7 +25,7 @@ the next disk change cheaper.
 | Commit | What |
 |---|---|
 | `1a3beb1e` | `TRKS` chunk size spans the record table plus the block-aligned payload |
-| `37cd294f` | `DiskImageStore::FlushEntry` writes to a temp file and renames |
+| `37cd294f` | `DiskFlusher::FlushEntry` writes to a temp file and renames |
 | `a7baf4b6` | WOZ header CRC validated on load and reported |
 | `a25a3c67` | Release 1.16.2 |
 
@@ -67,7 +67,7 @@ A disk it edited keeps whoever imaged it.
 
 ### 2b. Write-protect is an edit, not a rewrite
 
-`DiskImageStore::SetImageWriteProtect` replaced `ForceFlush`: flush pending
+`DiskFlusher::SetImageWriteProtect` replaced `ForceFlush`: flush pending
 guest writes, patch INFO's flag byte, recompute the header CRC, write back
 atomically, then move the live image's flag to match. `WozLoader::SetWriteProtectFlag`
 does the byte-level part and touches nothing else.
@@ -192,8 +192,8 @@ are written by the WOZ serializer and never take the sector path.
 ### 2g. Salvage
 
 A damaged disk is held read-only, which protects the evidence and leaves the
-user stuck. Salvage is the way out: `NibblizationLayer::SalvageSectors` keeps
-every sector that decoded at all, `DiskImageStore::AssessSalvage` reports what
+user stuck. Salvage is the way out: `Denibblizer::SalvageSectors` keeps
+every sector that decoded at all, `DiskSalvager::AssessSalvage` reports what
 that would cost without writing anything, and `SalvageToFile` writes
 `<disk>.salvaged.woz` beside the original.
 
@@ -366,7 +366,7 @@ succeeded, the guest never saw it, and the emulator's next flush destroyed it.
 
 | What | Where |
 |---|---|
-| Size and write time recorded at mount, re-checked before every commit | `ImageIdentity`, `DiskImageStore::FlushEntry` |
+| Size and write time recorded at mount, re-checked before every commit | `ImageIdentity`, `DiskFlusher::FlushEntry` |
 | A directory watcher, so a change is noticed rather than merely refused | `IImageWatcher` / `Win32ImageWatcher` |
 | Deciding what to do about one, as a pure table | `ExternalChangePolicy` |
 | Saying it, image and drive named | `ChangePrompt` |
@@ -390,7 +390,7 @@ when no operation is in flight bounds the damage; it does not eliminate it, and
 nothing in the product claims otherwise. Every message about a still-running
 machine says why a reboot may be needed.
 
-**`NibblizationLayer::Denibblize` is still the hazard §6 should worry about
+**`Denibblizer::Denibblize` is still the hazard §6 should worry about
 most.** It stops at the first undecodable sector on a track, zeroes that sector
 and every later one, and returns `S_OK` -- and `DiskImage::Serialize` puts it on
 the flush path. A guest that leaves a track partly written can still lose the

@@ -42,6 +42,7 @@ public:
 private:
     static bool  IsZoomKey     (WPARAM vk);
     int          StepRecording (int quarterTrack, int step) const;
+    void         TransferRaw   (bool isSave);
 
     InspectorSession         & m_session;
     IInspectorComponentHost  & m_host;

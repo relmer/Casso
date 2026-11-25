@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/PascalVolume.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 
@@ -83,6 +83,9 @@ void PascalVolume::SetWord (std::span<Byte> bytes, size_t offset, Word value)
 //
 //  PascalVolume::IsFound
 //
+//  The volume's size in blocks can be larger than the disk: Wizardry IV's
+//  boot disk has 2048. The blocks past the disk are left out.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool PascalVolume::IsFound (const vector<Byte> & sectors)
@@ -95,9 +98,9 @@ bool PascalVolume::IsFound (const vector<Byte> & sectors)
 
 
 
-    for (half = 0; isFound && half < block.size(); half += (size_t) NibblizationLayer::kSectorByteSize)
+    for (half = 0; isFound && half < block.size(); half += (size_t) NibbleFormat::kSectorByteSize)
     {
-        std::copy_n (sectors.begin() + (ptrdiff_t) ProDosSkeleton::GetBlockByteOffset (sectors.size(), kFirstDirectoryBlock, half), NibblizationLayer::kSectorByteSize, block.begin() + (ptrdiff_t) half);
+        std::copy_n (sectors.begin() + (ptrdiff_t) ProDosSkeleton::GetBlockByteOffset (sectors.size(), kFirstDirectoryBlock, half), NibbleFormat::kSectorByteSize, block.begin() + (ptrdiff_t) half);
     }
 
     if (isFound)
@@ -106,7 +109,7 @@ bool PascalVolume::IsFound (const vector<Byte> & sectors)
         total   = GetWord (block, s_kOffVolumeBlocks);
         isFound = GetWord (block, s_kOffFirst) == 0 && GetWord (block, s_kOffNext) == kFirstDataBlock && GetWord (block, s_kOffKind) == 0
                && length >= 1 && length <= s_kVolumeNameMax
-               && total >= kFirstDataBlock && total <= (int) (sectors.size() / kBlockBytes)
+               && total >= kFirstDataBlock
                && GetWord (block, s_kOffFileCount) <= kMaxFiles;
     }
 
@@ -134,7 +137,7 @@ bool PascalVolume::IsValidSize (size_t bytes)
 
 
 
-    return bytes == (size_t) NibblizationLayer::kImageByteSize || (bytes % kBlockBytes == 0 && blocks > (size_t) kFirstDataBlock && blocks <= kMaxBlocks);
+    return bytes == (size_t) NibbleFormat::kImageByteSize || (bytes % kBlockBytes == 0 && blocks > (size_t) kFirstDataBlock && blocks <= kMaxBlocks);
 }
 
 
@@ -412,7 +415,7 @@ Word PascalVolume::FromProDosDate (Word date)
 
 void PascalVolume::ReadBlock (int block, std::span<Byte> outBytes) const
 {
-    constexpr size_t  kSectorBytes = (size_t) NibblizationLayer::kSectorByteSize;
+    constexpr size_t  kSectorBytes = (size_t) NibbleFormat::kSectorByteSize;
 
 
 
@@ -465,7 +468,7 @@ void PascalVolume::ReadDirectory (vector<Byte> & outDirectory) const
 
 void PascalVolume::ReadEntries (const vector<Byte> & directory, vector<RawEntry> & outEntries, vector<std::string> & outDamage) const
 {
-    int   total    = GetWord (directory, s_kOffVolumeBlocks);
+    int   total    = (std::min) ((int) GetWord (directory, s_kOffVolumeBlocks), (int) GetUnitCount());
     int   count    = (std::min) ((int) GetWord (directory, s_kOffFileCount), kMaxFiles);
     int   previous = kFirstDataBlock;
 

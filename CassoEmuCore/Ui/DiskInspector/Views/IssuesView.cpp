@@ -20,29 +20,35 @@ static constexpr float    s_kToggleHDip   = 22.0f;
 //
 //  IssuesView::IssuesView
 //
-//  The finding columns, the severity as an icon and the finding wrapped to
-//  its column's width; Repair disk image... in the accent, as the one thing
-//  under the list to do.
+//  The finding columns, each as wide as its content measured: the severity
+//  as an icon under an empty heading, and the finding on one line. The last
+//  column takes any width left over, and the list scrolls sideways when the
+//  columns are wider than the view. Copy keeps the severity's heading.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 IssuesView::IssuesView (InspectorViewContext & context) :
     InspectorTableView (context)
 {
-    vector<std::wstring>  columns = InspectorTables::GetFindingColumns();
+    vector<std::wstring>  titles  = InspectorTables::GetFindingColumns();
+    vector<std::wstring>  columns = titles;
     vector<int>           widths  (columns.size(), 0);
 
 
 
-    widths.front() = kSeverityColumnDip;
+    columns[0] = std::wstring();
+    widths[0]  = kSeverityColumnDip;
 
-    SetColumns    (columns, widths, kFindingColumn);
+    SetColumns    (columns, widths, kCellColumn);
     SetIconColumn (0);
-    SetWrapsText  (true);
+    SetWrapsText  (false);
     SetOnSort     ([this] (int column) { OnSort (column); });
 
-    m_repairButton.SetVariant (DxuiButton::Variant::Primary);
-    m_repairButton.SetOnClick ([this] ()
+    m_titles = std::move (titles);
+    m_list.SetPreciseAutoFit (true);
+
+    m_banner.SetVisible  (false);
+    m_banner.SetOnAction ([this] (size_t)
     {
         if (m_repair)
         {
@@ -166,30 +172,32 @@ RECT IssuesView::GetSeverityRect (int row) const
 //
 //  IssuesView::Layout
 //
-//  The list over the bounds but for the band at the bottom, and Repair disk
-//  image... centered in the band.
+//  The infobar across the top while it's shown, and the filter and the list
+//  under it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void IssuesView::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     RECT  list   = boundsDip;
-    int   band   = HasButtonBand() ? scaler.ToPx (kButtonBandDip) : 0;
-    int   wide   = scaler.ToPx (kButtonWideDip);
-    int   high   = scaler.ToPx (kButtonHighDip);
-    int   center = (boundsDip.left + boundsDip.right) / 2;
+    int   banner = 0;
 
 
 
-    list.bottom = (std::max) (list.top, list.bottom - band);
+    UpdateBanner();
+
+    if (m_banner.IsVisible())
+    {
+        banner = static_cast<int> (std::ceil (m_banner.GetPreferredHeightPx (static_cast<float> (boundsDip.right - boundsDip.left), scaler)));
+    }
+
+    m_banner.Layout (RECT { boundsDip.left, boundsDip.top, boundsDip.right, boundsDip.top + banner }, scaler);
+
+    m_bannerPx = (banner > 0) ? banner + scaler.ToPx (kBannerGapDip) : 0;
+    list.top   = (std::min) (list.bottom, list.top + m_bannerPx);
 
     InspectorTableView::Layout (list, scaler);
     SetBounds (boundsDip);
-
-    m_bandPx = RECT { boundsDip.left, list.bottom, boundsDip.right, boundsDip.bottom };
-
-    m_repairButton.Layout     (RECT { center - wide / 2, m_bandPx.top + (band - high) / 2, center + wide / 2, m_bandPx.top + (band + high) / 2 }, scaler);
-    m_repairButton.SetVisible (band > 0 && m_plan != nullptr && m_plan->canRepair);
 }
 
 
@@ -200,8 +208,7 @@ void IssuesView::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 //
 //  IssuesView::Paint
 //
-//  The table, a severity icon on each row, and the band under it with
-//  Repair disk image... or the reason the volume can't be repaired.
+//  The table, a severity icon on each row, and the infobar over them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -224,17 +231,9 @@ void IssuesView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
         }
     }
 
-    if (m_repairButton.IsVisible())
+    if (m_banner.IsVisible())
     {
-        m_repairButton.Paint (painter, text, theme);
-    }
-    else if (m_bandPx.bottom > m_bandPx.top && m_plan != nullptr)
-    {
-        std::wstring  reason = L"Repair isn't available. " + m_plan->reason;
-
-        text.DrawString (reason.c_str(), static_cast<float> (m_bandPx.left), static_cast<float> (m_bandPx.top), static_cast<float> (m_bandPx.right - m_bandPx.left),
-                         static_cast<float> (m_bandPx.bottom - m_bandPx.top), theme.ForegroundMuted(), m_scaler.ToPxf (kTextDip), DxuiTheme::kBodyFace,
-                         DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, true);
+        m_banner.Paint (painter, text, theme);
     }
 }
 
@@ -246,14 +245,14 @@ void IssuesView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
 //
 //  IssuesView::OnMouse
 //
-//  Repair disk image... first, then a click on a category toggles it in the
-//  filter.
+//  The infobar's Repair... first, then a click on a category toggles it in
+//  the filter.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool IssuesView::OnMouse (const DxuiMouseEvent & ev)
 {
-    bool  isHandled = m_repairButton.IsVisible() && m_repairButton.OnMouse (ev);
+    bool  isHandled = m_banner.IsVisible() && m_banner.OnMouse (ev);
     int   c         = 0;
     RECT  r         = {};
 
@@ -288,14 +287,14 @@ bool IssuesView::OnMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  IssuesView::HasButtonBand
+//  IssuesView::HasBanner
 //
-//  A band under the list while the volume has a Bad or Suspect verdict, for
-//  Repair disk image... or the reason it isn't available.
+//  The infobar while the volume can be repaired or has a Bad or Suspect
+//  verdict.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IssuesView::HasButtonBand() const
+bool IssuesView::HasBanner() const
 {
     bool  isDamaged = m_context.analysis != nullptr && m_context.hasDisk &&
                       (m_context.analysis->verdict == FileSystemVerdict::Bad || m_context.analysis->verdict == FileSystemVerdict::Suspect);
@@ -303,6 +302,80 @@ bool IssuesView::HasButtonBand() const
 
 
     return m_plan != nullptr && (m_plan->canRepair || isDamaged);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IssuesView::UpdateBanner
+//
+//  Bad as an error and anything else as a warning, with Repair... only while
+//  Repair is available.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void IssuesView::UpdateBanner()
+{
+    bool  isShown = HasBanner();
+
+
+
+    m_banner.SetVisible (isShown);
+
+    if (!isShown)
+    {
+        return;
+    }
+
+    m_banner.SetText     (FormatBanner (*m_context.analysis, *m_plan));
+    m_banner.SetSeverity ((m_context.analysis->verdict == FileSystemVerdict::Bad) ? DxuiInfoBanner::Severity::Error : DxuiInfoBanner::Severity::Warning);
+    m_banner.SetActions  (m_plan->canRepair ? vector<std::wstring> { L"Repair..." } : vector<std::wstring>());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IssuesView::FormatBanner
+//
+//  "Track 18, sector $2 is used by HELLO but marked free.", and when
+//  Repair isn't available, its reason after.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring IssuesView::FormatBanner (const DiskAnalysis & analysis, const RepairPlan & plan)
+{
+    const Finding  * finding  = FileSystemCheck::GetVerdictFinding (analysis);
+    std::wstring     sentence = (finding != nullptr) ? FindingFormatter::Format (*finding) : std::wstring();
+    std::wstring     text;
+
+
+
+    if (!sentence.empty())
+    {
+        sentence[0] = static_cast<wchar_t> (towupper (sentence[0]));
+    }
+
+    if (!sentence.empty() && !sentence.ends_with (L'.'))
+    {
+        sentence += L".";
+    }
+
+    //  The infobar's color indicates the verdict, so the text is the finding
+    //  alone, or the verdict when there is no finding.
+    text = sentence.empty() ? FileSystemCheck::FormatVerdict (analysis.verdict) + L"." : sentence;
+
+    if (!plan.canRepair)
+    {
+        text += L" Repair isn't available. " + plan.reason;
+    }
+
+    return text;
 }
 
 
@@ -412,7 +485,7 @@ RECT IssuesView::GetToggleRect (int category) const
     int  shown = 0;
     int  c     = 0;
     int  left  = 0;
-    int  top   = m_boundsDip.top + (GetTopHeightPx() - h) / 2;
+    int  top   = m_boundsDip.top + m_bannerPx + (GetTopHeightPx() - h) / 2;
 
 
 

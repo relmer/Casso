@@ -4,7 +4,7 @@
 #include "CassoLink/LinkedDisk.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 
@@ -83,7 +83,7 @@ public:
     //  A DOS 3.3 volume with three files, the second several sectors long.
     static std::vector<Byte>  BuildDos33()
     {
-        std::vector<Byte>  buffer (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  buffer (NibbleFormat::kImageByteSize, 0);
         std::vector<Byte>  next;
 
         AssertSucceeded (Dos33Skeleton::Write (buffer, 254));
@@ -101,7 +101,7 @@ public:
 
     static std::vector<Byte>  BuildProDos()
     {
-        std::vector<Byte>  buffer (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  buffer (NibbleFormat::kImageByteSize, 0);
         std::vector<Byte>  next;
 
         AssertSucceeded (ProDosSkeleton::Write (buffer, "LINKED"));
@@ -355,7 +355,7 @@ public:
         LinkedDisk     disk (drive);
         VolumeListing  listing;
 
-        drive.image.assign (NibblizationLayer::kImageByteSize, 0);
+        drive.image.assign (NibbleFormat::kImageByteSize, 0);
 
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_UNRECOGNIZED_VOLUME), disk.Run ([&] (const IVolume & volume) { return volume.Enumerate (listing); }));
     }

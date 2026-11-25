@@ -9,6 +9,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
 #include "CassoExplorer/Browser/BrowserCells.h"
 #include "CassoExplorer/Browser/BrowserPreviewer.h"
+#include "CassoExplorer/Browser/Preview/ShellItemPreviewer.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
 #include "CassoExplorer/Window/Panes/ExplorerPane.h"
@@ -319,12 +320,12 @@ void PreviewListingView::Fill (const PreviewContent & preview, bool columns)
         ExplorerTextStyles::Apply (*m_list, preview.archive ? ExplorerTextStyles::kProse : ExplorerTextStyles::kListing);
         m_list->SetRowHeightDip    (kRowHeightDip);
         m_list->SetRowHeightPxFn   (preview.archive ? std::function<int (UINT)> (&ExplorerLayout::GetListRowHeightPx) : nullptr);
-        m_list->SetColumns         (preview.archive ? BrowserPreviewer::GetArchivePreviewColumns() : BrowserCells::GetCatalogPreviewColumns());
+        m_list->SetColumns         (preview.archive ? ShellItemPreviewer::GetArchivePreviewColumns() : BrowserCells::GetCatalogPreviewColumns());
         m_list->SetTextSelectionColors (!preview.archive);
 
         for (const CatalogRow & row : preview.rows)
         {
-            rows.push_back (preview.archive ? m_context.browser.GetArchivePreviewCells (row) : BrowserCells::ToCatalogPreviewCells (row));
+            rows.push_back (preview.archive ? m_context.browser.GetPreviewer().GetShellItems().GetArchivePreviewCells (row) : BrowserCells::ToCatalogPreviewCells (row));
         }
     }
 
@@ -486,7 +487,7 @@ bool PreviewListingView::ToggleArray (int row, bool open, bool toParent)
     array = m_varLines[(size_t) row].array;
     BAIL_OUT_IF (array < 0, S_OK);
 
-    name   = m_context.browser.GetPreview().arrays[(size_t) array].name;
+    name   = m_context.browser.GetPreviewer().GetPreview().arrays[(size_t) array].name;
     result = true;
 
     if (open)
@@ -498,7 +499,7 @@ bool PreviewListingView::ToggleArray (int row, bool open, bool toParent)
         m_varExpanded.erase (name);
     }
 
-    FillVariables (m_context.browser.GetPreview(), false);
+    FillVariables (m_context.browser.GetPreviewer().GetPreview(), false);
 
     for (size_t i = 0; i < m_varLines.size(); i++)
     {
@@ -852,7 +853,7 @@ void PreviewListingView::SortVariables (int column)
     m_varDescending = (column == m_varColumn) ? !m_varDescending : false;
     m_varColumn     = column;
 
-    FillVariables (m_context.browser.GetPreview(), false);
+    FillVariables (m_context.browser.GetPreviewer().GetPreview(), false);
     m_context.window.Invalidate();
 }
 
@@ -876,7 +877,7 @@ void PreviewListingView::SetVariablesFilter (const std::wstring & filter)
 
     m_varFilter = filter;
 
-    FillVariables (m_context.browser.GetPreview(), cleared);
+    FillVariables (m_context.browser.GetPreviewer().GetPreview(), cleared);
     m_context.window.Invalidate();
 }
 

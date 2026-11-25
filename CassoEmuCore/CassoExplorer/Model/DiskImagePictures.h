@@ -42,6 +42,7 @@ public:
 
     bool                      HasThumbnail    (const std::wstring & path) override;
     HRESULT                   RemoveThumbnail (const std::wstring & path) override;
+    HRESULT                   SetThumbnail    (const std::wstring & path, std::span<const Byte> png) override;
     std::vector<std::string>  GetKeys         (const std::vector<std::wstring> & paths) override;
     void                      RemoveDeleted   (const std::vector<std::string> & keys) override;
     int                       CountUserSet    () override;

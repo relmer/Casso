@@ -78,6 +78,7 @@
 #include "Ui/Dialogs/SalvageDialogContent.h"
 #include "Ui/Settings/SettingsPanelState.h"
 #include "Ui/Settings/SettingsSheet.h"   // TEMP (T162 3a dev trigger)
+#include "Devices/Disk/Store/DiskFlusher.h"
 #include "Seams/Win32IntentChannel.h"
 #include "Devices/Disk/PreservedCopy.h"
 #include "Devices/BlockDevice/BlockDeviceAttachments.h"
@@ -283,7 +284,7 @@ EmulatorShell::~EmulatorShell()
     // be delivered and its answer would never be acted on. It runs on this
     // thread with OLE still initialized -- OleUninitialize is below -- so the
     // store asks through a blocking file dialog instead.
-    hrFlush = m_machine.GetDiskStore().FlushAllForShutdown();
+    hrFlush = m_machine.GetDiskStore().GetFlusher().FlushAllForShutdown();
     IGNORE_RETURN_VALUE (hrFlush, S_OK);
 
     // Same idea for a preference change still inside its debounce window:
@@ -1070,6 +1071,7 @@ void EmulatorShell::InitAssetPathsAndStores()
 
     m_machine.SetAssetBaseDir (assetBaseDir.wstring());
     m_settings->CreateConfigStore (assetBaseDir.wstring());
+    m_settings->GetConfigStore()->SetRunningMachine (m_machine.GetConfig());
 
     // The stock hard disk image is made here the first time a machine lists
     // it. A folder that can't be made leaves those drives empty.
@@ -1197,11 +1199,19 @@ HRESULT EmulatorShell::BuildMachineDevices (const MachineConfig & config)
 
 
 
+    // A temporary machine's settings aren't saved; a later machine's are.
+    if (m_settings != nullptr && m_settings->GetConfigStore() != nullptr)
+    {
+        m_settings->GetConfigStore()->SetRunningMachine (config);
+    }
+
     // --hd and --smartport apply to the first machine only, and are never
     // saved: the copy built from has them, the config does not.
     if (!m_runHdAttachments.empty() || !m_runSmartPortAttachments.empty())
     {
-        hrAttach = BlockDeviceAttachments::Apply (m_runHdAttachments, m_runSmartPortAttachments, built, error);
+        hrAttach = BlockDeviceAttachments::Apply (m_runHdAttachments, m_runSmartPortAttachments, built, error,
+                                                  PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(), PathResolver::GetWorkingDirectory()),
+                                                  PathResolver::FindFile);
 
         if (FAILED (hrAttach))
         {

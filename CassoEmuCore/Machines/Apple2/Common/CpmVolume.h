@@ -78,12 +78,20 @@ public:
                             vector<Byte>          & outBuffer) const override;
 
     //  Whether the directory looks like CP/M's, from its entries alone, since
-    //  CP/M has no signature. A file entry and nothing invalid is enough. On a
-    //  disk with leftover data in part of its directory, a few plausible entries
-    //  are required. A directory where every slot is free, each one all $E5 or
-    //  the remains of an erased entry, is an empty CP/M disk, which is what
-    //  CP/M's FORMAT and `disk create` make.
+    //  CP/M has no signature. A file entry and nothing invalid is enough. A
+    //  directory where every slot is free, each one all $E5 or the remains of an
+    //  erased entry, is an empty CP/M disk, which is what CP/M's FORMAT and
+    //  `disk create` make.
     static bool  IsFound (const vector<Byte> & sectors);
+
+    //  Whether a directory with damaged entries among good ones is CP/M's: at
+    //  least three entries pass a stricter check, and they are more than half
+    //  of the slots in use. The others are skipped, and the disk is read-only.
+    static bool  IsFoundLenient (const vector<Byte> & sectors);
+
+    //  Whether the disk is read that way, or its directory has invalid entries,
+    //  so that every change fails with ERROR_WRITE_PROTECT.
+    bool  IsReadOnly () const;
 
     //  A blank disk as CP/M's FORMAT leaves it: $E5 in every byte.
     static void  WriteBlank (vector<Byte> & outSectors);
@@ -147,14 +155,33 @@ private:
     static std::string  MakeName         (const ParsedName & parsed);
     static bool         IsPlausibleEntry (std::span<const Byte> entry);
     static bool         IsFreeSlot       (std::span<const Byte> entry);
+    static bool         HasInvalidEntry  (const vector<Byte> & sectors);
 
     void  ReadDirectory (vector<Byte> & outDirectory) const;
     void  ReadBlock     (int block, std::span<Byte> outBytes) const;
 
+    //  The directory sectors of a buffer, end to end.
+    static void  CopyDirectory (const vector<Byte> & sectors, vector<Byte> & outDirectory);
+
     //  The files in order of each one's first entry, and how many entries
     //  aren't free or valid. Invalid bytes past kCompatibleEntries aren't
-    //  counted unless the disk is one with more entries than that.
-    static void  CollectFiles (const vector<Byte> & directory, vector<RawFile> & outFiles, int & outInvalid);
+    //  counted unless the disk is one with more entries than that. The slots
+    //  in `skipped` count as invalid.
+    static void  CollectFiles (const vector<Byte>     & directory,
+                               vector<RawFile>        & outFiles,
+                               int                    & outInvalid,
+                               const std::set<int>    * skipped = nullptr);
+
+    //  The same, with the slots a read-only disk skips left out.
+    void  CollectVolumeFiles (const vector<Byte> & directory, vector<RawFile> & outFiles, int & outInvalid) const;
+
+    //  Whether only the lenient read finds the disk.
+    bool  IsLenientRead() const;
+
+    //  The slots in use that a lenient read skips, and how many slots are in
+    //  use: an entry that isn't plausible, has a user other than 0 to 15 or the
+    //  system's 31, or lists a block another entry lists.
+    static std::set<int>  CollectSkippedSlots (const vector<Byte> & directory, int & outInUse);
 
     //  How many slots this disk's system reads: kEntries when a valid entry is
     //  past kCompatibleEntries, which only a system that reads them could have

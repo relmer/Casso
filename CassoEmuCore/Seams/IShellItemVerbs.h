@@ -28,6 +28,10 @@ public:
     struct Handler
     {
         std::wstring  name;
+        std::wstring  iconFile;                     // the program's icon, or empty
+        int           iconIndex   = 0;
+        size_t        assocIndex  = SIZE_MAX;       // the handler's place in the type's list, or SIZE_MAX
+        std::wstring  application;                  // a recently used program's file name, run by its Applications key
     };
 
     //  An item in the Recycle Bin, with the columns Explorer shows for it.
@@ -114,7 +118,7 @@ public:
     //  The programs Windows recommends for the file's type, in its order,
     //  and opening the file in one of them by its index in that list.
     virtual HRESULT  GetOpenWithHandlers (const std::wstring & path, std::vector<Handler> & outHandlers) = 0;
-    virtual HRESULT  OpenWith            (HWND owner, const std::wstring & path, size_t handlerIndex) = 0;
+    virtual HRESULT  OpenWith            (HWND owner, const std::wstring & path, const Handler & handler) = 0;
 
     //  Windows' own Open with dialog, for a program not on the list.
     virtual HRESULT  ChooseOtherApp (HWND owner, const std::wstring & path) = 0;
@@ -153,10 +157,31 @@ public:
         return S_OK;
     }
 
+    //  The SendTo folder's shortcuts, as File Explorer's Send to lists them,
+    //  and sending items to one, as a drop on it does.
+    struct SendToTarget
+    {
+        std::wstring  path;
+        std::wstring  label;
+    };
+
+    virtual HRESULT  ListSendToTargets (std::vector<SendToTarget> & outTargets)                              { outTargets.clear(); return S_OK; }
+
+    //  Which of the file actions Print, Create shortcut and Rotate apply to
+    //  every item, by their verbs print, link, rotate90 and rotate270, from
+    //  the items' file types rather than the shell's menu, which is slow to
+    //  build.
+    virtual HRESULT  ListFileActions   (const std::vector<std::wstring> & paths, const std::vector<std::string> & verbs, std::vector<ItemVerb> & outFound) { (void) paths; (void) verbs; outFound.clear(); return S_OK; }
+    virtual HRESULT  SendTo            (const std::vector<std::wstring> & paths, const std::wstring & target) { (void) paths; (void) target; return E_NOTIMPL; }
+
     //  Explorer's own file operations, with its progress, conflict and undo
     //  handling: deleting to the Recycle Bin, renaming, and cut, copy and
     //  paste through the clipboard other programs share.
     virtual HRESULT  Recycle           (HWND owner, const std::vector<std::wstring> & paths) = 0;
+
+    //  The copies a paste, drop or new item made, to the Recycle Bin with no
+    //  prompt, as in File Explorer's undo.
+    virtual HRESULT  RecycleCopies     (HWND owner, const std::vector<std::wstring> & paths) = 0;
 
     //  The latest deleted copy of each path back out of the Recycle Bin, as
     //  Explorer's undo restores a deletion.
@@ -254,6 +279,14 @@ public:
     virtual HRESULT  PlaceOnClipboard  (HWND owner, const std::vector<std::wstring> & paths, bool cut) = 0;
     virtual bool     ClipboardHasFiles () const = 0;
     virtual HRESULT  PasteInto         (HWND owner, const std::wstring & folder, PasteResult & outResult) = 0;
+
+    //  Dropped files copied, or moved, into the folder by the shell's file
+    //  operations, as a paste is, in place of the folder's drop target.
+    virtual HRESULT  DropInto          (HWND owner, IDataObject * data, const std::wstring & folder, bool isMove, PasteResult & outResult) = 0;
+
+    //  Whether the folder's volume stores named streams; a FAT memory card
+    //  doesn't.
+    virtual bool     HasNamedStreams   (const std::wstring & folder) const = 0;
 
     //  Each item moved to the full path beside it, as an undo of a move puts
     //  items back where they were.

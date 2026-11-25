@@ -32,6 +32,7 @@ void BlockBrowser::Start()
     m_back.clear();
     m_forward.clear();
     m_place = BlockPlace();
+    m_drawn = 0;
 
     if (HasCard())
     {
@@ -61,7 +62,7 @@ void BlockBrowser::GoTo (const BlockPlace & place)
         return;
     }
 
-    m_back.push_back (m_place);
+    m_back.push_back ({ m_place, m_drawn });
     m_forward.clear();
     m_place = place;
 }
@@ -98,8 +99,9 @@ bool BlockBrowser::GoBack()
         return false;
     }
 
-    m_forward.push_back (m_place);
-    m_place = m_back.back();
+    m_forward.push_back ({ m_place, m_drawn });
+    m_place = m_back.back().place;
+    m_drawn = m_back.back().drawn;
     m_back.pop_back();
 
     return true;
@@ -122,8 +124,9 @@ bool BlockBrowser::GoForward()
         return false;
     }
 
-    m_back.push_back (m_place);
-    m_place = m_forward.back();
+    m_back.push_back ({ m_place, m_drawn });
+    m_place = m_forward.back().place;
+    m_drawn = m_forward.back().drawn;
     m_forward.pop_back();
 
     return true;
@@ -885,7 +888,7 @@ void BlockBrowser::AddVolumeRows (BlockListing & listing, int volume) const
 
     for (const auto & [role, blocks] : damage)
     {
-        findings.rows.push_back (MakeBlocksRow (BlockListRow::Kind::Finding, volume, BlockMap::GetRoleName (role), blocks));
+        findings.rows.push_back (MakeBlocksRow (BlockListRow::Kind::Finding, volume, BlockMap::FormatRoleFinding (role, blocks.size(), m_model->IsSectorVolume (volume)), blocks));
     }
 
     for (const BlockCount & count : map.counts)

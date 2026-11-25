@@ -7,15 +7,15 @@
 #include "Devices/Disk/DiskImageSession.h"
 #include "Devices/Disk/FilePath.h"
 #include "Devices/Disk/IBlockStore.h"
+#include "Machines/Apple2/Common/IVolume.h"
 #include "Machines/Apple2/Common/SectorReadObserver.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/VolumeTypes.h"
 
 class BlockBuffer;
 class FilesystemChoices;
-class IVolume;
 class IDiskFileIo;
 class IIntentChannel;
-enum class VolumeKind;
 
 
 
@@ -81,6 +81,20 @@ public:
         std::string  bootableFrom;     // an operating-system image, when not the stock master
     };
 
+    //  An image opened for listing: a large block image's store, or any other
+    //  image's sectors and file bytes, and the volume over them.
+    struct ListingVolume
+    {
+        std::unique_ptr<IBlockStore>   store;
+        DiskImageSession::OpenedImage  opened;
+        std::unique_ptr<IVolume>       volume;
+        VolumeKind                     kind = VolumeKind::Unknown;
+
+        ListingVolume () = default;
+        ListingVolume (const ListingVolume &) = delete;
+        ListingVolume & operator= (const ListingVolume &) = delete;
+    };
+
     //  No catalog index: the entry is found by its name alone.
     static constexpr size_t  kNoIndex = SIZE_MAX;
 
@@ -93,6 +107,9 @@ public:
 
     bool  IsUnrecognized (const std::string & imagePath);
 
+    //  Whether the user chose to read the image as CP/M.
+    bool  IsReadAsCpmByChoice (const std::string & imagePath) const { return GetChoice (imagePath) == VolumeKind::Cpm; }
+
     IDiskFileIo &  GetFileIo () { return m_fileIo; }
 
     //  Reads through the volume layer.
@@ -101,6 +118,8 @@ public:
     //  One directory's entries, by path from the volume directory, with the
     //  volume's name and free space.
     Result  List (const std::string & imagePath, const std::string & directory, VolumeListing & outListing, VolumeKind & outKind);
+
+    Result  OpenForListing (const std::string & imagePath, ListingVolume & outVolume);
     //  A catalog index, when given, selects the entry when several entries
     //  share its name, which DOS 3.3 allows.
     Result  Read (const std::string & imagePath, const std::string & name, FilePayload & outPayload, size_t catalogIndex = kNoIndex);

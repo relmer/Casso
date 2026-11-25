@@ -455,7 +455,8 @@ void DxuiTextRenderer::SetTextGlow (uint8_t alpha, float radiusEm)
 //  IsBodyFaceRequest
 //
 //  Whether a family argument specifies the body face. A null family is the
-//  body face, as it is everywhere else in this renderer.
+//  body face, as it is everywhere else in this renderer. The variable face is
+//  the body face too, since most modern text is set in it.
 //
 //  DxuiTheme::kSystemFace has the same text as kBodyFace and is compared by
 //  address, so text that specifies it is drawn in the system face under any
@@ -470,7 +471,7 @@ bool DxuiTextRenderer::IsBodyFaceRequest (const wchar_t * family)
 
 
     return !isSystemFace
-           && ((family == nullptr) || (wcscmp (family, DxuiTheme::kBodyFace) == 0));
+           && ((family == nullptr) || (wcscmp (family, DxuiTheme::kBodyFace) == 0) || (wcscmp (family, DxuiTheme::kVariableFace) == 0));
 }
 
 
@@ -1949,6 +1950,59 @@ HRESULT DxuiTextRenderer::MeasureStringWeighted (
 
     outWidthDip  = metrics.widthIncludingTrailingWhitespace;
     outHeightDip = metrics.height;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetLineMetrics
+//
+//  A line's height and its baseline below the line's top, from the same
+//  cached layout MeasureString uses.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::GetLineMetrics (
+    float            fontSizeDip,
+    const wchar_t  * fontFamily,
+    DxuiFontWeight   weight,
+    float          & outHeightDip,
+    float          & outBaselineDip)
+{
+    HRESULT                      hr            = S_OK;
+    ComPtr<IDWriteTextLayout>    layout;
+    IDWriteTextLayout          * rawLayout     = nullptr;
+    DWRITE_LINE_METRICS          line          = {};
+    UINT32                       lineCount     = 0;
+    constexpr float              kUnboundedDip = 1.0e6f;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    outHeightDip   = 0.0f;
+    outBaselineDip = 0.0f;
+
+    CBR (m_dwriteFactory);
+
+    hr = EnsureLayout (L"Ag", fontFamily, fontSizeDip, weight,
+                       DxuiTextHAlign::Left, DxuiTextVAlign::Top, false,
+                       kUnboundedDip, kUnboundedDip, &rawLayout);
+    CHRA (hr);
+
+    layout.Attach (rawLayout);
+
+    hr = layout->GetLineMetrics (&line, 1, &lineCount);
+    CHRA (hr);
+
+    outHeightDip   = line.height;
+    outBaselineDip = line.baseline;
 
 Error:
     return hr;

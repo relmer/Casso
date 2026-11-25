@@ -4,15 +4,17 @@
 ;
 ; The CassoLink ProDOS disk's STARTUP runs CASSOLINK, this installer and the
 ; driver after it, from $2000. BASIC.SYSTEM has started by then, so its
-; GETBUFR allocates four pages below HIMEM for the driver: the driver in the first
-; two and its CRC tables in the others. The driver is assembled at DRVORG
+; GETBUFR allocates five pages below HIMEM for the driver: the driver in the
+; first three and its CRC tables in the others. The driver is assembled at DRVORG
 ; = $9200, and each byte that has its high byte is in the relocation list
 ; after it, which the PC makes by assembling it at two pages; the installer
 ; adds GETBUFR's page less DRVPAGE to each.
 ;
-; The serial port is the //c's port 2, or the first slot from 7 down with
-; the Super Serial Card's identification bytes, set to SPEED's 6551 control
-; byte, as the connection's speed. The drives are drive 1 and 2 of the first
+; The serial port is the first slot from 7 down with the Super Serial
+; Card's identification bytes, set to SPEED's 6551 control byte, as the
+; connection's speed. A //c has a cable on port 1 or port 2, so both are
+; set up, and the driver switches to the other port after each request
+; with no reply, so it stays on the port with the cable. The drives are drive 1 and 2 of the first
 ; slot from 7 down, other than the serial port's, whose two entries in
 ; ProDOS's device table are both the no-device entry, slot 0's.
 ;
@@ -21,7 +23,14 @@
 ; three seconds for the PC's reply: ProDOS's error, then for a status the
 ; drive's blocks and for a read the block and its CRC. A reply that doesn't
 ; arrive or arrives damaged is requested again, 4 times in all, then the
-; call returns ProDOS's I/O error. Interrupts are off for the call. The
+; call returns ProDOS's I/O error. When no byte came back for any of them,
+; CASSOLINK ISN'T CONNECTED is also written straight to the text screen's
+; bottom line, since ProDOS banks its memory over the ROM's COUT while a
+; driver runs. Each status request has the ROM's identification bytes after
+; the block, for the PC's page. The installer calls the driver once for
+; drive 1's status,
+; sent once on each port and the screen message off, and prints the
+; same message when no reply arrives. Interrupts are off for the call. The
 ; driver doesn't use the zero page except ProDOS's request, at $42 to $47.
 ; ---------------------------------------------------------------------------
 
@@ -41,15 +50,24 @@ ERRIO    = $27
 TRIES    = 4
 STARTB   = $C1                  ; a packet's first byte
 WRLEN    = 4 + 512 + 2          ; a write's payload
+IDLEN    = 5                    ; the ROM's identification bytes
 
 DRVPAGE  = $92
+
+RD80VID  = $C01F                ; bit 7 set in 80 columns
+RD80STOR = $C018
+CLR80STOR = $C000
+SET80STOR = $C001
+PAGE2OFF = $C054
+PAGE2ON  = $C055
+BOTLINE  = $07D0                ; the text screen's line 24
 
         ifdef DRIVER
 
         .org DRVORG
 
-CRCLO    = DRVORG + $200
-CRCHI    = DRVORG + $300
+CRCLO    = DRVORG + $300
+CRCHI    = DRVORG + $400
 
 driver: php
         sei
@@ -64,15 +82,24 @@ dvok:   sta dvop
         cmp #2
         bne dvtries
         jsr bcrc
-dvtries: lda #TRIES
+dvtries: lda dvmax
         sta dvtry
+        lda #0
+        sta dvhear
 dvagain: jsr request
         jsr reply
         bcc dvend
         jsr drain
+        lda sltx                ; a //c's other port next
+        eor altx
+        sta sltx
         dec dvtry
         bne dvagain
-        lda #ERRIO
+        lda dvhear              ; nothing from the PC at all
+        ora dvquiet
+        bne dvio
+        jsr shownc
+dvio:   lda #ERRIO
 dvend:  sta dverr
         lda dvbufh
         sta PDBUF+1
@@ -94,6 +121,11 @@ request: lda dvbufh
         jsr putp
         ldy dvop
         lda rqlens,y
+        ldy dvop                ; a status has the ROM's bytes
+        bne rqlen
+        clc
+        adc #IDLEN
+rqlen:  ldy dvop
         jsr putp
         lda rqlenh,y
         jsr putp
@@ -114,6 +146,14 @@ request: lda dvbufh
         lda PDBLK+1
         jsr putp
         lda dvop
+        bne rqwrite
+        ldy #0
+rqid:   lda dvid,y
+        jsr putp
+        iny
+        cpy #IDLEN
+        bne rqid
+rqwrite: lda dvop
         cmp #2
         bne rqend
         ldy #0
@@ -143,6 +183,7 @@ reply:  tsx
         stx rpsp
         ldx sltx
 rpstart: jsr getbt
+        stx dvhear              ; X is the slot times 16, never 0
         cmp #STARTB
         bne rpstart
         sta peor
@@ -277,7 +318,53 @@ bcdata: lda (PDBUF),y
         bne bcdata
         rts
 
-sltx:   .byte 0                 ; the installer's: the 6551's slot times 16
+; shownc: CASSOLINK ISN'T CONNECTED on the text screen's bottom line. In 80
+; columns, an even column is in auxiliary memory, written with 80STORE and
+; PAGE2 on, and an odd one in main memory.
+shownc: ldy #0
+        lda RD80VID
+        bmi sn80
+sn40:   lda dvmsg,y
+        beq sndone
+        ora #$80
+        sta BOTLINE,y
+        iny
+        bne sn40                ; always
+sn80:   lda RD80STOR
+        sta snst
+        sta SET80STOR
+snloop: lda dvmsg,y
+        beq sn80end
+        ora #$80
+        pha
+        tya
+        lsr a
+        tax
+        pla
+        bcs snmain
+        sta PAGE2ON
+        sta BOTLINE,x
+        sta PAGE2OFF
+        jmp snnext
+snmain: sta BOTLINE,x
+snnext: iny
+        bne snloop              ; always
+sn80end: lda snst
+        bmi sndone
+        sta CLR80STOR
+sndone: rts
+
+dvmsg:  .text "CASSOLINK ISN'T CONNECTED"
+        .byte 0
+
+; The installer sets these, from SLTXOFF on.
+sltx:   .byte 0                 ; the 6551's slot times 16
+altx:   .byte 0                 ; and $30 on a //c, so sltx EOR altx is its other port
+dvmax:  .byte TRIES             ; the times a call's request is sent
+dvquiet: .byte 0                ; not 0: no message on the screen
+dvhear: .byte 0                 ; not 0: a byte came from the PC in this call
+dvid:   .byte 0, 0, 0, 0, 0     ; $FBB3, $FBC0, $FBBF, $FB1E, and 1 for a IIgs, from the installer
+snst:   .byte 0
 dvop:   .byte 0
 dvtry:  .byte 0
 dverr:  .byte 0
@@ -370,7 +457,7 @@ fsnext: dey
         ldx #msgslot-msgs
         jmp fail
 fsfound: sty dslot
-        lda #4
+        lda #5
         jsr GETBUFR
         bcc gotbuf
         ldx #msgmem-msgs
@@ -379,21 +466,20 @@ gotbuf: sta bufpg
         jsr copy
         jsr reloc
         jsr crctab
-        lda #0                  ; the 6551's slot into the driver
-        sta DST
-        lda bufpg
-        clc
-        adc #>SLTXOFF
-        sta DST+1
-        ldy #<SLTXOFF
+        jsr setdst              ; the 6551's slot into the driver
+        ldy #0
         lda slotx
         sta (DST),y
-        ldx slotx               ; the 6551 reset, no interrupts, DTR on
-        sta ACIASTAT,x
-        lda #$0B
-        sta ACIACMD,x
-        lda #SPEED
-        sta ACIACTL,x
+        ldx slotx
+        jsr acinit
+        lda MACHID2C            ; a //c's port 1 too, the driver's other port
+        bne nalt
+        ldy #1
+        lda #$30
+        sta (DST),y
+        ldx #$10
+        jsr acinit
+nalt:
         lda dslot               ; the driver for both drives
         asl a
         tax
@@ -421,20 +507,123 @@ gotbuf: sta bufpg
         ora #$B0
         jsr COUT
         lda #$8D
-        jmp COUT
+        jsr COUT
+        jsr ping
+        bne pingok
+        ldx #msgnc-msgs
+        jmp fail
+pingok: rts
+
+; ping: drive 1's status from the driver, sent once on each //c port, no
+; screen message; Z set when no byte came back. ProDOS's request bytes at
+; $42 to $47 are put back after.
+ping:   ldx #5
+pgsave: lda PDCMD,x
+        sta pdsave,x
+        dex
+        bpl pgsave
+        jsr setdst
+        ldy #2
+        lda #2
+        sta (DST),y             ; dvmax
+        iny
+        sta (DST),y             ; dvquiet
+        ldy #5
+        lda $FBB3
+        sta (DST),y             ; dvid
+        iny
+        lda $FBC0
+        sta (DST),y
+        iny
+        lda $FBBF
+        sta (DST),y
+        iny
+        lda $FB1E
+        sta (DST),y
+        iny
+        jsr isgs
+        sta (DST),y
+        lda #0
+        sta PDCMD
+        lda dslot
+        asl a
+        asl a
+        asl a
+        asl a
+        sta PDUNIT
+        lda #0
+        sta pgcall+1
+        lda bufpg
+        sta pgcall+2
+        jsr pgcall
+        jsr setdst
+        ldy #2
+        lda #TRIES
+        sta (DST),y
+        iny
+        lda #0
+        sta (DST),y
+        iny
+        lda (DST),y             ; dvhear
+        sta pgheard
+        ldx #5
+pgrest: lda pdsave,x
+        sta PDCMD,x
+        dex
+        bpl pgrest
+        lda pgheard
+        rts
+pgcall: jmp $0000               ; the driver's entry, set above
+
+; isgs: 1 in A on a IIgs, else 0. Only an enhanced //e's ID bytes can be a
+; IIgs, whose IDROUTINE at $FE1F clears C; the //e's is an RTS.
+isgs:   lda $FBB3
+        cmp #$06
+        bne isno
+        lda $FBC0
+        cmp #$E0
+        bne isno
+        sec
+        jsr $FE1F
+        bcs isno
+        lda #1
+        rts
+isno:   lda #0
+        rts
+
+; setdst: DST at the driver's sltx in the buffer.
+setdst: lda #<SLTXOFF
+        sta DST
+        lda bufpg
+        clc
+        adc #>SLTXOFF
+        sta DST+1
+        rts
 
 fail:   jsr print
         lda #$8D
         jmp COUT
 
-; print: the message at msgs + X, up to its 0.
-print:  lda msgs,x
+; print: a blank line, then the message at msgs + X, up to its 0. The blank
+; line sets it apart from BASIC.SYSTEM's prompt above it.
+print:  lda #$8D
+        jsr COUT
+prchar: lda msgs,x
         beq prdone
         ora #$80
         jsr COUT
         inx
-        bne print
+        bne prchar
 prdone: rts
+
+; acinit: the 6551 at slot * 16 in X reset, with no interrupts, DTR on and
+; SPEED's control byte.
+acinit: sta ACIASTAT,x
+        lda #$0B
+        sta ACIACMD,x
+        lda #SPEED
+        sta ACIACTL,x
+        rts
 
 ; copy: the driver, after the installer, to the buffer.
 copy:   lda #<drvimg
@@ -506,11 +695,11 @@ rldec:  dec rlleft
         jmp rlnext
 rldone: rts
 
-; crctab: CRC-16/XMODEM's tables, low bytes and high, in the buffer's third
-; and fourth pages, as the program's.
+; crctab: CRC-16/XMODEM's tables, low bytes and high, in the buffer's fourth
+; and fifth pages, as the program's.
 crctab: lda bufpg
         clc
-        adc #2
+        adc #3
         sta SRC+1
         adc #1
         sta DST+1
@@ -550,6 +739,8 @@ bufpg:  .byte 0
 rlleft: .byte 0, 0
 ctlo:   .byte 0
 cthi:   .byte 0
+pdsave: .byte 0, 0, 0, 0, 0, 0
+pgheard: .byte 0
 
 msgs:
 msgok:   .text "CASSOLINK DRIVES IN SLOT "
@@ -559,6 +750,8 @@ msgport: .text "CASSOLINK: NO SERIAL PORT"
 msgslot: .text "CASSOLINK: NO FREE SLOT"
         .byte 0
 msgmem:  .text "CASSOLINK: NO MEMORY"
+        .byte 0
+msgnc:   .text "CASSOLINK ISN'T CONNECTED"
         .byte 0
 
 drvimg:

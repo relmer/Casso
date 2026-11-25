@@ -43,6 +43,11 @@ public:
     bool  CanUndo () const { return m_undoAt > 0; }
     bool  CanRedo () const { return m_undoAt < m_actions.size(); }
 
+    //  The block and the first byte the next undo or redo changes; false
+    //  when there's none.
+    bool  GetUndoAt (uint32_t & outBlock, int & outOffset) const;
+    bool  GetRedoAt (uint32_t & outBlock, int & outOffset) const;
+
     void  DiscardAll   ();
     void  DiscardBlock (uint32_t block);
 
@@ -74,7 +79,12 @@ private:
     bool       Change (uint32_t block, const Block & base, int offset, Byte value);
     void       Record (const std::map<uint32_t, Pending> & before);
 
+    static bool  FindChange (const Action & action, uint32_t & outBlock, int & outOffset);
+
     std::map<uint32_t, Pending>  m_pending;
     vector<Action>               m_actions;
-    size_t                       m_undoAt = 0;
+    size_t                       m_undoAt      = 0;
+    size_t                       m_digitAction = SIZE_MAX;
+    uint32_t                     m_digitBlock  = 0;
+    int                          m_digitOffset = -1;
 };

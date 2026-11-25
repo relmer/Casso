@@ -9,6 +9,7 @@ class CassoLinkManager;
 class ExplorerTabManager;
 struct ExplorerWindowParts;
 struct CassoExplorerSessionWindow;
+struct InspectorRawTransfer;
 
 
 
@@ -53,12 +54,23 @@ public:
     //  command line to the running app, in a WM_COPYDATA with this id and the
     //  arguments as UTF-16 text, its path made full.
     static constexpr ULONG_PTR  kLaunchCopyId  = 0x43454C41;   // 'CELA'
+    static constexpr UINT       kClockMs       = 1;    // the system clock's period while the animation tick runs
     static constexpr UINT       kTooltipTickMs = 16;   // the menus' reveal runs on it too, so display rate
 
     //  Loaded at this size and scaled down by the caption, as Casso's is.
     static constexpr int  kCaptionIconPx     = 32;
     static constexpr int  kMinWindowWidthDip = 200;
     static constexpr int  kCascadeStepDip    = 32;   // a second window's offset from the saved placement
+
+    //  A picker's smallest size, as the standard file dialogs have one: room
+    //  for the navigation band and a save form's labels, boxes, note,
+    //  Verify box and buttons.
+    static constexpr int  kMinPickerWidthDip  = 640;
+    static constexpr int  kMinPickerHeightDip = 480;
+
+    //  How far a save form's bottom bar is mixed from the background toward
+    //  the text color.
+    static constexpr float  s_kSavePickerBarTint = 0.09f;
 
     //  How long to let a burst settle before re-reading. Copying a hundred
     //  files reports a hundred changes; re-reading once at the end is both
@@ -92,6 +104,7 @@ public:
     CassoLinkManager               & GetCassoLinkManager   ();
     void                             OpenPathInNewTab      (const std::wstring & path);
     void                             SelectInFolder        (const std::wstring & path);
+    void                             TransferRaw           (HWND owner, const std::wstring & path, const InspectorRawTransfer & transfer);
     static int64_t                   GetNowMs              ();
     void                             TakeLinkNotifications ();
     void                             CloseForApp           ();
@@ -128,10 +141,12 @@ private:
     //  Stands for a separator in a list of command ids.
     static constexpr int  kSeparatorId = 0;
 
-    bool                     IsTickWanted   () const;
-    void                     RecordSession  ();
-    struct ExplorerServices  MakeServices   ();
-    HRESULT                  RunModalPicker (HWND owner, PickerRequest request, PickerOutcome & outOutcome);
+    bool                     IsTickWanted    () const;
+    void                     EndFastClock    ();
+    void                     RecordSession   ();
+    struct ExplorerServices  MakeServices    ();
+    HRESULT                  RunModalPicker  (HWND owner, PickerRequest request, PickerOutcome & outOutcome);
+    void                     PaintResizeEdge (IDxuiPainter & painter, const IDxuiTheme & theme) const;
 
     CassoExplorerBrowser                  & m_browser;
     CassoExplorerActions                  & m_actions;
@@ -144,6 +159,7 @@ private:
     std::vector<std::wstring>               m_pendingLaunches;   // other launches' arguments, run once the send that brought each returns
     bool                                    m_caretOn         = true;    // the search caret as last drawn
     bool                                    m_tickArmed       = false;   // the animation tick is running
+    bool                                    m_isClockFast     = false;   // timeBeginPeriod succeeded for the animation tick
     std::unique_ptr<ExplorerWindowParts>    m_parts;
 };
 

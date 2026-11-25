@@ -366,6 +366,11 @@ struct MachineConfig
 
     vector<RamRegion>           ram;
     RomReference                systemRom;
+
+    //  The 13-sector Disk II ROM for a banked-ROM machine's built-in drive,
+    //  which swaps it in over the $C600 page for a 13-sector disk. Empty
+    //  when the file isn't installed.
+    string                      builtInDisk2Rom13Path;
     CharacterRomReference       characterRom;
     vector<InternalDevice>      internalDevices;
     vector<SlotConfig>          slots;
@@ -381,6 +386,15 @@ struct MachineConfig
     // is not a port and never appears in this list.
     vector<PortConfig>          ports;
     string                      keyboardType;
+
+    // Set on the copy `--launch` boots. UserConfigStore doesn't write
+    // UserPrefs.json while the running machine's config has it. JSON never
+    // sets it.
+    bool                        isTemporary       = false;
+
+    // The slot a temporary ][ or ][+ starts after power on, since its ROM
+    // boots only a Disk II card; 0 for none. JSON never sets it.
+    int                         bootSlot          = 0;
 
     // True when an enabled slot hosts the given device type -- e.g. a query for
     // "parallel-printer" tells the UI whether this machine can print. A slot the

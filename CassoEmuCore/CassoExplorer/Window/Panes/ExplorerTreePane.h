@@ -100,9 +100,15 @@ private:
     void  ScrollTreeToRow      (int row);
     int   WalkTreeLabels       (int row, const std::wstring & path);
     int   RevealPartitionSteps (int row, const std::wstring & path, bool underCasso, bool isPartition);
+    void  UpdateReadNode       (const std::wstring & id);
     void  ShowLabelTipAt       (POINT point);
     void  ShowTreeContextMenu  (int x, int y, const std::wstring & id);
     void  AddTreeIconRow       (std::vector<DxuiPopupMenuItem> & items, const std::wstring & folder, const std::wstring & id, bool drive);
+    void  AddPartitionRows     (std::vector<DxuiPopupMenuItem> & items, const std::wstring & partition);
+    void  AddOpenRow           (std::vector<DxuiPopupMenuItem> & items, const Location & location);
+    void  AddCassoSubmenu      (std::vector<DxuiPopupMenuItem> & items, const std::wstring & image);
+    void  AddCompareRows       (std::vector<DxuiPopupMenuItem> & items, const std::wstring & image);
+    void  AddAppleDriveIconRow (std::vector<DxuiPopupMenuItem> & items, const Location & drive);
     void  AddRootRows          (std::vector<DxuiPopupMenuItem> & items, const Location & location, int x, int y);
     void  ShowTreeEmptyMenu    (int x, int y);
     void  AddNavPaneToggle     (std::vector<DxuiPopupMenuItem> & items, const wchar_t * label, CassoExplorerPrefs::NavOption option);

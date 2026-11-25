@@ -81,6 +81,7 @@ public:
     void                      RemoveTarget    (HWND) override                              {}
     bool                      HasThumbnail    (const std::wstring &) override              { return false; }
     HRESULT                   RemoveThumbnail (const std::wstring &) override              { return S_OK; }
+    HRESULT                   SetThumbnail    (const std::wstring &, std::span<const Byte>) override { return S_OK; }
     std::vector<std::string>  GetKeys         (const std::vector<std::wstring> &) override { return {}; }
     void                      RemoveDeleted   (const std::vector<std::string> &) override  {}
     int                       CountUserSet    () override                                  { return 0; }

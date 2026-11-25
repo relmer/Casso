@@ -484,6 +484,8 @@ HRESULT MachineConfigLoader::LoadSystemRom (
               (outConfig.systemRom.fileSize % outConfig.systemRom.romBankSize) == 0,
               outError = format ("systemRom: file size ${:X} is not a whole number of ${:X}-byte banks",
                                  outConfig.systemRom.fileSize, outConfig.systemRom.romBankSize));
+
+        outConfig.builtInDisk2Rom13Path = resolver (searchPaths, fs::path ("Devices") / "DiskII" / "Disk2_13Sector.rom").string();
     }
     else
     {

@@ -10,6 +10,7 @@
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Devices/Tape/TapeRecordingVolume.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 
 
@@ -155,7 +156,7 @@ ActionsTypes::Outcome ActionsTape::MakeRecording (const std::wstring & target)
 
 
 
-    browser.GetSelectedEntries (entries);
+    browser.GetSelection().GetSelectedEntries (entries);
 
     for (const FileEntry & entry : entries)
     {
@@ -168,7 +169,7 @@ ActionsTypes::Outcome ActionsTape::MakeRecording (const std::wstring & target)
             continue;
         }
 
-        CassoExplorerActions::Append (outcome, browser.GetOperations().Read (image, browser.GetEntryPath (entry), payload, entry.catalogIndex));
+        CassoExplorerActions::Append (outcome, browser.GetOperations().Read (image, BrowserRowPaths::GetEntryPath (browser.GetLocation(), entry), payload, entry.catalogIndex));
 
         if (!outcome.Succeeded())
         {

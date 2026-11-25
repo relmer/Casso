@@ -1,8 +1,8 @@
 <#
 .SYNOPSIS
     Builds, starts or stops one of CassoLink's emulator targets in a WSL
-    instance: KEGS, GSplus, MAME's LANceGS, AppleWin's Uthernet, or AppleWin
-    with a hard disk card.
+    instance: KEGS, GSplus, MAME's LANceGS, AppleWin's Uthernet, or AppleWin's
+    Uthernet with a hard disk card.
 
 .DESCRIPTION
     The targets run headless in a WSL instance, Ubuntu-CassoEmu by default,
@@ -24,8 +24,8 @@
     network cards take an address by DHCP or slirp, and UDP 6502 on the
     instance's address is forwarded to the Apple; -Address writes that
     address. The hard disk target has -Disk2 and -Disk3 in the hard disk
-    card's two drives, and its Super Serial Card on TCP port 1977 of the
-    instance's address; it is built by the Uthernet target's setup.
+    card's two drives. It is the Uthernet target with a hard disk card, and
+    the Uthernet target's setup builds it.
 
     -Stop ends every target in the instance.
 
@@ -33,7 +33,7 @@
     start and stop the targets through this script.
 
 .PARAMETER Target
-    Kegs, Gsplus, LanceGs, Uthernet or HardDisk.
+    Kegs, Gsplus, LanceGs, Uthernet, HardDisk or Adtpro.
 
 .PARAMETER Disk1
     The disk image for drive 1, usually the universal boot disk.
@@ -53,6 +53,10 @@
 .PARAMETER Stop
     Ends every target in the instance.
 
+.PARAMETER Visible
+    Shows AppleWin's window through WSLg for the Uthernet and hard disk
+    targets. Without it, AppleWin runs offscreen.
+
 .PARAMETER Address
     Writes the instance's address, the one the network cards are reached at.
 
@@ -66,7 +70,7 @@
 
 [CmdletBinding()]
 param (
-    [ValidateSet ('Kegs', 'Gsplus', 'LanceGs', 'Uthernet', 'HardDisk')]
+    [ValidateSet ('Kegs', 'Gsplus', 'LanceGs', 'Uthernet', 'HardDisk', 'Adtpro')]
     [string] $Target,
     [string] $Disk1,
     [string] $Disk2,
@@ -74,6 +78,7 @@ param (
     [int]    $Port     = 19802,
     [switch] $Setup,
     [switch] $Stop,
+    [switch] $Visible,
     [switch] $Address,
     [string] $Instance = 'Ubuntu-CassoEmu'
 )
@@ -153,7 +158,7 @@ if ($Stop)
 
 if (-not $Target)
 {
-    throw 'Name a -Target: Kegs, Gsplus, LanceGs, Uthernet or HardDisk.'
+    throw 'Name a -Target: Kegs, Gsplus, LanceGs, Uthernet, HardDisk or Adtpro.'
 }
 
 $name = $Target.ToLowerInvariant()
@@ -168,7 +173,7 @@ if ($Setup)
         'LanceGs'                   { $extra = @(ConvertTo-WslPath (Join-Path $env:LOCALAPPDATA 'Programs\MAME\roms')) }
     }
 
-    $setupName = ($Target -eq 'HardDisk') ? 'uthernet' : $name
+    $setupName = ($Target -in 'HardDisk', 'Adtpro') ? 'uthernet' : $name
 
     Invoke-Wsl (@('sh', "$scripts/setup.sh", $setupName, $scripts) + $extra)
     exit $LASTEXITCODE
@@ -181,7 +186,7 @@ if (-not $Disk1 -or -not $Disk2)
 
 $arguments = @('sh', "$scripts/run.sh", $name, (ConvertTo-WslPath $Disk1), (ConvertTo-WslPath $Disk2))
 
-if ($Target -eq 'HardDisk')
+if ($Target -in 'HardDisk', 'Adtpro')
 {
     if (-not $Disk3)
     {
@@ -196,6 +201,11 @@ if ($Target -in 'Kegs', 'Gsplus')
     $route     = Invoke-Wsl @('ip', 'route', 'show', 'default')
     $hostIp    = ($route -split ' ')[2]
     $arguments += @($hostIp, "$Port")
+}
+
+if ($Visible)
+{
+    $arguments = @('env', 'CASSO_VISIBLE=1') + $arguments
 }
 
 Invoke-Wsl $arguments

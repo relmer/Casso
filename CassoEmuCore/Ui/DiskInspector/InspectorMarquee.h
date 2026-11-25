@@ -56,8 +56,8 @@ public:
 
     InspectorMarquee (const DiskInspectorPalette & palette, float dashPx, float thicknessPx, int64_t nowMs);
 
-    //  Segments wholly outside the rectangle are skipped; their length counts
-    //  toward the dash pattern all the same.
+    //  Only the parts of segments inside the rectangle are drawn; the rest of
+    //  their length counts toward the dash pattern all the same.
     void   SetCullRect (const RECT & rectPx) { m_cull = rectPx; m_isCulled = true; }
 
     //  A dashed segment whose dashes start at whole multiples of the dash
@@ -107,6 +107,8 @@ public:
     static vector<Span>  GetFileSpans (const TrackAnalysis & track, const vector<double> & nibbleTurns, const FileMap & map, int wholeTrack, int file);
 
 private:
+    void  ClipToCull (float x0, float y0, float x1, float y1, float pad, double & ioFirst, double & ioLast) const;
+
     float     m_dashPx      = 1.0f;
     float     m_thicknessPx = 1.0f;
     float     m_phasePx     = 0.0f;

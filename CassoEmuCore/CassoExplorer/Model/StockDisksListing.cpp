@@ -20,7 +20,8 @@ void StockDisksListing::Build (const std::vector<StockDiskRow> & disks, std::vec
     {
         CatalogRow  row;
 
-        row.name                      = disk.label;
+        //  A disk on this computer is listed by its file name, as in its folder.
+        row.name                      = (disk.isDownloaded && !disk.path.empty()) ? std::filesystem::path (disk.path).filename().wstring() : disk.label;
         row.hostPath                  = disk.path;
         row.isDiskImage               = true;
         row.isStockDisk               = true;

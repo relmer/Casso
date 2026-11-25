@@ -15,9 +15,10 @@
 #include "Devices/Network/VirtualSubnet.h"
 #include "Devices/RamDevice.h"
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 #include "Seams/IByteStream.h"
 #include "InMemoryCassoLinkFolder.h"
+#include "MachineSocketStream.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -54,48 +55,7 @@ public:
     static constexpr int       kRowNetwork  = 4;
     static constexpr Word      kSaltAt      = 0x6000;   // memory the universal disk salts its MAC address with
 
-    //  The PC's end of a connection the card accepted: what the test writes
-    //  is the card's inbound data, and what the card sends is read. A read
-    //  with nothing waiting runs the machine a frame at a time, its timeout
-    //  counted in the machine's cycles.
-    class SocketStream : public IByteStream
-    {
-    public:
-        SocketStream (TestMachine & machine, std::shared_ptr<FakeSocketState> state) : m_machine (machine), m_state (std::move (state)) {}
-
-        HRESULT  Write (const Byte * data, size_t count) override
-        {
-            m_state->inbound.insert (m_state->inbound.end(), data, data + count);
-            return S_OK;
-        }
-
-        HRESULT  Read (Byte * buffer, size_t capacity, DWORD timeoutMs, size_t & outRead) override
-        {
-            uint64_t  budget = (uint64_t) ((double) timeoutMs * CassoLinkHost::kCpuCyclesPerMs);
-            uint64_t  spent  = 0;
-
-
-
-            while (m_state->sent.empty() && !IsClosed() && spent < budget)
-            {
-                m_machine.RunCycles (kStepCycles);
-                spent += kStepCycles;
-            }
-
-            outRead = std::min (capacity, m_state->sent.size());
-            std::copy (m_state->sent.begin(), m_state->sent.begin() + (ptrdiff_t) outRead, buffer);
-            m_state->sent.erase (m_state->sent.begin(), m_state->sent.begin() + (ptrdiff_t) outRead);
-            return S_OK;
-        }
-
-        size_t  GetReadableCount() override          { return m_state->sent.size(); }
-        bool    IsClosed         () const override   { return m_state->destroyed || m_state->shutdownSent; }
-        void    Close            () override         { m_state->inboundEof = true; }
-
-    private:
-        TestMachine                       & m_machine;
-        std::shared_ptr<FakeSocketState>    m_state;
-    };
+    using SocketStream = MachineSocketStream;
 
     struct Rig
     {
@@ -255,7 +215,7 @@ public:
 
             for (int p = 0; p < 16; p++)
             {
-                size_t  offset = (size_t) (track * 16 + NibblizationLayer::GetDosFileIndexForPhysicalSector (p)) * 256;
+                size_t  offset = (size_t) (track * 16 + SectorInterleave::GetDosFileIndexForPhysicalSector (p)) * 256;
 
                 data.insert (data.end(), dos.begin() + (ptrdiff_t) offset, dos.begin() + (ptrdiff_t) offset + 256);
             }
@@ -425,7 +385,7 @@ public:
     //  shim, which loads the current program over the same connection.
     TEST_METHOD (AnOlderProgram_IsLoadedAgain_OverTheSameConnection)
     {
-        static constexpr Byte  kHeader[]  = { 0xC1, 0x0B, 0x00, CassoLinkCodec::kReady };
+        static constexpr Byte  kHeader[]  = { 0xC1, 0x27, 0x00, CassoLinkCodec::kReady };
         static constexpr int   kVersionAt = 5;
         static constexpr int   kCheckAt   = 16;
 

@@ -34,6 +34,7 @@ public:
     void            SetVisible            (bool visible);
     void            SetZoom               (float zoom);
     bool            IsShowing             () const;
+    bool            IsPinging             () const;
     LPCWSTR         GetCursorForPoint     (POINT clientPx) const;
     bool            TryGetScrollbarMenu   (const DxuiMouseEvent & ev, std::vector<DxuiPopupMenuItem> & outItems) const;
     bool            TryGetSelectionDetail (std::wstring & outDetail) const;
@@ -41,18 +42,37 @@ public:
     void            ToggleCrossReference  ();
     bool            IsCrossReference      () const { return m_crossReference; }
     IDxuiControl  * GetControl            () const { return m_text; }
+    bool            IsOverMap             (POINT point) const { return m_text->IsVisible() && m_text->GetPictures().IsOverMap (point); }
     int             GetContentHeightPx    () const override { return m_text->IsVisible() ? m_text->GetContentHeightPx() : 0; }
-    bool            IsAtTop               () const override { return !m_text->IsVisible() || m_text->GetTopLine() == 0; }
-    int             GetScrollPx           () const override { return m_text->GetTopLine() * m_text->GetLineHeightPx(); }
-    void            SetScrollPx           (int scrollPx) override { m_text->SetTopLine ((scrollPx + m_text->GetLineHeightPx() / 2) / (std::max) (1, m_text->GetLineHeightPx())); }
-    void            SetScrollbarHidden    (bool isHidden) override { m_text->SetVerticalScrollbarHidden (isHidden); }
+    bool            IsAtTop               () const override { return !m_text->IsVisible() || m_text->GetScroll().GetTopLine() == 0; }
+    int             GetScrollPx           () const override { return m_text->GetScroll().GetTopLine() * m_text->GetLayout().GetCellHeightPx(); }
+    void            SetScrollPx           (int scrollPx) override { m_text->GetScroll().SetTopLine ((scrollPx + m_text->GetLayout().GetCellHeightPx() / 2) / (std::max) (1, m_text->GetLayout().GetCellHeightPx())); }
+    void            SetScrollbarHidden    (bool isHidden) override { m_text->GetScroll().SetVerticalScrollbarHidden (isHidden); }
 
     bool            HandleKey             (const DxuiKeyEvent & ev) { return m_text->OnKey (ev); }
 
-private:
-    void  ShowContextMenu (int x, int y);
-    bool  HandleTextMouse (const DxuiMouseEvent & ev);
+    //  Every mouse event in the window: a move over a document's picture with
+    //  tips, such as a Wizardry map, puts up the tip of the cell under the
+    //  pointer, and any other event hides it.
+    void            UpdatePictureTipAt    (const DxuiMouseEvent & ev);
 
-    DxuiTextView  * m_text           = nullptr;
-    bool            m_crossReference = false;
+    //  The width a document's record tables are drawn as tables from;
+    //  narrower, they are fields or cards.
+    static constexpr int  s_kWideTableDip = 640;
+
+private:
+    void  ShowContextMenu  (int x, int y);
+    bool  HandleTextMouse  (const DxuiMouseEvent & ev);
+    bool  IsWide           () const;
+    void  FillRows         (const PreviewContent & preview, bool keepPlace = false);
+    void  GetPlace         (int & outParagraph, float & outWithin) const;
+    void  SetPlace         (int paragraph, float within);
+    int   GetLineParagraph (int line) const;
+
+    static int  GetLegendEntryCount (const PreviewContent & preview);
+
+    DxuiTextView      * m_text           = nullptr;
+    bool                m_crossReference = false;
+    LONG                m_tableWidth     = 0;      // the text's width the rows were built for
+    std::vector<int>    m_rowParagraph;   // the document paragraph of each row
 };

@@ -3,6 +3,7 @@
 #include "Ui/DiskInspector/RepairDialog.h"
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
+#include "Ui/DiskInspector/DiskInspectorPalette.h"
 #include "Devices/Disk/IDiskFileIo.h"
 #include "Devices/Disk/Inspector/Repair/RepairCopy.h"
 
@@ -517,10 +518,32 @@ void RepairReportBody::Init (const std::wstring & heading, const vector<std::wst
 
     for (const std::wstring & fix : fixes)
     {
-        m_rows.push_back ({ addLabel (s_kpszGreenCheck), addLabel (fix) });
+        m_rows.push_back ({ addLabel (s_kpszCheckMark), addLabel (fix) });
+        m_rows.back().mark->SetFontWeight (DxuiFontWeight::SemiBold);
     }
 
     m_rows.push_back ({ nullptr, addLabel (footer) });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RepairReportBody::SetMarkColor
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void RepairReportBody::SetMarkColor (uint32_t argb)
+{
+    for (const Row & row : m_rows)
+    {
+        if (row.mark != nullptr)
+        {
+            row.mark->SetColor (argb);
+        }
+    }
 }
 
 
@@ -895,6 +918,14 @@ bool RepairReportDialog::Run (HWND owner, const IDxuiTheme * theme, const Repair
     CHRA (hr);
 
     dialog.SetTheme (theme);
+
+    //  Each fix's check mark in the good sector's color, as on the sector
+    //  buttons.
+    if (theme != nullptr && dialog.GetBody() != nullptr)
+    {
+        dialog.GetBody()->SetMarkColor (DiskInspectorPalette::MakeFallback (DiskInspectorPalette::IsDarkSurface (theme->Background())).GetStateColor (SectorState::Good));
+    }
+
     dialog.ShowModalDialog (IDOK);
 
 Error:

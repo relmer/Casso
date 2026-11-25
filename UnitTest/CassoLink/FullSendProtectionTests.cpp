@@ -4,7 +4,7 @@
 #include "CassoLink/FullSend/FullSendProtection.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -32,7 +32,7 @@ public:
     //  A DOS 3.3 disk with one binary file of the given bytes.
     static Image  DosWithFile (const char * name, const std::vector<Byte> & bytes)
     {
-        Image        buffer (NibblizationLayer::kImageByteSize, 0);
+        Image        buffer (NibbleFormat::kImageByteSize, 0);
         Image        next;
         FilePayload  payload;
 
@@ -68,7 +68,7 @@ public:
     //  Bytes that differ from one another, with no file system.
     static Image  Noise()
     {
-        Image     image (NibblizationLayer::kImageByteSize, 0);
+        Image     image (NibbleFormat::kImageByteSize, 0);
         uint32_t  state = 12345;
 
 
@@ -89,7 +89,7 @@ public:
 
     TEST_METHOD (BootFamily_IsKnownByItsLoadersOpening_OrPascalsMessage)
     {
-        Image              image (NibblizationLayer::kImageByteSize, 0);
+        Image              image (NibbleFormat::kImageByteSize, 0);
         std::vector<Byte>  message;
 
 
@@ -118,7 +118,7 @@ public:
             message.push_back ((Byte) (ch | 0x80));
         }
 
-        std::copy (message.begin(), message.end(), image.begin() + (ptrdiff_t) (14 * NibblizationLayer::kSectorByteSize + 0x20));
+        std::copy (message.begin(), message.end(), image.begin() + (ptrdiff_t) (14 * NibbleFormat::kSectorByteSize + 0x20));
 
         Assert::IsTrue (FullSendProtection::GetBootFamily (image) == FullSendProtection::BootFamily::Pascal, L"Apple Pascal's runtime loader");
     }
@@ -182,7 +182,7 @@ public:
     {
         Image  noise = Noise();
         Image  cpm   = Noise();
-        Image  zeros (NibblizationLayer::kImageByteSize, 0);
+        Image  zeros (NibbleFormat::kImageByteSize, 0);
 
 
 
@@ -192,7 +192,7 @@ public:
         Assert::IsTrue  (FullSendProtection::Find (noise).hasOtherBoot, L"No known loader");
         Assert::IsFalse (FullSendProtection::Find (zeros).isUnrecognized, L"Every byte the same");
         Assert::IsFalse (FullSendProtection::Find (zeros).hasOtherBoot, L"A boot sector of zeros");
-        Assert::IsFalse (FullSendProtection::Find (Image (NibblizationLayer::kImageByteSize, 0x01)).hasOtherBoot, L"Every byte 1");
+        Assert::IsFalse (FullSendProtection::Find (Image (NibbleFormat::kImageByteSize, 0x01)).hasOtherBoot, L"Every byte 1");
         Assert::IsFalse (FullSendProtection::Find (cpm).isUnrecognized, L"CP/M's loader");
     }
 };

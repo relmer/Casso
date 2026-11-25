@@ -1,6 +1,6 @@
 # Quickstart: Validating Casso Explorer
 
-**Feature**: 033-cassque | **Date**: 2026-09-10
+**Feature**: 033-casso-explorer | **Date**: 2026-09-10
 
 Contracts: [intent-channel.md](contracts/intent-channel.md),
 [host-file-names.md](contracts/host-file-names.md),
@@ -313,6 +313,20 @@ owner's //c.
 5. Preview the Wizardry and Infocom samples. Result: the game's monsters,
    items, words and text (SC-066).
 
+## 7i. Opening an image in a temporary machine (Story 44)
+
+1. Copy every file under `CassoData\Machines` aside. Double-click a .dsk,
+   a .woz, an 800K .2mg and a 32 MB .hdv in File Explorer. Result: each
+   boots within 5 seconds, and the title bar ends in "(temporary)".
+2. In one of them, change a setting and close the window. Result: every
+   file under `CassoData\Machines` and `UserPrefs.json` is byte-identical
+   to its copy (SC-079).
+3. Choose each Open on row for the three image sizes, in File Explorer and
+   in Casso Explorer. Result: each boots, or a notice reports why that
+   model can't take the image; the 32 MB image boots on the Apple ][ from
+   slot 7 with a language card in slot 0 (SC-080).
+4. Start a build whose associations used `--disk1`. Result: every type's
+   command uses `--launch`.
 ## 8. Headless tests
 
 ```powershell

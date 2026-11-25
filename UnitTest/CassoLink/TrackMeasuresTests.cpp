@@ -2,7 +2,7 @@
 
 #include "../EhmTestHelper.h"
 #include "CassoLink/Session/TrackMeasures.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/TrackLayoutWriter.h"
 #include "ProgramRig.h"
 
@@ -45,7 +45,7 @@ public:
         static constexpr int        kBits          = 51244;
         static constexpr int        kNibbles       = 6337;
         static constexpr long long  kToleranceBits = 3 * 8;
-        Image                                     sectors (NibblizationLayer::kImageByteSize);
+        Image                                     sectors (NibbleFormat::kImageByteSize);
         std::vector<TrackLayout>                  built;
         std::vector<TrackLayout>                  measured;
         std::vector<CassoLinkHost::TrackMeasure>  measures;
@@ -58,18 +58,18 @@ public:
             sectors[at] = (Byte) (at * 13 + at / 256);
         }
 
-        for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+        for (int track = 0; track < NibbleFormat::kTrackCount; track++)
         {
             built.push_back (TrackLayout { 0, kNibbles, kBits, (track * 30763LL + 4111) % kBits });
         }
 
         AssertSucceeded (TrackLayoutWriter::BuildWoz (sectors, built, woz));
 
-        ProgramRig  rig (Image (NibblizationLayer::kImageByteSize, 0));
+        ProgramRig  rig (Image (NibbleFormat::kImageByteSize, 0));
 
         AssertSucceeded (rig.machine.GetDiskStore().MountFromBytes (ProgramRig::kSlot, 0, "", DiskFormat::Woz, woz));
 
-        for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+        for (int track = 0; track < NibbleFormat::kTrackCount; track++)
         {
             CassoLinkHost::TrackMeasure  measure;
             CassoLinkStatus              status;
@@ -82,7 +82,7 @@ public:
 
         measured = TrackMeasures::ToLayouts (measures, kBits);
 
-        for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+        for (int track = 0; track < NibbleFormat::kTrackCount; track++)
         {
             const TrackLayout  & layout = measured[(size_t) track];
 

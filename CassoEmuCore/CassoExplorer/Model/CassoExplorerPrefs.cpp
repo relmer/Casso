@@ -76,7 +76,7 @@ std::array<std::pair<const char *, CassoExplorerPrefs::NavOption>, 5> CassoExplo
 bool CassoExplorerPrefs::IsKnownTheme (const std::string & theme)
 {
     return theme == kThemeLight || theme == kThemeDark || theme == kThemeFollowSystem
-        || theme == kThemeSkeuomorphic || theme == kThemeDarkModern || theme == kThemeRetroTerminal;
+        || theme == kThemeSkeuomorphic || theme == kThemeDarkModern || theme == kThemeRetroTerminal || theme == kThemePhosphor;
 }
 
 
@@ -121,7 +121,7 @@ bool CassoExplorerPrefs::IsMonitorName (const std::string & name)
 
 std::string CassoExplorerPrefs::MapCassoTheme (const std::string & activeTheme)
 {
-    if (activeTheme == kThemeSkeuomorphic || activeTheme == kThemeDarkModern || activeTheme == kThemeRetroTerminal)
+    if (activeTheme == kThemeSkeuomorphic || activeTheme == kThemeDarkModern || activeTheme == kThemeRetroTerminal || activeTheme == kThemePhosphor)
     {
         return activeTheme;
     }
@@ -743,6 +743,15 @@ JsonValue CassoExplorerPrefs::ToJson() const
 
     root.emplace_back ("linkFolderSeen",   JsonValue (std::move (seenValues)));
 
+    std::vector<JsonValue>  diskValues;
+
+    for (const std::wstring & disk : linkProDosDisks)
+    {
+        diskValues.push_back (JsonValue (TextEncoding::WideToUtf8 (disk)));
+    }
+
+    root.emplace_back ("linkProDosDisks", JsonValue (std::move (diskValues)));
+
     std::vector<JsonValue>  choiceValues;
 
     for (const auto & [image, kind] : filesystemChoices.GetAll())
@@ -821,6 +830,28 @@ std::vector<int> CassoExplorerPrefs::ReadIntArray (const JsonValue & object, con
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerPrefs::RememberLinkProDosDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerPrefs::RememberLinkProDosDisk (const std::wstring & disk)
+{
+    std::erase_if (linkProDosDisks, [&disk] (const std::wstring & listed) { return _wcsicmp (listed.c_str(), disk.c_str()) == 0; });
+
+    linkProDosDisks.insert (linkProDosDisks.begin(), disk);
+
+    if (linkProDosDisks.size() > kLinkProDosDiskMax)
+    {
+        linkProDosDisks.resize (kLinkProDosDiskMax);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerPrefs::FromJson
 //
 //  Every field is optional and keeps its default when absent or malformed,
@@ -837,6 +868,7 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     const JsonValue  * tabArray     = nullptr;
     const JsonValue  * typedArray   = nullptr;
     const JsonValue  * seenArray    = nullptr;
+    const JsonValue  * diskArray    = nullptr;
     const JsonValue  * choiceArray  = nullptr;
     const JsonValue  * linkArray    = nullptr;
     const JsonValue  * options      = nullptr;
@@ -1048,6 +1080,21 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
             if (seenArray->GetArrayElement (i).HasString ("folder", folder) && seenArray->GetArrayElement (i).HasString ("ticks", ticks))
             {
                 linkFolderSeen[TextEncoding::Utf8ToWide (folder)] = _atoi64 (ticks.c_str());
+            }
+        }
+    }
+
+    if (root.HasArray ("linkProDosDisks", diskArray))
+    {
+        linkProDosDisks.clear();
+
+        for (i = 0; i < diskArray->GetArraySize() && linkProDosDisks.size() < kLinkProDosDiskMax; i++)
+        {
+            const JsonValue &  value = diskArray->GetArrayElement (i);
+
+            if (value.GetType() == JsonType::String && !value.GetString().empty())
+            {
+                linkProDosDisks.push_back (TextEncoding::Utf8ToWide (value.GetString()));
             }
         }
     }

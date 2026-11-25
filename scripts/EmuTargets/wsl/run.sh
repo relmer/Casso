@@ -7,6 +7,7 @@
 #   run.sh lancegs  <drive 1> <drive 2>
 #   run.sh uthernet <drive 1> <drive 2>
 #   run.sh harddisk <drive 1> <hard disk 1> <hard disk 2>
+#   run.sh adtpro   <drive 1> <hard disk 1> <hard disk 2>
 #   run.sh stop
 #
 # KEGS and GSplus run a IIgs at 2.8 MHz with the modem port connected to the
@@ -22,13 +23,22 @@
 # The Uthernet target is AppleWin's enhanced //e with the card in slot 3 over
 # libslirp, with UDP 6502 on the instance forwarded to the Apple.
 #
-# The hard disk target is AppleWin's enhanced //e with a Super Serial Card in
-# slot 2, its serial port on TCP port 1977 of the instance, and the hard disk
-# card in slot 7 with both drives. Slot 3 is emptied, since the Uthernet
-# target's card stays in AppleWin's settings between runs.
+# The hard disk target is the Uthernet target with the hard disk card in slot
+# 7 and both its drives. The Apple boots slot 7 first, so the first hard disk
+# has to boot the Disk II in slot 6.
+#
+# The ADTPro target is the hard disk target booting ADTPro's Ethernet client,
+# with ADTPro's server running here, for a comparison with CassoLink. The
+# Apple reaches the server at 10.0.0.1, libslirp's address for this instance.
+# AppleWin's window is an X11 window, so xdotool can type into it.
 #
 # Each runs for an hour at most.
+#
+# With CASSO_VISIBLE set, AppleWin's window is shown through WSLg as an X11
+# window, which xdotool can type into; otherwise it runs offscreen.
 TARGET=$1
+SA2_VIDEO=offscreen
+[ -n "$CASSO_VISIBLE" ] && SA2_VIDEO=x11
 
 # GSplus doesn't end on SIGTERM while it runs offscreen, so whatever is left
 # after a second is killed outright. The LANceGS's forward of UDP 6502 is
@@ -44,6 +54,7 @@ stop_all() {
         pkill -"$signal" -x sa2
         pkill -"$signal" -f wirepad.py
         pkill -"$signal" -x dnsmasq
+        pkill -"$signal" -f org.adtpro.ADTPro
         sleep 1
     done
 
@@ -117,17 +128,24 @@ lancegs)
     ;;
 uthernet)
     stop_all
-    SDL_VIDEODRIVER=offscreen exec timeout 3600 /opt/applewin/build/sa2 --no-audio --no-imgui \
+    exec env ${SA2_VIDEO:+SDL_VIDEODRIVER=$SA2_VIDEO} timeout 3600 /opt/applewin/build/sa2 --no-audio --no-imgui \
         -r 'Configuration\Slot 3.Card type=15' \
         --nat '3,udp,,6502,,6502' \
         --d1 "$2" --d2 "$3" > /root/applewin.log 2>&1
     ;;
 harddisk)
     stop_all
-    SDL_VIDEODRIVER=offscreen exec timeout 3600 /opt/applewin/build/sa2 --no-audio --no-imgui \
-        -r 'Configuration\Slot 2.Card type=2' \
-        -r 'Configuration\Slot 2.Serial Port Name=TCP' \
-        -r 'Configuration\Slot 3.Card type=0' \
+    exec env ${SA2_VIDEO:+SDL_VIDEODRIVER=$SA2_VIDEO} timeout 3600 /opt/applewin/build/sa2 --no-audio --no-imgui \
+        -r 'Configuration\Slot 3.Card type=15' \
+        -r 'Configuration\Slot 7.Card type=5' \
+        --nat '3,udp,,6502,,6502' \
+        --d1 "$2" --h1 "$3" --h2 "$4" > /root/applewin.log 2>&1
+    ;;
+adtpro)
+    stop_all
+    (cd /root/adtpro && ./adtpro.sh headless ethernet > /root/adtpro/server.log 2>&1 &)
+    SDL_VIDEODRIVER=x11 exec timeout 3600 /opt/applewin/build/sa2 --no-audio --no-imgui \
+        -r 'Configuration\Slot 3.Card type=15' \
         -r 'Configuration\Slot 7.Card type=5' \
         --d1 "$2" --h1 "$3" --h2 "$4" > /root/applewin.log 2>&1
     ;;

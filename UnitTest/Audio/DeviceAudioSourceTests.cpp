@@ -2,7 +2,11 @@
 
 #include "Audio/Floppy35AudioSource.h"
 #include "Audio/HardDiskAudioSource.h"
+#include "Audio/DriveAudioMixer.h"
+#include "Machines/Apple2/Common/Disk2AudioSource.h"
+#include "Shell/MachineBuilder.h"
 #include "../EmuTests/FixtureProvider.h"
+#include "../EmuTests/TestMachine.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -216,6 +220,28 @@ public:
 
         source.OnFloppy35Event (Event (Floppy35Op::Step));
         Assert::IsTrue (Peak (source) > 0.001f, folder.c_str());
+    }
+
+
+    //  A machine is built before the audio device starts. Its 3.5-inch drive
+    //  gets a source without loading recordings at a rate of zero.
+    TEST_METHOD (Floppy35_WiredBeforeAudioStarts_LoadsNothing)
+    {
+        std::vector<std::unique_ptr<IDriveAudioSource>>  sources;
+        std::vector<std::unique_ptr<Disk2AudioSource>>   disk2Sources;
+        DriveAudioMixer                                  mixer;
+
+
+
+        TestMachine  machine ("Apple2cPlus", TestMachine::Slots::AsShipped,
+                              [&] (MachineConfig &, MachineBuildServices & services)
+                              {
+                                  services.deviceAudioSources = &sources;
+                                  services.diskAudioSources   = &disk2Sources;
+                                  services.driveAudioMixer    = &mixer;
+                              });
+
+        Assert::IsFalse (sources.empty());
     }
 
 

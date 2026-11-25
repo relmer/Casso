@@ -290,6 +290,10 @@ public:
         Assert::IsTrue  (model.TypeHexDigit (100, false, L'5'));
         Assert::IsFalse (model.CanUndoApplied());
 
+        Assert::IsTrue   (model.Undo());
+        Assert::IsFalse  (model.GetEdits().CanUndo(), L"both digits of the byte undo at once");
+        Assert::IsTrue   (model.Redo());
+
         AssertSucceeded (model.ApplyEdits (error));
         Assert::IsTrue  (model.CanUndoApplied());
         Assert::IsFalse (model.GetEdits().CanUndo(), L"the applied typing isn't pending any more");

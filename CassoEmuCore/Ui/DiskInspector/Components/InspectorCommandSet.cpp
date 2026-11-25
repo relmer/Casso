@@ -11,6 +11,8 @@
 #include "Ui/DiskInspector/Components/PlatterCorners.h"
 #include "Ui/DiskInspector/Components/SelectionPart.h"
 #include "Ui/DiskInspector/Components/TrackColumn.h"
+#include "Ui/DiskInspector/IDiskInspectorHost.h"
+#include "Ui/DiskInspector/InspectorFilesystemOffer.h"
 #include "Ui/DiskInspector/PlatterCells.h"
 #include "Ui/DiskInspector/PlatterView.h"
 #include "Ui/DiskInspector/TrackStripView.h"
@@ -90,17 +92,30 @@ void InspectorCommandSet::Build()
     c.exportFile                = make (L"&Export...", L"", [this] () { m_parts.GetDialogs().OpenExport(); });
     c.exportFile->isEnabled     = hasDisk;
     c.exportFile->glyph         = kpszGlyphExport;
+    c.stampFormat               = make (L"Stamp &format", L"", [this] () { m_parts.GetDialogs().StampFormat(); });
+    c.stampFormat->isEnabled    = [this] () { return m_parts.GetDialogs().CanStampFormat(); };
     c.save                      = make (L"&Save...", L"Ctrl+S", [this] () { m_parts.GetEditing().ApplyEdits(); });
     c.save->isEnabled           = [this] () { return m_parts.GetEditing().GetState().canApply && m_session.edits.GetCounts().sectors > 0; };
     c.saveEditedCopy            = make (L"Save &as...", L"", [this] () { m_parts.GetEditing().SaveEditedCopy(); });
     c.saveEditedCopy->isEnabled = [this] () { return m_session.edits.GetCounts().sectors > 0; };
+
+    if (m_session.host->CanTransferRaw())
+    {
+        c.saveRaw                 = make (L"Save sec&tors to a file...", L"", [this] () { TransferRaw (true); });
+        c.saveRaw->isEnabled      = hasDisk;
+        c.overwriteRaw            = make (L"&Overwrite sectors from a file...", L"", [this] () { TransferRaw (false); });
+        c.overwriteRaw->isEnabled = hasDisk;
+    }
+
     c.close                     = make (L"&Close", L"Alt+F4", [this] () { m_frame.CloseWindow(); });
 
     //  Edit
-    c.undoApplied               = make (L"&Undo save", L"Ctrl+Z", [this] () { m_parts.GetEditing().UndoApplied(); });
-    c.undoApplied->isEnabled    = [this] () { return m_parts.GetEditing().GetState().canUndoApplied; };
-    c.redoApplied               = make (L"&Redo save", L"Ctrl+Y", [this] () { m_parts.GetEditing().RedoApplied(); });
-    c.redoApplied->isEnabled    = [this] () { return m_parts.GetEditing().GetState().canRedoApplied; };
+    c.undoApplied               = make (L"&Undo save", L"Ctrl+Z", [this] () { m_parts.GetEditing().Undo(); });
+    c.undoApplied->isEnabled    = [this] () { return m_session.edits.CanUndo() || m_parts.GetEditing().GetState().canUndoApplied; };
+    c.undoApplied->labelText    = [this] () { return std::wstring (m_session.edits.CanUndo() ? L"&Undo" : L"&Undo save"); };
+    c.redoApplied               = make (L"&Redo save", L"Ctrl+Y", [this] () { m_parts.GetEditing().Redo(); });
+    c.redoApplied->isEnabled    = [this] () { return m_session.edits.CanRedo() || m_parts.GetEditing().GetState().canRedoApplied; };
+    c.redoApplied->labelText    = [this] () { return std::wstring (m_session.edits.CanRedo() ? L"&Redo" : L"&Redo save"); };
     c.copy                      = make (L"&Copy", L"Ctrl+C", [this] () { m_parts.GetSelection().Copy(); });
     c.copy->isEnabled           = hasDisk;
     c.copySector                = make (L"Copy &sector", L"Ctrl+Shift+C", [this] () { m_parts.GetSelection().CopySector(); });
@@ -237,6 +252,20 @@ void InspectorCommandSet::Build()
     c.decodeSettings            = make (L"&Decode settings...", L"", [this] () { m_parts.GetDialogs().OpenDecodeSettings(); });
     c.decodeSettings->isEnabled = hasDisk;
     c.decodeSettings->glyph     = kpszGlyphSettings;
+
+    if (m_session.host->CanChooseFilesystem())
+    {
+        auto  isOffered = [this] (InspectorFilesystemOffer::Offer offer)
+        {
+            return m_session.context.hasDisk && InspectorFilesystemOffer::GetOffer (m_session.analysis, *m_session.host) == offer;
+        };
+
+        c.readAsCpm                    = make (L"Read as C&P/M", L"", [this] () { m_parts.GetFiles().ChooseFilesystem(); });
+        c.readAsCpm->isEnabled         = [isOffered] () { return isOffered (InspectorFilesystemOffer::Offer::ReadAsCpm); };
+        c.detectFilesystem             = make (L"Detect file s&ystem", L"", [this] () { m_parts.GetFiles().ChooseFilesystem(); });
+        c.detectFilesystem->isEnabled  = [isOffered] () { return isOffered (InspectorFilesystemOffer::Offer::DetectFilesystem); };
+    }
+
     c.repair                    = make (L"&Repair disk image...", L"", [this] () { m_host.OpenRepair ({}); });
     c.repair->isEnabled         = [this] () { return m_session.repairPlan.canRepair; };
 
@@ -431,4 +460,38 @@ int InspectorCommandSet::StepRecording (int quarterTrack, int step) const
     }
 
     return next;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorCommandSet::TransferRaw
+//
+//  The host's save or overwrite of sectors, starting at the selected track
+//  and the selected sector by its physical number, or sector 0 with none
+//  selected.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorCommandSet::TransferRaw (bool isSave)
+{
+    static constexpr int  kPerTrack = DiskImage::kQuarterTracksPerWholeTrack;
+
+
+
+    InspectorRawTransfer     transfer;
+    const AnalyzedSector   * sector   = m_session.model.GetSector();
+
+
+
+    transfer.isSectors  = true;
+    transfer.isSave     = isSave;
+    transfer.start      = m_session.model.GetQuarterTrack() / kPerTrack;
+    transfer.sector     = (sector != nullptr) ? sector->sector : 0;
+    transfer.isPhysical = sector != nullptr;
+
+    m_session.host->TransferRaw (transfer);
 }

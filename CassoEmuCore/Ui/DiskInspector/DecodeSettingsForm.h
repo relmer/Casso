@@ -33,6 +33,7 @@ struct DecodeSettingsForm
     bool          checkAddress     = true;
     bool          checkData        = true;
     bool          checkEpilogues   = true;
+    bool          isFromStamp      = false;
 
     //  The range the form describes, or false with the reason in outError.
     bool  TryBuildRange (DecodeRange & outRange, std::wstring & outError) const;

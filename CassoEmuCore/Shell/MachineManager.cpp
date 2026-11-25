@@ -53,6 +53,7 @@
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/Store/DiskFlusher.h"
 
 
 
@@ -419,7 +420,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     // Auto-flush every dirty disk before tearing down the previous
     // machine so user writes survive the machine switch.
     {
-        HRESULT  hrFlush = m_shell.m_machine.GetDiskStore().FlushAll();
+        HRESULT  hrFlush = m_shell.m_machine.GetDiskStore().GetFlusher().FlushAll();
         IGNORE_RETURN_VALUE (hrFlush, S_OK);
     }
 

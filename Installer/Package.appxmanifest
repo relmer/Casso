@@ -12,10 +12,12 @@
     xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
     xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
     xmlns:desktop2="http://schemas.microsoft.com/appx/manifest/desktop/windows10/2"
+    xmlns:desktop4="http://schemas.microsoft.com/appx/manifest/desktop/windows10/4"
+    xmlns:desktop5="http://schemas.microsoft.com/appx/manifest/desktop/windows10/5"
     xmlns:desktop9="http://schemas.microsoft.com/appx/manifest/desktop/windows10/9"
     xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
     xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-    IgnorableNamespaces="uap uap2 uap3 desktop desktop2 desktop9 com rescap">
+    IgnorableNamespaces="uap uap2 uap3 desktop desktop2 desktop4 desktop5 desktop9 com rescap">
 
     <!--
       Publisher must match the signing certificate's subject exactly. Windows
@@ -79,84 +81,182 @@
                      type for one application only, so Casso Explorer is
                      reached by the second command, which Casso passes on. -->
                 <uap3:Extension Category="windows.fileTypeAssociation">
-                    <uap3:FileTypeAssociation Name="appleiidskimage" Parameters="--disk1 &quot;%1&quot;">
+                    <uap3:FileTypeAssociation Name="appleiidskimage" Parameters="--launch &quot;%1&quot;">
                         <uap:DisplayName>Apple II disk image</uap:DisplayName>
                         <uap:Logo>Assets\DiskImageLogo.png</uap:Logo>
                         <uap:SupportedFileTypes>
                             <uap:FileType>.dsk</uap:FileType>
                         </uap:SupportedFileTypes>
                         <uap2:SupportedVerbs>
-                            <uap3:Verb Id="open" Parameters="--disk1 &quot;%1&quot;">Open</uap3:Verb>
+                            <uap3:Verb Id="open" Parameters="--launch &quot;%1&quot;">Open</uap3:Verb>
                             <uap3:Verb Id="explore" Parameters="--explore &quot;%1&quot;">Open in Casso Explorer</uap3:Verb>
                         </uap2:SupportedVerbs>
                     </uap3:FileTypeAssociation>
                 </uap3:Extension>
 
                 <uap3:Extension Category="windows.fileTypeAssociation">
-                    <uap3:FileTypeAssociation Name="appleiidoimage" Parameters="--disk1 &quot;%1&quot;">
+                    <uap3:FileTypeAssociation Name="appleiidoimage" Parameters="--launch &quot;%1&quot;">
                         <uap:DisplayName>DOS-order disk image</uap:DisplayName>
                         <uap:Logo>Assets\DiskImageLogo.png</uap:Logo>
                         <uap:SupportedFileTypes>
                             <uap:FileType>.do</uap:FileType>
                         </uap:SupportedFileTypes>
                         <uap2:SupportedVerbs>
-                            <uap3:Verb Id="open" Parameters="--disk1 &quot;%1&quot;">Open</uap3:Verb>
+                            <uap3:Verb Id="open" Parameters="--launch &quot;%1&quot;">Open</uap3:Verb>
                             <uap3:Verb Id="explore" Parameters="--explore &quot;%1&quot;">Open in Casso Explorer</uap3:Verb>
                         </uap2:SupportedVerbs>
                     </uap3:FileTypeAssociation>
                 </uap3:Extension>
 
                 <uap3:Extension Category="windows.fileTypeAssociation">
-                    <uap3:FileTypeAssociation Name="appleiipoimage" Parameters="--disk1 &quot;%1&quot;">
+                    <uap3:FileTypeAssociation Name="appleiipoimage" Parameters="--launch &quot;%1&quot;">
                         <uap:DisplayName>ProDOS-order disk image</uap:DisplayName>
                         <uap:Logo>Assets\DiskImageLogo.png</uap:Logo>
                         <uap:SupportedFileTypes>
                             <uap:FileType>.po</uap:FileType>
                         </uap:SupportedFileTypes>
                         <uap2:SupportedVerbs>
-                            <uap3:Verb Id="open" Parameters="--disk1 &quot;%1&quot;">Open</uap3:Verb>
+                            <uap3:Verb Id="open" Parameters="--launch &quot;%1&quot;">Open</uap3:Verb>
                             <uap3:Verb Id="explore" Parameters="--explore &quot;%1&quot;">Open in Casso Explorer</uap3:Verb>
                         </uap2:SupportedVerbs>
                     </uap3:FileTypeAssociation>
                 </uap3:Extension>
 
                 <uap3:Extension Category="windows.fileTypeAssociation">
-                    <uap3:FileTypeAssociation Name="appleiiwozimage" Parameters="--disk1 &quot;%1&quot;">
+                    <uap3:FileTypeAssociation Name="appleiiwozimage" Parameters="--launch &quot;%1&quot;">
                         <uap:DisplayName>WOZ disk image</uap:DisplayName>
                         <uap:Logo>Assets\DiskImageLogo.png</uap:Logo>
                         <uap:SupportedFileTypes>
                             <uap:FileType>.woz</uap:FileType>
                         </uap:SupportedFileTypes>
                         <uap2:SupportedVerbs>
-                            <uap3:Verb Id="open" Parameters="--disk1 &quot;%1&quot;">Open</uap3:Verb>
+                            <uap3:Verb Id="open" Parameters="--launch &quot;%1&quot;">Open</uap3:Verb>
                             <uap3:Verb Id="explore" Parameters="--explore &quot;%1&quot;">Open in Casso Explorer</uap3:Verb>
                         </uap2:SupportedVerbs>
                     </uap3:FileTypeAssociation>
                 </uap3:Extension>
 
                 <uap3:Extension Category="windows.fileTypeAssociation">
-                    <uap3:FileTypeAssociation Name="appleiinibimage" Parameters="--disk1 &quot;%1&quot;">
+                    <uap3:FileTypeAssociation Name="appleiinibimage" Parameters="--launch &quot;%1&quot;">
                         <uap:DisplayName>Nibble disk image</uap:DisplayName>
                         <uap:Logo>Assets\DiskImageLogo.png</uap:Logo>
                         <uap:SupportedFileTypes>
                             <uap:FileType>.nib</uap:FileType>
                         </uap:SupportedFileTypes>
                         <uap2:SupportedVerbs>
-                            <uap3:Verb Id="open" Parameters="--disk1 &quot;%1&quot;">Open</uap3:Verb>
+                            <uap3:Verb Id="open" Parameters="--launch &quot;%1&quot;">Open</uap3:Verb>
                             <uap3:Verb Id="explore" Parameters="--explore &quot;%1&quot;">Open in Casso Explorer</uap3:Verb>
                         </uap2:SupportedVerbs>
                     </uap3:FileTypeAssociation>
                 </uap3:Extension>
 
                 <uap3:Extension Category="windows.fileTypeAssociation">
-                    <uap3:FileTypeAssociation Name="appleiinb2image" Parameters="--disk1 &quot;%1&quot;">
+                    <uap3:FileTypeAssociation Name="appleiinb2image" Parameters="--launch &quot;%1&quot;">
                         <uap:DisplayName>NB2 nibble disk image</uap:DisplayName>
                         <uap:Logo>Assets\DiskImageLogo.png</uap:Logo>
                         <uap:SupportedFileTypes>
                             <uap:FileType>.nb2</uap:FileType>
                         </uap:SupportedFileTypes>
                         <uap2:SupportedVerbs>
-                            <uap3:Verb Id="open" Parameters="--disk1 &quot;%1&quot;">Open</uap3:Verb>
+                            <uap3:Verb Id="open" Parameters="--launch &quot;%1&quot;">Open</uap3:Verb>
+                            <uap3:Verb Id="explore" Parameters="--explore &quot;%1&quot;">Open in Casso Explorer</uap3:Verb>
+                        </uap2:SupportedVerbs>
+                    </uap3:FileTypeAssociation>
+                </uap3:Extension>
+
+                <uap3:Extension Category="windows.fileTypeAssociation">
+                    <uap3:FileTypeAssociation Name="appleiid13image" Parameters="--launch &quot;%1&quot;">
+                        <uap:DisplayName>13-sector disk image</uap:DisplayName>
+                        <uap:Logo>Assets\DiskImageLogo.png</uap:Logo>
+                        <uap:SupportedFileTypes>
+                            <uap:FileType>.d13</uap:FileType>
+                        </uap:SupportedFileTypes>
+                        <uap2:SupportedVerbs>
+                            <uap3:Verb Id="open" Parameters="--launch &quot;%1&quot;">Open</uap3:Verb>
+                            <uap3:Verb Id="explore" Parameters="--explore &quot;%1&quot;">Open in Casso Explorer</uap3:Verb>
+                        </uap2:SupportedVerbs>
+                    </uap3:FileTypeAssociation>
+                </uap3:Extension>
+
+                <uap3:Extension Category="windows.fileTypeAssociation">
+                    <uap3:FileTypeAssociation Name="appleii2mgimage" Parameters="--launch &quot;%1&quot;">
+                        <uap:DisplayName>2IMG disk image</uap:DisplayName>
+                        <uap:Logo>Assets\DiskImageLogo.png</uap:Logo>
+                        <uap:SupportedFileTypes>
+                            <uap:FileType>.2mg</uap:FileType>
+                        </uap:SupportedFileTypes>
+                        <uap2:SupportedVerbs>
+                            <uap3:Verb Id="open" Parameters="--launch &quot;%1&quot;">Open</uap3:Verb>
+                            <uap3:Verb Id="explore" Parameters="--explore &quot;%1&quot;">Open in Casso Explorer</uap3:Verb>
+                        </uap2:SupportedVerbs>
+                    </uap3:FileTypeAssociation>
+                </uap3:Extension>
+
+                <uap3:Extension Category="windows.fileTypeAssociation">
+                    <uap3:FileTypeAssociation Name="appleii2imgimage" Parameters="--launch &quot;%1&quot;">
+                        <uap:DisplayName>2IMG disk image</uap:DisplayName>
+                        <uap:Logo>Assets\DiskImageLogo.png</uap:Logo>
+                        <uap:SupportedFileTypes>
+                            <uap:FileType>.2img</uap:FileType>
+                        </uap:SupportedFileTypes>
+                        <uap2:SupportedVerbs>
+                            <uap3:Verb Id="open" Parameters="--launch &quot;%1&quot;">Open</uap3:Verb>
+                            <uap3:Verb Id="explore" Parameters="--explore &quot;%1&quot;">Open in Casso Explorer</uap3:Verb>
+                        </uap2:SupportedVerbs>
+                    </uap3:FileTypeAssociation>
+                </uap3:Extension>
+
+                <uap3:Extension Category="windows.fileTypeAssociation">
+                    <uap3:FileTypeAssociation Name="appleiihdvimage" Parameters="--launch &quot;%1&quot;">
+                        <uap:DisplayName>ProDOS hard disk image</uap:DisplayName>
+                        <uap:Logo>Assets\DiskImageLogo.png</uap:Logo>
+                        <uap:SupportedFileTypes>
+                            <uap:FileType>.hdv</uap:FileType>
+                        </uap:SupportedFileTypes>
+                        <uap2:SupportedVerbs>
+                            <uap3:Verb Id="open" Parameters="--launch &quot;%1&quot;">Open</uap3:Verb>
+                            <uap3:Verb Id="explore" Parameters="--explore &quot;%1&quot;">Open in Casso Explorer</uap3:Verb>
+                        </uap2:SupportedVerbs>
+                    </uap3:FileTypeAssociation>
+                </uap3:Extension>
+
+                <uap3:Extension Category="windows.fileTypeAssociation">
+                    <uap3:FileTypeAssociation Name="appleiidcimage" Parameters="--launch &quot;%1&quot;">
+                        <uap:DisplayName>Disk Copy 4.2 disk image</uap:DisplayName>
+                        <uap:Logo>Assets\DiskImageLogo.png</uap:Logo>
+                        <uap:SupportedFileTypes>
+                            <uap:FileType>.dc</uap:FileType>
+                        </uap:SupportedFileTypes>
+                        <uap2:SupportedVerbs>
+                            <uap3:Verb Id="open" Parameters="--launch &quot;%1&quot;">Open</uap3:Verb>
+                            <uap3:Verb Id="explore" Parameters="--explore &quot;%1&quot;">Open in Casso Explorer</uap3:Verb>
+                        </uap2:SupportedVerbs>
+                    </uap3:FileTypeAssociation>
+                </uap3:Extension>
+
+                <uap3:Extension Category="windows.fileTypeAssociation">
+                    <uap3:FileTypeAssociation Name="appleiidc42image" Parameters="--launch &quot;%1&quot;">
+                        <uap:DisplayName>Disk Copy 4.2 disk image</uap:DisplayName>
+                        <uap:Logo>Assets\DiskImageLogo.png</uap:Logo>
+                        <uap:SupportedFileTypes>
+                            <uap:FileType>.dc42</uap:FileType>
+                        </uap:SupportedFileTypes>
+                        <uap2:SupportedVerbs>
+                            <uap3:Verb Id="open" Parameters="--launch &quot;%1&quot;">Open</uap3:Verb>
+                            <uap3:Verb Id="explore" Parameters="--explore &quot;%1&quot;">Open in Casso Explorer</uap3:Verb>
+                        </uap2:SupportedVerbs>
+                    </uap3:FileTypeAssociation>
+                </uap3:Extension>
+
+                <uap3:Extension Category="windows.fileTypeAssociation">
+                    <uap3:FileTypeAssociation Name="appleiiimageimage" Parameters="--launch &quot;%1&quot;">
+                        <uap:DisplayName>Disk Copy 4.2 disk image</uap:DisplayName>
+                        <uap:Logo>Assets\DiskImageLogo.png</uap:Logo>
+                        <uap:SupportedFileTypes>
+                            <uap:FileType>.image</uap:FileType>
+                        </uap:SupportedFileTypes>
+                        <uap2:SupportedVerbs>
+                            <uap3:Verb Id="open" Parameters="--launch &quot;%1&quot;">Open</uap3:Verb>
                             <uap3:Verb Id="explore" Parameters="--explore &quot;%1&quot;">Open in Casso Explorer</uap3:Verb>
                         </uap2:SupportedVerbs>
                     </uap3:FileTypeAssociation>
@@ -208,6 +308,9 @@
                         <com:SurrogateServer DisplayName="Casso Explorer raw copy">
                             <com:Class Id="8E3B6C41-2F7A-4D59-B1C8-6A0E9D24F713" Path="CassoShellExtension.dll" ThreadingModel="STA" />
                         </com:SurrogateServer>
+                        <com:SurrogateServer DisplayName="Casso open on">
+                            <com:Class Id="146E9396-94F5-4962-A61F-DC6AE6CC30A4" Path="CassoShellExtension.dll" ThreadingModel="STA" />
+                        </com:SurrogateServer>
                     </com:ComServer>
                 </com:Extension>
 
@@ -216,7 +319,55 @@
                         <desktop9:ExtensionHandler Type="Directory" Clsid="8E3B6C41-2F7A-4D59-B1C8-6A0E9D24F713" />
                         <desktop9:ExtensionHandler Type="Drive" Clsid="8E3B6C41-2F7A-4D59-B1C8-6A0E9D24F713" />
                     </desktop9:FileExplorerClassicDragDropContextMenuHandler>
-                </desktop9:Extension>            </Extensions>
+                </desktop9:Extension>
+
+                <!-- The Open in Casso on submenu, from OpenOnCommand in the shell
+                     extension. A copy without an installer gets it from registry
+                     keys FileAssociations writes. -->
+                <desktop4:Extension Category="windows.fileExplorerContextMenus">
+                    <desktop4:FileExplorerContextMenus>
+                        <desktop5:ItemType Type=".dsk">
+                            <desktop5:Verb Id="CassoOpenOn" Clsid="146E9396-94F5-4962-A61F-DC6AE6CC30A4" />
+                        </desktop5:ItemType>
+                        <desktop5:ItemType Type=".do">
+                            <desktop5:Verb Id="CassoOpenOn" Clsid="146E9396-94F5-4962-A61F-DC6AE6CC30A4" />
+                        </desktop5:ItemType>
+                        <desktop5:ItemType Type=".po">
+                            <desktop5:Verb Id="CassoOpenOn" Clsid="146E9396-94F5-4962-A61F-DC6AE6CC30A4" />
+                        </desktop5:ItemType>
+                        <desktop5:ItemType Type=".woz">
+                            <desktop5:Verb Id="CassoOpenOn" Clsid="146E9396-94F5-4962-A61F-DC6AE6CC30A4" />
+                        </desktop5:ItemType>
+                        <desktop5:ItemType Type=".nib">
+                            <desktop5:Verb Id="CassoOpenOn" Clsid="146E9396-94F5-4962-A61F-DC6AE6CC30A4" />
+                        </desktop5:ItemType>
+                        <desktop5:ItemType Type=".nb2">
+                            <desktop5:Verb Id="CassoOpenOn" Clsid="146E9396-94F5-4962-A61F-DC6AE6CC30A4" />
+                        </desktop5:ItemType>
+                        <desktop5:ItemType Type=".d13">
+                            <desktop5:Verb Id="CassoOpenOn" Clsid="146E9396-94F5-4962-A61F-DC6AE6CC30A4" />
+                        </desktop5:ItemType>
+                        <desktop5:ItemType Type=".2mg">
+                            <desktop5:Verb Id="CassoOpenOn" Clsid="146E9396-94F5-4962-A61F-DC6AE6CC30A4" />
+                        </desktop5:ItemType>
+                        <desktop5:ItemType Type=".2img">
+                            <desktop5:Verb Id="CassoOpenOn" Clsid="146E9396-94F5-4962-A61F-DC6AE6CC30A4" />
+                        </desktop5:ItemType>
+                        <desktop5:ItemType Type=".hdv">
+                            <desktop5:Verb Id="CassoOpenOn" Clsid="146E9396-94F5-4962-A61F-DC6AE6CC30A4" />
+                        </desktop5:ItemType>
+                        <desktop5:ItemType Type=".dc">
+                            <desktop5:Verb Id="CassoOpenOn" Clsid="146E9396-94F5-4962-A61F-DC6AE6CC30A4" />
+                        </desktop5:ItemType>
+                        <desktop5:ItemType Type=".dc42">
+                            <desktop5:Verb Id="CassoOpenOn" Clsid="146E9396-94F5-4962-A61F-DC6AE6CC30A4" />
+                        </desktop5:ItemType>
+                        <desktop5:ItemType Type=".image">
+                            <desktop5:Verb Id="CassoOpenOn" Clsid="146E9396-94F5-4962-A61F-DC6AE6CC30A4" />
+                        </desktop5:ItemType>
+                    </desktop4:FileExplorerContextMenus>
+                </desktop4:Extension>
+            </Extensions>
 
         </Application>
 

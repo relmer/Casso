@@ -31,8 +31,14 @@ public:
     //  The whole-disk read and write pickers' history.
     static constexpr GUID  s_kLinkDiskPickerGuid = { 0x71d2ac7c, 0x3b03, 0x4c2c, { 0xac, 0xae, 0x2d, 0xa5, 0x0c, 0x9d, 0x7f, 0x8b } };
 
+    //  Create image's types after Automatic, in the Full Send page's order.
+    static constexpr const wchar_t *  s_kImageExtensions[] = { L".dsk", L".woz", L".do", L".po", L".nib", L".nb2", L".d13" };
+    static constexpr uint32_t         s_kBlocks400K = 800;    // a 3.5-inch disk's blocks, single- and double-sided
+    static constexpr uint32_t         s_kBlocks800K = 1600;
+
     void  ReadDiskToImage         (const Location & drive = Location(), bool forceVerify = false);
     void  CaptureRawDisk          (const Location & drive, const std::wstring & suggested = std::wstring());
+    void  CaptureToImage          (const std::wstring & link, int number, const std::filesystem::path & image);
     void  WriteImageToDisk        (const Location & drive = Location(), bool forceVerify = false);
     void  StartImageWrite         (const Location & drive, const std::wstring & imagePath, bool forceVerify = false);
     bool  TryGetSelectedLinkDrive (Location & outDrive) const;
@@ -44,15 +50,21 @@ public:
     void  KrunchAppleDisk         (const Location & location);
     void  SaveLinkDiskImage       (const std::string & name);
     void  SaveLinkProDosDisk      (const std::string & name);
+    void  SaveLinkProDosToDisk    (const Location & drive);
     void  SaveLinkSosDisk         (const std::string & name);
 
 private:
-    void  OfferRawCapture         (const Location & drive, const std::filesystem::path & image);
+    void                 OfferRawCapture   (const Location & drive, const std::filesystem::path & image);
+    static std::wstring  GetProDosDiskNote ();
+
+    bool          ChooseProDosDisk   (const std::wstring & title, const std::wstring & note, const std::wstring & confirm, bool destructive, std::filesystem::path & outDisk);
+    std::wstring  GetOverwriteTarget (const std::wstring & driveId) const;
 
     //  A block device's whole-device read and write, in
     //  CassoLinkDriveManagerBlocks.cpp.
     void  ReadBlockDeviceToImage  (const Location & drive, const std::wstring & link, int number, bool forceVerify);
     void  WriteImageToBlockDevice (const Location & drive, const std::wstring & link, int number, bool forceVerify);
+    void  StartBlockImageWrite    (const Location & drive, const std::wstring & link, int number, const std::filesystem::path & image, bool forceVerify);
     bool  TryGetBlockDevice       (const std::wstring & link, int number, CassoLinkBlockDevice & outDevice) const;
     bool  AskToResume             (const std::wstring & title, const CassoLinkBlockDevice & device, const std::filesystem::path & image, bool isRead, bool & outResume);
     void  SubmitBlockTransfer     (const std::wstring & link, int number, const std::filesystem::path & image, bool isRead, bool resume, bool forceVerify);

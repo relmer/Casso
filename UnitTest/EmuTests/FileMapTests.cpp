@@ -183,11 +183,11 @@ public:
 
             Assert::IsTrue (map.fileSystem == MapFileSystem::Cpm);
             Assert::IsTrue (map.findings.empty(), L"a standard volume gives no findings");
-            Assert::AreEqual (18 * 4, FileOf (map, L"0:PIP.COM").GetUsedCount(), L"two extents' blocks");
-            Assert::AreEqual (-1, FileOf (map, L"0:SPARSE.DAT").sectors[4].cell, L"block 0 is a hole");
+            Assert::AreEqual (18 * 4, FileOf (map, L"PIP.COM").GetUsedCount(), L"two extents' blocks");
+            Assert::AreEqual (-1, FileOf (map, L"SPARSE.DAT").sectors[4].cell, L"block 0 is a hole");
             Assert::AreEqual (4, FileOf (map, L"5:NOTES.TXT").GetUsedCount());
             Assert::IsTrue   (std::none_of (map.files.begin(), map.files.end(), [] (const MappedFile & f) { return f.path.starts_with (L"31:"); }), L"the system entry is no file");
-            Assert::IsTrue   (FileOf (map, L"0:OLD.TXT").isDeleted);
+            Assert::IsTrue   (FileOf (map, L"OLD.TXT").isDeleted);
             Assert::IsTrue   (map.cells[0].role == SectorRole::BootArea);
             Assert::IsTrue   (map.cells[3 * 16].role == SectorRole::CatalogOrDirectory);
         }
@@ -284,7 +284,7 @@ public:
         //  HELLO's catalog count is seven sectors, three more than it uses.
         Images::GetDosSector (miscount, 17, 15)[0x0B + 0x21] = 7;
         map = MapOf (miscount, false);
-        AssertOnce (map, FindingKind::FileCountDiffers, false);
+        AssertOnce (map, FindingKind::Dos33EntryCountDiffers, false);
     }
 
 
@@ -367,6 +367,34 @@ public:
         map = MapOf (invalid, false);
         Assert::IsTrue (map.fileSystem == MapFileSystem::Cpm, L"more than four valid entries still find the volume");
         AssertOnce (map, FindingKind::CpmInvalidEntry, true);
+    }
+
+
+
+    TEST_METHOD (ReadAsCpmMapsADirectoryDetectionDoesNotFind)
+    {
+        vector<Byte>     image    = Images::MakeCpm();
+        DiskAnalysis     analysis;
+        vector<FileMap>  maps;
+
+
+
+        for (int s = 0; s < 8; s++)
+        {
+            Byte *  sector = Images::GetCpmSector (image, 3, s);
+
+            std::fill (sector, sector + 256, (Byte) 0x40);
+        }
+
+        Images::Analyze (image, false, analysis);
+        maps = FileMapBuilder::Build (analysis);
+        Assert::IsTrue (maps[0].notMapped == NotMappedReason::NoFileSystem);
+
+        analysis.isCpmChosen = true;
+        maps = FileMapBuilder::Build (analysis);
+        Assert::AreEqual (static_cast<size_t> (1), maps.size());
+        Assert::IsTrue (maps[0].fileSystem == MapFileSystem::Cpm);
+        Assert::AreEqual (64, CountKind (maps[0], FindingKind::CpmInvalidEntry), L"every bad entry is a finding");
     }
 
 

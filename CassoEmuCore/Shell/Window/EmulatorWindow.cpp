@@ -54,6 +54,7 @@
 #include "Machines/Apple2/Common/AppleMouse.h"
 #include "Core/Prng.h"
 #include "Config/DiskSettings.h"
+#include "Config/FileAssociations.h"
 #include "Core/UnicodeSymbols.h"
 #include "Core/MachineConfig.h"
 #include "Core/JsonParser.h"
@@ -76,6 +77,7 @@
 #include "Devices/Disk/PreservedCopy.h"
 #include "Devices/Disk/WriteProtectChange.h"
 #include "Core/AppTimerIds.h"
+#include "Devices/Disk/Store/ExternalChangeMonitor.h"
 
 
 
@@ -1185,6 +1187,7 @@ int EmulatorShell::RunMessageLoop()
             // After the first frame is on screen, so the update check never
             // stands between a launch and a picture.
             m_updater->StartAutomaticUpdateCheck();
+            FileAssociations::StartInstallRegistration();
         }
     }
 
@@ -2359,7 +2362,7 @@ DxuiMessageResult EmulatorShell::OnCopyData (WPARAM sender, LPARAM data)
                 m_disks->GetIntentReplies().NoteReload (payload.imagePath, replyTo);
             }
 
-            m_machine.GetDiskStore().NoteExternalChange (payload.imagePath, payload.intent, replyTo != nullptr);
+            m_machine.GetDiskStore().GetChangeMonitor().NoteExternalChange (payload.imagePath, payload.intent, replyTo != nullptr);
             break;
     }
 

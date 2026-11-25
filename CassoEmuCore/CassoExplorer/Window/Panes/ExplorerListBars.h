@@ -17,7 +17,8 @@ class  DxuiInfoBanner;
 //
 //  The infobars above the file list: a search's regular expression that
 //  isn't valid, and an A2Pico card's A2retroNET drives at the card's root,
-//  with Repair for a settings file with CR LF line ends. Each is put away for
+//  with Repair for a settings file with CR LF line ends, and an image on the
+//  card offered as a free drive. Each is put away for
 //  the location it was closed at.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,20 +41,16 @@ public:
     //  The visible bars at the top of the rect, and the rect below them.
     RECT  Layout      (const RECT & rect);
 
-    //  For ExplorerCardArrivals: a question for the images copied to an
-    //  A2Pico card that A2retroNET doesn't read, and each replaced by a .po
-    //  on a yes.
-    void  OfferArrived ();
-
     DxuiInfoBanner & GetCardBar () { return *m_cardBar; }
 
 private:
-    enum class CardAction { Drives, Repair, WritePo };
+    enum class CardAction { Drives, Repair, WritePo, SetDrive };
 
     static std::wstring  DescribeFiles (const std::vector<std::wstring> & paths);
 
     bool  FillSearchBar ();
     bool  FillCardBar   ();
+    void  FindSettable  (const std::wstring & root);
     void  RunCardAction (size_t index);
 
     ExplorerContext            & m_context;
@@ -65,6 +62,8 @@ private:
     ActionsA2retroNet::Card      m_card;
     std::vector<CardAction>      m_cardActions;       // the card infobar's buttons, in order
     std::vector<std::wstring>    m_cardLabels;        // the labels the buttons were made with
-    std::vector<std::wstring>    m_convertible;       // the images Write as .po writes
-    std::vector<std::wstring>    m_arrived;           // the images in OfferArrived's question
+    std::vector<std::wstring>    m_convertible;       // the images to convert to .po
+    std::vector<std::wstring>    m_settable;          // images copied or written to a card, offered as a drive
+    std::wstring                 m_setPath;           // the image Set as drive sets
+    int                          m_setDrive  = 0;     // its drive, from 1, or 0 for no offer
 };

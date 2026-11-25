@@ -15,6 +15,8 @@
 #include "CassoExplorer/Window/Managers/ExplorerTips.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/CassoExplorerCommands.h"
+#include "Ui/DiskInspector/InspectorMarquee.h"
+#include "CassoExplorer/Window/Managers/CassoLinkJobManager.h"
 
 
 
@@ -51,8 +53,17 @@ void ExplorerStatusBar::Create()
 
     m_context.window.SetMouseHandler (m_status, [this] (const DxuiMouseEvent & ev)
     {
-        return HandleZoomClick (ev) || HandleSummaryClick (ev) || HandleActivityClick (ev) || m_status->OnMouse (ev);
+        return HandleSummaryClick (ev) || HandleActivityClick (ev) || m_status->OnMouse (ev);
     });
+
+    //  The preview's zoom, over the bar's last field, with the preferences'
+    //  range and the zoom commands' step.
+    m_zoom = m_context.window.CreateChild<DxuiZoomControl>();
+    m_zoom->SetRange     (CassoExplorerPrefs::kMinPreviewZoom / 100.0, CassoExplorerPrefs::kMaxPreviewZoom / 100.0, false);
+    m_zoom->SetResetZoom (CassoExplorerPrefs::kDefaultPreviewZoom / 100.0);
+    m_zoom->SetShowBox   (false);
+    m_zoom->SetOnStep    ([] (double zoom, int steps) { return zoom + steps * ExplorerCommandManager::kPreviewZoomStep / 100.0; });
+    m_zoom->SetOnZoom    ([this] (double zoom) { m_context.preview.SetPreviewZoom ((int) std::lround (zoom * 100.0)); });
 
     m_status->SetDividers (false);
     m_status->SetLeadDip  (ExplorerMetrics::kStatusLeadDip);
@@ -80,25 +91,16 @@ void ExplorerStatusBar::Configure()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerStatusBar::HandleZoomClick
+//  ExplorerStatusBar::Tick
 //
-//  A click on the zoom level puts it back to 100%.
-//
-//  Pointer events: a click on the zoom is ahead of the window's other
-//  routing, one on the CassoLink line after the panes' captures.
+//  The zoom's panel opens and closes by where the cursor is; true while it
+//  moves.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ExplorerStatusBar::HandleZoomClick (const DxuiMouseEvent & ev)
+bool ExplorerStatusBar::Tick (int64_t nowMs)
 {
-    if (ev.kind != DxuiMouseEventKind::Up || ev.button != DxuiMouseButton::Left || !ExplorerLayout::Contains (m_status->GetFieldRect (kStatusZoom), ev.positionDip))
-    {
-        return false;
-    }
-
-    m_context.commandManager.Dispatch (CassoExplorerCommands::kZoomReset);
-
-    return true;
+    return m_zoom->Follow (m_context.window.GetHwnd(), m_context.preview.GetShownZoom() / 100.0, nowMs);
 }
 
 
@@ -109,19 +111,37 @@ bool ExplorerStatusBar::HandleZoomClick (const DxuiMouseEvent & ev)
 //
 //  ExplorerStatusBar::HandleSummaryClick
 //
-//  A Full Send's line opens the Full Send window.
+//  A Full Send's line opens the Full Send window, and a disk job's opens the
+//  job window.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ExplorerStatusBar::HandleSummaryClick (const DxuiMouseEvent & ev)
 {
-    if (ev.kind != DxuiMouseEventKind::Down || ev.button != DxuiMouseButton::Left
-        || !ExplorerLayout::Contains (m_status->GetFieldRect (kStatusDetail), ev.positionDip) || !m_context.fullSendWindows.IsFullSendRunning())
+    bool  isFullSend = false;
+
+
+
+    if (ev.kind != DxuiMouseEventKind::Down || ev.button != DxuiMouseButton::Left || !ExplorerLayout::Contains (m_status->GetFieldRect (kStatusDetail), ev.positionDip))
     {
         return false;
     }
 
-    m_context.fullSendWindows.ShowFullSendWindow (true);
+    isFullSend = m_context.fullSendWindows.IsFullSendRunning();
+
+    if (!isFullSend && !m_context.linkJobs.HasJobs())
+    {
+        return false;
+    }
+
+    if (isFullSend)
+    {
+        m_context.fullSendWindows.ShowFullSendWindow (true);
+    }
+    else
+    {
+        m_context.linkJobs.ShowWindow();
+    }
 
     return true;
 }
@@ -184,6 +204,13 @@ void ExplorerStatusBar::Fill()
         m_context.cassoLinkManager.MarkJobsShown();
     }
 
+    //  A job starting or ending changes the detail field's width.
+    if (m_widened != (m_context.app.links != nullptr && !m_context.app.links->GetPendingJobs().empty()) && m_band.right > m_band.left)
+    {
+        Layout (m_band);
+        return;
+    }
+
     if (m_context.IsPicker())
     {
         count = DescribePickerCount (status.selection, m_context.browser.GetRows().size(), m_context.browser.GetScopedOutCount(), m_context.app.picker->IsForDrive(),
@@ -195,8 +222,64 @@ void ExplorerStatusBar::Fill()
     m_status->SetText (kStatusThumbnails, DescribeThumbnails (m_context.app.pictures != nullptr ? m_context.app.pictures->GetQueued() : 0));
     m_status->SetText (kStatusFree,     status.freeSpace);
     m_status->SetText (kStatusDetail,   detail);
-    m_status->SetText (kStatusZoom,     std::format (L"{}%", m_context.preview.GetShownZoom()));
+    m_zoom->SetZoom   (m_context.preview.GetShownZoom() / 100.0);
     m_status->SetText (kStatusFill,     m_context.cassoLinkManager.GetLatestActivity());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerStatusBar::SetDetail
+//
+//  A job starting or ending changes the detail field's width, so the band
+//  is laid out again then.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerStatusBar::SetDetail (const std::wstring & text)
+{
+    bool  job = m_context.app.links != nullptr && !m_context.app.links->GetPendingJobs().empty();
+
+
+
+    m_status->SetText (kStatusDetail, text);
+
+    if (job != m_widened && m_band.right > m_band.left)
+    {
+        Layout (m_band);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerStatusBar::SetShimmer
+//
+//  The detail field, where a CassoLink job's progress is, lit by the disk
+//  inspector's shimmer: a band of light at 45 degrees that sweeps across its
+//  cell.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerStatusBar::SetShimmer (bool on)
+{
+    if (!on)
+    {
+        m_status->SetOverlay (kStatusDetail, nullptr);
+        return;
+    }
+
+    m_status->SetOverlay (kStatusDetail, [] (IDxuiPainter & painter, const RECT & cell)
+    {
+        InspectorMarquee::PaintShimmer (painter, (float) cell.left, (float) cell.top, (float) (cell.right - cell.left), (float) (cell.bottom - cell.top),
+                                        InspectorMarquee::GetClockMs(), cell);
+    });
 }
 
 
@@ -263,8 +346,18 @@ void ExplorerStatusBar::Layout (const RECT & band)
     int    seam    = (int) (DxuiSplitter::GetSeam (sash.left, sash.right, m_context.scaler) + DxuiSplitter::GetLinePx (m_context.scaler));
     int    zoomPx  = m_context.scaler.ToPx (kStatusZoomDip);
     int    detail  = preview ? (std::max) ((int) band.right - seam - zoomPx, 0) : m_context.scaler.ToPx (kStatusDetailDip);
+    bool   job     = m_context.app.links != nullptr && !m_context.app.links->GetPendingJobs().empty();
+    RECT   zoom    = {};
 
 
+
+    m_band    = band;
+    m_widened = job;
+
+    if (job)
+    {
+        detail = (std::max) (detail, (int) (band.right - band.left) / kJobShareDivisor);
+    }
 
     //  The detail field starts on the splitter's visible line: the lighter of
     //  the two it draws in the middle of its sash, since the darker one is the
@@ -278,6 +371,10 @@ void ExplorerStatusBar::Layout (const RECT & band)
                            { L"", kStatusZoomDip, false } });
     m_status->Layout (band, m_context.scaler);
 
+    zoom = m_status->GetFieldRect (kStatusZoom);
+    m_zoom->SetVisible (m_status->IsVisible());
+    m_zoom->PlaceInRow ({ zoom.left, band.top, zoom.right - m_context.scaler.ToPx (kStatusZoomPadDip), band.bottom }, RECT {}, m_context.scaler);
+
     Fill();
 }
 
@@ -289,7 +386,8 @@ void ExplorerStatusBar::Layout (const RECT & band)
 //
 //  ExplorerStatusBar::UpdateTip
 //
-//  The free space of a disk image says which disk it counts.
+//  The free space of a disk image has a tip with the disk it counts, and a
+//  CassoLink job's progress cut short has its whole text.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -298,6 +396,7 @@ void ExplorerStatusBar::UpdateTip (const DxuiMouseEvent & ev, POINT point)
     const std::wstring &  tip      = m_context.browser.GetStatus().freeSpaceTip;
     RECT                  anchor   = m_status->GetFieldRect (kStatusFree);
     RECT                  activity = m_status->GetFieldRect (kStatusFill);
+    RECT                  detail   = m_status->GetFieldRect (kStatusDetail);
 
 
 
@@ -306,6 +405,14 @@ void ExplorerStatusBar::UpdateTip (const DxuiMouseEvent & ev, POINT point)
     {
         m_activityTip = m_context.cassoLinkManager.FormatActivity (kActivityTipLines) + L"\nClick for the whole log.";
         m_context.tips.ShowHoverTip (ExplorerTips::TipOwner::Status, activity, m_activityTip.c_str(), kActivityTipWidthDip);
+        return;
+    }
+
+    //  A job's progress cut short is shown whole.
+    if (ev.kind == DxuiMouseEventKind::Move && ExplorerLayout::Contains (detail, point) && m_status->IsElided (kStatusDetail))
+    {
+        m_detailTip = m_status->GetField (kStatusDetail).text;
+        m_context.tips.ShowHoverTip (ExplorerTips::TipOwner::Status, detail, m_detailTip.c_str(), kActivityTipWidthDip);
         return;
     }
 

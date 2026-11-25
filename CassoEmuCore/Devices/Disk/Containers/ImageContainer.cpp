@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "Devices/Disk/Containers/ImageContainer.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 
 
 
@@ -20,7 +20,7 @@
 ImageContainerKind ImageContainer::GetKind (const std::string & path, size_t fileBytes)
 {
     std::string  extension = std::filesystem::path (path).extension().string();
-    bool         isFloppy  = fileBytes <= (size_t) NibblizationLayer::kImageByteSize;
+    bool         isFloppy  = fileBytes <= (size_t) NibbleFormat::kImageByteSize;
 
 
 

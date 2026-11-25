@@ -54,7 +54,9 @@ if ($LASTEXITCODE -ne 0 -or -not (Test-Path $listPath)) {
     throw "Listing the tests in $TestDll failed."
 }
 
-$allTests = @(Get-Content $listPath | Where-Object { $_ -match '::' })
+#  Tests whose names start with OnDemand_ run only when asked for, so they are
+#  left out of the shards and out of the count.
+$allTests = @(Get-Content $listPath | Where-Object { $_ -match '::' -and $_ -notmatch '::OnDemand_' })
 
 if ($allTests.Count -eq 0) {
     throw "No tests found in $TestDll."
@@ -140,19 +142,26 @@ for ($i = 0; $i -lt $shardCount; $i++) {
     }
 }
 
-$failed     = $false
-$totalRun   = 0
-$totalPass  = 0
+$failed      = $false
+$totalRun    = 0
+$totalPass   = 0
+$failedNames = @()
 
 foreach ($p in $processes) {
     $p.Process.WaitForExit()
 
     $log    = @(Get-Content $p.Log) + @(Get-Content "$($p.Log).err" -ErrorAction SilentlyContinue)
-    $total  = [int](($log | Select-String '^\s*Total tests:\s*(\d+)' | Select-Object -Last 1).Matches.Groups[1].Value)
-    $passed = [int](($log | Select-String '^\s*Passed:\s*(\d+)' | Select-Object -Last 1).Matches.Groups[1].Value)
+    #  A shard whose test host crashed has no counts, and is counted as 0 run.
+    $totalHit  = $log | Select-String '^\s*Total tests:\s*(\d+)' | Select-Object -Last 1
+    $passedHit = $log | Select-String '^\s*Passed:\s*(\d+)' | Select-Object -Last 1
+    $total     = $totalHit  ? [int] $totalHit.Matches[0].Groups[1].Value  : 0
+    $passed    = $passedHit ? [int] $passedHit.Matches[0].Groups[1].Value : 0
 
     $totalRun  += $total
     $totalPass += $passed
+
+    #  Failed tests are listed again after the totals.
+    $failedNames += $log | Select-String '^\s*Failed\s+(\S+)' | ForEach-Object { $_.Matches[0].Groups[1].Value }
 
     $status  = 'OK'
     $asanHit = $log | Select-String -SimpleMatch 'ERROR: AddressSanitizer' -Quiet
@@ -180,6 +189,12 @@ Write-Host ("Total: {0} of {1} tests run, {2} passed" -f $totalRun, $allTests.Co
 if ($totalRun -ne $allTests.Count) {
     Write-Host 'The shards did not run every listed test.' -ForegroundColor Red
     $failed = $true
+}
+
+if ($failedNames.Count -gt 0) {
+    Write-Host ''
+    Write-Host 'Failed tests:' -ForegroundColor Red
+    $failedNames | Sort-Object -Unique | ForEach-Object { Write-Host "  $_" -ForegroundColor Red }
 }
 
 Remove-Item -Recurse -Force $workDir -ErrorAction SilentlyContinue

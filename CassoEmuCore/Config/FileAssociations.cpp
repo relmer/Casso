@@ -1,7 +1,13 @@
 #include "Pch.h"
 
 #include "Config/FileAssociations.h"
+#include "Config/StockMachines.h"
+#include "Core/TextEncoding.h"
 #include "CassoExplorer/Model/CatalogModel.h"
+#include "CassoExplorer/Model/LaunchCommand.h"
+#include "Seams/Win32UserClasses.h"
+#include "Update/AuthenticodeVerifier.h"
+#include "Update/Win32InstallEnvironment.h"
 
 
 
@@ -22,9 +28,18 @@ HRESULT FileAssociations::Register (IUserClasses & classes, const std::wstring &
     for (const wchar_t * extension : kExtensions)
     {
         hr = WriteProgId (classes, GetProgId (extension), CatalogModel::GetDiskImageTypeName (extension), L"Casso", cassoExe,
-                          L"\"" + cassoExe + L"\" --disk1 \"%1\"");
+                          GetOpenCommand (cassoExe));
+        CHR (hr);
+
+        hr = classes.SetValue (GetProgId (extension) + L"\\shell\\OpenOn", L"MUIVerb", kOpenOnLabel);
+        CHR (hr);
+
+        hr = classes.SetValue (GetProgId (extension) + L"\\shell\\OpenOn", L"ExtendedSubCommandsKey", kOpenOnKey);
         CHR (hr);
     }
+
+    hr = WriteOpenOn (classes, cassoExe);
+    CHR (hr);
 
     //  The single type an earlier build registered goes.
     hr = classes.DeleteKey (kCassoProgId);
@@ -35,6 +50,14 @@ HRESULT FileAssociations::Register (IUserClasses & classes, const std::wstring &
 
     hr = classes.SetValue (std::wstring (L"Applications\\") + kExplorerApp + L"\\shell\\open\\command", L"", L"\"" + explorerExe + L"\" \"%1\"");
     CHR (hr);
+
+    //  File Explorer offers Casso Explorer under Open with for these types
+    //  alone, not for every file it was once used on.
+    for (const wchar_t * extension : kExtensions)
+    {
+        hr = classes.SetValue (std::wstring (L"Applications\\") + kExplorerApp + L"\\SupportedTypes", extension, L"");
+        CHR (hr);
+    }
 
     for (const wchar_t * extension : kExtensions)
     {
@@ -158,6 +181,9 @@ HRESULT FileAssociations::Unregister (IUserClasses & classes, IUserClasses & fil
     }
 
     hr = classes.DeleteKey (kCassoProgId);
+    CHR (hr);
+
+    hr = classes.DeleteKey (kOpenOnKey);
     CHR (hr);
 
     hr = classes.DeleteKey (kExplorerProgId);
@@ -306,12 +332,17 @@ bool FileAssociations::IsRegistered (const IUserClasses & classes, const std::ws
     {
         std::wstring  progId = GetProgId (extension);
 
+        if (!classes.GetValue (std::wstring (L"Applications\\") + kExplorerApp + L"\\SupportedTypes", extension, value))
+        {
+            return false;
+        }
+
         if (!classes.GetValue (extension, L"", value) || value != progId)
         {
             return false;
         }
 
-        if (!classes.GetValue (progId + L"\\shell\\open\\command", L"", value) || value != L"\"" + cassoExe + L"\" --disk1 \"%1\"")
+        if (!classes.GetValue (progId + L"\\shell\\open\\command", L"", value) || value != GetOpenCommand (cassoExe))
         {
             return false;
         }
@@ -320,9 +351,14 @@ bool FileAssociations::IsRegistered (const IUserClasses & classes, const std::ws
         {
             return false;
         }
+
+        if (!classes.GetValue (progId + L"\\shell\\OpenOn", L"ExtendedSubCommandsKey", value) || value != kOpenOnKey)
+        {
+            return false;
+        }
     }
 
-    return true;
+    return IsOpenOnCurrent (classes, cassoExe);
 }
 
 
@@ -340,4 +376,247 @@ bool FileAssociations::IsRegistered (const IUserClasses & classes, const std::ws
 bool FileAssociations::IsCassoType (const std::wstring & extension, const std::wstring & progId)
 {
     return progId == GetProgId (extension) || progId == kCassoProgId;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileAssociations::RegisterForInstall
+//
+//  A package is left alone. Otherwise this copy registers when no copy of
+//  Casso has the types, when an earlier registration of this copy is out of
+//  date, or when the copy that has them was deleted.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT FileAssociations::RegisterForInstall (IUserClasses & classes, const IUserClasses & settings, InstallType type, const std::wstring & cassoExe,
+                                              const std::wstring & explorerExe, const std::function<bool (const std::wstring &)> & exists)
+{
+    HRESULT       hr       = S_OK;
+    std::wstring  declined;
+    std::wstring  owner    = GetRegisteredCasso (classes);
+    bool          isFree   = owner.empty() || _wcsicmp (owner.c_str(), cassoExe.c_str()) == 0 || !exists (owner);
+
+
+
+    BAIL_OUT_IF (type != InstallType::Zip && type != InstallType::Developer, S_OK);
+    BAIL_OUT_IF (settings.GetValue (kSettingsKey, kDeclinedName, declined) && declined == L"1", S_OK);
+    BAIL_OUT_IF (!isFree || IsRegistered (classes, cassoExe, explorerExe), S_OK);
+
+    hr = Register (classes, cassoExe, explorerExe);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileAssociations::StartInstallRegistration
+//
+//  The thread creates everything it touches, so it can run past the window
+//  that started it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FileAssociations::StartInstallRegistration()
+{
+    std::thread ([]()
+    {
+        Win32UserClasses         classes;
+        Win32UserClasses         settings         (Win32UserClasses::kCassoRoot);
+        Win32InstallEnvironment  environment;
+        AuthenticodeVerifier     verifier;
+        InstallType              type             = InstallType::Unknown;
+        wchar_t                  module[MAX_PATH] = {};
+        DWORD                    length           = GetModuleFileNameW (nullptr, module, MAX_PATH);
+        std::wstring             folder           = std::filesystem::path (module).parent_path().wstring();
+        HRESULT                  hr               = S_OK;
+
+
+
+        hr = InstallTypeDetector::Detect (environment, verifier, type);
+
+        if (length > 0 && length < MAX_PATH && SUCCEEDED (hr))
+        {
+            hr = RegisterForInstall (classes, settings, type, LaunchCommand::GetSiblingPath (folder, LaunchCommand::kCassoExe),
+                                     LaunchCommand::GetSiblingPath (folder, kExplorerApp),
+                                     [] (const std::wstring & path) { std::error_code  error; return std::filesystem::exists (path, error); });
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+    }).detach();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileAssociations::SetDeclined
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT FileAssociations::SetDeclined (IUserClasses & settings, bool declined)
+{
+    return declined ? settings.SetValue (kSettingsKey, kDeclinedName, L"1") : settings.DeleteValue (kSettingsKey, kDeclinedName);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileAssociations::GetRegisteredCasso
+//
+//  The Casso program the first type opens in, from its quoted command, or
+//  empty when no copy of Casso has the type.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring FileAssociations::GetRegisteredCasso (const IUserClasses & classes)
+{
+    std::wstring  command;
+    size_t        close   = std::wstring::npos;
+
+
+
+    if (!classes.GetValue (GetProgId (kExtensions[0]) + L"\\shell\\open\\command", L"", command) || !command.starts_with (L"\""))
+    {
+        return {};
+    }
+
+    close = command.find (L'"', 1);
+
+    return close == std::wstring::npos ? std::wstring() : command.substr (1, close - 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileAssociations::WriteOpenOn
+//
+//  One row per stock model under the submenu's key, in model order. Rows an
+//  earlier registration made are replaced.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT FileAssociations::WriteOpenOn (IUserClasses & classes, const std::wstring & cassoExe)
+{
+    HRESULT                         hr       = S_OK;
+    std::span<const StockMachine>   machines = StockMachines::GetAll();
+
+
+
+    hr = classes.DeleteKey (kOpenOnKey);
+    CHR (hr);
+
+    for (size_t i = 0; i < machines.size(); i++)
+    {
+        std::wstring  row = GetOpenOnRowKey (i, machines[i].id);
+
+        hr = classes.SetValue (row, L"MUIVerb", machines[i].label);
+        CHR (hr);
+
+        hr = classes.SetValue (row + L"\\command", L"", GetOpenOnCommand (cassoExe, machines[i].id));
+        CHR (hr);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileAssociations::IsOpenOnCurrent
+//
+//  Every model's row is there and opens in this copy of Casso.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FileAssociations::IsOpenOnCurrent (const IUserClasses & classes, const std::wstring & cassoExe)
+{
+    std::span<const StockMachine>  machines = StockMachines::GetAll();
+    std::wstring                   value;
+
+
+
+    for (size_t i = 0; i < machines.size(); i++)
+    {
+        std::wstring  row = GetOpenOnRowKey (i, machines[i].id);
+
+        if (!classes.GetValue (row + L"\\command", L"", value) || value != GetOpenOnCommand (cassoExe, machines[i].id))
+        {
+            return false;
+        }
+
+        if (!classes.GetValue (row, L"MUIVerb", value) || value != machines[i].label)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileAssociations::GetOpenCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring FileAssociations::GetOpenCommand (const std::wstring & cassoExe)
+{
+    return L"\"" + cassoExe + L"\" " + LaunchCommand::MakeCassoArguments (L"%1", L"");
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileAssociations::GetOpenOnCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring FileAssociations::GetOpenOnCommand (const std::wstring & cassoExe, const char * machineId)
+{
+    return L"\"" + cassoExe + L"\" " + LaunchCommand::MakeCassoArguments (L"%1", L"", TextEncoding::NarrowToWide (machineId));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileAssociations::GetOpenOnRowKey
+//
+//  The two-digit prefix sorts File Explorer's rows in model order.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring FileAssociations::GetOpenOnRowKey (size_t index, const char * machineId)
+{
+    return std::format (L"{}\\shell\\{:02}{}", kOpenOnKey, index + 1, TextEncoding::NarrowToWide (machineId));
 }

@@ -85,6 +85,7 @@ DecodeSettingsForm DecodeSettingsForm::MakeFrom (const DecodeSettings & settings
             form.data             = FormatMarks (range.customMarks.data);
             form.addressEpilogue  = FormatMarks (range.customMarks.addressEpilogue);
             form.dataEpilogue     = FormatMarks (range.customMarks.dataEpilogue);
+            form.isFromStamp      = range.isFromStamp;
             form.matchStandardToo = range.matchStandardToo;
             form.checkAddress     = range.checks.isAddressChecksumOn;
             form.checkData        = range.checks.isDataChecksumOn;

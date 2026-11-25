@@ -88,6 +88,13 @@ public:
     static void     SearchImage     (const std::wstring & image, const SearchExpression & expression, std::vector<IShellItemVerbs::ShellFolderItem> & outItems);
     static void     WalkForImages   (const std::wstring & scope, std::vector<std::wstring> & outImages, bool currentFolder = false);
 
+    static void     SearchFolderImages (const std::wstring                                        & folder,
+                                        const SearchExpression                                    & expression,
+                                        bool                                                        currentFolder,
+                                        const std::map<std::wstring, std::vector<std::wstring>>  & walkedImages,
+                                        std::unordered_set<std::wstring>                          & ioSearched,
+                                        std::vector<IShellItemVerbs::ShellFolderItem>             & ioItems);
+
     static void                         WalkZip           (IShellItem * zip, const std::wstring & path, const SearchExpression & expression, std::vector<std::wstring> & ioPaths, int depth);
     static bool                         IsSystemItem      (const std::wstring & path);
     static SearchExpression::FileFacts  GetFindFacts      (const std::wstring & path, const WIN32_FIND_DATAW & found, bool withDates);

@@ -65,6 +65,13 @@ public:
     const std::string       & GetPrefix     () const                                    { return m_prefix; }
     const std::string       & GetMessage    () const                                    { return m_message; }
 
+    static void               FitPauseLines (std::vector<std::string> & ioLines);
+
+    //  The rows a pause's prompt has on the Apple, the history's, and the most
+    //  bytes its request takes.
+    static constexpr size_t  s_kPauseRows  = 8;
+    static constexpr size_t  s_kPauseBytes = 255;
+
 private:
     static constexpr size_t  kPrefixLength = 16;
 
@@ -74,11 +81,12 @@ private:
     HRESULT                   Pause         ();
     HRESULT                   CheckDrives   (const std::string & retry, bool & outSent);
     HRESULT                   SendRepeat    (int drive, bool & outSent);
+    HRESULT                   CaptureRaw    (int drive, bool & outSent);
     HRESULT                   SendAgain     (int drive, const FullSendCheckedDisk & disk);
     HRESULT                   CheckDrive    (int drive, FullSendCheckedDisk & outDisk);
     HRESULT                   SendDisk      (int drive, const FullSendCheckedDisk & disk, FullSendSendMode mode);
     void                      End           (HRESULT hr);
-    std::array<int, 2>        GetOrder      () const;
+    std::array<int, 2>        GetOrder      (int first = 0) const;
     std::vector<std::string>  GetPauseLines () const;
     std::string               GetPrefixLine () const;
 

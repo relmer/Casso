@@ -128,7 +128,6 @@ void DiskInspectorWindow::SetZoom (double zoom)
 
 bool DiskInspectorWindow::FitsZoom (double zoom)
 {
-    static constexpr int  kHeaderLines = 3;
 
 
 
@@ -151,7 +150,7 @@ bool DiskInspectorWindow::FitsZoom (double zoom)
     room = m_session.views.sectors->GetBounds();
 
     return room.right - room.left >= SectorsView::GetFullWidthPx (zoomed) &&
-           room.bottom - room.top >= zoomed.ToPx (kHeaderLines * SectorsView::kHeaderDip + 16 * SectorsView::kRowDip);
+           room.bottom - room.top >= zoomed.ToPx (SectorsView::kHeaderLines * SectorsView::kHeaderDip + 16 * SectorsView::kRowDip);
 }
 
 

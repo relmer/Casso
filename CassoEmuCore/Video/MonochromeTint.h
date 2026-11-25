@@ -42,6 +42,17 @@ namespace Casso::Video
         return MakePixel (0, l, 0);
     }
 
+    //  The pixel's luminance as a fraction of `fullArgb`, the tube's color
+    //  at full brightness.
+    inline uint32_t TintMonoToColor (uint32_t pixel, uint32_t fullArgb)
+    {
+        float  l = ComputeLuminance (pixel) / 255.0f;
+
+        return MakePixel (static_cast<uint8_t> (((fullArgb >> 16) & 0xFFu) * l),
+                          static_cast<uint8_t> (((fullArgb >>  8) & 0xFFu) * l),
+                          static_cast<uint8_t> (( fullArgb        & 0xFFu) * l));
+    }
+
     inline uint32_t TintAmberMono (uint32_t pixel)
     {
         // P3 phosphor reference: full-luma output ~= rgb(255, 160, 0)

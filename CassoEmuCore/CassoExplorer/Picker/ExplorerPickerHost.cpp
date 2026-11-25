@@ -10,6 +10,7 @@
 #include "CassoExplorer/Picker/ExplorerPickerHost.h"
 #include "CassoExplorer/Picker/PickerPrefs.h"
 #include "CassoExplorer/Picker/PickerShellRoots.h"
+#include "CassoExplorer/Picker/StartupDiskPicker.h"
 #include "Seams/Win32FolderWatcher.h"
 
 
@@ -92,6 +93,7 @@ void ExplorerPickerHost::Prepare (PickerRequest request, const std::string & the
     m_ended   = false;
 
     PickerPrefs::Load (m_baseDir, m_fs, m_request, theme, m_prefs);
+    AddStockDisks();
 
     m_browser = std::make_unique<CassoExplorerBrowser> (m_fs, m_fileIo);
     m_actions = std::make_unique<CassoExplorerActions> (*m_browser, m_fs);
@@ -116,6 +118,35 @@ void ExplorerPickerHost::Prepare (PickerRequest request, const std::string & the
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerPickerHost::AddStockDisks
+//
+//  Nothing is added to a request that has stock or demo disks already.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPickerHost::AddStockDisks()
+{
+    ReceivingDrive  drive = m_request.receivingDrive.value_or (ReceivingDrive { ReceivingDriveKind::Floppy525, 0 });
+    bool            opens = m_request.IsForDrive() || m_request.startInCasso;
+
+
+
+    if (!m_services.listsStockDisks || !opens || !m_request.stockDisks.empty() || !m_request.demoDisks.empty())
+    {
+        return;
+    }
+
+    m_request.stockDisks   = StartupDiskPicker::GetStockDisks (drive);
+    m_request.demoDisks    = StartupDiskPicker::GetDemoDisks (m_fileIo, drive);
+    m_request.onFetchStock = &StartupDiskPicker::FetchStockDisk;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerPickerHost::TryGetStartLocation
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -124,7 +155,7 @@ bool ExplorerPickerHost::TryGetStartLocation (const PickerRequest & request, con
 {
     outLocation = Location();
 
-    if (request.IsForDrive())
+    if (request.IsForDrive() || request.startInCasso)
     {
         outLocation = Location::MakeRoot (TreeModel::kCassoRootId);
     }
@@ -218,13 +249,9 @@ HRESULT ExplorerPickerHost::Open (HINSTANCE instance)
     m_watcher = std::make_unique<Win32FolderWatcher>();
 
     m_browser->GetTreeModel().SetDrives (HostFolderNames::GetDriveRoots());
-    m_browser->GetTreeModel().SetLocalizedNameLookup (&HostFolderNames::GetLocalizedFolderName);
-    m_browser->GetTreeModel().SetDirectoryProbe ([] (const std::wstring & path)
-    {
-        DWORD  attributes = GetFileAttributesW (path.c_str());
-
-        return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
-    });
+    m_browser->GetHostFolders().SetLocalizedNameLookup (&HostFolderNames::GetLocalizedFolderName);
+    m_browser->GetTreeModel().SetDirectoryProbe (&HostFolderNames::IsReadableDirectory);
+    m_browser->GetTreeModel().SetMediaProbe (&HostFolderNames::IsMediaPresent);
 
     m_window = std::make_unique<CassoExplorerWindow> (*m_browser, *m_actions, m_prefs, MakeContext());
 

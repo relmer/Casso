@@ -16,10 +16,12 @@
 ; first the name's length, or zeros when block 2 isn't a volume header.
 ;
 ; Read blocks (CMDBLKREAD): the slot, the unit, the SmartPort flag, the first
-; block (three bytes), the count, the verify flag, and the percentages at the
-; request's start and end. Each block is read, and with verify read again and
-; compared, then sent in a Block data packet (CMDBLKDATA): its number (three
-; bytes), its 512 bytes and their CRC-16/XMODEM, low byte first. Then Status:
+; block (three bytes), the count, the flags (1 to verify, 2 for no CRC), and the
+; percentages at the request's start and end. Each block is read, and with
+; verify read again and compared, then sent in a Block plain packet
+; (CMDBLKPLAIN): its number (three bytes), its 512 bytes and their
+; CRC-16/XMODEM, low byte first, or 0 with no CRC; or, with runs of a byte, in
+; a Block runs packet (CMDBLKRUNS), as sendrle has it. Then Status:
 ; the drive is the slot, the track the unit, the count the blocks done, and
 ; the error the firmware's ($27 I/O error, $28 no device, $2B write
 ; protected, $2F offline) or ERRVERIFY.
@@ -32,6 +34,9 @@
 ;
 ; A firmware call saves the zero page and restores it after, as a card's
 ; firmware may use any of it; $42 to $47 have a ProDOS driver's request.
+; The Disk II's motor is turned off first. It runs on after a floppy
+; operation, and a //c's SmartPort firmware loops until the motor stops
+; before it uses the disk port.
 ; ---------------------------------------------------------------------------
 
 ; CMDBLKLIST and the other commands are assigned ahead of this source by
@@ -42,11 +47,12 @@ ZPBUF      = $6000              ; the zero page during a firmware call
 DEVTAB     = $6100              ; each unit's entry in List's reply
 STBUF      = $6400              ; a SmartPort STATUS's reply
 ENTRYLEN   = 23                 ; an entry: slot, unit, SmartPort, blocks (3), kind, name (16)
+RAMREADY   = $077C              ; $A5 once a //c's RAM disk firmware has set it up
 MAXUNITS   = 32
 TRIES      = 8
 
         .org $5000
-        .byte 'C', 'M', 2, 1    ; block, version 1
+        .byte 'C', 'M', 2, 2    ; block, version 2
         .word PROGVER
         .word modend - $5000
         .word 0                 ; the CRC, which the PC fills in
@@ -74,6 +80,16 @@ bdrv     = $5F                  ; a ProDOS drive being listed
 bcnt     = $60                  ; and $61, $62: a unit's blocks
 bkind    = $63                  ; and its kind
 blen     = $64                  ; and $65: a reply's length, or a block's CRC
+bnocrc   = $66                  ; nonzero when a read's blocks go with no CRC
+btmp     = $67                  ; sendblk: the CRC's low byte between a round's two bytes
+rbyte    = $68                  ; sendrle: a run's byte
+rfrom    = $69                  ; and where it starts in the page
+rpages   = $6A                  ; the packet's whole pages written
+rmode    = $6B                  ; 0 to write at rbase and up, 1 to the one address
+rbase    = $6C                  ; and $6D: where the packet is written
+rsp      = $6E                  ; the stack pointer, for a packet that grows too long
+brun     = $6F                  ; nonzero when the last block read had runs
+RESC     = $DB                  ; the escape byte in Block runs
 
 ; ---------------------------------------------------------------------------
 ; List block devices
@@ -309,10 +325,30 @@ sdend:  lda p_peor
 bread:  lda #p_OPREAD
         jsr bargs
         bcs brdone
+        lda #0
+        sta brun
 brloop: lda p_index
         cmp p_count
         beq brdone
-        lda #<BLKBUF
+        lda bvfy                ; a read goes into the datagram, except with verify
+        ora brun                ; or after a block with runs, as the next likely has them
+        bne brbuf
+        jsr p_rawbeg
+        bcs brbuf
+        sta rbase
+        sty rbase+1
+        clc
+        adc #8                  ; past the envelope and the block number
+        sta bptr
+        tya
+        adc #0
+        sta bptr+1
+        lda #1
+        jsr devio
+        bcs brfail
+        jsr sendraw
+        jmp brnext
+brbuf:  lda #<BLKBUF
         sta bptr
         lda #>BLKBUF
         sta bptr+1
@@ -323,8 +359,11 @@ brloop: lda p_index
         beq brsend
         jsr reread
         bcs brfail
-brsend: jsr sendblk
-        jsr p_pollcancel
+brsend: lda #<BLKBUF
+        ldy #>BLKBUF
+        jsr setsrc
+        jsr sendrle
+brnext: jsr p_pollcancel
         jsr nextblk
         jmp brloop
 brfail: sta p_err
@@ -395,7 +434,18 @@ bargs:  sta p_op
         lda p_PKTBUF+6
         sta p_count
         lda p_PKTBUF+7
+        and #1
         sta bvfy
+        lda p_PKTBUF+7
+        and #2
+        sta bnocrc
+        lda #$2C                ; BIT abs: each CRC update is run
+        ldx bnocrc
+        beq bacrc
+        lda #$4C                ; JMP abs: and with no CRC, passed over
+bacrc:  sta srfcrc
+        sta srecrc
+        sta spcrc
         lda p_PKTBUF+8
         sta p_plo
         lda p_PKTBUF+9
@@ -450,44 +500,535 @@ rrbad:  lda #p_ERRVERIFY
         sec
         rts
 
-; sendblk: Block data with bblk and BLKBUF's 512 bytes and their CRC.
-sendblk: ldx #0
+; sendblk: Block plain with bblk, BLKBUF's 512 bytes and their CRC, or 0 for
+; a read with no CRC. The CRC is found two bytes a round, by the tables
+; inline. Block plain's EOR isn't checked, so it is 0, and the block is put
+; whole by putblk.
+sendblk: lda #0
+        sta p_crclo
+        sta p_crchi
+        lda bnocrc
+        bne sbsend
+        jsr blkcrc
+        jmp sbsend
+
+; blkcrc: the CRC of the block at the address setsrc set, two bytes a round,
+; into crclo and crchi.
+blkcrc: ldy #0
+sblo:
+sbl0:   lda BLKBUF,y
+        eor p_crchi
+        tax
+        lda p_CRCLO,x
+        sta btmp
+        lda p_crclo
+        eor p_CRCHI,x
+sbl1:   eor BLKBUF+1,y
+        tax
+        lda btmp
+        eor p_CRCHI,x
+        sta p_crchi
+        lda p_CRCLO,x
+        sta p_crclo
+        iny
+        iny
+        bne sblo
+sbhi:
+sbh0:   lda BLKBUF+256,y
+        eor p_crchi
+        tax
+        lda p_CRCLO,x
+        sta btmp
+        lda p_crclo
+        eor p_CRCHI,x
+sbh1:   eor BLKBUF+257,y
+        tax
+        lda btmp
+        eor p_CRCHI,x
+        sta p_crchi
+        lda p_CRCLO,x
+        sta p_crclo
+        iny
+        iny
+        bne sbhi
+        rts
+sbsend: lda bblk
+        sta bknum
+        lda bblk+1
+        sta bknum+1
+        lda bblk+2
+        sta bknum+2
+        ldx #0
 sbhdr:  lda blkhdr,x
         jsr p_putb
         inx
-        cpx #5
+        cpx #8
         bne sbhdr
+        lda #>BLKBUF
+        jsr p_putblk
+        lda p_crclo
+        jsr p_putb
+        lda p_crchi
+        jsr p_putb
         lda #0
-        sta p_peor
+        jmp p_putb
+
+; blkhdr: Block plain's envelope, then the block number, which sendblk
+; writes into it.
+blkhdr: .byte $C1, <517, >517, CMDBLKPLAIN, $C1 ^ <517 ^ >517 ^ CMDBLKPLAIN
+bknum:  .byte 0, 0, 0
+
+; setsrc: the block's bytes at A (low) and Y (high) for hasruns and blkcrc,
+; set in their code.
+setsrc: sta smp0+1
+        sta sbl0+1
+        sty smp0+2
+        sty sbl0+2
+        iny
+        sta smp2+1
+        sta sbh0+1
+        sty smp2+2
+        sty sbh0+2
+        dey
+        clc
+        adc #1
+        bcc ssnext
+        iny
+ssnext: sta smp1+1
+        sta sbl1+1
+        sty smp1+2
+        sty sbl1+2
+        iny
+        sta smp3+1
+        sta sbh1+1
+        sty smp3+2
+        sty sbh1+2
+        rts
+
+; sendraw: the block read into the datagram at rbase, past its envelope and
+; number, sent there as Block plain. With runs where hasruns looks, it is
+; copied to BLKBUF and sent as sendrle sends it.
+sendraw: lda bptr
+        ldy bptr+1
+        jsr setsrc
+        jsr hasruns
+        bcc srwhole
+        lda #1
+        sta brun
+        jsr cpblk
+        lda #<BLKBUF
+        ldy #>BLKBUF
+        jsr setsrc
+        jmp srtry
+srwhole: lda #0
+        sta p_crclo
+        sta p_crchi
+        lda bnocrc
+        bne srwnum
+        jsr blkcrc
+srwnum: lda bblk
+        sta bknum
+        lda bblk+1
+        sta bknum+1
+        lda bblk+2
+        sta bknum+2
+        ldy #7
+srwhdr: lda blkhdr,y
+        sta (rbase),y
+        dey
+        bpl srwhdr
+        inc bptr+1              ; the CRC and EOR after the block's 512 bytes
+        inc bptr+1
+        ldy #0
+        lda p_crclo
+        sta (bptr),y
+        iny
+        lda p_crchi
+        sta (bptr),y
+        iny
+        lda #0
+        sta (bptr),y
+        dec bptr+1
+        dec bptr+1
+        lda #<523
+        sta p_rletot
+        lda #>523
+        sta p_rletot+1
+        jmp p_rleend
+
+; cpblk: the block at bptr copied to BLKBUF.
+cpblk:  ldy #0
+cplo:   lda (bptr),y
+        sta BLKBUF,y
+        iny
+        bne cplo
+        inc bptr+1
+cphi:   lda (bptr),y
+        sta BLKBUF+256,y
+        iny
+        bne cphi
+        dec bptr+1
+        rts
+
+; sendrle: Block runs with bblk and BLKBUF's bytes, the packet written whole
+; where rlebeg returns. Each byte is sent as it is, a run of n + 4 of a byte
+; within a page as RESC, n and the byte, and a RESC alone as RESC, $FF. The CRC
+; is of the block number and the bytes as sent, and the packet's EOR is 0,
+; which the PC doesn't check for Block runs. One pass finds the runs and the
+; CRC and writes the packet, with each store's address set in the code. With no
+; place to write, or a packet that would pass three pages, the block is sent
+; as Block data instead. So is a block with no two bytes alike at any of 32
+; places 16 bytes apart, since looking for runs in it would cost more than
+; they save.
+sendrle: jsr hasruns
+        lda #0
+        rol a
+        sta brun
+        bne srtry
+        jmp sendblk
+
+; hasruns: the carry set when the block at the address setsrc set has two
+; bytes alike at any of 32 places 16 bytes apart.
+hasruns: ldx #0
+srsamp:
+smp0:   lda BLKBUF,x
+smp1:   cmp BLKBUF+1,x
+        beq srhas
+smp2:   lda BLKBUF+256,x
+smp3:   cmp BLKBUF+257,x
+        beq srhas
+        txa
+        clc
+        adc #16
+        tax
+        bne srsamp
+        clc
+        rts
+srhas:  sec
+        rts
+srtry:  jsr p_rlebeg
+        bcc srgo
+        jmp srbyput
+srgo:   sta rbase
+        sty rbase+1
+        stx rmode
+        sta srst+1
+        sty srst+2
+        sta srfast+1
+        sty srfast+2
+        lda #$9D                ; STA abs,X: up from the address
+        cpx #0
+        beq srop
+        lda #$8D                ; STA abs: the one address
+srop:   sta srst
+        sta srfast
+        tsx
+        stx rsp
+        lda #0
+        sta rpages
+        sta p_crclo
+        sta p_crchi
+        tax
+        lda #$C1                ; the envelope, its length and check set after
+        jsr srout
+        lda #0
+        jsr srout
+        jsr srout
+        lda #CMDBLKRUNS
+        jsr srout
+        lda #0
+        jsr srout
+        lda bblk
+        jsr sremit
+        lda bblk+1
+        jsr sremit
+        lda bblk+2
+        jsr sremit
+        lda #>BLKBUF
+        jsr srpagein
+        lda #>(BLKBUF+256)
+        jsr srpagein
+        lda p_crclo
+        jsr srout
+        lda p_crchi
+        jsr srout
+        lda #0
+        jsr srout
+        stx p_rletot
+        lda rpages
+        sta p_rletot+1
+        txa                     ; the payload: all but the envelope and EOR
+        sec
+        sbc #6
+        sta p_rlehdr
+        lda rpages
+        sbc #0
+        sta p_rlehdr+1
+        lda #CMDBLKRUNS
+        sta p_rlehdr+2
+        eor #$C1
+        eor p_rlehdr
+        eor p_rlehdr+1
+        sta p_rlehdr+3
+        lda rmode
+        bne srsend
+        ldy #1
+        lda p_rlehdr
+        sta (rbase),y
+        iny
+        lda p_rlehdr+1
+        sta (rbase),y
+        ldy #4
+        lda p_rlehdr+3
+        sta (rbase),y
+srsend: jmp p_rleend
+
+; srpagein: the page in A of the block, as its bytes and runs.
+srpagein: sta srsrc+2
+        sta srnext+2
+        sta srrcmp+2
+        ldy #0
+srloop:
+srsrc:  lda BLKBUF,y
+srnext: cmp BLKBUF+1,y
+        beq srrun
+        cmp #RESC
+        beq sresc
+srfast: sta $FFFF,x             ; a byte as it is, with its CRC inline
+srfcrc: bit srfnext               ; a JMP with no CRC
+        eor p_crchi
+        sta srfh+1
+        sta srfl+1
+        lda p_crclo
+srfh:   eor p_CRCHI
+        sta p_crchi
+srfl:   lda p_CRCLO
+        sta p_crclo
+srfnext: inx
+        bne srfx
+        jsr srpage
+srfx:   iny
+        bne srloop
+        rts
+sresc:  jsr sremit
+        lda #$FF
+        jsr sremit
+        jmp srfx
+srrun:  sta rbyte
+        sty rfrom
+srrl:   iny
+        beq srrend
+srrcmp: cmp BLKBUF,y
+        beq srrl
+srrend: tya                     ; the run's length, 0 for the whole page
+        sec
+        sbc rfrom
+        beq srlong
+        cmp #4
+        bcs srlong
+        sta rfrom               ; under 4: each byte as it is
+srshort: lda rbyte
+        cmp #RESC
+        bne srsone
+        jsr sremit
+        lda #$FF
+srsone: jsr sremit
+        dec rfrom
+        bne srshort
+        beq srrdone             ; always
+srlong: sec
+        sbc #4
+        pha
+        lda #RESC
+        jsr sremit
+        pla
+        jsr sremit
+        lda rbyte
+        jsr sremit
+srrdone: cpy #0
+        bne srloop
+        rts
+
+; sremit: A at the packet's next byte, with its CRC. Y is kept.
+sremit:
+srecrc: bit srout                 ; a JMP with no CRC
+        pha
+        eor p_crchi
+        sta srch+1
+        sta srcl+1
+        lda p_crclo
+srch:   eor p_CRCHI
+        sta p_crchi
+srcl:   lda p_CRCLO
+        sta p_crclo
+        pla
+        ; falls through
+
+; srout: A at the packet's next byte. Y is kept.
+srout:
+srst:   sta $FFFF,x
+        inx
+        bne sroret
+        jsr srpage
+sroret: rts
+
+; srpage: a page of the packet written. Past three, the block is sent as
+; Block data, from sendrle's caller.
+srpage: inc rpages
+        lda rpages
+        cmp #3
+        bcs srtoo
+        lda rmode
+        bne srpgret
+        inc srst+2
+        inc srfast+2
+srpgret: rts
+srtoo:  ldx rsp
+        txs
+        jmp sendblk
+
+; RLEOUT: a byte of Block runs, A. With \1 0 it is counted, in X and rpages;
+; with \1 1 it is sent through putb with its CRC. A, X and Y are kept.
+RLEOUT  macro
+        local   rocount
+        if \1
+        jsr srput1
+        else
+        inx
+        bne rocount
+        inc rpages
+rocount:
+        endif
+        endm
+
+; RLEPG: the page in A of the block as Block runs, each byte through RLEOUT
+; with \1, as srpagein finds them.
+RLEPG   macro
+        local   pgsrc, pgnext, pgrcmp, pgloop, pgx, pgesc, pgrun, pgrl, pgrend, pgshort, pgsone, pglong, pgrdone
+        sta pgsrc+2
+        sta pgnext+2
+        sta pgrcmp+2
+        ldy #0
+pgloop:
+pgsrc:  lda BLKBUF,y
+pgnext: cmp BLKBUF+1,y
+        beq pgrun
+        cmp #RESC
+        beq pgesc
+        RLEOUT \1
+pgx:    iny
+        bne pgloop
+        rts
+pgesc:  RLEOUT \1
+        lda #$FF
+        RLEOUT \1
+        jmp pgx
+pgrun:  sta rbyte
+        sty rfrom
+pgrl:   iny
+        beq pgrend
+pgrcmp: cmp BLKBUF,y
+        beq pgrl
+pgrend: tya
+        sec
+        sbc rfrom
+        beq pglong
+        cmp #4
+        bcs pglong
+        sta rfrom
+pgshort: lda rbyte
+        cmp #RESC
+        bne pgsone
+        RLEOUT \1
+        lda #$FF
+pgsone: RLEOUT \1
+        dec rfrom
+        bne pgshort
+        beq pgrdone             ; always
+pglong: sec
+        sbc #4
+        pha
+        lda #RESC
+        RLEOUT \1
+        pla
+        RLEOUT \1
+        lda rbyte
+        RLEOUT \1
+pgrdone: cpy #0
+        bne pgloop
+        rts
+        endm
+
+; srbyput: Block runs through putb, for a transport with no place to write a
+; packet whole: the 6551, the cassette, and a build with faults. The runs are
+; counted first, since the envelope's length comes ahead of them; with no
+; bytes saved, the block is sent as Block data.
+srbyput: ldx #0
+        stx rpages
+        lda #>BLKBUF
+        jsr rlecount
+        lda #>(BLKBUF+256)
+        jsr rlecount
+        lda rpages
+        cmp #2
+        bcc sbsave
+        jmp sendblk
+sbsave: txa                     ; the payload: the block number, the bytes, the CRC
+        clc
+        adc #5
+        sta p_rlehdr
+        lda rpages
+        adc #0
+        sta p_rlehdr+1
+        lda #$C1
+        jsr p_putb
+        lda p_rlehdr
+        jsr p_putb
+        lda p_rlehdr+1
+        jsr p_putb
+        lda #CMDBLKRUNS
+        jsr p_putb
+        eor #$C1
+        eor p_rlehdr
+        eor p_rlehdr+1
+        jsr p_putb
+        lda #0
         sta p_crclo
         sta p_crchi
         lda bblk
-        jsr p_putpe
+        jsr srput1
         lda bblk+1
-        jsr p_putpe
+        jsr srput1
         lda bblk+2
-        jsr p_putpe
-        ldy #0
-sblo:   lda BLKBUF,y
-        jsr p_crcupd
-        lda BLKBUF,y
-        jsr p_putpe
-        iny
-        bne sblo
-sbhi:   lda BLKBUF+256,y
-        jsr p_crcupd
-        lda BLKBUF+256,y
-        jsr p_putpe
-        iny
-        bne sbhi
+        jsr srput1
+        lda #>BLKBUF
+        jsr rlesend
+        lda #>(BLKBUF+256)
+        jsr rlesend
         lda p_crclo
-        jsr p_putpe
+        jsr p_putb
         lda p_crchi
-        jsr p_putpe
-        lda p_peor
+        jsr p_putb
+        lda #0
         jmp p_putb
 
-blkhdr: .byte $C1, <517, >517, CMDBLKDATA, $C1 ^ <517 ^ >517 ^ CMDBLKDATA
+rlecount: RLEPG 0
+rlesend: RLEPG 1
+
+; srput1: A through putb, with its CRC. X and Y are kept.
+srput1:
+spcrc:  bit p_putb                ; a JMP with no CRC
+        pha
+        eor p_crchi
+        sta sph+1
+        sta spl+1
+        lda p_crclo
+sph:    eor p_CRCHI
+        sta p_crchi
+spl:    lda p_CRCLO
+        sta p_crclo
+        pla
+        jmp p_putb
 
 ; getblk: the host's Block data for bblk into BLKBUF. C is set on a
 ; timeout, a packet that isn't Block data, another block or a failed CRC. The
@@ -555,7 +1096,10 @@ gbfail: sec
 ; ---------------------------------------------------------------------------
 
 ; isblock: C clear when bslot's firmware is a block device's, with A
-; 0 for a SmartPort and nonzero for a ProDOS driver alone.
+; 0 for a SmartPort and nonzero for a ProDOS driver alone. A //c's slot 4 is
+; its memory card's RAM disk, and is passed over until the RAM disk is set
+; up: the firmware's first call sizes the card and formats the RAM disk, and
+; with no card that format never ends.
 isblock: lda bslot
         ora #$C0
         sta bptr+1
@@ -577,7 +1121,18 @@ isblock: lda bslot
         beq ibno                ; a Disk II
         cmp #$FF
         beq ibno                ; a 13-sector Disk II
-        ldy #7
+        lda bslot
+        cmp #4
+        bne ibfw
+        lda p_readyrom          ; a //c has $06 at $FBB3 and $00 at $FBC0
+        cmp #$06
+        bne ibfw
+        lda p_readyrom+1
+        bne ibfw
+        lda RAMREADY
+        cmp #$A5
+        bne ibno                ; a //c's RAM disk that isn't set up
+ibfw:   ldy #7
         lda (bptr),y
         beq ibsp
         lda #1
@@ -646,6 +1201,7 @@ spstat: sta splist+4
 ; bptr. C is set with the error in A; after STATUS, X and Y have
 ; the block count, low byte first.
 pdcall: sta fwcmd
+        jsr p_motoroff
         jsr zpsave
         lda fwcmd
         sta $42
@@ -675,6 +1231,7 @@ pdjmp:  jmp $C000               ; patched: the ProDOS entry
 
 ; spcall: the SmartPort command A with splist.
 spcall: sta spcmd
+        jsr p_motoroff
         jsr zpsave
         php
         sei
@@ -698,16 +1255,34 @@ fwdone: sta fwres
         ldy fwy
         rts
 
-; zpsave and zprest: the zero page into ZPBUF and back.
+; zpsave and zprest: the zero page into ZPBUF and back, four bytes a round.
 zpsave: ldx #0
 zsloop: lda $00,x
         sta ZPBUF,x
+        lda $01,x
+        sta ZPBUF+1,x
+        lda $02,x
+        sta ZPBUF+2,x
+        lda $03,x
+        sta ZPBUF+3,x
+        inx
+        inx
+        inx
         inx
         bne zsloop
         rts
 zprest: ldx #0
 zrloop: lda ZPBUF,x
         sta $00,x
+        lda ZPBUF+1,x
+        sta $01,x
+        lda ZPBUF+2,x
+        sta $02,x
+        lda ZPBUF+3,x
+        sta $03,x
+        inx
+        inx
+        inx
         inx
         bne zrloop
         rts

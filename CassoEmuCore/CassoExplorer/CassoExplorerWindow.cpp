@@ -11,12 +11,15 @@
 #include "resource.h"
 #include "CassoExplorer/CassoExplorerNamedControl.h"
 #include "CassoExplorer/Picker/ExplorerPickerHost.h"
+#include "CassoExplorer/Picker/PickerRequest.h"
 #include "Seams/CassoHostDialogs.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
 #include "CassoExplorer/Model/IFolderWatcher.h"
 #include "CassoExplorer/Model/FolderWatch.h"
 #include "Core/AppTimerIds.h"
 #include "Core/AppMessages.h"
+#include "Ui/DiskInspector/IDiskInspectorHost.h"
+#include "CassoExplorer/Window/Managers/ExplorerVerbs.h"
 
 #pragma comment(lib, "winmm.lib")
 
@@ -85,8 +88,9 @@ ExplorerServices CassoExplorerWindow::MakeServices()
 
 HRESULT CassoExplorerWindow::RunModalPicker (HWND owner, PickerRequest request, PickerOutcome & outOutcome)
 {
-    HRESULT             hr = S_OK;
-    ExplorerPickerHost  host (*m_context.fs, m_browser.GetFileIo(), m_context.baseDir);
+    HRESULT                       hr       = S_OK;
+    ExplorerPickerHost::Services  services = { .listsStockDisks = true };
+    ExplorerPickerHost            host (*m_context.fs, m_browser.GetFileIo(), m_context.baseDir, services);
 
 
 
@@ -111,6 +115,8 @@ HRESULT CassoExplorerWindow::RunModalPicker (HWND owner, PickerRequest request, 
 
 CassoExplorerWindow::~CassoExplorerWindow()
 {
+    EndFastClock();
+
     if (m_context.running != nullptr && m_context.watcher != nullptr)
     {
         m_context.watcher->Unwatch (m_context.running->GetFolder());
@@ -158,7 +164,7 @@ HRESULT CassoExplorerWindow::Open (HINSTANCE instance, const std::wstring & titl
     params.title                    = title;
     params.hInstance                = instance;
     params.initialSizeDip           = { CassoExplorerShell::kDefaultWidthDip, CassoExplorerShell::kDefaultHeightDip };
-    params.minSizeDip               = { kMinWindowWidthDip, 400 };
+    params.minSizeDip               = (m_context.picker != nullptr) ? SIZE { kMinPickerWidthDip, kMinPickerHeightDip } : SIZE { kMinWindowWidthDip, 400 };
     params.resizable                = true;
     params.insetContentBelowCaption = true;
     params.classNameOverride        = ExplorerWindowFinder::GetWindowClass();
@@ -461,9 +467,57 @@ void CassoExplorerWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
     painter.FillRect ((float) bounds.left, (float) top,
                       (float) (bounds.right - bounds.left), (float) (bounds.bottom - top), theme.Background());
 
+    //  A save form's bar under the list is lighter, as in the standard Save
+    //  As dialog.
+    if (m_parts->context.app.picker != nullptr && m_parts->context.app.picker->IsSave())
+    {
+        RECT  rect = m_parts->layout.GetPickerBand().GetBounds();
+
+        painter.FillRect ((float) rect.left, (float) rect.top, (float) (rect.right - rect.left), (float) (rect.bottom - rect.top),
+                          DxuiColor::Mix (theme.Background(), theme.Foreground(), s_kSavePickerBarTint));
+    }
+
+    PaintResizeEdge (painter, theme);
     m_parts->preview.PaintBackground (painter, theme);
 
     DxuiWindow::Paint (painter, text, theme);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::PaintResizeEdge
+//
+//  The panes stop short of the resize band along the right edge, and along
+//  the bottom under an expanded preview. That band gets the color of the
+//  pane beside it, so no lighter stripe runs down the window's edge.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::PaintResizeEdge (IDxuiPainter & painter, const IDxuiTheme & theme) const
+{
+    RECT      body    = m_parts->layout.GetBodyBand().GetBounds();
+    RECT      pane    = m_parts->preview.GetRect();
+    bool      preview = m_parts->preview.IsShown() && pane.right > pane.left;
+    uint32_t  color   = preview ? ExplorerPreviewManager::GetBackground (theme) : theme.ContentBackground();
+    int       edgePx  = GetPopupHost() != nullptr ? GetPopupHost()->GetResizeBorderPx() : 0;
+
+
+
+    if (edgePx <= 0 || body.right <= body.left || body.bottom <= body.top)
+    {
+        return;
+    }
+
+    painter.FillRect ((float) (body.right - edgePx), (float) body.top, (float) edgePx, (float) (body.bottom - body.top), color);
+
+    if (preview && pane.bottom < body.bottom)
+    {
+        painter.FillRect ((float) body.left, (float) pane.bottom, (float) (body.right - body.left), (float) (body.bottom - pane.bottom), color);
+    }
 }
 
 
@@ -787,6 +841,29 @@ void CassoExplorerWindow::SelectInFolder (const std::wstring & path)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::TransferRaw
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::TransferRaw (HWND owner, const std::wstring & path, const InspectorRawTransfer & transfer)
+{
+    CassoExplorerRawDialog::Outcome  initial;
+
+
+
+    initial.start     = transfer.start;
+    initial.sector    = transfer.sector;
+    initial.numbering = transfer.isPhysical ? DiskOperations::Numbering::Physical : DiskOperations::Numbering::Logical;
+
+    m_parts->verbs.RunRawTransfer (owner, path, transfer.isSectors, transfer.isSave, initial);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::OpenPathInNewTab
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -856,10 +933,17 @@ DxuiMessageResult CassoExplorerWindow::OnCopyData (WPARAM sender, LPARAM data)
 //
 //  CassoExplorerWindow::OnAppMessage
 //
+//  A command or a worker's result often changes several panes, so the
+//  window is painted once, after the message.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LPARAM lParam)
 {
+    PaintBatch  batch (*this);
+
+
+
     if (msg == (UINT) AppMessage::ExplorerLaunch)
     {
         std::vector<std::wstring>  launches = std::move (m_pendingLaunches);
@@ -1005,7 +1089,8 @@ int64_t CassoExplorerWindow::GetNowMs()
 
 DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
 {
-    bool  barsMoved = false;
+    PaintBatch  batch     (*this);
+    bool        barsMoved = false;
 
 
 
@@ -1041,7 +1126,8 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
     //  goes.
     barsMoved = ((int) m_parts->preview.TickScrollbars (GetNowMs())
                | (int) m_parts->listPane.Tick (GetNowMs())
-               | (int) m_parts->treePane.TickScrollbars (GetNowMs())) != 0;
+               | (int) m_parts->treePane.TickScrollbars (GetNowMs())
+               | (int) m_parts->statusBar.Tick (GetNowMs())) != 0;
 
     //  Tabs slide apart for a dragged tab and back together after it.
     barsMoved = barsMoved || m_parts->tabManager.IsSliding();
@@ -1058,6 +1144,7 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
         ExplorerPane  focus   = m_parts->input.GetFocusPane();
         bool          caretOn = (focus == ExplorerPane::LocationSearch) ? m_parts->addressBar.IsCaretOn()
                               : (focus == ExplorerPane::PickerName)     ? m_parts->pickerBar.IsCaretOn()
+                              : (focus == ExplorerPane::PickerSearch)   ? m_parts->pickerSearch.IsCaretOn()
                                                                         : m_parts->preview.GetFind().IsCaretOn (focus);
 
         if (caretOn != m_caretOn)
@@ -1072,6 +1159,7 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
     {
         KillTimer (GetHwnd(), (UINT_PTR) AppTimerId::ExplorerTooltip);
         m_tickArmed = false;
+        EndFastClock();
     }
 
     //  Not handled, so the host does not repaint after every tick: the work
@@ -1097,7 +1185,39 @@ void CassoExplorerWindow::ArmTick()
 {
     if (!m_tickArmed && GetHwnd() != nullptr)
     {
+        //  Windows times a timer to its clock's tick, 15.6 ms by default, so a
+        //  16 ms timer waits for the second tick and frames come every 31 ms,
+        //  unevenly. The clock runs at 1 ms while the tick runs.
+        if (!m_isClockFast)
+        {
+            m_isClockFast = timeBeginPeriod (kClockMs) == TIMERR_NOERROR;
+        }
+
         m_tickArmed = SetTimer (GetHwnd(), (UINT_PTR) AppTimerId::ExplorerTooltip, kTooltipTickMs, nullptr) != 0;
+
+        if (!m_tickArmed)
+        {
+            EndFastClock();
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::EndFastClock
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::EndFastClock()
+{
+    if (m_isClockFast)
+    {
+        timeEndPeriod (kClockMs);
+        m_isClockFast = false;
     }
 }
 
@@ -1117,7 +1237,7 @@ bool CassoExplorerWindow::IsTickWanted() const
         || m_parts->toolbars.IsMenuOpen() || m_parts->preview.GetToolbar().IsMenuOpen()
         || m_parts->toolbars.WantsTick() || m_parts->preview.GetToolbar().WantsTick()
         || GetPopupHost()->GetContextMenu().IsVisible() || GetPopupHost()->GetContextMenu().WantsTick()
-        || m_parts->input.HasCaretFocus();
+        || m_parts->input.HasCaretFocus() || m_parts->statusBar.IsZoomShown() || m_parts->preview.GetText().IsPinging();
 }
 
 

@@ -94,6 +94,10 @@ public:
     //  The bit of Status's drive byte that marks a write-protected disk.
     static constexpr Byte  kStatusWriteProtected = 0x40;
 
+    //  The bit for a drive whose disk has 13-sector address fields, which a
+    //  read for 16 sectors passes over.
+    static constexpr Byte  kStatusThirteenSector = 0x20;
+
     static constexpr Byte  kCancel        = 0xD1;
     static constexpr Byte  kLabel         = 0xDC;
     static constexpr Byte  kLog           = 0xDD;
@@ -134,6 +138,8 @@ public:
     static constexpr Byte  kKeyEscape     = 0x9B;
     static constexpr Byte  kKeyLeft       = 0x88;
     static constexpr Byte  kKeyDelete     = 0xFF;
+    static constexpr Byte  kKeyRawDrive1  = 0x01;     // pressed on the PC, never sent by the Apple
+    static constexpr Byte  kKeyRawDrive2  = 0x02;
     static constexpr Byte  kWaitKeys      = 0x00;
     static constexpr Byte  kWaitTyped     = 0x01;
 
@@ -171,6 +177,22 @@ public:
     static constexpr Byte    kBlockData       = 0xF1;
     static constexpr Byte    kWriteBlocks     = 0xF2;
     static constexpr size_t  kBlockSize       = 512;
+
+    //  A read's blocks come as Block plain, Block data's fields with no EOR
+    //  check, or Block runs. In both, a read asked for with no CRC
+    //  (kBlockNoCrc in the request's flags) has 0 for its CRC, which isn't
+    //  checked. Block runs: the block, its bytes with each run
+    //  of 4 or more of a byte as kRunEscape, the run's length less 4 and the
+    //  byte, and a kRunEscape alone as kRunEscape and kRunLiteral, then the
+    //  CRC of the block and the bytes as sent. The CRC covers the payload, so
+    //  its EOR is 0 and isn't checked.
+    static constexpr Byte    kBlockRuns       = 0xF8;
+    static constexpr Byte    kBlockPlain      = 0xF9;
+    static constexpr Byte    kRunEscape       = 0xDB;
+    static constexpr Byte    kRunLiteral      = 0xFF;
+    static constexpr size_t  kRunMinimum      = 4;
+    static constexpr Byte    kBlockVerify     = 0x01;
+    static constexpr Byte    kBlockNoCrc      = 0x02;
 
     //  The 13-sector module's Write nibble track: the drive, the track and the
     //  stream's length; an Acknowledge requests the stream, in a Nibble data
@@ -213,6 +235,9 @@ public:
 
     //  The longest Log text the program draws, after the time.
     static constexpr size_t  kLogLength   = 34;
+
+    //  The same in 80 columns.
+    static constexpr size_t  kWideLogLength = 74;
 
     // Acknowledgement kinds.
     static constexpr Byte  kAck          = 0x06;
@@ -285,6 +310,8 @@ public:
         { kReadBlocks,    "CMDBLKREAD"  },
         { kBlockData,     "CMDBLKDATA"  },
         { kWriteBlocks,   "CMDBLKWRITE" },
+        { kBlockRuns,     "CMDBLKRUNS"  },
+        { kBlockPlain,    "CMDBLKPLAIN" },
         { kWriteNibbleTrack, "CMDWNIBS"  },
         { kNibbleData,    "CMDNIBDATA"  },
         { kReadThirteenTrack, "CMDRD13" },
@@ -309,8 +336,14 @@ public:
     // is checked.
     static HRESULT   ParseSectorData   (const CassoLinkPacket & packet, Byte & outTrack, Byte & outSector, std::span<Byte> outData);
 
+    // The block and its 512 bytes from a Block data, Block plain or Block runs
+    // packet, with its CRC checked when `checkCrc` is set. ERROR_INVALID_DATA
+    // for any other packet or one that doesn't decode to a whole block, and
+    // ERROR_CRC for a failed CRC.
+    static HRESULT   ParseBlock        (const CassoLinkPacket & packet, bool checkCrc, uint32_t & outBlock, std::vector<Byte> & outData);
+
     // Sector nibbles: the track, the sector, its data field's 343 nibbles as
-    // NibblizationLayer encodes them, and their CRC. Write sectors sends
+    // DiskFieldFormat encodes them, and their CRC. Write sectors sends
     // these, so the Apple writes them as they are rather than encoding them.
     static HRESULT   EncodeSectorNibbles (Byte track, Byte sector, std::span<const Byte> data, std::vector<Byte> & out);
     static HRESULT   ParseSectorNibbles  (const CassoLinkPacket & packet, Byte & outTrack, Byte & outSector, std::span<Byte> outData);

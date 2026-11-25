@@ -238,6 +238,24 @@ public:
         return MeasureString (text, fontSizeDip, fontFamily, outWidthDip, outHeightDip);
     }
 
+    // A single line's height and its baseline below the line's top, for
+    // text that has to sit on another text's baseline. A renderer that has
+    // no font metrics returns E_NOTIMPL, and the caller centers the text.
+    virtual HRESULT  GetLineMetrics (float            fontSizeDip,
+                                     const wchar_t  * fontFamily,
+                                     DxuiFontWeight   weight,
+                                     float          & outHeightDip,
+                                     float          & outBaselineDip)
+    {
+        UNREFERENCED_PARAMETER (fontSizeDip);
+        UNREFERENCED_PARAMETER (fontFamily);
+        UNREFERENCED_PARAMETER (weight);
+
+        outHeightDip   = 0.0f;
+        outBaselineDip = 0.0f;
+        return E_NOTIMPL;
+    }
+
     // Word-wrapped measurement inside maxWidthDip: outWidthDip is the widest
     // wrapped line, outHeightDip the stacked line height -- the box a
     // wrapping DrawString of the same text needs. The default forwards to

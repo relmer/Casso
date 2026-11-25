@@ -84,13 +84,17 @@ ExplorerWindowParts::ExplorerWindowParts (IExplorerWindow             & window,
                  .folderSync       = folderSync,
                  .cassoLinkManager = cassoLinkManager,
                  .linkDrives       = linkDrives,
+                 .linkListActions  = linkListActions,
                  .fullSendWindows  = fullSendWindows,
+                 .linkJobs         = linkJobs,
                  .dragDrop         = dragDrop,
                  .tabManager       = tabManager,
                  .preview          = preview,
                  .addressBar       = addressBar,
                  .menus            = menus,
                  .commandManager   = commandManager,
+                 .verbs            = verbs,
+                 .imageTools       = imageTools,
                  .clipboard          = clipboard,
                  .prompts          = prompts,
                  .deletion         = deletion,
@@ -107,7 +111,8 @@ ExplorerWindowParts::ExplorerWindowParts (IExplorerWindow             & window,
                  .toolbars         = toolbars,
                  .treePane         = treePane,
                  .pickerMode       = pickerMode,
-                 .pickerBar        = pickerBar }
+                 .pickerBar        = pickerBar,
+                 .pickerSearch     = pickerSearch }
 {
 }
 
@@ -154,7 +159,7 @@ void ExplorerWindowParts::CreateControls()
 
     treePane.Create();
     listPane.Create();
-    cassoLinkManager.CreateListActions();
+    linkListActions.CreateListActions();
     preview.Create();
     treeSplitter    = window.CreateChild<CassoExplorerNamedControl<DxuiSplitter>>();
     previewSplitter = window.CreateChild<CassoExplorerNamedControl<DxuiSplitter>>();
@@ -165,6 +170,7 @@ void ExplorerWindowParts::CreateControls()
     layout.SetSplitters (treeSplitter, previewSplitter);
     statusBar.Create();
     pickerBar.Create();
+    pickerSearch.Create();
     tabManager.Create();
     toolbars.CreateNavBar();
     addressBar.Create();
@@ -222,8 +228,8 @@ void ExplorerWindowParts::Configure()
     services.shellIcons->SetSizePx (MulDiv (DxuiTreeView::s_kIconDip, dpi, (int) DxuiDpiScaler::kBaseDpi));
     context.browser.SetShellIcons (services.shellIcons.get());
     context.browser.SetShellVerbs (services.shellVerbs.get());
-    context.browser.SetPreviewMonitor (preview.GetPicture().GetMonitor(), context.prefs.previewCustomArgb);
-    context.browser.SetDefaultDecodeOptions (context.prefs.copyOptions);
+    context.browser.GetPreviewer().GetMonitorChoice().SetPreviewMonitor (preview.GetPicture().GetMonitor(), context.prefs.previewCustomArgb);
+    context.browser.GetPreviewer().GetViewState().SetDefaultDecodeOptions (context.prefs.copyOptions);
     explorerOptions = FolderOptions::ReadFromShell();
     context.browser.SetFolderOptions (explorerOptions);
     treePane.ApplyNavPaneOptions();
@@ -276,27 +282,21 @@ bool ExplorerWindowParts::HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lPar
         return true;
     }
 
-    if (msg == (UINT) AppMessage::ExplorerCardWrite)
-    {
-        *(bool *) wParam = opener.ConfirmCardWrite (*(const std::wstring *) lParam);
-        return true;
-    }
-
     if (msg == (UINT) AppMessage::ExplorerCardProgress)
     {
         opener.HandleCardProgress();
         return true;
     }
 
-    if (msg == (UINT) AppMessage::ExplorerCardArrivals)
-    {
-        listPane.GetBars().OfferArrived();
-        return true;
-    }
-
     if (msg == (UINT) AppMessage::ExplorerThumbnail)
     {
         preview.TakeThumbnail();
+        return true;
+    }
+
+    if (msg == (UINT) AppMessage::ExplorerFileSystemCheck)
+    {
+        preview.TakeFileSystemCheck();
         return true;
     }
 
@@ -321,9 +321,17 @@ bool ExplorerWindowParts::HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lPar
             listPane.HandleShellListed (key);
         }
 
-        for (const std::wstring & key : context.browser.GetHostListings().TakeArrivedKeys())
+        for (const std::wstring & key : context.browser.GetLoader().GetHostListings().TakeArrivedKeys())
         {
             listPane.HandleShellListed (key);
+        }
+
+        //  A disk image decoded for the preview: the preview is made again,
+        //  and the decode is now cached.
+        if (!context.browser.GetPreviewer().GetDiskImages().GetDecodes().TakeArrivedKeys().empty())
+        {
+            context.browser.GetPreviewer().UpdatePreview();
+            preview.FillPreview();
         }
 
         return true;
@@ -407,6 +415,13 @@ bool ExplorerWindowParts::HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lPar
         return true;
     }
 
+    //  An installer that changes a file association may also add commands.
+    if (msg == (UINT) AppMessage::ExplorerAssocChanged)
+    {
+        menus.RefreshPackagedCommands();
+        return true;
+    }
+
     if (msg == (UINT) AppMessage::ExplorerRunCommand)
     {
         if (commandManager.IsEnabled ((int) wParam))
@@ -476,11 +491,10 @@ bool ExplorerWindowParts::HandleTimer (UINT_PTR timerId)
 
 
 
-    if (timerId == (UINT_PTR) AppTimerId::ExplorerAutoPreview)
+    if (timerId == (UINT_PTR) AppTimerId::ExplorerFileSystemCheck)
     {
         KillTimer (hwnd, timerId);
-        preview.HandleAutoPreviewTimer();
-        context.window.Invalidate();
+        preview.GetThumbnail().TickCheck();
         return true;
     }
 
@@ -524,7 +538,7 @@ bool ExplorerWindowParts::HandleTimer (UINT_PTR timerId)
     if (timerId == (UINT_PTR) AppTimerId::ExplorerDrive)
     {
         folderSync.PollDrives();
-        cassoLinkManager.PollFirewall();
+        linkListActions.PollFirewall();
 
         //  An announcement since the last look is listed, on the same poll
         //  as a drive.

@@ -1,7 +1,8 @@
 #include "Pch.h"
 
 #include "CassoLink/CassoLinkCodec.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Devices/Disk/DiskFieldFormat.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 
 
 
@@ -257,15 +258,98 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkCodec::ParseBlock
+//
+//  Block data's and Block plain's CRC is of the block's bytes; Block runs' is
+//  of the block's number and the bytes as sent, and is checked before they
+//  are decoded. A
+//  token cut short by the payload's end, or bytes past a whole block, fail
+//  the packet.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkCodec::ParseBlock (const CassoLinkPacket & packet, bool checkCrc, uint32_t & outBlock, std::vector<Byte> & outData)
+{
+    static constexpr size_t  kNumberSize = 3;
+    static constexpr size_t  kCrcSize    = 2;
+    HRESULT                  hr          = S_OK;
+    const auto             & payload     = packet.payload;
+    bool                     isData      = (packet.command == kBlockData || packet.command == kBlockPlain) && payload.size() == kNumberSize + kBlockSize + kCrcSize;
+    bool                     known       = isData || (packet.command == kBlockRuns && payload.size() >= kNumberSize + kCrcSize);
+    bool                     crcOk       = false;
+    bool                     whole       = false;
+    size_t                   end         = 0;
+    size_t                   at          = kNumberSize;
+    Word                     crc         = 0;
+
+
+
+    outData.clear();
+
+    CBREx (known, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    end   = payload.size() - kCrcSize;
+    crc   = (Word) (payload[end] | (payload[end + 1] << 8));
+    crcOk = !checkCrc || ComputeCrc (std::span<const Byte> (payload).subspan (isData ? kNumberSize : 0, isData ? kBlockSize : end)) == crc;
+    CBREx (crcOk, HRESULT_FROM_WIN32 (ERROR_CRC));
+
+    outData.reserve (kBlockSize);
+
+    if (isData)
+    {
+        outData.assign (payload.begin() + kNumberSize, payload.begin() + (ptrdiff_t) end);
+        at = end;
+    }
+
+    while (!isData && at < end && outData.size() <= kBlockSize)
+    {
+        Byte  b = payload[at++];
+
+        if (b != kRunEscape)
+        {
+            outData.push_back (b);
+        }
+        else if (at < end && payload[at] == kRunLiteral)
+        {
+            outData.push_back (kRunEscape);
+            at++;
+        }
+        else if (at + 1 < end)
+        {
+            outData.insert (outData.end(), (size_t) payload[at] + kRunMinimum, payload[at + 1]);
+            at += 2;
+        }
+        else
+        {
+            at = end + 1;
+        }
+    }
+
+    whole = at == end && outData.size() == kBlockSize;
+    CBREx (whole, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    outBlock = (uint32_t) payload[0] | ((uint32_t) payload[1] << 8) | ((uint32_t) payload[2] << 16);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkCodec::EncodeSectorNibbles
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT CassoLinkCodec::EncodeSectorNibbles (Byte track, Byte sector, std::span<const Byte> data, std::vector<Byte> & out)
 {
-    HRESULT            hr      = S_OK;
-    bool               whole   = data.size() == kSectorSize;
-    Word               crc     = 0;
+    HRESULT            hr       = S_OK;
+    bool               whole    = data.size() == kSectorSize;
+    Word               crc      = 0;
+    Byte               checksum = 0;
     std::vector<Byte>  nibbles;
     std::vector<Byte>  payload;
 
@@ -273,7 +357,9 @@ HRESULT CassoLinkCodec::EncodeSectorNibbles (Byte track, Byte sector, std::span<
 
     CBRAEx (whole, E_INVALIDARG);
 
-    NibblizationLayer::EncodeDataNibbles (data.data(), nibbles);
+    DiskFieldFormat::EncodeData (DiskFieldKind::Sixteen, data, nibbles, checksum);
+    nibbles.push_back (checksum);
+
     crc = ComputeCrc (nibbles);
 
     payload.reserve (nibbles.size() + 4);
@@ -304,11 +390,11 @@ HRESULT CassoLinkCodec::ParseSectorNibbles (const CassoLinkPacket & packet, Byte
 {
     HRESULT                hr      = S_OK;
     bool                   room    = outData.size() == kSectorSize;
-    bool                   shaped  = packet.command == kSectorNibbles && packet.payload.size() == NibblizationLayer::kDataNibbleCount + 4;
+    bool                   shaped  = packet.command == kSectorNibbles && packet.payload.size() == NibbleFormat::kDataNibbleCount + 4;
     bool                   crcOk   = false;
     bool                   decoded = false;
     std::span<const Byte>  nibbles;
-    std::vector<Byte>      sector;
+    DataFieldDecode        sector;
     Word                   crc     = 0;
 
 
@@ -316,17 +402,18 @@ HRESULT CassoLinkCodec::ParseSectorNibbles (const CassoLinkPacket & packet, Byte
     CBRAEx (room, E_INVALIDARG);
     CBREx (shaped, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-    nibbles = std::span<const Byte> (packet.payload).subspan (2, NibblizationLayer::kDataNibbleCount);
-    crc     = (Word) (packet.payload[NibblizationLayer::kDataNibbleCount + 2] | (packet.payload[NibblizationLayer::kDataNibbleCount + 3] << 8));
+    nibbles = std::span<const Byte> (packet.payload).subspan (2, NibbleFormat::kDataNibbleCount);
+    crc     = (Word) (packet.payload[NibbleFormat::kDataNibbleCount + 2] | (packet.payload[NibbleFormat::kDataNibbleCount + 3] << 8));
     crcOk   = ComputeCrc (nibbles) == crc;
     CBREx (crcOk, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-    decoded = NibblizationLayer::DecodeDataNibbles (nibbles.data(), sector);
+    DiskFieldFormat::DecodeData (DiskFieldKind::Sixteen, nibbles.first (DiskFieldFormat::kBodyLength62), nibbles[DiskFieldFormat::kBodyLength62], sector);
+    decoded = sector.isChecksumGood && sector.invalidNibbles.empty();
     CBREx (decoded, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     outTrack  = packet.payload[0];
     outSector = packet.payload[1];
-    std::copy (sector.begin(), sector.end(), outData.begin());
+    std::copy (sector.bytes.begin(), sector.bytes.end(), outData.begin());
 
 Error:
     return hr;
@@ -540,7 +627,7 @@ HRESULT CassoLinkCodec::DecodeFramed (std::span<const Byte> in, size_t length, s
     BAIL_OUT_IF (in.size() < total, S_OK);
 
     payload     = in.subspan (kEnvelopeSize, length);
-    payloadOk   = length == 0 || ComputeEor (payload) == in[kEnvelopeSize + length];
+    payloadOk   = length == 0 || in[3] == kBlockRuns || in[3] == kBlockPlain || ComputeEor (payload) == in[kEnvelopeSize + length];
     outConsumed = total;
     CBREx (payloadOk, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 

@@ -8,6 +8,7 @@
 #include "Ui/Chrome/CassoTheme.h"
 
 class ExplorerInspectorHost;
+class FilesystemChoices;
 class ICassoExplorerHost;
 class IDiskInspectorHost;
 class IIntentChannel;
@@ -65,6 +66,14 @@ public:
         //  Repair's confirmation, once the window has the disk. A window
         //  with no repair ignores it.
         virtual void     RequestRepair   ()                                                                                     {}
+
+        //  Before the app exits: true when the window can close. A window
+        //  with unsaved edits comes to the front and prompts for them first.
+        virtual bool     ConfirmExit     ()                                                                                     { return true; }
+
+        //  When the app exits: the window is hidden and its work stopped
+        //  before the set releases it.
+        virtual void     Close           ()                                                                                     {}
     };
 
     //  The functions for the window, the block mode window and the check
@@ -72,7 +81,8 @@ public:
     //  Casso, and the file access the windows read and save through. Each
     //  one left empty is the real one. describePath returns the name a block
     //  mode window's title has for a path, such as a card's partition, or
-    //  empty for the file's name.
+    //  empty for the file's name. `filesystemChoices` is Casso Explorer's
+    //  file system choice for each image, which Read as CP/M in a window sets.
     struct Seams
     {
         std::function<std::unique_ptr<Window> ()>                      makeWindow;
@@ -84,6 +94,7 @@ public:
         IDiskFileIo                                                  * fileIo   = nullptr;
         ICassoExplorerHost                                           * explorer = nullptr;
         std::function<std::wstring (const std::wstring &)>             describePath;
+        FilesystemChoices                                            * filesystemChoices = nullptr;
     };
 
     InspectorWindowSet (IImageWatcher & watcher, DiskInspectorPrefs & prefs, Seams seams = {});
@@ -101,6 +112,13 @@ public:
     void     SetTheme (const DxuiTheme & theme);
     void     CloseAll ();
     size_t   GetCount () const;
+
+    //  Whether the frame timer runs, which it does while any window is open.
+    bool     IsTimerRunning () const { return m_timer != 0; }
+
+    //  Before the app exits: each open window prompts for its unsaved
+    //  edits. False when the user cancels in any of them.
+    bool     ConfirmExit ();
 
     //  One frame: changed files read again, every window drawn, and closed
     //  windows released. The timer calls it; tests call it directly.

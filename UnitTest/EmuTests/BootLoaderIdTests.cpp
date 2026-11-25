@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "Devices/Disk/BlockImage.h"
 #include "Devices/Disk/Inspector/Blocks/BootLoaderId.h"
+#include "Machines/Apple2/Common/ProDosSkeleton.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -135,6 +136,19 @@ public:
     TEST_METHOD (TheProDosLoaderWithoutAPRODOSFileCantBoot)
     {
         Assert::AreEqual (std::wstring (L"No PRODOS file"), Identify (MakeVolume ({ 0x01, 0x38, 0xB0, 0x03, 0x4C, 0x1C, 0x09 })));
+    }
+
+
+    TEST_METHOD (TheLoaderOfANewVolumeHasNoPRODOSFile)
+    {
+        vector<Byte>  volume ((size_t) ProDosSkeleton::kTotalBlocks * kBlockBytes, 0);
+
+
+
+        AssertSucceeded (ProDosSkeleton::Write (volume, "NEWDISK"));
+        ProDosSkeleton::InstallNoSystemLoader (volume);
+
+        Assert::AreEqual (std::wstring (L"No PRODOS file"), Identify (volume));
     }
 
 

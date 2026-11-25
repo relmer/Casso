@@ -1,0 +1,875 @@
+#include "Pch.h"
+
+#include "Widgets/DxuiZoomPopup.h"
+#include "Core/DxuiEvents.h"
+#include "Core/DxuiUnicodeSymbols.h"
+#include "Theme/DxuiTheme.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomPopup::GetPercent
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiZoomPopup::GetPercent (double zoom)
+{
+    return (int) std::lround (zoom * kPercent);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomPopup::GetPercentLabel
+//
+//  Past kMostPercent, the zoom as a whole factor, so a deep zoom such as
+//  409600% fits the button as "Zoom 4096x".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DxuiZoomPopup::GetPercentLabel (double zoom)
+{
+    int  percent = GetPercent (zoom);
+
+
+
+    if (percent > kMostPercent)
+    {
+        return L"Zoom " + std::to_wstring (std::lround (zoom)) + s_kpszTimesSign;
+    }
+
+    return L"Zoom " + std::to_wstring (percent) + L"%";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomPopup::SetRange
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiZoomPopup::SetRange (double minZoom, double maxZoom, bool isLogarithmic)
+{
+    m_minZoom       = std::max (minZoom, 1e-6);
+    m_maxZoom       = std::max (m_minZoom, maxZoom);
+    m_isLogarithmic = isLogarithmic;
+    m_zoom          = std::clamp (m_zoom, m_minZoom, m_maxZoom);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomPopup::GetPosition
+//
+//  From the smallest zoom at the left to the largest at the right, on the
+//  zoom's logarithm for a logarithmic range.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiZoomPopup::GetPosition (double zoom) const
+{
+    double  span = m_isLogarithmic ? std::log (m_maxZoom / m_minZoom) : m_maxZoom - m_minZoom;
+    double  at   = m_isLogarithmic ? std::log (std::max (zoom, m_minZoom) / m_minZoom) : zoom - m_minZoom;
+
+
+
+    if (span <= 0.0)
+    {
+        return 0.0f;
+    }
+
+    return (float) std::clamp (at / span, 0.0, 1.0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomPopup::GetZoomAtPosition
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double DxuiZoomPopup::GetZoomAtPosition (float position) const
+{
+    double  along = std::clamp ((double) position, 0.0, 1.0);
+
+
+
+    if (m_isLogarithmic)
+    {
+        return m_minZoom * std::pow (m_maxZoom / m_minZoom, along);
+    }
+
+    return m_minZoom + (m_maxZoom - m_minZoom) * along;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomPopup::IsNear
+//
+//  On the button or the open panel, or within kNearDip of either.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiZoomPopup::IsNear (POINT point) const
+{
+    RECT  area   = m_button;
+    RECT  panel  = GetPanelRect();
+    int   margin = m_scaler.ToPx (kNearDip);
+
+
+
+    if (m_isOpen)
+    {
+        UnionRect (&area, &m_button, &panel);
+    }
+
+    InflateRect (&area, margin, margin);
+    return Contains (area, point);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomPopup::Place
+//
+//  The button sits a margin in from the corner's bottom right.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiZoomPopup::Place (const RECT & corner, const RECT & bounds, const DxuiDpiScaler & scaler)
+{
+    long  margin = scaler.ToPx (kMarginDip);
+
+
+
+    m_scaler      = scaler;
+    m_bounds      = bounds;
+    m_isOwnButton = true;
+
+    m_button.right  = corner.right  - margin;
+    m_button.bottom = corner.bottom - margin;
+    m_button.left   = m_button.right  - scaler.ToPx (kButtonWidthDip);
+    m_button.top    = m_button.bottom - scaler.ToPx (kButtonHeightDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomPopup::PlaceAtButton
+//
+//  Another control's rect is the button, as the status bar's zoom field is:
+//  the widget doesn't draw it while closed, and open draws its label as the
+//  control does, so the percentage stays where it was.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiZoomPopup::PlaceAtButton (const RECT & button, const RECT & bounds, const DxuiDpiScaler & scaler, float labelInsetDip, float labelFontDip)
+{
+    m_scaler      = scaler;
+    m_bounds      = bounds;
+    m_button      = button;
+    m_isOwnButton = false;
+    m_labelInset  = labelInsetDip;
+    m_labelFont   = labelFontDip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomPopup::GetPositionAt
+//
+//  Along the track from 0 at its left to 1 at its right, the ends taken past
+//  either end.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiZoomPopup::GetPositionAt (POINT point) const
+{
+    RECT  track = GetTrackRect();
+    long  width = std::max (1L, track.right - track.left - 1);
+
+
+
+    return std::clamp ((float) (point.x - track.left) / (float) width, 0.0f, 1.0f);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomPopup::GetPanelRect
+//
+//  Grown up and left out of the button: its bottom right is the button's,
+//  so the button is its bottom row's right end, with the slider's row above,
+//  no higher than the view's top; empty while closed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiZoomPopup::GetPanelRect() const
+{
+    return m_isOpen ? GetFullPanelRect() : RECT {};
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomPopup::GetFullPanelRect
+//
+//  The open panel's rect, whether it is open or not.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiZoomPopup::GetFullPanelRect() const
+{
+    RECT  panel = {};
+    long  pad   = m_scaler.ToPx (kPadDip);
+
+
+
+    //  A margin below the button's row, so Reset doesn't sit on the panel's
+    //  bottom edge. It stays inside the host's bounds.
+    panel.right  = m_button.right;
+    panel.bottom = m_button.bottom + pad / 2;
+
+    if (m_bounds.bottom > m_bounds.top)
+    {
+        panel.bottom = std::min (panel.bottom, m_bounds.bottom);
+    }
+
+    panel.left   = std::min (m_button.left, panel.right - (long) m_scaler.ToPx (kPanelWidthDip));
+    panel.top    = std::max (m_bounds.top, m_button.top - pad - (long) m_scaler.ToPx (kRowDip));
+
+    return panel;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomPopup::GetResetRect
+//
+//  The button's row, at the panel's left, a pixel in from the row's top and
+//  bottom.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiZoomPopup::GetResetRect() const
+{
+    return GetResetRectIn (GetPanelRect());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomPopup::GetResetRectIn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiZoomPopup::GetResetRectIn (const RECT & panel) const
+{
+    long  pad   = m_scaler.ToPx (kPadDip);
+
+
+
+    if (panel.right <= panel.left)
+    {
+        return {};
+    }
+
+    return { panel.left + pad, m_button.top + 1, panel.left + pad + m_scaler.ToPx (kResetWidthDip), m_button.bottom - 1 };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomPopup::GetTrackRect
+//
+//  The panel's top row, inside its padding: the thumb's center runs from
+//  the left edge to the right.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiZoomPopup::GetTrackRect() const
+{
+    return GetTrackRectIn (GetPanelRect());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomPopup::GetTrackRectIn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiZoomPopup::GetTrackRectIn (const RECT & panel) const
+{
+    long  pad   = m_scaler.ToPx (kPadDip);
+    long  row   = m_scaler.ToPx (kRowDip);
+
+
+
+    if (panel.right <= panel.left)
+    {
+        return {};
+    }
+
+    return { panel.left + pad, panel.top + pad / 2, panel.right - pad, panel.top + pad / 2 + row };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomPopup::SetOpen
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiZoomPopup::SetOpen (bool open)
+{
+    if (open != m_isOpen)
+    {
+        m_animFrom      = m_openness;
+        m_isAnimPending = true;
+    }
+
+    m_isOpen = open;
+
+    if (!open)
+    {
+        m_isDragging = false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomPopup::Tick
+//
+//  Eases out: fast at first and slowing into place, as a menu opens.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiZoomPopup::Tick (int64_t nowMs)
+{
+    float  target = m_isOpen ? 1.0f : 0.0f;
+    float  done   = 0.0f;
+    float  eased  = 0.0f;
+
+
+
+    if (m_isAnimPending)
+    {
+        m_animStartMs   = nowMs;
+        m_isAnimPending = false;
+    }
+
+    if (m_animStartMs < 0)
+    {
+        return false;
+    }
+
+    done       = std::clamp ((float) (nowMs - m_animStartMs) / (float) kAnimateMs, 0.0f, 1.0f);
+    eased      = 1.0f - (1.0f - done) * (1.0f - done) * (1.0f - done);
+    m_openness = m_animFrom + (target - m_animFrom) * eased;
+
+    if (done >= 1.0f)
+    {
+        m_openness    = target;
+        m_animStartMs = -1;
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomPopup::GetShownPanelRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiZoomPopup::GetShownPanelRect() const
+{
+    RECT  full = GetFullPanelRect();
+    auto  lerp = [this] (long from, long to) { return from + (long) std::lround ((double) (to - from) * (double) m_openness); };
+
+
+
+    return { lerp (m_button.left, full.left), lerp (m_button.top, full.top), lerp (m_button.right, full.right), lerp (m_button.bottom, full.bottom) };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomPopup::OnHover
+//
+//  A move: over the button, the panel opens; away from the button and the
+//  panel by more than kNearDip, it closes, except during a drag of its thumb.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiZoomPopup::OnHover (POINT point)
+{
+    bool  isOnButton = Contains (m_button, point);
+
+
+
+    m_isHoverHeld = m_isHoverHeld && isOnButton;
+
+    if (isOnButton && !m_isOpen && !m_isHoverHeld)
+    {
+        SetOpen (true);
+    }
+    else if (m_isOpen && !m_isDragging && !IsNear (point))
+    {
+        SetOpen (false);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomPopup::Toggle
+//
+//  A press on the button. Closed this way, the panel doesn't open again from
+//  the pointer's hover until the pointer moves off the button.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiZoomPopup::Toggle()
+{
+    SetOpen (!m_isOpen);
+    m_isHoverHeld = !m_isOpen;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomPopup::Contains
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiZoomPopup::Contains (const RECT & rect, POINT point)
+{
+    return point.x >= rect.left && point.x < rect.right && point.y >= rect.top && point.y < rect.bottom;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomPopup::HitTest
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiZoomPopup::Hit DxuiZoomPopup::HitTest (POINT point) const
+{
+    if (Contains (m_button, point))
+    {
+        return Hit::Button;
+    }
+
+    if (!m_isOpen || !Contains (GetPanelRect(), point))
+    {
+        return Hit::None;
+    }
+
+    if (Contains (GetResetRect(), point))
+    {
+        return Hit::Reset;
+    }
+
+    if (Contains (GetTrackRect(), point))
+    {
+        return Hit::Track;
+    }
+
+    return Hit::Panel;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomPopup::GetZoomAt
+//
+//  With steps set, the step nearest the point along the slider.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double DxuiZoomPopup::GetZoomAt (POINT point) const
+{
+    float   position = GetPositionAt (point);
+    double  zoom     = m_steps.empty() ? GetZoomAtPosition (position) : m_steps.front();
+
+
+
+    for (double step : m_steps)
+    {
+        if (std::fabs (GetPosition (step) - position) < std::fabs (GetPosition (zoom) - position))
+        {
+            zoom = step;
+        }
+    }
+
+    return zoom;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomPopup::PaintBox
+//
+//  A filled rect with a one-pixel edge, all through the text renderer, so it
+//  lands over the map's picture rather than under it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiZoomPopup::PaintBox (IDxuiTextRenderer & text, const RECT & rect, uint32_t fill, uint32_t edge)
+{
+    HRESULT  hr     = S_OK;
+    float    left   = (float) rect.left;
+    float    top    = (float) rect.top;
+    float    right  = (float) rect.right;
+    float    bottom = (float) rect.bottom;
+
+
+
+    hr = text.FillRect (left, top, right - left, bottom - top, edge);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.FillRect (left + 1.0f, top + 1.0f, right - left - 2.0f, bottom - top - 2.0f, fill);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomPopup::Paint
+//
+//  Closed, the button with the percentage, unless the button is another
+//  control's; open, the panel, which has the percentage where the button
+//  does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiZoomPopup::Paint (IDxuiTextRenderer & text, const IDxuiTheme & theme) const
+{
+    std::wstring  percent = GetPercentLabel (m_zoom);
+
+
+
+    if (m_button.right <= m_button.left)
+    {
+        return;
+    }
+
+    if (m_isOwnButton && !IsShown())
+    {
+        if (m_showBox)
+        {
+            PaintBox (text, m_button, theme.BackgroundElevated(), theme.Border());
+        }
+
+        PaintLabel (text, theme, percent);
+    }
+
+    PaintPanel (text, theme, percent, GetPosition (m_zoom));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomPopup::PaintLabel
+//
+//  In the button's rect, as the button draws it: centered in the body font
+//  on the widget's button; on another control's, as that control does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiZoomPopup::PaintLabel (IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label) const
+{
+    HRESULT         hr     = S_OK;
+    DxuiFontHandle  font   = theme.BodyFont();
+    float           left   = (float) m_button.left;
+    float           top    = (float) m_button.top;
+    float           width  = (float) (m_button.right - m_button.left);
+    float           height = (float) (m_button.bottom - m_button.top);
+    float           inset  = m_scaler.ToPxf (m_labelInset);
+
+
+
+    if (m_isOwnButton)
+    {
+        hr = text.DrawString (label.c_str(), left, top, width, height, theme.Foreground(), m_scaler.ToPxf (font.sizeDip), font.face,
+                              DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        return;
+    }
+
+    hr = text.DrawString (label.c_str(), left + inset, top, std::max (0.0f, width - 2.0f * inset), height, theme.ForegroundMuted(),
+                          m_scaler.ToPxf (m_labelFont), DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::CenterOnCapHeight,
+                          DxuiFontWeight::Normal, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomPopup::PaintPanel
+//
+//  Open, the panel with the track and its thumb at `position`, 0 at the left
+//  to 1 at the right, then Reset and the label on the button's row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiZoomPopup::PaintPanel (IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label, float position) const
+{
+    constexpr float  kTrackDip = 2.0f;
+    HRESULT          hr        = S_OK;
+    DxuiFontHandle   font      = theme.BodyFont();
+    float            sizePx    = m_scaler.ToPxf (font.sizeDip);
+    RECT             panel     = GetShownPanelRect();
+    RECT             reset     = GetResetRectIn (GetFullPanelRect());
+    RECT             track     = GetTrackRectIn (GetFullPanelRect());
+    float            middle    = 0.0f;
+    float            thumbX    = 0.0f;
+    float            thumb     = m_scaler.ToPxf ((float) kThumbDip);
+
+
+
+    if (!IsShown() || panel.right <= panel.left)
+    {
+        return;
+    }
+
+    PaintBox (text, panel, theme.BackgroundElevated(), theme.Border());
+    PaintLabel (text, theme, label);
+
+    //  The contents are drawn at their places in the open panel, clipped to
+    //  the panel as drawn now.
+    hr = text.PushClipRect ((float) panel.left, (float) panel.top, (float) (panel.right - panel.left), (float) (panel.bottom - panel.top));
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    PaintBox (text, reset, theme.ButtonIdle(), theme.ButtonBorder());
+
+    hr = text.DrawString (L"Reset", (float) reset.left, (float) reset.top,
+                          (float) (reset.right - reset.left), (float) (reset.bottom - reset.top),
+                          theme.ButtonText(), sizePx, font.face, DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    middle = (float) (track.top + track.bottom) / 2.0f;
+    thumbX = (float) track.left + std::clamp (position, 0.0f, 1.0f) * (float) (track.right - track.left - 1);
+
+    hr = text.DrawLine ((float) track.left, middle, (float) track.right, middle, m_scaler.ToPxf (kTrackDip), theme.ForegroundMuted());
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.DrawLine ((float) track.left, middle, thumbX, middle, m_scaler.ToPxf (kTrackDip), theme.Accent());
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.FillEllipse (thumbX, middle, thumb, thumb, theme.Accent());
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.PopClipRect();
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomPopup::OnMouse
+//
+//  A move opens or closes the panel by hover, and drags the thumb during a
+//  drag. A press on the button toggles the panel; on the track it zooms to
+//  the place pressed and starts a drag that lasts until the button comes up;
+//  on Reset it goes to the reset zoom. A press anywhere else closes the
+//  panel and is left for the host. The wheel over the button or the panel
+//  steps the zoom by the host's step, or by kWheelFactor a notch without one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiZoomPopup::OnMouse (const DxuiMouseEvent & ev)
+{
+    constexpr double  kWheelFactor = 1.25;
+    Hit               hit          = HitTest (ev.positionDip);
+    int               steps        = ev.wheelDelta > 0.0f ? 1 : -1;
+
+
+
+    if (m_isDragging)
+    {
+        if (ev.kind == DxuiMouseEventKind::Move)
+        {
+            ChangeZoom (GetZoomAt (ev.positionDip));
+        }
+        else if (ev.kind == DxuiMouseEventKind::Up)
+        {
+            SetDragging (false);
+        }
+
+        return true;
+    }
+
+    switch (ev.kind)
+    {
+    case DxuiMouseEventKind::Move:
+        OnHover (ev.positionDip);
+        return hit != Hit::None;
+
+    case DxuiMouseEventKind::Leave:
+        SetOpen (false);
+        return false;
+
+    case DxuiMouseEventKind::Wheel:
+        if (hit == Hit::None || ev.wheelHorizontal || ev.wheelDelta == 0.0f)
+        {
+            return false;
+        }
+
+        ChangeZoom (m_onStep ? m_onStep (m_zoom, steps) : m_zoom * std::pow (kWheelFactor, steps));
+        return true;
+
+    case DxuiMouseEventKind::Up:
+        return hit != Hit::None;
+
+    case DxuiMouseEventKind::Down:
+        break;
+
+    default:
+        return false;
+    }
+
+    if (ev.button != DxuiMouseButton::Left)
+    {
+        return hit != Hit::None;
+    }
+
+    switch (hit)
+    {
+    case Hit::Button:
+        Toggle();
+        return true;
+
+    case Hit::Track:
+        SetDragging (true);
+        ChangeZoom (GetZoomAt (ev.positionDip));
+        return true;
+
+    case Hit::Reset:
+        ChangeZoom (m_resetZoom);
+        return true;
+
+    case Hit::Panel:
+        return true;
+
+    default:
+        SetOpen (false);
+        return false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomPopup::ChangeZoom
+//
+//  A zoom from the popup: set, then passed to the host's callback.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiZoomPopup::ChangeZoom (double zoom)
+{
+    SetZoom (zoom);
+
+    if (m_onZoom)
+    {
+        m_onZoom (m_zoom);
+    }
+}
+
+
+
+

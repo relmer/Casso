@@ -2,6 +2,7 @@
 
 #include "CassoLink/Session/CassoLinkBlockTransfer.h"
 #include "CassoLink/CassoLinkCodec.h"
+#include "CassoLink/Session/LinkImageSource.h"
 #include "Devices/Disk/Containers/TwoImgContainer.h"
 #include "Devices/Disk/DurableCommit.h"
 #include "Devices/Disk/IDiskFileIo.h"
@@ -132,27 +133,36 @@ Error:
 //
 //  CassoLinkBlockTransfer::WriteDevice
 //
+//  An image in memory has no path, so it has no record: its write starts at
+//  the first block, and one cut short starts over.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoLinkBlockTransfer::WriteDevice (ICassoLinkBlockIo & blocks, IDiskFileIo & io, const CassoLinkBlockDevice & device, const std::string & imagePath, bool verify, bool resume,
+HRESULT CassoLinkBlockTransfer::WriteDevice (ICassoLinkBlockIo & blocks, IDiskFileIo & io, const CassoLinkBlockDevice & device, ILinkImageSource & source, bool verify, bool resume,
                                              const ProgressFn & progress, const CancelFn & cancel, Result & outResult)
 {
-    HRESULT                hr      = S_OK;
-    HRESULT                stop    = S_OK;
+    HRESULT                hr        = S_OK;
+    HRESULT                stop      = S_OK;
+    std::string            imagePath = source.GetPath();
+    bool                   recorded  = !imagePath.empty();
+    std::vector<Byte>      bytes;
     std::vector<Byte>      image;
     CassoLinkResumeRecord  record;
     CassoLinkStatus        status;
-    int64_t                last    = -1;
-    uint32_t               total   = 0;
-    uint32_t               next    = 0;
-    uint32_t               saved   = 0;
-    bool                   fits    = false;
+    int64_t                last      = -1;
+    uint32_t               total     = 0;
+    uint32_t               next      = 0;
+    uint32_t               saved     = 0;
+    bool                   fits      = false;
 
 
 
     outResult = {};
 
-    hr = LoadImage (io, imagePath, image);
+    hr = source.ReadImage (bytes);
+    CHR (hr);
+
+    hr = ParseImage (std::move (bytes), image);
     CHR (hr);
 
     total = (uint32_t) (image.size() / s_kBlock);
@@ -169,7 +179,7 @@ HRESULT CassoLinkBlockTransfer::WriteDevice (ICassoLinkBlockIo & blocks, IDiskFi
     hr = HashImage (image, record.directoryHash);
     CHR (hr);
 
-    last = resume ? FindLastBlock (io, imagePath, device, record.directoryHash, CassoLinkResumeRecord::kWrite) : -1;
+    last = (resume && recorded) ? FindLastBlock (io, imagePath, device, record.directoryHash, CassoLinkResumeRecord::kWrite) : -1;
     next = (last >= 0) ? (uint32_t) (last + 1) : 0;
 
     outResult.firstBlock = next;
@@ -189,7 +199,7 @@ HRESULT CassoLinkBlockTransfer::WriteDevice (ICassoLinkBlockIo & blocks, IDiskFi
             stop = HRESULT_FROM_WIN32 (ERROR_WRITE_FAULT);
         }
 
-        if (SUCCEEDED (stop) && next - saved >= CassoLinkResume::kEveryBlocks)
+        if (SUCCEEDED (stop) && recorded && next - saved >= CassoLinkResume::kEveryBlocks)
         {
             record.lastVerifiedBlock = (int64_t) next - 1;
             saved                    = next;
@@ -204,7 +214,7 @@ HRESULT CassoLinkBlockTransfer::WriteDevice (ICassoLinkBlockIo & blocks, IDiskFi
         }
     }
 
-    if (FAILED (stop) && next > saved)
+    if (FAILED (stop) && recorded && next > saved)
     {
         record.lastVerifiedBlock = (int64_t) next - 1;
 
@@ -214,7 +224,7 @@ HRESULT CassoLinkBlockTransfer::WriteDevice (ICassoLinkBlockIo & blocks, IDiskFi
 
     CHR (stop);
 
-    if (io.Exists (CassoLinkResume::GetRecordPath (imagePath)))
+    if (recorded && io.Exists (CassoLinkResume::GetRecordPath (imagePath)))
     {
         hr = io.Remove (CassoLinkResume::GetRecordPath (imagePath));
         CHR (hr);
@@ -322,8 +332,6 @@ HRESULT CassoLinkBlockTransfer::LoadImage (IDiskFileIo & io, const std::string &
 {
     HRESULT            hr     = S_OK;
     std::vector<Byte>  bytes;
-    TwoImgHeader       header;
-    std::string        error;
 
 
 
@@ -331,6 +339,35 @@ HRESULT CassoLinkBlockTransfer::LoadImage (IDiskFileIo & io, const std::string &
 
     hr = io.ReadAllBytes (imagePath, bytes);
     CHR (hr);
+
+    hr = ParseImage (std::move (bytes), outBlocks);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkBlockTransfer::ParseImage
+//
+//  An image's blocks: a 2IMG's payload, or the bytes as they are.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkBlockTransfer::ParseImage (std::vector<Byte> bytes, std::vector<Byte> & outBlocks)
+{
+    HRESULT            hr     = S_OK;
+    TwoImgHeader       header;
+    std::string        error;
+
+
+
+    outBlocks.clear();
 
     if (TwoImgContainer::IsTwoImg (bytes))
     {

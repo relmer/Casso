@@ -158,7 +158,45 @@ public:
     void          SetTextEncoding (TextEncoding encoding) { m_encoding = encoding; m_layout.ResetLineIndex(); }
     TextEncoding  GetTextEncoding () const                { return m_encoding; }
 
+    //  An editable view reserves room for the edit frame inside its bounds,
+    //  so it doesn't move when editing starts or stops, and draws the edit
+    //  look: the accent behind the caret byte while the view has the keys,
+    //  changed bytes in red, and
+    //  while editing, a light accent tint behind the bytes and an accent
+    //  frame around them. In edit mode, a hex digit typed in the hex column
+    //  sets the caret byte's high nibble, the next its low nibble, and the
+    //  caret moves on; a character typed in the text column replaces the
+    //  caret byte and the caret moves on.
+    void  SetEditable  (bool isEditable)  { m_isEditable = isEditable; }
+    bool  IsEditable   () const           { return m_isEditable; }
+    void  SetEditing   (bool isEditing)   { m_isLowNibble = m_isLowNibble && isEditing == m_isEditing; m_isEditing = isEditing; }
+    bool  IsEditing    () const           { return m_isEditing; }
+    void  SetOnType    (TypeFn fn)        { m_onType    = std::move (fn); }
+    void  SetIsChanged (ChangedFn fn)     { m_isChanged = std::move (fn); }
+    bool  HasFocus     () const           { return m_hasFocus; }
+
+    //  The next hex digit sets a high nibble again.
+    void  ResetNibble () { m_isLowNibble = false; }
+
+    //  True when a byte's high nibble is typed and its low nibble isn't yet.
+    bool  IsTypingAt (uint64_t offset) const { return m_isLowNibble && m_nibbleAt == offset; }
+
+    //  How the edit look draws a byte in one column: false for the view's
+    //  look.
+    static bool  PickEditStyle (const EditColors & colors, const EditByteState & state, ByteStyle & outStyle);
+
+    //  ink, moved toward black or white until it reads on fill.
+    static uint32_t  GetReadableInk (uint32_t ink, uint32_t fill);
+
+    //  A changed byte's ink before it is fitted to its fill.
+    static uint32_t  GetChangedInk  (uint32_t background);
+
+    static constexpr int    kEditFrameDip = 2;       // the edit frame, reserved whether or not it's drawn
+    static constexpr float  kTintShare    = 0.12f;   // the accent's share of the edit tint behind the bytes
+    static constexpr float  kMinContrast  = 4.5f;    // the least contrast of a changed byte's ink with its fill
+
     void  SetMarkColor     (MarkColorFn fn)   { m_painter.m_markColor = std::move (fn); }
+    void  SetByteStyle     (ByteStyleFn fn)   { m_painter.m_byteStyle = std::move (fn); }
     void  SetOnContextMenu (ContextMenuFn fn) { m_onContextMenu = std::move (fn); }
 
     void  SetOnBuildContextMenu (BuildMenuFn fn) { m_onBuildMenu = std::move (fn); }
@@ -224,6 +262,8 @@ public:
     std::vector<DxuiPopupMenuItem>  GetScrollbarMenu  (POINT pt) { return m_scroll.GetScrollbarMenu (pt); }
     bool                            ShowScrollbarMenu (HWND hwnd, POINT pt) override { return DxuiScrollbar::ShowMenu (hwnd, pt, GetScrollbarMenu (pt)); }
     bool                            OnKey             (const DxuiKeyEvent   & ev) override;
+    bool                            OnChar            (wchar_t ch) override;
+    void                            OnFocusChanged    (bool isFocused) override { m_hasFocus = isFocused; }
     void                            Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Custom; }
@@ -246,6 +286,11 @@ private:
     //  starting a new one otherwise, then brings it into view.
     uint64_t  GetLastOffset () const;
 
+    //  The edit frame, and a byte's look with the edit look and the host's
+    //  style combined.
+    void  PaintEditFrame (IDxuiPainter & painter, const IDxuiTheme & theme) const;
+    bool  GetByteStyle   (const IDxuiTheme & theme, uint64_t offset, uint8_t mark, bool isSelected, Column column, ByteStyle & outStyle) const;
+
     static constexpr int  s_kSelectionMarginDip = 2;
 
     static constexpr int  s_kScrollbarWidthDip  = 10;
@@ -267,7 +312,15 @@ private:
     ContextMenuFn                  m_onContextMenu;
     BuildMenuFn                    m_onBuildMenu;
     SettingsFn                     m_onSettings;
-    std::function<void ()>  m_onSelectionChanged;
+    std::function<void ()>         m_onSelectionChanged;
+    TypeFn                         m_onType;
+    ChangedFn                      m_isChanged;
+    RECT                           m_frameDip       = {};
+    uint64_t                       m_nibbleAt       = 0;
+    bool                           m_isEditable     = false;
+    bool                           m_isEditing      = false;
+    bool                           m_isLowNibble    = false;
+    bool                           m_hasFocus       = false;
 
     //  The view's parts, each with the state it uses.
     friend class      DxuiHexLayout;

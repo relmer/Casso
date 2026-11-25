@@ -8,6 +8,10 @@
 #include "Core/UnicodeSymbols.h"
 #include "Config/GlobalUserPrefs.h"
 #include "Config/UserConfigStore.h"
+#include "Config/LaunchPlacement.h"
+#include "Config/StockMachines.h"
+#include "Devices/BlockDevice/BlockDeviceCatalog.h"
+#include "Seams/Win32DiskFileIo.h"
 #include "Config/Win32FileSystem.h"
 #include "Core/MachineConfig.h"
 #include "Core/JsonParser.h"
@@ -318,6 +322,62 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FindRomSearchPaths
+//
+//  The machine's config file, and the ROM search paths: the install root
+//  that has the machine's Machines/<Name>/ folder first, then the generic
+//  search paths, so a machine found in a development tree loads its ROMs
+//  from that tree rather than from an installed copy elsewhere.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static HRESULT FindRomSearchPaths (
+    const wstring       & machineName,
+    fs::path            & outConfigPath,
+    vector<fs::path>    & outRomSearchPaths)
+{
+    HRESULT           hr            = S_OK;
+    vector<fs::path>  searchPaths;
+    fs::path          configRelPath;
+    bool              foundConfig   = false;
+
+
+
+    outRomSearchPaths.clear();
+
+    searchPaths   = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
+                                                    PathResolver::GetWorkingDirectory());
+    configRelPath = fs::path ("Machines") / fs::path (machineName).string()
+                                          / (fs::path (machineName).string() + ".json");
+    outConfigPath = PathResolver::FindFile (searchPaths, configRelPath);
+
+    foundConfig = !outConfigPath.empty();
+    CBRN (foundConfig,
+          format (L"Unknown machine '{}'. Config file not found.\n"
+                  L"Searched for '{}' in exe directory, current directory, and parent directories.",
+                  machineName,
+                  configRelPath.wstring()).c_str());
+
+    outRomSearchPaths.push_back (outConfigPath.parent_path().parent_path().parent_path());
+
+    for (const auto & p : searchPaths)
+    {
+        if (p != outRomSearchPaths[0])
+        {
+            outRomSearchPaths.push_back (p);
+        }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  LoadMachineConfig
 //
 //  Everything that has to happen before a machine can be built: find its
@@ -363,14 +423,11 @@ static HRESULT LoadMachineConfig (
     MachineConfig     & outConfig)
 {
     HRESULT             hr             = S_OK;
-    vector<fs::path>    searchPaths;
-    fs::path            configRelPath;
     fs::path            configPath;
     string              jsonText;
     vector<fs::path>    romSearchPaths;
     fs::path            romDir;
     fs::path            diskDir;
-    bool                foundConfig    = false;
     JsonValue           defaultJson;
     string              error;
 
@@ -378,33 +435,8 @@ static HRESULT LoadMachineConfig (
 
     outUserExited = false;
 
-    // Build search paths and find machine config
-    searchPaths    = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
-                                                     PathResolver::GetWorkingDirectory());
-    configRelPath  = fs::path ("Machines") / fs::path (machineName).string()
-                                           / (fs::path (machineName).string() + ".json");
-    configPath     = PathResolver::FindFile (searchPaths, configRelPath);
-
-    foundConfig = !configPath.empty();
-    CBRN (foundConfig,
-          format (L"Unknown machine '{}'. Config file not found.\n"
-                  L"Searched for '{}' in exe directory, current directory, and parent directories.",
-                  machineName,
-                  configRelPath.wstring()).c_str());
-
-    // Build ROM search paths — prioritize the install root that
-    // contains the per-machine Machines/<Name>/ folder we just
-    // resolved (parent of "Machines"), then fall back to the
-    // generic search paths.
-    romSearchPaths.push_back (configPath.parent_path().parent_path().parent_path());
-
-    for (const auto & p : searchPaths)
-    {
-        if (p != romSearchPaths[0])
-        {
-            romSearchPaths.push_back (p);
-        }
-    }
+    hr = FindRomSearchPaths (machineName, configPath, romSearchPaths);
+    CHR (hr);
 
     // Pre-flight: detect everything missing (ROMs + optional Disk II
     // drive audio) and present a SINGLE themed dialog that downloads
@@ -511,6 +543,180 @@ static HRESULT LoadMachineConfig (
         // a size check here -- WOZ and ProDOS images aren't 143360
         // bytes and used to be rejected as "not a valid .dsk file".
     }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadLaunchConfig
+//
+//  --launch: a temporary copy of a stock machine, with the image placed on a
+//  drive the copy has or gains. The user's saved changes to the model aren't
+//  applied, and nothing here writes UserPrefs.json: the download dialog's
+//  choices aren't saved, and there is no startup form. A model that can't
+//  take the image stops startup with the reason.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static HRESULT LoadLaunchConfig (
+    HINSTANCE                                    hInstance,
+    const CommandLineOptions::EmulatorOptions  & parsed,
+    wstring                                    & outMachineName,
+    wstring                                    & outDisk1Path,
+    bool                                       & outUserExited,
+    MachineConfig                              & outConfig)
+{
+    HRESULT               hr        = S_OK;
+    const StockMachine  * machine   = parsed.machine.empty() ? &StockMachines::GetDefault() : StockMachines::Find (parsed.machine);
+    wstring               image     = TextEncoding::Utf8ToWide (parsed.launch);
+    fs::path              configPath;
+    vector<fs::path>      romSearchPaths;
+    MachineConfig         stock;
+    LaunchPlan            plan;
+    DiskImageFacts        facts;
+    Win32DiskFileIo       fileIo;
+    GlobalUserPrefs       prefs;
+    Win32FileSystem       prefsFs;
+    bool                  hasDisk   = false;
+    bool                  hasImage  = false;
+    bool                  canOpen   = false;
+    string                error;
+    HRESULT               hrPrefs   = S_OK;
+    HRESULT               hrHasDisk = S_OK;
+
+
+
+    outUserExited = false;
+
+    CBRA (machine != nullptr);
+
+    outMachineName = TextEncoding::NarrowToWide (machine->id);
+
+    hasImage = fs::exists (fs::path (image));
+    CBRN (hasImage, format (L"Disk image not found:\n{}", image).c_str());
+
+    hr = FindRomSearchPaths (outMachineName, configPath, romSearchPaths);
+    CHR (hr);
+
+    hrPrefs = prefs.Load (AssetBootstrap::GetAssetBaseDirectory().wstring(), prefsFs);
+    IGNORE_RETURN_VALUE (hrPrefs, S_OK);
+
+    hrHasDisk = AssetBootstrap::HasDiskController (hInstance, outMachineName, hasDisk, error);
+    IGNORE_RETURN_VALUE (hrHasDisk, S_OK);
+
+    hr = AssetBootstrap::RunStartupDownloader (hInstance, outMachineName, nullptr, romSearchPaths,
+                                               AssetBootstrap::GetAssetBaseDirectory(), hasDisk,
+                                               prefs, outUserExited, error);
+    CHRN (hr, format (L"Asset download failed:\n{}", TextEncoding::NarrowToWide (error)).c_str());
+    BAIL_OUT_IF (outUserExited, S_OK);
+
+    hr = StockMachines::LoadConfig (hInstance, *machine, romSearchPaths, stock, error);
+    CHRN (hr, format (L"Failed to load machine config:\n{}", TextEncoding::NarrowToWide (error)).c_str());
+
+    facts = DiskImageFacts::Read (fileIo, parsed.launch);
+    plan  = LaunchPlacement::Place (facts, parsed.launch, *machine, stock);
+    canOpen = !plan.IsRefused();
+    CBRN (canOpen, plan.refusal.c_str());
+
+    hr = LaunchPlacement::ResolveFirmware (plan, machine->id, romSearchPaths, PathResolver::FindFile, error);
+    CHRN (hr, format (L"Failed to load machine config:\n{}", TextEncoding::NarrowToWide (error)).c_str());
+
+    outConfig    = std::move (plan.config);
+    outDisk1Path = TextEncoding::Utf8ToWide (plan.disk1Path);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadSavedMachineConfig
+//
+//  The machine from --machine, else the last one selected, with the user's
+//  saved changes to it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static HRESULT LoadSavedMachineConfig (
+    HINSTANCE                                    hInstance,
+    const CommandLineOptions::EmulatorOptions  & parsed,
+    wstring                                    & machineName,
+    wstring                                    & disk1Path,
+    bool                                       & userExited,
+    MachineConfig                              & config)
+{
+    HRESULT  hr           = S_OK;
+    bool     hasRequested = false;
+    bool     hasEmbedded  = false;
+    bool     isKnown      = false;
+
+
+
+    // Resolve machine name: command line > UserPrefs.json lastSelectedMachine > first discovered.
+    if (machineName.empty())
+    {
+        GlobalUserPrefs   earlyPrefs;
+        Win32FileSystem   earlyFs;
+        std::wstring      assetBaseDir = AssetBootstrap::GetAssetBaseDirectory().wstring();
+        HRESULT           hrLoad;
+
+        hrLoad = earlyPrefs.Load (assetBaseDir, earlyFs);
+        IGNORE_RETURN_VALUE (hrLoad, S_OK);
+        machineName = TextEncoding::Utf8ToWide (earlyPrefs.lastSelectedMachine);
+    }
+
+    // --machine for a machine this build has no config for is an unknown
+    // machine, not a reason to boot another one. The check is against the
+    // embedded table: a machine folder left by a newer build has a config file,
+    // but nothing in this build can make that machine.
+    hasRequested = !parsed.machine.empty();
+    hasEmbedded  = AssetBootstrap::HasEmbeddedConfig (machineName);
+    isKnown      = !hasRequested || hasEmbedded;
+    CBRN (isKnown,
+          format (L"Unknown machine '{}'. This build has no configuration for it.",
+                  machineName).c_str());
+
+    // Resolve the requested machine (from --machine or last-selected prefs)
+    // to a canonical on-disk name. The filesystem is case-insensitive, so a
+    // mis-cased --machine value like "apple2e" still loads its config -- but
+    // FindRomSpec and MachineDisplayName match names exactly, so a lowercase
+    // name would report every per-machine ROM missing. Canonicalize against
+    // the scan so downstream lookups agree. An unmatched / empty request
+    // falls back to Apple //e (else the first discovered machine, else the
+    // Apple2e literal) so the LoadMachineConfig flow can still offer the ROM
+    // / sample-disk downloads instead of bailing with a dead-end MessageBox.
+    {
+        constexpr std::wstring_view  s_kPreferredDefaultMachine = L"Apple2e";
+
+        vector<fs::path> scanPaths = PathResolver::BuildSearchPaths (
+            PathResolver::GetExecutableDirectory(),
+            PathResolver::GetWorkingDirectory());
+
+        vector<MachineInfo> discovered = MachineScanner::Scan (
+            scanPaths,
+            &MachineScanner::ListDirectory,
+            &MachineScanner::ReadFile,
+            &AssetBootstrap::HasEmbeddedConfig);
+
+        machineName = MachineScanner::SelectCanonical (
+            discovered, machineName, s_kPreferredDefaultMachine);
+    }
+
+    // Load machine configuration. A user who dismissed one of the
+    // startup dialogs wants out, so exit cleanly without a follow-up
+    // error MessageBox.
+    hr = LoadMachineConfig (hInstance, machineName, disk1Path, nullptr, userExited, config);
+    CHR (hr);
 
 Error:
     return hr;
@@ -813,9 +1019,6 @@ extern "C" int WINAPI wCassoMain (
     bool                                 userExited    = false;
     bool                                 answered      = false;
     bool                                 firewall      = false;
-    bool                                 hasRequested  = false;
-    bool                                 hasEmbedded   = false;
-    bool                                 isKnown       = false;
     CommandLineOptions::EmulatorOptions  parsed;
     MachineConfig                        config;
     std::unique_ptr<EmulatorShell>       shell         = std::make_unique<EmulatorShell>();
@@ -869,6 +1072,15 @@ extern "C" int WINAPI wCassoMain (
     // on the way to a dialog that was going to stop startup anyway.
     hr = ParseCommandLine (lpCmdLine, parsed);
     CHR (hr);
+
+    // --launch copies a stock machine. CassoCore's parser doesn't link the
+    // stock models, so the model is checked here.
+    if (!parsed.launch.empty() && !parsed.machine.empty() && StockMachines::Find (parsed.machine) == nullptr
+        && parsed.verdict == CommandLineOptions::EmulatorOptions::Verdict::Clean)
+    {
+        parsed.verdict        = CommandLineOptions::EmulatorOptions::Verdict::Refused;
+        parsed.refusalMessage = "Error: " + TextEncoding::WideToUtf8 (StockMachines::FormatUnknown (parsed.machine));
+    }
 
     answered = parsed.verdict != CommandLineOptions::EmulatorOptions::Verdict::Clean;
 
@@ -979,60 +1191,17 @@ extern "C" int WINAPI wCassoMain (
         IGNORE_RETURN_VALUE (hrFont, S_OK);
     }
 
-    // Resolve machine name: command line > UserPrefs.json lastSelectedMachine > first discovered.
-    if (machineName.empty())
+    // --launch boots a temporary copy of a stock machine; otherwise the
+    // saved machine boots.
+    if (parsed.launch.empty())
     {
-        GlobalUserPrefs   earlyPrefs;
-        Win32FileSystem   earlyFs;
-        std::wstring      assetBaseDir = AssetBootstrap::GetAssetBaseDirectory().wstring();
-        HRESULT           hrLoad;
-
-        hrLoad = earlyPrefs.Load (assetBaseDir, earlyFs);
-        IGNORE_RETURN_VALUE (hrLoad, S_OK);
-        machineName = TextEncoding::Utf8ToWide (earlyPrefs.lastSelectedMachine);
+        hr = LoadSavedMachineConfig (hInstance, parsed, machineName, disk1Path, userExited, config);
+    }
+    else
+    {
+        hr = LoadLaunchConfig (hInstance, parsed, machineName, disk1Path, userExited, config);
     }
 
-    // --machine for a machine this build has no config for is an unknown
-    // machine, not a reason to boot another one. The check is against the
-    // embedded table: a machine folder left by a newer build has a config file,
-    // but nothing in this build can make that machine.
-    hasRequested = !parsed.machine.empty();
-    hasEmbedded  = AssetBootstrap::HasEmbeddedConfig (machineName);
-    isKnown      = !hasRequested || hasEmbedded;
-    CBRN (isKnown,
-          format (L"Unknown machine '{}'. This build has no configuration for it.",
-                  machineName).c_str());
-
-    // Resolve the requested machine (from --machine or last-selected prefs)
-    // to a canonical on-disk name. The filesystem is case-insensitive, so a
-    // mis-cased --machine value like "apple2e" still loads its config -- but
-    // FindRomSpec and MachineDisplayName match names exactly, so a lowercase
-    // name would report every per-machine ROM missing. Canonicalize against
-    // the scan so downstream lookups agree. An unmatched / empty request
-    // falls back to Apple //e (else the first discovered machine, else the
-    // Apple2e literal) so the LoadMachineConfig flow can still offer the ROM
-    // / sample-disk downloads instead of bailing with a dead-end MessageBox.
-    {
-        constexpr std::wstring_view  s_kPreferredDefaultMachine = L"Apple2e";
-
-        vector<fs::path> scanPaths = PathResolver::BuildSearchPaths (
-            PathResolver::GetExecutableDirectory(),
-            PathResolver::GetWorkingDirectory());
-
-        vector<MachineInfo> discovered = MachineScanner::Scan (
-            scanPaths,
-            &MachineScanner::ListDirectory,
-            &MachineScanner::ReadFile,
-            &AssetBootstrap::HasEmbeddedConfig);
-
-        machineName = MachineScanner::SelectCanonical (
-            discovered, machineName, s_kPreferredDefaultMachine);
-    }
-
-    // Load machine configuration. A user who dismissed one of the
-    // startup dialogs wants out, so exit cleanly without a follow-up
-    // error MessageBox.
-    hr = LoadMachineConfig (hInstance, machineName, disk1Path, nullptr, userExited, config);
     CHR (hr);
     BAIL_OUT_IF (userExited, S_OK);
 

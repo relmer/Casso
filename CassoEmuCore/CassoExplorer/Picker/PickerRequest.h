@@ -51,6 +51,9 @@ struct PickerRequest
     std::filesystem::path          initialFolder;
     std::vector<FileDialogFilter>  filters;
     std::optional<ReceivingDrive>  receivingDrive;
+    std::vector<std::wstring>      listedTerms;      // the bar's capsules in place of the drive's
+    bool                           startInCasso     = false;   // opens on the Casso node, as a drive's picker does
+    std::wstring                   initialSearch;    // typed in the search box at the start, and cleared as any search is
 
     //  "Apple 3.5 Drive, slot 5 drive 1", for the picker's header.
     std::wstring                   driveLabel;
@@ -64,6 +67,7 @@ struct PickerRequest
     //  confirms replacing a file.
     std::wstring                   defaultFileName;
     std::wstring                   defaultExtension;
+    bool                           isImageContent   = false;   // the type box is labeled "Disk image type:"
     bool                           askToReplace     = true;
 
     //  DriveWindow: inserts the image. False leaves the picker open.
@@ -99,6 +103,12 @@ struct PickerRequest
     //  with its drive's label, for the "In drive" mark.
     std::map<std::wstring, std::wstring>  mounted;
 
+    //  A Verify check box in the bar, and whether it starts checked. Its
+    //  state on confirm is PickerOutcome::verified.
+    bool                           offerVerify      = false;
+    bool                           verify           = false;
+    std::wstring                   verifyLabel;
+
     bool  IsSave     () const { return form == PickerForm::ModalSave; }
     bool  IsForDrive () const { return receivingDrive.has_value(); }
 };
@@ -119,5 +129,6 @@ struct PickerOutcome
 {
     bool          isConfirmed = false;
     bool          isClosed    = false;
+    bool          verified    = false;   // the Verify check box was checked
     std::wstring  path;
 };

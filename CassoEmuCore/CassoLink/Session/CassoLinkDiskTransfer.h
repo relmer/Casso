@@ -62,10 +62,21 @@ public:
     static bool     IsMeasured  (DiskFormat format);
     static HRESULT  BuildImage  (const std::string & imagePath, DiskFormat format, const std::vector<Byte> & sectors, const std::vector<CassoLinkHost::TrackMeasure> & measures, int bitsPerTurn, std::vector<Byte> & outBytes);
 
+    //  An automatic read's sectors call for a raw capture: a sign of copy
+    //  protection the choices check, or a track 0 with no sector read.
+    static bool     IsAutomaticRaw (const std::vector<Byte> & sectors, const std::vector<std::pair<int, int>> & unreadable, const FullSendProtectionChoices & choices);
+
     HRESULT  ReadWholeDisk      (LinkOperation & operation);
+    void     BeginStatus        (LinkOperation & operation, bool isCapture);
+    void     NoteTrack          (LinkOperation & operation, int track, size_t newUnreadable, size_t newMarks);
+    void     EndStatus          (LinkOperation & operation, const char * manifestStatus, size_t bytes);
+    HRESULT  ChooseAutomatic    (LinkOperation & operation, const std::vector<Byte> & sectors, DiskFormat & outFormat, std::vector<CassoLinkHost::TrackMeasure> & outMeasures, int & outBitsPerTurn, bool & outRaw);
     HRESULT  CaptureWholeDisk   (LinkOperation & operation);
     HRESULT  SaveUnreadableList (const LinkOperation & operation);
     HRESULT  WriteWholeDisk     (LinkOperation & operation);
+    void     BeginWriteStatus   (LinkOperation & operation);
+    void     MarkWrittenTrack   (LinkOperation & operation, int track);
+    void     EndWriteStatus     (LinkOperation & operation, size_t bytes);
     HRESULT  CompareWrittenDisk (LinkOperation & operation, const std::vector<Byte> & sectors);
     HRESULT  ReadBootSector     (LinkOperation & operation);
 
@@ -84,8 +95,12 @@ public:
     HRESULT  MeasureTrack       (int drive, int track, std::vector<CassoLinkHost::TrackMeasure> & ioMeasures);
 
     static std::string  FormatCaptureTimes (const CassoLinkCapture::Result & result);
-    static std::string  FormatPosition     (int position);
-    static std::string  FormatDuration     (double seconds);
+
+    //  A finished capture as rows of a label and a value, for the job's
+    //  status window.
+    static std::vector<std::pair<std::string, std::string>>  MakeCaptureSummary (const CassoLinkCapture::Result & result);
+    static std::string                                       FormatPosition     (int position);
+    static std::string                                       FormatDuration     (double seconds);
 
     //  A capture's progress on the status bar.
     void  ReportCapture (LinkOperation & operation, const CassoLinkCapture::Progress & where);

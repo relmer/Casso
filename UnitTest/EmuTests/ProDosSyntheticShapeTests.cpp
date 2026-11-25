@@ -1,8 +1,8 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -157,7 +157,7 @@ public:
     //  suite's subject; here it only supplies a valid directory and bitmap.
     static vector<Byte> MakeEmptyVolume()
     {
-        vector<Byte>  volume ((size_t) NibblizationLayer::kImageByteSize, (Byte) 0);
+        vector<Byte>  volume ((size_t) NibbleFormat::kImageByteSize, (Byte) 0);
 
         AssertSucceeded (ProDosSkeleton::Write (volume, "SYNTH"));
 

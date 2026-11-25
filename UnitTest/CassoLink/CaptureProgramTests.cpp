@@ -8,13 +8,15 @@
 #include "CassoLink/Session/CaptureStream.h"
 #include "CassoLink/Session/CassoLinkCapture.h"
 #include "CassoLink/Session/CassoLinkThirteenSector.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Machines/Apple2/Common/ThirteenSectorCodec.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskFieldFormat.h"
 #include "Devices/Disk/DiskImage.h"
+#include "Devices/Disk/Stamp/FormatStamp.h"
+#include "Devices/Disk/Stamp/FormatStampChunk.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -35,6 +37,31 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 TEST_CLASS (CaptureProgramTests)
 {
 public:
+
+    //  A 16-sector data field's nibbles, its checksum nibble last.
+    static void EncodeDataField (const std::vector<Byte> & data, std::vector<Byte> & outNibbles)
+    {
+        Byte  checksum = 0;
+
+
+
+        DiskFieldFormat::EncodeData (DiskFieldKind::Sixteen, data, outNibbles, checksum);
+        outNibbles.push_back (checksum);
+    }
+
+
+
+    static bool DoesDataFieldDecode (const Byte * nibbles)
+    {
+        DataFieldDecode  decode;
+
+
+
+        DiskFieldFormat::DecodeData (DiskFieldKind::Sixteen, std::span<const Byte> (nibbles, DiskFieldFormat::kBodyLength62), nibbles[DiskFieldFormat::kBodyLength62], decode);
+
+        return decode.isChecksumGood && decode.invalidNibbles.empty();
+    }
+
 
     //  Each token: values as they are, a repeat, and a copy of a revolution
     //  before, then the marks, with the padding after the last ignored. The
@@ -80,13 +107,13 @@ public:
 
 
     //  A track of disk bytes with a C0 in it, as a read at a write splice
-    //  has, built into a WOZ: no run of zero bits is longer than a
-    //  controller reads reliably.
+    //  has, built into a WOZ: no run of zero bits is longer than the three
+    //  a controller reads reliably.
     TEST_METHOD (ASpliceByte_IsWrittenWithNoLongRunOfZeros)
     {
         static constexpr size_t  kRevolution = 6000;
         static constexpr size_t  kReadBytes  = 14000;
-        static constexpr size_t  kMaxZeros   = 2;
+        static constexpr size_t  kMaxZeros   = 3;
 
         std::vector<Byte>                        revolution;
         std::vector<CassoLinkCapture::Position>  positions (1);
@@ -254,6 +281,365 @@ public:
     }
 
 
+    //  A track with Ultima IV's D7 AA 96 address fields, each after a data
+    //  field whose last nibbles are DD, a checksum, DE AA EB and sync bytes,
+    //  which pass for an address field ending at the D7. Every read at 8
+    //  cycles marks the D7, as a //c can by chance: the field is written with
+    //  no zero bits inside it, so a read of the field doesn't read a byte twice.
+    TEST_METHOD (AnAddressFieldsMarkedBytes_AreWrittenWithNoZeroBits)
+    {
+        static constexpr size_t  kSectors   = 16;
+        static constexpr size_t  kSyncs     = 6;
+        static constexpr size_t  kDataBytes = 343;
+        static constexpr size_t  kReadBytes = 14000;
+        static constexpr size_t  kFieldSize = 11;
+
+        std::vector<Byte>                        revolution;
+        std::vector<bool>                        marked;
+        std::vector<CassoLinkCapture::Position>  positions (1);
+        CassoLinkCapture::Result                 result;
+        DiskImage                                image;
+        std::vector<std::pair<Byte, size_t>>     framed;
+        uint32_t                                 seed    = 12345;
+        size_t                                   checked = 0;
+
+
+
+        auto  add = [&revolution, &marked] (std::initializer_list<Byte> values, bool isMarked)
+        {
+            for (Byte value : values)
+            {
+                revolution.push_back (value);
+                marked.push_back (isMarked);
+            }
+        };
+
+        for (size_t sector = 0; sector < kSectors; sector++)
+        {
+            for (size_t each = 0; each < kSyncs; each++)
+            {
+                add ({ 0xFF }, false);
+            }
+
+            add ({ 0xD7 }, true);
+            add ({ 0xAA, 0x96, 0xAA, 0xAA, 0xAB, 0xBA, (Byte) (0xAA | (sector >> 1)), (Byte) (0xAA | sector) }, false);
+            add ({ (Byte) (0xAA | ((0x12 ^ sector) >> 1)), (Byte) (0xAA | (0x12 ^ sector)) }, false);
+            add ({ 0xDE, 0xAA, 0xEB }, false);
+
+            for (size_t each = 0; each < kSyncs; each++)
+            {
+                add ({ 0xFF }, false);
+            }
+
+            add ({ 0xD5, 0xAA, 0xAD }, false);
+
+            for (size_t each = 0; each + 2 < kDataBytes; each++)
+            {
+                seed = seed * 1103515245u + 12345u;
+                add ({ s_kDiskBytes[(seed >> 16) % (std::size (s_kDiskBytes) - 1)] }, false);
+            }
+
+            add ({ 0xDD, 0xAB, 0xDE, 0xAA, 0xEB }, false);
+        }
+
+        for (Byte delay : CassoLinkCapture::kWholeDelays)
+        {
+            std::vector<Byte>  read;
+
+            for (size_t at = 0; at < kReadBytes; at++)
+            {
+                size_t  in = at % revolution.size();
+
+                read.push_back ((delay == 0 && marked[in]) ? (Byte) (revolution[in] & 0x7F) : revolution[in]);
+            }
+
+            positions[0].reads.push_back (read);
+            positions[0].delays.push_back (delay);
+        }
+
+        AssertSucceeded (CassoLinkCapture::BuildWoz (positions, 0, "2026-11-23T00:00:00Z", 1, result));
+        AssertSucceeded (WozLoader::Load (result.woz, image));
+
+        int     slot  = image.ResolveQuarterTrack (0);
+        size_t  count = image.GetTrackBitCount (slot);
+        size_t  at    = 0;
+
+        while (at < count && image.ReadBit (slot, at) == 0)
+        {
+            at++;
+        }
+
+        while (at + 8 <= count)
+        {
+            Byte    value = 0;
+            size_t  zeros = 0;
+
+            for (int bit = 0; bit < 8; bit++)
+            {
+                value = (Byte) ((value << 1) | image.ReadBit (slot, at++));
+            }
+
+            while (at < count && image.ReadBit (slot, at) == 0)
+            {
+                zeros++;
+                at++;
+            }
+
+            framed.push_back ({ value, zeros });
+        }
+
+        for (size_t each = 0; each + kFieldSize < framed.size(); each++)
+        {
+            if (framed[each].first == 0xD7 && framed[each + 1].first == 0xAA && framed[each + 2].first == 0x96)
+            {
+                for (size_t k = 0; k < kFieldSize; k++)
+                {
+                    Assert::AreEqual ((size_t) 0, framed[each + k].second, L"Zero bits inside the address field");
+                }
+
+                checked++;
+            }
+        }
+
+        Assert::IsTrue (checked > 0, L"The track has address fields");
+    }
+
+
+    //  A track whose address fields end in AF, as Ultima IV's track 0 does,
+    //  with the bytes after it read otherwise on one of three reads, as a
+    //  drive that reads a weak stretch steadily does: the bytes after the
+    //  ending's first are written weak, so they differ between reads, as a
+    //  protection's check requires.
+    TEST_METHOD (AProtectedEndingsBytes_ReadOtherwiseOnce_AreWeak)
+    {
+        static constexpr size_t  kSectors       = 16;
+        static constexpr size_t  kSyncs         = 6;
+        static constexpr size_t  kDataBytes     = 343;
+        static constexpr size_t  kReadBytes     = 14000;
+        static constexpr size_t  kTail          = 4;
+        static constexpr Byte    kSteady[kTail] = { 0xA4, 0xBF, 0xC8, 0xD3 };
+        static constexpr Byte    kOther[kTail]  = { 0xA4, 0x9F, 0xE4, 0xB3 };
+
+        std::vector<Byte>                        revolution;
+        std::vector<Byte>                        other;
+        std::vector<CassoLinkCapture::Position>  positions (1);
+        CassoLinkCapture::Result                 result;
+        DiskImage                                image;
+        std::vector<Byte>                        framed;
+        uint32_t                                 seed    = 12345;
+        size_t                                   checked = 0;
+        size_t                                   read    = 0;
+
+
+
+        auto  add = [&revolution, &other] (std::initializer_list<Byte> values)
+        {
+            for (Byte value : values)
+            {
+                revolution.push_back (value);
+                other.push_back (value);
+            }
+        };
+
+        for (size_t sector = 0; sector < kSectors; sector++)
+        {
+            for (size_t each = 0; each < kSyncs; each++)
+            {
+                add ({ 0xFF });
+            }
+
+            add ({ 0xD5, 0xAA, 0x96, 0xAA, 0xAA, 0xAA, 0xAA, (Byte) (0xAA | (sector >> 1)), (Byte) (0xAA | sector), (Byte) (0xAA | (sector >> 1)), (Byte) (0xAA | sector), 0xAF });
+
+            for (size_t each = 0; each < kTail; each++)
+            {
+                revolution.push_back (kSteady[each]);
+                other.push_back (kOther[each]);
+            }
+
+            for (size_t each = 0; each < kSyncs; each++)
+            {
+                add ({ 0xFF });
+            }
+
+            add ({ 0xD5, 0xAA, 0xAD });
+
+            for (size_t each = 0; each < kDataBytes; each++)
+            {
+                seed = seed * 1103515245u + 12345u;
+                add ({ s_kDiskBytes[(seed >> 16) % (std::size (s_kDiskBytes) - 1)] });
+            }
+
+            add ({ 0xDE, 0xAA, 0xEB });
+        }
+
+        for (Byte delay : CassoLinkCapture::kWholeDelays)
+        {
+            const std::vector<Byte>  & source = (read == 1) ? other : revolution;
+            std::vector<Byte>          bytes;
+
+            for (size_t at = 0; at < kReadBytes; at++)
+            {
+                bytes.push_back (source[at % source.size()]);
+            }
+
+            positions[0].reads.push_back (bytes);
+            positions[0].delays.push_back (delay);
+            read++;
+        }
+
+        AssertSucceeded (CassoLinkCapture::BuildWoz (positions, 0, "2026-11-24T00:00:00Z", 1, result));
+        AssertSucceeded (WozLoader::Load (result.woz, image));
+
+        int     slot  = image.ResolveQuarterTrack (0);
+        size_t  count = image.GetTrackBitCount (slot);
+        size_t  at    = 0;
+        Byte    value = 0;
+
+        while (at < count)
+        {
+            value = (Byte) ((value << 1) | image.ReadBit (slot, at++));
+
+            if ((value & 0x80) != 0)
+            {
+                framed.push_back (value);
+                value = 0;
+            }
+        }
+
+        for (size_t each = 0; each + 14 < framed.size(); each++)
+        {
+            if (framed[each] == 0xD5 && framed[each + 1] == 0xAA && framed[each + 2] == 0x96 && framed[each + 11] == 0xAF)
+            {
+                Assert::AreEqual ((int) 0xA4, (int) framed[each + 12], L"The byte after the ending, the same on every read");
+                Assert::AreNotEqual ((int) 0xBF, (int) framed[each + 13], L"The next byte, read otherwise once, is weak");
+                checked++;
+            }
+        }
+
+        Assert::IsTrue (checked > 0, L"The track has address fields");
+    }
+
+
+    //  A track whose data fields, with the D5 AA BC prolog Infocom's disks
+    //  have, end in FF FF before the epilog, read with its sync bytes marked:
+    //  the data's FFs are written with no zero bits, so a read of the field
+    //  doesn't read the checksum's FF again where the epilog's DE is.
+    TEST_METHOD (ADataFieldsFFs_AreWrittenWithNoZeroBits)
+    {
+        static constexpr size_t  kSectors    = 16;
+        static constexpr size_t  kSyncs      = 6;
+        static constexpr size_t  kDataBytes  = 341;
+        static constexpr size_t  kReadBytes  = 14000;
+        static constexpr Byte    kMarked     = 0x7F;
+        static constexpr size_t  kNoiseEvery = 4;
+
+        std::vector<Byte>                        revolution;
+        std::vector<bool>                        sync;
+        std::vector<CassoLinkCapture::Position>  positions (1);
+        CassoLinkCapture::Result                 result;
+        DiskImage                                image;
+        std::vector<std::pair<Byte, size_t>>     framed;
+        uint32_t                                 seed    = 12345;
+        size_t                                   checked = 0;
+
+
+
+        auto  add = [&revolution, &sync] (std::initializer_list<Byte> values, bool isSync)
+        {
+            for (Byte value : values)
+            {
+                revolution.push_back (value);
+                sync.push_back (isSync);
+            }
+        };
+
+        for (size_t sector = 0; sector < kSectors; sector++)
+        {
+            for (size_t each = 0; each < kSyncs; each++)
+            {
+                add ({ 0xFF }, true);
+            }
+
+            add ({ 0xD5, 0xAA, 0x96, 0xAA, 0xAA, 0xAA, 0xAB, (Byte) (0xAA | (sector >> 1)), (Byte) (0xAA | sector), 0xAA, 0xAA, 0xDE, 0xAA, 0xEB }, false);
+
+            for (size_t each = 0; each < kSyncs; each++)
+            {
+                add ({ 0xFF }, true);
+            }
+
+            add ({ 0xD5, 0xAA, 0xBC }, false);
+
+            for (size_t each = 0; each < kDataBytes; each++)
+            {
+                seed = seed * 1103515245u + 12345u;
+                add ({ s_kDiskBytes[(seed >> 16) % (std::size (s_kDiskBytes) - 1)] }, false);
+            }
+
+            add ({ 0xFF, 0xFF, 0xDE, 0xAA, 0xEB }, false);
+        }
+
+        for (Byte delay : CassoLinkCapture::kWholeDelays)
+        {
+            std::vector<Byte>  read;
+
+            for (size_t at = 0; at < kReadBytes; at++)
+            {
+                size_t  in = at % revolution.size();
+
+                bool    noise = delay == 0 && !sync[in] && at % kNoiseEvery == 0;
+
+                read.push_back (((delay == 1 && sync[in]) || noise) ? (Byte) (revolution[in] & kMarked) : revolution[in]);
+            }
+
+            positions[0].reads.push_back (read);
+            positions[0].delays.push_back (delay);
+        }
+
+        AssertSucceeded (CassoLinkCapture::BuildWoz (positions, 0, "2026-11-12T00:00:00Z", 1, result));
+        AssertSucceeded (WozLoader::Load (result.woz, image));
+
+        int     slot  = image.ResolveQuarterTrack (0);
+        size_t  count = image.GetTrackBitCount (slot);
+        size_t  at    = 0;
+
+        while (at < count && image.ReadBit (slot, at) == 0)
+        {
+            at++;
+        }
+
+        while (at + 8 <= count)
+        {
+            Byte    value = 0;
+            size_t  zeros = 0;
+
+            for (int bit = 0; bit < 8; bit++)
+            {
+                value = (Byte) ((value << 1) | image.ReadBit (slot, at++));
+            }
+
+            while (at < count && image.ReadBit (slot, at) == 0)
+            {
+                zeros++;
+                at++;
+            }
+
+            framed.push_back ({ value, zeros });
+        }
+
+        for (size_t each = 2; each + 2 < framed.size(); each++)
+        {
+            if (framed[each].first == 0xDE && framed[each + 1].first == 0xAA && framed[each + 2].first == 0xEB && framed[each - 1].first == 0xFF)
+            {
+                Assert::AreEqual ((size_t) 0, framed[each - 2].second, L"The data's first FF");
+                Assert::AreEqual ((size_t) 0, framed[each - 1].second, L"The data's second FF");
+                checked++;
+            }
+        }
+
+        Assert::IsTrue (checked > 0, L"The track has data fields");
+    }
+
+
     //  A track of 16 sectors read three times, with a nibble of sector 5
     //  misread the same way in the first two reads, so most of the passes
     //  have it wrong: the sector is taken from the read that decodes it. A
@@ -275,7 +661,6 @@ public:
         CassoLinkCapture::Result                 result;
         DiskImage                                image;
         std::vector<Byte>                        framed;
-        std::vector<Byte>                        sector;
         uint32_t                                 seed    = 4321;
         size_t                                   badAt   = 0;
         bool                                     decoded = false;
@@ -290,7 +675,7 @@ public:
 
         for (int number = 0; number < kSectors; number++)
         {
-            std::vector<Byte>  data (NibblizationLayer::kSectorByteSize);
+            std::vector<Byte>  data (NibbleFormat::kSectorByteSize);
             std::vector<Byte>  nibbles;
 
             revolution.insert (revolution.end(), kSyncs, 0xFF);
@@ -315,7 +700,7 @@ public:
                 value = (Byte) (seed >> 16);
             }
 
-            NibblizationLayer::EncodeDataNibbles (data.data(), nibbles);
+            EncodeDataField (data, nibbles);
             badAt = number == kBad ? revolution.size() + kMisread : badAt;
             revolution.insert (revolution.end(), nibbles.begin(), nibbles.end());
             revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
@@ -351,7 +736,7 @@ public:
 
             FrameTrack (image, image.ResolveQuarterTrack (0), framed);
 
-            for (size_t at = 0; !decoded && at + 20 + NibblizationLayer::kDataNibbleCount < framed.size(); at++)
+            for (size_t at = 0; !decoded && at + 20 + NibbleFormat::kDataNibbleCount < framed.size(); at++)
             {
                 bool  address = framed[at] == 0xD5 && framed[at + 1] == 0xAA && framed[at + 2] == 0x96;
                 int   number  = address ? (((framed[at + 7] << 1) | 1) & framed[at + 8]) : -1;
@@ -360,7 +745,7 @@ public:
                 {
                     bool  prolog = framed[data] == 0xD5 && framed[data + 1] == 0xAA && framed[data + 2] == 0xAD;
 
-                    decoded = decoded || (prolog && NibblizationLayer::DecodeDataNibbles (&framed[data + 3], sector));
+                    decoded = decoded || (prolog && DoesDataFieldDecode (&framed[data + 3]));
                 }
             }
 
@@ -400,7 +785,7 @@ public:
 
         for (int number = 0; number < kSectors; number++)
         {
-            std::vector<Byte>  data (NibblizationLayer::kSectorByteSize);
+            std::vector<Byte>  data (NibbleFormat::kSectorByteSize);
             std::vector<Byte>  nibbles;
 
             revolution.insert (revolution.end(), number == 0 ? kGapSyncs : kSyncs, 0xFF);
@@ -420,7 +805,7 @@ public:
                 value = (Byte) (seed >> 16);
             }
 
-            NibblizationLayer::EncodeDataNibbles (data.data(), nibbles);
+            EncodeDataField (data, nibbles);
             revolution.insert (revolution.end(), nibbles.begin(), nibbles.end());
             revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
         }
@@ -486,7 +871,7 @@ public:
 
         for (int number = 0; number < kSectors; number++)
         {
-            std::vector<Byte>  data (NibblizationLayer::kSectorByteSize);
+            std::vector<Byte>  data (NibbleFormat::kSectorByteSize);
             std::vector<Byte>  nibbles;
 
             revolution.insert (revolution.end(), kSyncs, 0xFF);
@@ -506,7 +891,7 @@ public:
                 value = (Byte) (seed >> 16);
             }
 
-            NibblizationLayer::EncodeDataNibbles (data.data(), nibbles);
+            EncodeDataField (data, nibbles);
             revolution.insert (revolution.end(), nibbles.begin(), nibbles.end());
             revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
         }
@@ -579,7 +964,7 @@ public:
 
             for (int number = 0; number < kSectors; number++)
             {
-                std::vector<Byte>  data (NibblizationLayer::kSectorByteSize);
+                std::vector<Byte>  data (NibbleFormat::kSectorByteSize);
                 std::vector<Byte>  nibbles;
 
                 revolution.insert (revolution.end(), kSyncs, 0xFF);
@@ -598,7 +983,7 @@ public:
                     value = (Byte) (seed >> 16);
                 }
 
-                NibblizationLayer::EncodeDataNibbles (data.data(), nibbles);
+                EncodeDataField (data, nibbles);
                 nibbles.back() = decodes ? nibbles.back() : (Byte) (nibbles.back() == 0x96 ? 0x97 : 0x96);
                 revolution.insert (revolution.end(), nibbles.begin(), nibbles.end());
                 revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
@@ -664,7 +1049,7 @@ public:
 
             for (int number = 0; number < kSectors; number++)
             {
-                std::vector<Byte>  data (NibblizationLayer::kSectorByteSize);
+                std::vector<Byte>  data (NibbleFormat::kSectorByteSize);
                 std::vector<Byte>  nibbles;
                 bool               odd = number == kOdd;
 
@@ -696,7 +1081,7 @@ public:
                     value = (Byte) (seed >> 16);
                 }
 
-                NibblizationLayer::EncodeDataNibbles (data.data(), nibbles);
+                EncodeDataField (data, nibbles);
                 revolution.insert (revolution.end(), nibbles.begin(), nibbles.end());
                 revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
             }
@@ -769,7 +1154,7 @@ public:
 
             for (int number = 0; number < kSectors; number++)
             {
-                std::vector<Byte>  data (NibblizationLayer::kSectorByteSize);
+                std::vector<Byte>  data (NibbleFormat::kSectorByteSize);
                 std::vector<Byte>  nibbles;
 
                 revolution.insert (revolution.end(), { 0xD5, 0xAA, 0x96 });
@@ -798,7 +1183,7 @@ public:
                     value = (Byte) (seed >> 16);
                 }
 
-                NibblizationLayer::EncodeDataNibbles (data.data(), nibbles);
+                EncodeDataField (data, nibbles);
                 revolution.insert (revolution.end(), nibbles.begin(), nibbles.end());
                 revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
                 revolution.insert (revolution.end(), kSyncs, 0xFF);
@@ -918,7 +1303,7 @@ public:
 
         for (int number = 0; number < kSectors; number++)
         {
-            std::vector<Byte>  data (NibblizationLayer::kSectorByteSize);
+            std::vector<Byte>  data (NibbleFormat::kSectorByteSize);
             std::vector<Byte>  nibbles;
 
             revolution.insert (revolution.end(), kSyncs, 0xFF);
@@ -937,7 +1322,7 @@ public:
                 value = (Byte) (seed >> 16);
             }
 
-            NibblizationLayer::EncodeDataNibbles (data.data(), nibbles);
+            EncodeDataField (data, nibbles);
             revolution.insert (revolution.end(), nibbles.begin(), nibbles.end());
             revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
         }
@@ -961,6 +1346,40 @@ public:
         return position;
     }
 
+
+    //  A capture's WOZ has a format stamp, with each track's marks and the
+    //  capture's facts.
+    TEST_METHOD (ACapturesWoz_HasAFormatStamp)
+    {
+        static constexpr int  kTracks  = 3;
+        static constexpr int  kSectors = 16;
+
+        std::vector<CassoLinkCapture::Position>  positions;
+        CassoLinkCapture::Result                 result;
+        std::string                              text;
+        StampState                               state = StampState::Absent;
+        FormatStamp                              stamp;
+
+
+
+        for (int track = 0; track < kTracks; track++)
+        {
+            positions.push_back (MakeStandardPosition (track));
+        }
+
+        AssertSucceeded (CassoLinkCapture::BuildWoz (positions, (kTracks - 1) * 4, "2026-11-12T00:00:00Z", 1, result));
+        AssertSucceeded (FormatStampChunk::GetStampFromFile (result.woz, text, state, stamp));
+
+        Assert::IsTrue   (state == StampState::Readable);
+        Assert::IsTrue   (stamp.source == StampSource::Capture);
+        Assert::IsTrue   (stamp.hasCapture);
+        Assert::AreEqual (kTracks * (int) CassoLinkCapture::kWholeReads, stamp.capture.reads);
+        Assert::AreEqual (std::string ("2026-11-12T00:00:00Z"), stamp.written);
+        Assert::IsTrue   (stamp.tracks.size() >= (size_t) kTracks);
+        Assert::IsTrue   (stamp.tracks[1].addressPrologs == std::vector<std::vector<Byte>> { { 0xD5, 0xAA, 0x96 } });
+        Assert::AreEqual (kSectors, stamp.tracks[1].sectorsGood);
+        Assert::IsTrue   (stamp.tracks[1].hasCapture);
+    }
 
     //  A capture whose reads found the disk write-protected is a
     //  write-protected WOZ, and the reads file has it; one whose reads didn't

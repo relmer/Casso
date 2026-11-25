@@ -20,7 +20,8 @@ class SectorsView;
 //
 //  EditingPart
 //
-//  Sector editing: the edit bar over the Sector data tab, typing into the
+//  Sector editing: the Edit button and the edit bar on the Sector data tab,
+//  typing into the
 //  selected sector, and applying, undoing, redoing and saving a copy of the
 //  edits through the host (FR-096 to FR-116).
 //
@@ -38,6 +39,10 @@ public:
 
     void  Layout              (const RECT & area, const DxuiDpiScaler & scaler);
     int   GetHeightPx         (int widthPx, const DxuiDpiScaler & scaler) const;
+
+    //  "Edit", or "Done" while editing, in the Sector data tab's first
+    //  header line.
+    void  LayoutEditButton    (const RECT & rectPx, const DxuiDpiScaler & scaler);
     void  SetShown            (bool isShown);
     void  OnDiskStarted       (const DiskChange & change) override;
     void  OnAnalysisChanged   () override;
@@ -48,6 +53,8 @@ public:
 
     std::function<void()>  TakeDueAction ();
     void  ApplyEdits          ();
+    void  Undo                ();
+    void  Redo                ();
     void  UndoApplied         ();
     void  RedoApplied         ();
     void  SaveEditedCopy      ();
@@ -85,12 +92,14 @@ private:
     bool                      GetBSectorBytes     (PendingEdit::Sector & outBytes) const;
     void                      UseBBytes           ();
     int                       GetSelectedEdit     () const;
+    void                      ShowEdit            (const PendingEdit & edit, int offset);
     static bool               IsSameFile          (const std::filesystem::path & a, const std::filesystem::path & b);
 
     InspectorSession           & m_session;
     IInspectorComponentHost    & m_host;
     SectorsView                & m_sectorsView;
     EditBar                    * m_editBar             = nullptr;
+    DxuiButton                 * m_editButton          = nullptr;
     EditBarState                 m_state;
     int64_t                      m_editSig             = 0;
     vector<AppliedEditRecord>    m_history;

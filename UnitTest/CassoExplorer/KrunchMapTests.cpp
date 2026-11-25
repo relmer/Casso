@@ -3,7 +3,7 @@
 
 #include "CassoExplorer/KrunchMapDialog.h"
 #include "CassoExplorer/Model/KrunchMap.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "../Dxui/MockDxuiPainter.h"
 #include "../Dxui/MockDxuiTextRenderer.h"
 #include "../Dxui/MockDxuiTheme.h"
@@ -340,7 +340,7 @@ public:
 
     TEST_METHOD (PlanKrunch_ListsEveryFile_WhenAskedFor)
     {
-        std::vector<Byte>              image (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>              image (NibbleFormat::kImageByteSize, 0);
         std::vector<Byte>              directory;
         std::vector<PascalKrunchMove>  moves;
         std::vector<PascalKrunchMove>  files;

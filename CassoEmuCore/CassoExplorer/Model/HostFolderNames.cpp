@@ -41,6 +41,75 @@ std::vector<std::wstring> HostFolderNames::GetDriveRoots()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HostFolderNames::IsMediaPresent
+//
+//  IOCTL_STORAGE_CHECK_VERIFY2 queries the drive for its media without reading
+//  a file system.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HostFolderNames::IsMediaPresent (const std::wstring & path)
+{
+    wchar_t  root[]   = { 0, L':', L'\\', 0 };
+    wchar_t  device[] = { L'\\', L'\\', L'.', L'\\', 0, L':', 0 };
+    HANDLE   handle   = INVALID_HANDLE_VALUE;
+    DWORD    bytes    = 0;
+    bool     present  = true;
+
+
+
+    if (path.size() < 2 || path[1] != L':')
+    {
+        return true;
+    }
+
+    root[0]   = (wchar_t) towupper (path[0]);
+    device[4] = root[0];
+
+    if (GetDriveTypeW (root) != DRIVE_REMOVABLE)
+    {
+        return true;
+    }
+
+    handle = CreateFileW (device, FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
+
+    if (handle == INVALID_HANDLE_VALUE)
+    {
+        return true;
+    }
+
+    present = DeviceIoControl (handle, IOCTL_STORAGE_CHECK_VERIFY2, nullptr, 0, nullptr, 0, &bytes, nullptr) != FALSE;
+
+    CloseHandle (handle);
+
+    return present;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HostFolderNames::IsReadableDirectory
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HostFolderNames::IsReadableDirectory (const std::wstring & path)
+{
+    DWORD  attributes = GetFileAttributesW (path.c_str());
+
+
+
+    return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0 && IsMediaPresent (path);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HostFolderNames::GetLocalizedFolderName
 //
 //  SHGetLocalizedName returns the module and string id the desktop.ini

@@ -28,11 +28,13 @@ enum class FullSendDiskCheck
 
 struct FullSendCheckedDisk
 {
-    FullSendDiskCheck  check = FullSendDiskCheck::None;
+    FullSendDiskCheck  check       = FullSendDiskCheck::None;
     std::string        fingerprint;
     std::vector<Byte>  image;
     std::vector<int>   wholeTracks;
-    std::string        system;          // a blank disk's file system
+    std::string        system;                  // a blank disk's file system
+    bool               noSectors   = false;     // track 0 has no sector that reads
+    bool               isRawOnly   = false;     // and a raw read of it repeats, so a disk is in the drive
 
     bool  IsReadWhole (int track) const { return std::find (wholeTracks.begin(), wholeTracks.end(), track) != wholeTracks.end(); }
 };
@@ -68,11 +70,13 @@ private:
     //  What the last check of a drive found.
     struct DriveRecord
     {
-        bool         repeat  = false;   // its disk matched the manifest, or was blank
-        bool         swapped = false;   // and of those, a disk that changed during its read
-        bool         blank   = false;   // its disk was blank
-        std::string  counted;           // the repeat it last added to the duplicates
-        std::string  blankDisk;         // the blank it last added to the blanks
+        bool               repeat  = false;     // its disk matched the manifest, or was blank
+        bool               swapped = false;     // and of those, a disk that changed during its read
+        bool               blank   = false;     // its disk was blank
+        std::string        counted;             // the repeat it last added to the duplicates
+        std::string        blankDisk;           // the blank it last added to the blanks
+        std::vector<Byte>  rawRevolution;       // track 0's revolution of the last disk with no sectors there
+        std::string        rawPrint;            // and the fingerprint it was given
     };
 
     static constexpr int  kFingerprintReads = 3;
@@ -83,6 +87,8 @@ private:
     void                 CountRepeat     (int drive, const FullSendCheckedDisk & disk, bool swapped);
     void                 ReportRepeat    (int drive, const FullSendCheckedDisk & disk);
     HRESULT              CheckBlank      (int drive, FullSendCheckedDisk & ioDisk);
+    HRESULT              ProbeBlank      (int drive, FullSendCheckedDisk & ioDisk, bool & outBlank);
+    HRESULT              CheckRawOnly    (int drive, FullSendCheckedDisk & ioDisk, bool & outKnown);
     HRESULT              ShowResult      (int drive, const FullSendCheckedDisk & disk);
     DriveRecord        & GetRecord       (int drive)       { return m_drives[(size_t) drive - 1]; }
     const DriveRecord  & GetRecord       (int drive) const { return m_drives[(size_t) drive - 1]; }

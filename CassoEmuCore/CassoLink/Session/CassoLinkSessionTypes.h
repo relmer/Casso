@@ -3,10 +3,12 @@
 #include "Pch.h"
 
 #include "CassoLink/FullSend/FullSendProtection.h"
+#include "CassoLink/FullSend/FullSendStatus.h"
 #include "CassoLink/LinkedDisk.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 
 class CassoLinkSession;
+class ILinkImageSource;
 
 
 
@@ -115,12 +117,20 @@ struct LinkOperation
 
     //  Full Send: imagePath is the folder, newName the chosen extension and
     //  imagePrefix what begins each image's file name.
-    //  Read disk and Write disk: the image file, and for a read, whether an
-    //  unreadable sector is written as zeros rather than failing the read.
-    //  unreadable lists those sectors, as track and DOS 3.3 sector.
-    std::string                      imagePath;
-    std::string                      imagePrefix;
-    bool                             blankUnreadable = false;
+    //  Read disk: the image file, and whether an unreadable sector is
+    //  written as zeros rather than failing the read. unreadable lists those
+    //  sectors, as track and DOS 3.3 sector.
+    //  Write disk: the image sent, a file or bytes in memory, with its path,
+    //  or its name for an image in memory, in imagePath.
+    std::string                         imagePath;
+    std::string                         imagePrefix;
+    bool                                blankUnreadable = false;
+    std::shared_ptr<ILinkImageSource>   source;
+
+    //  Read disk with an automatic format: the copy-protection choices that
+    //  pick a raw capture or a WOZ, and otherwise .po or .dsk by the disk's
+    //  file system. The extension is appended to imagePath once it's chosen.
+    std::optional<FullSendProtectionChoices>  automatic;
 
     //  Read disk and Write disk of a block device: continue a transfer the
     //  link cut short, from its record beside the image.
@@ -150,6 +160,18 @@ struct LinkOperation
     //  label for a format differs from one for an image written.
     std::string                      formatted;
     std::vector<std::pair<int, int>> unreadable;
+
+    //  Read disk and Capture disk, once it ends: what it found and how long it
+    //  took, as a label and a value a row, and a capture's positions with weak
+    //  bits, in quarter tracks. Set on the session's thread before the state
+    //  is Done.
+    std::vector<std::pair<std::string, std::string>>  summary;
+    std::vector<int>                                  weakPositions;
+
+    //  Read disk and Capture disk: the drive as the job window draws it, a
+    //  Full Send status with that one drive, written on the session's thread
+    //  as the job goes; and whether the read chose its format.
+    std::shared_ptr<FullSendStatus>                   status;
 
     //  Check link disk: whether the drive has the link's boot disk.
     bool                             linkDisk = false;

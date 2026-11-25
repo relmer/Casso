@@ -5,6 +5,8 @@
 #include "Devices/Disk/Inspector/DiskCopy.h"
 #include "Devices/Disk/SectorWrite.h"
 
+struct FormatStamp;
+
 
 
 
@@ -109,6 +111,9 @@ enum class InspectorRequestKind
     //  The disk with the pending edits applied, serialized for "Save edited
     //  copy..." without changing the drive's disk (FR-101).
     SaveCopy,
+
+    //  A format stamp put in the disk's WOZ metadata, and the disk saved.
+    Stamp,
 };
 
 
@@ -185,6 +190,7 @@ struct InspectorRequest
     vector<std::shared_ptr<const TrackCopy>>  restore;
     vector<RecordWriteCount>                  expectedCounts;
     vector<EditedFieldSpan>                   spans;
+    std::shared_ptr<const FormatStamp>        stamp;
 };
 
 
@@ -255,6 +261,7 @@ private:
 
     static InspectorReply  Answer         (uint64_t id, const InspectorRequest & request, IInspectorDiskSource & source);
     static void            AnswerSaveCopy (const InspectorRequest & request, IInspectorDiskSource & source, InspectorReply & inOutReply);
+    static void            AnswerStamp    (const InspectorRequest & request, IInspectorDiskSource & source, InspectorReply & inOutReply);
 
     //  Makes an apply at a safe point; false while it waits for one.
     bool  TryApply    (uint64_t id, const InspectorRequest & request, IInspectorDiskSource & source, bool & inOutIsRunForced, InspectorReply & outReply);

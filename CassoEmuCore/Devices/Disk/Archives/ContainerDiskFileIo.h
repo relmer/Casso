@@ -47,6 +47,10 @@ public:
     HRESULT  WritePayloadToStandardOutput (const std::vector<Byte> & bytes) override;
 
 private:
+    //  A storage card's partition, such as `\\.\PhysicalDrive5|#1.po`, is
+    //  passed through: the inner file I/O reads and writes it by the block.
+    static bool  IsNested (const std::string & path);
+
     HRESULT  ReadNested   (const std::string & path, std::vector<Byte> & outBytes);
     HRESULT  CommitNested (const std::string & path, std::span<const Byte> bytes);
     bool     TakePending  (const std::string & path, std::vector<Byte> & outBytes);

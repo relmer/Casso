@@ -428,7 +428,7 @@ if ($Sanitize) {
     }
 }
 elseif ($runSerial) {
-    & $vstestPath @vstestArgs
+    & $vstestPath @vstestArgs | Tee-Object -Variable vstestOutput
     $testExit = $LASTEXITCODE
 }
 else {
@@ -472,6 +472,18 @@ if ($insideGit) {
 }
 
 Restore-CassoHostLoad -Priority $priorityWas
+
+#  List the failed tests again after the totals. RunTestShards.ps1 does the
+#  same for a sharded run.
+if ($runSerial -and $vstestOutput) {
+    $failedNames = @($vstestOutput | Select-String '^\s*Failed\s+(\S+)' | ForEach-Object { $_.Matches[0].Groups[1].Value } | Sort-Object -Unique)
+
+    if ($failedNames.Count -gt 0) {
+        Write-Host ''
+        Write-Host 'Failed tests:' -ForegroundColor Red
+        $failedNames | ForEach-Object { Write-Host "  $_" -ForegroundColor Red }
+    }
+}
 
 if ($testExit -ne 0) {
     exit $testExit

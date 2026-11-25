@@ -83,6 +83,10 @@ struct CassoExplorerPrefs
     //  Files newer than this are counted on its tree row.
     std::map<std::wstring, long long>  linkFolderSeen;
 
+    //  The ProDOS disks CassoLink virtual drives disks were made from,
+    //  newest first.
+    std::vector<std::wstring>  linkProDosDisks;
+
     //  The file system chosen for each image that detection doesn't recognize.
     FilesystemChoices      filesystemChoices;
 
@@ -220,6 +224,12 @@ struct CassoExplorerPrefs
     HRESULT  SaveFile (const std::wstring & path, IFileSystem & fs) const;
 
     JsonValue  ToJson   () const;
+
+    //  Moves `disk` to the front of linkProDosDisks, adding it when it isn't
+    //  listed, and drops all but the newest kLinkProDosDiskMax.
+    void  RememberLinkProDosDisk (const std::wstring & disk);
+
+    static constexpr size_t  kLinkProDosDiskMax = 10;
     HRESULT    FromJson (const JsonValue & root);
 
     static std::wstring  GetFilePath (const std::wstring & baseDir);
@@ -255,6 +265,7 @@ struct CassoExplorerPrefs
     static constexpr const char *  kThemeSkeuomorphic  = "Skeuomorphic";
     static constexpr const char *  kThemeDarkModern    = "DarkModern";
     static constexpr const char *  kThemeRetroTerminal = "RetroTerminal";
+    static constexpr const char *  kThemePhosphor      = "Phosphor";
 
     static constexpr const char *  kNamingDescriptive  = "Descriptive";
     static constexpr const char *  kNamingCiderPress   = "CiderPress";
@@ -269,7 +280,7 @@ struct CassoExplorerPrefs
     static constexpr int  kMinPreviewZoom         = 50;
     static constexpr int  kMaxPreviewZoom         = 300;
     static constexpr int  kDefaultTreeWidthDip    = 240;
-    static constexpr int  kDefaultPreviewWidthDip = 360;
+    static constexpr int  kDefaultPreviewWidthDip = 460;   // the screen's picture beside the platter, at full size
 
     //  The name a location's kind is stored under, and the kind a name reads
     //  back as; anything else is no kind.

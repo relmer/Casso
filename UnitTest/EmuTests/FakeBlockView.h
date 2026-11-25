@@ -3,7 +3,7 @@
 #include "Pch.h"
 
 #include "Ui/DiskInspector/Blocks/BlockInspectorInterfaces.h"
-#include "Ui/DiskInspector/EditBar.h"
+#include "Ui/DiskInspector/Blocks/BlockHeaderView.h"
 
 
 
@@ -14,26 +14,27 @@
 //  FakeBlockView
 //
 //  IBlockView that counts refreshes, and has the editing state and the
-//  edit bar's last state.
+//  edit controls' last state.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class FakeBlockView : public IBlockView
 {
 public:
-    int           refreshes = 0;
-    bool          isEditing = false;
-    EditBarState  lastState;
-    std::wstring  blockText;
+    int              refreshes   = 0;
+    bool             isEditing   = false;
+    uint32_t         shownBlock  = 0;
+    int              shownOffset = -1;
+    BlockEditState   lastState;
+    std::wstring     blockText;
+    BlockHeaderView  header;
 
-    void            Refresh        () override                           { refreshes++; }
-    void            SetEditing     (bool editing) override               { isEditing = editing; }
-    bool            IsEditing      () const override                     { return isEditing; }
-    void            SetEditState   (const EditBarState & state) override { lastState = state; }
-    EditBar       & GetEditBar     () const override                     { return m_bar; }
-    BlockHexView  * GetHexView     () const override                     { return nullptr; }
-    std::wstring    BuildBlockText () const override                     { return blockText; }
-
-private:
-    mutable EditBar  m_bar;
+    void               Refresh        () override                             { refreshes++; }
+    void               SetEditing     (bool editing) override                 { isEditing = editing; }
+    bool               IsEditing      () const override                       { return isEditing; }
+    void               SetEditState   (const BlockEditState & state) override { lastState = state; }
+    BlockHeaderView  & GetHeader      () override                             { return header; }
+    BlockHexView     * GetHexView     () const override                       { return nullptr; }
+    std::wstring       BuildBlockText () const override                       { return blockText; }
+    void               ShowBlockByte  (uint32_t block, int offset) override   { shownBlock = block; shownOffset = offset; }
 };
