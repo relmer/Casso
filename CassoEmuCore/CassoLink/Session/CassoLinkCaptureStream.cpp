@@ -956,6 +956,7 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const std::v
         }
 
         isData   = (quiet || (base[0] <= s_kQuietBase && end - at < s_kShortestRun)) && runSet[0] * 2 < runRead[0] && (runRead[1] == 0 || runSet[1] * 2 < runRead[1]);
+        isData   = isData || (end > at && IsFourAndFourRun (bytes, at, end, true));
         dataLike = !fine && base[0] <= s_kQuietBase && end - at >= s_kShortestRun && runSet[0] * 2 < runRead[0] && (runRead[1] == 0 || runSet[1] * 2 < runRead[1]);
 
         outUnsure += dataLike ? end - at : 0;
@@ -1025,7 +1026,9 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const std::v
 
     for (size_t each = 0; each < length; each++)
     {
-        outZeros[each] = bodies[each] ? 0 : outZeros[each];
+        bool  inField = (bytes[each] | 0x80) != s_kSyncByte && IsFourAndFourRun (bytes, each, each + 1, false);
+
+        outZeros[each] = (bodies[each] || inField) ? 0 : outZeros[each];
     }
 }
 
@@ -1093,6 +1096,45 @@ uint8_t CassoLinkCapture::CountByteZeros (const Marks & marks, size_t at, const 
 
 
     return at8 ? ((at12 || all8) ? 2 : 1) : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::IsFourAndFourRun
+//
+//  Whether the bytes from first to end have s_kFourAndFourBytes 4-and-4
+//  bytes (1x1x1x1x) on both sides of them, or with either, on one side, the
+//  revolution continuing at its start. A 4-and-4 field writes a value of $FF
+//  as FF FF, and a loader that reads the field as fast as the bytes arrive
+//  reads a byte twice when zero bits follow it. A gap of sync bytes starts
+//  after an epilog such as DE AA EB and ends at a prolog's D5, neither of
+//  them 4-and-4, so a run of FF on one side of a field's marker is its data.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkCapture::IsFourAndFourRun (const std::vector<Byte> & bytes, size_t first, size_t end, bool either)
+{
+    static constexpr Byte  kFourAndFour = 0xAA;
+    size_t                 length       = bytes.size();
+    bool                   fits         = length > end - first + 2 * s_kFourAndFourBytes;
+    bool                   before       = fits;
+    bool                   after        = fits;
+
+
+
+    auto  isFourAndFour = [&bytes, length] (size_t at) { return ((bytes[at % length] | 0x80) & kFourAndFour) == kFourAndFour; };
+
+    for (size_t each = 0; fits && each < s_kFourAndFourBytes; each++)
+    {
+        before = before && isFourAndFour (first + length - 1 - each);
+        after  = after  && isFourAndFour (end + each);
+    }
+
+    return either ? (before || after) : (before && after);
 }
 
 
