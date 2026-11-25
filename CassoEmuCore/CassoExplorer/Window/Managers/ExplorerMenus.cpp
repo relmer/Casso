@@ -15,6 +15,9 @@
 #include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "Seams/Win32ShellIcons.h"
+#include "CassoExplorer/Window/Managers/ExplorerCassoTarget.h"
+#include "Config/StockMachines.h"
+#include "Core/TextEncoding.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Window/Managers/ExplorerUndo.h"
 #include "CassoExplorer/Window/Managers/ExplorerRename.h"
@@ -970,6 +973,40 @@ void ExplorerMenus::AddMenuCommand (std::vector<DxuiPopupMenuItem> & items, cons
 
     items.push_back (DxuiPopupMenuItem::ForCommand (command));
     m_menuCommands.push_back (std::move (command));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerMenus::AddOpenOnMenu
+//
+//  A row per stock model, each opening the image in a new Casso on a
+//  temporary copy of that model. Every row is listed for every image, and
+//  choosing a model that can't take the image shows why.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerMenus::AddOpenOnMenu (std::vector<DxuiPopupMenuItem> & items, std::function<std::wstring()> imagePath)
+{
+    std::vector<DxuiPopupMenuItem>  rows;
+    std::shared_ptr<DxuiCommand>    parent = std::make_shared<DxuiCommand>();
+
+
+
+    for (const StockMachine & machine : StockMachines::GetAll())
+    {
+        std::wstring  id = TextEncoding::NarrowToWide (machine.id);
+
+        AddMenuCommand (rows, machine.label, [this, imagePath, id]() { m_context.cassoTarget.OpenInNewCasso (imagePath(), id); });
+    }
+
+    parent->label = L"Open o&n";
+
+    items.push_back (DxuiPopupMenuItem::ForSubmenu (parent, std::move (rows)));
+    m_menuCommands.push_back (std::move (parent));
 }
 
 

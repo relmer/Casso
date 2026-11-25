@@ -1313,6 +1313,7 @@ void ExplorerTreePane::AddCassoSubmenu (std::vector<DxuiPopupMenuItem> & items, 
     m_context.menus.GetMenuCommands().back()->menuSvg   = m_context.menus.GetMenuSvg (L"casso.floppy525");
     m_context.menus.AddMenuCommand (choices, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::OpenInNewCasso), [this, image]() { m_context.cassoTarget.OpenInNewCasso (image); });
     m_context.menus.GetMenuCommands().back()->menuImage = m_context.shellIcons.GetForKind (IShellIcons::Kind::Casso);
+    m_context.menus.AddOpenOnMenu (choices, [image]() { return image; });
 
     parent->label     = L"C&asso";
     parent->menuImage = m_context.shellIcons.GetForKind (IShellIcons::Kind::Casso);

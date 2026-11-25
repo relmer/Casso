@@ -109,7 +109,7 @@ void ExplorerCassoTarget::InsertIntoDrive (const std::wstring & imagePath, int d
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerCassoTarget::OpenInNewCasso (const std::wstring & imagePath)
+void ExplorerCassoTarget::OpenInNewCasso (const std::wstring & imagePath, const std::wstring & machineId)
 {
     wchar_t       module[MAX_PATH] = {};
     DWORD         length           = GetModuleFileNameW (nullptr, module, ARRAYSIZE (module));
@@ -131,7 +131,7 @@ void ExplorerCassoTarget::OpenInNewCasso (const std::wstring & imagePath)
         return;
     }
 
-    hr = m_launcher.Launch (exe, LaunchCommand::MakeCassoArguments (imagePath, m_context.app.titlePrefix));
+    hr = m_launcher.Launch (exe, LaunchCommand::MakeCassoArguments (imagePath, m_context.app.titlePrefix, machineId));
 
     if (FAILED (hr))
     {

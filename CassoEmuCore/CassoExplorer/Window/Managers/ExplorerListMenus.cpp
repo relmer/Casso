@@ -698,6 +698,12 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
             cassoAt = cassoChoices.empty() ? items.size() : cassoAt;
             cassoChoices.push_back (DxuiPopupMenuItem::ForCommand (command));
             m_context.menus.GetMenuCommands().push_back (std::move (command));
+
+            if (verb == CassoExplorerActions::Verb::OpenInNewCasso)
+            {
+                m_context.menus.AddOpenOnMenu (cassoChoices, [this]() { return m_context.cassoTarget.GetSelectedImagePath(); });
+            }
+
             continue;
         }
 

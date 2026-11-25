@@ -32,8 +32,9 @@ public:
     //  `--owner <decimal window>`, and `--title <prefix>` when there is one.
     static std::wstring  MakeCassoExplorerArguments (HWND owner, const std::wstring & titlePrefix);
 
-    //  `--disk1 "<path>"`, and `--title <prefix>` when there is one.
-    static std::wstring  MakeCassoArguments (const std::wstring & diskPath, const std::wstring & titlePrefix);
+    //  `--launch "<path>"`, then `--machine <id>` and `--title <prefix>` when
+    //  each is given.
+    static std::wstring  MakeCassoArguments (const std::wstring & diskPath, const std::wstring & titlePrefix, const std::wstring & machineId = {});
 
     //  `--new-window "<path>"`, and `--title <prefix>` when there is one.
     static std::wstring  MakeNewWindowArguments (const std::wstring & path, const std::wstring & titlePrefix);

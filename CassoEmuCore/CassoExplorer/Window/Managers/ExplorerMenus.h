@@ -123,6 +123,7 @@ public:
     void                            ShowListContextMenu    (int x, int y, int group = -1);
     void  AddMenuCommand         (std::vector<DxuiPopupMenuItem> & items, const wchar_t * label, std::function<void()> dispatch, const wchar_t * accelerator = L"", const wchar_t * menuGlyph = nullptr);
     void                                    AddOpenWithMenu        (std::vector<DxuiPopupMenuItem> & items);
+    void                                    AddOpenOnMenu          (std::vector<DxuiPopupMenuItem> & items, std::function<std::wstring()> imagePath);
     static const wchar_t                  * GetVerbGlyph           (CassoExplorerActions::Verb verb);
     static int                              GetIconOrder           (CassoExplorerActions::Verb verb);
     void                                    ShowViewOnButton       ();
