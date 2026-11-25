@@ -724,6 +724,7 @@ HRESULT SettingsSheet::OpenModeless (
     UpdateDiskTabVisibility();
     UpdateSlotsTabVisibility();
     UpdateSerialTabVisibility();
+    UpdateNetworkTabVisibility();
 
     // Show the window BEFORE the final Rebuild: the first valid layout only
     // happens once the window is shown (WM_SIZE against the real client size),
