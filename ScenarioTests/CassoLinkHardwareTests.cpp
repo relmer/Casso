@@ -72,6 +72,12 @@ public:
         return text;
     }
 
+    //  A time as a WOZ image_date has it: RFC 3339 in UTC, to the second.
+    static std::string  FormatImageDate (std::chrono::system_clock::time_point when)
+    {
+        return std::format ("{:%Y-%m-%dT%H:%M:%SZ}", std::chrono::floor<std::chrono::seconds> (when));
+    }
+
     static void  WriteFile (const std::filesystem::path & path, std::span<const Byte> bytes)
     {
         std::ofstream  file (path, std::ios::binary);
@@ -136,7 +142,7 @@ public:
         });
 
         AssertSucceeded (host.BuildCaptureModule (module));
-        AssertSucceeded (CassoLinkCapture::Capture (host, (Byte) drive, module, "2026-11-11T00:00:00Z", [&log] (const CassoLinkCapture::Progress & where)
+        AssertSucceeded (CassoLinkCapture::Capture (host, (Byte) drive, module, FormatImageDate (std::chrono::system_clock::now()), [&log] (const CassoLinkCapture::Progress & where)
         {
             log << std::format ("pass {} position {} read {} of {}: {}%, {:.0f} s left\n", where.pass, where.position, where.read, where.reads, where.percent, where.secondsLeft);
             log.flush();
@@ -261,7 +267,7 @@ public:
         CassoLinkCapture::SerializeReads (positions, reads);
         WriteFile (folder / "positions.reads", reads);
 
-        AssertSucceeded (CassoLinkCapture::BuildWoz (positions, last, "2026-11-12T00:00:00Z", (Byte) drive, result));
+        AssertSucceeded (CassoLinkCapture::BuildWoz (positions, last, FormatImageDate (std::chrono::system_clock::now()), (Byte) drive, result));
         WriteFile (folder / "positions.woz", result.woz);
     }
 
@@ -318,7 +324,7 @@ public:
             }
         }
 
-        AssertSucceeded (CassoLinkCapture::BuildWoz (positions, last, "2026-11-11T00:00:00Z", 2, result));
+        AssertSucceeded (CassoLinkCapture::BuildWoz (positions, last, FormatImageDate (std::chrono::clock_cast<std::chrono::system_clock> (std::filesystem::last_write_time (path))), 2, result));
         WriteFile (folder / "rebuilt.woz", result.woz);
 
         AssertSucceeded (VolumeImage::Load (result.woz, "rebuilt.woz", sectors, report));
