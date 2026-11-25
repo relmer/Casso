@@ -1447,7 +1447,9 @@
     <ClCompile Include="Seams\Win32NetworkAdapters.cpp" />
     <ClCompile Include="Seams\Win32NetworkChanges.cpp" />
     <ClCompile Include="Devices\Network\W5100.cpp" />
+    <ClCompile Include="Config\LaunchPlacement.cpp" />
     <ClCompile Include="Config\MacAddress.cpp" />
+    <ClCompile Include="Config\StockMachines.cpp" />
     <ClCompile Include="Config\NetworkCardSettings.cpp" />
     <ClCompile Include="Devices\Network\PacketCodec.cpp" />
     <ClCompile Include="Devices\Network\DhcpServer.cpp" />
@@ -2642,7 +2644,9 @@
     <ClInclude Include="Devices\Network\W5100.h" />
     <ClInclude Include="Devices\Network\W5100Registers.h" />
     <ClInclude Include="Devices\Network\IW5100Backend.h" />
+    <ClInclude Include="Config\LaunchPlacement.h" />
     <ClInclude Include="Config\MacAddress.h" />
+    <ClInclude Include="Config\StockMachines.h" />
     <ClInclude Include="Config\NetworkCardSettings.h" />
     <ClInclude Include="Devices\Network\IGuestPacketSink.h" />
     <ClInclude Include="Devices\Network\VirtualSubnet.h" />

@@ -382,6 +382,11 @@ struct MachineConfig
     vector<PortConfig>          ports;
     string                      keyboardType;
 
+    // Set on the copy `--launch` boots. UserConfigStore doesn't write
+    // UserPrefs.json while the running machine's config has it. JSON never
+    // sets it.
+    bool                        isTemporary       = false;
+
     // True when an enabled slot hosts the given device type -- e.g. a query for
     // "parallel-printer" tells the UI whether this machine can print. A slot the
     // user disabled in Settings > Hardware does not count.

@@ -297,7 +297,9 @@
     <ClCompile Include="EmuTests\DataFolderResolverTests.cpp" />
     <ClCompile Include="EmuTests\PathResolverTests.cpp" />
     <ClCompile Include="EmuTests\MachineConfigSourceTests.cpp" />
+    <ClCompile Include="EmuTests\LaunchPlacementTests.cpp" />
     <ClCompile Include="EmuTests\MachineConfigTests.cpp" />
+    <ClCompile Include="EmuTests\StockMachinesTests.cpp" />
     <ClCompile Include="EmuTests\Apple2cRomBankTests.cpp" />
     <ClCompile Include="EmuTests\Apple2cBootTests.cpp" />
     <ClCompile Include="EmuTests\AppleMouseTests.cpp" />

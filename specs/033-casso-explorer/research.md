@@ -1310,6 +1310,12 @@ CiderPress II's file viewer, from its GUI manual, was compared feature by featur
   has its card, so the image boots without a change to the boot order.
 - **Alternatives**: the ProFile card, which takes a single 5 or 10 MB drive
   and can't take a 32 MB image; the UniDisk 3.5 card, limited to 800K.
+- **Update (2026-11-24)**: the SCSI card's HD20SC rejects 140K, 400K and 800K
+  block images as floppies, and a Disk II mounts only its own formats. Those
+  sizes go on a UniDisk 3.5 interface card, put in slot 7 since slot 6's
+  empty Disk II stops the boot search before slot 5, or on the //c's disk
+  port, or the //c Plus's internal drive. The //c's disk port takes no hard
+  disk, so a hard disk image is reported there (spec Clarifications).
 
 ## R66. A block image on a 6502 machine (Story 44, FR-318)
 

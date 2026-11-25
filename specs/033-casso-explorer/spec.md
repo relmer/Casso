@@ -702,6 +702,14 @@ hardware.
 
 ### Session 2026-11-24
 
+- Q: Where does a 140K, 400K or 800K block image go, since the SCSI card's
+  drive rejects those sizes as floppies? -> A: On a UniDisk 3.5 (owner,
+  2026-11-24): a UniDisk 3.5 interface card in slot 7 of a model with slots,
+  replacing the copy's slot 7 card so the image boots before slot 6's empty
+  Disk II stops the search; the //c's disk port; the //c Plus's internal
+  drive. The Apple ][ isn't a host of that card, so it reports the image. A
+  hard disk image on a //c is reported, since its disk port takes 3.5-inch
+  and 5.25-inch drives only.
 - Q: How does a disk image opened from File Explorer or Casso Explorer
   boot, without changing the user's machines? -> A: In a temporary copy of
   a stock machine (owner, 2026-11-24). `--launch <image>` copies the stock
@@ -4283,10 +4291,13 @@ it was.
   copied: Apple2, Apple2Plus, Apple2e, Apple2eEnhanced, Apple2c or
   Apple2cPlus, and the Apple /// once Casso emulates it. It MUST NOT refer to
   a saved machine of the user's. Without it, Apple2eEnhanced is copied.
-- **FR-313**: A 5.25-inch image MUST go in drive 1. A block image MUST go on
-  a hard disk card: the stock //e's SCSI card in slot 7, or a card added to
-  an empty slot when the copy has none and the model takes cards. On a //c
-  or //c Plus it MUST go on the disk port. When the model has nowhere to
+- **FR-313**: A 5.25-inch image MUST go in drive 1. A 140K, 400K or 800K
+  block image MUST go on a UniDisk 3.5: on a model with slots, a UniDisk 3.5
+  interface card in slot 7 of the copy, where the Apple II looks first; on
+  the //c, the disk port's first drive; on the //c Plus, the internal 3.5-inch
+  drive. Any other block image MUST go on the copy's SCSI card, or on one
+  added to slot 7 when it has none; the //c's disk port takes no hard disk,
+  so Casso reports it there. When the model has nowhere to
   mount the image, Casso MUST report why and MUST NOT boot. The placement
   MUST be computed from the image and the configuration alone, so unit
   tests can check every model and image size.
