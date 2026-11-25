@@ -45,6 +45,22 @@ public:
 
 
 
+    TEST_METHOD (A13SectorDisk_SwapsTheBuiltInDrivesBootPage_OnIIc)
+    {
+        TestMachine        machine ("Apple2c");
+        std::vector<Byte>  rom16   = ReadSlotRom (machine);
+        std::vector<Byte>  woz;
+
+        Make13SectorWoz (woz);
+        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "", DiskFormat::Woz, woz));
+        Assert::IsTrue (ReadSlotRom (machine) != rom16, L"the 13-sector page is at $C600");
+
+        machine.GetDiskStore().Eject (6, 0);
+        Assert::IsTrue (ReadSlotRom (machine) == rom16, L"the //c's page is back at $C600");
+    }
+
+
+
     TEST_METHOD (A13SectorDiskInDrive2_LeavesThe16SectorRom)
     {
         TestMachine        machine ("Apple2eEnhanced");

@@ -366,6 +366,11 @@ struct MachineConfig
 
     vector<RamRegion>           ram;
     RomReference                systemRom;
+
+    //  The 13-sector Disk II ROM for a banked-ROM machine's built-in drive,
+    //  which swaps it in over the $C600 page for a 13-sector disk. Empty
+    //  when the file isn't installed.
+    string                      builtInDisk2Rom13Path;
     CharacterRomReference       characterRom;
     vector<InternalDevice>      internalDevices;
     vector<SlotConfig>          slots;

@@ -1348,7 +1348,8 @@ void MachineHost::SetDisk2Roms (std::vector<Byte> rom16, std::vector<Byte> rom13
 //
 //  A real card has one ROM or the other. Swapping it with the disk lets a
 //  13-sector disk boot with PR#6 or a power cycle on any machine with the
-//  card, and a 16-sector disk boot after it.
+//  card, and a 16-sector disk boot after it. On a //c the built-in drive's
+//  boot page at $C600 in the main ROM bank is swapped the same way.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1367,6 +1368,10 @@ void MachineHost::MatchDisk2Rom()
     if (m_disk2RomDevice != nullptr)
     {
         m_disk2RomDevice->Patch (want13 ? m_disk2Rom13 : m_disk2Rom16);
+    }
+    else if (m_apple2cRomBank != nullptr)
+    {
+        m_apple2cRomBank->PatchMainBankPage (0xC600, want13 ? m_disk2Rom13 : m_disk2Rom16);
     }
     else if (m_mmu != nullptr)
     {
