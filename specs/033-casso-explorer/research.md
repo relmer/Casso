@@ -1331,14 +1331,19 @@ CiderPress II's file viewer, from its GUI manual, was compared feature by featur
 
 ## R68. Never writing a temporary session's settings (Story 44, FR-311)
 
-- **Decision**: `ShellSettings` has a temporary flag, set from `--launch`
-  before the preferences load. `UserConfigStore::SaveAll` and `SaveDelta`
-  return S_OK without writing while it is set.
-- **Rationale**: there are more than a dozen save sites across the shell,
-  the desk scene and the settings dialog. Guarding the store's two entry
-  points covers all of them and any added later.
-- **Alternatives**: a guard at each save site, which a new site would miss.
-
+- **Decision**: `MachineConfig::isTemporary`, set by `LaunchPlacement` on
+  the copy it returns. The shell passes the running machine's config to
+  `UserConfigStore`, and the store's writes of `UserPrefs.json`
+  (`SaveCombinedJson` and the combined-text write beside it) return S_OK
+  without writing while that config has the flag. The flag isn't read from
+  or written to JSON, so no file can set it.
+- **Rationale**: the owner, 2026-11-24: the setting travels with the
+  config, and one write function checks it. There are more than a dozen
+  save sites across the shell, the desk scene and the settings dialog, and
+  all of them write the file through those calls.
+- **Alternatives**: a flag on `ShellSettings`, set from the command line,
+  which is state beside the config rather than part of it; a guard at each
+  save site, which a new site would miss.
 ## R69. The Open on submenu in File Explorer (Story 44, FR-314, FR-315)
 
 - **Decision**: unpackaged builds write a `shell\OpenOn` verb under each

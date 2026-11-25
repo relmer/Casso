@@ -749,9 +749,9 @@ Explorer's Open in Casso as `--disk1`.
   (R67).
 - `--launch <image>` in `CommandLineParser` and its usage row; `--machine`
   with `--launch` resolves through `StockMachines` only.
-- A temporary session flag in `ShellSettings`: while it is set, every
-  `UserConfigStore::SaveAll` and `SaveDelta` call returns S_OK without
-  writing, so no save site has to change (R68).
+- `MachineConfig::isTemporary`, set on the copy `LaunchPlacement`
+  returns. `UserConfigStore`'s writes of `UserPrefs.json` return S_OK
+  without writing while the running machine's config has it (R68).
 - `FileAssociations`: the block types, the `--launch` command, and an Open
   on submenu under each type's ProgID (R69). `RegisterForInstall` already
   replaces a registration whose command differs.
@@ -771,7 +771,7 @@ every model against three image sizes. Then `StockMachines`, `--launch`
 and the save guard, which SC-079 checks. Then the associations, the
 package and the two menus.
 
-**Risks.** The save guard covers the store's two entry points; a save
+**Risks.** The guard covers the store's writes of `UserPrefs.json`; a save
 written around the store would escape it, so a unit test runs a temporary
 session through a settings change and asserts the mock file system has no
 writes. A user who changed a stock machine's ROM files on disk gets those
@@ -785,7 +785,7 @@ files, since ROMs aren't part of the config.
 | II. Testing Discipline | PASS | Placement is pure and tested per model and image size; the save guard is tested on a mock file system; associations on the mock registry. |
 | III. UX Consistency | PASS | The Open on submenu matches File Explorer's other submenus; a refusal is a notice, as `--hd` refusals are. |
 | IV. Performance | PASS | Placement reads the image's header only. |
-| V. Simplicity | PASS | One flag guards every save; the placement adds a card through the existing config, not a new device path. |
+| V. Simplicity | PASS | One config flag, checked at the one write; the placement adds a card through the existing config, not a new device path. |
 | VI. Thin Executable | PASS | `--launch` is parsed in `CassoCore` and acted on in `CassoEmuCore`. |
 
 Post-design re-check: PASS.

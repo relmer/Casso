@@ -305,5 +305,5 @@ never stored in `links`.
 - **StockModel**: `id` (Apple2, Apple2Plus, Apple2e, Apple2eEnhanced,
   Apple2c, Apple2cPlus), `label` for the Open on row, `hasSlots`,
   `cpu` (6502 or 65C02).
-- **Temporary session**: a flag in `ShellSettings`, set once at startup and
-  never cleared.
+- **MachineConfig.isTemporary**: set on a launch copy only; never read
+  from or written to JSON.
