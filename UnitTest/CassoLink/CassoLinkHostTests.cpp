@@ -467,6 +467,8 @@ public:
 
     //  The installer's status request has the ROM's identification bytes
     //  after the block, and the virtual sink gets the model they identify.
+    //  The host calls the sink after it sends the reply, so the test waits
+    //  for it.
     TEST_METHOD (TheInstallersVirtualStatus_IdentifiesTheModel)
     {
         InMemoryCassoLinkFolder  folder;
@@ -475,17 +477,31 @@ public:
         std::vector<Byte>        wire;
         std::vector<Byte>        reply;
         std::wstring             model;
+        bool                     served = false;
+        std::mutex               lock;
+        std::condition_variable  changed;
 
         Session  session (folder);
 
         session.host->SetVirtualDrives (&drives);
-        session.host->SetVirtualSink   ([&model] (const std::wstring & identified) { model = identified; });
+        session.host->SetVirtualSink   ([&] (const std::wstring & identified)
+        {
+            std::lock_guard  guard (lock);
+
+            model  = identified;
+            served = true;
+            changed.notify_all();
+        });
 
         AssertSucceeded (CassoLinkCodec::Encode (CassoLinkCodec::kVirtualBlock, std::vector<Byte> { 1, CassoLinkCodec::kVirtualStatus, 0, 0, 0x06, 0x00, 0x05, 0x00, 0 }, wire));
         session.Send (wire);
         reply = session.Receive (5 + 3 + 1);
 
         Assert::AreEqual ((size_t) 9, reply.size(), L"the status has a reply");
+
+        std::unique_lock  guard (lock);
+
+        Assert::IsTrue   (changed.wait_for (guard, std::chrono::seconds (5), [&served] () { return served; }), L"the sink is called");
         Assert::AreEqual (std::wstring (L"Apple //c Plus"), model);
     }
 
