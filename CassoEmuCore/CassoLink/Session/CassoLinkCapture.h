@@ -338,6 +338,7 @@ private:
     static constexpr size_t  s_kAddressNibbles     = 8;      // volume, track, sector and checksum, two 4-and-4 nibbles each
     static constexpr int     s_kEndingMarks        = 2;      // the reads at 8 cycles that mark an ending's byte, at least, to count its zero bits
     static constexpr uint8_t s_kEndingZeros        = 2;
+    static constexpr size_t  s_kEndingFieldShare   = 2;      // one address field in this many, at least, has a marked ending for any to count
     static constexpr size_t  s_kProbeShare         = 4;
     static constexpr int     s_kWeakReads          = 2;
     static constexpr size_t  s_kConsensusGap       = 4;
