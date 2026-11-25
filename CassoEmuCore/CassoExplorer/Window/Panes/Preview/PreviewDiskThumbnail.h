@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Model/DiskThumbnailWorker.h"
+#include "Devices/Disk/IDiskFileIo.h"
 #include "Ui/DiskInspector/Blocks/BlockMapView.h"
 #include "Ui/DiskInspector/InspectorView.h"
 #include "Ui/DiskInspector/InspectorViewModel.h"
@@ -277,6 +278,10 @@ private:
     bool  HandleScreenMouse  (const DxuiMouseEvent & ev);
     void  SetHot             (bool isHot);
 
+    using KeptResult = std::pair<FileStamp, DiskThumbnailResult>;
+
+    static constexpr size_t  kRecentCount = 8;
+
     enum class State
     {
         Analyzing,
@@ -290,6 +295,9 @@ private:
     DiskThumbnailResult  BuildThumbnail (const std::wstring & path);
 
     void  ApplyResult        ();
+    bool  GetStamp           (const std::wstring & path, FileStamp & outStamp) const;
+    bool  FindRecent         (const std::wstring & path, DiskThumbnailResult & outResult) const;
+    void  KeepRecent         (const DiskThumbnailResult & result);
     bool  IsBlocks           () const { return m_result.blocks != nullptr; }
     //  The picture comes from the thumbnail store, not the analysis, so it is
     //  drawn while the analysis runs and the pane isn't laid out again when
@@ -305,6 +313,7 @@ private:
     InspectorViewModel                      m_model;
     DiskThumbnailWorker                     m_worker;
     DiskThumbnailResult                     m_result;
+    std::list<KeptResult>                   m_recent;   // the results read last, newest first, so a pane opened again isn't read again
     DxuiScrollPanel                       * m_header            = nullptr;   // the controls below, clipped where the pane scrolls them away
     ThumbnailPlatterView                  * m_platter           = nullptr;
     ThumbnailBlockMap                     * m_blockMap          = nullptr;

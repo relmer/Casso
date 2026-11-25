@@ -565,6 +565,12 @@ void PreviewDiskThumbnail::SetPath (const std::wstring & path)
         m_worker.Cancel();
         Hide();
     }
+    else if (FindRecent (path, m_result))
+    {
+        m_worker.Cancel();
+        m_isStale = false;
+        ApplyResult();
+    }
     else
     {
         (void) m_worker.Request (path);
@@ -654,6 +660,7 @@ void PreviewDiskThumbnail::TakeResult()
         m_blockMap->SetModel (nullptr);
         m_result  = std::move (result);
         m_isStale = false;
+        KeepRecent (m_result);
         ApplyResult();
         RefreshScreen();
     }
@@ -740,6 +747,107 @@ void PreviewDiskThumbnail::ApplyResult()
 
     m_verdict->SetText     (text);
     m_verdict->SetSeverity ((m_result.analysis->verdict == FileSystemVerdict::Bad) ? DxuiInfoBanner::Severity::Error : DxuiInfoBanner::Severity::Info);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::GetStamp
+//
+//  The file's size and modified time, through the browser's file I/O. False
+//  for a path that isn't a file, such as a card's partition.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PreviewDiskThumbnail::GetStamp (const std::wstring & path, FileStamp & outStamp) const
+{
+    HRESULT  hr = S_OK;
+
+
+
+    outStamp = FileStamp();
+
+    if (PhysicalCards::IsOnCard (path))
+    {
+        return false;
+    }
+
+    hr = m_context.browser.GetOperations().GetFileIo().Stat (TextEncoding::WideToUtf8 (path), outStamp);
+
+    return SUCCEEDED (hr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::FindRecent
+//
+//  A result read for the path while the file had the size and modified time
+//  it has now.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PreviewDiskThumbnail::FindRecent (const std::wstring & path, DiskThumbnailResult & outResult) const
+{
+    FileStamp  stamp;
+    bool       isFound = false;
+
+
+
+    if (m_recent.empty() || !GetStamp (path, stamp))
+    {
+        return false;
+    }
+
+    for (const auto & [kept, result] : m_recent)
+    {
+        if (!isFound && _wcsicmp (result.path.c_str(), path.c_str()) == 0 && kept.sizeBytes == stamp.sizeBytes && kept.modifiedUnix == stamp.modifiedUnix)
+        {
+            outResult = result;
+            isFound   = true;
+        }
+    }
+
+    return isFound;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::KeepRecent
+//
+//  The result first in the list, in place of an earlier one for its path,
+//  with the oldest dropped past kRecentCount.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewDiskThumbnail::KeepRecent (const DiskThumbnailResult & result)
+{
+    FileStamp  stamp;
+
+
+
+    if (!GetStamp (result.path, stamp))
+    {
+        return;
+    }
+
+    m_recent.remove_if ([&result] (const KeptResult & kept) { return _wcsicmp (kept.second.path.c_str(), result.path.c_str()) == 0; });
+    m_recent.emplace_front (stamp, result);
+
+    while (m_recent.size() > kRecentCount)
+    {
+        m_recent.pop_back();
+    }
 }
 
 

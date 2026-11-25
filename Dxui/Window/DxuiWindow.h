@@ -242,10 +242,29 @@ public:
     //  Request a repaint of the window (the backend's WM_PAINT pump
     //  walks this panel tree). Consumers with a per-frame data model
     //  call this after mutating state. The window is painted before this
-    //  returns, except while a mouse event is dispatched: then it is
-    //  painted once, after the event.
+    //  returns, except between BeginPaintBatch and EndPaintBatch: then it
+    //  is painted once, by the outermost EndPaintBatch.
     //
     void     Invalidate ();
+
+    //  Every mouse event, key and character is a batch. A subclass makes
+    //  one of its other messages a batch with these two, or with a
+    //  PaintBatch for the length of a scope.
+    void     BeginPaintBatch ();
+    void     EndPaintBatch   ();
+
+    class PaintBatch
+    {
+    public:
+        explicit PaintBatch (DxuiWindow & window) : m_window (window) { m_window.BeginPaintBatch(); }
+        ~PaintBatch () { m_window.EndPaintBatch(); }
+
+        PaintBatch (const PaintBatch &)             = delete;
+        PaintBatch & operator= (const PaintBatch &) = delete;
+
+    private:
+        DxuiWindow  & m_window;
+    };
 
     void                SetTheme           (const IDxuiTheme * theme);
     const IDxuiTheme  * GetTheme           () const { return m_theme; }
@@ -454,8 +473,8 @@ private:
     bool                               m_wheelCtrl       = false;   // Ctrl, by the flags of the wheel message being dispatched
     int                                m_modalResult     = 0;
     int                                m_defaultButtonId = 0;
-    int                                m_mouseDepth      = 0;       // mouse events being dispatched, nested ones included
-    bool                               m_paintAfterMouse = false;   // invalidated during the mouse event being dispatched
+    int                                m_batchDepth      = 0;       // paint batches open, nested ones included
+    bool                               m_paintAfterBatch = false;   // invalidated during the open batch
     UINT                               m_dialogTickMs    = kDefaultDialogTickMs;   // dialog repaint / tick cadence (caret-blink default)
     std::function<void (int)>        m_onDialogEnd;            // modeless close callback
     std::function<void ()>           m_onModalLoopTick;        // OS size/move-loop keep-alive tick

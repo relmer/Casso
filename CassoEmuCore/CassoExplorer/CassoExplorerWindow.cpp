@@ -908,10 +908,17 @@ DxuiMessageResult CassoExplorerWindow::OnCopyData (WPARAM sender, LPARAM data)
 //
 //  CassoExplorerWindow::OnAppMessage
 //
+//  A command or a worker's result often changes several panes, so the
+//  window is painted once, after the message.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LPARAM lParam)
 {
+    PaintBatch  batch (*this);
+
+
+
     if (msg == (UINT) AppMessage::ExplorerLaunch)
     {
         std::vector<std::wstring>  launches = std::move (m_pendingLaunches);
@@ -1057,7 +1064,8 @@ int64_t CassoExplorerWindow::GetNowMs()
 
 DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
 {
-    bool  barsMoved = false;
+    PaintBatch  batch     (*this);
+    bool        barsMoved = false;
 
 
 
