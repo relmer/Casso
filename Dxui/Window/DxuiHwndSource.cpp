@@ -2606,12 +2606,19 @@ Error:
 //  -> after-paint / compose -> PresentFrame), which bails cleanly if the
 //  painter / text renderer / RTV / swap chain are missing. A window that paces
 //  its frames first waits for the last one to leave the queue.
+//  A minimized window isn't painted: its root is laid out at no width.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiHwndSource::PaintPump()
 {
     DXUI_ASSERT_UI_THREAD();
+
+    if (m_hwnd != nullptr && IsIconic (m_hwnd))
+    {
+        return;
+    }
+
     WaitForFrameSlot();
     RenderFrame (m_theme);
 }
@@ -3938,7 +3945,9 @@ void DxuiHwndSource::HandleSize (WPARAM wp, LPARAM lp)
     // swap chain during a live edge-drag -- which reads as the content subtly
     // shifting as the window resizes. Full-ownership mode only; adopt mode's
     // client repaints through its own OnSize.
-    if (m_ownsPaintPump)
+    // A minimized window has no extent to paint at, and its controls measure
+    // text at a zero width.
+    if (m_ownsPaintPump && widthPx > 0 && heightPx > 0)
     {
         WaitForFrameSlot();
         RenderFrame (m_theme);
