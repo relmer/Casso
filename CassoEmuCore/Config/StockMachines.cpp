@@ -9,16 +9,6 @@
 
 
 
-static constexpr StockMachine  s_kStockMachines[] =
-{
-    { "Apple2",          L"Apple ][",           true,  true  },
-    { "Apple2Plus",      L"Apple ][+",          true,  true  },
-    { "Apple2e",         L"Apple //e",          true,  false },
-    { "Apple2eEnhanced", L"Apple //e Enhanced", true,  false },
-    { "Apple2c",         L"Apple //c",          false, false },
-    { "Apple2cPlus",     L"Apple //c Plus",     false, false },
-};
-
 static constexpr size_t  s_kDefaultIndex = 3;
 
 
@@ -33,7 +23,7 @@ static constexpr size_t  s_kDefaultIndex = 3;
 
 std::span<const StockMachine> StockMachines::GetAll()
 {
-    return s_kStockMachines;
+    return kStockMachines;
 }
 
 
@@ -48,7 +38,7 @@ std::span<const StockMachine> StockMachines::GetAll()
 
 const StockMachine & StockMachines::GetDefault()
 {
-    return s_kStockMachines[s_kDefaultIndex];
+    return kStockMachines[s_kDefaultIndex];
 }
 
 
@@ -67,7 +57,7 @@ const StockMachine * StockMachines::Find (std::string_view id)
 
 
 
-    for (const StockMachine & machine : s_kStockMachines)
+    for (const StockMachine & machine : kStockMachines)
     {
         if (id.size() == strlen (machine.id) && _strnicmp (id.data(), machine.id, id.size()) == 0)
         {
@@ -94,7 +84,7 @@ const StockMachine * StockMachines::Find (std::string_view id)
 std::wstring StockMachines::FormatUnknown (std::string_view id)
 {
     std::wstring  text  = std::format (L"Unknown machine '{}'. Expected ", TextEncoding::NarrowToWide (std::string (id)));
-    size_t        count = std::size (s_kStockMachines);
+    size_t        count = std::size (kStockMachines);
 
 
 
@@ -105,7 +95,7 @@ std::wstring StockMachines::FormatUnknown (std::string_view id)
             text += (i + 1 == count) ? L" or " : L", ";
         }
 
-        text += TextEncoding::NarrowToWide (s_kStockMachines[i].id);
+        text += TextEncoding::NarrowToWide (kStockMachines[i].id);
     }
 
     text += L".";

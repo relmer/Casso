@@ -1366,3 +1366,11 @@ CiderPress II's file viewer, from its GUI manual, was compared feature by featur
   compact menu, which Casso doesn't ship.
 - **Alternatives**: an `IExplorerCommand` handler, a COM server in the
   package for a menu that the static verbs already provide.
+- **Update (2026-11-25)**: the package uses `OpenOnCommand`, an
+  `IExplorerCommand` in CassoShellExtension.dll, attached to each type by
+  `windows.fileExplorerContextMenus`, so it has the same Open in Casso on
+  submenu, in the compact menu too. The flat "Casso: Apple //c" verbs are
+  gone. An unpackaged build has the registry submenu, because File
+  Explorer would load the DLL from the build folder and lock it during a
+  rebuild. Both read the models from `kStockMachines` and the arguments
+  from `LaunchCommand::MakeCassoArguments`.

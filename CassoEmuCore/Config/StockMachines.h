@@ -2,32 +2,9 @@
 
 #include "Pch.h"
 
+#include "Config/StockMachineList.h"
+
 struct MachineConfig;
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  StockMachine
-//
-//  One model a disk image can be opened on in a temporary machine.
-//
-//  id        The model's directory name under Resources/Machines.
-//  label     The model's row in the Open on menus.
-//  hasSlots  Whether the model takes cards.
-//  is6502    Whether the model's CPU is the 6502 rather than the 65C02.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-struct StockMachine
-{
-    const char     * id       = nullptr;
-    const wchar_t  * label    = nullptr;
-    bool             hasSlots = false;
-    bool             is6502   = false;
-};
 
 
 

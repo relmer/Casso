@@ -4315,9 +4315,7 @@ it was.
 - **FR-317**: The proposed UI text MUST be approved by the owner before it
   ships: the submenu label, "Open in Casso on" in File Explorer and "Open
   on" in Casso Explorer; the model rows ("Apple ][", "Apple ][+", "Apple
-  //e", "Apple //e Enhanced", "Apple //c", "Apple //c Plus"), and in the
-  installed package, which has no submenu, "Casso: Apple //c" and so on;
-  the title bar suffix "(temporary)"; the `--launch` and `--machine` help
+  //e", "Apple //e Enhanced", "Apple //c", "Apple //c Plus"); the title bar suffix "(temporary)"; the `--launch` and `--machine` help
   lines; and the notices in contracts/temporary-launch.md.
 - **FR-318**: Placement MUST check the model as well as the slots. For a
   block image on a machine with less than 64K, the temporary copy MUST get a

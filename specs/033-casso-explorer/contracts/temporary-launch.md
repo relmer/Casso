@@ -52,6 +52,7 @@ HKCU\Software\Classes\Casso.OpenOn\shell\<nn><id>
 ## Package
 
 Each `uap3:FileTypeAssociation` uses `--launch "%1"` for its default and
-Open verbs and has one `uap3:Verb` per stock model, labeled "Casso: Apple
-//c" and so on, with
-`--launch "%1" --machine <id>`. The block types are added as separate associations.
+Open verbs. A `windows.fileExplorerContextMenus` extension attaches
+`OpenOnCommand` (CLSID `146E9396-94F5-4962-A61F-DC6AE6CC30A4`, in
+CassoShellExtension.dll) to each type: an "Open in Casso on" submenu with a
+row per stock model, each starting `--launch "<image>" --machine <id>`. The block types are added as separate associations.

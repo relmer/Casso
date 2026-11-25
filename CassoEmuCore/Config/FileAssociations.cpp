@@ -586,7 +586,7 @@ bool FileAssociations::IsOpenOnCurrent (const IUserClasses & classes, const std:
 
 std::wstring FileAssociations::GetOpenCommand (const std::wstring & cassoExe)
 {
-    return L"\"" + cassoExe + L"\" --launch \"%1\"";
+    return L"\"" + cassoExe + L"\" " + LaunchCommand::MakeCassoArguments (L"%1", L"");
 }
 
 
@@ -601,7 +601,7 @@ std::wstring FileAssociations::GetOpenCommand (const std::wstring & cassoExe)
 
 std::wstring FileAssociations::GetOpenOnCommand (const std::wstring & cassoExe, const char * machineId)
 {
-    return GetOpenCommand (cassoExe) + L" --machine " + TextEncoding::NarrowToWide (machineId);
+    return L"\"" + cassoExe + L"\" " + LaunchCommand::MakeCassoArguments (L"%1", L"", TextEncoding::NarrowToWide (machineId));
 }
 
 

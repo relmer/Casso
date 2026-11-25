@@ -507,6 +507,7 @@
     <ClCompile Include="CassoExplorer\Browser\BrowserSelection.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerCommands.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerDragOut.cpp" />
+    <ClCompile Include="CassoExplorer\OpenOnCommand.cpp" />
     <ClCompile Include="CassoExplorer\RawCopyDropHandler.cpp" />
     <ClCompile Include="CassoExplorer\ShellExtensionMain.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerNewDiskDialog.cpp" />
@@ -1812,6 +1813,7 @@
     <ClInclude Include="CassoExplorer\Browser\IBrowserSelectionSource.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerCommands.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerDragOut.h" />
+    <ClInclude Include="CassoExplorer\OpenOnCommand.h" />
     <ClInclude Include="CassoExplorer\RawCopyDropHandler.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerNamedControl.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerNewDiskDialog.h" />
@@ -2646,6 +2648,7 @@
     <ClInclude Include="Devices\Network\IW5100Backend.h" />
     <ClInclude Include="Config\LaunchPlacement.h" />
     <ClInclude Include="Config\MacAddress.h" />
+    <ClInclude Include="Config\StockMachineList.h" />
     <ClInclude Include="Config\StockMachines.h" />
     <ClInclude Include="Config\NetworkCardSettings.h" />
     <ClInclude Include="Devices\Network\IGuestPacketSink.h" />
