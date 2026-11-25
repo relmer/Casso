@@ -1404,3 +1404,32 @@ couldn't be read. The two files are byte-identical, 116,480 bytes each.
 
 The program's bar stayed empty through the 13-sector read and write: those
 requests didn't send the bar's percentages. They do now.
+
+## Images opened from File Explorer in a temporary machine (T1414, 2026-11-25)
+
+The developer build registered itself at startup and replaced its earlier
+`--disk1` registration with `--launch "%1"`, the block types and `.d13`, and
+the six `Casso.OpenOn` rows. Each image was opened from a copy, with the
+window started minimized and not activated. Opening a type went through
+`ShellExecuteEx` with the default verb, as a double-click does; an Open in
+Casso on row ran the row's registered command. A launch was checked by its
+process and its window title.
+
+| Opened | Result |
+|---|---|
+| .dsk .do .po .woz .nib .nb2, default verb | "Apple //e Enhanced (temporary)" |
+| .d13 .2mg .2img .hdv .dc .dc42 .image, default verb | Windows' "Pick an app" prompt, the first time each type is opened |
+| 140K .dsk, each Open on row | every model, "(temporary)" |
+| 800K .image, each Open on row | every model but the Apple ][, "(temporary)"; the Apple ][ refusal message |
+| 32 MB .hdv, each Open on row | the ][, ][+, //e and //e Enhanced, "(temporary)"; a refusal message on the //c and //c Plus |
+
+`CassoData\Machines` and `UserPrefs.json` were byte-identical before and
+after the launches (SC-079).
+
+Windows displays its app prompt the first time a type is opened after a
+program registers it, and the user's answer is stored where a program can't
+write it. The six types an earlier build registered had been opened before,
+so only the new seven prompted.
+
+Not checked here: the guest screen after each boot, Casso Explorer's Open on
+rows on screen, and the package's submenu, which can only be checked in an installed package.
