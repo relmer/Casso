@@ -120,6 +120,7 @@ struct LinkTreeEntry
     };
 
     std::wstring        name;
+    std::wstring        label;   // the displayed name (CassoLinkConnectionText::DescribeName)
     std::wstring        model;   // the Apple's model once connected, as Apple //c
     bool                replying     = false;
     bool                probing      = false;   // a drive's catalog being read; its row is left out until it arrives

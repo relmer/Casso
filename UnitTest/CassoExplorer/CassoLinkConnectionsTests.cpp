@@ -1018,6 +1018,27 @@ public:
 
 
 
+    //  A serial link set to any port displays the port it opened; one
+    //  set to a port, or not connected, displays its name.
+    TEST_METHOD (DescribeName_ShowsTheOpenPortOfAnAnyPortLink)
+    {
+        CassoLinkSettings  link;
+
+        link.transport = LinkTransport::Serial;
+        link.name      = CassoLinkSettings::MakeName (link);
+
+        Assert::AreEqual (std::wstring (L"Serial (COM3)"),     CassoLinkConnectionText::DescribeName (link, L"COM3"));
+        Assert::AreEqual (std::wstring (L"Serial (any port)"), CassoLinkConnectionText::DescribeName (link, std::wstring()), L"not connected");
+
+        link.name = "My //c";
+        Assert::AreEqual (std::wstring (L"My //c (COM3)"), CassoLinkConnectionText::DescribeName (link, L"COM3"), L"a name the user typed");
+
+        link.port = "COM4";
+        Assert::AreEqual (std::wstring (L"My //c"), CassoLinkConnectionText::DescribeName (link, L"COM4"), L"a link set to a port");
+    }
+
+
+
     //  A line that closes or goes quiet during an operation is reported as
     //  that, not as the Apple failing the operation.
     //  A link connected again reads its drives again, so a disk changed while

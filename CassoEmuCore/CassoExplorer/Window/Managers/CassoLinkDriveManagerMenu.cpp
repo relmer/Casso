@@ -193,6 +193,11 @@ std::wstring CassoLinkDriveManager::DescribeConnection (const std::wstring & lin
 
     for (const CassoLinkSettings & settings : links->GetLinks())
     {
+        if (TextEncoding::NarrowToWide (settings.name) == link && settings.transport == LinkTransport::Serial && settings.port.empty())
+        {
+            return CassoLinkConnectionText::DescribeName (settings, links->GetOpenPort (settings.name));
+        }
+
         if (TextEncoding::NarrowToWide (settings.name) == link)
         {
             detail = TextEncoding::NarrowToWide (settings.transport == LinkTransport::Serial ? settings.port : settings.address);

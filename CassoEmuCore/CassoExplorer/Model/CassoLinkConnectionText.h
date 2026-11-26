@@ -42,6 +42,11 @@ public:
     //  made from the settings does, so a sentence need not repeat it.
     static bool          NamesItsPort    (const std::wstring & name, const std::wstring & address);
 
+    //  A link's displayed name: a serial link set to any port, once a port is
+    //  open, has that port in place of "any port", as Serial (COM3), or after
+    //  a name the user typed, as My //c (COM3).
+    static std::wstring  DescribeName    (const CassoLinkSettings & settings, const std::wstring & openPort);
+
     //  The command a Wi-Fi modem dials for a link: ATDT, this PC's name with
     //  .local, and the link's TCP port.
     static std::wstring  DescribeDial    (const std::wstring & pcName, const CassoLinkSettings & settings);

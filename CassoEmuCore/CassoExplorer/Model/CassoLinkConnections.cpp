@@ -962,6 +962,7 @@ std::vector<LinkTreeEntry> CassoLinkConnections::BuildTreeEntries() const
         auto           found = std::find_if (m_started.begin(), m_started.end(), [&settings] (const std::unique_ptr<Link> & link) { return link->settings.name == settings.name; });
 
         entry.name   = TextEncoding::NarrowToWide (settings.name);
+        entry.label  = CassoLinkConnectionText::DescribeName (settings, std::wstring());
         entry.folder = (settings.transport == LinkTransport::AdtProServer) ? settings.folder : std::wstring();
 
         if (found == m_started.end())
@@ -979,6 +980,7 @@ std::vector<LinkTreeEntry> CassoLinkConnections::BuildTreeEntries() const
             std::string  failure = (*found)->session->GetOpenFailure();
 
             entry.replying = state == LinkState::Ready || state == LinkState::Busy;
+            entry.label    = CassoLinkConnectionText::DescribeName (settings, entry.replying ? (*found)->session->GetPort() : std::wstring());
             entry.transferring = (*found)->sink->IsTransferring ((*found)->session->IsServingAdtPro());
             entry.fullSending  = (*found)->sink->IsFullSending();
             entry.model    = entry.replying ? (*found)->session->GetModelName() : std::wstring();

@@ -257,6 +257,35 @@ std::wstring CassoLinkConnectionText::DescribeDriveImage (const std::wstring & p
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkConnectionText::DescribeName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoLinkConnectionText::DescribeName (const CassoLinkSettings & settings, const std::wstring & openPort)
+{
+    std::wstring  name = TextEncoding::NarrowToWide (settings.name);
+
+
+
+    if (settings.transport != LinkTransport::Serial || !settings.port.empty() || openPort.empty())
+    {
+        return name;
+    }
+
+    if (settings.name == CassoLinkSettings::MakeName (settings))
+    {
+        return std::format (L"Serial ({})", openPort);
+    }
+
+    return std::format (L"{} ({})", name, openPort);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkConnectionText::NamesItsPort
 //
 //  The port's digits standing alone in the name: "Uthernet II at
