@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+struct RawWriteTrack;
+
 
 
 
@@ -19,7 +21,9 @@
 //  with many.
 //
 //  A WOZ track's bits are split into bytes of eight bits each, and the zero
-//  bits after each are its zeros, up to kMaxZeros. A NIB or NB2 track's
+//  bits after each are its zeros, up to kMaxZeros. The split starts at the
+//  track's longest run of sync bytes, so the end of its bits, padded to a
+//  whole byte, falls in that run rather than in a sector. A NIB or NB2 track's
 //  nibbles are written as they are, and $FF in a run of kSyncRun or more
 //  is written as a 10-bit sync byte.
 //
@@ -35,6 +39,10 @@ public:
 
     //  The most bytes a track can have: the module's buffers are 26 pages.
     static constexpr size_t  kMaxBytes     = 26 * 256;
+    static constexpr size_t  kModuleZeros  = 7;
+
+    //  The quarter-track positions the module writes, 0 to 139.
+    static constexpr int     kWritablePositions = 140;
 
     std::vector<Byte>  values;
     std::vector<Byte>  zeros;
@@ -54,11 +62,60 @@ public:
     //  The bit cells the stream writes.
     size_t  GetCellCount() const;
 
+    //  Whether a file is a WOZ, NIB or NB2 image, whose tracks are written
+    //  as they are rather than as sectors.
+    static bool     IsRawImage    (std::span<const Byte> fileBytes);
+
+    //  A raw image's tracks to write, in order of position: each whole track
+    //  with data, and each half or quarter position whose data differs from
+    //  the whole tracks on either side. ERROR_INVALID_DATA for a file that
+    //  doesn't load, with outTooLong the first position of a track longer
+    //  than the module's buffers, or -1.
+    static HRESULT  GetImageTracks (std::span<const Byte> fileBytes, std::vector<RawWriteTrack> & outTracks, int & outTooLong);
+
+    //  The stream rotated to start in the middle of its longest run of sync
+    //  bytes, with sync bytes added to or dropped from that run so that it is
+    //  a little longer than `cells`, one turn of the drive: the end of the
+    //  write then overlaps its start within the run. False when the track has
+    //  no run of s_kMinSyncRun sync bytes, or the run is too short to drop
+    //  the excess.
+    bool    FitToTurn (size_t cells);
+
     //  The bits the stream writes, one to a byte, for a check of FromBits.
     void    ToBits (std::vector<uint8_t> & outBits) const;
+
+    //  The stream as the raw write module takes it: kMaxBytes values, then
+    //  kMaxBytes counts of zeros, each 0 to kModuleZeros. A byte with more
+    //  zeros is written as the byte with the remainder of eight, then a $00
+    //  byte with no zeros for each eight. False when that is more than
+    //  kMaxBytes bytes.
+    bool    BuildModuleStream (std::vector<Byte> & outStream, size_t & outCount) const;
 
 private:
     static constexpr size_t  s_kMinRevolution = 5600;
     static constexpr size_t  s_kMatchBytes    = 64;
     static constexpr Byte    s_kSyncValue     = 0xFF;
+    static constexpr size_t  s_kMinSyncRun    = 16;
+    static constexpr size_t  s_kOverlapCells  = 40;
+
+    //  `bits` split into bytes of eight bits each and the zero bits after,
+    //  with outStarts each byte's first bit.
+    static void  Split (std::span<const uint8_t> bits, RawWriteStream & outStream, std::vector<size_t> & outStarts);
+
+    //  The longest run of sync bytes, which may wrap past the end: its first
+    //  byte and length. False for none.
+    bool  FindSyncRun (size_t & outAt, size_t & outLength) const;
+
+    bool  IsSyncByte (size_t at) const { return values[at] == s_kSyncValue && zeros[at] >= 1 && zeros[at] <= kSyncZeros; }
+};
+
+
+
+
+
+//  A track of a raw image to write, at its quarter-track position.
+struct RawWriteTrack
+{
+    int             position = 0;
+    RawWriteStream  stream;
 };

@@ -10,6 +10,7 @@
 
 class IByteStream;
 class CassoLinkVirtualDrives;
+class RawWriteStream;
 
 
 
@@ -436,6 +437,12 @@ public:
     //  Status's error.
     HRESULT  WriteNibbleTrack    (Byte drive, Byte track, std::span<const Byte> stream, CassoLinkStatus & outStatus);
 
+    //  A track written as its bits by the 13-sector module, which must be
+    //  loaded, at a quarter-track position from 0 to 139
+    //  (CassoLinkCodec::kWriteRawTrack). E_INVALIDARG for a stream longer
+    //  than the module's buffers.
+    HRESULT  WriteRawTrack       (Byte drive, Byte position, const RawWriteStream & stream, CassoLinkStatus & outStatus);
+
     //  A 13-sector request's last two bytes: the whole disk's percentage at
     //  the track's start and at its end, for the Apple's bar.
     static std::array<Byte, 2>  GetTrackPercents (Byte track);
@@ -514,6 +521,10 @@ private:
     HRESULT  AwaitRequest    ();
     HRESULT  Send            (std::span<const Byte> bytes);
     HRESULT  SendByte        (Byte value);
+
+    //  A request whose stream the Apple requests with an Acknowledge, and
+    //  again with a NAK, then a Status.
+    HRESULT  SendStreamRequest (Byte command, std::span<const Byte> request, std::span<const Byte> stream, const std::string & item, CassoLinkStatus & outStatus);
 
     HRESULT  ServeReady        (const CassoLinkPacket & packet);
     HRESULT  ServeVirtualBlock (const CassoLinkPacket & packet);

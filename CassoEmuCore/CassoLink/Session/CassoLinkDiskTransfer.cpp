@@ -5,6 +5,7 @@
 #include "CassoLink/Session/CassoLinkDiskStatus.h"
 #include "CassoLink/Session/CassoLinkThirteenSector.h"
 #include "CassoLink/Session/LinkImageSource.h"
+#include "CassoLink/Session/RawWriteStream.h"
 #include "CassoLink/Session/TrackMeasures.h"
 #include "CassoLink/Session/TrackVerifier.h"
 #include "CassoLink/CassoLinkCodec.h"
@@ -1205,6 +1206,82 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkDiskTransfer::WriteRawDisk
+//
+//  Each track is written at its position, in order, so a half or quarter
+//  track is written after the whole track before it, as a disk mastered in
+//  one pass across it was. The drive's sectors and listing are dropped
+//  after, as the disk is another one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkDiskTransfer::WriteRawDisk (LinkOperation & operation, const std::vector<Byte> & fileBytes)
+{
+    HRESULT                             hr       = S_OK;
+    size_t                              index    = (size_t) operation.drive - 1;
+    std::vector<Byte>                   module;
+    std::vector<RawWriteTrack>          tracks;
+    CassoLinkStatus                     status;
+    int                                 tooLong  = -1;
+    int                                 turn     = 0;
+    bool                                canceled = false;
+
+
+
+    hr = RawWriteStream::GetImageTracks (fileBytes, tracks, tooLong);
+
+    if (FAILED (hr) && tooLong >= 0)
+    {
+        operation.message = std::format ("Track {} of the image is longer than one turn of the disk, so nothing was written.", tooLong / 4.0);
+    }
+
+    CHR (hr);
+
+    hr = m_session.m_host->BuildThirteenSectorModule (module);
+    CHR (hr);
+
+    hr = m_session.m_host->EnsureModule (module);
+    CHR (hr);
+
+    hr = TimeDriveForLayout (operation.drive, turn);
+    CHR (hr);
+
+    m_session.m_disks[index]->Clear();
+    m_session.m_listings[index].reset();
+
+    for (size_t i = 0; i < tracks.size(); i++)
+    {
+        RawWriteTrack  & track = tracks[i];
+
+        track.stream.FitToTurn ((size_t) turn);
+
+        canceled = m_session.m_canceled.load();
+        CBREx (!canceled, HRESULT_FROM_WIN32 (ERROR_CANCELLED));
+
+        m_session.Report (operation, (int) (i * 100 / tracks.size()));
+
+        hr = m_session.m_host->WriteRawTrack ((Byte) operation.drive, (Byte) track.position, track.stream, status);
+        CHR (hr);
+
+        hr = CassoLinkSession::FromStatusError (status.error);
+        CHR (hr);
+
+        if (track.position % DiskImage::kQuarterTracksPerWholeTrack == 0)
+        {
+            MarkWrittenTrack (operation, track.position / DiskImage::kQuarterTracksPerWholeTrack);
+        }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkDiskTransfer::WriteWholeDisk
 //
 //  The image is decoded first, and nothing is written if any track is not
@@ -1238,6 +1315,17 @@ HRESULT CassoLinkDiskTransfer::WriteWholeDisk (LinkOperation & operation)
 
     hr = operation.source->ReadImage (fileBytes);
     CHR (hr);
+
+    if (RawWriteStream::IsRawImage (fileBytes))
+    {
+        BeginWriteStatus (operation);
+
+        hr = WriteRawDisk (operation, fileBytes);
+        CHR (hr);
+
+        EndWriteStatus (operation, fileBytes.size());
+        BAIL_OUT_IF (true, S_OK);
+    }
 
     hr = VolumeImage::Load (fileBytes, operation.source->GetName(), sectors, report);
     CHR (hr);
