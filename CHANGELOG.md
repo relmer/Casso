@@ -12,7 +12,8 @@ Entries before versioning was introduced use dates only.
 
 - Casso Explorer has Form factor, Formatted size and Last used columns.
 - Casso Explorer's Casso node lists every disk and tape image in its folders,
-  most recently used first.
+  most recently used first. Cut, copy, rename and delete them there as in
+  their folders.
 - Picking an image for a hard disk, or dropping one on it, sets it for the next
   restart.
 - Apple's Super Serial Card, in slot 2 of the ][, ][+, //e and Enhanced //e.

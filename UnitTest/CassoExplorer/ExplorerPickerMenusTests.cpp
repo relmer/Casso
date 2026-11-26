@@ -7,6 +7,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Model/TreeModel.h"
+#include "CassoExplorer/Window/Managers/ExplorerRename.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -211,8 +212,42 @@ public:
     }
 
 
-private:
+    //  A drive's picker opens on the Casso node, whose images are files in
+    //  its folders: each has Rename, Cut, Copy and Delete, and Delete
+    //  recycles the file.
+    TEST_METHOD (CassoNodeImage_HasTheFileCommands)
+    {
+        Rig            rig;
+        PickerRequest  request;
 
+
+
+        request.form = PickerForm::DriveWindow;
+        OpenOnImage (rig, request);
+
+        rig.browser.GetTreeModel().SetKnownFolders ({ L"C:\\Disks" });
+        rig.browser.GetTreeModel().SetDirectoryProbe ([] (const std::wstring &) { return true; });
+        rig.browser.GetNavigator().NavigateToLocation (Location::MakeRoot (TreeModel::kCassoRootId));
+        rig.parts->listPane.FillList();
+        rig.browser.GetSelection().SetSelectedRows ({ 0 });
+
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\dos33.dsk"), rig.browser.GetRows()[0].hostPath);
+
+        for (Verb verb : { Verb::Rename, Verb::Cut, Verb::Copy, Verb::Delete })
+        {
+            Assert::IsTrue (rig.parts->listPane.GetMenus().IsListVerbOffered (verb), ExplorerMenus::GetVerbLabel (verb));
+        }
+
+        rig.parts->rename.BeginRename();
+        Assert::IsTrue (rig.parts->rename.IsRenaming(), L"the rename box opened");
+        rig.parts->rename.EndRename (false);
+
+        rig.parts->verbs.RunVerb (Verb::Delete);
+        Assert::AreEqual ((size_t) 1, rig.verbs->recycled.size());
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\dos33.dsk"), rig.verbs->recycled[0]);
+    }
+
+private:
     static void  OpenOnImage (Rig & rig, PickerRequest & request)
     {
         int  image = -1;
