@@ -68,6 +68,10 @@ struct DxuiListViewTypes
         //  that cannot be opened.
         bool          iconBroken  = false;
 
+        //  An accent-colored dot at the icon's upper right, for a file that
+        //  is new since the folder was last listed.
+        bool          iconNew     = false;
+
         //  The text's color in place of the theme's; zero keeps the theme's.
         uint32_t      argb        = 0;
 

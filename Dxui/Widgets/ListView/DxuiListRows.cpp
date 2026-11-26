@@ -872,6 +872,11 @@ void DxuiListRows::Paint (
                     DxuiListIcons::PaintBrokenBadge (text, x + colOff + (float) colXPx[c] + padL, ry + (rowH - iconPx) * 0.5f, iconPx, m_list.m_scaler.ToPxf (DxuiListView::s_kBrokenBadgeMinDip));
                 }
 
+                if (cells[c].iconNew)
+                {
+                    DxuiListIcons::PaintActivityDot (text, x + colOff + (float) colXPx[c] + padL, ry + (rowH - iconPx) * 0.5f, iconPx, m_list.m_theme->Accent(), m_list.m_theme->ContentBackground(), 1.0f);
+                }
+
                 iconShift = iconPx + (float) m_list.GetCellIconGapPx();
             }
             else if ((int) c == m_list.m_iconColumn)

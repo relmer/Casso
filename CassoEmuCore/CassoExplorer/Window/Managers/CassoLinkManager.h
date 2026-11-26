@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Model/Location.h"
+#include "CassoExplorer/Model/NewFileMarks.h"
 
 class FirewallMonitor;
 struct CassoLinkSettings;
@@ -67,6 +68,7 @@ public:
     void          HandleTransferTimer     ();
     void          HandleCassetteTimer     ();
     void          NoteListFilled          ();
+    bool          IsNewFile               (const std::wstring & path) const;
 
     //  The status bar's detail has the pending operations, until they finish.
     void      MarkJobsShown         () { m_linkJobsShown = true; }
@@ -97,6 +99,7 @@ private:
     int                m_pulseFrame       = 0;
     uint32_t           m_announcedChanges = 0;   // ILinkAnnouncements::GetChangeCount at the last look
     bool               m_linkJobsShown    = false;
+    NewFileMarks       m_newFiles;                // the listed receiving folder's files that arrived since its last listing
 
     //  The cassette bootstrap's audio, while PlaySound sends it from memory,
     //  the link it starts, and how many times it was sent.
