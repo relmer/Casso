@@ -92,9 +92,9 @@ private:
 
     static std::atomic<LONG>  s_objects;
 
-    std::atomic<ULONG>                     m_refCount = 1;
+    std::atomic<ULONG>                     m_refCount   = 1;
     Microsoft::WRL::ComPtr<IDataObject>    m_data;
-    std::wstring                           m_folder;   // the target folder's path, empty when it isn't a file system folder
+    std::wstring                           m_folder;     // the target folder's path, empty when it isn't a file system folder
     bool                                   m_rawOffered = false;
     bool                                   m_hexOffered = false;
 };

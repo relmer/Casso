@@ -185,7 +185,7 @@ private:
     std::vector<std::thread>          m_loaders;
     bool                              m_plainFolders  = false;
     bool                              m_treeOnly      = false;
-    std::mutex                       m_lock;
+    std::mutex                        m_lock;
     std::condition_variable           m_wake;
     std::deque<Request>               m_requests;
     std::vector<Loaded>               m_loaded;

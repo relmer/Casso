@@ -290,9 +290,10 @@ void ExplorerVerbs::RunVerb (CassoExplorerActions::Verb verb)
             //  The first copy goes to Documents unless another folder is picked.
             if (folder.empty())
             {
-                PWSTR  documents = nullptr;
+                PWSTR    documents = nullptr;
+                HRESULT  hrFolder  = SHGetKnownFolderPath (FOLDERID_Documents, 0, nullptr, &documents);
 
-                if (SUCCEEDED (SHGetKnownFolderPath (FOLDERID_Documents, 0, nullptr, &documents)))
+                if (SUCCEEDED (hrFolder))
                 {
                     folder = documents;
                 }

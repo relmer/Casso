@@ -1189,10 +1189,10 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     m_rowsExtentPx = 0;
     m_labelSpans.assign (m_flatRows.size(), POINT {});
 
-    if (m_measuredFontDip != fontDip)
+    if (m_labelFontDip != fontDip)
     {
         m_labelWidths.clear();
-        m_measuredFontDip = fontDip;
+        m_labelFontDip = fontDip;
     }
 
     m_labelWidths.resize (m_flatRows.size());

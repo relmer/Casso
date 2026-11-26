@@ -644,10 +644,9 @@ int DxuiListColumns::GetColumnContentWidthPx (IDxuiTextRenderer & text, size_t c
 float DxuiListColumns::MeasureCellWidth (IDxuiTextRenderer & text, const std::wstring & cell, float fontPx, const wchar_t * face) const
 {
     static constexpr size_t  s_kMaxCellWidths = 50000;
-
-    HRESULT  hr = S_OK;
-    float    w  = 0.0f;
-    float    h  = 0.0f;
+    HRESULT                  hr               = S_OK;
+    float                    w                = 0.0f;
+    float                    h                = 0.0f;
 
 
 

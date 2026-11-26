@@ -375,9 +375,9 @@ private:
     int                        m_rowsExtentPx   = 0;
     float                      m_wheelRows      = 0.0f;   // a touchpad's part notches, until they make a row
     float                      m_wheelPx        = 0.0f;   // the same, sideways
-    std::vector<POINT>         m_labelSpans;   // per flat row: icon start, label end, unscrolled
-    std::vector<LabelWidth>    m_labelWidths;  // per flat row
-    float                      m_measuredFontDip = 0.0f;
+    std::vector<POINT>         m_labelSpans;              // per flat row: icon start, label end, unscrolled
+    std::vector<LabelWidth>    m_labelWidths;             // per flat row
+    float                      m_labelFontDip   = 0.0f;   // the font size m_labelWidths was measured at
     mutable DxuiScrollbar      m_vertScroll;
     mutable DxuiScrollbar      m_horzScroll;
 };
