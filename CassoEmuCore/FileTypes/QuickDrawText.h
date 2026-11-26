@@ -79,5 +79,5 @@ private:
     };
 
     static void  BuildCell (const QuickDrawFont & font, const QuickDrawTextStyle & style, Byte character, Cell & outCell);
-    static void  DrawCell  (QuickDrawCanvas & canvas, const QuickDrawTextStyle & style, const Cell & cell, int penH, int baseV);
+    static void  DrawCell  (QuickDrawCanvas & canvas, const QuickDrawTextStyle & style, const Cell & cell, int penH, int baseV, bool set);
 };

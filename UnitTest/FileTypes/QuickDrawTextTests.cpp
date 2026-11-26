@@ -277,6 +277,23 @@ public:
         Assert::AreEqual (s_kWhite, GetPixel (file, 7, 2));
     }
 
+    TEST_METHOD (TxFace_ItalicOverhangStaysUnderTheNextBox)
+    {
+        std::vector<Byte>  bytes = MakePicture();
+        DecodedFile        file;
+
+
+
+        AppendWords    (bytes, { 0x0004, 2 });
+        AppendWords    (bytes, { 0x0012, 0, 0xFFFF });
+        AppendLongText (bytes, 2, 4, "AA");
+
+        file = DecodeWithFont (bytes);
+
+        Assert::AreEqual (s_kBlack, GetPixel (file, 5, 2), L"The first A's slanted top row, in the second A's box");
+        Assert::AreEqual (s_kWhite, GetPixel (file, 2, 2));
+    }
+
     TEST_METHOD (DHText_MovesTheTextPenFromTheLastText)
     {
         std::vector<Byte>  bytes = MakePicture();

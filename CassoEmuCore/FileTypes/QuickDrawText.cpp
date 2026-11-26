@@ -25,17 +25,31 @@ void QuickDrawText::Draw (QuickDrawCanvas & canvas, const QuickDrawFont & font, 
 
 
 
-    double  pen = at.h;
-    Cell    cell;
+    double                             pen = at.h;
+    std::vector<std::pair<Cell, int>>  cells;
 
 
 
     for (Byte character : text)
     {
-        BuildCell (font, style, character, cell);
-        DrawCell  (canvas, style, cell, (int) std::lround (pen), at.v);
+        Cell  cell;
 
-        pen += cell.advance + style.chExtra + ((character == kSpace) ? style.spExtra : 0.0);
+
+
+        BuildCell (font, style, character, cell);
+        cells.emplace_back (std::move (cell), (int) std::lround (pen));
+
+        pen += cells.back().first.advance + style.chExtra + ((character == kSpace) ? style.spExtra : 0.0);
+    }
+
+    //  Every box's background, then every character's set pixels, so a
+    //  slanted character's overhang isn't painted over by the next box.
+    for (bool set : { false, true })
+    {
+        for (const auto & [cell, penH] : cells)
+        {
+            DrawCell (canvas, style, cell, penH, at.v, set);
+        }
     }
 }
 
@@ -165,13 +179,14 @@ void QuickDrawText::BuildCell (const QuickDrawFont & font, const QuickDrawTextSt
 //
 //  QuickDrawText::DrawCell
 //
-//  A copy mode draws the whole box, a foreground mode the set pixels alone.
+//  The set pixels, or the rest of the box. A foreground mode draws the set
+//  pixels alone.
 //  A color is a pixel value in 320 mode; in 640 mode it is two pixels'
 //  values, as a solid pattern of it would draw them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void QuickDrawText::DrawCell (QuickDrawCanvas & canvas, const QuickDrawTextStyle & style, const Cell & cell, int penH, int baseV)
+void QuickDrawText::DrawCell (QuickDrawCanvas & canvas, const QuickDrawTextStyle & style, const Cell & cell, int penH, int baseV, bool set)
 {
     constexpr int  kForeOnly = 0x0004;
     constexpr int  kCombine  = 0x0003;
@@ -190,7 +205,7 @@ void QuickDrawText::DrawCell (QuickDrawCanvas & canvas, const QuickDrawTextStyle
         {
             fore = cell.set.contains ({ x, y });
 
-            if (!fore && (style.mode & kForeOnly))
+            if (fore != set || (!fore && (style.mode & kForeOnly)))
             {
                 continue;
             }
