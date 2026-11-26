@@ -227,8 +227,9 @@ void PreviewHexView::Fill (const PreviewContent & preview, bool hex, bool opened
     if (hex)
     {
         //  UTF-8 too large to read as text opens on its bytes: the view draws
-        //  one character for each byte.
-        m_hex->SetShowValues (!(opened ? charset != HostCharset::None && charset != HostCharset::Utf8 : preview.textFile));
+        //  one character for each byte. Text chosen as View as Hex shows its
+        //  bytes.
+        m_hex->SetShowValues (preview.viewAs == ViewChoice::Hex || !(opened ? charset != HostCharset::None && charset != HostCharset::Utf8 : preview.textFile));
     }
 }
 

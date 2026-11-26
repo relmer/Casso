@@ -1627,7 +1627,7 @@ void ExplorerDragDrop::BeginDragOut()
     bool                                     moved    = false;
     HostFileNaming::Style                    style    = m_context.verbs.GetNamingStyle();
     auto                                     log      = std::make_shared<CassoExplorerDragOut::RenderLog>();
-    std::vector<DxuiDragDropSource::Format>  formats  = CassoExplorerDragOut::BuildFormats (m_context.browser, style, log, false, m_context.prefs.rawCopyMenu);
+    std::vector<DxuiDragDropSource::Format>  formats  = CassoExplorerDragOut::BuildFormats (m_context.browser, style, log, false, m_context.prefs.rawCopyMenu, true);
     POINT                                    start    = {};
     std::vector<FileEntry>                   entries;
     std::vector<std::string>                 paths;
@@ -1641,6 +1641,7 @@ void ExplorerDragDrop::BeginDragOut()
     std::shared_ptr<const DxuiIconImage>     icon     = GetRowDragImage();
     bool                                     images   = !m_context.browser.GetSelectedRows().empty();
     std::wstring                             rawFolder;
+    std::wstring                             hexFolder;
 
 
 
@@ -1723,7 +1724,7 @@ void ExplorerDragDrop::BeginDragOut()
 
     hr = DxuiDragDropSource::Begin (std::move (formats), DROPEFFECT_COPY | DROPEFFECT_MOVE, start, effect, &logical,
                                     (images || inImage || m_context.browser.IsAppleDriveLocation()) ? icon.get() : nullptr,
-                                    [&rawFolder] (const DxuiDragDropSource & source)
+                                    [&rawFolder, &hexFolder] (const DxuiDragDropSource & source)
                                     {
                                         std::vector<uint8_t>  stored;
 
@@ -1731,15 +1732,22 @@ void ExplorerDragDrop::BeginDragOut()
                                         {
                                             rawFolder = RawCopyDropHandler::GetFolder (stored);
                                         }
+
+                                        if (source.GetStoredBytes (RawCopyDropHandler::kHexDumpFolderFormat, stored))
+                                        {
+                                            hexFolder = RawCopyDropHandler::GetFolder (stored);
+                                        }
                                     });
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    //  Copy here without conversion (raw bytes) on File Explorer's right-drag menu: File
-    //  Explorer copied nothing, and the selection is copied raw to its folder
-    //  as Get does.
-    if (!rawFolder.empty())
+    //  Copy here without conversion (raw bytes) or Copy here as hex dump on
+    //  File Explorer's right-drag menu: File Explorer copied nothing, and the
+    //  selection is copied to its folder as Get does.
+    if (!rawFolder.empty() || !hexFolder.empty())
     {
-        m_context.verbs.ReportOutcome (m_context.actions.GetSelected (rawFolder, style, m_context.prompts.MakeCollisionPrompt(), true), L"Copy");
+        m_context.verbs.ReportOutcome (rawFolder.empty() ? m_context.actions.GetSelected (hexFolder, style, m_context.prompts.MakeCollisionPrompt(), CassoExplorerActions::CopyForm::HexDump)
+                                                         : m_context.actions.GetSelected (rawFolder, style, m_context.prompts.MakeCollisionPrompt(), CassoExplorerActions::CopyForm::Raw),
+                                       L"Copy");
         m_context.window.Invalidate();
         return;
     }

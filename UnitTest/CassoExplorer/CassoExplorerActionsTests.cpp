@@ -964,7 +964,7 @@ public:
 
         bool                           converted = true;
         std::wstring                   name      = DragPayload::GetHostName (entries[0], VolumeKind::Dos33, HostFileNaming::Style::Descriptive, converted, FileFormat::Merlin, true);
-        CassoExplorerActions::Outcome  outcome   = host.actions.GetSelected (L"C:\\Out", HostFileNaming::Style::Descriptive, nullptr, true);
+        CassoExplorerActions::Outcome  outcome   = host.actions.GetSelected (L"C:\\Out", HostFileNaming::Style::Descriptive, nullptr, CassoExplorerActions::CopyForm::Raw);
         std::string                    path      = "C:\\Out\\" + TextEncoding::WideToNarrow (name);
 
         Assert::IsTrue   (outcome.Succeeded(), outcome.message.c_str());

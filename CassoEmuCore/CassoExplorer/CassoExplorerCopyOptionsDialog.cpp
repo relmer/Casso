@@ -14,20 +14,20 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerCopyOptionsPanel::Init (const std::vector<Line> & lines, const std::vector<DxuiCheckbox *> & checks)
+void CassoExplorerCopyOptionsPanel::Init (const std::vector<Line> & lines)
 {
-    m_lines  = lines;
-    m_checks = checks;
+    m_lines = lines;
 
     for (const Line & line : m_lines)
     {
-        Adopt (*line.label);
-        Adopt (*line.box);
-    }
-
-    for (DxuiCheckbox * check : m_checks)
-    {
-        Adopt (*check);
+        for (IDxuiControl * control : { (IDxuiControl *) line.label, (IDxuiControl *) line.box, (IDxuiControl *) line.check, (IDxuiControl *) line.note,
+                                         (IDxuiControl *) line.value, (IDxuiControl *) line.button })
+        {
+            if (control != nullptr)
+            {
+                Adopt (*control);
+            }
+        }
     }
 }
 
@@ -62,17 +62,15 @@ void CassoExplorerCopyOptionsPanel::Layout (const RECT & boundsDip, const DxuiDp
 
 bool CassoExplorerCopyOptionsPanel::OnMouse (const DxuiMouseEvent & ev)
 {
-    for (const Line & line : m_lines)
+    if (m_onMouse)
     {
-        if (line.box->OnMouse (ev))
-        {
-            return true;
-        }
+        m_onMouse (ev);
     }
 
-    for (DxuiCheckbox * check : m_checks)
+    for (const Line & line : m_lines)
     {
-        if (check->OnMouse (ev))
+        if ((line.box != nullptr && line.box->OnMouse (ev)) || (line.check != nullptr && line.check->OnMouse (ev))
+            || (line.button != nullptr && line.button->OnMouse (ev)))
         {
             return true;
         }
@@ -113,42 +111,67 @@ bool CassoExplorerCopyOptionsPanel::TryMeasureHeightPx (IDxuiTextRenderer & text
 //
 //  CassoExplorerCopyOptionsPanel::Arrange
 //
-//  Returns the height of the rows and check boxes.
+//  Returns the height of the lines and the space below them, above the
+//  buttons. Each group space above a line is three times the space between
+//  lines. A note is one line of text, close under the line above it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 int CassoExplorerCopyOptionsPanel::Arrange (const RECT & bounds, const DxuiDpiScaler & scaler, bool place)
 {
-    int  width  = bounds.right - bounds.left;
-    int  gap    = scaler.ToPx (ExplorerMetrics::kStackGapDip);
-    int  field  = scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
-    int  labelW = width * 2 / 5;
-    int  top    = bounds.top;
+    int   width  = bounds.right - bounds.left;
+    int   gap    = scaler.ToPx (ExplorerMetrics::kStackGapDip);
+    int   field  = scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
+    int   labelW = (std::min) (scaler.ToPx (kLabelWidthDip), width / 2);
+    int   top    = bounds.top;
+    int   noteH  = scaler.ToPx (kNoteHeightDip);
+    int   inset  = scaler.ToPx (DxuiComboBox::kTextInsetDip);
+    int   button = scaler.ToPx (kButtonWidthDip);
+    RECT  column = {};
 
 
 
     for (const Line & line : m_lines)
     {
-        if (place)
+        top    += (top > bounds.top) ? gap * 2 * line.groupGaps : 0;
+        top    -= (line.note != nullptr) ? gap : 0;
+        column  = RECT { bounds.left + labelW, top, bounds.right, top + ((line.note != nullptr) ? noteH : field) };
+
+        if (place && line.label != nullptr)
         {
             line.label->Layout (RECT { bounds.left, top, bounds.left + labelW, top + field }, scaler);
-            line.box->Layout   (RECT { bounds.left + labelW, top, bounds.right, top + field }, scaler);
         }
 
-        top += field + gap;
-    }
-
-    for (DxuiCheckbox * check : m_checks)
-    {
-        if (place)
+        if (place && line.box != nullptr)
         {
-            check->Layout (RECT { bounds.left + labelW, top, bounds.right, top + field }, scaler);
+            line.box->Layout (column, scaler);
         }
 
-        top += field + gap;
+        if (place && line.check != nullptr)
+        {
+            line.check->Layout (column, scaler);
+        }
+
+        //  A note's text lines up with the dropdowns' text.
+        if (place && line.note != nullptr)
+        {
+            line.note->Layout (RECT { column.left + inset, column.top, column.right, column.bottom }, scaler);
+        }
+
+        if (place && line.value != nullptr)
+        {
+            line.value->Layout (RECT { column.left + inset, column.top, column.right, column.bottom }, scaler);
+        }
+
+        if (place && line.button != nullptr)
+        {
+            line.button->Layout (RECT { column.left, column.top, column.left + button, column.bottom }, scaler);
+        }
+
+        top += ((line.note != nullptr) ? noteH : field) + gap;
     }
 
-    return (top > bounds.top) ? top - gap - bounds.top : 0;
+    return (top > bounds.top) ? top - gap - bounds.top + gap * 3 : 0;
 }
 
 
@@ -171,6 +194,7 @@ const wchar_t * CassoExplorerCopyOptionsDialog::GetRowLabel (CopyOptionRows::Row
         case CopyOptionRows::Row::DoubleHiRes:  return L"Double hi-res pictures:";
         case CopyOptionRows::Row::Basic:        return L"BASIC programs:";
         case CopyOptionRows::Row::Code:         return L"Code files:";
+        case CopyOptionRows::Row::HexDump:      return L"File conversions:";
         default:                                return L"";
     }
 }
@@ -195,6 +219,7 @@ const std::vector<std::wstring> & CassoExplorerCopyOptionsDialog::GetRowChoices 
     static const std::vector<std::wstring>  s_doubleHiRes = { L"Automatic", L"Black and white", L"Simple color", L"Smooth color", L"Smooth color, clean edges" };
     static const std::vector<std::wstring>  s_basic       = { L"Text listing", L"Text listing, control characters as bytes", L"Colored listing (RTF)" };
     static const std::vector<std::wstring>  s_code        = { L"Bytes", L"6502 disassembly", L"6502 disassembly, undocumented opcodes", L"65C02 disassembly", L"65816 disassembly" };
+    static const std::vector<std::wstring>  s_hexDump     = { L"By file type", L"Hex dump of every file" };
     static const std::vector<std::wstring>  s_none;
 
 
@@ -207,6 +232,7 @@ const std::vector<std::wstring> & CassoExplorerCopyOptionsDialog::GetRowChoices 
         case CopyOptionRows::Row::DoubleHiRes:  return s_doubleHiRes;
         case CopyOptionRows::Row::Basic:        return s_basic;
         case CopyOptionRows::Row::Code:         return s_code;
+        case CopyOptionRows::Row::HexDump:      return s_hexDump;
         default:                                return s_none;
     }
 }
@@ -224,9 +250,7 @@ const std::vector<std::wstring> & CassoExplorerCopyOptionsDialog::GetRowChoices 
 void CassoExplorerCopyOptionsDialog::OnCreate()
 {
     std::vector<CassoExplorerCopyOptionsPanel::Line>  lines;
-    std::vector<DxuiCheckbox *>                       checks;
     DxuiButton                                      * copy  = nullptr;
-    bool                                              code  = std::find (m_rows.begin(), m_rows.end(), CopyOptionRows::Row::Code) != m_rows.end();
 
 
 
@@ -247,8 +271,18 @@ void CassoExplorerCopyOptionsDialog::OnCreate()
             UpdateChecks();
         });
 
-        lines.push_back ({ &m_labels[index], &m_boxes[index] });
+        //  The 65816's check boxes follow the code row.
+        lines.push_back ({ .label = &m_labels[index], .box = &m_boxes[index] });
+
+        if (row == CopyOptionRows::Row::Code)
+        {
+            lines.push_back ({ .check = &m_longRegisters });
+            lines.push_back ({ .check = &m_followFlags });
+        }
     }
+
+    AddNamingRows     (lines);
+    AddDestinationRow (lines);
 
     m_longRegisters.SetLabel    (L"65816 code starts with 16-bit registers");
     m_longRegisters.SetChecked  (m_options.longRegisters);
@@ -258,17 +292,23 @@ void CassoExplorerCopyOptionsDialog::OnCreate()
     m_followFlags.SetChecked  (m_options.followFlags);
     m_followFlags.SetOnChange ([this] (bool checked) { m_options.followFlags = checked; });
 
-    if (code)
-    {
-        checks = { &m_longRegisters, &m_followFlags };
-    }
-
     UpdateChecks();
 
     m_body = CreateDialogContent<CassoExplorerCopyOptionsPanel>();
-    m_body->Init (lines, checks);
+    m_body->Init (lines);
+    m_body->SetOnMouse ([this] (const DxuiMouseEvent & ev) { ShowTip (ev); });
 
-    copy = AddDialogButton (L"Copy", IDOK);
+    m_tip.SetPopupHost (GetPopupHost());
+
+    if (m_tipTheme != nullptr)
+    {
+        m_tip.SetTheme (*m_tipTheme);
+    }
+
+    SetDialogTickIntervalMs (kTipTickMs);
+
+    copy   = AddDialogButton (L"Copy", IDOK);
+    m_copy = copy;
     AddDialogButton (L"Cancel", IDCANCEL);
 
     copy->SetOnClick ([this]()
@@ -277,7 +317,193 @@ void CassoExplorerCopyOptionsDialog::OnCreate()
         EndDialog (IDOK);
     });
 
+    UpdateCopyEnabled();
     SetInitialFocus (copy);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerCopyOptionsDialog::AddNamingRows
+//
+//  At the end, as a group: the naming style, the global one to start, with
+//  the first selected file's name in it under it, and then which files
+//  take it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerCopyOptionsDialog::AddNamingRows (std::vector<CassoExplorerCopyOptionsPanel::Line> & ioLines)
+{
+    static const std::vector<std::wstring>  s_styles = { L"Descriptive", L"CiderPress", L"AppleSingle" };
+    static const std::vector<std::wstring>  s_scopes = { L"No files", L"Files without a conversion", L"All files" };
+
+
+
+    for (DxuiLabel * label : { &m_styleLabel, &m_scopeLabel, &m_namePreview })
+    {
+        ExplorerTextStyles::Apply (*label, ExplorerTextStyles::kFormLabel);
+        label->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
+    }
+
+    m_namePreview.SetTextRole (DxuiTextRole::Muted);
+    m_namePreview.SetElide    (DxuiElide::Tail);
+
+    m_styleLabel.SetText     (L"File names:");
+    m_styleBox.SetPopupHost  (GetPopupHost());
+    m_styleBox.SetItems      (s_styles);
+    m_styleBox.SetSelected   ((int) m_naming.style);
+    m_styleBox.SetSelect     ([this] (int choice) { m_naming.style = (HostFileNaming::Style) choice; UpdateNamePreview(); });
+
+    m_scopeLabel.SetText     (L"Apply names to:");
+    m_scopeBox.SetPopupHost  (GetPopupHost());
+    m_scopeBox.SetItems      (s_scopes);
+    m_scopeBox.SetSelected   ((int) m_naming.scope);
+    m_scopeBox.SetSelect     ([this] (int choice) { m_naming.scope = (ActionsTypes::NamingScope) choice; });
+
+    UpdateNamePreview();
+
+    ioLines.push_back ({ .label = &m_styleLabel, .box = &m_styleBox, .groupGaps = 1 });
+    ioLines.push_back ({ .note = &m_namePreview });
+    ioLines.push_back ({ .label = &m_scopeLabel, .box = &m_scopeBox });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerCopyOptionsDialog::AddDestinationRow
+//
+//  Last, below a double group space: the folder the files are copied to,
+//  and under it Browse to pick another.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerCopyOptionsDialog::AddDestinationRow (std::vector<CassoExplorerCopyOptionsPanel::Line> & ioLines)
+{
+    for (DxuiLabel * label : { &m_folderLabel, &m_folderPath })
+    {
+        ExplorerTextStyles::Apply (*label, ExplorerTextStyles::kFormLabel);
+        label->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
+    }
+
+    m_folderLabel.SetText (L"Destination:");
+    m_folderPath.SetText  (m_folder);
+    m_folderPath.SetElide (DxuiElide::Middle);
+
+    m_browse.SetLabel   (L"Browse...");
+    m_browse.SetOnClick ([this]()
+    {
+        if (m_pick && m_pick (GetHwnd(), m_folder))
+        {
+            m_folderPath.SetText (m_folder);
+            UpdateCopyEnabled();
+        }
+    });
+
+    ioLines.push_back ({ .label = &m_folderLabel, .value = &m_folderPath, .groupGaps = 2 });
+    ioLines.push_back ({ .button = &m_browse });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerCopyOptionsDialog::ShowTip
+//
+//  With the pointer over the destination, the tip has its full path.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerCopyOptionsDialog::ShowTip (const DxuiMouseEvent & ev)
+{
+    int64_t  now  = (int64_t) GetTickCount64();
+    RECT     rect = m_folderPath.GetRect();
+
+
+
+    if (ev.kind != DxuiMouseEventKind::Move)
+    {
+        return;
+    }
+
+    if (!m_folder.empty() && ev.positionDip.x >= rect.left && ev.positionDip.x < rect.right && ev.positionDip.y >= rect.top && ev.positionDip.y < rect.bottom)
+    {
+        m_tip.RequestShow (m_folderPath.GetRect(), m_folder, now);
+    }
+    else
+    {
+        m_tip.RequestHide (now);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerCopyOptionsDialog::OnDialogTick
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerCopyOptionsDialog::OnDialogTick()
+{
+    m_tip.Tick ((int64_t) GetTickCount64());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerCopyOptionsDialog::UpdateCopyEnabled
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerCopyOptionsDialog::UpdateCopyEnabled()
+{
+    std::error_code  error;
+    bool             exists = !m_folder.empty() && fs::is_directory (m_folder, error);
+
+
+
+    if (m_copy != nullptr)
+    {
+        m_copy->SetEnabled (exists);
+    }
+
+    if (GetHwnd() != nullptr)
+    {
+        Invalidate();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerCopyOptionsDialog::UpdateNamePreview
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerCopyOptionsDialog::UpdateNamePreview()
+{
+    m_namePreview.SetText (m_nameFor ? m_nameFor (m_naming.style) : std::wstring());
+
+    if (GetHwnd() != nullptr)
+    {
+        Invalidate();
+    }
 }
 
 
@@ -292,9 +518,25 @@ void CassoExplorerCopyOptionsDialog::OnCreate()
 
 void CassoExplorerCopyOptionsDialog::UpdateChecks()
 {
-    bool  wdc65816 = m_options.disassembly == DisassemblyCpu::Wdc65816;
+    bool  converted = !m_options.hexDump;
+    bool  wdc65816  = converted && m_options.disassembly == DisassemblyCpu::Wdc65816;
 
 
+
+    m_styleBox.SetEnabled     (converted);
+    m_scopeBox.SetEnabled     (converted);
+    m_styleLabel.SetTextRole  (converted ? *ExplorerTextStyles::kFormLabel.role : DxuiTextRole::Disabled);
+    m_scopeLabel.SetTextRole  (converted ? *ExplorerTextStyles::kFormLabel.role : DxuiTextRole::Disabled);
+    m_namePreview.SetTextRole (converted ? DxuiTextRole::Muted : DxuiTextRole::Disabled);
+
+    for (size_t index = 0; index < m_rows.size() && index < kRowCountMax; index++)
+    {
+        if (m_rows[index] != CopyOptionRows::Row::HexDump)
+        {
+            m_boxes[index].SetEnabled   (converted);
+            m_labels[index].SetTextRole (converted ? *ExplorerTextStyles::kFormLabel.role : DxuiTextRole::Disabled);
+        }
+    }
 
     m_longRegisters.SetEnabled (wdc65816);
     m_followFlags.SetEnabled   (wdc65816);
@@ -318,23 +560,32 @@ void CassoExplorerCopyOptionsDialog::UpdateChecks()
 bool CassoExplorerCopyOptionsDialog::Choose (HWND                                       owner,
                                              const IDxuiTheme                         * theme,
                                              const std::vector<CopyOptionRows::Row>   & rows,
-                                             DecodeOptions                            & ioOptions)
+                                             DecodeOptions                            & ioOptions,
+                                             Naming                                   & ioNaming,
+                                             std::wstring                             & ioFolder,
+                                             const NameFn                             & nameFor,
+                                             const PickFn                             & pick)
 {
     HRESULT                         hr     = S_OK;
     CassoExplorerCopyOptionsDialog  dialog;
     DxuiWindow::CreateParams        params;
     bool                            code   = std::find (rows.begin(), rows.end(), CopyOptionRows::Row::Code) != rows.end();
-    int                             lines  = (int) rows.size() + (code ? 2 : 0);
+    int                             lines  = (int) rows.size() + 7 + (code ? 2 : 0);
 
 
 
-    dialog.m_rows    = rows;
-    dialog.m_options = ioOptions;
+    dialog.m_rows     = rows;
+    dialog.m_options  = ioOptions;
+    dialog.m_naming   = ioNaming;
+    dialog.m_nameFor  = nameFor;
+    dialog.m_folder   = ioFolder;
+    dialog.m_pick     = pick;
+    dialog.m_tipTheme = theme;
 
     params.title                    = L"Copy to folder with options";
     params.hInstance                = GetModuleHandleW (nullptr);
     params.ownerHwnd                = owner;
-    params.initialSizeDip           = { 560, 160 + 36 * lines };
+    params.initialSizeDip           = { 720, 172 + 36 * lines };
     params.minSizeDip               = { 440, 140 };
     params.resizable                = false;
     params.insetContentBelowCaption = true;
@@ -354,6 +605,8 @@ bool CassoExplorerCopyOptionsDialog::Choose (HWND                               
     if (dialog.m_confirmed)
     {
         ioOptions = dialog.m_options;
+        ioNaming  = dialog.m_naming;
+        ioFolder  = dialog.m_folder;
     }
 
     return dialog.m_confirmed;

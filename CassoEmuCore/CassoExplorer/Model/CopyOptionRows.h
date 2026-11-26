@@ -23,10 +23,12 @@
 class CopyOptionRows
 {
 public:
-    enum class Row { Charset, Spreadsheet, HiRes, DoubleHiRes, Basic, Code };
+    enum class Row { HexDump, Charset, Spreadsheet, HiRes, DoubleHiRes, Basic, Code };
 
     //  The rows a file adds, by its format, its encoding on a copy, and
-    //  whether its type marks it as code.
+    //  whether its type marks it as code. Every file adds HexDump, the
+    //  first row, which selects a hex dump of every file in place of the
+    //  conversions the other rows set options for.
     static void  Add (FileFormat format, DiskOperations::Encoding encoding, bool executable, std::vector<Row> & ioRows);
 
     static int   GetChoice (Row row, const DecodeOptions & options);

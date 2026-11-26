@@ -350,6 +350,39 @@ public:
         Assert::AreEqual (1, tv.GetHighlight());
     }
 
+    TEST_METHOD (HomeEndAndPageKeys_MoveTheHighlight)
+    {
+        DxuiTreeView               tv;
+        std::vector<DxuiTreeNode>  nodes;
+        RECT                       rect  = { 0, 0, 200, 100 };
+
+        for (int i = 0; i < 20; i++)
+        {
+            nodes.push_back (MakeNode (std::format (L"n{}", i).c_str(), DxuiTreeCapabilityFlag::Optional, false));
+        }
+
+        tv.SetRect      (rect);
+        tv.SetRowHeight (20);
+        tv.SetNodes     (std::move (nodes));
+        tv.SetFocused   (true);
+
+        Assert::IsTrue   (tv.OnKey (VK_END));
+        Assert::AreEqual (19, tv.GetHighlight());
+
+        Assert::IsTrue   (tv.OnKey (VK_PRIOR));
+        Assert::AreEqual (19 - (tv.GetRowCap() - 1), tv.GetHighlight(), L"a page is one row less than the rows in view");
+
+        Assert::IsTrue   (tv.OnKey (VK_HOME));
+        Assert::AreEqual (0, tv.GetHighlight());
+
+        Assert::IsTrue   (tv.OnKey (VK_NEXT));
+        Assert::AreEqual (tv.GetRowCap() - 1, tv.GetHighlight());
+
+        Assert::IsTrue   (tv.OnKey (VK_PRIOR));
+        Assert::IsTrue   (tv.OnKey (VK_PRIOR));
+        Assert::AreEqual (0, tv.GetHighlight(), L"Page Up stops at the first row");
+    }
+
     TEST_METHOD (KeyboardToggle_OnlyAffectsInteractiveRow)
     {
         DxuiTreeView  tv = MakeFlatTree();

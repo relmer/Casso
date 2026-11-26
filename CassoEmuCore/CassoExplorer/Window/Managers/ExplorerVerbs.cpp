@@ -14,6 +14,7 @@
 #include "CassoExplorer/CassoExplorerOptionsDialog.h"
 #include "CassoExplorer/CassoExplorerPromptDialog.h"
 #include "CassoExplorer/CassoExplorerShell.h"
+#include "CassoExplorer/Model/DragPayload.h"
 #include "CassoExplorer/Model/LaunchCommand.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerSearch.h"
@@ -259,38 +260,96 @@ void ExplorerVerbs::RunVerb (CassoExplorerActions::Verb verb)
         case CassoExplorerActions::Verb::Get:
             hr = m_context.dialogs.PickFolder (m_context.window.GetHwnd(), picked, chosen);
 
+            //  The folder the files went to opens in a new tab.
             if (SUCCEEDED (hr) && chosen)
             {
-                ReportOutcome (m_context.actions.GetSelected (picked.wstring(), style, m_context.prompts.MakeCollisionPrompt()), L"Copy");
+                outcome = m_context.actions.GetSelected (picked.wstring(), style, m_context.prompts.MakeCollisionPrompt());
+                ReportOutcome (outcome, L"Copy");
+                OpenCopyFolder (outcome, picked.wstring());
             }
 
             break;
 
         //  The choices become the options of every later copy, drag out and
         //  Copy to folder, and are saved with Casso Explorer's settings. A
-        //  selection with no file that has options goes straight to the
-        //  folder.
+        //  hex dump and the naming choices apply to this copy alone. A
+        //  selection of folders goes straight to the folder.
         case CassoExplorerActions::Verb::GetWithOptions:
         {
-            std::vector<CopyOptionRows::Row>  rows;
-            DecodeOptions                     options = m_context.browser.GetPreviewer().GetViewState().GetDefaultDecodeOptions();
+            std::vector<CopyOptionRows::Row>        rows;
+            DecodeOptions                           options = m_context.browser.GetPreviewer().GetViewState().GetDefaultDecodeOptions();
+            CassoExplorerCopyOptionsDialog::Naming  naming  = { style, CassoExplorerActions::NamingScope::Unconverted };
+            std::vector<FileEntry>                  entries;
+            bool                                    hexDump = false;
+            std::wstring                            folder  = m_context.prefs.copyFolder;
 
             m_context.actions.FindCopyOptionRows (rows);
+            m_context.browser.GetSelection().GetSelectedEntries (entries);
+            std::erase_if (entries, [] (const FileEntry & entry) { return entry.isDirectory; });
 
-            if (!rows.empty() && !CassoExplorerCopyOptionsDialog::Choose (m_context.window.GetHwnd(), m_context.theme, rows, options))
+            //  The first copy goes to Documents unless another folder is picked.
+            if (folder.empty())
+            {
+                PWSTR  documents = nullptr;
+
+                if (SUCCEEDED (SHGetKnownFolderPath (FOLDERID_Documents, 0, nullptr, &documents)))
+                {
+                    folder = documents;
+                }
+
+                CoTaskMemFree (documents);
+            }
+
+            //  The first file's name in the naming style the dialog shows.
+            if (!rows.empty() && !CassoExplorerCopyOptionsDialog::Choose (m_context.window.GetHwnd(), m_context.theme, rows, options, naming, folder,
+                                                                          [this, &entries] (HostFileNaming::Style chosen)
+                                                                          {
+                                                                              bool  converted = false;
+
+                                                                              return entries.empty() ? std::wstring()
+                                                                                                     : DragPayload::GetHostName (entries[0], m_context.browser.GetVolumeKind(), chosen, converted, FileFormat::None, true);
+                                                                          },
+                                                                          [this] (HWND owner, std::wstring & ioFolder)
+                                                                          {
+                                                                              std::filesystem::path  path;
+                                                                              bool                   picked = false;
+                                                                              HRESULT                hrPick = m_context.dialogs.PickFolder (owner, path, picked);
+
+                                                                              if (SUCCEEDED (hrPick) && picked)
+                                                                              {
+                                                                                  ioFolder = path.wstring();
+                                                                              }
+
+                                                                              return SUCCEEDED (hrPick) && picked;
+                                                                          }))
             {
                 break;
             }
 
+            hexDump                     = options.hexDump;
+            options.hexDump             = false;
             m_context.prefs.copyOptions = options;
             m_context.browser.GetPreviewer().GetViewState().SetDefaultDecodeOptions (options);
 
-            hr = m_context.dialogs.PickFolder (m_context.window.GetHwnd(), picked, chosen);
-
-            if (SUCCEEDED (hr) && chosen)
+            //  With no options to show, the folder is picked here.
+            if (rows.empty())
             {
-                ReportOutcome (m_context.actions.GetSelected (picked.wstring(), style, m_context.prompts.MakeCollisionPrompt()), L"Copy");
+                hr = m_context.dialogs.PickFolder (m_context.window.GetHwnd(), picked, chosen);
+
+                if (FAILED (hr) || !chosen)
+                {
+                    break;
+                }
+
+                folder = picked.wstring();
             }
+
+            m_context.prefs.copyFolder = folder;
+
+            outcome = m_context.actions.GetSelected (folder, naming.style, m_context.prompts.MakeCollisionPrompt(),
+                                                     hexDump ? CassoExplorerActions::CopyForm::HexDump : CassoExplorerActions::CopyForm::Converted, naming.scope);
+            ReportOutcome (outcome, L"Copy");
+            OpenCopyFolder (outcome, folder);
 
             break;
         }
@@ -562,6 +621,27 @@ void ExplorerVerbs::RunVerb (CassoExplorerActions::Verb verb)
 
     IGNORE_RETURN_VALUE (hr, S_OK);
     m_context.window.Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerVerbs::OpenCopyFolder
+//
+//  A copy that wrote a file opens its folder in a new tab.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerVerbs::OpenCopyFolder (const CassoExplorerActions::Outcome & outcome, const std::wstring & folder)
+{
+    if (outcome.written > 0)
+    {
+        m_context.tabManager.OpenPathInNewTab (folder);
+        m_context.listPane.FillList();
+    }
 }
 
 

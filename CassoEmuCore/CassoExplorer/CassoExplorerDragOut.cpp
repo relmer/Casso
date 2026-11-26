@@ -874,7 +874,7 @@ HRESULT CassoExplorerDragOut::GetDropError (HRESULT hr)
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (CassoExplorerBrowser & browser, HostFileNaming::Style style,
-                                                                       std::shared_ptr<RenderLog> log, bool raw, bool offerRawCopy)
+                                                                       std::shared_ptr<RenderLog> log, bool raw, bool offerRawCopy, bool offerHexDump)
 {
     std::vector<DxuiDragDropSource::Format>                  formats;
     std::vector<FileEntry>                                   entries;
@@ -949,6 +949,11 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
         if (offerRawCopy && !raw && std::any_of (plan.descriptors.begin(), plan.descriptors.end(), [] (const DragPayload::Descriptor & d) { return d.converted || d.format != FileFormat::None; }))
         {
             formats.push_back (MakeRawCopyMarker());
+        }
+
+        if (offerHexDump && std::any_of (plan.descriptors.begin(), plan.descriptors.end(), [] (const DragPayload::Descriptor & d) { return !d.isDirectory; }))
+        {
+            formats.push_back (MakeHexDumpMarker());
         }
 
         formats.push_back ({ (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_FILEDESCRIPTORW), 1,
@@ -1145,6 +1150,25 @@ DxuiDragDropSource::Format CassoExplorerDragOut::MakeFilesMarker()
 DxuiDragDropSource::Format CassoExplorerDragOut::MakeRawCopyMarker()
 {
     return { (CLIPFORMAT) RegisterClipboardFormatW (RawCopyDropHandler::kOfferedFormat), 1, [] (int, std::vector<uint8_t> & out)
+    {
+        out.assign (1, 0);
+        return S_OK;
+    } };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerDragOut::MakeHexDumpMarker
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiDragDropSource::Format CassoExplorerDragOut::MakeHexDumpMarker()
+{
+    return { (CLIPFORMAT) RegisterClipboardFormatW (RawCopyDropHandler::kHexDumpOfferedFormat), 1, [] (int, std::vector<uint8_t> & out)
     {
         out.assign (1, 0);
         return S_OK;

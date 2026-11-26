@@ -1004,6 +1004,9 @@ void DxuiTreeView::ToggleRow (int flatRow)
 //  they naturally traverse into and out of expanded subtrees without knowing
 //  anything about depth.
 //
+//  Home and End go to the first and last rows, and Page Up and Page Down move
+//  by one row less than the rows in view, as a list does.
+//
 //  The highlight is seeded to row 0 on the first key while focused, so a tree
 //  that has never been clicked still responds to an arrow press instead of
 //  requiring a mouse first.
@@ -1023,6 +1026,8 @@ bool DxuiTreeView::OnKey (WPARAM vk)
     bool                  isActive = false;
     bool                  handled  = false;
     int                   parent   = -1;
+    int                   last     = (int) m_flatRows.size() - 1;
+    int                   page     = (std::max) (GetRowCap() - 1, 1);
 
 
 
@@ -1045,6 +1050,22 @@ bool DxuiTreeView::OnKey (WPARAM vk)
 
             case VK_DOWN:
                 if (m_highlight < (int) m_flatRows.size() - 1) { SelectRow (SkipDividers (m_highlight + 1, 1)); }
+                break;
+
+            case VK_HOME:
+                SelectRow (SkipDividers (0, 1));
+                break;
+
+            case VK_END:
+                SelectRow (SkipDividers (last, -1));
+                break;
+
+            case VK_PRIOR:
+                SelectRow (SkipDividers ((std::max) (m_highlight - page, 0), -1));
+                break;
+
+            case VK_NEXT:
+                SelectRow (SkipDividers ((std::min) (m_highlight + page, last), 1));
                 break;
 
             case VK_RIGHT:
@@ -1163,12 +1184,23 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     //  The widest row sets how far the tree scrolls sideways, so it is
     //  measured before either scrollbar is sized. A row's right edge is its
     //  indent, twisty, checkbox, icon and label, laid out as they are drawn.
+    //  A label is measured again only when it or the font size changes, so a
+    //  tree of thousands of rows repaints without measuring each one.
     m_rowsExtentPx = 0;
     m_labelSpans.assign (m_flatRows.size(), POINT {});
+
+    if (m_measuredFontDip != fontDip)
+    {
+        m_labelWidths.clear();
+        m_measuredFontDip = fontDip;
+    }
+
+    m_labelWidths.resize (m_flatRows.size());
 
     for (const FlatRow & fr : m_flatRows)
     {
         const DxuiTreeNode  * node   = fr.divider ? nullptr : GetNodeAt ((int) (&fr - m_flatRows.data()));
+        LabelWidth          & cached = m_labelWidths[(size_t) (&fr - m_flatRows.data())];
         float                 labelW = 0.0f;
         float                 labelH = 0.0f;
         float                 right  = 0.0f;
@@ -1178,7 +1210,18 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
             continue;
         }
 
-        hr = text.MeasureString (node->label.c_str(), fontDip, DxuiTheme::kBodyFace, labelW, labelH);
+        hr = S_OK;
+
+        if (!cached.measured || cached.label != node->label)
+        {
+            hr = text.MeasureString (node->label.c_str(), fontDip, DxuiTheme::kBodyFace, labelW, labelH);
+
+            cached.label    = node->label;
+            cached.width    = labelW;
+            cached.measured = SUCCEEDED (hr);
+        }
+
+        labelW = cached.width;
 
         right = (float) (GetLeftPadPx() + fr.depth * m_indentPx + m_twistyPx + GetCheckboxWidthPx()) + iconLead + labelW + textGap;
 

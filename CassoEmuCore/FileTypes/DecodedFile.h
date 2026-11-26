@@ -26,7 +26,7 @@ enum class FileFormat
     IigsIcons, HiResFont, Apple3Font, FontrixFont, PrintShopFont,
     IigsFont, WizardryScenario, InfocomStory, HiResScreen,
     DoubleHiResScreen, LoResScreen, MacPaint, Disassembly, UltimaSave,
-    WizardryRoster,
+    WizardryRoster, HexDump,
 };
 
 
@@ -126,6 +126,7 @@ struct DecodeOptions
     DisassemblyCpu         disassembly      = DisassemblyCpu::None;     // a code file copied as a disassembly for this processor
     bool                   longRegisters    = true;                     // 65816 code starts with 16-bit registers
     bool                   followFlags      = true;                     // 65816 register widths follow REP and SEP
+    bool                   hexDump          = false;                    // a file copied as a hex dump of its bytes
     std::span<const Byte>  diskSectors;                                 // the disk the file is on, in DOS order, for a file that refers to others
     DiskSectorsList        otherDisks;                                  // other disks of the same game, from the image's folder
 };

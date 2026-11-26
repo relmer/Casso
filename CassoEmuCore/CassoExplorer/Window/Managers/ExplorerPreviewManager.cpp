@@ -356,7 +356,7 @@ void ExplorerPreviewManager::FillPreview()
     bool                    random   = preview.recordLength > 0;
     bool                    sets     = preview.charset != Charset::Default;
     bool                    sheet    = preview.sheetForm != SheetForm::None;
-    bool                    details  = visible && woz && preview.kind == PreviewContent::Kind::Catalog && !preview.details.empty();
+    bool                    details  = visible && ((woz && preview.kind == PreviewContent::Kind::Catalog) || preview.detailsAbove) && !preview.details.empty();
     bool                    warned   = visible && hex && !preview.warning.empty();
     bool                    hadThem  = m_summary->IsVisible();
     int                     mode     = !visible ? CassoExplorerCommands::kPreviewBarNone
@@ -430,7 +430,8 @@ void ExplorerPreviewManager::FillPreview()
     m_listing.Fill   (preview, columns);
     FillText         (preview);
 
-    //  A WOZ image's details above its catalog, which moves the catalog down.
+    //  A WOZ image's details above its catalog, which moves the catalog down,
+    //  and an AppleSingle file's above the file it holds.
     //  An image with no file system has its details in place of a catalog.
     //  A file whose format's decoder failed has the reason above its bytes.
     m_summary->SetRows    (details ? PreviewText::BuildDetailRows (preview.details)

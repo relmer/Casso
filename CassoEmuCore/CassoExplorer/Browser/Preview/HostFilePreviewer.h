@@ -36,6 +36,7 @@ private:
     void  AttachHostViews       (const FileEntry & entry, const FilePayload & payload, bool loaded, PreviewDecoder::HexForm hexForm);
     void  ReadTextPreview       (const std::wstring & path, const std::wstring & name);
 
-    BrowserParts  m_parts;
-    PreviewParts  m_previewParts;
+    BrowserParts                                        m_parts;
+    PreviewParts                                        m_previewParts;
+    std::vector<std::pair<std::wstring, std::wstring>>  m_singleDetails;   // the AppleSingle file read last, or empty
 };

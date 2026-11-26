@@ -76,6 +76,9 @@ struct CassoExplorerPrefs
     std::wstring           fullSendFolder;
     std::string            fullSendExtension;
 
+    //  The folder Copy to folder with options last copied to.
+    std::wstring           copyFolder;
+
     //  The Full Send options' Copy-protected disks section.
     FullSendProtectionChoices  fullSendProtection;
 

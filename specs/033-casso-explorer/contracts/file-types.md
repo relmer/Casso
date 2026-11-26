@@ -114,6 +114,14 @@ undocumented ones, the 65C02, or the 65816. 65816 code starts with 16-bit
 registers when `longRegisters` is set, and the widths follow REP and SEP
 when `followFlags` is set.
 
+Any file is copied as `NAME.hex dump.txt` when `DecodeOptions::hexDump` is
+set (`HexDump`): 16 bytes a line, the offset of the line's first byte, the
+bytes in hex in two halves, and the bytes as characters in the chosen
+character set, a control character as a period. The offset has four digits
+for a file of 64 KB or less and six for a larger one. Copy to folder with
+options sets it for one copy, and File Explorer's right-drag menu has Copy
+here as hex dump.
+
 `Decode` fails with `ERROR_INVALID_DATA` and a reason in words for a file
 that fails its check, which FR-169's preview and copy report. `Export`
 writes RTF, CSV, text or PNG by the `DecodedFile`'s kind.

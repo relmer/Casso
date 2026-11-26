@@ -27,7 +27,8 @@ class CopyOutConversion
 public:
     //  The format of a file in an image, or None for a file with no row and
     //  for one that can't be read. A code file with no row is Disassembly
-    //  when the options set a processor to disassemble it for.
+    //  when the options set a processor to disassemble it for. Every file is
+    //  HexDump when the options select a hex dump.
     static FileFormat  Find (DiskOperations         & operations,
                              const std::string      & image,
                              const std::string      & catalogPath,

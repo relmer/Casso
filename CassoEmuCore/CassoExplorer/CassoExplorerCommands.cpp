@@ -44,7 +44,6 @@ CassoExplorerCommands::CassoExplorerCommands (Handlers handlers)
                             || (row.id >= kPictureMonochrome && row.id <= kPictureColor)
                             || (row.id >= kCharsetAppleText && row.id <= kCharsetIso8859)
                             || row.id == kSheetValues || row.id == kSheetFormulas
-                            || row.id == kShowDisassembly || row.id == kShowBytes
                             || (row.id >= kViewAsDefault && row.id <= kViewAsResourceFork);
 
         command->dispatch = [this, id]()
@@ -692,12 +691,8 @@ std::vector<DxuiToolbar::Entry> CassoExplorerCommands::BuildPreviewToolbarEntrie
         entry.iconOnly   = row.iconOnly;
         entry.vectorIcon = GetCommandBarIcon (row.id);
 
-        //  The two forms, Expand and View as stay on the strip at any width.
-        //  The forms' faces are code and the bytes it assembles to.
-        entry.pinned   = row.id == kShowDisassembly || row.id == kShowBytes || row.id == kExpandPreview || row.id == kViewAs;
-        entry.faceText = (row.id == kShowDisassembly) ? s_kpszDisassemblyFace
-                       : (row.id == kShowBytes)       ? s_kpszBytesFace
-                                                      : nullptr;
+        //  Expand and View as stay on the strip at any width.
+        entry.pinned     = row.id == kExpandPreview || row.id == kViewAs;
         entry.custom     = (row.id == kFind)       ? search
                          : (row.id == kGoToOffset) ? goTo
                                                    : nullptr;

@@ -298,8 +298,8 @@ STDMETHODIMP_(ULONG) RawCopyDropHandler::Release()
 //  RawCopyDropHandler::Initialize
 //
 //  The shell may initialize a handler more than once, so each call starts
-//  over. After a drag without the mark, or with a target that isn't a file
-//  system folder, m_folder is empty, and QueryContextMenu doesn't add the
+//  over. After a drag without a mark, or with a target that isn't a file
+//  system folder, m_folder is empty, and QueryContextMenu doesn't add an
 //  item.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -315,7 +315,10 @@ STDMETHODIMP RawCopyDropHandler::Initialize (PCIDLIST_ABSOLUTE folder, IDataObje
     m_data.Reset();
     m_folder.clear();
 
-    if (folder != nullptr && IsOffered (data) && SHGetPathFromIDListW (folder, path))
+    m_rawOffered = IsOffered (data, kOfferedFormat);
+    m_hexOffered = IsOffered (data, kHexDumpOfferedFormat);
+
+    if (folder != nullptr && (m_rawOffered || m_hexOffered) && SHGetPathFromIDListW (folder, path))
     {
         m_data   = data;
         m_folder = path;
@@ -332,7 +335,8 @@ STDMETHODIMP RawCopyDropHandler::Initialize (PCIDLIST_ABSOLUTE folder, IDataObje
 //
 //  RawCopyDropHandler::QueryContextMenu
 //
-//  The return value is the count of command ids used, as a success code.
+//  The return value is the highest command offset used plus one, as a
+//  success code.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -340,15 +344,29 @@ STDMETHODIMP RawCopyDropHandler::QueryContextMenu (HMENU menu, UINT index, UINT 
 {
     HRESULT  hr    = S_OK;
     BOOL     added = FALSE;
+    UINT     used  = 0;
 
 
 
     BAIL_OUT_IF (m_folder.empty() || (flags & CMF_DEFAULTONLY) != 0 || firstCommand > lastCommand, MAKE_HRESULT (SEVERITY_SUCCESS, FACILITY_NULL, 0));
 
-    added = InsertMenuW (menu, index, MF_BYPOSITION | MF_STRING, firstCommand, kMenuText);
-    CWR (added);
+    if (m_rawOffered)
+    {
+        added = InsertMenuW (menu, index++, MF_BYPOSITION | MF_STRING, firstCommand + kRawCopyCommand, kMenuText);
+        CWR (added);
 
-    hr = MAKE_HRESULT (SEVERITY_SUCCESS, FACILITY_NULL, 1);
+        used = kRawCopyCommand + 1;
+    }
+
+    if (m_hexOffered && lastCommand - firstCommand >= kHexDumpCommand)
+    {
+        added = InsertMenuW (menu, index, MF_BYPOSITION | MF_STRING, firstCommand + kHexDumpCommand, kHexDumpMenuText);
+        CWR (added);
+
+        used = kHexDumpCommand + 1;
+    }
+
+    hr = MAKE_HRESULT (SEVERITY_SUCCESS, FACILITY_NULL, used);
 
 Error:
     return hr;
@@ -363,25 +381,31 @@ Error:
 //  RawCopyDropHandler::InvokeCommand
 //
 //  The folder's path, with its terminating null, in global memory. It is
-//  stored on the data object, and Casso Explorer reads it once the drag ends.
+//  stored on the data object in the picked command's format, and Casso
+//  Explorer reads it once the drag ends.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 STDMETHODIMP RawCopyDropHandler::InvokeCommand (CMINVOKECOMMANDINFO * info)
 {
-    HRESULT     hr     = S_OK;
-    FORMATETC   format = { (CLIPFORMAT) RegisterClipboardFormatW (kFolderFormat), nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
-    STGMEDIUM   medium = { TYMED_HGLOBAL };
-    size_t      bytes  = (m_folder.size() + 1) * sizeof (wchar_t);
-    void      * locked = nullptr;
-    bool        picked = false;
+    HRESULT     hr      = S_OK;
+    FORMATETC   format  = { 0, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+    STGMEDIUM   medium  = { TYMED_HGLOBAL };
+    size_t      bytes   = (m_folder.size() + 1) * sizeof (wchar_t);
+    void      * locked  = nullptr;
+    int         command = -1;
+    bool        picked  = false;
 
 
 
     CBREx (info != nullptr, E_POINTER);
 
-    picked = IsHandlerCommand (info) && m_data != nullptr && !m_folder.empty();
+    command = GetPickedCommand (info);
+    picked  = m_data != nullptr && !m_folder.empty()
+           && ((command == (int) kRawCopyCommand && m_rawOffered) || (command == (int) kHexDumpCommand && m_hexOffered));
     CBR (picked);
+
+    format.cfFormat = (CLIPFORMAT) RegisterClipboardFormatW ((command == (int) kHexDumpCommand) ? kHexDumpFolderFormat : kFolderFormat);
 
     medium.hGlobal = GlobalAlloc (GMEM_MOVEABLE, bytes);
     CWR (medium.hGlobal);
@@ -424,12 +448,12 @@ STDMETHODIMP RawCopyDropHandler::GetCommandString (UINT_PTR command, UINT type, 
 
     UNREFERENCED_PARAMETER (reserved);
 
-    CBREx (command == 0 && name != nullptr && nameChars > 0, E_NOTIMPL);
+    CBREx ((command == kRawCopyCommand || command == kHexDumpCommand) && name != nullptr && nameChars > 0, E_NOTIMPL);
 
     switch (type)
     {
         case GCS_VERBW:
-            hr = (wcscpy_s ((wchar_t *) name, nameChars, kVerb) == 0) ? S_OK : E_NOT_SUFFICIENT_BUFFER;
+            hr = (wcscpy_s ((wchar_t *) name, nameChars, (command == kHexDumpCommand) ? kHexDumpVerb : kVerb) == 0) ? S_OK : E_NOT_SUFFICIENT_BUFFER;
             break;
 
         case GCS_VALIDATEW:
@@ -458,9 +482,9 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool RawCopyDropHandler::IsOffered (IDataObject * data)
+bool RawCopyDropHandler::IsOffered (IDataObject * data, const wchar_t * offered)
 {
-    FORMATETC  format = { (CLIPFORMAT) RegisterClipboardFormatW (kOfferedFormat), nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+    FORMATETC  format = { (CLIPFORMAT) RegisterClipboardFormatW (offered), nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
 
 
 
@@ -473,7 +497,7 @@ bool RawCopyDropHandler::IsOffered (IDataObject * data)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  RawCopyDropHandler::IsHandlerCommand
+//  RawCopyDropHandler::GetPickedCommand
 //
 //  A command is picked by its offset from the first id, in the low word of
 //  lpVerb with the high word zero, or by its verb, as a string. A caller with
@@ -481,26 +505,26 @@ bool RawCopyDropHandler::IsOffered (IDataObject * data)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool RawCopyDropHandler::IsHandlerCommand (const CMINVOKECOMMANDINFO * info)
+int RawCopyDropHandler::GetPickedCommand (const CMINVOKECOMMANDINFO * info)
 {
     const CMINVOKECOMMANDINFOEX  * extended = (const CMINVOKECOMMANDINFOEX *) info;
     bool                           unicode  = info->cbSize >= sizeof (CMINVOKECOMMANDINFOEX) && (info->fMask & CMIC_MASK_UNICODE) != 0;
-    bool                           picked   = false;
+    int                            command  = -1;
 
 
 
     if (unicode && !IS_INTRESOURCE (extended->lpVerbW))
     {
-        picked = wcscmp (extended->lpVerbW, kVerb) == 0;
+        command = (wcscmp (extended->lpVerbW, kVerb) == 0) ? (int) kRawCopyCommand : (wcscmp (extended->lpVerbW, kHexDumpVerb) == 0) ? (int) kHexDumpCommand : -1;
     }
     else if (!IS_INTRESOURCE (info->lpVerb))
     {
-        picked = strcmp (info->lpVerb, kVerbA) == 0;
+        command = (strcmp (info->lpVerb, kVerbA) == 0) ? (int) kRawCopyCommand : (strcmp (info->lpVerb, kHexDumpVerbA) == 0) ? (int) kHexDumpCommand : -1;
     }
-    else
+    else if (LOWORD (info->lpVerb) <= kHexDumpCommand)
     {
-        picked = LOWORD (info->lpVerb) == 0;
+        command = (int) LOWORD (info->lpVerb);
     }
 
-    return picked;
+    return command;
 }

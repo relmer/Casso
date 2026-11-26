@@ -128,6 +128,15 @@ struct ActionsTypes
     //  table, on the file systems each is written to.
     enum class Conversion { ByContent, Text, Applesoft, Binary, PascalText, MerlinSource };
 
+    //  How a copy out writes each file: in its conversion, as the bytes on
+    //  the volume, or as a hex dump of those bytes.
+    enum class CopyForm { Converted, Raw, HexDump };
+
+    //  Which files a copy out writes under the host file naming style: none,
+    //  the ones it doesn't convert, or all of them, unconverted. ByStyle is
+    //  All for AppleSingle and Unconverted for the others.
+    enum class NamingScope { None, Unconverted, All, ByStyle };
+
     //  Whether the files a drop holds already say what they are, and the
     //  one row a menu shows when they do: "BIN $2000" for a recorded type,
     //  "Applesoft BASIC" for a listing a name promises.

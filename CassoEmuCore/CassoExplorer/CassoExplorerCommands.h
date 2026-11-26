@@ -30,7 +30,6 @@ public:
         kExit = 100,
         kRefresh,
         kTogglePreview,
-        kShowDisassembly,
         kThemeLight,
         kThemeDark,
         kThemeSystem,
@@ -145,10 +144,6 @@ public:
 
         //  A search's results by relevance, on the Sort menu only there.
         kSortByRelevance,
-
-        //  A hex preview's bytes in hex, the other form of the preview from
-        //  kShowDisassembly.
-        kShowBytes,
 
         //  The character set a text preview is read in, a choice of one, and
         //  the record length a random-access text file is split by.
@@ -393,8 +388,6 @@ private:
         { kSeparator,         Menu::View, nullptr,                nullptr,     false },
         { kTogglePreview,     Menu::View, L"&Preview pane",       L"Alt+P",    true  },
         { kExpandPreview,     Menu::View, L"E&xpand preview",     L"Alt+Shift+P", true },
-        { kShowDisassembly,   Menu::View, L"&Disassembly",        nullptr,     true  },
-        { kShowBytes,         Menu::View, L"&Bytes",              nullptr,     true  },
         { kSeparator,         Menu::View, nullptr,                nullptr,     false },
         { kZoomIn,            Menu::View, L"Zoom &in",            L"Ctrl++",   false },
         { kZoomOut,           Menu::View, L"Zoom &out",           L"Ctrl+-",   false },
@@ -599,11 +592,6 @@ private:
         { kCancelLinkOperation, DxuiToolbar::Kind::Command, 5, s_kpszMdl2Cancel,   L"Cancel",       L"Cancel the running operation"       },
     };
 
-    //  The faces of the hex preview's two forms: 6502 code, and the bytes it
-    //  assembles to.
-    static constexpr const wchar_t *  s_kpszDisassemblyFace = L"LDA\nRTS";
-    static constexpr const wchar_t *  s_kpszBytesFace       = L"A9\n60";
-
     static constexpr ToolbarRow  kPreviewToolbarRows[] =
     {
         { kPreviousFile,      DxuiToolbar::Kind::Command, 8, s_kpszMdl2ChevronLeft,  L"Previous",  L"Previous file (Left)",                                    true },
@@ -611,8 +599,6 @@ private:
         { kViewAs,            DxuiToolbar::Kind::DropDown, 7, s_kpszMdl2List,     L"View as",       L"Choose how the file is displayed"                      },
         { kLineAddresses,     DxuiToolbar::Kind::Toggle,  0, s_kpszMdl2Tag,       L"Show address",  L"Show where each line starts in memory"                   },
         { kCrossReference,    DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Cross-reference", L"List the program's variables, line references and addresses" },
-        { kShowDisassembly,   DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Disassembly",   L"Show disassembly",                                       true },
-        { kShowBytes,         DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Bytes",         L"Show bytes",                                             true },
         //  The Go to and search boxes, which the host supplies as custom entries.
         { kGoToOffset,        DxuiToolbar::Kind::Command, 0, nullptr,             L"Go to",         L""                                                       },
         { kFind,              DxuiToolbar::Kind::Command, 1, nullptr,             L"Search",        L"",                                                       false, true },

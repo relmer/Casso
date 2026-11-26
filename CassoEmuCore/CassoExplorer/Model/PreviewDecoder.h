@@ -149,6 +149,10 @@ struct PreviewContent
     std::vector<std::pair<std::wstring, std::wstring>>  details;
     std::wstring                                        message;
 
+    //  The details are listed above the view, as an AppleSingle file's are
+    //  above the file it holds.
+    bool                                                detailsAbove = false;
+
     //  A VAR file's simple variables and array elements, and its arrays.
     std::vector<VariableRow>                            variables;
     std::vector<VariableArray>                          arrays;

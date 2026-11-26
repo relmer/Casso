@@ -34,6 +34,7 @@ public:
     bool                       RunRecycleBinVerb  (CassoExplorerActions::Verb verb);
     std::vector<std::wstring>  GetRecycledPaths   (const std::vector<std::wstring> & ids);
     void                       ReportOutcome      (const CassoExplorerActions::Outcome & outcome, const wchar_t * verbName);
+    void                       OpenCopyFolder     (const CassoExplorerActions::Outcome & outcome, const std::wstring & folder);
 
     //  A raw save or overwrite of an inspector window's image, starting at
     //  its selection.

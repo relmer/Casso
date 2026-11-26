@@ -67,16 +67,34 @@ public:
         Rig                rig;
         AppleSingleFile    file;
         std::vector<Byte>  bytes;
-        bool               hasName = false;
-        bool               hasAux  = false;
-        bool               hasDate = false;
 
         file.data          = { 0x60 };
         file.realName      = "GAME";
         file.hasProDosInfo = true;
         file.fileType      = 0x06;
         file.auxType       = 0x6000;
-        file.modifyDate    = 86400;
+        AppleSingleCodec::Encode (file, bytes);
+
+        const PreviewContent &  preview = rig.Preview (L"GAME.as", std::string (bytes.begin(), bytes.end()));
+
+        Assert::IsTrue   (preview.kind == PreviewContent::Kind::Hex, L"a BIN file previews as it does in a disk");
+        Assert::IsTrue   (preview.executable, L"its type marks it as code");
+        Assert::IsTrue   (preview.hostPath.empty(), L"decoded from the file it holds, not read as the container's bytes");
+        Assert::IsTrue   (preview.detailsAbove && !preview.details.empty(), L"the AppleSingle file's details head the preview");
+    }
+
+
+    TEST_METHOD (AnAppleSingleFileWithNoType_PreviewsAsItsDetails)
+    {
+        Rig                rig;
+        AppleSingleFile    file;
+        std::vector<Byte>  bytes;
+        bool               hasName = false;
+        bool               hasDate = false;
+
+        file.data       = { 0x60 };
+        file.realName   = "GAME";
+        file.modifyDate = 86400;
         AppleSingleCodec::Encode (file, bytes);
 
         const PreviewContent &  preview = rig.Preview (L"GAME.as", std::string (bytes.begin(), bytes.end()));
@@ -86,12 +104,10 @@ public:
         for (const auto & [label, value] : preview.details)
         {
             hasName |= label == L"Name"     && value == L"GAME";
-            hasAux  |= label == L"Aux type" && value == L"$6000";
             hasDate |= label == L"Modified" && !value.empty() && value != L"Not valid";
         }
 
         Assert::IsTrue (hasName, L"The real name");
-        Assert::IsTrue (hasAux, L"The aux type");
         Assert::IsTrue (hasDate, L"The date, counted from 2000");
     }
 

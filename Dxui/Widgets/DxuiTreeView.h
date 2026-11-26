@@ -288,6 +288,16 @@ private:
     };
 
 
+    //  A row's label as it was last measured, and its width, so a paint
+    //  measures only the labels that changed.
+    struct LabelWidth
+    {
+        std::wstring  label;
+        float         width    = 0.0f;
+        bool          measured = false;
+    };
+
+
     //  The rows the view tracks, by the ids of the nodes on them.
     struct RowIds
     {
@@ -366,6 +376,8 @@ private:
     float                      m_wheelRows      = 0.0f;   // a touchpad's part notches, until they make a row
     float                      m_wheelPx        = 0.0f;   // the same, sideways
     std::vector<POINT>         m_labelSpans;   // per flat row: icon start, label end, unscrolled
+    std::vector<LabelWidth>    m_labelWidths;  // per flat row
+    float                      m_measuredFontDip = 0.0f;
     mutable DxuiScrollbar      m_vertScroll;
     mutable DxuiScrollbar      m_horzScroll;
 };

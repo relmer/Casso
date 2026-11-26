@@ -154,8 +154,6 @@ bool ExplorerCommandManager::IsEnabled (int id) const
         case CassoExplorerCommands::kBack:              return model.HasTabs() && model.CanGoBack();
         case CassoExplorerCommands::kForward:           return model.HasTabs() && model.CanGoForward();
         case CassoExplorerCommands::kUp:                return m_context.browser.GetNavigator().CanGoUp();
-        case CassoExplorerCommands::kShowDisassembly:
-        case CassoExplorerCommands::kShowBytes:         return model.HasTabs() && m_context.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Hex && m_context.browser.GetPreviewer().GetPreview().hostPath.empty();
         case CassoExplorerCommands::kLineAddresses:
         case CassoExplorerCommands::kCrossReference:    return m_context.preview.GetBarMode() == CassoExplorerCommands::kPreviewBarListing;
         case CassoExplorerCommands::kPictureMonochrome:
@@ -282,8 +280,6 @@ bool ExplorerCommandManager::IsChecked (int id) const
         case CassoExplorerCommands::kGroupDescending:   return model.HasTabs() && model.GetActiveTab().groupDescending;
         case CassoExplorerCommands::kLineAddresses:     return m_context.prefs.lineAddresses;
         case CassoExplorerCommands::kCrossReference:    return m_context.preview.GetText().IsCrossReference();
-        case CassoExplorerCommands::kShowDisassembly:   return m_context.browser.GetPreviewer().GetPreview().disassembly;
-        case CassoExplorerCommands::kShowBytes:         return m_context.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Hex && !m_context.browser.GetPreviewer().GetPreview().disassembly;
         case CassoExplorerCommands::kPictureMonochrome: return m_context.browser.GetPreviewer().GetMonitorChoice().CanTogglePictureColor() && m_context.browser.GetPreviewer().GetPreview().pictureMode == PicturePreview::Mode::DoubleHiResMono;
         case CassoExplorerCommands::kPictureColor:      return m_context.browser.GetPreviewer().GetMonitorChoice().CanTogglePictureColor() && m_context.browser.GetPreviewer().GetPreview().pictureMode != PicturePreview::Mode::DoubleHiResMono;
         case CassoExplorerCommands::kCharsetAppleText:  return m_context.browser.GetPreviewer().GetPreview().charset == Charset::AppleText;
@@ -540,15 +536,14 @@ void ExplorerCommandManager::Dispatch (int id)
         case CassoExplorerCommands::kViewAsLoRes:
         case CassoExplorerCommands::kViewAsResourceFork:
             m_context.browser.GetPreviewer().GetViewState().SetViewAs ((ViewChoice) (id - CassoExplorerCommands::kViewAsDefault));
-            m_context.preview.FillPreview();
-            break;
-        case CassoExplorerCommands::kShowDisassembly:
-            m_context.browser.GetPreviewer().GetViewState().SetHexForm (PreviewDecoder::HexForm::Disassembly);
-            m_context.preview.FillPreview();
-            break;
 
-        case CassoExplorerCommands::kShowBytes:
-            m_context.browser.GetPreviewer().GetViewState().SetHexForm (PreviewDecoder::HexForm::Bytes);
+            //  Hex and Disassembly are the two forms of the hex view, so each
+            //  selects its form.
+            if (id == CassoExplorerCommands::kViewAsHex || id == CassoExplorerCommands::kViewAsDisassembly)
+            {
+                m_context.browser.GetPreviewer().GetViewState().SetHexForm ((id == CassoExplorerCommands::kViewAsHex) ? PreviewDecoder::HexForm::Bytes : PreviewDecoder::HexForm::Disassembly);
+            }
+
             m_context.preview.FillPreview();
             break;
 

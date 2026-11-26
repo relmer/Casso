@@ -30,7 +30,11 @@ FileFormat CopyOutConversion::Find (
 
 
 
-    if (!entry.isDirectory)
+    if (!entry.isDirectory && options.hexDump)
+    {
+        format = FileFormat::HexDump;
+    }
+    else if (!entry.isDirectory)
     {
         result = operations.Read (image, catalogPath, payload, entry.catalogIndex);
 

@@ -54,7 +54,8 @@ public:
     //  The verbs the list's context menu offers for the current selection.
     std::vector<Verb>  GetListVerbs() const;
 
-    Outcome  GetSelected    (const std::wstring & hostFolder, HostFileNaming::Style style, const CollisionFn & collision = nullptr, bool raw = false);
+    Outcome  GetSelected    (const std::wstring & hostFolder, HostFileNaming::Style style, const CollisionFn & collision = nullptr, CopyForm form = CopyForm::Converted,
+                             NamingScope scope = NamingScope::ByStyle);
 
     //  Files a copy put on the clipboard as file descriptors and contents,
     //  written into the host folder by Get's rules for a name in use, so a

@@ -1600,22 +1600,29 @@ void CassoExplorerActions::FinishWrite (const std::wstring & imagePath)
 //  walks it. A file of the same name in the folder is replaced or skipped,
 //  or the copy gets a numbered name, by the choice `collision` returns. A
 //  raw copy has each file's bytes as they are on the volume, under its raw
-//  name.
+//  name. A hex dump is written as text in any host file style. `scope`
+//  selects the files written under the naming style.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ActionsTypes::Outcome CassoExplorerActions::GetSelected (const std::wstring & hostFolder, HostFileNaming::Style style, const CollisionFn & collision, bool raw)
+ActionsTypes::Outcome CassoExplorerActions::GetSelected (const std::wstring & hostFolder, HostFileNaming::Style style, const CollisionFn & collision, CopyForm form, NamingScope scope)
 {
-    Outcome                    outcome;
-    std::vector<FileEntry>     entries;
-    std::vector<std::wstring>  hostNames;
-    std::vector<FileFormat>    formats;
-    std::string                image     = TextEncoding::WideToNarrow (m_browser.GetLocation().path);
-    VolumeKind                 kind      = m_browser.GetVolumeKind();
-    bool                       converted = false;
-    int                        index     = 0;
-    int                        count     = 0;
-    size_t                     i         = 0;
+    Outcome                     outcome;
+    std::vector<FileEntry>      entries;
+    std::vector<std::wstring>   hostNames;
+    std::vector<FileFormat>     formats;
+    std::vector<DecodeOptions>  options;
+    std::vector<Encoding>       encodings;
+    std::vector<bool>           wrapped;
+    std::string                 image     = TextEncoding::WideToNarrow (m_browser.GetLocation().path);
+    VolumeKind                  kind      = m_browser.GetVolumeKind();
+    bool                        raw       = form == CopyForm::Raw;
+    bool                        hexDump   = form == CopyForm::HexDump;
+    bool                        converted = false;
+    bool                        named     = false;
+    int                         index     = 0;
+    int                         count     = 0;
+    size_t                      i         = 0;
 
 
 
@@ -1624,18 +1631,50 @@ ActionsTypes::Outcome CassoExplorerActions::GetSelected (const std::wstring & ho
         return m_appleDrive.GetFromAppleDrive (hostFolder, style, collision);
     }
 
+    if (scope == NamingScope::ByStyle)
+    {
+        scope = (style == HostFileNaming::Style::AppleSingle) ? NamingScope::All : NamingScope::Unconverted;
+    }
+
+    //  All files under the naming style are copied unconverted, as a raw copy
+    //  is. A hex dump converts every file.
+    raw = raw || (scope == NamingScope::All && !hexDump);
+
     m_browser.GetSelection().GetSelectedEntries (entries);
 
     for (const FileEntry & entry : entries)
     {
-        formats.push_back ((raw || style == HostFileNaming::Style::AppleSingle) ? FileFormat::None
-                                                                                : CopyOutConversion::Find (m_browser.GetOperations(), image, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entry), entry, kind,
-                                                                                                           m_browser.GetPreviewer().GetViewState().GetDecodeOptions (m_browser.GetLocation().path, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entry))));
-        hostNames.push_back (entry.isDirectory ? std::wstring() : DragPayload::GetHostName (entry, kind, style, converted, formats.back(), raw));
+        std::string  entryPath = BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entry);
 
+        options.push_back (m_browser.GetPreviewer().GetViewState().GetDecodeOptions (m_browser.GetLocation().path, entryPath));
+        options.back().hexDump = hexDump;
+
+        formats.push_back (raw ? FileFormat::None : CopyOutConversion::Find (m_browser.GetOperations(), image, entryPath, entry, kind, options.back()));
+        hostNames.push_back (entry.isDirectory ? std::wstring() : DragPayload::GetHostName (entry, kind, HostFileNaming::Style::Descriptive, converted, formats.back(), raw));
+        encodings.push_back (GetEncoding (entry, kind));
+        wrapped.push_back (false);
+
+        if (entry.isDirectory)
+        {
+            continue;
+        }
+
+        //  A file that isn't converted has a plain name, or one in the naming
+        //  style, in which an AppleSingle file holds it whole.
         if (converted)
         {
-            BasicListingOutput::RenameForOptions (hostNames.back(), m_browser.GetPreviewer().GetViewState().GetDecodeOptions (m_browser.GetLocation().path, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entry)));
+            BasicListingOutput::RenameForOptions (hostNames.back(), options.back());
+        }
+        else if (scope == NamingScope::None && !raw)
+        {
+            hostNames.back() = HostFileNaming::MakeHostLegal (entry.name, named);
+            encodings.back() = Encoding::Verbatim;
+        }
+        else
+        {
+            hostNames.back() = DragPayload::GetHostName (entry, kind, style, named, FileFormat::None, true);
+            encodings.back() = Encoding::Verbatim;
+            wrapped.back()   = style == HostFileNaming::Style::AppleSingle;
         }
     }
 
@@ -1659,14 +1698,14 @@ ActionsTypes::Outcome CassoExplorerActions::GetSelected (const std::wstring & ho
             continue;
         }
 
-        if (style == HostFileNaming::Style::AppleSingle)
+        if (wrapped[at])
         {
             m_appleDrive.GetAppleSingle (image, entry, hostPath, outcome);
             continue;
         }
 
-        Append (outcome, CopyOutConversion::GetToFile (m_browser.GetOperations(), m_fs, m_browser.GetPreviewer().GetViewState().GetDecodeOptions (m_browser.GetLocation().path, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entry)),
-                                                       image, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entry), entry, kind, formats[at], raw ? Encoding::Verbatim : GetEncoding (entry, kind), hostPath));
+        Append (outcome, CopyOutConversion::GetToFile (m_browser.GetOperations(), m_fs, options[at], image, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entry),
+                                                       entry, kind, formats[at], encodings[at], hostPath));
     }
 
     return outcome;

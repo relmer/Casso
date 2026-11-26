@@ -155,15 +155,19 @@ void HostFilePreviewer::PreviewHostFile (const std::wstring & folder, const Cata
     loaded  = TryReadHostPayload (path, row, payload, entry, typed);
     hexForm = m_previewParts.viewState.GetHexForm (path);
 
-    if (TryPreviewAppleSingle (folder, row))
-    {
-        AttachHostViews (entry, payload, loaded, hexForm);
-        return;
-    }
-
+    //  A typed file, by its name or as an AppleSingle file records it,
+    //  previews as it does in a disk. An AppleSingle file with no type
+    //  previews as its details.
     if (typed)
     {
         hr = PreviewViewChoices::Render (m_previewParts.viewState.GetViewAs(), entry, VolumeKind::ProDos, payload, hexForm, m_previewParts.bus, m_previewParts.preview, m_previewParts.monitor.GetPreviewMonitor(), m_previewParts.monitor.GetCustomArgb(), DecodeOptions());
+
+        //  An AppleSingle file's details head the preview of the file it holds.
+        if (SUCCEEDED (hr) && !m_singleDetails.empty())
+        {
+            m_previewParts.preview.details      = m_singleDetails;
+            m_previewParts.preview.detailsAbove = true;
+        }
 
         if (SUCCEEDED (hr))
         {
@@ -171,6 +175,12 @@ void HostFilePreviewer::PreviewHostFile (const std::wstring & folder, const Cata
         }
 
         m_previewParts.preview = PreviewContent();
+    }
+
+    if (TryPreviewAppleSingle (folder, row))
+    {
+        AttachHostViews (entry, payload, loaded, hexForm);
+        return;
     }
 
     m_previewParts.preview.kind     = PreviewContent::Kind::Hex;
@@ -223,6 +233,7 @@ bool HostFilePreviewer::TryReadHostPayload (const std::wstring & path, const Cat
     outPayload = FilePayload();
     outEntry   = FileEntry();
     outTyped   = false;
+    m_singleDetails.clear();
 
     if (row.sizeBytes > kTextPreviewMaxBytes || PathResolver::IsNetworkPath (path))
     {
@@ -240,10 +251,35 @@ bool HostFilePreviewer::TryReadHostPayload (const std::wstring & path, const Cat
     hr      = AppleSingleCodec::IsAppleSingle (bytes) ? AppleSingleCodec::Decode (bytes, single, error) : E_FAIL;
     decoded = SUCCEEDED (hr);
 
+    //  An AppleSingle file's ProDOS type and aux type set the entry's type,
+    //  as a type in the file's name does.
     if (decoded)
     {
+        PreviewContent  facts;
+
+        PreviewDecoder::RenderAppleSingle (single, facts);
+        m_singleDetails = std::move (facts.details);
+
         outPayload.bytes        = std::move (single.data);
         outPayload.resourceFork = std::move (single.resourceFork);
+        outEntry.name           = single.realName.empty() ? TextEncoding::WideToNarrow (row.name) : single.realName;
+        outEntry.eofBytes       = (uint32_t) outPayload.bytes.size();
+
+        if (single.hasProDosInfo)
+        {
+            outEntry.type             = (Byte) single.fileType;
+            outEntry.auxType          = (Word) single.auxType;
+            outEntry.hasAuxType       = true;
+            outEntry.loadAddress      = (Word) single.auxType;
+            outEntry.hasLoadAddress   = true;
+            outPayload.type           = (Byte) single.fileType;
+            outPayload.auxType        = (Word) single.auxType;
+            outPayload.hasAuxType     = true;
+            outPayload.loadAddress    = (Word) single.auxType;
+            outPayload.hasLoadAddress = true;
+            outTyped                  = true;
+        }
+
         return true;
     }
 
@@ -279,7 +315,8 @@ bool HostFilePreviewer::TryReadHostPayload (const std::wstring & path, const Cat
 //  HostFilePreviewer::AttachHostViews
 //
 //  The other views of a host file read whole, and the chosen one in place
-//  of the default when it applies.
+//  of the default when it applies. A chosen hex view reads the file, as the
+//  default hex view does, so its characters are in the file's character set.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -288,6 +325,7 @@ void HostFilePreviewer::AttachHostViews (const FileEntry & entry, const FilePayl
     std::vector<ViewChoice>  choices;
     std::wstring             defaultName;
     PreviewContent           chosen;
+    std::wstring             hostPath    = m_previewParts.preview.hostPath;
     HRESULT                  hr          = E_FAIL;
     bool                     applies     = false;
 
@@ -305,6 +343,11 @@ void HostFilePreviewer::AttachHostViews (const FileEntry & entry, const FilePayl
     if (applies)
     {
         hr = PreviewViewChoices::RenderAs (m_previewParts.viewState.GetViewAs(), entry, VolumeKind::ProDos, payload, hexForm, m_previewParts.bus, chosen, m_previewParts.monitor.GetPreviewMonitor(), m_previewParts.monitor.GetCustomArgb());
+    }
+
+    if (SUCCEEDED (hr) && chosen.kind == PreviewContent::Kind::Hex && !chosen.disassembly)
+    {
+        chosen.hostPath = hostPath;
     }
 
     if (SUCCEEDED (hr))
