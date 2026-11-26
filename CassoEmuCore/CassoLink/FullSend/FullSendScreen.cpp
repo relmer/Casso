@@ -66,6 +66,7 @@ std::vector<std::string> FullSendScreen::GetRows() const
             case FullSendDriveState::Protected: row += "Protected, captured raw " + names[i]; break;
             case FullSendDriveState::Capturing: row += "Protected, capturing raw " + names[i]; break;
             case FullSendDriveState::Validating: row += "Validating image on PC, please wait"; break;
+            case FullSendDriveState::Saving:    row += "Saving image on PC, please wait"; break;
             case FullSendDriveState::ProtectedSent: row += "Protected, sent " + names[i]; break;
             case FullSendDriveState::Changed:  row += "Changed while it was read"; break;
             case FullSendDriveState::OnDeck:

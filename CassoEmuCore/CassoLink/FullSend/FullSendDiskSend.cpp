@@ -499,6 +499,12 @@ HRESULT FullSendDiskSend::Record (Sending & disk)
 
 
 
+    m_context.screen.SetDriveState (disk.drive, FullSendDriveState::Saving);
+    m_context.status.SetActivity (FullSendActivity::Saving, disk.drive);
+
+    hr = m_context.ShowScreen();
+    CHR (hr);
+
     hr = Identify (disk);
     CHR (hr);
 

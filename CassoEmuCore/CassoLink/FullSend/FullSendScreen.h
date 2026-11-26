@@ -33,6 +33,7 @@ enum class FullSendDriveState : Byte
     Blank,
     Validating,     // the image is being booted on the PC
     ProtectedSent,  // a likely copy-protected disk saved as sectors, not captured raw
+    Saving,         // the image is being built and written on the PC
 };
 
 enum class FullSendTone : Byte
