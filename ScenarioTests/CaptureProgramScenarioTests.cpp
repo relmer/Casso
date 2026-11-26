@@ -456,6 +456,43 @@ public:
     }
 
 
+    //  CASSO_PROBE_IMAGE's sector 0 on track 0, timed, as the check before
+    //  a write reads it.
+    TEST_METHOD (OnDemand_AnImagesBootSector_IsReadQuickly)
+    {
+        ProgramRig            rig (MakeDisk());
+        wchar_t               path[MAX_PATH] = {};
+        std::vector<Byte>     file;
+        const Byte            wanted[]       = { 0 };
+        std::vector<Byte>     data;
+        std::vector<bool>     read;
+        CassoLinkStatus       status;
+        uint64_t              started        = 0;
+
+
+
+        if (GetEnvironmentVariableW (L"CASSO_PROBE_IMAGE", path, MAX_PATH) == 0)
+        {
+            return;
+        }
+
+        {
+            std::ifstream  in (path, std::ios::binary);
+
+            file.assign (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
+        }
+
+        AssertSucceeded (rig.host->ReadSectors (1, 0, wanted, data, read, status));
+        AssertSucceeded (rig.machine.GetDiskStore().MountFromBytes (ProgramRig::kSlot, 0, "", DiskFormat::Woz, file));
+
+        started = rig.machine.GetCpu()->GetCycleCount();
+        AssertSucceeded (rig.host->ReadSectors (1, 0, wanted, data, read, status));
+
+        Logger::WriteMessage (std::format ("Sector 0 {} in {:.2f} s, error {:02X}\n", read[0] ? "read" : "not read",
+                                           (rig.machine.GetCpu()->GetCycleCount() - started) / 1'020'484.0, status.error).c_str());
+    }
+
+
     //  A track with two sectors that have no data field, as on a track DOS
     //  3.2's INIT formatted: the two are zeros in the read, and the track is
     //  whole. The first two whole data fields in the stream are each self-sync

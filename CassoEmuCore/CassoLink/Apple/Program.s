@@ -4016,12 +4016,18 @@ rtmark: lda PKTBUF+3,y
         lda #0
         sta misses
 rtloop: jsr rdaddr
-        bcc rtfound
+        php
+        lda tmp2                ; zero: no address field in a revolution
+        beq rtfree
+        jsr charge
+        bcc rtspent
+rtfree: plp
+        bcc rthit
         jsr missed
         bcs rtnone
         bcc rtnext
-rtfound: jsr charge
-        bcc rtnone
+rtspent: plp
+        jmp rtnone
 rthit:  lda #0
         sta misses
         lda atrk
@@ -4056,11 +4062,11 @@ rtnone: jsr firstpend
 rtdone: clc
         rts
 
-; charge: the pages of nibbles rdaddr read to find an address field, taken
-; from pages, with the carry clear once they run out. A track with few
-; address fields ends after about six revolutions, as one with sixteen a
-; revolution does after 96 fields. A search that finds none is counted in
-; misses instead.
+; charge: the pages of nibbles rdaddr read to find an address field, whole
+; or damaged, taken from pages, with the carry clear once they run out. A
+; track with few address fields ends after about six revolutions, as one
+; with sixteen a revolution does after 96 fields. A revolution with no
+; address field is counted in misses instead.
 charge: lda #32
         sec
         sbc tmp2
