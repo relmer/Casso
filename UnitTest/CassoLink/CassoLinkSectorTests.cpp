@@ -333,7 +333,8 @@ public:
 
 
     //  With no reply for several seconds, the PC is gone: the label of its
-    //  operation is cleared, and the PC is waited for again.
+    //  operation is cleared, the history has the link lost with no time, as
+    //  the Apple has no clock, and the PC is waited for again.
     TEST_METHOD (APcThatStopsAnswering_ClearsItsLabel_AndIsWaitedForAgain)
     {
         Rig                       rig;
@@ -352,6 +353,7 @@ public:
 
         Assert::AreEqual (std::string::npos, rows[4].find_first_not_of (' '), L"the label row is blank");
         Assert::AreNotEqual (std::string::npos, rows[0].find ("Waiting"), L"the PC is waited for");
+        Assert::AreEqual (0, (int) rows[15].find ("--:-- Link lost: no reply from the PC"), L"the history's top line");
     }
 
 

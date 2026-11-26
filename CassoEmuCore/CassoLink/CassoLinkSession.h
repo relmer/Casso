@@ -230,6 +230,10 @@ private:
     std::atomic<bool>  m_verifyWrites { false };
     std::atomic<bool>  m_autoVerify   { true };
 
+    static constexpr const char *  s_kFarewell       = "Disconnected by the PC";
+    static constexpr ULONGLONG     s_kFarewellMs     = 500;    // the longest Stop waits for the farewell before closing the line
+    static constexpr DWORD         s_kFarewellPollMs = 10;
+
 
     std::shared_ptr<LinkOperation>  Queue (LinkOperationKind kind, int drive, const FilePath & path, std::shared_ptr<LinkOperation> operation = nullptr);
 
@@ -264,6 +268,7 @@ private:
     std::atomic<bool>                              m_stopping       { false };   // Stop closed the line
     std::atomic<bool>                              m_servingVirtual { false };   // a reply to a virtual drive request was sent
     std::atomic<bool>                              m_canceled       { false };   // Cancel was called for the running operation
+    std::atomic<bool>                              m_runEnded       { false };   // the session's thread sent its farewell and is closing
     std::shared_ptr<LinkOperation>                 m_running;
     const ListenGate                             * m_gate           = nullptr;
 

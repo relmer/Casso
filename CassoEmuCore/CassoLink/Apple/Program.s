@@ -5687,9 +5687,29 @@ nopc:   lda pcflag
         sta barpct+1
         jsr stplain
         lda fsmode              ; a session with no PC is over
-        beq npdraw
+        beq nplog
         jsr fsleave
+nplog:  jsr lostlog             ; and the history has the PC's leaving
 npdraw: jmp showpc
+
+; lostlog: the history's line for a PC that stopped replying, with --:-- for
+; the time, as the Apple has no clock.
+lostlog: ldx #0
+llcopy: lda losttxt,x
+        beq llend
+        sta PKTBUF+2,x
+        inx
+        bne llcopy
+llend:  inx
+        inx
+        stx lenlo
+        lda #$FF
+        sta PKTBUF
+        sta PKTBUF+1
+        jmp logdraw
+
+losttxt: .text "Link lost: no reply from the PC"
+        .byte 0
 
 pcwait: .text "Waiting"
         .byte 0
@@ -5821,9 +5841,32 @@ clrlabel: ldx #<ROWLB
         lda #>ROWLB
         jmp fullrow
 
-; dolog: the history moved down a row, its last line dropped, and the PC's
-; line at its top: the time as HH:MM, then the text. Then Ready again.
-dolog:  ldx #LOGROWS-1
+; dolog: the PC's line drawn at the top of the history (logdraw). Then Ready
+; again.
+dolog:  jsr logdraw
+        lda PKTBUF+2            ; ERR: the last operation's drive failed
+        cmp #'E'
+        bne lgmain
+        lda PKTBUF+3
+        cmp #'R'
+        bne lgmain
+        lda PKTBUF+4
+        cmp #'R'
+        bne lgmain
+        ldx drive
+        dex
+        cpx #2
+        bcs lgmain
+        lda #1
+        sta barfail,x
+        lda #0
+        jsr drawbar
+lgmain: jmp main
+
+; logdraw: the history moved down a row, its last line dropped, and the line
+; in PKTBUF at its top: the time as HH:MM, or --:-- for an hour of $FF, then
+; the text to lenlo.
+logdraw: ldx #LOGROWS-1
 lgscroll: lda logrowlo-1,x
         sta ptr
         lda logrowhi-1,x
@@ -5853,12 +5896,25 @@ lgnext:
         lda logrowhi
         jsr fullrow
         lda PKTBUF
-        jsr put2
+        cmp #$FF
+        bne lgclock
+        lda #'-'
+        jsr putch
+        lda #'-'
+        jsr putch
+        lda #':'
+        jsr putch
+        lda #'-'
+        jsr putch
+        lda #'-'
+        jsr putch
+        jmp lgsep
+lgclock: jsr put2
         lda #':'
         jsr putch
         lda PKTBUF+1
         jsr put2
-        lda #' '
+lgsep:  lda #' '
         jsr putch
         ldx #2
 lgtext: cpx lenlo
@@ -5869,24 +5925,7 @@ lgtext: cpx lenlo
         jsr putch
         inx
         bne lgtext
-lgdone: lda PKTBUF+2            ; ERR: the last operation's drive failed
-        cmp #'E'
-        bne lgmain
-        lda PKTBUF+3
-        cmp #'R'
-        bne lgmain
-        lda PKTBUF+4
-        cmp #'R'
-        bne lgmain
-        ldx drive
-        dex
-        cpx #2
-        bcs lgmain
-        lda #1
-        sta barfail,x
-        lda #0
-        jsr drawbar
-lgmain: jmp main
+lgdone: rts
 
 ; put2: A, 0 to 99, as two digits from Y. X is overwritten.
 put2:   ldx #0
