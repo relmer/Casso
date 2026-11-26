@@ -11,11 +11,29 @@
 //
 //  QuickDrawPicture::MatchesPicture
 //
+//  $C1/$0001, or a $C1 file of another aux type, other than a screen, that
+//  begins with a picture's header and the version opcode. Beagle Bros
+//  clip art is $C1/$8000.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool QuickDrawPicture::MatchesPicture (const FileFacts & facts, std::span<const Byte> bytes)
 {
-    return facts.HasProDosType (kTypePic, kAuxPicture) && !bytes.empty();
+    constexpr Word  kAuxScreen     = 0x0000;
+    constexpr Word  kAuxScreen3200 = 0x0002;
+    constexpr Byte  kVersionLow    = 0x11;
+    constexpr Byte  kVersionHigh   = 0x82;
+
+
+
+    if (facts.HasProDosType (kTypePic, kAuxPicture))
+    {
+        return !bytes.empty();
+    }
+
+    return facts.HasProDosType (kTypePic) && facts.auxType != kAuxScreen && facts.auxType != kAuxScreen3200
+        && bytes.size() > kHeaderBytes + 1
+        && bytes[kHeaderBytes] == kVersionLow && bytes[kHeaderBytes + 1] == kVersionHigh;
 }
 
 
