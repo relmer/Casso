@@ -63,9 +63,13 @@ void CassoLinkJobManager::Update()
 
     for (const auto & [link, operation] : m_context.app.links->GetPendingJobsByLink())
     {
-        Job  & job = m_jobs[link];
+        Job                 & job     = m_jobs[link];
+        LinkOperationState    current = (job.operation != nullptr) ? job.operation->state.load() : LinkOperationState::Done;
+        bool                  pending = current == LinkOperationState::Queued || current == LinkOperationState::Running;
 
-        if (!CassoLinkJobView::IsDiskJob (operation->kind) || job.operation == operation)
+        //  A link can have a second job queued behind the one shown, which
+        //  takes the job's place once the first ends.
+        if (!CassoLinkJobView::IsDiskJob (operation->kind) || job.operation == operation || pending)
         {
             continue;
         }
@@ -172,6 +176,12 @@ void CassoLinkJobManager::Show (const std::string & link, bool activate)
 
 
 
+    //  The window's first refresh updates the jobs, which can call this again.
+    if (m_isOpening)
+    {
+        return;
+    }
+
     m_selected = link;
 
     if (m_window != nullptr && m_window->IsCreated())
@@ -236,7 +246,9 @@ void CassoLinkJobManager::Show (const std::string & link, bool activate)
         m_window->EndDialog (IDCANCEL);
     };
 
-    m_window = CassoLinkJobDialog::Open (m_context.window.GetHwnd(), m_context.theme, activate, std::move (actions), link);
+    m_isOpening = true;
+    m_window    = CassoLinkJobDialog::Open (m_context.window.GetHwnd(), m_context.theme, activate, std::move (actions), link);
+    m_isOpening = false;
 }
 
 

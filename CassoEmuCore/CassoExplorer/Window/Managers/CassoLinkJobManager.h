@@ -71,4 +71,5 @@ private:
     std::map<std::string, Offer>           m_offers;
     std::string                            m_selected;
     std::unique_ptr<CassoLinkJobDialog>    m_window;
+    bool                                   m_isOpening = false;    // the window is being created, and its first refresh can't open another
 };
