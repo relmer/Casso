@@ -1232,7 +1232,7 @@ HRESULT CassoLinkDiskTransfer::WriteRawDisk (LinkOperation & operation, const st
 
     if (FAILED (hr) && tooLong >= 0)
     {
-        operation.message = std::format ("Track {} of the image is longer than one turn of the disk, so nothing was written.", tooLong / 4.0);
+        operation.message = std::format ("Track {} is too large to write.", tooLong / 4.0);
     }
 
     CHR (hr);
