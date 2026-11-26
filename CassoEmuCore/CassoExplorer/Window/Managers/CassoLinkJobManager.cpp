@@ -211,8 +211,18 @@ void CassoLinkJobManager::Show (const std::string & link, bool activate)
             found->second.isCanceling = true;
         }
     };
-    actions.showInFolder = [this] (const std::wstring & imagePath) { m_context.tabManager.SelectInFolder (imagePath); };
-    actions.open         = [this] (const std::wstring & imagePath) { SelectFile (imagePath, true); };
+    //  The job window is owned by the main window and covers it, so it closes
+    //  once the file is selected or opened.
+    actions.showInFolder = [this] (const std::wstring & imagePath)
+    {
+        m_context.tabManager.SelectInFolder (imagePath);
+        m_window->EndDialog (IDCANCEL);
+    };
+    actions.open         = [this] (const std::wstring & imagePath)
+    {
+        SelectFile (imagePath, true);
+        m_window->EndDialog (IDCANCEL);
+    };
 
     m_window = CassoLinkJobDialog::Open (m_context.window.GetHwnd(), m_context.theme, activate, std::move (actions), link);
 }
@@ -409,6 +419,6 @@ void CassoLinkJobManager::SelectFile (const std::wstring & imagePath, bool open)
 
     if (selected && open)
     {
-        m_context.opener.OpenSelectedEntries();
+        m_context.opener.OpenEachSelected();
     }
 }
