@@ -2730,7 +2730,7 @@ HRESULT AssetBootstrap::OfferIIgsFonts (
     BAIL_OUT_IF (set.IsEmpty(), S_OK);
 
     prompt.title = L"Download Apple fonts";
-    prompt.intro = L"Casso draws the text in Apple IIgs pictures in Apple's fonts. Download these files from the Asimov archive?";
+    prompt.intro = L"Casso uses Apple IIgs's fonts to render text in these pictures. Download these files from the Asimov archive?";
     prompt.theme = theme;
 
     result = StartupDownloadDialog::Show (GetModuleHandleW (nullptr), owner, "", L"", set, &prompt);
