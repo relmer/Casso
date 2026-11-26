@@ -335,6 +335,7 @@ public:
                 }
             }
         }
+
         AssertSucceeded (rig.host->TimeDrive (1, 0, CassoLinkDiskTransfer::kTimedRevolutions, revolution, status));
         AssertSucceeded (LinkProgram::BuildThirteenSectorModule (module));
         AssertSucceeded (rig.host->EnsureModule (module));
