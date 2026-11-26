@@ -373,6 +373,7 @@ NIBSTART = WSTART + 8           ; its 343 data field nibbles, after 5 syncs and 
 SYNCEND  = NIBSTART - 3         ; where the prologue starts
 NIBEND   = NIBSTART + 343 - 256 ; where the nibbles end on the second page
 PEND     = $01                  ; the end of a write stream
+RTPAGES  = 150                  ; readtrack: six revolutions of nibbles, in pages
 
 ; Zero page.
 slotx    = $06                  ; as the shim set it
@@ -381,6 +382,7 @@ phi      = $08                  ; request's start, and at its end
 fdata    = $09                  ; buildformat: nonzero for ENCBUF's sectors
 misses   = $0A                  ; revolutions in a row with no address field
 revs     = $0B                  ; Time drive: passes left to report
+pages    = $0B                  ; readtrack: pages of nibbles left to read
 fgap     = $0C                  ; the gap after each sector, in self-sync bytes
 idles    = $0D                  ; Idle replies since the last operation
 vflag    = $0E                  ; nonzero while a written track is read back
@@ -4009,13 +4011,17 @@ rtmark: lda PKTBUF+3,y
         sta left
         lda #96                 ; address fields to look at: six revolutions
         sta tries
+        lda #RTPAGES
+        sta pages
         lda #0
         sta misses
 rtloop: jsr rdaddr
-        bcc rthit
+        bcc rtfound
         jsr missed
         bcs rtnone
         bcc rtnext
+rtfound: jsr charge
+        bcc rtnone
 rthit:  lda #0
         sta misses
         lda atrk
@@ -4048,6 +4054,23 @@ rtnone: jsr firstpend
         sec
         rts
 rtdone: clc
+        rts
+
+; charge: the pages of nibbles rdaddr read to find an address field, taken
+; from pages, with the carry clear once they run out. A track with few
+; address fields ends after about six revolutions, as one with sixteen a
+; revolution does after 96 fields. A search that finds none is counted in
+; misses instead.
+charge: lda #32
+        sec
+        sbc tmp2
+        bne chg1
+        lda #1
+chg1:   sta tmp
+        lda pages
+        sec
+        sbc tmp
+        sta pages
         rts
 
 ; firstpend: `sector` at the first physical sector readtrack didn't read, for

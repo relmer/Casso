@@ -384,6 +384,78 @@ public:
     }
 
 
+    //  A track with one address field the Apple knows a revolution, as on a
+    //  copy-protected disk: a sector it doesn't have is given up on in about
+    //  six revolutions, not the 96 a search of 96 address fields took.
+    TEST_METHOD (ASectorMissingFromASparseTrack_IsGivenUpOnQuickly)
+    {
+        static constexpr uint64_t  kRevolutionCycles = 200'000;
+
+        ProgramRig            rig (MakeDisk());
+        DiskImage           * disk     = rig.machine.GetDiskStore().GetImage (ProgramRig::kSlot, 0);
+        int                   slot     = disk->ResolveQuarterTrack (0);
+        size_t                bits     = disk->GetTrackBitCount (slot);
+        const Byte            wanted[] = { 0, 5 };
+        std::vector<Byte>     data;
+        std::vector<bool>     read;
+        CassoLinkStatus       status;
+        uint64_t              started  = 0;
+        uint64_t              spent    = 0;
+        int                   spoiled  = 0;
+
+
+
+        //  Each address field's third prologue byte but sector 0's is changed
+        //  from $96 to $97, which the Apple passes over.
+        for (size_t at = 0; at + 24 * 8 < bits; at++)
+        {
+            Byte  prologue[3] = {};
+
+            for (int b = 0; b < 3; b++)
+            {
+                for (int i = 0; i < 8; i++)
+                {
+                    prologue[b] = (Byte) ((prologue[b] << 1) | disk->ReadBit (slot, at + b * 8 + i));
+                }
+            }
+
+            if (prologue[0] != 0xD5 || prologue[1] != 0xAA || prologue[2] != 0x96)
+            {
+                continue;
+            }
+
+            //  The sector is the fourth and fifth bytes after, 4-and-4 encoded.
+            Byte  odd    = 0;
+            Byte  even   = 0;
+
+            for (int i = 0; i < 8; i++)
+            {
+                odd  = (Byte) ((odd  << 1) | disk->ReadBit (slot, at + 7 * 8 + i));
+                even = (Byte) ((even << 1) | disk->ReadBit (slot, at + 8 * 8 + i));
+            }
+
+            if ((((odd << 1) | 1) & even) != 0)
+            {
+                disk->WriteBit (slot, at + 2 * 8 + 7, 1);
+                spoiled++;
+            }
+        }
+
+        Assert::AreEqual (15, spoiled, L"every address field but sector 0's");
+
+        //  The first request loads the program, so it isn't timed.
+        AssertSucceeded (rig.host->ReadSectors (1, 0, std::span<const Byte> (wanted, 1), data, read, status));
+
+        started =rig.machine.GetCpu()->GetCycleCount();
+        AssertSucceeded (rig.host->ReadSectors (1, 0, wanted, data, read, status));
+        spent   = rig.machine.GetCpu()->GetCycleCount() - started;
+
+        Assert::IsTrue  (read[0], L"sector 0 is read");
+        Assert::IsFalse (read[1], L"sector 5 isn't there");
+        Assert::IsTrue  (spent < 12 * kRevolutionCycles, std::format (L"given up in {} revolutions", spent / kRevolutionCycles).c_str());
+    }
+
+
     //  A track with two sectors that have no data field, as on a track DOS
     //  3.2's INIT formatted: the two are zeros in the read, and the track is
     //  whole. The first two whole data fields in the stream are each self-sync

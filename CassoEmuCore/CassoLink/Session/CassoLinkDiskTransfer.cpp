@@ -792,14 +792,15 @@ std::string CassoLinkDiskTransfer::FormatUnreadableList (const std::vector<std::
 
 HRESULT CassoLinkDiskTransfer::ReadBootSector (LinkOperation & operation)
 {
-    HRESULT                           hr       = S_OK;
-    std::vector<Byte>                 sectors (NibbleFormat::kImageByteSize, 0);
-    std::vector<Byte>                 boot;
-    std::vector<Byte>                 universal;
-    std::vector<std::pair<int, int>>  unreadable;
-    LinkShimOptions                   options;
-    bool                              loader   = false;
-    bool                              matches  = false;
+    static constexpr Byte  kBootSector[] = { 0 };
+    HRESULT                hr            = S_OK;
+    std::vector<Byte>      sector;
+    std::vector<bool>      read;
+    std::vector<Byte>      boot;
+    std::vector<Byte>      universal;
+    CassoLinkStatus        status;
+    LinkShimOptions        options;
+    bool                   matches       = false;
 
 
 
@@ -812,14 +813,16 @@ HRESULT CassoLinkDiskTransfer::ReadBootSector (LinkOperation & operation)
     hr = LinkProgram::BuildUniversalBootDisk (options, universal);
     CHR (hr);
 
-    hr = ReadTrack (operation.drive, 0, sectors, unreadable);
+    //  Only sector 0 is read: a copy-protected disk's other sectors aren't
+    //  found, and the Apple searching for each one took about a minute.
+    hr = m_session.m_host->ReadSectors ((Byte) operation.drive, 0, kBootSector, sector, read, status);
     CHR (hr);
 
-    matches = std::equal (boot.begin(),      boot.begin()      + NibbleFormat::kSectorByteSize, sectors.begin())
-           || std::equal (universal.begin(), universal.begin() + NibbleFormat::kSectorByteSize, sectors.begin());
-    loader  = matches && std::none_of (unreadable.begin(), unreadable.end(), [] (const std::pair<int, int> & sector) { return sector.second == 0; });
+    matches = !read.empty() && read[0] && sector.size() >= NibbleFormat::kSectorByteSize
+           && (std::equal (boot.begin(),      boot.begin()      + NibbleFormat::kSectorByteSize, sector.begin())
+            || std::equal (universal.begin(), universal.begin() + NibbleFormat::kSectorByteSize, sector.begin()));
 
-    operation.linkDisk = loader;
+    operation.linkDisk = matches;
 
 Error:
     return hr;
