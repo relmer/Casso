@@ -58,7 +58,7 @@ NetworkPage::NetworkPage (std::wstring title)
         Adopt (*control);
     }
 
-    m_firewallBanner.SetSeverity (DxuiInfoBanner::Severity::Warning);
+    m_firewallBanner.SetSeverity (DxuiInfoBar::Severity::Warning);
     m_firewallBanner.SetVisible  (false);
     m_firewallBanner.SetOnAction ([this] (size_t index) { OnFirewallAction (index); });
 
@@ -71,10 +71,10 @@ NetworkPage::NetworkPage (std::wstring title)
     m_forwards.SetPreciseAutoFit     (true);
     m_forwards.SetAlwaysShowSelection (true);
 
-    m_error.SetSeverity (DxuiInfoBanner::Severity::Warning);
+    m_error.SetSeverity (DxuiInfoBar::Severity::Warning);
     m_error.SetVisible  (false);
 
-    m_listenBanner.SetSeverity (DxuiInfoBanner::Severity::Warning);
+    m_listenBanner.SetSeverity (DxuiInfoBar::Severity::Warning);
     m_listenBanner.SetVisible  (false);
 
     WireCallbacks();

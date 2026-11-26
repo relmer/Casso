@@ -3,7 +3,7 @@
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
 #include "Core/DxuiSlide.h"
-#include "Widgets/DxuiTimedInfoBanner.h"
+#include "Widgets/DxuiTimedInfoBar.h"
 
 
 
@@ -74,16 +74,16 @@ private:
 
     struct Notice
     {
-        std::unique_ptr<DxuiTimedInfoBanner>  banner;
-        DxuiSlide                             slide;
-        float                                 heightPx = 0.0f;
+        std::unique_ptr<DxuiTimedInfoBar>  banner;
+        DxuiSlide                          slide;
+        float                              heightPx = 0.0f;
     };
 
     void   RemoveNotice    (size_t index, int64_t nowMs);
     float  GetRestingTopPx (size_t index) const;
 
     std::vector<Notice>  m_notices;
-    int64_t              m_durationMs = DxuiTimedInfoBanner::ResolveDefaultDurationMs();
+    int64_t              m_durationMs = DxuiTimedInfoBar::ResolveDefaultDurationMs();
     int64_t              m_nowMs      = 0;
     float                m_gapPx      = (float) kGapDip;
     UINT                 m_dpi        = DxuiDpiScaler::kBaseDpi;

@@ -54,9 +54,11 @@ public:
     //  A line inside the list, under its header, while it has no rows.
     void  SetEmptyText     (const std::wstring & text) { m_emptyText = text; }
     void  SetOnSelect      (SelectFn select) { m_select = std::move (select); }
+    void  SetOnActivate    (SelectFn activate);
     void  SetOnSort        (SortFn sort);
     void  SetSortIndicator (int column, bool isDescending) { m_list.SetSortIndicator (column, isDescending); }
     void  SelectRowWhere   (const std::function<bool (const TableRow & row)> & isMatch);
+
     void  Tick             (int64_t nowMs) override { m_list.Tick (nowMs); }
 
     const vector<TableRow> &  GetRows () const { return m_rows; }
@@ -79,6 +81,10 @@ private:
     void  ApplyToggle ();
 
 protected:
+    //  The row a selection of the list's row `index` goes to; that row of
+    //  the table by default.
+    virtual const TableRow &  GetRowToSelect (int index) const { return m_rows[static_cast<size_t> (index)]; }
+
     //  The room above the list, for a caption or a subclass's own controls.
     virtual int   GetTopHeightPx () const;
     virtual void  PaintTop       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & top);

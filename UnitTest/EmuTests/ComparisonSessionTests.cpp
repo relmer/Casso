@@ -341,10 +341,60 @@ public:
         t.sectorsDiffer = 3;
         Assert::AreEqual (std::wstring (L"Sectors differ (3)"), ComparisonText::FormatVerdict (t));
 
-        t         = TrackComparison();
-        t.verdict = TrackVerdict::NotCompared;
-        t.reason  = L"B's record is damaged";
-        Assert::AreEqual (std::wstring (L"Not compared: B's record is damaged"), ComparisonText::FormatVerdict (t));
+        t             = TrackComparison();
+        t.verdict     = TrackVerdict::NotCompared;
+        t.damagedSide = 1;
+        Assert::AreEqual (std::wstring (L"Not compared: the record in two.woz is damaged"), ComparisonText::FormatVerdict (t, { L"one.dsk", L"two.woz" }));
+    }
+
+
+
+    TEST_METHOD (SameFileNamesAreToldApartByTheNearestFolderThatDiffers)
+    {
+        DiskAnalysis  a;
+        DiskAnalysis  b;
+        auto          copyA = std::make_shared<DiskCopy>();
+        auto          copyB = std::make_shared<DiskCopy>();
+        SideNames     names;
+
+
+
+        copyA->fileName = "C:/Disks/walk-shimmer/games/damaged.dsk";
+        copyB->fileName = "C:/Disks/backup/games/damaged.dsk";
+        a.copy          = copyA;
+        b.copy          = copyB;
+        names           = DiskComparer::GetSideNames (a, b);
+
+        Assert::AreEqual (std::wstring (L"damaged.dsk (walk-shimmer)"), names.a);
+        Assert::AreEqual (std::wstring (L"damaged.dsk (backup)"),       names.b);
+
+        copyB->fileName = "C:/Disks/other.woz";
+        names           = DiskComparer::GetSideNames (a, b);
+
+        Assert::AreEqual (std::wstring (L"damaged.dsk"), names.a, L"different file names alone");
+        Assert::AreEqual (std::wstring (L"other.woz"),   names.b);
+    }
+
+
+
+    TEST_METHOD (TheTextCallsEachSideByItsFileName)
+    {
+        DiskComparison  c;
+        Difference      volume { DifferenceKind::Volume, 0 };
+
+
+
+        c.names             = { L"one.dsk", L"two.woz" };
+        c.tracks.resize (2);
+        c.tracks[0].verdict = TrackVerdict::OnlyInA;
+        c.tracks[1].verdict = TrackVerdict::OnlyInB;
+        volume.count        = 254;
+        volume.firstOffset  = 1;
+
+        Assert::AreEqual (std::wstring (L"Only in two.woz"), ComparisonText::FormatVerdict (c.tracks[1], c.names));
+        Assert::AreEqual (std::format (L"1 only in one.dsk {} 1 only in two.woz", s_kpszMiddleDot), ComparisonText::FormatResult (c));
+        Assert::AreEqual (std::wstring (L"Sector only in one.dsk"), ComparisonText::FormatKind (DifferenceKind::SectorOnlyInA, c.names));
+        Assert::AreEqual (std::wstring (L"Volume 254 in one.dsk, 1 in two.woz"), ComparisonText::FormatDetail (volume, c.names));
     }
 
 

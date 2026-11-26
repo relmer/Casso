@@ -756,14 +756,16 @@ void DxuiTooltip::ShowPopup()
 
         //  An anchor as wide as the tip, centered on the pointer and spanning
         //  the pointer's height, so above it the tip clears the pointer's
-        //  tip and below it clears the arrow. The host keeps it on the monitor.
+        //  tip and below it clears the arrow. With a pointer offset, the tip
+        //  starts that far right of the pointer instead. The host moves it
+        //  onto the monitor.
         if (m_followPointer && m_isPointerTip && !m_isBelowPointer)
         {
             POINT  pointer = {};
             int    boxWPx  = MulDiv (showParams.sizeDip.cx, (int) m_scaler.GetDpi(), (int) DxuiDpiScaler::kBaseDpi);
             int    gap     = m_scaler.ToPx (s_kPointerGapDip);
             int    below   = GetSystemMetrics (SM_CYCURSOR) / 2;
-            int    halfW   = boxWPx / 2;
+            int    halfW   = (m_pointerOffsetDip > 0) ? -m_scaler.ToPx (m_pointerOffsetDip) : boxWPx / 2;
             BOOL   got     = GetCursorPos (&pointer);
 
             IGNORE_RETURN_VALUE (got, TRUE);
@@ -997,6 +999,15 @@ void DxuiTooltip::MeasureBox (RECT & outAnchorScreen, SIZE & outSizeDip)
 
         outAnchorScreen.left  = (topLeft.x + botRight.x) / 2 - boxW / 2;
         outAnchorScreen.right = outAnchorScreen.left + boxW;
+    }
+
+    //  With a pointer offset, the tip starts that far right of the anchor.
+    if (m_pointerOffsetDip > 0)
+    {
+        LONG  offset = m_scaler.ToPx (m_pointerOffsetDip);
+
+        outAnchorScreen.left  += offset;
+        outAnchorScreen.right += offset;
     }
 
     // Show scales these back up by the owner DPI, so the trip into DIPs

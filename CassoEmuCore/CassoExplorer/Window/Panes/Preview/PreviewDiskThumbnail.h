@@ -258,12 +258,12 @@ public:
 
     //  The verdict's infobar above the thumbnail, the pane's bar, and
     //  Inspect... at the platter's bottom right; for a test.
-    const DxuiInfoBanner  & GetVerdict       () const { return *m_verdict; }
-    ThumbnailScrollbar    & GetScrollbar     () const { return *m_scrollbar; }
-    const DxuiButton      & GetInspectButton () const { return *m_inspect; }
-    RECT                    GetPlatterRect   () const { return m_platter->GetBounds(); }
-    RECT                    GetBlockMapRect  () const { return m_blockMap->IsVisible() ? m_blockMap->GetBounds() : RECT {}; }
-    bool                    IsBlockMapHot    () const { return m_blockMap->IsHot(); }
+    const DxuiInfoBar   & GetVerdict       () const { return *m_verdict; }
+    ThumbnailScrollbar  & GetScrollbar     () const { return *m_scrollbar; }
+    const DxuiButton    & GetInspectButton () const { return *m_inspect; }
+    RECT                  GetPlatterRect   () const { return m_platter->GetBounds(); }
+    RECT                  GetBlockMapRect  () const { return m_blockMap->IsVisible() ? m_blockMap->GetBounds() : RECT {}; }
+    bool                  IsBlockMapHot    () const { return m_blockMap->IsHot(); }
 
     //  A disk image's file-system verdict above its thumbnail: Bad as an
     //  error infobar with its first finding of damage, Suspect as an info
@@ -336,27 +336,27 @@ private:
     int   GetVerdictHeightPx (int widthPx) const;
     void  PlaceVerdict       (const RECT & area, int top, int height);
 
-    ExplorerContext                       & m_context;
-    InspectorViewContext                    m_view;
-    InspectorViewModel                      m_model;
-    DiskThumbnailWorker                     m_worker;
-    BackgroundWorkQueue                     m_checkQueue;                    // before m_checks, so a check is canceled before the queue is joined
-    FileSystemCheckScheduler                m_checks;
-    DiskThumbnailResult                     m_result;
-    std::list<KeptResult>                   m_recent;   // the results read last, newest first, so a pane opened again isn't read again
-    DxuiScrollPanel                       * m_header            = nullptr;   // the controls below, clipped where the pane scrolls them away
-    ThumbnailPlatterView                  * m_platter           = nullptr;
-    ThumbnailBlockMap                     * m_blockMap          = nullptr;
-    ThumbnailChips                        * m_chips             = nullptr;
-    ThumbnailScreen                       * m_screen            = nullptr;
-    DxuiLabel                             * m_bootLine          = nullptr;   // the boot result, under the picture
-    DxuiInfoBanner                        * m_verdict           = nullptr;
-    DxuiButton                            * m_inspect           = nullptr;   // Inspect..., at the platter area's bottom right
-    ThumbnailScrollbar                    * m_scrollbar         = nullptr;   // a window child after the views, so it's offered the mouse first
-    bool                                    m_isVerdictShown    = false;
-    std::wstring                            m_listingWarning;
-    bool                                    m_isVerdictReserved = false;     // the last image's infobar space is reserved while the next is read
-    bool                                    m_isChipTipShown    = false;
+    ExplorerContext           & m_context;
+    InspectorViewContext        m_view;
+    InspectorViewModel          m_model;
+    DiskThumbnailWorker         m_worker;
+    BackgroundWorkQueue         m_checkQueue;   // before m_checks, so a check is canceled before the queue is joined
+    FileSystemCheckScheduler    m_checks;
+    DiskThumbnailResult         m_result;
+    std::list<KeptResult>       m_recent;   // the results read last, newest first, so a pane opened again isn't read again
+    DxuiScrollPanel           * m_header            = nullptr;   // the controls below, clipped where the pane scrolls them away
+    ThumbnailPlatterView      * m_platter           = nullptr;
+    ThumbnailBlockMap         * m_blockMap          = nullptr;
+    ThumbnailChips            * m_chips             = nullptr;
+    ThumbnailScreen           * m_screen            = nullptr;
+    DxuiLabel                 * m_bootLine          = nullptr;   // the boot result, under the picture
+    DxuiInfoBar               * m_verdict           = nullptr;
+    DxuiButton                * m_inspect           = nullptr;   // Inspect..., at the platter area's bottom right
+    ThumbnailScrollbar        * m_scrollbar         = nullptr;   // a window child after the views, so it's offered the mouse first
+    bool                        m_isVerdictShown    = false;
+    std::wstring                m_listingWarning;
+    bool                        m_isVerdictReserved = false;   // the last image's infobar space is reserved while the next is read
+    bool                        m_isChipTipShown    = false;
 
     std::shared_ptr<const DxuiIconImage>    m_picture;
     std::wstring                            m_path;

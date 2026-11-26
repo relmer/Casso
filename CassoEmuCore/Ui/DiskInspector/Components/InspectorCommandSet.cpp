@@ -243,15 +243,18 @@ void InspectorCommandSet::Build()
     c.compareWith              = make (L"&Compare with...", L"", [this] () { m_parts.GetComparison().OpenCompare(); });
     c.compareWith->isEnabled    = [this] () { return m_session.context.hasDisk || m_session.comparison.IsComparing(); };
     c.compareWith->glyph        = kpszGlyphCompare;
-    c.swapSides                 = make (L"&Swap A and B", L"", [this] () { m_parts.GetComparison().SwapSides(); });
+    c.swapSides                 = make (L"&Swap sides", L"", [this] () { m_parts.GetComparison().SwapSides(); });
     c.swapSides->isEnabled      = [this] () { return m_session.comparison.IsComparing() && m_session.context.hasDisk && m_session.comparison.GetB().copy != nullptr; };
-    c.bSettings                 = make (L"Decode settings for &B...", L"", [this] () { m_parts.GetComparison().OpenBSettings(); });
+    c.bSettings                 = make (L"&Decode settings...", L"", [this] () { m_parts.GetComparison().OpenBSettings(); });
     c.bSettings->isEnabled      = [this] () { return m_session.comparison.IsComparing() && m_session.comparison.GetB().copy != nullptr; };
+    c.bSettings->isVisible      = isComparing;
+    c.bSettings->labelText      = [this] () { return L"Decode settings for " + m_parts.GetComparison().GetImageName (ComparisonSession::kSideB) + L"..."; };
     c.endComparison             = make (L"&End comparison", L"", [this] () { m_parts.GetComparison().StopComparing(); });
     c.endComparison->isEnabled  = isComparing;
     c.decodeSettings            = make (L"&Decode settings...", L"", [this] () { m_parts.GetDialogs().OpenDecodeSettings(); });
     c.decodeSettings->isEnabled = hasDisk;
     c.decodeSettings->glyph     = kpszGlyphSettings;
+    c.decodeSettings->labelText = [this] () { return m_session.comparison.IsComparing() ? L"Decode settings for " + m_parts.GetComparison().GetImageName (ComparisonSession::kSideA) + L"..." : std::wstring (L"&Decode settings..."); };
 
     if (m_session.host->CanChooseFilesystem())
     {

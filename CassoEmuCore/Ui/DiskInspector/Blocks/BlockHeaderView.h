@@ -27,6 +27,7 @@ struct BlockEditState
     int           blockBytes  = 0;
     bool          canUndo     = false;
     bool          canUseOther = false;
+    std::wstring  otherName;
     std::wstring  note;
 
     bool operator== (const BlockEditState & other) const = default;
@@ -61,6 +62,7 @@ public:
     static constexpr float  kButtonDip = 110.0f;
     static constexpr float  kEditDip   = 72.0f;
     static constexpr float  kUndoDip   = 150.0f;
+    static constexpr float  kUseDip    = 220.0f;
 
     using StepFn   = std::function<void (int64_t delta)>;
     using ActionFn = std::function<void ()>;

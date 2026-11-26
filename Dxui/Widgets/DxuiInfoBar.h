@@ -5,6 +5,7 @@
 #include "Render/IDxuiTextRenderer.h"
 #include "Theme/DxuiTheme.h"
 #include "Widgets/DxuiButton.h"
+#include "Widgets/DxuiSurface.h"
 
 
 
@@ -12,7 +13,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiInfoBanner
+//  DxuiInfoBar
 //
 //  A bounded, bordered notice strip: a leading info glyph and a run of body text
 //  that wraps within the banner. Distinct from a button (the strip itself is not
@@ -21,9 +22,12 @@
 //  ONE WIDGET FOR EVERY NOTICE, SET UP BY FLAGS. A notice that offers something
 //  to do has buttons along its trailing edge (SetActions), and one the user may
 //  put away has a close box there (SetDismissible). Without either it is the
-//  plain strip. A close box rather than a Dismiss button: a labeled button is
+//  plain strip. Docked, it fills a band the caller lays out for it; as an
+//  overlay (SetPlacement), it is laid over the content on a translucent
+//  scrim. Shown with Show, it stays up until put away, or for a set time
+//  (SetDurationMs). A close box rather than a Dismiss button: a labeled button is
 //  for an action, and putting a notice away is not one. Colors come from the
-//  theme's InfoBanner* accessors -- a subtle accent-tinted fill, an accent border
+//  theme's InfoBar* accessors -- a subtle accent-tinted fill, an accent border
 //  that stands out, and readable body text -- so it stays themed everywhere.
 //
 //  Height is content-driven: the caller sizes the banner to the width it wants
@@ -33,7 +37,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DxuiInfoBanner : public IDxuiControl
+class DxuiInfoBar : public IDxuiControl
 {
 public:
     //  Info states something; Warning cautions about a consequence; Error
@@ -46,12 +50,20 @@ public:
         Error
     };
 
+    //  Docked takes a band of its own, which the caller lays out; Overlay
+    //  is laid over the content, on a scrim that dims the strip it covers.
+    enum class Placement
+    {
+        Docked,
+        Overlay
+    };
+
     using ActionFn  = std::function<void (size_t index)>;
     using DismissFn = std::function<void ()>;
 
-    DxuiInfoBanner  () = default;
-    explicit DxuiInfoBanner  (std::wstring text) : m_text (std::move (text)) {}
-    ~DxuiInfoBanner () override = default;
+    DxuiInfoBar  ();
+    explicit DxuiInfoBar  (std::wstring text) : DxuiInfoBar() { m_text = std::move (text); }
+    ~DxuiInfoBar () override = default;
 
     void  SetText (const std::wstring & text) { m_text = text; m_fitValid = false; }
 
@@ -138,6 +150,38 @@ public:
     //  gap to the text included; zero with neither.
     float  GetControlColumnPx (const DxuiDpiScaler & scaler) const;
 
+    void       SetPlacement    (Placement placement) { m_placement = placement; }
+    Placement  GetPlacement    () const              { return m_placement; }
+    void       SetScrimOpacity (float opacity)       { m_scrim.SetOpacity (opacity); }
+
+    //  How long Show keeps the bar up: 0, the default, until it is put away.
+    void     SetDurationMs (int64_t durationMs) { m_durationMs = durationMs; }
+    int64_t  GetDurationMs () const             { return m_durationMs; }
+
+    //  Replaces whatever is showing and restarts the countdown from nowMs.
+    //  REPLACED, NOT QUEUED: a second notice inside the first one's
+    //  countdown is newer news, and gets the full duration of its own.
+    void  Show    (const std::wstring & text, int64_t nowMs);
+
+    //  Takes the bar down now, whatever is left on its countdown.
+    void  Dismiss ();
+
+    //  Whether a bar from Show is up at nowMs, and when its countdown runs out.
+    bool     IsShowing  (int64_t nowMs) const { return nowMs < m_untilMs; }
+    int64_t  GetUntilMs () const              { return m_untilMs; }
+
+    //  Long enough to read a filename without hunting for it, short enough
+    //  that it is gone before the next thing the user wants to look at.
+    static constexpr int64_t  kDefaultDurationMs = 4000;
+
+    //  Enough dimming that the text stays legible over a bright picture,
+    //  little enough that what is underneath is still visible.
+    static constexpr float    kDefaultScrimOpacity = 0.82f;
+
+    //  A timed bar's duration: kDefaultDurationMs, or the system's
+    //  notification duration when the user has raised it above that.
+    static int64_t  ResolveDefaultDurationMs ();
+
     void  SetRect (const RECT & rect) { SetBounds (rect); }
     void  SetDpi  (UINT dpi) { m_scaler.SetDpi (dpi); }   // the fit cache keys off the dpi itself
 
@@ -160,6 +204,7 @@ public:
     void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
     void  Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    void  Tick    (int64_t nowMs) override;
 
     std::wstring        GetAccessibleName () const override { return m_text; }
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Label; }
@@ -289,6 +334,12 @@ private:
     mutable UINT          m_fitDpi     = 0;
     mutable float         m_fitBoxPx   = 0.0f;
     mutable bool          m_fitValid   = false;
+
+    //  See SetPlacement and SetDurationMs.
+    Placement    m_placement  = Placement::Docked;
+    DxuiSurface  m_scrim;
+    int64_t      m_durationMs = 0;
+    int64_t      m_untilMs    = 0;
 
     std::wstring    m_text;
     DxuiDpiScaler   m_scaler;

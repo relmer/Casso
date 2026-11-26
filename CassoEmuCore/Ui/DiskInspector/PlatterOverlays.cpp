@@ -23,20 +23,16 @@ static constexpr uint32_t s_kFilesAlpha     = 0xD0000000u;
 static constexpr float    s_kThinRingDip = 3.0f;
 static constexpr uint32_t s_kDimAlpha       = 0x80000000u;
 static constexpr float    s_kMarqueeStepDip = 8.0f;
-static constexpr float    s_kShadeStepDip   = 24.0f;
+static constexpr float    s_kShadeStepDip   = 96.0f;
 static constexpr int      s_kMaxPieces      = 4096;
-static constexpr int      s_kMaxRings       = 256;
-static constexpr int      s_kMaxQuads       = 32768;
-static constexpr double   s_kShimmerSteps   = 16.0;
 static constexpr uint32_t s_kSweepLineArgb  = 0xFF808080u;
 static constexpr uint32_t s_kErrorEdgeArgb  = 0xFF000000u;   // under an error selection's dashes
 static constexpr uint32_t s_kErrorDashArgb  = 0xFFFFFFFFu;   // between its red dashes
 static constexpr int      s_kErrorDashPieces = 1;            // outline pieces a dash spans
 static constexpr double   s_kErrorDashStepMs = 160.0;        // how long the dashes take to march one piece
 static constexpr float    s_kMinMarkDip     = 8.0f;
-static constexpr float    s_kShimmerStepDip = 3.0f;
-static constexpr double   s_kPiecesPerTurn   = 96.0;
-static constexpr double   s_kMinDiffTurn     = 0.004;
+static constexpr double   s_kPiecesPerTurn   = 16.0;
+static constexpr double   s_kMinDiffPx       = 3.0;
 static constexpr float    s_kMinHitDip       = 3.0f;
 static constexpr float    s_kHitEdgeDip      = 1.0f;
 static constexpr float    s_kHitSolidDip     = 24.0f;
@@ -450,11 +446,7 @@ void PlatterOverlays::PaintArcMark (IDxuiPainter & painter, const PlatterPlaceme
     double    now    = InspectorMarquee::GetClockMs();
     double    r0     = 0;
     double    r1     = 0;
-    int       rings  = 1;
     RECT      box    = {};
-    double    step   = 0;
-    double    fill0  = 0;
-    double    fill1  = 0;
     float     thick  = isSelected ? m_view.m_scaler.ToPxf (s_kSelectOutlineDip) : 1.0f;
     uint32_t  ink    = isSelected ? m_view.m_context.palette.colors.selection : InspectorMarquee::GetHoverLine();
     uint32_t  edge   = DiskInspectorPalette::GetTextColorOn (m_view.m_context.palette.colors.selection);
@@ -498,35 +490,21 @@ void PlatterOverlays::PaintArcMark (IDxuiPainter & painter, const PlatterPlaceme
 
     end    = (end <= start) ? end + 1.0 : end;
     box    = GetArcBox (view, start, end, r0, r1);
-    step   = isSelected ? std::max (1.0, InspectorMarquee::GetBandPx (box) / s_kShimmerSteps) : m_view.m_scaler.ToPxf (s_kShimmerStepDip);
-    GetVisibleRadii (view, r0, r1, fill0, fill1);
-    rings  = isSelected ? std::clamp (static_cast<int> (std::ceil ((fill1 - fill0) / step)), 1, s_kMaxRings) : 1;
-    fill0  = isSelected ? fill0 : r0;
-    fill1  = isSelected ? fill1 : r1;
+    //  The selection's fill shimmers per pixel: a band of light at 45
+    //  degrees sweeps across the mark's box.
+    if (isSelected)
+    {
+        painter.SetShimmerBand (static_cast<float> (box.left + box.top + InspectorMarquee::GetBandCenter (now, box)),
+                                static_cast<float> (InspectorMarquee::GetBandPx (box)), static_cast<float> (InspectorMarquee::kShimmerGlowShare));
+    }
 
-    //  The fill in pieces a share of the band wide, along the ring and
-    //  across it, so the band crosses the whole mark at 45 degrees with no
-    //  steps to see.
     for (const std::pair<double, double> & part : GetVisibleParts (view, start, end))
     {
-        pieces = std::clamp (static_cast<int> (std::ceil ((part.second - part.first) * s_kTwoPi * fill1 / step)), 1, std::max (1, s_kMaxQuads / rings));
-
-        for (int k = 0; k < pieces; k++)
-        {
-            a = part.first + (part.second - part.first) * k / pieces;
-            b = part.first + (part.second - part.first) * (k + 1) / pieces;
-            m = (a + b) / 2;
-
-            for (int j = 0; j < rings; j++)
-            {
-                double  ra = fill0 + (fill1 - fill0) * j / rings;
-                double  rb = fill0 + (fill1 - fill0) * (j + 1) / rings;
-
-                m_view.ShadeArc (painter, view, a, b, ra, rb, isSelected ? InspectorMarquee::GetShimmer (now, getX (m, (ra + rb) / 2), getY (m, (ra + rb) / 2), box)
-                                                                  : InspectorMarquee::GetHoverFill());
-            }
-        }
+        m_view.ShadeArc (painter, view, part.first, part.second, r0, r1,
+                         isSelected ? (static_cast<uint32_t> (InspectorMarquee::kShimmerPeakAlpha) << 24) | 0x00FFFFFFu : InspectorMarquee::GetHoverFill());
     }
+
+    painter.SetShimmerBand (0.0f, 0.0f, 0.0f);
 
     //  The outline: for the selection, the edge wider than the line, then
     //  the selection color, dimmed to mid gray while the band sweeps so the
@@ -545,48 +523,6 @@ void PlatterOverlays::PaintArcMark (IDxuiPainter & painter, const PlatterPlaceme
     }
 
     drawOutline (thick, [&] (float, float, int) { return ink; });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PlatterOverlays::GetVisibleRadii
-//
-//  The part of the radii from r0 to r1 that falls within the view: no nearer
-//  the platter's center than the view's nearest point, and no farther than
-//  its farthest corner.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void PlatterOverlays::GetVisibleRadii (const PlatterPlacement & view, double r0, double r1, double & outNear, double & outFar) const
-{
-    double  dx       = std::max ({ m_view.m_boundsDip.left - static_cast<double> (view.centerXPx), 0.0, view.centerXPx - static_cast<double> (m_view.m_boundsDip.right) });
-    double  dy       = std::max ({ m_view.m_boundsDip.top  - static_cast<double> (view.centerYPx), 0.0, view.centerYPx - static_cast<double> (m_view.m_boundsDip.bottom) });
-    double  farthest = 0;
-
-
-
-    //  Tilted, the whole band is taken as visible.
-    if (view.tilt != 0.0f)
-    {
-        outNear = r0;
-        outFar  = r1;
-        return;
-    }
-
-    for (LONG x : { m_view.m_boundsDip.left, m_view.m_boundsDip.right })
-    {
-        for (LONG y : { m_view.m_boundsDip.top, m_view.m_boundsDip.bottom })
-        {
-            farthest = std::max (farthest, std::hypot (x - static_cast<double> (view.centerXPx), y - static_cast<double> (view.centerYPx)));
-        }
-    }
-
-    outNear = std::max (r0, std::hypot (dx, dy));
-    outFar  = std::max (outNear, std::min (r1, farthest));
 }
 
 
@@ -898,32 +834,40 @@ void PlatterOverlays::DrawMarqueeArc (const InspectorMarquee & marquee, IDxuiPai
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-vector<std::pair<double, double>> PlatterOverlays::GetVisibleParts (const PlatterPlacement & view, double a, double b) const
+PlatterOverlays::VisibleParts PlatterOverlays::GetVisibleParts (const PlatterPlacement & view, double a, double b) const
 {
-    vector<std::pair<double, double>>  parts;
-    double                             start  = 0;
-    double                             end    = 1;
-    double                             low    = 0;
-    double                             high   = 0;
-    bool                               isPart = false;
+    VisibleParts  parts;
+    double        low   = 0;
+    double        high  = 0;
+    bool          isNew = !m_hasTurns || !EqualRect (&m_turnsBounds, &m_view.m_boundsDip) || view.centerXPx != m_turnsView.centerXPx ||
+                          view.centerYPx != m_turnsView.centerYPx || view.outerRadiusPx != m_turnsView.outerRadiusPx ||
+                          view.rotation != m_turnsView.rotation || view.tilt != m_turnsView.tilt;
 
 
 
-    isPart = PlatterGeometry::GetVisibleTurns (view, m_view.m_boundsDip, start, end);
-
-    if (!isPart)
+    //  The overlays request the parts of many stretches in one paint, all
+    //  in the same view.
+    if (isNew)
     {
-        parts.push_back ({ a, b });
+        m_isTurnsPart = PlatterGeometry::GetVisibleTurns (view, m_view.m_boundsDip, m_turnsStart, m_turnsEnd);
+        m_turnsView   = view;
+        m_turnsBounds = m_view.m_boundsDip;
+        m_hasTurns    = true;
     }
 
-    for (int k = -2; isPart && k <= 2; k++)
+    if (!m_isTurnsPart)
     {
-        low  = std::max (a, start + k);
-        high = std::min (b, end + k);
+        parts.parts[parts.count++] = { a, b };
+    }
+
+    for (int k = -2; m_isTurnsPart && k <= 2; k++)
+    {
+        low  = std::max (a, m_turnsStart + k);
+        high = std::min (b, m_turnsEnd + k);
 
         if (high > low)
         {
-            parts.push_back ({ low, high });
+            parts.parts[parts.count++] = { low, high };
         }
     }
 
@@ -961,45 +905,153 @@ bool PlatterOverlays::IsBandVisible (const PlatterPlacement & view, double r0, d
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PlatterOverlays::IsPieceVisible
+//
+//  Whether the box around a short stretch of a ring, from its corners and
+//  the middle of its outer edge, touches the view.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PlatterOverlays::IsPieceVisible (const PlatterPlacement & view, double a, double b, double r0, double r1) const
+{
+    std::array<std::pair<double, double>, 5>  points = { { { a, r0 }, { a, r1 }, { b, r0 }, { b, r1 }, { (a + b) / 2, r1 } } };
+    float                                     x      = 0;
+    float                                     y      = 0;
+    float                                     left   = FLT_MAX;
+    float                                     top    = FLT_MAX;
+    float                                     right  = -FLT_MAX;
+    float                                     bottom = -FLT_MAX;
+
+
+
+    for (const auto & [turn, r] : points)
+    {
+        PlatterGeometry::ProjectAt (view, turn, r, x, y);
+        left   = std::min (left, x);
+        top    = std::min (top, y);
+        right  = std::max (right, x);
+        bottom = std::max (bottom, y);
+    }
+
+    return right >= m_view.m_boundsDip.left - 1 && left <= m_view.m_boundsDip.right + 1 && bottom >= m_view.m_boundsDip.top - 1 && top <= m_view.m_boundsDip.bottom + 1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PlatterOverlays::PaintDiffs
 //
-//  The "Differences" overlay (FR-121): where each difference lies on A's
-//  ring, across the whole track for a whole track as the Files overlay
-//  marks it; a track only one disk has, or a volume number that differs,
-//  marks its whole ring.
+//  The "Differences" overlay (FR-121): every ring is dimmed except where a
+//  difference lies, so the differences are at full color and their
+//  nibbles remain visible. Each quarter track's ring is lit by the
+//  differences on that track. The selected track's ring uses its nibble-by-nibble
+//  differences, so only the nibbles that differ are bright. A track only
+//  one disk has, or a volume number that differs, results in a whole
+//  ring that isn't dimmed. A difference is at least a few pixels wide at any zoom.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void PlatterOverlays::PaintDiffs (IDxuiPainter & painter, const PlatterPlacement & view)
 {
-    uint32_t  color = (m_view.m_context.palette.colors.difference & 0x00FFFFFFu) | s_kFilesAlpha;
+    static constexpr uint32_t  kDim = 0xCC000000u;
+
+
+
+    std::array<vector<std::pair<double, double>>, PlatterRenderer::kRingCount>  arcs;
+    const vector<Difference>                                                  * nibbleDiffs = m_view.m_context.nibbleDiffs;
+    int                                                                         selected    = m_view.m_context.model->GetQuarterTrack();
+    vector<const Difference *>                                                  shown;
+    int                                                                         qt          = 0;
+    int                                                                         last        = 0;
+    double                                                                      at          = 0;
+    double                                                                      outer       = 0;
+    double                                                                      inner       = 0;
 
 
 
     for (const Difference & d : m_view.m_context.comparison->differences)
     {
-        int                    qt    = d.quarterTrack;
-        int                    span  = (qt % DiskImage::kQuarterTracksPerWholeTrack == 0) ? DiskImage::kQuarterTracksPerWholeTrack : 1;
-        const TrackAnalysis *  track = m_view.GetRingTrack (qt);
-        double                 outer = 0;
-        double                 inner = 0;
+        if (nibbleDiffs == nullptr || d.quarterTrack != selected)
+        {
+            shown.push_back (&d);
+        }
+    }
+
+    if (nibbleDiffs != nullptr)
+    {
+        for (const Difference & d : *nibbleDiffs)
+        {
+            shown.push_back (&d);
+        }
+    }
+
+    for (const Difference * pd : shown)
+    {
+        const Difference &     d     = *pd;
+        const TrackAnalysis *  track = (d.quarterTrack >= 0) ? m_view.GetRingTrack (d.quarterTrack) : nullptr;
         double                 a     = 0;
         double                 b     = 1;
+        int                    ring  = d.quarterTrack;
+        double                 minW  = 0;
 
-        if (qt < 0)
+        if (ring < 0 || ring >= static_cast<int> (PlatterRenderer::kRingCount))
         {
             continue;
         }
 
-        outer = PlatterGeometry::GetRingOuter (qt) * view.outerRadiusPx;
-        inner = PlatterGeometry::GetRingOuter (std::min (qt + span, static_cast<int> (PlatterRenderer::kRingCount))) * view.outerRadiusPx;
+        minW = s_kMinDiffPx / std::max (1.0, 2.0 * std::numbers::pi * PlatterGeometry::GetRingOuter (ring) * view.outerRadiusPx);
 
         if (track != nullptr && !track->framed.nibbles.empty())
         {
-            GetDiffTurns (d, *track, m_view.GetRingTurns (m_view.m_context.analysis->entries[qt].slot, *track), a, b);
+            GetDiffTurns (d, *track, m_view.GetRingTurns (m_view.m_context.analysis->entries[d.quarterTrack].slot, *track), a, b);
         }
 
-        ShadeRingArc (painter, view, a, std::max (b, a + s_kMinDiffTurn), inner, outer, color);
+        b = std::max (b, a + minW);
+
+        if (b > 1.0)
+        {
+            arcs[ring].push_back ({ 0.0, b - 1.0 });
+            b = 1.0;
+        }
+
+        arcs[ring].push_back ({ a, b });
+    }
+
+    for (std::vector<std::pair<double, double>> & ring : arcs)
+    {
+        std::sort (ring.begin(), ring.end());
+    }
+
+    //  Each quarter track's ring is lit only where that track's differences lie.
+    //  A run of rings lit in the same places, most often nowhere, is dimmed
+    //  as one band, with no seams between its rings.
+    for (qt = 0; qt < static_cast<int> (PlatterRenderer::kRingCount); qt = last + 1)
+    {
+        for (last = qt; last + 1 < static_cast<int> (PlatterRenderer::kRingCount) && arcs[last + 1] == arcs[qt]; last++)
+        {
+        }
+
+        outer = PlatterGeometry::GetRingOuter (qt) * view.outerRadiusPx;
+        inner = PlatterGeometry::GetRingOuter (last + 1) * view.outerRadiusPx;
+        at    = 0.0;
+
+        for (const auto & [a, b] : arcs[qt])
+        {
+            if (a > at)
+            {
+                ShadeRingArc (painter, view, at, a, inner, outer, kDim);
+            }
+
+            at = std::max (at, b);
+        }
+
+        if (at < 1.0)
+        {
+            ShadeRingArc (painter, view, at, 1.0, inner, outer, kDim);
+        }
     }
 }
 
@@ -1125,7 +1177,8 @@ void PlatterOverlays::PaintHits (IDxuiPainter & painter, const PlatterPlacement 
 //
 //  PlatterOverlays::GetDiffTurns
 //
-//  Where a difference starts and ends on A's ring, as turns: its nibbles,
+//  Where a difference starts and ends on A's ring, as turns: its changed
+//  bits, or its nibbles where the bits were not compared,
 //  its sector from the address field to the end of the data field, or its
 //  cells; the whole ring for a difference about the whole track.
 //
@@ -1144,7 +1197,12 @@ void PlatterOverlays::GetDiffTurns (const Difference & difference, const TrackAn
     outA = 0;
     outB = 1;
 
-    if (d.kind == DifferenceKind::Nibbles && d.firstNibbleA >= 0)
+    if (d.kind == DifferenceKind::Nibbles && d.bitsChanged > 0 && !turns.cells.empty())
+    {
+        outA = turns.cells[std::min<size_t> (static_cast<size_t> (d.firstBitA), lastC)];
+        outB = turns.cells[std::min<size_t> (static_cast<size_t> (d.firstBitA + d.bitCountA), lastC)];
+    }
+    else if (d.kind == DifferenceKind::Nibbles && d.firstNibbleA >= 0)
     {
         outA = turns.nibbles[std::min<size_t> (static_cast<size_t> (d.firstNibbleA), last)];
         outB = turns.nibbles[std::min<size_t> (static_cast<size_t> (d.firstNibbleA + d.nibbleCountA), last)];
@@ -1211,7 +1269,17 @@ void PlatterOverlays::ShadeRingArc (IDxuiPainter & painter, const PlatterPlaceme
 
         for (int k = 0; k < pieces; k++)
         {
-            m_view.ShadeArc (painter, view, part.first + (part.second - part.first) * k / pieces, part.first + (part.second - part.first) * (k + 1) / pieces, r0, r1, argb);
+            double  pa = part.first + (part.second - part.first) * k / pieces;
+            double  pb = part.first + (part.second - part.first) * (k + 1) / pieces;
+
+            //  A piece whose box misses the view is not built: the view's
+            //  turns cover the whole ring while the platter's center is in
+            //  view, though much of the ring may lie past the view's edges.
+            //  Pieces abut on hard edges, so a translucent fill has no seams.
+            if (IsPieceVisible (view, pa, pb, r0, r1))
+            {
+                m_view.ShadeArc (painter, view, pa, pb, r0, r1, argb, (k > 0 ? 1 : 0) | (k < pieces - 1 ? 2 : 0));
+            }
         }
     }
 }

@@ -186,8 +186,8 @@ void CompareDialog::OnCreate()
         side++;
     }
 
-    m_titleA.SetText      (L"A");
-    m_titleB.SetText      (L"B");
+    m_titleA.SetText      (L"Left");
+    m_titleB.SetText      (L"Right");
     m_titleA.SetTextRole  (DxuiTextRole::Heading);
     m_titleB.SetTextRole  (DxuiTextRole::Heading);
     m_error.SetTextRole   (DxuiTextRole::Error);
@@ -227,7 +227,7 @@ void CompareDialog::OnOkClicked()
 
     if (m_sources[0] == m_sources[1] && m_sources[0].kind != ComparisonSourceKind::ImageFile)
     {
-        error = L"Choose a different source for A and for B.";
+        error = L"Choose a different source for each side.";
     }
 
     for (ComparisonSource & source : m_sources)

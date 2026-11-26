@@ -83,7 +83,7 @@ private:
     std::wstring      m_prose;
     std::wstring      m_destLine;
     std::vector<Row>  m_rows;
-    DxuiInfoBanner    m_warning;
+    DxuiInfoBar       m_warning;
     RECT              m_warningRect        = {};
     int               m_preferredHeightDip = 0;
 };

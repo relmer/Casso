@@ -377,19 +377,19 @@ public:
 
 
 
-    TEST_METHOD (ADskAndAWozOfOneDiskHoldTheSameSectorData)
+    //  A DSK with, at each track's DOS order position, what the WOZ's
+    //  standard track has in the physical sector there, and one byte of a
+    //  sector changed when one is given.
+    static DiskComparison CompareDskWithWoz (int changedTrack, int changedSector, const Pairs::TrackSpec & wozChange = {})
     {
         vector<Byte>    dsk (FileMapTestImages::kImageBytes, 0);
         DiskImage       image;
         DiskAnalysis    a;
         DiskAnalysis    b;
-        DiskComparison  c;
         HRESULT         hr  = S_OK;
 
 
 
-        //  The DSK has, at each track's DOS order position, what the WOZ's
-        //  standard track has in the physical sector there.
         for (int t = 0; t < 35; t++)
         {
             for (int p = 0; p < 16; p++)
@@ -397,6 +397,7 @@ public:
                 std::array<Byte, DiskFieldFormat::kSectorBytes>  bytes = {};
 
                 InspectorTrackBuilder::FillPattern (p, bytes);
+                bytes[0x10] ^= (t == changedTrack && p == changedSector) ? 0xFF : 0;
                 memcpy (FileMapTestImages::GetDosSector (dsk, t, SectorInterleave::GetDosFileIndexForPhysicalSector (p)), bytes.data(), bytes.size());
             }
         }
@@ -404,19 +405,63 @@ public:
         hr = Nibblizer::NibblizeDsk (dsk, image);
         Assert::IsTrue (SUCCEEDED (hr));
         DiskAnalyzer::Analyze (DiskCopy::MakeFromImage (image, 1, "disk.dsk", dsk.size(), false), DecodeSettings::MakeStandard(), a);
-        Pairs::AnalyzeDisk (-1, {}, b);
-        c = DiskComparer::Compare (a, b);
+        Pairs::AnalyzeDisk (changedTrack, wozChange, b);
+
+        return DiskComparer::Compare (a, b);
+    }
+
+
+
+    TEST_METHOD (ADskAndAWozOfOneDiskHoldTheSameSectorData)
+    {
+        Pairs::TrackSpec  spec;
+        DiskComparison    c;
+
+
+
+        spec.extraSync = 12;
+        spec.volume    = 100;
+        c = CompareDskWithWoz (kChanged, -1, spec);
+
+        Assert::IsTrue (c.isSectorsOnly);
 
         for (int t = 0; t < 35; t++)
         {
-            TrackVerdict  verdict = c.tracks[t * 4].verdict;
-
-            Assert::IsTrue (verdict == TrackVerdict::SameSectorData || verdict == TrackVerdict::SameNibbles || verdict == TrackVerdict::Identical,
-                            std::to_wstring (t).c_str());
+            Assert::AreEqual (static_cast<int> (TrackVerdict::SameSectorData), static_cast<int> (c.tracks[t * 4].verdict), std::to_wstring (t).c_str());
         }
 
-        Assert::IsTrue (std::none_of (c.differences.begin(), c.differences.end(), [] (const Difference & d) { return !d.isSyncOnly; }),
-                        L"nothing but sync widths differs");
+        Assert::IsTrue (c.differences.empty(), L"sync and volume numbers are not compared against a sector image");
+    }
+
+
+
+    TEST_METHOD (ASectorThatDiffersFromADskIsListed)
+    {
+        DiskComparison  c = CompareDskWithWoz (kChanged, 7);
+
+
+
+        Assert::AreEqual (static_cast<int> (TrackVerdict::SectorsDiffer), static_cast<int> (c.tracks[kChanged * 4].verdict));
+        Assert::AreEqual (static_cast<size_t> (1), c.differences.size());
+        Assert::AreEqual (static_cast<int> (DifferenceKind::SectorBytes), static_cast<int> (c.differences[0].kind));
+        Assert::AreEqual (7, c.differences[0].sector);
+        Assert::AreEqual (1, c.differences[0].count);
+    }
+
+
+
+    TEST_METHOD (ASectorMissingFromAWozIsOnlyInTheDsk)
+    {
+        Pairs::TrackSpec  spec;
+        DiskComparison    c;
+
+
+
+        spec.isThirteen = true;
+        c = CompareDskWithWoz (kChanged, -1, spec);
+
+        Assert::AreEqual (static_cast<int> (TrackVerdict::SectorsDiffer), static_cast<int> (c.tracks[kChanged * 4].verdict));
+        Assert::AreEqual (16, CountKind (c.differences, DifferenceKind::SectorOnlyInA));
     }
 
 
@@ -472,6 +517,56 @@ public:
         Assert::AreEqual (2, hunks[0].countB);
         Assert::AreEqual (5, hunks[1].firstA);
         Assert::AreEqual (1, hunks[1].countA);
+    }
+
+
+
+    TEST_METHOD (DiffPairsChangedNibblesInPlace)
+    {
+        const vector<Byte>          a = { 0x96, 0x96, 0xFF, 0x96, 0xFF, 0x96, 0x96, 0xA6, 0xF7 };
+        const vector<Byte>          b = { 0x96, 0x96, 0x96, 0x96, 0x96, 0x96, 0x96, 0xA6, 0xF7 };
+        vector<DiskComparer::Hunk>  hunks;
+
+
+
+        Assert::IsTrue   (DiskComparer::Diff (a, b, hunks));
+        Assert::AreEqual (static_cast<size_t> (2), hunks.size(), L"each FF against the 96 at its place");
+        Assert::AreEqual (2, hunks[0].firstA);
+        Assert::AreEqual (2, hunks[0].firstB);
+        Assert::AreEqual (1, hunks[0].countA);
+        Assert::AreEqual (1, hunks[0].countB);
+        Assert::AreEqual (4, hunks[1].firstA);
+        Assert::AreEqual (4, hunks[1].firstB);
+    }
+
+
+    TEST_METHOD (FindBitsFindsTheOneBitThatDiffers)
+    {
+        vector<Byte>  a (64, 0);
+        vector<Byte>  b;
+        Difference    d;
+
+
+
+        for (size_t i = 0; i < a.size(); i++)
+        {
+            a[i] = (i % 3 == 0) ? 1 : 0;
+        }
+
+        b     = a;
+        b[31] = 1;
+
+        DiskComparer::FindBits (a, 24, 16, b, 24, 16, d);
+
+        Assert::AreEqual (1,  d.bitsChanged);
+        Assert::AreEqual (31, d.firstBitA);
+        Assert::AreEqual (31, d.firstBitB);
+        Assert::AreEqual (1,  d.bitCountA);
+        Assert::AreEqual (1,  d.bitCountB);
+
+        DiskComparer::FindBits (a, 24, 16, a, 24, 16, d);
+
+        Assert::AreEqual (0, d.bitsChanged, L"the same bits, framed differently");
     }
 
 

@@ -70,11 +70,15 @@ private:
     void           PaintNibbles   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const PlatterPlacement & view);
     void           PaintRing      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const PlatterPlacement & view, int quarterTrack,
                                    const TrackAnalysis & track, const RingTurns & turns, double start, double end);
-    static void  ShadeArc         (IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r0, double r1, uint32_t argb);
+    static void  ShadeArc         (IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r0, double r1, uint32_t argb, int hardEdges = 0);
     bool         IsSelectedNibble (int quarterTrack, int nibble) const;
+    int          GetOtherNibble   (int quarterTrack, int nibble) const;
+    int          GetOtherBit      (const TrackAnalysis & track, int quarterTrack, uint32_t cell) const;
     static void  DrawRadial       (IDxuiPainter & painter, const PlatterPlacement & view, double turn, double r0, double r1, float thicknessPx, uint32_t argb);
     void           DrawUpright    (IDxuiTextRenderer & text, const PlatterPlacement & view, double turn, double radius, const std::wstring & value, float widthPx,
-                                   float textPx, uint32_t argb) const;
+                                   float textPx, uint32_t argb, float dyPx = 0.0f) const;
+    void           DrawTag        (IDxuiTextRenderer & text, const IDxuiTheme & theme, const PlatterPlacement & view, double turn, double radius,
+                                   const std::wstring & value, float textPx, float dyPx = 0.0f) const;
     bool                           BuildTip          (POINT pointPx, InspectorTip & outTip) const;
     bool                           IsShowingValues   (const PlatterPlacement & view, int quarterTrack) const;
     bool                           IsShowingTicks    (const PlatterPlacement & view, int quarterTrack) const;

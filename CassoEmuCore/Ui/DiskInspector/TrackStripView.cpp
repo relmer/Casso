@@ -8,6 +8,7 @@
 #include "Ui/DiskInspector/InspectorMarquee.h"
 #include "Ui/DiskInspector/InspectorText.h"
 #include "Ui/DiskInspector/InspectorTip.h"
+#include "Ui/DiskInspector/OrphanFields.h"
 #include "Ui/DiskInspector/PlatterCells.h"
 #include "Ui/DiskInspector/PlatterGeometry.h"
 #include "Ui/DiskInspector/StripHitTest.h"
@@ -86,7 +87,7 @@ void TrackStripView::PaintTrack (IDxuiPainter & painter, IDxuiTextRenderer & tex
         m_hits.UpdateSections (track, *m_context.analysis, m_context.model->GetQuarterTrack());
     }
 
-    StripPaintScene      scene   = { m_context, m_scaler, m_hits, m_boundsDip, bar, m_side, m_isPanning };
+    StripPaintScene      scene   = { m_context, m_scaler, m_hits, m_boundsDip, bar, m_side, m_isPanning, m_lightTop, m_lightEnd };
     StripTrackPainter    nibbles (scene);
     StripOverlayPainter  overlay (scene);
 
@@ -166,14 +167,32 @@ bool TrackStripView::OnMouse (const DxuiMouseEvent & ev)
             if (isInside && ev.button == DxuiMouseButton::Left && !ev.shift && p.y < GetBarRect().top)
             {
                 //  A click on a sector's bracket selects the sector, and the
-                //  platter flies to it.
+                //  platter flies to it. A data field with no address field
+                //  has a bracket too, and a click on it selects the field.
                 m_hits.Update (*track);
                 sector    = m_hits.GetSectorAt (*track, MakeGeometry(), static_cast<float> (p.x));
+                nibble    = (sector < 0) ? m_hits.GetNibbleAt (MakeGeometry(), static_cast<float> (p.x)) : -1;
+
+                for (int f : (nibble >= 0) ? OrphanFields::Find (*track) : vector<int>())
+                {
+                    const auto &  field = track->fields[static_cast<size_t> (f)];
+
+                    if (nibble >= field.firstNibble && nibble < field.firstNibble + field.nibbleCount)
+                    {
+                        m_context.model->SelectNibbles (m_context.model->GetQuarterTrack(), field.firstNibble, field.nibbleCount);
+                        sector = f;
+                    }
+                }
+
                 isHandled = sector >= 0;
 
                 if (sector >= 0)
                 {
-                    m_context.model->SelectSector (m_context.model->GetQuarterTrack(), sector);
+                    if (nibble < 0)
+                    {
+                        m_context.model->SelectSector (m_context.model->GetQuarterTrack(), sector);
+                    }
+
                     NotifySelection();
                     m_context.model->StartFlight (InspectorMarquee::GetClockMs());
                 }
@@ -248,6 +267,7 @@ bool TrackStripView::OnMouse (const DxuiMouseEvent & ev)
             if (m_isPressed && !m_isShiftPress && !isMoved && now - m_lastClickMs <= static_cast<int64_t> (GetDoubleClickTime()))
             {
                 SelectFieldAt (*track, static_cast<float> (p.x));
+                m_context.model->StartFlight (InspectorMarquee::GetClockMs());
                 m_lastClickMs = 0;
             }
             else if (m_isPressed && !m_isShiftPress && !isMoved)
@@ -260,8 +280,9 @@ bool TrackStripView::OnMouse (const DxuiMouseEvent & ev)
                 NotifySelection();
             }
 
-            //  A range dragged out on the strip is flown to on the platter.
-            if (m_isSelecting && isMoved)
+            //  A cell clicked or a range dragged out on the strip is flown to
+            //  on the platter.
+            if (m_isSelecting)
             {
                 m_context.model->StartFlight (InspectorMarquee::GetClockMs());
             }
@@ -384,6 +405,25 @@ bool TrackStripView::BuildTip (POINT pointPx, InspectorTip & outTip) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TrackStripView::BuildTipAtX
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TrackStripView::BuildTipAtX (int xPx, InspectorTip & outTip) const
+{
+    RECT  bar = GetBarRect();
+
+
+
+    return IsVisible() && BuildTip ({ xPx, (bar.top + bar.bottom) / 2 }, outTip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TrackStripView::MakeGeometry
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -457,6 +497,33 @@ void TrackStripView::StepZoom (int steps)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TrackStripView::GetMinSpan
+//
+//  The share of the track visible at the deepest mouse wheel zoom.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double TrackStripView::GetMinSpan() const
+{
+    const TrackAnalysis *  track = m_context.GetTrack();
+    vector<double>         stops;
+
+
+
+    if (track != nullptr)
+    {
+        stops = StripHitTest::GetZoomStops (*track, GetWidth(), m_digitsW, m_scaler);
+    }
+
+    return stops.empty() ? StripGeometry::kMinSpan : std::clamp (1.0 / *std::max_element (stops.begin(), stops.end()), StripGeometry::kMinSpan, 1.0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TrackStripView::StepZoomAt
 //
 //  The strip zoomed a number of stops about a point a fraction of the way
@@ -507,6 +574,8 @@ void TrackStripView::PanBy (double fractionOfView)
 //  TrackStripView::SelectFieldAt
 //
 //  Selects the field around the nibble at x, as a double-click selects a word.
+//  The caller flies the platter to it, since a field outside any sector
+//  doesn't change the selected sector.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

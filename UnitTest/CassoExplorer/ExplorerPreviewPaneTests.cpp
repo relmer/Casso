@@ -203,15 +203,15 @@ public:
     //  the test's in the temporary folder as well.
     TEST_METHOD (Preview_HasTheFileSystemVerdictAboveTheThumbnail_At100And150Percent)
     {
-        struct Case { const wchar_t * name; vector<Byte> bytes; const wchar_t * text; DxuiInfoBanner::Severity severity; const wchar_t * action; };
+        struct Case { const wchar_t * name; vector<Byte> bytes; const wchar_t * text; DxuiInfoBar::Severity severity; const wchar_t * action; };
 
         const Case  cases[] =
         {
             { L"bad.dsk",     RepairFixtures::MakeDos33Bitmap().damaged,       L"Track 18, sector $2 is used by HELLO but marked free.\nClick Inspect for more information.",
-              DxuiInfoBanner::Severity::Error, L"" },
+              DxuiInfoBar::Severity::Error, L"" },
             { L"suspect.dsk", RepairFixtures::MakeDos33NextTrackOff().damaged, L"The VTOC's next track to allocate, track 40, is off the disk.\nClick Inspect for more information.",
-              DxuiInfoBanner::Severity::Info,  L"" },
-            { L"ok.dsk",      RepairFixtures::MakeDos33(),                     L"", DxuiInfoBanner::Severity::Info, L"" },
+              DxuiInfoBar::Severity::Info,  L"" },
+            { L"ok.dsk",      RepairFixtures::MakeDos33(),                     L"", DxuiInfoBar::Severity::Info, L"" },
         };
 
 

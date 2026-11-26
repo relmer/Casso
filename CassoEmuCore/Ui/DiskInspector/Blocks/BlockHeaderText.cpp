@@ -1,7 +1,9 @@
 #include "Pch.h"
 
 #include "Devices/Disk/Inspector/Blocks/BlockFieldList.h"
+#include "Core/TextEncoding.h"
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
+#include "Devices/Disk/Inspector/DiskComparer.h"
 #include "Ui/DiskInspector/Blocks/BlockHeaderText.h"
 #include "Ui/DiskInspector/Blocks/BlockHexSource.h"
 #include "Core/NumberFormat.h"
@@ -195,5 +197,10 @@ std::wstring BlockHeaderText::BuildBlockText (std::span<const Byte> bytes, size_
 
 std::wstring BlockHeaderText::GetOtherName (const BlockInspectorModel & model)
 {
-    return model.IsComparing() ? fs::path (model.GetOther()->GetPath()).filename().wstring() : std::wstring();
+    if (!model.IsComparing() || !model.IsOpen())
+    {
+        return std::wstring();
+    }
+
+    return DiskComparer::GetSideNames (TextEncoding::Utf8ToWide (model.GetFile().GetPath()), TextEncoding::Utf8ToWide (model.GetOther()->GetPath())).b;
 }

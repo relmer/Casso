@@ -30,7 +30,7 @@ static const TrackColumn::View  s_kViews[] =
     { L"Image",        true,  kTabImage,       L"What the image file itself contains" },
     { L"Nibbles",      false, kTabNibbles,     L"Every nibble on the track, as the disk controller reads them" },
     { L"Flux",         false, kTabFluxTiming,  L"How fast or slow each cell runs, on a track recorded as flux" },
-    { L"Differences",  true,  kTabDifferences, L"Everything that differs between disk A and disk B" },
+    { L"Differences",  true,  kTabDifferences, L"Everything that differs between the two images" },
     { L"Find results", true,  kTabFindResults, L"Every hit of the find" },
 };
 
@@ -215,7 +215,8 @@ void TrackColumn::OnAnalysisChanged()
 
 
 
-    m_hasIssues = m_session.context.hasDisk && std::any_of (counts.begin(), counts.end(), [] (int count) { return count > 0; });
+    m_hasIssues = m_session.context.hasDisk && (std::any_of (counts.begin(), counts.end(), [] (int count) { return count > 0; }) ||
+                                                (m_session.comparison.IsComparing() && !m_session.comparison.GetB().findings.empty()));
     m_issues    = m_session.context.hasDisk ? static_cast<int> (m_session.analysis.findings.size()) : 0;
     m_severity  = DxuiSeverity::Info;
 
@@ -291,10 +292,15 @@ void TrackColumn::Update()
     }
 
     //  A new disk with issues opens on them; the wait ends with its analysis.
+    //  A comparison opens on its differences instead.
     if (m_isOpening && m_hasIssues)
     {
         m_isOpening = false;
-        m_host.ShowDiskTab (kTabFindings);
+
+        if (!m_session.comparison.IsComparing())
+        {
+            m_host.ShowDiskTab (kTabFindings);
+        }
     }
     else if (m_isOpening && m_session.pendingRequest == 0 && !m_session.scheduler->HasPending())
     {

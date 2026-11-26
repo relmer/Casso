@@ -100,6 +100,10 @@ public:
                                 float holeRadiusPx, float rimPx, uint32_t argbColor) override;
     void    FillTaperedCapsuleOnPlane (float x0, float y0, const std::array<float, 4> & planeToScreen, float bx, float by, float r0, float r1,
                                        float hole, float rim, uint32_t argbColor) override;
+    void    FillRingSector    (float cxPx, float cyPx, float eyePx, float tilt, float r0, float r1, double angle0, double angle1,
+                               int hardEdges, uint32_t argbColor) override;
+    void    StrokeRingSector  (float cxPx, float cyPx, float eyePx, float tilt, float r, float thicknessPx, double angle0, double angle1,
+                               int hardEnds, uint32_t argbColor) override;
 
     HRESULT End            (ID3D11RenderTargetView * pRtv);
     void    DrawCustom     (const RECT & rectPx, const DxuiCustomDraw & draw) override;
@@ -113,6 +117,7 @@ public:
     // Used by the Settings panel's live-preview state machine to fade
     // the whole UI without touching individual paint call sites. 1.0
     // is opaque (default), 0.0 is fully transparent.
+    void    SetShimmerBand (float centerPx, float widthPx, float baseShare) override { m_band = { centerPx, widthPx, baseShare }; }
     void    SetGlobalAlpha (float alpha)            override { m_globalAlpha = (alpha < 0.0f) ? 0.0f : (alpha > 1.0f) ? 1.0f : alpha; }
     void    SetOrigin      (float xPx, float yPx)   override { m_originXPx = xPx; m_originYPx = yPx; }
     void    SetClipRect    (const RECT * clipPx)    override;
@@ -128,6 +133,7 @@ private:
 
 
     static constexpr float   kShapeFringePx         = 1.0f;
+    static constexpr float   kSectorGridPx          = 64.0f;    // FillRingSector's center grid; kSectorGrid in Painter.ps.hlsl
 
 
     // Which signed-distance function the pixel shader evaluates for a quad.
@@ -143,6 +149,8 @@ private:
         Capsule     = 4,
         ConvexQuad  = 5,
         TaperedCapsule = 6,
+        RingSector     = 7,     // 7 to 22: plus FillRingSector's hardEdges
+        RingStroke     = 23,    // 23 to 26: plus StrokeRingSector's hardEnds
     };
 
 
@@ -171,6 +179,9 @@ private:
         float  edge1  = 0.0f;
         float  edge2  = 0.0f;
         float  edge3  = 0.0f;
+        float  band0  = 0.0f;
+        float  band1  = 0.0f;
+        float  band2  = 0.0f;
     };
 
 
@@ -201,6 +212,10 @@ private:
                               float shape2,
                               float shape3,
                               uint32_t argbColor);
+    // A quad over the box around a stretch of the tilted disk between radii
+    // r0 and r1, grown by growPx, for FillRingSector and StrokeRingSector.
+    void    PushSectorQuad   (float cxPx, float cyPx, float eyePx, float tilt, float r0, float r1, float growPx, double angle0, double angle1,
+                              float edge0, float edge1, int kind, uint32_t argbColor);
     void    NdcFromPixel    (float xPx, float yPx, float & outX, float & outY) const;
 
     static Vertex MakeVertex     (uint32_t argbColor, float alphaMultiplier = 1.0f);
@@ -228,6 +243,7 @@ private:
     int                               m_viewportHeightPx     = 0;
     bool                              m_betweenBeginEnd      = false;
     float                             m_globalAlpha          = 1.0f;
+    std::array<float, 3>              m_band                 = {};
     float                             m_originXPx            = 0.0f;
     float                             m_originYPx            = 0.0f;
     bool                              m_hasClip              = false;

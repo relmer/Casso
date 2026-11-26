@@ -775,8 +775,12 @@ bool ExplorerPreviewManager::UpdateAutoPreview()
 
 bool ExplorerPreviewManager::UpdateShown()
 {
-    bool  shown   = m_context.prefs.previewVisible && m_context.listPane.HasSelection();
-    bool  changed = shown != m_shown;
+    const std::vector<int> &         selected = m_context.browser.GetSelectedRows();
+    const std::vector<CatalogRow> &  rows     = m_context.browser.GetRows();
+    bool                             hasFile  = std::any_of (selected.begin(), selected.end(), [&rows] (int row)
+                                                             { return row >= 0 && (size_t) row < rows.size() && !rows[(size_t) row].isDirectory; });
+    bool                             shown    = m_context.prefs.previewVisible && hasFile;
+    bool                             changed  = shown != m_shown;
 
 
 

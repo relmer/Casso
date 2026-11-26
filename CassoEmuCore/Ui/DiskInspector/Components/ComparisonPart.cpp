@@ -4,6 +4,7 @@
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
 #include "Devices/Disk/Inspector/DiskComparer.h"
+#include "Devices/Disk/Inspector/DiskCopy.h"
 #include "Devices/Disk/Inspector/TrackAnalyzer.h"
 #include "Ui/DiskInspector/CompareDialog.h"
 #include "Ui/DiskInspector/ComparisonText.h"
@@ -12,6 +13,8 @@
 #include "Ui/DiskInspector/Components/InspectorSession.h"
 #include "Ui/DiskInspector/DecodeSettingsDialog.h"
 #include "Ui/DiskInspector/Views/DifferencesView.h"
+#include "Ui/DiskInspector/InspectorMarquee.h"
+#include "Ui/DiskInspector/OrphanFields.h"
 #include "Ui/DiskInspector/InspectorTableView.h"
 #include "Ui/DiskInspector/TrackStripView.h"
 #include "Ui/DiskInspector/Views/FilesView.h"
@@ -21,8 +24,11 @@
 
 
 static constexpr LPCWSTR  s_kpszAnalyzing  = L"Analyzing";
+static constexpr LPCWSTR  s_kpszComparing  = L"Comparing";
 static constexpr int      s_kBarButtonDip  = 136;
 static constexpr int      s_kStopButtonDip = 116;
+static constexpr double   s_kStripFill     = 0.75;
+static constexpr int64_t  s_kSectorsNoteMs = 20000;    // the sector data infobar's time up, at least
 
 
 
@@ -61,16 +67,15 @@ void ComparisonPart::Create()
 
     m_prevDiff        = parent.CreateChild<DxuiButton> (L"Previous difference");
     m_nextDiff        = parent.CreateChild<DxuiButton> (L"Next difference");
-    m_swapButton      = parent.CreateChild<DxuiButton> (L"Swap A and B");
-    m_bSettingsButton = parent.CreateChild<DxuiButton> (L"B's decode settings...");
+    m_swapButton      = parent.CreateChild<DxuiButton> (L"");
     m_stopButton      = parent.CreateChild<DxuiButton> (L"Stop comparing");
 
     m_prevDiff->SetOnClick        ([this] () { StepDifference (-1); });
     m_nextDiff->SetOnClick        ([this] () { StepDifference (1); });
     m_swapButton->SetOnClick      ([this] () { SwapSides(); });
-    m_bSettingsButton->SetOnClick ([this] () { OpenBSettings(); });
     m_stopButton->SetOnClick      ([this] () { StopComparing(); });
     m_diffsView.SetOnSelect        ([this] (const TableRow & row) { if (const Difference * d = m_diffsView.GetDifference (row)) { m_diffIndex = row.finding; SelectDifference (*d); } });
+    m_diffsView.SetOnActivate      ([this] (const TableRow & row) { if (const Difference * d = m_diffsView.GetDifference (row)) { m_diffIndex = row.finding; SelectDifference (*d); } });
 }
 
 
@@ -81,11 +86,12 @@ void ComparisonPart::Create()
 //
 //  ComparisonPart::Layout
 //
-//  The bar's buttons from the right; its sources fill the rest.
+//  The bar's buttons from the right; its sources fill the rest. The
+//  infobar, while shown, is in the row under the bar.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ComparisonPart::Layout (const RECT & bar, const DxuiDpiScaler & scaler)
+void ComparisonPart::Layout (const RECT & bar, const RECT & notice, const DxuiDpiScaler & scaler)
 {
     int  margin = scaler.ToPx (InspectorMetrics::kMarginDip);
     int  x      = bar.right - margin;
@@ -94,13 +100,39 @@ void ComparisonPart::Layout (const RECT & bar, const DxuiDpiScaler & scaler)
 
     m_barPx = bar;
 
-    for (DxuiButton * barButton : { m_stopButton, m_bSettingsButton, m_swapButton, m_nextDiff, m_prevDiff })
+    for (DxuiButton * barButton : { m_stopButton })
     {
         int  w = scaler.ToPx (barButton == m_stopButton ? s_kStopButtonDip : s_kBarButtonDip);
 
         barButton->Layout ({ x - w, bar.top + margin / 2, x, bar.bottom - margin / 2 }, scaler);
         x -= w + margin / 2;
     }
+
+    m_sectorsNote.Layout (notice, scaler);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComparisonPart::GetNoticeHeightPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ComparisonPart::GetNoticeHeightPx (int widthPx, const DxuiDpiScaler & scaler) const
+{
+    int  height = 0;
+
+
+
+    if (m_sectorsNote.IsVisible())
+    {
+        height = scaler.ToPx (InspectorMetrics::kMarginDip) + static_cast<int> (std::ceil (m_sectorsNote.GetPreferredHeightPx (static_cast<float> (widthPx), scaler)));
+    }
+
+    return height;
 }
 
 
@@ -122,12 +154,10 @@ void ComparisonPart::Update()
     m_prevDiff->SetVisible        (isComparing);
     m_nextDiff->SetVisible        (isComparing);
     m_swapButton->SetVisible      (isComparing);
-    m_bSettingsButton->SetVisible (isComparing);
     m_stopButton->SetVisible      (isComparing);
     m_prevDiff->SetEnabled        (!m_session.comparison.GetListed().empty());
     m_nextDiff->SetEnabled        (!m_session.comparison.GetListed().empty());
     m_swapButton->SetEnabled      (m_session.context.hasDisk && m_session.comparison.GetB().copy != nullptr);
-    m_bSettingsButton->SetEnabled (m_session.comparison.GetB().copy != nullptr);
 }
 
 
@@ -176,6 +206,190 @@ void ComparisonPart::PaintUnder (IDxuiPainter & painter, IDxuiTextRenderer & tex
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ComparisonPart::PaintOver
+//
+//  While both strips are shown: a border around the side that has focus,
+//  and one line at the pointer's position across both strips.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ComparisonPart::PaintOver (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    const InspectorView *  strips[] = { m_session.views.strip, &m_stripB };
+    const InspectorView *  focused  = strips[m_focusedSide];
+    RECT                   bounds   = focused->GetBounds();
+    float                  ring     = std::max (1.0f, m_session.scaler.ToPxf (theme.FocusRingWidthDip()));
+
+
+
+    if (m_session.comparison.IsComparing() && m_swapButton->IsVisible())
+    {
+        PaintSwapArrow (painter, theme);
+    }
+
+    PaintSectorsNote (painter, text, theme);
+
+    if (!m_session.comparison.IsComparing() || !m_stripB.IsVisible())
+    {
+        return;
+    }
+
+    painter.OutlineRect (static_cast<float> (bounds.left), static_cast<float> (bounds.top), static_cast<float> (bounds.right - bounds.left),
+                         static_cast<float> (bounds.bottom - bounds.top), ring, theme.FocusAccent());
+
+    //  Each strip's image name, at its right end above the bar, on a fill
+    //  that covers the strip's labels under it.
+    painter.FlushLayer();
+
+    for (int side = 0; side < 2; side++)
+    {
+        std::wstring  name   = GetImageName (side);
+        float         size   = m_session.scaler.ToPxf (InspectorView::kTextDip);
+        float         pad    = m_session.scaler.ToPxf (4.0f);
+        float         w      = 0.0f;
+        float         h      = 0.0f;
+        RECT          strip  = strips[side]->GetBounds();
+        float         x      = 0.0f;
+        float         y      = static_cast<float> (strip.top) + ring;
+
+        (void) text.MeasureStringWeighted (name.c_str(), size, DxuiTheme::kBodyFace, DxuiFontWeight::Bold, w, h);
+
+        x = static_cast<float> (strip.right) - w - pad * 3.0f;
+
+        painter.FillRect (x - pad, y, w + pad * 2.0f, h, theme.Background());
+        text.DrawString (name.c_str(), x, y, w + 1.0f, h, side == m_focusedSide ? theme.Accent() : theme.Foreground(), size, DxuiTheme::kBodyFace,
+                         DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Bold, false);
+    }
+
+    if (m_cursorX >= 0.0f)
+    {
+        for (const InspectorView * strip : strips)
+        {
+            bounds = strip->GetBounds();
+            painter.DrawLine (m_cursorX, static_cast<float> (bounds.top), m_cursorX, static_cast<float> (bounds.bottom), m_session.scaler.ToPxf (1.0f), theme.Accent());
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComparisonPart::PaintSectorsNote
+//
+//  The sector data infobar in its row under the comparison bar.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ComparisonPart::PaintSectorsNote (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    if (m_sectorsNote.IsVisible())
+    {
+        m_sectorsNote.Paint (painter, text, theme);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComparisonPart::PaintSwapArrow
+//
+//  A double-ended arrow drawn across the swap button, larger than the font's
+//  glyph.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ComparisonPart::PaintSwapArrow (IDxuiPainter & painter, const IDxuiTheme & theme)
+{
+    RECT      bounds = m_swapButton->GetBounds();
+    float     cx     = (bounds.left + bounds.right) / 2.0f;
+    float     cy     = (bounds.top + bounds.bottom) / 2.0f;
+    float     half   = (bounds.right - bounds.left) * 0.26f;
+    float     head   = (bounds.bottom - bounds.top) * 0.187f;
+    float     line   = m_session.scaler.ToPxf (1.5f);
+    uint32_t  color  = m_swapButton->IsEnabled() ? theme.Foreground() : theme.ForegroundDisabled();
+
+
+
+    painter.DrawLine (cx - half, cy, cx + half, cy, line, color);
+    painter.DrawLine (cx - half, cy, cx - half + head, cy - head, line, color);
+    painter.DrawLine (cx - half, cy, cx - half + head, cy + head, line, color);
+    painter.DrawLine (cx + half, cy, cx + half - head, cy - head, line, color);
+    painter.DrawLine (cx + half, cy, cx + half - head, cy + head, line, color);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComparisonPart::OnMouse
+//
+//  A press in either strip moves focus to that side, and a press anywhere
+//  else moves it to the window's image. The pointer's position in either strip
+//  is the cursor of both. Only a click on the sector data infobar is
+//  consumed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ComparisonPart::OnMouse (const DxuiMouseEvent & ev)
+{
+    RECT   boundsA  = m_session.views.strip->GetBounds();
+    RECT   boundsB  = m_stripB.GetBounds();
+    bool   isOnB    = m_stripB.IsVisible() && PtInRect (&boundsB, ev.positionDip);
+    bool   isOnA    = PtInRect (&boundsA, ev.positionDip) != FALSE;
+    float  cursor   = (isOnA || isOnB) ? static_cast<float> (ev.positionDip.x) : -1.0f;
+
+
+
+    if (m_sectorsNote.IsVisible() && m_sectorsNote.OnMouse (ev))
+    {
+        return true;
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Down)
+    {
+        m_focusedSide = isOnB ? ComparisonSession::kSideB : ComparisonSession::kSideA;
+    }
+
+    m_cursorX = (ev.kind == DxuiMouseEventKind::Leave) ? -1.0f : cursor;
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComparisonPart::GetPrefs
+//
+//  A window maximized for a comparison is saved at the size it had before,
+//  so an inspector opened later outside a comparison isn't maximized.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ComparisonPart::GetPrefs (DiskInspectorPrefs & inOut) const
+{
+    if (m_isMaximizedHere)
+    {
+        inOut.isMaximized = false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ComparisonPart::GetTip
 //
 //  Each bar button's tip, or for one that is unavailable, why.
@@ -191,20 +405,39 @@ std::wstring ComparisonPart::GetTip (POINT pointPx, RECT & outAnchorPx) const
         LPCWSTR               whyUnavailable;
     };
 
+    std::wstring     nameB       = GetImageName (ComparisonSession::kSideB);
+    std::wstring     reading     = nameB + L" is still being read";
     const ButtonTip  tips[] =
     {
-        { m_prevDiff,        L"Go to the previous difference",             L"There are no differences to step through" },
-        { m_nextDiff,        L"Go to the next difference",                 L"There are no differences to step through" },
-        { m_swapButton,      L"Make A the disk B is, and B the disk A is", L"B is still being read" },
-        { m_bSettingsButton, L"Give B decode settings of its own",         L"B is still being read" },
-        { m_stopButton,      L"End the comparison",                        nullptr },
+        { m_prevDiff,        L"Go to the previous difference",          L"There are no differences to step through" },
+        { m_nextDiff,        L"Go to the next difference",              L"There are no differences to step through" },
+        { m_swapButton,      L"Swap sides",                             reading.c_str() },
+        { m_stopButton,      L"End the comparison",                     nullptr },
     };
 
 
 
+    static constexpr size_t  kWrapChars = 50;
+
+
+
     std::wstring  tip;
+    std::wstring  pathA   = GetPath (ComparisonSession::kSideA);
+    std::wstring  pathB   = GetPath (ComparisonSession::kSideB);
+    RECT          names   = { m_barPx.left, m_barPx.top, m_labelPx[ComparisonSession::kSideB].right, m_barPx.bottom };
+    RECT          swap    = m_swapButton->GetBounds();
+    bool          isWraps = pathA.size() > kWrapChars || pathB.size() > kWrapChars;
 
 
+
+    //  Both images' full paths, one per line, since two images can have the
+    //  same file name in different folders. A blank line separates paths
+    //  long enough to wrap.
+    if (m_session.comparison.IsComparing() && PtInRect (&names, pointPx) && !PtInRect (&swap, pointPx))
+    {
+        tip         = pathA + (isWraps ? L"\n\n" : L"\n") + pathB;
+        outAnchorPx = names;
+    }
 
     for (const ButtonTip & entry : tips)
     {
@@ -259,7 +492,106 @@ void ComparisonPart::TakeComparison()
         m_session.isTablesDirty = true;
     }
 
+    //  The first difference is selected once the first result arrives.
+    if (!m_isFirstShown && m_session.comparison.HasResult() && !m_session.comparison.GetListed().empty())
+    {
+        m_isFirstShown = true;
+        StepDifference (1);
+    }
+
+    DefaultFilesOverlay();
     CheckComparedSources();
+    UpdateSectorsNote();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComparisonPart::UpdateSectorsNote
+//
+//  Once per comparison of a sector image with a nibble image, an infobar
+//  docked under the comparison bar for the default duration: only sector
+//  data is compared. The window is laid out again whenever it appears or
+//  goes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ComparisonPart::UpdateSectorsNote()
+{
+    int64_t           now         = static_cast<int64_t> (GetTickCount64());
+    const DiskCopy  * copies[]    = { m_session.context.hasDisk ? m_session.analysis.copy.get() : nullptr, m_session.comparison.GetB().copy.get() };
+    bool              isSector[2] = {};
+    bool              wasShown    = m_sectorsNote.IsVisible();
+    int               side        = 0;
+
+
+
+    if (!m_session.comparison.IsComparing())
+    {
+        m_sectorsNote.Dismiss();
+    }
+
+    if (m_session.comparison.IsComparing() && !m_isSectorsNoted && m_session.comparison.HasResult() && m_session.comparison.GetResult().isSectorsOnly && copies[0] != nullptr && copies[1] != nullptr)
+    {
+        for (side = 0; side < 2; side++)
+        {
+            isSector[side] = copies[side]->format == DiskFormat::Dsk || copies[side]->format == DiskFormat::Do || copies[side]->format == DiskFormat::Po;
+        }
+
+        m_isSectorsNoted = true;
+
+        if (isSector[0] != isSector[1])
+        {
+            std::wstring  extension = std::filesystem::path (GetPath (isSector[0] ? 0 : 1)).extension().wstring();
+
+            std::transform (extension.begin(), extension.end(), extension.begin(), ::towlower);
+
+            m_sectorsNote.SetSeverity    (DxuiInfoBar::Severity::Info);
+            m_sectorsNote.SetDurationMs  (std::max (s_kSectorsNoteMs, DxuiInfoBar::ResolveDefaultDurationMs()));
+            m_sectorsNote.SetDismissible (true);
+            m_sectorsNote.SetOnDismiss   ([this] () { m_sectorsNote.Dismiss(); m_host.Relayout(); });
+            m_sectorsNote.Show           (std::format (L"Comparing sector data only because {} files do not contain sync, gaps, volume numbers, or timing information.", extension), now);
+        }
+    }
+
+    m_sectorsNote.Tick (now);
+
+    if (m_sectorsNote.IsVisible() != wasShown)
+    {
+        m_host.Relayout();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComparisonPart::DefaultFilesOverlay
+//
+//  A comparison turns the Files overlay on once either image has a
+//  recognized file system. After that, the overlay is on or off as the user sets it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ComparisonPart::DefaultFilesOverlay()
+{
+    const vector<FileMap> &  mapsB  = m_session.comparison.GetB().fileMaps;
+    const FileMap *          mapA   = m_session.GetFileMap();
+    bool                     hasFsA = mapA != nullptr && mapA->notMapped == NotMappedReason::None;
+    bool                     hasFsB = !mapsB.empty() && mapsB.front().notMapped == NotMappedReason::None;
+
+
+
+    if (m_session.comparison.IsComparing() && !m_isFilesDefaulted && (hasFsA || hasFsB))
+    {
+        m_session.context.isFilesOverlay = true;
+        m_isFilesDefaulted               = true;
+    }
 }
 
 
@@ -374,15 +706,31 @@ void ComparisonPart::SyncSideB()
         if (m_modelBDisk != b.mediaId)
         {
             m_session.modelB.SetDisk (b.mediaId);
-            m_modelBDisk = b.mediaId;
-            m_linkStartB = -1.0;
+            m_modelBDisk  = b.mediaId;
+            m_modelBTrack = nullptr;
+            m_linkStartB  = -1.0;
+            m_session.modelB.SetAnalysis (&b);
         }
 
-        m_session.modelB.SetAnalysis (&b);
+        //  Only when B's analysis of the track changes: taking it again
+        //  every frame would select B's first sector whenever B has nothing
+        //  selected, as when it lacks A's sector, and A would follow.
+        if (m_session.modelB.GetTrack() != m_modelBTrack)
+        {
+            m_session.modelB.SetAnalysis (&b);
+            m_modelBTrack = m_session.modelB.GetTrack();
+        }
 
+        //  B follows A to a new track. The selection that comes with the new
+        //  track on B is not one made on B, so A's selection leads.
         if (m_session.modelB.GetQuarterTrack() != qt)
         {
             m_session.modelB.SelectQuarterTrack (qt);
+            m_modelBTrack = m_session.modelB.GetTrack();
+            m_linkedSecB  = m_session.modelB.GetSectorIndex();
+            m_linkedSelB  = { m_session.modelB.GetFirstNibble(), m_session.modelB.GetNibbleCount() };
+            m_linkedSecA  = -2;
+            m_linkedSelA  = { -2, -2 };
         }
 
         trackB = m_session.modelB.GetTrack();
@@ -391,13 +739,15 @@ void ComparisonPart::SyncSideB()
     if (trackA != m_diffsOfA || trackB != m_diffsOfB)
     {
         m_nibbleDiffs.clear();
-        m_bOffset = 0.0;
+        m_bOffset  = 0.0;
+        m_rotation = 0;
 
         if (trackA != nullptr && trackB != nullptr && !trackA->framed.nibbles.empty() && !trackB->framed.nibbles.empty())
         {
             DiskComparer::ListNibbles (*trackA, *trackB, qt, m_nibbleDiffs);
 
-            rotation  = DiskComparer::Align (*trackA, *trackB);
+            rotation   = DiskComparer::Align (*trackA, *trackB);
+            m_rotation = rotation;
             m_bOffset = TrackAnalyzer::GetAngle (*trackB, trackB->framed.nibbles[static_cast<size_t> (rotation) % trackB->framed.nibbles.size()].startCell) -
                         TrackAnalyzer::GetAngle (*trackA, trackA->framed.nibbles[0].startCell);
         }
@@ -426,9 +776,159 @@ void ComparisonPart::SyncSideB()
 
         m_linkStartB = m_session.modelB.GetStripStart();
         m_linkSpanB  = m_session.modelB.GetStripSpan();
+
+        LinkSelections (trackA, trackB);
     }
 
     m_stripB.SetVisible (isShown);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComparisonPart::LinkSelections
+//
+//  A run of nibbles selected in either strip is selected in the other at
+//  the aligned nibbles, the strip changed since the last frame leading.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ComparisonPart::LinkSelections (const TrackAnalysis * trackA, const TrackAnalysis * trackB)
+{
+    InspectorViewModel &  a      = m_session.model;
+    InspectorViewModel &  b      = m_session.modelB;
+    int                   qt     = a.GetQuarterTrack();
+    int                   sizeA  = (trackA != nullptr) ? static_cast<int> (trackA->framed.nibbles.size()) : 0;
+    int                   sizeB  = (trackB != nullptr) ? static_cast<int> (trackB->framed.nibbles.size()) : 0;
+    std::pair<int, int>   selA   = { a.GetFirstNibble(), a.GetNibbleCount() };
+    std::pair<int, int>   selB   = { b.GetFirstNibble(), b.GetNibbleCount() };
+    bool                  isB    = false;
+    int                   sector = -1;
+
+
+
+    //  The selected sector, by its number, the side changed since the last
+    //  frame leading. A side without that sector has nothing selected, so no
+    //  other sector looks like the match. A run of nibbles is linked by its
+    //  nibbles below instead: selecting the whole sector on the other side
+    //  would move both strips to the sector's start.
+    if (trackA != nullptr && trackB != nullptr && b.GetSectorIndex() != m_linkedSecB && b.GetSector() != nullptr && b.GetNibbleCount() == 0)
+    {
+        sector = FindSector (*trackA, b.GetSector()->sector);
+
+        if (sector >= 0)
+        {
+            a.SelectSector (qt, sector);
+        }
+        else
+        {
+            a.ClearSelection();
+        }
+
+        isB = true;
+    }
+    else if (trackA != nullptr && trackB != nullptr && a.GetSectorIndex() != m_linkedSecA && a.GetSector() != nullptr && a.GetNibbleCount() == 0)
+    {
+        sector = FindSector (*trackB, a.GetSector()->sector);
+
+        if (sector >= 0)
+        {
+            b.SelectSector (qt, sector);
+        }
+        else
+        {
+            b.ClearSelection();
+        }
+    }
+
+    if (sizeA > 0 && sizeB > 0 && selB != m_linkedSelB && selB.second > 0)
+    {
+        a.SelectNibbles (qt, ((selB.first - m_rotation) % sizeA + sizeA) % sizeA, std::min (selB.second, sizeA));
+        isB = true;
+    }
+    else if (sizeA > 0 && sizeB > 0 && selA != m_linkedSelA && selA.second > 0)
+    {
+        b.SelectNibbles (qt, (selA.first + m_rotation) % sizeB, std::min (selA.second, sizeB));
+    }
+
+    //  Recorded after the nibbles are linked: a sector that linking the
+    //  nibbles selects on the other side is not a selection made there.
+    m_linkedSecA = a.GetSectorIndex();
+    m_linkedSecB = b.GetSectorIndex();
+    m_linkedSelA = { a.GetFirstNibble(), a.GetNibbleCount() };
+    m_linkedSelB = { b.GetFirstNibble(), b.GetNibbleCount() };
+
+    //  A selection made on B's strip is shown on A's views, and the platter
+    //  flies to it as it does for one made on A's strip.
+    if (isB)
+    {
+        m_linkedSecA = a.GetSectorIndex();
+        m_host.OnSelection();
+        a.StartFlight (InspectorMarquee::GetClockMs());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComparisonPart::ShowSelectionOnStrip
+//
+//  The strip centered on the selection, zoomed so it fills kStripFill of
+//  the strip, but no further in than the mouse wheel zooms.
+//  B's strip follows A's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ComparisonPart::ShowSelectionOnStrip()
+{
+    InspectorViewModel &  a     = m_session.model;
+    double                end   = 0;
+    double                start = a.GetSelectionTurn (end);
+    double                span  = 0;
+
+
+
+    if (start < 0)
+    {
+        return;
+    }
+
+    end  = (end < start) ? end + 1.0 : end;
+    span = std::max ((end - start) / s_kStripFill, m_session.views.strip->GetMinSpan());
+    a.SetStrip ((start + end) / 2 - span / 2, span);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComparisonPart::FindSector
+//
+//  The index of the track's sector with this number, or -1.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ComparisonPart::FindSector (const TrackAnalysis & track, int sector)
+{
+    int  found = -1;
+    int  i     = 0;
+
+
+
+    for (i = 0; found < 0 && i < static_cast<int> (track.sectors.size()); i++)
+    {
+        found = (track.sectors[i].sector == sector) ? i : -1;
+    }
+
+    return found;
 }
 
 
@@ -519,8 +1019,18 @@ void ComparisonPart::StartComparison (const ComparisonSource & a, const Comparis
 
 
 
-    m_session.sourceA = a;
-    m_diffIndex       = -1;
+    if (!m_session.comparison.IsComparing())
+    {
+        MaximizeForCompare();
+    }
+
+    m_session.sourceA                = a;
+    m_session.context.isDiffsOverlay = true;
+    m_diffIndex                      = -1;
+    m_focusedSide                    = ComparisonSession::kSideA;
+    m_isFilesDefaulted               = false;
+    m_isFirstShown                   = false;
+    m_isSectorsNoted                 = false;
 
     m_session.comparison.Begin (a, b, !isSame && !isWindowA, m_session.analysis.settings, *m_session.host);
 
@@ -556,7 +1066,10 @@ void ComparisonPart::StopComparing()
     m_session.context.comparison = nullptr;
     m_session.context.analysisB  = nullptr;
     m_diffIndex                  = -1;
+    m_cursorX                    = -1.0f;
     m_session.isTablesDirty      = true;
+
+    RestoreAfterCompare();
 
     if (!isOwn)
     {
@@ -564,6 +1077,59 @@ void ComparisonPart::StopComparing()
     }
 
     m_host.ShowDiskTab (m_session.diskTab == kTabDifferences ? kTabTracks : m_session.diskTab);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComparisonPart::MaximizeForCompare
+//
+//  A comparison has two of everything on screen, so the window is maximized while
+//  it lasts. A window that was maximized already is left as it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ComparisonPart::MaximizeForCompare()
+{
+    HWND  hwnd = m_host.GetOwnerHwnd();
+
+
+
+    if (hwnd != nullptr && !IsZoomed (hwnd))
+    {
+        ShowWindow (hwnd, SW_MAXIMIZE);
+        m_isMaximizedHere = true;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComparisonPart::RestoreAfterCompare
+//
+//  The window returns to its size from before the comparison, unless the
+//  user restored or resized it in the meantime.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ComparisonPart::RestoreAfterCompare()
+{
+    HWND  hwnd = m_host.GetOwnerHwnd();
+
+
+
+    if (m_isMaximizedHere && hwnd != nullptr && IsZoomed (hwnd))
+    {
+        ShowWindow (hwnd, SW_RESTORE);
+    }
+
+    m_isMaximizedHere = false;
 }
 
 
@@ -580,15 +1146,38 @@ void ComparisonPart::StopComparing()
 
 void ComparisonPart::SwapSides()
 {
-    int  slot = 0;
+    int                 slot   = 0;
+    InspectorSelection  selA   = m_session.model.GetSelection();
+    InspectorSelection  selB   = m_session.modelB.GetSelection();
+    double              startA = m_session.model.GetStripStart();
+    double              spanA  = m_session.model.GetStripSpan();
+    double              startB = m_session.modelB.GetStripStart();
+    double              spanB  = m_session.modelB.GetStripSpan();
 
 
 
     m_session.comparison.Swap (m_session.analysis, m_session.scheduler, m_session.sourceA);
 
+    //  Each side's view moves to the other image, so the zoom, the track and
+    //  the place on it remain where they were.
     m_session.context.hasDisk = m_session.analysis.copy != nullptr;
-    m_session.model.SetDisk     (m_session.analysis.mediaId);
+    m_session.model.Rebind      (m_session.analysis.mediaId);
     m_session.model.SetAnalysis (m_session.context.hasDisk ? &m_session.analysis : nullptr);
+    m_session.model.SetStrip    (startB, spanB);
+    m_session.model.RestoreSelection (selB);
+
+    m_modelBDisk = m_session.comparison.GetB().mediaId;
+    m_session.modelB.Rebind      (m_modelBDisk);
+    m_session.modelB.SetAnalysis (&m_session.comparison.GetB());
+    m_session.modelB.SetStrip    (startA, spanA);
+    m_session.modelB.RestoreSelection (selA);
+
+    std::swap (m_linkedSelA, m_linkedSelB);
+    std::swap (m_linkedSecA, m_linkedSecB);
+    m_focusedSide = 1 - m_focusedSide;
+    m_diffsOfA    = nullptr;
+    m_diffsOfB    = nullptr;
+
     m_session.levels.fill (nullptr);
     m_session.timingLevels.fill (nullptr);
     m_session.edgeLevels.fill (nullptr);
@@ -599,7 +1188,6 @@ void ComparisonPart::SwapSides()
         m_session.changedSlots.insert (slot);
     }
 
-    m_diffIndex             = -1;
     m_session.isTablesDirty = true;
 }
 
@@ -626,7 +1214,7 @@ void ComparisonPart::OpenBSettings()
 
     dialog.Configure (m_session.theme, m_session.comparison.GetB().settings, m_session.model.GetQuarterTrack() / DiskImage::kQuarterTracksPerWholeTrack);
 
-    params.title                    = L"B's decode settings";
+    params.title                    = L"Decode settings for " + GetImageName (ComparisonSession::kSideB);
     params.hInstance                = GetModuleHandle (nullptr);
     params.ownerHwnd                = m_host.GetOwnerHwnd();
     params.initialSizeDip           = DecodeSettingsDialog::kSizeDip;
@@ -697,7 +1285,9 @@ void ComparisonPart::SelectDifference (const Difference & difference)
 {
     const TrackAnalysis *  track  = nullptr;
     const FileMap *        map    = m_session.GetFileMap();
+    const TrackAnalysis *  trackB = nullptr;
     int                    sector = -1;
+    int                    orphan = -1;
     int                    file   = -1;
     size_t                 i      = 0;
 
@@ -715,16 +1305,45 @@ void ComparisonPart::SelectDifference (const Difference & difference)
             sector = (track->sectors[i].sector == difference.sector) ? static_cast<int> (i) : -1;
         }
 
-        if (difference.firstNibbleA >= 0 && difference.nibbleCountA > 0)
+        //  A sector this image lacks: its data field with no address field,
+        //  when one is most likely that sector.
+        for (int f : (track != nullptr && sector < 0 && difference.sector >= 0) ? OrphanFields::Find (*track) : vector<int>())
         {
-            m_session.model.SelectNibbles (difference.quarterTrack, difference.firstNibbleA, difference.nibbleCountA);
+            orphan = (orphan < 0 && OrphanFields::GuessSector (*track, f) == difference.sector) ? f : orphan;
+        }
+
+        //  Nibbles only in the other image select the nibble they come before.
+        if (difference.firstNibbleA >= 0)
+        {
+            m_session.model.SelectNibbles (difference.quarterTrack, difference.firstNibbleA, std::max (difference.nibbleCountA, 1));
         }
         else if (sector >= 0)
         {
             m_session.model.SelectSector (difference.quarterTrack, sector);
         }
+        else if (orphan >= 0)
+        {
+            m_session.model.SelectNibbles (difference.quarterTrack, track->fields[static_cast<size_t> (orphan)].firstNibble, track->fields[static_cast<size_t> (orphan)].nibbleCount);
+        }
+        else if (difference.sector >= 0)
+        {
+            //  Neither: the other image's sector, which A's views follow.
+            m_session.modelB.SelectQuarterTrack (difference.quarterTrack);
+            trackB = m_session.modelB.GetTrack();
+
+            for (i = 0; trackB != nullptr && i < trackB->sectors.size(); i++)
+            {
+                if (trackB->sectors[i].sector == difference.sector)
+                {
+                    m_session.modelB.SelectSector (difference.quarterTrack, static_cast<int> (i));
+                    break;
+                }
+            }
+        }
 
         m_host.OnSelection();
+        m_session.model.StartFlight (InspectorMarquee::GetClockMs());
+        ShowSelectionOnStrip();
     }
     else if (!difference.path.empty() && map != nullptr)
     {
@@ -754,34 +1373,132 @@ void ComparisonPart::SelectDifference (const Difference & difference)
 //
 //  ComparisonPart::PaintComparisonBar
 //
-//  A's and B's sources and the names of their files (FR-121), with the reason
-//  a side could not be read in place of its file's name.
+//  "Comparing <left> [swap] <right>" (FR-121), with the reason an image
+//  could not be read in place of its file name. The side with focus is in
+//  bold. The swap button sits between the two names.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ComparisonPart::PaintComparisonBar (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    float             margin = m_session.scaler.ToPxf (static_cast<float> (InspectorMetrics::kMarginDip));
-    float             left   = static_cast<float> (m_barPx.left) + margin;
-    float             right  = static_cast<float> (m_prevDiff->GetBounds().left) - margin;
-    float             half   = std::max (0.0f, (right - left) / 2.0f);
-    float             height = static_cast<float> (m_barPx.bottom - m_barPx.top);
-    const DiskCopy  * copyB  = m_session.comparison.GetB().copy.get();
-    bool              isFile = m_session.host->GetDriveCount() == 0;
-    std::wstring      nameB  = (copyB != nullptr) ? std::filesystem::path (TextEncoding::Utf8ToWide (copyB->fileName)).filename().wstring() : std::wstring();
-    std::wstring   sideA  = std::format (L"A  {}  {}  {}", ComparisonText::FormatSource (m_session.comparison.GetSourceA(), isFile), s_kpszMiddleDot,
-                                         m_session.context.hasDisk ? m_session.GetFileName() : m_session.comparison.GetAError());
-    std::wstring   sideB  = std::format (L"B  {}  {}  {}", ComparisonText::FormatSource (m_session.comparison.GetSourceB(), isFile), s_kpszMiddleDot,
-                                         m_session.comparison.GetBError().empty() ? (nameB.empty() ? std::wstring (s_kpszAnalyzing) : nameB) : m_session.comparison.GetBError());
+    float         margin   = m_session.scaler.ToPxf (static_cast<float> (InspectorMetrics::kMarginDip));
+    float         gap      = margin / 2.0f;
+    float         x        = static_cast<float> (m_barPx.left) + margin;
+    float         top      = static_cast<float> (m_barPx.top);
+    float         height   = static_cast<float> (m_barPx.bottom - m_barPx.top);
+    float         size     = m_session.scaler.ToPxf (InspectorView::kTextDip);
+    float         button   = height - margin;
+    float         stepW    = m_session.scaler.ToPxf (static_cast<float> (s_kBarButtonDip));
+    std::wstring  errors[] = { m_session.context.hasDisk ? std::wstring() : m_session.comparison.GetAError(), m_session.comparison.GetBError() };
+    std::wstring  names[2];
+    float         w        = 0.0f;
+    float         h        = 0.0f;
+    float         slotW    = 0.0f;
+    float         left     = 0.0f;
+    int           side     = 0;
 
 
 
-    painter.FillRect (static_cast<float> (m_barPx.left), static_cast<float> (m_barPx.top), static_cast<float> (m_barPx.right - m_barPx.left), height,
-                      theme.SelectionBackground());
+    painter.FillRect (static_cast<float> (m_barPx.left), top, static_cast<float> (m_barPx.right - m_barPx.left), height, theme.SelectionBackground());
 
-    text.DrawString (sideA.c_str(), left, static_cast<float> (m_barPx.top), half, height, theme.Foreground(), m_session.scaler.ToPxf (InspectorView::kTextDip),
-                     DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-    text.DrawString (sideB.c_str(), left + half, static_cast<float> (m_barPx.top), half, height,
-                     m_session.comparison.GetBError().empty() ? theme.Foreground() : theme.ErrorForeground(), m_session.scaler.ToPxf (InspectorView::kTextDip),
-                     DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    (void) text.MeasureString (s_kpszComparing, size, DxuiTheme::kBodyFace, w, h);
+    text.DrawString (s_kpszComparing, x, top, w + 1.0f, height, theme.Foreground(), size, DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    x += w + gap;
+
+    //  Both names get a slot as wide as the wider one in bold, so a swap
+    //  moves neither the swap button nor the difference buttons.
+    for (side = 0; side < 2; side++)
+    {
+        names[side] = errors[side].empty() ? GetImageName (side) : errors[side];
+        names[side] = names[side].empty() ? std::wstring (s_kpszAnalyzing) : names[side];
+
+        (void) text.MeasureStringWeighted (names[side].c_str(), size, DxuiTheme::kBodyFace, DxuiFontWeight::Bold, w, h);
+        slotW = std::max (slotW, w);
+    }
+
+    for (side = 0; side < 2; side++)
+    {
+        DxuiFontWeight  weight = (side == m_focusedSide) ? DxuiFontWeight::Bold : DxuiFontWeight::Normal;
+
+        (void) text.MeasureStringWeighted (names[side].c_str(), size, DxuiTheme::kBodyFace, weight, w, h);
+
+        left = (side == ComparisonSession::kSideA) ? x + slotW - w : x;
+
+        text.DrawString (names[side].c_str(), left, top, w + 1.0f, height, errors[side].empty() ? theme.Foreground() : theme.ErrorForeground(), size,
+                         DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, weight, false);
+
+        m_labelPx[side] = { static_cast<LONG> (left), m_barPx.top, static_cast<LONG> (left + w), m_barPx.bottom };
+        x              += slotW + margin * 1.5f;
+
+        if (side == ComparisonSession::kSideA)
+        {
+            m_swapButton->Layout ({ static_cast<LONG> (x), static_cast<LONG> (top + margin / 2.0f), static_cast<LONG> (x + button * 1.5f), static_cast<LONG> (top + margin / 2.0f + button) },
+                                  m_session.scaler);
+            x += button * 1.5f + margin * 1.5f;
+        }
+    }
+
+    //  The difference buttons follow the right image's name.
+    for (DxuiButton * step : { m_prevDiff, m_nextDiff })
+    {
+        step->Layout ({ static_cast<LONG> (x), static_cast<LONG> (top + margin / 2.0f), static_cast<LONG> (x + stepW), static_cast<LONG> (top + margin / 2.0f + button) }, m_session.scaler);
+        x += stepW + gap;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComparisonPart::GetPath
+//
+//  The full path of a side's image, or its source's path before it is
+//  read; empty for a drive whose disk isn't read yet.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ComparisonPart::GetPath (int side) const
+{
+    const DiskCopy *          copy   = (side == ComparisonSession::kSideA) ? (m_session.context.hasDisk ? m_session.analysis.copy.get() : nullptr)
+                                                                          : m_session.comparison.GetB().copy.get();
+    const ComparisonSource &  source = (side == ComparisonSession::kSideA) ? m_session.comparison.GetSourceA() : m_session.comparison.GetSourceB();
+
+
+
+    return (copy != nullptr && !copy->fileName.empty()) ? TextEncoding::Utf8ToWide (copy->fileName) : source.path;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComparisonPart::GetImageName
+//
+//  A side's name in the comparison's text once there is a result, its file
+//  name before.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ComparisonPart::GetImageName (int side) const
+{
+    return m_session.comparison.HasResult() ? m_session.comparison.GetResult().names.Get (side) : GetLeafName (GetPath (side));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComparisonPart::GetLeafName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ComparisonPart::GetLeafName (const std::wstring & path)
+{
+    return std::filesystem::path (path).filename().wstring();
 }

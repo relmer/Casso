@@ -92,7 +92,7 @@ void BlockInspectorPanel::Init (BlockInspectorModel * model, BlockInspectorWorke
     InitCorners();
     InitRightColumn (theme, hwnd);
 
-    m_notice = CreateChild<DxuiInfoBanner>();
+    m_notice = CreateChild<DxuiInfoBar>();
     m_notice->SetVisible  (false);
     m_notice->SetOnAction ([this] (size_t)
     {
@@ -134,7 +134,7 @@ void BlockInspectorPanel::SetNotice (const std::wstring & text, bool isBad, bool
 
     m_notice->SetText     (text);
     m_notice->SetVisible  (!text.empty());
-    m_notice->SetSeverity (isBad ? DxuiInfoBanner::Severity::Error : DxuiInfoBanner::Severity::Warning);
+    m_notice->SetSeverity (isBad ? DxuiInfoBar::Severity::Error : DxuiInfoBar::Severity::Warning);
     m_notice->SetActions  (canRepair ? vector<std::wstring> { L"Repair..." } : vector<std::wstring>());
 
     Layout (GetBounds(), m_scaler);

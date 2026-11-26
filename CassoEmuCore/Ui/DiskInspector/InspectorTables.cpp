@@ -20,6 +20,7 @@
 //  An em dash stands for a value that does not apply.
 static constexpr LPCWSTR  s_kpszNone = s_kpszEmDash;
 static constexpr LPCWSTR  s_kpszChanged = L", changed since the file was read";
+static constexpr size_t   s_kMaxAlignTable = 4'000'000;
 
 enum FindingColumn
 {
@@ -208,6 +209,7 @@ vector<TableRow> InspectorTables::BuildFindings (const DiskAnalysis & analysis, 
         row.quarterTrack = f.quarterTrack;
         row.field        = f.field;
         row.finding      = static_cast<int> (i);
+        row.sector       = f.sector;
         row.severity     = static_cast<int> (FindingFormatter::GetSeverity (f));
         row.cells        = { FindingFormatter::FormatSeverity (FindingFormatter::GetSeverity (f)),
                              FindingFormatter::Format (f),
@@ -237,6 +239,104 @@ vector<TableRow> InspectorTables::BuildFindings (const DiskAnalysis & analysis, 
     }
 
     return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorTables::AlignFindings
+//
+//  The longest run of findings both lists have in the same order stays
+//  paired; the rest each get a blank row across from them. Lists too long
+//  for that table are paired in order by a merge on the keys instead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorTables::AlignFindings (vector<TableRow> & inOutA, vector<TableRow> & inOutB)
+{
+    const size_t      n     = inOutA.size();
+    const size_t      m     = inOutB.size();
+    vector<TableRow>  outA;
+    vector<TableRow>  outB;
+    size_t            i     = 0;
+    size_t            j     = 0;
+    TableRow          blank;
+
+
+
+    auto  isSame = [&] (size_t a, size_t b)
+    {
+        const vector<std::wstring> &  x = inOutA[a].cells;
+        const vector<std::wstring> &  y = inOutB[b].cells;
+
+        return x.size() > kFindingSector && y.size() > kFindingSector &&
+               std::equal (x.begin() + kFindingText, x.begin() + kFindingSector + 1, y.begin() + kFindingText);
+    };
+
+
+
+    blank.cells.assign (GetFindingColumns().size(), std::wstring());
+
+    if ((n + 1) * (m + 1) <= s_kMaxAlignTable)
+    {
+        vector<uint32_t>  lcs ((n + 1) * (m + 1), 0);
+
+        auto  at = [&] (size_t a, size_t b) -> uint32_t & { return lcs[a * (m + 1) + b]; };
+
+        for (size_t a = n; a-- > 0;)
+        {
+            for (size_t b = m; b-- > 0;)
+            {
+                at (a, b) = isSame (a, b) ? at (a + 1, b + 1) + 1 : std::max (at (a + 1, b), at (a, b + 1));
+            }
+        }
+
+        while (i < n || j < m)
+        {
+            if (i < n && j < m && isSame (i, j) && at (i, j) == at (i + 1, j + 1) + 1)
+            {
+                outA.push_back (std::move (inOutA[i++]));
+                outB.push_back (std::move (inOutB[j++]));
+            }
+            else if (j >= m || (i < n && at (i + 1, j) >= at (i, j + 1)))
+            {
+                outA.push_back (std::move (inOutA[i++]));
+                outB.push_back (blank);
+            }
+            else
+            {
+                outA.push_back (blank);
+                outB.push_back (std::move (inOutB[j++]));
+            }
+        }
+    }
+    else
+    {
+        while (i < n || j < m)
+        {
+            if (i < n && j < m && isSame (i, j))
+            {
+                outA.push_back (std::move (inOutA[i++]));
+                outB.push_back (std::move (inOutB[j++]));
+            }
+            else if (j >= m || (i < n && inOutA[i].severity >= inOutB[j].severity))
+            {
+                outA.push_back (std::move (inOutA[i++]));
+                outB.push_back (blank);
+            }
+            else
+            {
+                outA.push_back (blank);
+                outB.push_back (std::move (inOutB[j++]));
+            }
+        }
+    }
+
+    inOutA = std::move (outA);
+    inOutB = std::move (outB);
 }
 
 

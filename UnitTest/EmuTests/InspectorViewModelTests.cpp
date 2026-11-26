@@ -349,6 +349,39 @@ public:
 
 
 
+    //  The middle of the box around a sector's piece of its ring, whose
+    //  edges lie halfway to the rings either side.
+    static InspectorViewModel::Point GetSectorBoxMiddle (const InspectorViewModel & model, int quarterTrack, double start, double end)
+    {
+        double  left   = DBL_MAX;
+        double  top    = DBL_MAX;
+        double  right  = -DBL_MAX;
+        double  bottom = -DBL_MAX;
+
+
+
+        for (double turn : { start, end })
+        {
+            InspectorViewModel::Point  on = model.GetDiskPoint (quarterTrack, turn);
+
+            for (int side : { -1, 1 })
+            {
+                InspectorViewModel::Point  next = model.GetDiskPoint (quarterTrack + side, turn);
+                double                     x    = (on.x + next.x) / 2;
+                double                     y    = (on.y + next.y) / 2;
+
+                left   = std::min (left, x);
+                top    = std::min (top, y);
+                right  = std::max (right, x);
+                bottom = std::max (bottom, y);
+            }
+        }
+
+        return { (left + right) / 2, (top + bottom) / 2 };
+    }
+
+
+
     TEST_METHOD (AFlightGoesOutOnlyAsFarAsItMustThenInToTheSector)
     {
         DiskAnalysis               analysis;
@@ -385,13 +418,12 @@ public:
         Assert::IsTrue  (least >= 1.0, L"never past the whole disk");
         Assert::IsFalse (model.StepFlight (1000.0 + 2 * kLeg), L"landed");
 
-        start   = model.GetSelectionTurn (end);
-        end     = (end < start) ? end + 1.0 : end;
-        point.x = (model.GetDiskPoint (0, start).x + model.GetDiskPoint (0, end).x) / 2;
-        point.y = (model.GetDiskPoint (0, start).y + model.GetDiskPoint (0, end).y) / 2;
+        start = model.GetSelectionTurn (end);
+        end   = (end < start) ? end + 1.0 : end;
+        point = GetSectorBoxMiddle (model, 0, start, end);
 
         Assert::IsTrue (model.GetZoom() > 1.0, L"zoomed in on the sector");
-        Assert::IsTrue (std::abs (point.x) < 1e-6 && std::abs (point.y) < 1e-6, L"its chord's middle at the center, on the outermost ring");
+        Assert::IsTrue (std::abs (point.x) < 1e-6 && std::abs (point.y) < 1e-6, L"the middle of its piece of the ring at the center, on the outermost ring");
 
         model.StartFlight (5000.0);
         model.PanBy ({ 0.1, 0.0 });

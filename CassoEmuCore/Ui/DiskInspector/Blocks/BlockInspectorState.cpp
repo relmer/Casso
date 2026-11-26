@@ -2,6 +2,7 @@
 
 #include "Core/NumberFormat.h"
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
+#include "Ui/DiskInspector/Blocks/BlockHeaderText.h"
 #include "Ui/DiskInspector/Blocks/BlockHeaderView.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorState.h"
 #include "Ui/DiskInspector/InspectorText.h"
@@ -60,6 +61,7 @@ BlockEditState BlockInspectorState::BuildEditState (const BlockInspectorModel & 
     state.isEditing   = isEditing;
     state.canUndo     = isOpen && state.blockBytes > 0;
     state.canUseOther = isOpen && model.IsComparing() && model.IsDifferent (block);
+    state.otherName   = BlockHeaderText::GetOtherName (model);
     state.note        = note;
 
     return state;

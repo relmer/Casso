@@ -6,11 +6,12 @@
 
 
 
-static constexpr int      s_kToggleDip    = 96;
-static constexpr int      s_kOptionDip    = 196;
-static constexpr int      s_kToggleGapDip = 4;
+static constexpr float    s_kPillPadDip   = 12.0f;
+static constexpr float    s_kToggleGapDip = 6.0f;
 static constexpr float    s_kToggleHDip   = 22.0f;
-static constexpr LPCWSTR  s_kpszOptions[] = { L"Ignore sync widths and counts", L"Ignore volume numbers", L"Ignore dates" };
+static constexpr LPCWSTR  s_kpszShow      = L"Show";
+static constexpr LPCWSTR  s_kpszIgnore    = L"Ignore";
+static constexpr LPCWSTR  s_kpszOptions[] = { L"Sync widths and counts", L"Volume numbers", L"Dates" };
 
 
 
@@ -43,7 +44,8 @@ DifferencesView::DifferencesView (InspectorViewContext & context, ComparisonSess
 void DifferencesView::Refresh()
 {
     m_counts = ComparisonText::CountGroups (m_session.GetListed());
-    SetRows (ComparisonText::BuildRows (m_session.GetListed(), m_mask, m_sortColumn, m_isDescending));
+    SetRows (ComparisonText::BuildRows (m_session.GetListed(), m_mask, m_sortColumn, m_isDescending,
+                                        m_session.HasResult() ? m_session.GetResult().names : SideNames()));
 }
 
 
@@ -132,7 +134,7 @@ bool DifferencesView::OnMouse (const DxuiMouseEvent & ev)
 
 int DifferencesView::GetTopHeightPx() const
 {
-    return m_scaler.ToPx (2 * kRowDip);
+    return (m_topHeightPx > 0) ? m_topHeightPx : m_scaler.ToPx (2 * kRowDip);
 }
 
 
@@ -143,9 +145,9 @@ int DifferencesView::GetTopHeightPx() const
 //
 //  DifferencesView::PaintTop
 //
-//  A toggle per group that has differences, with its count, one filtered
-//  out drawn without its fill; with none, a line says so. Below, the three
-//  options, each filled while on.
+//  After "Show", a filter pill per group that has differences, with its
+//  count, one filtered out drawn without its fill; with none, a line in
+//  their place. After "Ignore", the three options, each filled while on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -158,6 +160,15 @@ void DifferencesView::PaintTop (IDxuiPainter & painter, IDxuiTextRenderer & text
     std::wstring  label;
 
 
+
+    FlowPills (text);
+
+    auto  paintLabel = [&] (const RECT & rect, LPCWSTR caption)
+    {
+        text.DrawString (caption, static_cast<float> (rect.left), static_cast<float> (rect.top), static_cast<float> (rect.right - rect.left),
+                         static_cast<float> (rect.bottom - rect.top), theme.ForegroundMuted(), m_scaler.ToPxf (kSmallDip), DxuiTheme::kBodyFace,
+                         DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    };
 
     auto  paintToggle = [&] (const RECT & rect, const std::wstring & caption, bool isFilled)
     {
@@ -179,18 +190,24 @@ void DifferencesView::PaintTop (IDxuiPainter & painter, IDxuiTextRenderer & text
         if (m_counts[i] > 0)
         {
             isOn  = (m_mask & (1u << i)) != 0;
-            label = std::format (L"{} {}", ComparisonText::FormatGroup (i), m_counts[i]);
+            label = ComparisonText::FormatGroup (i, m_counts[i]);
             paintToggle (GetToggleRect (i), label, isOn);
         }
     }
 
-    if (total == 0)
+    if (total > 0)
+    {
+        paintLabel (m_showLabel, s_kpszShow);
+    }
+    else
     {
         r = { top.left, top.top, top.right, top.top + m_scaler.ToPx (kRowDip) };
         text.DrawString (m_session.IsBusy() ? L"Comparing" : L"No differences", static_cast<float> (r.left), static_cast<float> (r.top),
                          static_cast<float> (r.right - r.left), static_cast<float> (r.bottom - r.top), theme.ForegroundMuted(), m_scaler.ToPxf (kTextDip),
                          DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     }
+
+    paintLabel (m_ignoreLabel, s_kpszIgnore);
 
     for (i = 0; i < kOptionCount; i++)
     {
@@ -225,55 +242,82 @@ void DifferencesView::OnSort (int column)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DifferencesView::GetToggleRect
+//  DifferencesView::FlowPills
 //
-//  Toggles sit left to right in group order, skipping empty ones.
+//  Each pill as wide as its caption, left to right after its row's label,
+//  wrapping under the first pill when the next doesn't fit. The labels
+//  share a width, so both rows of pills start at one edge. When the rows
+//  take a different height, the list is laid out again below them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-RECT DifferencesView::GetToggleRect (int group) const
+void DifferencesView::FlowPills (IDxuiTextRenderer & text)
 {
-    int  w     = m_scaler.ToPx (s_kToggleDip);
-    int  gap   = m_scaler.ToPx (s_kToggleGapDip);
-    int  h     = m_scaler.ToPx (static_cast<int> (s_kToggleHDip));
-    int  shown = 0;
-    int  i     = 0;
-    int  left  = 0;
-    int  top   = m_boundsDip.top + (m_scaler.ToPx (kRowDip) - h) / 2;
+    int    rowH   = m_scaler.ToPx (kRowDip);
+    int    h      = m_scaler.ToPx (static_cast<int> (s_kToggleHDip));
+    int    gap    = m_scaler.ToPx (static_cast<int> (s_kToggleGapDip));
+    int    pad    = m_scaler.ToPx (static_cast<int> (s_kPillPadDip));
+    float  textPx = m_scaler.ToPxf (kSmallDip);
+    float  w      = 0;
+    float  unused = 0;
+    int    indent = 0;
+    int    x      = 0;
+    int    row    = 0;
+    int    height = 0;
 
 
 
-    for (i = 0; i < group; i++)
+    auto  measure = [&] (const std::wstring & caption)
     {
-        shown += (m_counts[i] > 0) ? 1 : 0;
+        w = 0;
+        text.MeasureString (caption.c_str(), textPx, DxuiTheme::kBodyFace, w, unused);
+        return static_cast<int> (std::ceil (w));
+    };
+
+    auto  place = [&] (int width)
+    {
+        if (x > indent && x + width > m_boundsDip.right)
+        {
+            x = indent;
+            row++;
+        }
+
+        RECT  r = { x, m_boundsDip.top + row * rowH + (rowH - h) / 2, x + width, m_boundsDip.top + row * rowH + (rowH - h) / 2 + h };
+
+        x += width + gap;
+        return r;
+    };
+
+    indent = m_boundsDip.left + std::max (measure (s_kpszShow), measure (s_kpszIgnore)) + 2 * gap;
+
+    x            = indent;
+    m_showLabel  = { m_boundsDip.left, m_boundsDip.top, indent, m_boundsDip.top + rowH };
+    m_groupRects = {};
+
+    for (int i = 0; i < ComparisonText::kGroupCount; i++)
+    {
+        if (m_counts[i] > 0)
+        {
+            m_groupRects[i] = place (measure (ComparisonText::FormatGroup (i, m_counts[i])) + 2 * pad);
+        }
     }
 
-    left = m_boundsDip.left + shown * (w + gap);
+    x = indent;
+    row++;
+    m_ignoreLabel = { m_boundsDip.left, m_boundsDip.top + row * rowH, indent, m_boundsDip.top + (row + 1) * rowH };
 
-    return { left, top, left + w, top + h };
-}
+    for (int i = 0; i < kOptionCount; i++)
+    {
+        m_optionRects[i] = place (measure (s_kpszOptions[i]) + 2 * pad);
+    }
 
+    height = (row + 1) * rowH;
 
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DifferencesView::GetOptionRect
-//
-////////////////////////////////////////////////////////////////////////////////
-
-RECT DifferencesView::GetOptionRect (int option) const
-{
-    int  w    = std::min (m_scaler.ToPx (s_kOptionDip), static_cast<int> (m_boundsDip.right - m_boundsDip.left) / kOptionCount - m_scaler.ToPx (s_kToggleGapDip));
-    int  gap  = m_scaler.ToPx (s_kToggleGapDip);
-    int  h    = m_scaler.ToPx (static_cast<int> (s_kToggleHDip));
-    int  top  = m_boundsDip.top + m_scaler.ToPx (kRowDip) + (m_scaler.ToPx (kRowDip) - h) / 2;
-    int  left = m_boundsDip.left + option * (w + gap);
-
-
-
-    return { left, top, left + w, top + h };
+    if (height != m_topHeightPx)
+    {
+        m_topHeightPx = height;
+        InspectorTableView::Layout (m_boundsDip, m_scaler);
+    }
 }
 
 

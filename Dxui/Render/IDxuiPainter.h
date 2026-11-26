@@ -137,6 +137,34 @@ public:
                                              float hole, float rim, uint32_t argbColor)
     { (void) x0; (void) y0; (void) planeToScreen; (void) bx; (void) by; (void) r0; (void) r1; (void) hole; (void) rim; (void) argbColor; }
 
+    // A stretch of a ring on a disk tilted back by `tilt` about its
+    // horizontal diameter and seen from eyePx away: the points between radii
+    // r0 and r1, at angles from angle0 to angle1 clockwise from straight up,
+    // no more than a quarter turn apart. (cxPx, cyPx) is the disk's center on
+    // screen; radii are in the disk's untilted pixels. The curve is exact,
+    // computed per pixel. hardEdges marks edges drawn with no antialiasing,
+    // so stretches that abut there tile with no seam: 1 the start, 2 the end,
+    // 4 the inner radius, 8 the outer.
+    virtual void  FillRingSector    (float cxPx, float cyPx, float eyePx, float tilt, float r0, float r1, double angle0, double angle1,
+                                     int hardEdges, uint32_t argbColor)
+    { (void) cxPx; (void) cyPx; (void) eyePx; (void) tilt; (void) r0; (void) r1; (void) angle0; (void) angle1; (void) hardEdges; (void) argbColor; }
+
+    // A line along a circle of the same tilted disk: the points within
+    // thicknessPx / 2 screen pixels of radius r on screen, at angles from
+    // angle0 to angle1 as FillRingSector takes them. Its width is even all
+    // the way around, however far the disk is tilted. hardEnds is bits 1
+    // and 2 of FillRingSector's hardEdges.
+    virtual void  StrokeRingSector  (float cxPx, float cyPx, float eyePx, float tilt, float r, float thicknessPx, double angle0, double angle1,
+                                     int hardEnds, uint32_t argbColor)
+    { (void) cxPx; (void) cyPx; (void) eyePx; (void) tilt; (void) r; (void) thicknessPx; (void) angle0; (void) angle1; (void) hardEnds; (void) argbColor; }
+
+    // A band of light at 45 degrees over the ring sectors filled after it:
+    // each pixel's share of the color is a function of its distance from
+    // the band's center along (x + y): a bell curve widthPx wide falling to
+    // baseShare. A width of 0 turns it off.
+    virtual void  SetShimmerBand    (float centerPx, float widthPx, float baseShare)
+    { (void) centerPx; (void) widthPx; (void) baseShare; }
+
     virtual void  FillEllipse       (float cxPx, float cyPx,
                                      float radiusXPx, float radiusYPx,
                                      uint32_t argbColor)

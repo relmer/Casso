@@ -42,8 +42,9 @@ protected:
 
 private:
     void  OnSort        (int column);
-    RECT  GetToggleRect (int group) const;
-    RECT  GetOptionRect (int option) const;
+    void  FlowPills     (IDxuiTextRenderer & text);
+    RECT  GetToggleRect (int group) const { return m_groupRects[group]; }
+    RECT  GetOptionRect (int option) const { return m_optionRects[option]; }
     bool  IsOptionOn    (int option) const;
     void  ToggleOption  (int option);
 
@@ -54,4 +55,9 @@ private:
     int                                               m_sortColumn   = -1;
     bool                                              m_isDescending = false;
     std::array<int, ComparisonText::kGroupCount>      m_counts       = {};
+    std::array<RECT, ComparisonText::kGroupCount>     m_groupRects   = {};
+    std::array<RECT, kOptionCount>                    m_optionRects  = {};
+    RECT                                              m_showLabel    = {};
+    RECT                                              m_ignoreLabel  = {};
+    int                                               m_topHeightPx  = 0;
 };

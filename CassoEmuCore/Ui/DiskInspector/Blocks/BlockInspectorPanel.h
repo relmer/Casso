@@ -75,8 +75,8 @@ public:
 
     //  The infobar over the list: the volume's verdict and first finding,
     //  with Repair... while Repair is available; empty text hides it.
-    void                    SetNotice (const std::wstring & text, bool isBad, bool canRepair, ActionFn onRepair);
-    const DxuiInfoBanner  & GetNotice () const { return *m_notice; }
+    void                 SetNotice (const std::wstring & text, bool isBad, bool canRepair, ActionFn onRepair);
+    const DxuiInfoBar  & GetNotice () const { return *m_notice; }
 
     //  Reads the model again after a change, once the current block is
     //  loaded. A block not loaded yet is loaded by a job first.
@@ -188,16 +188,16 @@ private:
     ChangedFn               m_onChanged;
     ActionFn                m_onQueued;
 
-    ActionFn                m_onCopy;
-    ActionFn                m_onRepair;
-    DxuiInfoBanner        * m_notice          = nullptr;
-    HintFn                  m_onHint;
-    bool                    m_isFilesOn       = true;
-    bool                    m_isDiffsOn       = true;
-    const IDxuiTheme      * m_theme           = nullptr;
-    bool                    m_isMapSelecting  = false;   // a click on the map is selecting its row, so the map stays where it is
-    bool                    m_isEditing       = false;
-    bool                    m_isRecording     = false;   // the next block drawn goes in the Back history
-    bool                    m_isStepping      = false;   // the next block drawn replaces the current location
-    int                     m_laidOutLevel    = -1;   // the level the right column was last laid out for
+    ActionFn            m_onCopy;
+    ActionFn            m_onRepair;
+    DxuiInfoBar       * m_notice         = nullptr;
+    HintFn              m_onHint;
+    bool                m_isFilesOn      = true;
+    bool                m_isDiffsOn      = true;
+    const IDxuiTheme  * m_theme          = nullptr;
+    bool                m_isMapSelecting = false;   // a click on the map is selecting its row, so the map stays where it is
+    bool                m_isEditing      = false;
+    bool                m_isRecording    = false;   // the next block drawn goes in the Back history
+    bool                m_isStepping     = false;   // the next block drawn replaces the current location
+    int                 m_laidOutLevel   = -1;   // the level the right column was last laid out for
 };

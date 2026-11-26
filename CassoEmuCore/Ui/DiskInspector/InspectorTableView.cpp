@@ -55,7 +55,31 @@ InspectorTableView::InspectorTableView (InspectorViewContext & context) :
         }
         else if (!m_isSelecting && m_select && row >= 0 && row < static_cast<int> (m_rows.size()))
         {
-            m_select (m_rows[row]);
+            m_select (GetRowToSelect (row));
+        }
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorTableView::SetOnActivate
+//
+//  A double-click or Enter on a row, even one already selected.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorTableView::SetOnActivate (SelectFn activate)
+{
+    m_list.SetActivateOnDoubleClick (true);
+    m_list.SetOnActivateRow ([this, activate = std::move (activate)] (int row)
+    {
+        if (activate && row >= 0 && row < static_cast<int> (m_rows.size()) && !(m_isGrouped && IsGroupRow (m_rows[row])))
+        {
+            activate (m_rows[row]);
         }
     });
 }

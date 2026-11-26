@@ -9,22 +9,22 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiTimedInfoBannerTests
+//  DxuiTimedInfoBarTests
 //
 //  The message bar that takes itself down: when it shows, when it expires,
 //  and that a newer notice replaces an older one with a fresh countdown.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace DxuiTimedInfoBannerTests
+namespace DxuiTimedInfoBarTests
 {
-    TEST_CLASS (DxuiTimedInfoBannerTests)
+    TEST_CLASS (DxuiTimedInfoBarTests)
     {
     public:
 
         TEST_METHOD (StartsHidden)
         {
-            DxuiTimedInfoBanner  notice;
+            DxuiTimedInfoBar  notice;
 
 
 
@@ -39,7 +39,7 @@ namespace DxuiTimedInfoBannerTests
             constexpr int64_t  kStartMs    = 1000;
             constexpr int64_t  kDurationMs = 500;
 
-            DxuiTimedInfoBanner  notice;
+            DxuiTimedInfoBar  notice;
 
 
 
@@ -64,7 +64,7 @@ namespace DxuiTimedInfoBannerTests
             constexpr int64_t  kDurationMs = 500;
             constexpr int64_t  kSecondMs   = 400;
 
-            DxuiTimedInfoBanner  notice;
+            DxuiTimedInfoBar  notice;
 
 
 
@@ -85,7 +85,7 @@ namespace DxuiTimedInfoBannerTests
 
         TEST_METHOD (DismissEndsTheCountdown)
         {
-            DxuiTimedInfoBanner  notice;
+            DxuiTimedInfoBar  notice;
 
 
 
@@ -102,10 +102,10 @@ namespace DxuiTimedInfoBannerTests
         {
             constexpr UINT  kDpi = 96;
 
-            DxuiTimedInfoBanner  notice;
-            DxuiDpiScaler        scaler;
-            RECT                 bounds = { 0, 40, 800, 80 };
-            RECT                 laid   = {};
+            DxuiTimedInfoBar  notice;
+            DxuiDpiScaler     scaler;
+            RECT              bounds = { 0, 40, 800, 80 };
+            RECT              laid   = {};
 
 
 

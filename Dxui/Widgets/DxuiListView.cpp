@@ -750,6 +750,41 @@ LPCWSTR DxuiListView::GetCursorForPoint (POINT clientPx) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetColumnsRightPx
+//
+//  The right edge of the last shown column as the list lays the columns
+//  out, from the left of the content.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetColumnsRightPx() const
+{
+    ScrollLayout      layout = m_scrollbars.ComputeScrollLayout();
+    std::vector<int>  colXPx;
+    std::vector<int>  colWPx;
+    int               right  = 0;
+
+
+
+    m_columnSizing.ComputeColumnLayout ((float) layout.viewportW, colXPx, colWPx);
+
+    for (size_t c = 0; c < m_columns.size() && c < colXPx.size() && c < colWPx.size(); ++c)
+    {
+        if (m_columns[c].visible)
+        {
+            right = (std::max) (right, colXPx[c] + colWPx[c]);
+        }
+    }
+
+    return right;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HitTestRow
 //
 //  xPx/yPx are relative to the list's rect.left/top. Returns the
@@ -780,8 +815,9 @@ int DxuiListView::HitTestRow (int xPx, int yPx) const
     }
 
     //  Past the last column is empty space, as in Explorer's Details view: a
-    //  click there selects nothing and gives the folder's own menu.
-    if (m_showHeader && !m_columns.empty() && xPx + m_leftPx >= m_columnSizing.GetContentWidthPx())
+    //  click there selects nothing and opens the folder's menu. The columns
+    //  end where they are drawn, a stretch column's fill included.
+    if (m_showHeader && !m_columns.empty() && xPx + m_leftPx >= GetColumnsRightPx())
     {
         return -1;
     }
@@ -1231,6 +1267,27 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     }
 
     static_cast<const DxuiListView *> (this)->Paint (painter, text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::SetHoveredRow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::SetHoveredRow (int row)
+{
+
+    m_hovered = row;
+
+    if (row >= 0)
+    {
+        m_grouping.ClearHover();
+    }
 }
 
 

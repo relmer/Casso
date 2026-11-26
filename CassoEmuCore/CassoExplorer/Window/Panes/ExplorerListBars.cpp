@@ -26,10 +26,10 @@
 void ExplorerListBars::Create (RelayoutFn relayout)
 {
     m_relayout  = std::move (relayout);
-    m_searchBar = m_context.window.CreateChild<DxuiInfoBanner> (L"");
-    m_cardBar   = m_context.window.CreateChild<DxuiInfoBanner> (L"");
+    m_searchBar = m_context.window.CreateChild<DxuiInfoBar> (L"");
+    m_cardBar   = m_context.window.CreateChild<DxuiInfoBar> (L"");
 
-    m_searchBar->SetSeverity    (DxuiInfoBanner::Severity::Warning);
+    m_searchBar->SetSeverity    (DxuiInfoBar::Severity::Warning);
     m_searchBar->SetDismissible (true);
     m_searchBar->SetVisible     (false);
 
@@ -88,7 +88,7 @@ RECT ExplorerListBars::Layout (const RECT & rect)
 
 
 
-    for (DxuiInfoBanner * bar : { m_searchBar, m_cardBar })
+    for (DxuiInfoBar * bar : { m_searchBar, m_cardBar })
     {
         if (bar->IsVisible())
         {
@@ -274,7 +274,7 @@ bool ExplorerListBars::FillCardBar()
     if (show)
     {
         m_cardBar->SetText     (text);
-        m_cardBar->SetSeverity (problem ? DxuiInfoBanner::Severity::Warning : DxuiInfoBanner::Severity::Info);
+        m_cardBar->SetSeverity (problem ? DxuiInfoBar::Severity::Warning : DxuiInfoBar::Severity::Info);
     }
 
     if (relabeled)

@@ -56,6 +56,7 @@ void ComparisonSession::Begin (const ComparisonSource & a, const ComparisonSourc
     End();
 
     m_isComparing    = true;
+    m_isFileHost     = host.GetDriveCount() == 0;
     m_sources        = { a, b };
     m_settings       = settings;
     m_hasOwnSettings = false;
@@ -603,6 +604,7 @@ void ComparisonSession::StartCompare (const DiskAnalysis & a)
     bool           isPartial  = m_hasResult && !m_isFullChange && !m_changedQts.empty();
     std::set<int>  qts        = m_changedQts;
     auto           base       = std::make_shared<const DiskComparison> (isPartial ? m_result : DiskComparison());
+    SideNames      names      = GetNames (a, m_b);
 
 
 
@@ -613,13 +615,13 @@ void ComparisonSession::StartCompare (const DiskAnalysis & a)
     m_changedQts.clear();
     m_isFullChange = false;
 
-    m_queue.Post ([this, copyA, copyB, generation, change, isPartial, qts, base] ()
+    m_queue.Post ([this, copyA, copyB, generation, change, isPartial, qts, base, names] ()
     {
-        DiskComparison  result = isPartial ? *base : DiskComparer::Compare (*copyA, *copyB);
+        DiskComparison  result = isPartial ? *base : DiskComparer::Compare (*copyA, *copyB, &names);
 
         if (isPartial)
         {
-            DiskComparer::Recompare (*copyA, *copyB, qts, result);
+            DiskComparer::Recompare (*copyA, *copyB, qts, result, &names);
         }
 
         Compared  compared { generation, change, std::move (result) };
@@ -628,6 +630,45 @@ void ComparisonSession::StartCompare (const DiskAnalysis & a)
 
         m_compared.push_back (std::move (compared));
     });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComparisonSession::GetNames
+//
+//  A disk compared with itself, as now against as inserted, has the same
+//  file on both sides, so each name is followed by where that side comes
+//  from.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SideNames ComparisonSession::GetNames (const DiskAnalysis & a, const DiskAnalysis & b) const
+{
+    SideNames  names = DiskComparer::GetSideNames (a, b);
+
+
+
+    if (names.a == names.b)
+    {
+        for (int side = 0; side < 2; side++)
+        {
+            std::wstring &  name = (side == 0) ? names.a : names.b;
+
+            switch (m_sources[side].kind)
+            {
+                case ComparisonSourceKind::DriveNow:   name += L" (now)";                                          break;
+                case ComparisonSourceKind::AsInserted: name += m_isFileHost ? L" (as first opened)" : L" (as inserted)"; break;
+                case ComparisonSourceKind::ItsFile:    name += L" (saved file)";                                   break;
+                case ComparisonSourceKind::ImageFile:  name += L" (file)";                                         break;
+            }
+        }
+    }
+
+    return names;
 }
 
 

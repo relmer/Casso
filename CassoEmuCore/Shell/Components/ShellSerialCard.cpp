@@ -23,7 +23,7 @@ ShellSerialCard::ShellSerialCard (EmulatorShell & shell)
     : m_shell      (shell),
       m_downloader (make_unique<BackgroundWorkQueue>())
 {
-    m_banner.SetSeverity (DxuiInfoBanner::Severity::Warning);
+    m_banner.SetSeverity (DxuiInfoBar::Severity::Warning);
     m_banner.SetVisible  (false);
     m_banner.SetOnAction  ([this] (size_t index) { OnAction (index); });
     m_banner.SetOnDismiss ([this] () { Show (SerialCardNotice()); });
@@ -276,7 +276,7 @@ void ShellSerialCard::Show (const SerialCardNotice & notice)
         }
     }
 
-    m_banner.SetSeverity    (isGood ? DxuiInfoBanner::Severity::Info : DxuiInfoBanner::Severity::Warning);
+    m_banner.SetSeverity    (isGood ? DxuiInfoBar::Severity::Info : DxuiInfoBar::Severity::Warning);
     m_banner.SetText        (notice.text);
     m_banner.SetActions     (m_buttons);
     m_banner.SetDismissible (m_buttons.size() != notice.actions.size());

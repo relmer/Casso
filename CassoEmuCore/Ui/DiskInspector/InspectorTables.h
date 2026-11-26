@@ -29,6 +29,7 @@ struct TableRow
     vector<std::wstring>  cells;
     int                   quarterTrack = -1;
     int                   sectorIndex  = -1;
+    int                   sector       = -1;     // a finding's sector number, for a row with no sectorIndex
     int                   field        = -1;
     int                   finding      = -1;
     int                   severity     = -1;     // a finding's FindingSeverity
@@ -62,6 +63,11 @@ public:
     static vector<std::wstring>  GetSearchHitColumns ();
 
     static vector<TableRow>  BuildFindings (const DiskAnalysis & analysis, uint32_t categoryMask, int sortColumn, bool isDescending);
+
+    //  Two images' findings rows, in their order, lined up: a finding both
+    //  have, by its text, category, track and sector, on the same line of
+    //  each, and a blank row across from a finding only one has.
+    static void  AlignFindings (vector<TableRow> & inOutA, vector<TableRow> & inOutB);
     static vector<TableRow>  BuildTracks   (const DiskAnalysis & analysis, const FindMarks * marks = nullptr, const EditController * edits = nullptr,
                                              const std::set<int> * appliedSlots = nullptr, const DriveHeadState * drive = nullptr);
     static vector<TableRow>  BuildFields   (const DiskAnalysis & analysis, int quarterTrack);

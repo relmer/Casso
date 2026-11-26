@@ -18,7 +18,7 @@ static constexpr int  s_kMinNoteDip   = 120;
 static constexpr int  s_kNoteCharDip  = 7;
 static constexpr int  s_kPauseDip     = 230;
 static constexpr int  s_kCancelDip    = 76;
-static constexpr int  s_kUseBDip      = 120;
+static constexpr int  s_kUseBDip      = 220;
 
 
 
@@ -40,7 +40,7 @@ EditBar::EditBar()
     m_redoApplied   = CreateChild<DxuiButton>   (L"Redo save");
     m_pauseApply    = CreateChild<DxuiButton>   (L"Pause and save");
     m_cancelApply   = CreateChild<DxuiButton>   (L"Cancel");
-    m_useB          = CreateChild<DxuiButton>   (L"Use B's bytes");
+    m_useB          = CreateChild<DxuiButton>   (L"Use these bytes");
 
     m_checksum->SetOnChange     ([this] (bool isChecked) { if (m_onChecksum) { m_onChecksum (isChecked); } });
     m_discardSector->SetOnClick ([this] () { if (m_onDiscardSector) { m_onDiscardSector(); } });
@@ -48,6 +48,7 @@ EditBar::EditBar()
     m_redoApplied->SetOnClick   ([this] () { if (m_onRedoApplied)   { m_onRedoApplied(); } });
     m_pauseApply->SetOnClick    ([this] () { if (m_onPauseApply)    { m_onPauseApply(); } });
     m_cancelApply->SetOnClick   ([this] () { if (m_onCancelApply)   { m_onCancelApply(); } });
+    m_useB->SetElide            (DxuiElide::Middle);
     m_useB->SetOnClick          ([this] () { if (m_onUseB)          { m_onUseB(); } });
 
     SetState (EditBarState());
@@ -86,6 +87,8 @@ void EditBar::SetState (const EditBarState & state)
     m_pauseApply->SetLabel      (state.isMachinePaused ? L"Run to a safe point and save" : L"Pause and save");
     m_cancelApply->SetVisible   (state.isWaiting);
     m_useB->SetVisible          (state.canUseB && !state.isWaiting);
+    m_useB->SetLabel            (L"Use bytes from " + state.nameB);
+    m_nameB = state.nameB;
 
     //  Each control's place depends on which controls are visible.
     if (m_hasLayout)
@@ -120,7 +123,7 @@ std::wstring EditBar::GetTip (POINT pointPx, RECT & outAnchorPx) const
         { m_discardSector, L"Drop the selected " + m_unit + L"'s pending edits",                               L"" },
         { m_pauseApply,    L"Let the machine run to the next moment the head is clear of the edited fields, and save there", L"" },
         { m_cancelApply,   L"Stop waiting; the edits stay pending",                                         L"" },
-        { m_useB,          L"Put B's bytes for the paired " + m_unit + L" into this " + m_unit + L" as a pending edit", L"" },
+        { m_useB,          L"Put the bytes " + m_nameB + L" has for the paired " + m_unit + L" into this " + m_unit + L" as a pending edit", L"" },
     };
 
     std::wstring  tip;

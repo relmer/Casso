@@ -348,7 +348,7 @@ private:
     // process. A message bar rather than a caption over the picture: it says
     // something and asks nothing, which is what an info banner is, and the
     // chrome under the command strip is the one place it covers nothing.
-    DxuiInfoBanner             m_standInBar;
+    DxuiInfoBar             m_standInBar;
 
     // An opaque panel behind it, the way the drive bar has one. The banner's
     // own fill is a tint meant to sit on chrome, and the bar does not: it

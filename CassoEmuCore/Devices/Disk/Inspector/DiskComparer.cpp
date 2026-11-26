@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Devices/Disk/Inspector/DiskComparer.h"
+#include "Devices/Disk/Inspector/DiskCopy.h"
 #include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Devices/Disk/Inspector/TrackAnalyzer.h"
 
@@ -8,8 +9,9 @@
 
 
 
-static constexpr int  s_kVoteLength   = 8;
-static constexpr int  s_kPerTrack     = DiskImage::kQuarterTracksPerWholeTrack;
+static constexpr int       s_kVoteLength = 8;
+static constexpr int       s_kPerTrack   = DiskImage::kQuarterTracksPerWholeTrack;
+static constexpr uint16_t  s_kFarCost    = 0xFFFF;
 
 
 
@@ -84,18 +86,27 @@ void DiskComparison::Count (int & outIdentical, int & outDiffer, int & outOnlyIn
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DiskComparison DiskComparer::Compare (const DiskAnalysis & a, const DiskAnalysis & b)
+DiskComparison DiskComparer::Compare (const DiskAnalysis & a, const DiskAnalysis & b, const SideNames * names)
 {
-    DiskComparison  out;
-    int             qt  = 0;
+    DiskComparison                                                 out;
+    std::array<vector<Difference>, DiskImage::kQuarterTrackCount>  perTrack;
+    std::array<int, DiskImage::kQuarterTrackCount>                 order = {};
+    int                                                            qt    = 0;
 
 
 
     out.tracks.resize (DiskImage::kQuarterTrackCount);
+    out.isSectorsOnly = IsSectorImage (a) || IsSectorImage (b);
+    out.names         = (names != nullptr) ? *names : GetSideNames (a, b);
+    std::iota (order.begin(), order.end(), 0);
+
+    //  The quarter tracks are compared at once across the cores, each into
+    //  a list of its differences, then the lists are joined in disk order.
+    std::for_each (std::execution::par, order.begin(), order.end(), [&] (int q) { CompareQuarterTrack (a, b, q, out.isSectorsOnly, out.tracks[q], perTrack[q]); });
 
     for (qt = 0; qt < DiskImage::kQuarterTrackCount; qt++)
     {
-        CompareQuarterTrack (a, b, qt, out.tracks[qt], out.differences);
+        out.differences.insert (out.differences.end(), perTrack[qt].begin(), perTrack[qt].end());
     }
 
     CompareFiles (a, b, out);
@@ -117,13 +128,16 @@ DiskComparison DiskComparer::Compare (const DiskAnalysis & a, const DiskAnalysis
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskComparer::Recompare (const DiskAnalysis & a, const DiskAnalysis & b, const std::set<int> & quarterTracks, DiskComparison & inOutComparison)
+void DiskComparer::Recompare (const DiskAnalysis & a, const DiskAnalysis & b, const std::set<int> & quarterTracks, DiskComparison & inOutComparison,
+                              const SideNames * names)
 {
     vector<Difference>  kept;
 
 
 
     inOutComparison.tracks.resize (DiskImage::kQuarterTrackCount);
+    inOutComparison.isSectorsOnly = IsSectorImage (a) || IsSectorImage (b);
+    inOutComparison.names         = (names != nullptr) ? *names : GetSideNames (a, b);
 
     for (const Difference & d : inOutComparison.differences)
     {
@@ -138,7 +152,7 @@ void DiskComparer::Recompare (const DiskAnalysis & a, const DiskAnalysis & b, co
         if (qt >= 0 && qt < DiskImage::kQuarterTrackCount)
         {
             inOutComparison.tracks[qt] = TrackComparison();
-            CompareQuarterTrack (a, b, qt, inOutComparison.tracks[qt], kept);
+            CompareQuarterTrack (a, b, qt, inOutComparison.isSectorsOnly, inOutComparison.tracks[qt], kept);
         }
     }
 
@@ -158,9 +172,12 @@ void DiskComparer::Recompare (const DiskAnalysis & a, const DiskAnalysis & b, co
 //
 //  DiskComparer::CompareQuarterTrack
 //
+//  Against a sector image, which has whole tracks only, every other quarter
+//  track is set aside.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskComparer::CompareQuarterTrack (const DiskAnalysis & a, const DiskAnalysis & b, int qt, TrackComparison & t, vector<Difference> & inOutDiffs)
+void DiskComparer::CompareQuarterTrack (const DiskAnalysis & a, const DiskAnalysis & b, int qt, bool isSectorsOnly, TrackComparison & t, vector<Difference> & inOutDiffs)
 {
     const QuarterTrackEntry &  entryA  = a.entries[qt];
     const QuarterTrackEntry &  entryB  = b.entries[qt];
@@ -179,14 +196,14 @@ void DiskComparer::CompareQuarterTrack (const DiskAnalysis & a, const DiskAnalys
     {
         t.verdict = TrackVerdict::NothingRecorded;
     }
-    else if (qt % s_kPerTrack != 0 && IsStandardLayout (a, qt) && IsStandardLayout (b, qt))
+    else if (qt % s_kPerTrack != 0 && (isSectorsOnly || (IsStandardLayout (a, qt) && IsStandardLayout (b, qt))))
     {
         t.verdict = TrackVerdict::StandardLayout;
     }
     else if (entryA.content == QuarterTrackContent::Damaged || entryB.content == QuarterTrackContent::Damaged)
     {
-        t.verdict = TrackVerdict::NotCompared;
-        t.reason  = std::format (L"{} record is damaged", entryA.content == QuarterTrackContent::Damaged ? L"A's" : L"B's");
+        t.verdict     = TrackVerdict::NotCompared;
+        t.damagedSide = (entryA.content == QuarterTrackContent::Damaged) ? 0 : 1;
     }
     else if (isA != isB)
     {
@@ -198,10 +215,99 @@ void DiskComparer::CompareQuarterTrack (const DiskAnalysis & a, const DiskAnalys
         t.verdict = TrackVerdict::NotCompared;
         t.reason  = L"Still being analyzed";
     }
+    else if (isSectorsOnly)
+    {
+        CompareSectorData (*trackA, *trackB, qt, t, inOutDiffs);
+    }
     else
     {
         CompareTrack (*trackA, *trackB, qt, t, inOutDiffs);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskComparer::GetSideNames
+//
+//  Each side's file name. When the file names match, each is followed by
+//  the nearest folder, counting up from the file, where the two paths
+//  differ: "damaged.dsk (walk-shimmer)" and "damaged.dsk (backup)". Paths
+//  that match throughout result in the same names.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SideNames DiskComparer::GetSideNames (const DiskAnalysis & a, const DiskAnalysis & b)
+{
+    return GetSideNames ((a.copy != nullptr) ? std::filesystem::path (a.copy->fileName) : std::filesystem::path(),
+                         (b.copy != nullptr) ? std::filesystem::path (b.copy->fileName) : std::filesystem::path());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskComparer::GetSideNames
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SideNames DiskComparer::GetSideNames (const std::filesystem::path & pathA, const std::filesystem::path & pathB)
+{
+    const std::filesystem::path  paths[2] = { pathA, pathB };
+    SideNames                    names;
+
+
+
+    names.a = paths[0].filename().wstring();
+    names.b = paths[1].filename().wstring();
+
+    for (std::filesystem::path pa = paths[0].parent_path(), pb = paths[1].parent_path();
+         names.a == names.b && !names.a.empty() && (pa.has_filename() || pb.has_filename());
+         pa = pa.parent_path(), pb = pb.parent_path())
+    {
+        if (pa.filename() != pb.filename())
+        {
+            names.a += L" (" + (pa.has_filename() ? pa.filename().wstring() : pa.wstring()) + L")";
+            names.b += L" (" + (pb.has_filename() ? pb.filename().wstring() : pb.wstring()) + L")";
+        }
+
+        if (pa == pa.parent_path() && pb == pb.parent_path())
+        {
+            break;
+        }
+    }
+
+    names.a = names.a.empty() ? SideNames().a : names.a;
+    names.b = names.b.empty() ? SideNames().b : names.b;
+
+    return names;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskComparer::IsSectorImage
+//
+//  A .dsk, .do or .po file: sector data only, laid out on tracks by the
+//  nibblizer, so its sync, gaps, volume numbers and timing are invented.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskComparer::IsSectorImage (const DiskAnalysis & disk)
+{
+    DiskFormat  format = (disk.copy != nullptr) ? disk.copy->format : DiskFormat::Woz;
+
+
+
+    return format == DiskFormat::Dsk || format == DiskFormat::Do || format == DiskFormat::Po;
 }
 
 
@@ -279,11 +385,23 @@ void DiskComparer::CompareTrack (const TrackAnalysis & a, const TrackAnalysis & 
     }
     else if (HasSectors (a) || HasSectors (b))
     {
+        vector<Difference>  nibbleDiffs;
+
         inOut.sectorsDiffer = differing;
         inOut.verdict       = (differing == 0) ? TrackVerdict::SameSectorData : TrackVerdict::SectorsDiffer;
 
-        for (const Difference & d : sectorDiffs)
+        if (differing > 0)
         {
+            ListNibbles (a, b, quarterTrack, nibbleDiffs);
+        }
+
+        for (Difference & d : sectorDiffs)
+        {
+            if (d.kind == DifferenceKind::SectorBytes)
+            {
+                CountSectorBits (a, nibbleDiffs, d);
+            }
+
             if (d.kind != DifferenceKind::Volume)
             {
                 inOutDiffs.push_back (d);
@@ -299,6 +417,39 @@ void DiskComparer::CompareTrack (const TrackAnalysis & a, const TrackAnalysis & 
     for (const Difference & d : sectorDiffs)
     {
         if (d.kind == DifferenceKind::Volume)
+        {
+            inOutDiffs.push_back (d);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskComparer::CompareSectorData
+//
+//  Each sector's bytes and checksum results, and each sector on one side
+//  only. Volume numbers are left out, since a sector image doesn't store them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskComparer::CompareSectorData (const TrackAnalysis & a, const TrackAnalysis & b, int quarterTrack, TrackComparison & inOut, vector<Difference> & inOutDiffs)
+{
+    vector<Difference>  sectorDiffs;
+    int                 differing = CompareSectors (a, b, quarterTrack, sectorDiffs);
+
+
+
+    inOut.cellCount     = a.framed.cellCount;
+    inOut.sectorsDiffer = differing;
+    inOut.verdict       = (differing == 0) ? TrackVerdict::SameSectorData : TrackVerdict::SectorsDiffer;
+
+    for (const Difference & d : sectorDiffs)
+    {
+        if (d.kind != DifferenceKind::Volume)
         {
             inOutDiffs.push_back (d);
         }
@@ -488,7 +639,8 @@ int DiskComparer::CompareSectors (const TrackAnalysis & a, const TrackAnalysis &
     {
         Difference  d { DifferenceKind::Volume, quarterTrack };
 
-        d.detail = std::format (L"Volume {} in A, {} in B", volumeA, volumeB);
+        d.count       = volumeA;
+        d.firstOffset = volumeB;
         inOutDiffs.push_back (d);
     }
 
@@ -609,7 +761,64 @@ void DiskComparer::ListNibbles (const TrackAnalysis & a, const TrackAnalysis & b
         d.nibbleCountB = h.countB;
         d.cell         = (h.firstA < static_cast<int> (a.framed.nibbles.size())) ? a.framed.nibbles[h.firstA].startCell : 0;
         d.isSyncOnly   = isSync;
+
+        uint32_t  startA = GetNibbleCell (a, h.firstA);
+        uint32_t  startB = GetNibbleCell (b, d.firstNibbleB);
+        uint32_t  cellsA = std::max<uint32_t> (a.framed.cellCount, 1);
+        uint32_t  cellsB = std::max<uint32_t> (b.framed.cellCount, 1);
+        uint32_t  endA   = GetNibbleCell (a, h.firstA + h.countA);
+        uint32_t  endB   = GetNibbleCell (b, static_cast<int> ((static_cast<size_t> (h.firstB + h.countB) + rotation) % std::max<size_t> (nB, 1)));
+
+        std::span<const Byte>  turnA  = std::span<const Byte> (a.framed.cells).first (std::min<size_t> (a.framed.cells.size(), a.framed.cellCount));
+        std::span<const Byte>  turnB  = std::span<const Byte> (b.framed.cells).first (std::min<size_t> (b.framed.cells.size(), b.framed.cellCount));
+
+        FindBits (turnA, startA, (endA + cellsA - startA) % cellsA, turnB, startB, (endB + cellsB - startB) % cellsB, d);
         inOutDiffs.push_back (d);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskComparer::CountSectorBits
+//
+//  The bits that change in the nibble hunks inside a sector's data field,
+//  or -1 when any of them were not compared.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskComparer::CountSectorBits (const TrackAnalysis & a, const vector<Difference> & nibbleDiffs, Difference & inOut)
+{
+    int  first = -1;
+    int  end   = -1;
+
+
+
+    for (const AnalyzedSector & s : a.sectors)
+    {
+        if (first < 0 && s.sector == inOut.sector && s.dataField >= 0)
+        {
+            first = a.fields[s.dataField].firstNibble;
+            end   = first + a.fields[s.dataField].nibbleCount;
+        }
+    }
+
+    if (first < 0)
+    {
+        return;
+    }
+
+    inOut.bitsChanged = 0;
+
+    for (const Difference & d : nibbleDiffs)
+    {
+        if (d.firstNibbleA >= first && d.firstNibbleA < end && inOut.bitsChanged >= 0)
+        {
+            inOut.bitsChanged = (d.bitsChanged < 0) ? -1 : inOut.bitsChanged + d.bitsChanged;
+        }
     }
 }
 
@@ -744,87 +953,215 @@ int DiskComparer::Align (const TrackAnalysis & a, const TrackAnalysis & b)
 //
 //  DiskComparer::Diff
 //
-//  Myers' greedy diff, giving up past kMaxEdits, then the edit script read
-//  back as hunks.
+//  The edit distance between the runs, within a band of kMaxEdits nibbles
+//  either side of the diagonal through both ends: a match costs nothing,
+//  and a changed, inserted or deleted nibble costs one. Read back from the
+//  end, a tie goes to the diagonal, so a changed nibble is paired with the
+//  one at its place rather than with a neighbor of the same value.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DiskComparer::Diff (std::span<const Byte> a, std::span<const Byte> b, vector<Hunk> & outHunks)
 {
-    int                  n      = static_cast<int> (a.size());
-    int                  m      = static_cast<int> (b.size());
-    int                  offset = kMaxEdits + 1;
-    vector<vector<int>>  trace;
-    vector<int>          v      (2 * offset + 1, 0);
-    bool                 isDone = false;
-    int                  d      = 0;
+    int               n      = static_cast<int> (a.size());
+    int               m      = static_cast<int> (b.size());
+    int               lo     = std::min (0, m - n) - kMaxEdits;
+    int               hi     = std::max (0, m - n) + kMaxEdits;
+    int               width  = hi - lo + 1;
+    vector<uint16_t>  cost   (static_cast<size_t> (n + 1) * static_cast<size_t> (width), s_kFarCost);
+    int               i      = 0;
+    int               j      = 0;
+    bool              isOpen = false;
 
 
 
     outHunks.clear();
 
-    for (d = 0; !isDone && d <= kMaxEdits; d++)
+    for (i = 0; i <= n; i++)
     {
-        trace.push_back (v);
-
-        for (int k = -d; !isDone && k <= d; k += 2)
+        for (j = std::max (0, i + lo); j <= std::min (m, i + hi); j++)
         {
-            int  x = (k == -d || (k != d && v[offset + k - 1] < v[offset + k + 1])) ? v[offset + k + 1] : v[offset + k - 1] + 1;
-            int  y = x - k;
+            uint32_t  best = (i == 0 && j == 0) ? 0u : s_kFarCost;
 
-            while (x < n && y < m && a[x] == b[y])
+            if (i > 0 && j > 0)
             {
-                x++;
-                y++;
+                best = std::min<uint32_t> (best, GetCost (cost, width, lo, i - 1, j - 1) + (a[i - 1] != b[j - 1] ? 1u : 0u));
             }
 
-            v[offset + k] = x;
-            isDone        = x >= n && y >= m;
+            if (i > 0)
+            {
+                best = std::min<uint32_t> (best, GetCost (cost, width, lo, i - 1, j) + 1u);
+            }
+
+            if (j > 0)
+            {
+                best = std::min<uint32_t> (best, GetCost (cost, width, lo, i, j - 1) + 1u);
+            }
+
+            cost[static_cast<size_t> (i) * width + (j - i - lo)] = static_cast<uint16_t> (std::min<uint32_t> (best, s_kFarCost - 1u));
         }
     }
 
-    if (isDone)
+    //  Walk back from the end, collecting each run of edits as a hunk.
+    i = n;
+    j = m;
+
+    while (i > 0 || j > 0)
     {
-        //  Walk back through the trace, collecting the edits as hunks.
-        int  x = n;
-        int  y = m;
+        uint32_t  here     = GetCost (cost, width, lo, i, j);
+        bool      isChange = i > 0 && j > 0 && a[i - 1] != b[j - 1];
+        bool      isDiag   = i > 0 && j > 0 && GetCost (cost, width, lo, i - 1, j - 1) + (isChange ? 1u : 0u) == here;
+        bool      isDelete = !isDiag && i > 0 && GetCost (cost, width, lo, i - 1, j) + 1u == here;
 
-        for (int step = static_cast<int> (trace.size()) - 1; step > 0; step--)
+        if (isDiag && !isChange)
         {
-            const vector<int> &  pv      = trace[step];
-            int                  k       = x - y;
-            int                  prevK   = (k == -step || (k != step && pv[offset + k - 1] < pv[offset + k + 1])) ? k + 1 : k - 1;
-            int                  prevX   = pv[offset + prevK];
-            int                  prevY   = prevX - prevK;
-
-            while (x > prevX && y > prevY)
-            {
-                x--;
-                y--;
-            }
-
-            Hunk  h { prevX, x - prevX, prevY, y - prevY };
-
-            if (!outHunks.empty() && outHunks.back().firstA == x && outHunks.back().firstB == y)
-            {
-                outHunks.back().firstA  = h.firstA;
-                outHunks.back().firstB  = h.firstB;
-                outHunks.back().countA += h.countA;
-                outHunks.back().countB += h.countB;
-            }
-            else
-            {
-                outHunks.push_back (h);
-            }
-
-            x = prevX;
-            y = prevY;
+            isOpen = false;
+            i--;
+            j--;
+            continue;
         }
 
-        std::reverse (outHunks.begin(), outHunks.end());
+        if (!isOpen)
+        {
+            outHunks.push_back ({ i, 0, j, 0 });
+            isOpen = true;
+        }
+
+        if (isDiag)
+        {
+            i--;
+            j--;
+            outHunks.back().countA++;
+            outHunks.back().countB++;
+        }
+        else if (isDelete)
+        {
+            i--;
+            outHunks.back().countA++;
+        }
+        else
+        {
+            j--;
+            outHunks.back().countB++;
+        }
+
+        outHunks.back().firstA = i;
+        outHunks.back().firstB = j;
     }
 
-    return isDone;
+    std::reverse (outHunks.begin(), outHunks.end());
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskComparer::GetCost
+//
+//  A cell of Diff's band, or the far cost for one outside it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DiskComparer::GetCost (const vector<uint16_t> & cost, int width, int lo, int i, int j)
+{
+    int  k = j - i - lo;
+
+
+
+    return (k >= 0 && k < width) ? cost[static_cast<size_t> (i) * width + static_cast<size_t> (k)] : s_kFarCost;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskComparer::FindBits
+//
+//  Each window starts kBitMargin cells before its run and ends that far
+//  after, wrapping around the track, so the cells that match either side
+//  pin the alignment at both ends.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskComparer::FindBits (std::span<const Byte> cellsA, uint32_t startA, uint32_t lengthA, std::span<const Byte> cellsB, uint32_t startB, uint32_t lengthB,
+                             Difference & inOut)
+{
+    uint32_t      nA     = static_cast<uint32_t> (cellsA.size());
+    uint32_t      nB     = static_cast<uint32_t> (cellsB.size());
+    uint32_t      margin = static_cast<uint32_t> (kBitMargin);
+    vector<Byte>  winA;
+    vector<Byte>  winB;
+    vector<Hunk>  hunks;
+    uint32_t      k      = 0;
+
+
+
+    inOut.bitsChanged = -1;
+
+    if (nA == 0 || nB == 0 || lengthA > static_cast<uint32_t> (kMaxBitRun) || lengthB > static_cast<uint32_t> (kMaxBitRun))
+    {
+        return;
+    }
+
+    for (k = 0; k < lengthA + 2 * margin; k++)
+    {
+        winA.push_back (cellsA[(startA + nA - margin % nA + k) % nA]);
+    }
+
+    for (k = 0; k < lengthB + 2 * margin; k++)
+    {
+        winB.push_back (cellsB[(startB + nB - margin % nB + k) % nB]);
+    }
+
+    Diff (winA, winB, hunks);
+
+    inOut.bitsChanged = 0;
+    inOut.firstBitA   = static_cast<int> (startA);
+    inOut.firstBitB   = static_cast<int> (startB);
+    inOut.bitCountA   = 0;
+    inOut.bitCountB   = 0;
+
+    if (hunks.empty())
+    {
+        return;
+    }
+
+    for (const Hunk & hunk : hunks)
+    {
+        inOut.bitsChanged += std::max (hunk.countA, hunk.countB);
+    }
+
+    inOut.firstBitA = static_cast<int> ((startA + nA - margin % nA + static_cast<uint32_t> (hunks.front().firstA)) % nA);
+    inOut.firstBitB = static_cast<int> ((startB + nB - margin % nB + static_cast<uint32_t> (hunks.front().firstB)) % nB);
+    inOut.bitCountA = hunks.back().firstA + hunks.back().countA - hunks.front().firstA;
+    inOut.bitCountB = hunks.back().firstB + hunks.back().countB - hunks.front().firstB;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskComparer::GetNibbleCell
+//
+//  The cell a nibble starts at, or the track's cell count past its last.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DiskComparer::GetNibbleCell (const TrackAnalysis & track, int nibble)
+{
+    bool  isIn = nibble >= 0 && nibble < static_cast<int> (track.framed.nibbles.size());
+
+
+
+    return isIn ? track.framed.nibbles[static_cast<size_t> (nibble)].startCell : track.framed.cellCount;
 }
 
 
@@ -884,8 +1221,8 @@ void DiskComparer::CompareFiles (const DiskAnalysis & a, const DiskAnalysis & b,
 
     if (mapA == nullptr || mapB == nullptr)
     {
-        inOut.fileNote = (mapA == nullptr) ? L"A has no volume the file map reads, so its files are not compared"
-                                           : L"B has no volume of A's file system, so their files are not compared";
+        inOut.fileNote = (mapA == nullptr) ? inOut.names.Get (0) + L" has no volume the file map reads, so its files are not compared"
+                                           : inOut.names.Get (1) + L" has no volume with the file system of " + inOut.names.a + L", so their files are not compared";
     }
     else
     {
@@ -935,7 +1272,7 @@ void DiskComparer::CompareFiles (const DiskAnalysis & a, const DiskAnalysis & b,
                 {
                     pair.isSame  = false;
                     pair.outcome = DifferenceKind::FileNotCompared;
-                    pair.reason  = std::format (L"{} has a bad or missing sector, or its chain is broken", isReadA ? L"B's copy" : L"A's copy");
+                    pair.reason  = std::format (L"The copy in {} has a bad or missing sector, or its chain is broken", inOut.names.Get (isReadA ? 1 : 0));
                     inOut.differences.push_back ({ DifferenceKind::FileNotCompared, -1, -1, -1, 0, -1, 0, 0, 0, -1, false, fa.path, pair.reason });
                 }
                 else

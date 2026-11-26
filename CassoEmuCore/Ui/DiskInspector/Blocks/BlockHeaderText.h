@@ -50,6 +50,8 @@ public:
     //  text.
     static std::wstring  BuildBlockText (std::span<const Byte> bytes, size_t bytesPerRow);
 
-    //  The other image's file name, or empty when the model isn't comparing.
+    //  The other image's file name, followed by the nearest folder where the
+    //  paths differ when the file names match. Empty when the model isn't
+    //  comparing.
     static std::wstring  GetOtherName   (const BlockInspectorModel & model);
 };

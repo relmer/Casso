@@ -25,6 +25,11 @@
 //  every change checked. While the volume can't be repaired, the infobar
 //  has the reason in place of the button.
 //
+//  While comparing, each line has this image's finding on the left and the
+//  other image's on the right: a finding both have is on one line, and the
+//  side without a finding is blank. A click on either side goes to that
+//  side's finding.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class IssuesView : public InspectorTableView
@@ -48,6 +53,10 @@ public:
     void  SetRepairPlan (const RepairPlan * plan) { m_plan = plan; }
     void  SetOnRepair   (RepairFn repair)         { m_repair = std::move (repair); }
 
+    //  The other image's analysis while comparing, null otherwise, and each
+    //  image's name for the column headings.
+    void  SetComparedWith (const DiskAnalysis * other, const std::wstring & name, const std::wstring & otherName);
+
     //  The finding at that index of the analysis's findings selected and
     //  scrolled into view. Its category is turned back on in the filter if it
     //  was off.
@@ -55,34 +64,46 @@ public:
 
     //  Where a row's severity icon is, empty out of view, and the infobar;
     //  for a test.
-    RECT                    GetSeverityRect (int row) const;
-    DxuiInfoBanner        & GetBanner       () { return m_banner; }
-    const DxuiInfoBanner  & GetBanner       () const { return m_banner; }
+    RECT                 GetSeverityRect (int row) const;
+
+    DxuiInfoBar        & GetBanner       () { return m_banner; }
+    const DxuiInfoBar  & GetBanner       () const { return m_banner; }
 
     //  The infobar's text: the first finding and, when Repair
     //  isn't available, the reason.
     static std::wstring  FormatBanner (const DiskAnalysis & analysis, const RepairPlan & plan);
 
-    void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
-    void  Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    bool  OnMouse (const DxuiMouseEvent & ev) override;
+    void     Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void     Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool     OnMouse           (const DxuiMouseEvent & ev) override;
+
 
 protected:
+    const TableRow &  GetRowToSelect (int index) const override;
+
     int   GetTopHeightPx () const override;
     void  PaintTop       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & top) override;
 
 private:
     void  OnSort         (int column);
+    void  ShowColumns    ();
+    bool  IsComparing    () const { return m_otherAnalysis != nullptr; }
+    RECT  GetBadgeRect   (int row, size_t column) const;
     RECT  GetToggleRect  (int category) const;
     bool  HasBanner      () const;
     void  UpdateBanner   ();
 
-    uint32_t                                         m_mask         = InspectorTables::GetAllCategories();
-    int                                              m_sortColumn   = -1;
-    bool                                             m_isDescending = false;
-    std::array<int, InspectorTables::kCategoryCount> m_counts       = {};
-    const RepairPlan                               * m_plan         = nullptr;
-    RepairFn                                         m_repair;
-    DxuiInfoBanner                                   m_banner;
-    int                                              m_bannerPx     = 0;       // the infobar's height and the gap under it
+    uint32_t                                            m_mask          = InspectorTables::GetAllCategories();
+    int                                                 m_sortColumn    = -1;
+    bool                                                m_isDescending  = false;
+    std::array<int, InspectorTables::kCategoryCount>    m_counts        = {};
+    const RepairPlan                                  * m_plan          = nullptr;
+    RepairFn                                            m_repair;
+    DxuiInfoBar                                         m_banner;
+    int                                                 m_bannerPx      = 0;       // the infobar's height and the gap under it
+    const DiskAnalysis                                * m_otherAnalysis = nullptr;
+    vector<TableRow>                                    m_otherRows;               // the other image's side of each line, while comparing
+    std::wstring                                        m_names[2];
+    bool                                                m_isOtherSide   = false;   // the last press was on the other image's columns
+    bool                                                m_isCompared    = false;   // the columns are both images'
 };

@@ -42,7 +42,7 @@ void DxuiNoticeStack::Push (const std::wstring & text, int64_t nowMs)
 
 
 
-    notice.banner = std::make_unique<DxuiTimedInfoBanner>();
+    notice.banner = std::make_unique<DxuiTimedInfoBar>();
     notice.banner->SetParent     (this);
     notice.banner->SetDpi        (m_dpi);
     notice.banner->SetDurationMs (m_durationMs);

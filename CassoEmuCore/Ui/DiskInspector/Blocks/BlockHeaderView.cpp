@@ -22,7 +22,7 @@ void BlockHeaderView::Create (DxuiPanel & parent, StepFn step, ActionFn copy, Ac
     m_edit     = parent.CreateChild<DxuiButton> (L"Edit");
     m_copy     = parent.CreateChild<DxuiButton> (L"Copy block");
     m_undo     = parent.CreateChild<DxuiButton> (L"Undo block changes");
-    m_useOther = parent.CreateChild<DxuiButton> (L"Use B's bytes");
+    m_useOther = parent.CreateChild<DxuiButton> (L"Use these bytes");
     m_cancel   = parent.CreateChild<DxuiButton> (L"Cancel");
 
     m_previous->SetGlyph          (s_kpszGlyphPrev);
@@ -38,6 +38,7 @@ void BlockHeaderView::Create (DxuiPanel & parent, StepFn step, ActionFn copy, Ac
     m_copy->SetOnClick     (std::move (copy));
     m_cancel->SetOnClick   (std::move (cancel));
 
+    m_useOther->SetElide   (DxuiElide::Middle);
     m_undo->SetVisible     (false);
     m_useOther->SetVisible (false);
     m_cancel->SetVisible   (false);
@@ -64,6 +65,7 @@ int BlockHeaderView::Layout (const RECT & column, int top, bool isLongJob, const
     int   button = scaler.ToPx ((int) kButtonDip);
     int   edit   = scaler.ToPx ((int) kEditDip);
     int   undo   = scaler.ToPx ((int) kUndoDip);
+    int   use    = scaler.ToPx ((int) kUseDip);
     int   y      = top;
     int   x      = column.left;
     bool  isUndo = !isLongJob && m_state.isEditing;
@@ -93,8 +95,8 @@ int BlockHeaderView::Layout (const RECT & column, int top, bool isLongJob, const
 
     if (isUseB)
     {
-        m_useOther->Layout ({ x, y, x + button, y + row }, scaler);
-        x += button + pad;
+        m_useOther->Layout ({ x, y, x + use, y + row }, scaler);
+        x += use + pad;
     }
 
     m_infoRect = { x, y, isLongJob ? x : (int) column.right, y + row };
@@ -183,6 +185,7 @@ bool BlockHeaderView::SetEditState (const BlockEditState & state)
     m_edit->SetEnabled     (!m_isLongJob && (state.canEdit || state.isEditing));
     m_undo->SetEnabled     (!m_isLongJob && state.canUndo);
     m_useOther->SetEnabled (!m_isLongJob && state.canUseOther);
+    m_useOther->SetLabel   (L"Use bytes from " + state.otherName);
 
     return isMoved;
 }

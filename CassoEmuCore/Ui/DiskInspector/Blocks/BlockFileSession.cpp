@@ -300,14 +300,14 @@ void BlockFileSession::CompareWithFile (const std::wstring & path)
 
 
     m_jobs->QueueJob ({ L"Comparing with " + name, true,
-                        [result, fileIo, other, model] (BlockJobProgress & progress)
+                        [result, fileIo, other, model, name] (BlockJobProgress & progress)
                         {
                             std::unique_ptr<BlockImageFile>  file;
 
                             if (!BlockImageFile::IsBlockImage (*fileIo, other))
                             {
                                 result->hr      = E_INVALIDARG;
-                                result->message = L"Only another image of blocks can be compared with this one.";
+                                result->message = name + L" isn't an image of blocks, so it can't be compared with this one.";
                                 return;
                             }
 
@@ -315,12 +315,12 @@ void BlockFileSession::CompareWithFile (const std::wstring & path)
 
                             if (FAILED (result->hr))
                             {
-                                result->message = result->message.empty() ? L"The other image can't be read." : result->message;
+                                result->message = result->message.empty() ? name + L" can't be read." : result->message;
                                 return;
                             }
 
                             result->hr      = model->CompareWith (std::move (file), &progress);
-                            result->message = FAILED (result->hr) && result->hr != E_ABORT ? L"The other image's blocks can't be read." : L"";
+                            result->message = FAILED (result->hr) && result->hr != E_ABORT ? L"The blocks in " + name + L" can't be read." : L"";
                         },
                         [this, result, name] ()
                         {

@@ -13,7 +13,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiInfoBannerTests
+//  DxuiInfoBarTests
 //
 //  The banner's renderer-free preferred-height heuristic -- the piece the page
 //  relies on to reflow controls beneath it. No painter / text renderer needed;
@@ -22,7 +22,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace DxuiInfoBannerTests
+namespace DxuiInfoBarTests
 {
     static DxuiDpiScaler Scaler96()
     {
@@ -33,13 +33,13 @@ namespace DxuiInfoBannerTests
     }
 
 
-    TEST_CLASS (DxuiInfoBannerTests)
+    TEST_CLASS (DxuiInfoBarTests)
     {
     public:
 
         TEST_METHOD (ABannerWithNoActionsHasNone)
         {
-            DxuiInfoBanner  banner;
+            DxuiInfoBar  banner;
 
             banner.SetText (L"A disk changed.");
 
@@ -52,7 +52,7 @@ namespace DxuiInfoBannerTests
 
         TEST_METHOD (SettingActionsReplacesThemRatherThanAddingToThem)
         {
-            DxuiInfoBanner  banner;
+            DxuiInfoBar  banner;
 
             banner.SetActions ({ L"Restart" });
             Assert::AreEqual ((size_t) 1, banner.GetActionCount());
@@ -68,8 +68,8 @@ namespace DxuiInfoBannerTests
 
         TEST_METHOD (TheActionReportsWhichOneWasInvoked)
         {
-            DxuiInfoBanner  banner;
-            int             invoked = -1;
+            DxuiInfoBar  banner;
+            int          invoked = -1;
 
             banner.SetActions ({ L"Take it up", L"Restart" });
             banner.SetOnAction ([&invoked] (size_t index) { invoked = (int) index; });
@@ -84,11 +84,11 @@ namespace DxuiInfoBannerTests
 
         TEST_METHOD (TheActionsLandInsideTheBannerAgainstItsTrailingEdge)
         {
-            DxuiInfoBanner  banner;
-            DxuiDpiScaler   scaler = Scaler96();
-            RECT            bounds = { 0, 0, 600, 60 };
-            RECT            first  = {};
-            RECT            second = {};
+            DxuiInfoBar    banner;
+            DxuiDpiScaler  scaler = Scaler96();
+            RECT           bounds = { 0, 0, 600, 60 };
+            RECT           first  = {};
+            RECT           second = {};
 
             banner.SetText    (L"Loader.dsk changed and the new contents were reloaded.");
             banner.SetActions ({ L"Take it up", L"Restart" });
@@ -107,7 +107,7 @@ namespace DxuiInfoBannerTests
 
         TEST_METHOD (AnActionIsNeverClippedByAShortMessage)
         {
-            DxuiInfoBanner  banner;
+            DxuiInfoBar  banner;
 
             //  One short line of text fits in less height than a button's, and a
             //  report whose action is clipped offers nothing.
@@ -120,10 +120,10 @@ namespace DxuiInfoBannerTests
 
         TEST_METHOD (TheControlColumnComesOutOfTheWidthBeforeTheTextWraps)
         {
-            DxuiInfoBanner   bare;
-            DxuiInfoBanner   withAction;
-            DxuiInfoBanner   closable;
-            DxuiDpiScaler    scaler = Scaler96();
+            DxuiInfoBar    bare;
+            DxuiInfoBar    withAction;
+            DxuiInfoBar    closable;
+            DxuiDpiScaler  scaler     = Scaler96();
             const wchar_t *  text   = L"Loader.dsk was changed by something else while it was mounted, and the "
                                       L"new contents have been reloaded. The machine is running.";
 
@@ -144,11 +144,11 @@ namespace DxuiInfoBannerTests
 
         TEST_METHOD (TheCloseBoxSitsAtTheTrailingEdgeAfterTheActions)
         {
-            DxuiInfoBanner  banner;
-            DxuiDpiScaler   scaler = Scaler96();
-            RECT            bounds = { 0, 0, 600, 60 };
-            RECT            close  = {};
-            RECT            action = {};
+            DxuiInfoBar    banner;
+            DxuiDpiScaler  scaler = Scaler96();
+            RECT           bounds = { 0, 0, 600, 60 };
+            RECT           close  = {};
+            RECT           action = {};
 
             banner.SetText        (L"The Uthernet II cannot listen on TCP port 6502.");
             banner.SetActions     ({ L"Settings" });
@@ -167,7 +167,7 @@ namespace DxuiInfoBannerTests
 
         TEST_METHOD (AReleaseOnTheCloseBoxAfterAPressOnItDismisses)
         {
-            DxuiInfoBanner  banner;
+            DxuiInfoBar     banner;
             RECT            close     = {};
             int             dismissed = 0;
             DxuiMouseEvent  ev        = {};
@@ -200,7 +200,7 @@ namespace DxuiInfoBannerTests
 
         TEST_METHOD (ABannerReportsItsTextAsItsAccessibleName)
         {
-            DxuiInfoBanner  banner;
+            DxuiInfoBar  banner;
 
             banner.SetText (L"Loader.dsk changed.");
 
@@ -213,8 +213,8 @@ namespace DxuiInfoBannerTests
             DxuiDpiScaler  scaler = Scaler96();
             float          hShort = 0.0f;
             float          hLong  = 0.0f;
-            DxuiInfoBanner  shortBanner (L"Short.");
-            DxuiInfoBanner  longBanner  (L"A considerably longer notice that has to wrap across several "
+            DxuiInfoBar  shortBanner (L"Short.");
+            DxuiInfoBar  longBanner  (L"A considerably longer notice that has to wrap across several "
                                          L"lines when the banner is only a couple hundred pixels wide.");
 
             hShort = shortBanner.GetPreferredHeightPx (220.0f, scaler);
@@ -235,8 +235,8 @@ namespace DxuiInfoBannerTests
         TEST_METHOD (ForcedBreaksCountAsLinesTheLengthAloneCannotShow)
         {
             DxuiDpiScaler   scaler = Scaler96();
-            DxuiInfoBanner  flowed (L"aaaa bbbb cccc dddd");
-            DxuiInfoBanner  broken (L"aaaa\n\nbbbb\n\ncccc\n\ndddd");
+            DxuiInfoBar  flowed (L"aaaa bbbb cccc dddd");
+            DxuiInfoBar  broken (L"aaaa\n\nbbbb\n\ncccc\n\ndddd");
 
 
 
@@ -253,8 +253,8 @@ namespace DxuiInfoBannerTests
         TEST_METHOD (ABlankLineBetweenParagraphsTakesItsOwnLine)
         {
             DxuiDpiScaler   scaler = Scaler96();
-            DxuiInfoBanner  single (L"aaaa\nbbbb");
-            DxuiInfoBanner  spaced (L"aaaa\n\nbbbb");
+            DxuiInfoBar  single (L"aaaa\nbbbb");
+            DxuiInfoBar  spaced (L"aaaa\n\nbbbb");
 
 
 
@@ -271,13 +271,13 @@ namespace DxuiInfoBannerTests
         TEST_METHOD (AMultiParagraphNoticeIsSizedForEveryParagraph)
         {
             DxuiDpiScaler   scaler = Scaler96();
-            DxuiInfoBanner  banner (L"Another program modified this disk while it was mounted "
+            DxuiInfoBar  banner (L"Another program modified this disk while it was mounted "
                                     L"in Casso:\n\nwork.dsk (Drive 1)\n\nYour disk has been renamed "
                                     L"to work.20260905-010203-01.dsk to avoid a conflict with "
                                     L"the other program, and has been remounted in Drive 1. No "
                                     L"changes were made to the other program's modified version "
                                     L"of work.dsk.");
-            DxuiInfoBanner  runOn  (L"Another program modified this disk while it was mounted "
+            DxuiInfoBar  runOn  (L"Another program modified this disk while it was mounted "
                                     L"in Casso: work.dsk (Drive 1) Your disk has been renamed "
                                     L"to work.20260905-010203-01.dsk to avoid a conflict with "
                                     L"the other program, and has been remounted in Drive 1. No "
@@ -298,10 +298,10 @@ namespace DxuiInfoBannerTests
         TEST_METHOD (AWidthNarrowerThanOneGlyphStillAsksForOneLine)
         {
             DxuiDpiScaler   scaler = Scaler96();
-            DxuiInfoBanner  banner (L"A notice long enough that one line per character "
+            DxuiInfoBar  banner (L"A notice long enough that one line per character "
                                     L"would be hundreds of lines of banner, which is what "
                                     L"a degenerate width used to produce.");
-            DxuiInfoBanner  tiny   (L"Short.");
+            DxuiInfoBar  tiny   (L"Short.");
 
 
 
@@ -316,7 +316,7 @@ namespace DxuiInfoBannerTests
             DxuiDpiScaler  scaler  = Scaler96();
             float          hNarrow = 0.0f;
             float          hWide   = 0.0f;
-            DxuiInfoBanner  banner (L"A considerably longer notice that has to wrap across several lines "
+            DxuiInfoBar  banner (L"A considerably longer notice that has to wrap across several lines "
                                     L"when the banner is narrow, but fits far fewer when it is wide.");
 
             hNarrow = banner.GetPreferredHeightPx (200.0f, scaler);
@@ -329,7 +329,7 @@ namespace DxuiInfoBannerTests
         TEST_METHOD (EmptyBannerStillClearsTheIcon)
         {
             DxuiDpiScaler   scaler = Scaler96();
-            DxuiInfoBanner  banner (L"");
+            DxuiInfoBar  banner (L"");
 
             // Even with no text the banner is at least one icon tall plus padding,
             // so a blank message never collapses to nothing.
@@ -346,8 +346,8 @@ namespace DxuiInfoBannerTests
             constexpr float  kCompactPadDip = 3.0f;
             constexpr float  kTolerance     = 0.01f;
             DxuiDpiScaler    scaler         = Scaler96();
-            DxuiInfoBanner        normal  (L"a short warning");
-            DxuiInfoBanner        compact (L"a short warning");
+            DxuiInfoBar        normal  (L"a short warning");
+            DxuiInfoBar        compact (L"a short warning");
             MockDxuiTextRenderer  text;
             SIZE                  oneLine = { 200, 20 };
             float                 saved   = 2.0f * (kDefaultPadDip - kCompactPadDip);
@@ -374,7 +374,7 @@ namespace DxuiInfoBannerTests
             // clips -- harmless on an auto-sized surface, but on a fixed
             // dialog the slack shows as an empty line inside the box. A caller
             // that HAS a renderer can ask for the real height instead.
-            DxuiInfoBanner        banner (L"a short warning");
+            DxuiInfoBar        banner (L"a short warning");
             MockDxuiTextRenderer  text;
             DxuiDpiScaler         scaler    = Scaler96();
             SIZE                  oneLine   = { 200, 16 };
@@ -395,7 +395,7 @@ namespace DxuiInfoBannerTests
 
         TEST_METHOD (MeasuredHeight_TallerTextNeedsMoreRoom)
         {
-            DxuiInfoBanner        banner (L"tall");
+            DxuiInfoBar        banner (L"tall");
             MockDxuiTextRenderer  text;
             DxuiDpiScaler         scaler = Scaler96();
             SIZE                  one    = { 200, 16 };
@@ -419,7 +419,7 @@ namespace DxuiInfoBannerTests
             // DirectWrite can transiently report a zero-width layout mid-resize.
             // Trusting that would collapse the banner to its padding, so a
             // failed measurement has to fall back rather than be believed.
-            DxuiInfoBanner        banner (L"a warning long enough to wrap more than once in a narrow banner");
+            DxuiInfoBar        banner (L"a warning long enough to wrap more than once in a narrow banner");
             MockDxuiTextRenderer  text;
             DxuiDpiScaler         scaler = Scaler96();
 
@@ -442,8 +442,8 @@ namespace DxuiInfoBannerTests
         {
             DxuiDpiScaler   scaler = Scaler96();
             std::wstring    words (400, L'x');       // 400 * 7 dip = 2800 dip wide
-            DxuiInfoBanner  plain  (words);
-            DxuiInfoBanner  center (words);
+            DxuiInfoBar  plain  (words);
+            DxuiInfoBar  center (words);
 
             center.SetCentered (true);
 
@@ -458,8 +458,8 @@ namespace DxuiInfoBannerTests
         TEST_METHOD (Centered_ShortLineKeepsItsHeight)
         {
             DxuiDpiScaler   scaler = Scaler96();
-            DxuiInfoBanner  plain  (L"Press Esc to release the mouse and exit paddle mode");
-            DxuiInfoBanner  center (L"Press Esc to release the mouse and exit paddle mode");
+            DxuiInfoBar  plain  (L"Press Esc to release the mouse and exit paddle mode");
+            DxuiInfoBar  center (L"Press Esc to release the mouse and exit paddle mode");
 
             center.SetCentered (true);
 
@@ -479,7 +479,7 @@ namespace DxuiInfoBannerTests
             MockDxuiTextRenderer  text;
             MockDxuiTheme         theme;
             std::wstring          words (400, L'x');   // 2800 dip on one line
-            DxuiInfoBanner        banner (words);
+            DxuiInfoBar        banner (words);
             float                 drawnW  = 0.0f;
             float                 height  = 0.0f;
 
@@ -513,7 +513,7 @@ namespace DxuiInfoBannerTests
             MockDxuiPainter       painter;
             MockDxuiTextRenderer  text;
             MockDxuiTheme         theme;
-            DxuiInfoBanner        banner (L"Press Esc to release the mouse");
+            DxuiInfoBar        banner (L"Press Esc to release the mouse");
             float                 drawnX = 0.0f;
             DxuiTextHAlign        align  = DxuiTextHAlign::Left;
 
@@ -543,7 +543,7 @@ namespace DxuiInfoBannerTests
             MockDxuiPainter       painter;
             MockDxuiTextRenderer  text;
             MockDxuiTheme         theme;
-            DxuiInfoBanner        banner (L"Press Esc to release the mouse");
+            DxuiInfoBar        banner (L"Press Esc to release the mouse");
             float                 drawnX = 1000.0f;
             DxuiTextHAlign        align  = DxuiTextHAlign::Center;
 
@@ -575,7 +575,7 @@ namespace DxuiInfoBannerTests
             MockDxuiTextRenderer  text;
             MockDxuiTheme         theme;
             std::wstring          words (400, L'x');   // 2800 dip on one line
-            DxuiInfoBanner        banner (words);
+            DxuiInfoBar        banner (words);
             float                 height = 0.0f;
             float                 drawnW = 0.0f;
             float                 drawnH = 0.0f;
@@ -612,7 +612,7 @@ namespace DxuiInfoBannerTests
         TEST_METHOD (Centered_NarrowBarDoesNotStrandAWordOnALineOfItsOwn)
         {
             MockDxuiTextRenderer  text;
-            DxuiInfoBanner        banner (L"Using the mouse for paddle input. Press Esc to exit paddle mode.");
+            DxuiInfoBar        banner (L"Using the mouse for paddle input. Press Esc to exit paddle mode.");
             DxuiDpiScaler         scaler;
             float                 lineHeight = 0.0f;
             float                 wrappedW   = 0.0f;
@@ -676,7 +676,7 @@ namespace DxuiInfoBannerTests
             MockDxuiPainter       painter;
             MockDxuiTextRenderer  text;
             MockDxuiTheme         theme;
-            DxuiInfoBanner        banner (L"Buttons are disabled.");
+            DxuiInfoBar        banner (L"Buttons are disabled.");
             int                   glyphs    = 0;
             int                   marks     = 0;
             uint32_t              glyphArgb = 0;
@@ -714,7 +714,7 @@ namespace DxuiInfoBannerTests
             MockDxuiPainter       painter;
             MockDxuiTextRenderer  text;
             MockDxuiTheme         theme;
-            DxuiInfoBanner        banner (L"Buttons are disabled.");
+            DxuiInfoBar        banner (L"Buttons are disabled.");
 
 
 
@@ -730,7 +730,7 @@ namespace DxuiInfoBannerTests
         TEST_METHOD (ActionsBelow_AreUnderTheTextAtAnyWidth)
         {
             DxuiDpiScaler   scaler = Scaler96();
-            DxuiInfoBanner  banner (L"Possible inconsistencies found.");
+            DxuiInfoBar  banner (L"Possible inconsistencies found.");
 
 
 
@@ -747,7 +747,7 @@ namespace DxuiInfoBannerTests
         TEST_METHOD (Stacked_ActionMovesUnderTheTextWhenNarrow)
         {
             DxuiDpiScaler   scaler = Scaler96();
-            DxuiInfoBanner  banner (L"File system damaged.");
+            DxuiInfoBar  banner (L"File system damaged.");
             float  wideH   = 0.0f;
             float  narrowH = 0.0f;
             RECT   action  = {};
@@ -771,6 +771,51 @@ namespace DxuiInfoBannerTests
             action = banner.GetAction (0)->GetBounds();
             Assert::IsTrue (narrowH > wideH, L"taller by the action's row");
             Assert::IsTrue (action.bottom <= (LONG) narrowH && action.top >= (LONG) (narrowH / 2), L"the action is in the bottom row");
+        }
+
+
+        TEST_METHOD (ABarShownWithNoDurationStaysUpUntilDismissed)
+        {
+            DxuiInfoBar  bar;
+
+
+
+            bar.Show (L"Note", 1000);
+            bar.Tick (1000 + 3600 * 1000);
+            Assert::IsTrue (bar.IsVisible(), L"no countdown");
+
+            bar.Dismiss();
+            Assert::IsFalse (bar.IsVisible());
+        }
+
+
+        TEST_METHOD (ATimedBarGoesOnceItsDurationRunsOut)
+        {
+            DxuiInfoBar  bar;
+
+
+
+            bar.SetDurationMs (500);
+            bar.Show (L"Note", 1000);
+
+            bar.Tick (1499);
+            Assert::IsTrue (bar.IsVisible(), L"inside its countdown");
+
+            bar.Tick (1500);
+            Assert::IsFalse (bar.IsVisible(), L"taken down at its end");
+        }
+
+
+        TEST_METHOD (ABarMadeVisibleWithoutShowHasNoCountdown)
+        {
+            DxuiInfoBar  bar;
+
+
+
+            bar.SetDurationMs (500);
+            bar.SetVisible (true);
+            bar.Tick (1000000);
+            Assert::IsTrue (bar.IsVisible());
         }
 
 

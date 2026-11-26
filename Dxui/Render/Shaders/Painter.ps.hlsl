@@ -26,6 +26,7 @@ struct PSIn
     nointerpolation float4  shape : TEXCOORD1;
     nointerpolation float   kind  : TEXCOORD2;
     float4                  edges : TEXCOORD3;
+    nointerpolation float3  band  : TEXCOORD4;
 };
 
 static const int kKindSolid       = 0;
@@ -35,6 +36,11 @@ static const int kKindEllipse     = 3;
 static const int kKindCapsule     = 4;
 static const int kKindConvexQuad  = 5;
 static const int kKindTaperedCapsule = 6;
+static const int kKindRingSector     = 7;
+static const int kKindRingStroke     = 23;
+
+static const float kHardEdge   = 1.0e6f;
+static const float kSectorGrid = 64.0f;
 
 static const float kTinyLength = 1.0e-6f;
 
@@ -124,6 +130,102 @@ float DistanceToTaperedCapsule (float2 p, float2 b, float ra, float rb, float ho
 }
 
 
+// A plane distance in pixels, by how fast it changes across the screen.
+float ToScreenDistance (float distance)
+{
+    return distance / max (length (float2 (ddx (distance), ddy (distance))), kTinyLength);
+}
+
+
+// A pixel's offset from a tilted disk's center on screen, taken back onto
+// the disk.
+float2 ToDisk (float2 p, float eye, float tilt)
+{
+    float  cosT = cos (tilt);
+    float  sinT = sin (tilt);
+    float  dy   = p.y * eye / max (eye * cosT + p.y * sinT, kTinyLength);
+
+    return float2 (p.x * (eye - dy * sinT) / eye, dy);
+}
+
+
+// The larger of the distances in pixels past the two ends of a stretch,
+// each hard as flags bits 0 and 1 have it.
+float DistancePastEnds (float2 d, float4 ends, int flags)
+{
+    float  start  = -(ends.x * d.y + ends.y * d.x);
+    float  end    =   ends.z * d.y + ends.w * d.x;
+    float  startD = ToScreenDistance (start);
+    float  endD   = ToScreenDistance (end);
+
+    if ((flags & 1) != 0)
+    {
+        startD = (start <= 0.0f) ? -kHardEdge : kHardEdge;
+    }
+
+    if ((flags & 2) != 0)
+    {
+        endD = (end < 0.0f) ? -kHardEdge : kHardEdge;
+    }
+
+    return max (startD, endD);
+}
+
+
+// A stretch of a ring on a tilted disk. p is the pixel's offset from the
+// disk's center on screen; shape is (r0, r1, eye distance, tilt) and ends is
+// (sin, cos) of the start angle then of the end angle, not interpolated so
+// two stretches that meet test their shared end against the same values.
+// The pixel is taken back onto the disk, then measured against both radii
+// and both ends, each in pixels. A hard edge (flags bit 0 the start, 1 the
+// end, 2 the inner radius, 3 the outer) is all or nothing: the start and
+// the inner radius include their line and the end and the outer radius
+// exclude it, so stretches that meet there cover each pixel once.
+float DistanceToRingSector (float2 p, float4 shape, float4 ends, int flags)
+{
+    float2 d      = ToDisk (p, shape.z, shape.w);
+    float  r      = length (d);
+    float  inner  = ToScreenDistance (shape.x - r);
+    float  outer  = ToScreenDistance (r - shape.y);
+    float  past   = DistancePastEnds (d, ends, flags);
+
+    if ((flags & 4) != 0)
+    {
+        inner = (r >= shape.x) ? -kHardEdge : kHardEdge;
+    }
+
+    if ((flags & 8) != 0)
+    {
+        outer = (r < shape.y) ? -kHardEdge : kHardEdge;
+    }
+
+    return max (max (inner, outer), past);
+}
+
+
+// A line along a circle of a tilted disk, as for a ring stretch: shape is
+// (radius, half the line's width in pixels, eye distance, tilt). Its width is
+// measured on screen, so it is even all the way around.
+float DistanceToRingStroke (float2 p, float4 shape, float4 ends, int flags)
+{
+    float2 d     = ToDisk (p, shape.z, shape.w);
+    float  along = ToScreenDistance (length (d) - shape.x);
+
+    return max (abs (along) - shape.y, DistancePastEnds (d, ends, flags));
+}
+
+
+// The share of the color a pixel has under a band of light at 45 degrees:
+// band is (the band's center along x + y, its width, the share away from
+// it). A width of 0 is no band, the whole color everywhere.
+float GetShimmer (float2 pos, float3 band)
+{
+    float  distance = (pos.x + pos.y - band.x) / max (band.y, kTinyLength);
+
+    return (band.y > 0.0f) ? band.z + (1.0f - band.z) * exp (-distance * distance) : 1.0f;
+}
+
+
 float4 main (PSIn input) : SV_TARGET
 {
     int   kind     = (int) (input.kind + 0.5f);
@@ -150,6 +252,16 @@ float4 main (PSIn input) : SV_TARGET
     {
         distance = DistanceToCapsule (input.local, input.shape.xy, input.shape.z);
     }
+    else if (kind >= kKindRingSector)
+    {
+        //  The center is on a 1/64 pixel grid, so it comes back exactly
+        //  from the pixel's position less its interpolated offset, and the
+        //  pixel's offset from it is the same in every stretch.
+        float2  center = round ((input.pos.xy - input.local) * kSectorGrid) / kSectorGrid;
+
+        distance = (kind >= kKindRingStroke) ? DistanceToRingStroke (input.pos.xy - center, input.edges, input.shape, kind - kKindRingStroke)
+                                             : DistanceToRingSector (input.pos.xy - center, input.edges, input.shape, kind - kKindRingSector);
+    }
     else if (kind == kKindTaperedCapsule)
     {
         //  Its position is in a plane's units, so the distance is turned
@@ -164,5 +276,5 @@ float4 main (PSIn input) : SV_TARGET
         distance = max (max (input.edges.x, input.edges.y), max (input.edges.z, input.edges.w));
     }
 
-    return input.col * saturate (0.5f - distance);
+    return input.col * saturate (0.5f - distance) * GetShimmer (input.pos.xy, input.band);
 }

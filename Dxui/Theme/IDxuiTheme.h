@@ -263,21 +263,21 @@ public:
     //  accent border that stands out, and body-strength text that stays readable.
     //  A theme may override any of these for a bespoke look.
     //
-    virtual uint32_t  InfoBannerBackground () const
+    virtual uint32_t  InfoBarBackground () const
     {
         constexpr uint32_t  kTintAlpha = 0x16u << 24;   // ~9% accent tint: a subtle callout, not a button fill
 
         return (Accent() & 0x00FFFFFFu) | kTintAlpha;
     }
 
-    virtual uint32_t  InfoBannerBorder     () const
+    virtual uint32_t  InfoBarBorder     () const
     {
         constexpr uint32_t  kBorderAlpha = 0x99u << 24;   // muted accent edge, not a bright button border
 
         return (Accent() & 0x00FFFFFFu) | kBorderAlpha;
     }
 
-    virtual uint32_t  InfoBannerForeground () const { return Foreground(); }
+    virtual uint32_t  InfoBarForeground () const { return Foreground(); }
 
     //
     //  Warning severity. A warning is not an accent-colored notice -- it has
@@ -292,14 +292,14 @@ public:
 
     virtual uint32_t  WarningMark   () const { return 0xFF241500u; }
 
-    virtual uint32_t  InfoBannerWarningBackground () const
+    virtual uint32_t  InfoBarWarningBackground () const
     {
         constexpr uint32_t  kTintAlpha = 0x16u << 24;   // matches the info tint's weight
 
         return (WarningAccent() & 0x00FFFFFFu) | kTintAlpha;
     }
 
-    virtual uint32_t  InfoBannerWarningBorder () const
+    virtual uint32_t  InfoBarWarningBorder () const
     {
         constexpr uint32_t  kBorderAlpha = 0x99u << 24;
 
@@ -310,14 +310,14 @@ public:
     //  Error severity: the theme's error color, tinted and edged as a
     //  warning is, for a notice that something is damaged or failed.
     //
-    virtual uint32_t  InfoBannerErrorBackground () const
+    virtual uint32_t  InfoBarErrorBackground () const
     {
         constexpr uint32_t  kTintAlpha = 0x1Fu << 24;
 
         return (ErrorForeground() & 0x00FFFFFFu) | kTintAlpha;
     }
 
-    virtual uint32_t  InfoBannerErrorBorder () const
+    virtual uint32_t  InfoBarErrorBorder () const
     {
         constexpr uint32_t  kBorderAlpha = 0xCCu << 24;
 

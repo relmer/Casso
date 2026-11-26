@@ -127,7 +127,12 @@ private:
     void  TakeCompared ();
     bool  IsBReady     () const;
 
+    //  Each side's name for the comparison's text: DiskComparer's, and when
+    //  both are the same file, each followed by its source.
+    SideNames  GetNames (const DiskAnalysis & a, const DiskAnalysis & b) const;
+
     bool                                m_isComparing    = false;
+    bool                                m_isFileHost     = false;
     std::array<ComparisonSource, 2>     m_sources;
     std::array<Read, 2>                 m_reads;
     std::array<std::wstring, 2>         m_errors;

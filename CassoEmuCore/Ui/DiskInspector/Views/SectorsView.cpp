@@ -18,7 +18,6 @@ static constexpr float     s_kByteCells      = 74.0f;   // the hex view's charac
 static constexpr float     s_kCellDip        = 8.0f;
 static constexpr float     s_kMinZoom        = 0.6f;
 static constexpr float     s_kZoomStep       = 0.05f;
-static constexpr float     s_kDiffShare      = 0.35f;
 static constexpr float     s_kHitShare       = 0.45f;
 static constexpr float     s_kConflictShare  = 0.25f;
 static constexpr uint32_t  s_kPanelArgb      = 0xFF0E121Au;
@@ -32,6 +31,12 @@ static constexpr uint8_t  s_kMarkDiffers  = 1;
 static constexpr uint8_t  s_kMarkHit      = 2;
 static constexpr uint8_t  s_kMarkChanged  = 3;
 static constexpr uint8_t  s_kMarkConflict = 4;
+static constexpr uint8_t  s_kMarkMatches  = 5;
+
+//  While comparing, a byte that matches the other image's is drawn this much
+//  of the way from the panel's color to the text's; one that differs is
+//  drawn at full strength, as the Nibbles tab's nibbles are.
+static constexpr float    s_kMatchInkShare = 0.35f;
 
 
 
@@ -183,6 +188,10 @@ void SectorsView::PlaceBytes (bool isBad, bool isB)
     row    = rowPx * zoom;
     height = static_cast<LONG> (std::ceil (row * s_kSectorRows + frame)) + 1;
 
+    //  Below the smallest row, each view takes its share of the room and
+    //  scrolls, rather than running past the bottom of the panel.
+    height = std::min (height, std::max (static_cast<LONG> (row + frame), static_cast<LONG> ((room - (isB ? row * 1.5f : 0.0f)) / (isB ? 2.0f : 1.0f))));
+
     m_hexA.Layout ({ m_boundsDip.left, static_cast<LONG> (top), m_boundsDip.right, static_cast<LONG> (top) + height }, m_scaler);
 
     top += height + row * 1.5f;
@@ -270,8 +279,11 @@ void SectorsView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 
     if (isB)
     {
+        SideNames     names = (m_context.comparison != nullptr) ? m_context.comparison->names : SideNames();
+        std::wstring  title = (m_sourceB.GetByteCount() > 0) ? names.b : names.Get (1) + L" has no sector to pair with this one";
+
         cell = m_hexB.GetBounds();
-        text.DrawString (m_sourceB.GetByteCount() > 0 ? L"B" : L"B has no sector to pair with this one", static_cast<float> (m_boundsDip.left),
+        text.DrawString (title.c_str(), static_cast<float> (m_boundsDip.left),
                          cell.top - rowDip * m_hexB.GetZoom(), GetWidth(), rowDip * m_hexB.GetZoom(), m_panelTheme.HeadingForeground(), m_scaler.ToPxf (kSmallDip),
                          DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
 
@@ -489,14 +501,15 @@ void SectorsView::ShowBytes (const AnalyzedSector & sector, const TrackAnalysis 
         {
             m_sourceA.SetMark (i, s_kMarkDiffers);
         }
+        else if (!bytesB.empty())
+        {
+            m_sourceA.SetMark (i, s_kMarkMatches);
+        }
     }
 
     for (size_t i = 0; i < bytesB.size(); i++)
     {
-        if (i >= data.bytes.size() || data.bytes[i] != bytesB[i])
-        {
-            m_sourceB.SetMark (i, s_kMarkDiffers);
-        }
+        m_sourceB.SetMark (i, (i >= data.bytes.size() || data.bytes[i] != bytesB[i]) ? s_kMarkDiffers : s_kMarkMatches);
     }
 }
 
@@ -508,10 +521,11 @@ void SectorsView::ShowBytes (const AnalyzedSector & sector, const TrackAnalysis 
 //
 //  SectorsView::PickStyle
 //
-//  A byte that differs from the other side's has the difference color
-//  behind it, a byte of a find hit the find color with an outline, and a
-//  byte the guest also wrote an outline in the failure color. A zero byte
-//  is muted. A selected byte is the hex view's selection.
+//  While comparing, a byte that matches the other side's is dimmed and one
+//  that differs is drawn at full strength. A byte of a find hit has the
+//  find color with an outline, and a byte the guest also wrote an outline
+//  in the failure color. Otherwise a zero byte is muted. A selected byte is
+//  the hex view's selection.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -531,7 +545,11 @@ bool SectorsView::PickStyle (const BlockHexSource & source, uint64_t offset, uin
     switch (mark)
     {
         case s_kMarkDiffers:
-            outStyle.fill = DxuiColor::Mix (s_kPanelArgb, colors.difference | 0xFF000000u, s_kDiffShare);
+            outStyle.ink = m_panelTheme.Foreground();
+            break;
+
+        case s_kMarkMatches:
+            outStyle.ink = DxuiColor::Mix (s_kPanelArgb, m_panelTheme.Foreground(), s_kMatchInkShare);
             break;
 
         case s_kMarkHit:
@@ -548,7 +566,7 @@ bool SectorsView::PickStyle (const BlockHexSource & source, uint64_t offset, uin
             break;
     }
 
-    if (offset < source.GetBytes().size() && source.GetBytes()[offset] == 0)
+    if (mark != s_kMarkDiffers && mark != s_kMarkMatches && offset < source.GetBytes().size() && source.GetBytes()[offset] == 0)
     {
         outStyle.ink = m_panelTheme.ForegroundMuted();
     }
@@ -588,7 +606,9 @@ std::span<const Byte> SectorsView::GetPairedBytes (const TrackAnalysis & track) 
 //
 //  SectorsView::FollowSelection
 //
-//  The main hex view's selection and column from the view model's.
+//  The main hex view's selection and column from the view model's. A
+//  selection of nibbles, as made in the strip, selects the bytes whose high
+//  bits are in them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -604,6 +624,11 @@ void SectorsView::FollowSelection()
 
 
     m_isFollowing = true;
+
+    if ((first < 0 || count <= 0) && m_context.model->GetBytesOfNibbles (first, count))
+    {
+        anchor = first;
+    }
 
     if (first < 0 || count <= 0)
     {

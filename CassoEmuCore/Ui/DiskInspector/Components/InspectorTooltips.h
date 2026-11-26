@@ -38,7 +38,8 @@ public:
     void  ClearText ()                  { m_text.clear(); }
 
 private:
-    std::wstring  GetButtonTip (POINT pointPx, RECT & outAnchorPx) const;
+    std::wstring  GetButtonTip     (POINT pointPx, RECT & outAnchorPx) const;
+    void          BuildComparedTip (POINT pointPx, std::wstring & inOutTip, vector<DxuiTooltipSwatch> & inOutSwatches, vector<vector<std::wstring>> & outTable) const;
 
     static bool   IsInside     (const RECT & rect, POINT pointPx) { return PtInRect (&rect, pointPx) != FALSE; }
 

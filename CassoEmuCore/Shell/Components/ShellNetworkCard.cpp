@@ -21,7 +21,7 @@
 ShellNetworkCard::ShellNetworkCard (EmulatorShell & shell)
     : m_shell (shell)
 {
-    m_banner.SetSeverity    (DxuiInfoBanner::Severity::Warning);
+    m_banner.SetSeverity    (DxuiInfoBar::Severity::Warning);
     m_banner.SetDismissible (true);
     m_banner.SetVisible     (false);
     m_banner.SetOnDismiss   ([this] () { Show (false); });

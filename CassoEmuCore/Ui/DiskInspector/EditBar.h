@@ -32,6 +32,7 @@ struct EditBarState
     bool          isWaiting        = false;
     bool          isMachinePaused  = false;
     bool          canUseB          = false;
+    std::wstring  nameB;            // the other side's name in the comparison
     bool          hasChecksum      = true;    // false for an image with no checksums, as one of blocks
     bool          canSaveCopy      = true;    // false where a copy can't be made, as on a storage card
 };
@@ -117,4 +118,5 @@ private:
     bool            m_hasLayout     = false;
     std::wstring    m_unit          = L"sector";
     std::wstring    m_units         = L"sectors";
+    std::wstring    m_nameB;
 };

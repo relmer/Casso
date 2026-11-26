@@ -522,7 +522,7 @@ void PreviewDiskThumbnail::Create()
     m_chips    = m_header->CreateChild<ThumbnailChips> (m_view.palette);
     m_screen   = m_header->CreateChild<ThumbnailScreen>();
     m_bootLine = m_header->CreateChild<DxuiLabel> (L"", DxuiTextRole::Muted, DxuiTextHAlign::Left, DxuiTextVAlign::Top);
-    m_verdict  = m_header->CreateChild<DxuiInfoBanner>();
+    m_verdict  = m_header->CreateChild<DxuiInfoBar>();
     m_inspect  = m_header->CreateChild<DxuiButton> (L"Inspect...");
 
     m_header->SetScrollbarShown (false);
@@ -835,7 +835,7 @@ bool PreviewDiskThumbnail::ShowCheck()
     if (m_isVerdictShown)
     {
         m_verdict->SetText     (text);
-        m_verdict->SetSeverity ((outcome.verdict == FileSystemVerdict::Bad) ? DxuiInfoBanner::Severity::Error : DxuiInfoBanner::Severity::Info);
+        m_verdict->SetSeverity ((outcome.verdict == FileSystemVerdict::Bad) ? DxuiInfoBar::Severity::Error : DxuiInfoBar::Severity::Info);
     }
 
     return m_isVerdictShown;
@@ -933,16 +933,16 @@ void PreviewDiskThumbnail::ApplyResult()
 
 void PreviewDiskThumbnail::ApplyVerdict()
 {
-    const Finding            * finding  = FileSystemCheck::GetVerdictFinding (*m_result.analysis);
-    std::wstring               text     = FormatVerdict (m_result.analysis->verdict, finding != nullptr ? FindingFormatter::Format (*finding) : std::wstring());
-    DxuiInfoBanner::Severity   severity = (m_result.analysis->verdict == FileSystemVerdict::Bad) ? DxuiInfoBanner::Severity::Error : DxuiInfoBanner::Severity::Info;
+    const Finding          * finding  = FileSystemCheck::GetVerdictFinding (*m_result.analysis);
+    std::wstring             text     = FormatVerdict (m_result.analysis->verdict, finding != nullptr ? FindingFormatter::Format (*finding) : std::wstring());
+    DxuiInfoBar::Severity    severity = (m_result.analysis->verdict == FileSystemVerdict::Bad) ? DxuiInfoBar::Severity::Error : DxuiInfoBar::Severity::Info;
 
 
 
     if (text.empty() && !m_listingWarning.empty())
     {
         text     = FormatListingWarning (m_listingWarning);
-        severity = DxuiInfoBanner::Severity::Warning;
+        severity = DxuiInfoBar::Severity::Warning;
     }
 
     m_isVerdictShown = !text.empty();

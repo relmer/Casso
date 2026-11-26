@@ -144,6 +144,37 @@ public:
 
 
 
+    TEST_METHOD (AlignedFindingsShareALineWhenBothImagesHaveThem)
+    {
+        auto  make = [] (const std::wstring & text, int finding)
+        {
+            TableRow  row;
+
+            row.cells   = { L"Error", text, L"Sector", L"17", L"$3", L"100" };
+            row.finding = finding;
+            return row;
+        };
+
+        vector<TableRow>  a = { make (L"bad checksum", 0), make (L"only in a", 1), make (L"missing sector", 2) };
+        vector<TableRow>  b = { make (L"bad checksum", 0), make (L"missing sector", 1), make (L"only in b", 2) };
+
+
+
+        a[2].cells[5] = L"900";
+        InspectorTables::AlignFindings (a, b);
+
+        Assert::AreEqual (size_t (4), a.size());
+        Assert::AreEqual (a.size(), b.size());
+        Assert::AreEqual (std::wstring (L"bad checksum"),   b[0].cells[1]);
+        Assert::AreEqual (std::wstring (L"only in a"),      a[1].cells[1]);
+        Assert::AreEqual (-1,                               b[1].finding, L"a blank row across from a finding only A has");
+        Assert::AreEqual (std::wstring (L"missing sector"), b[2].cells[1], L"the cell doesn't keep a finding from pairing");
+        Assert::AreEqual (-1,                               a[3].finding);
+        Assert::AreEqual (std::wstring (L"only in b"),      b[3].cells[1]);
+    }
+
+
+
     TEST_METHOD (EachFindingHasASeverity)
     {
         struct Case { FindingCategory category; FindingKind kind; FindingWeight weight; FindingSeverity severity; };

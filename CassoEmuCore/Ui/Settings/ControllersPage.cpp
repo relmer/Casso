@@ -67,7 +67,7 @@ ControllersPage::ControllersPage (std::wstring title)
         m_playerEntry[target].SetElide (DxuiElide::Middle);
         m_playerMode[target].SetElide  (DxuiElide::Middle);
 
-        m_playerWarning[target].SetSeverity (DxuiInfoBanner::Severity::Info);
+        m_playerWarning[target].SetSeverity (DxuiInfoBar::Severity::Info);
         m_playerWarning[target].SetVisible  (false);
 
         // A one-line notice among the player rows, so it hugs its text.
@@ -122,7 +122,7 @@ ControllersPage::ControllersPage (std::wstring title)
     {
         Adopt (m_sharedWarning[target]);
 
-        m_sharedWarning[target].SetSeverity           (DxuiInfoBanner::Severity::Warning);
+        m_sharedWarning[target].SetSeverity           (DxuiInfoBar::Severity::Warning);
         m_sharedWarning[target].SetIconGlyph          (s_kpszMdl2Warning);
         m_sharedWarning[target].SetVisible            (false);
         m_sharedWarning[target].SetVerticalPaddingDip ((float) s_kWarningPadYDp);
@@ -1475,10 +1475,10 @@ int ControllersPage::LayOutSharedWarning (
     IDxuiTextRenderer     * text,
     const DxuiDpiScaler   & scaler)
 {
-    DxuiInfoBanner  & banner   = m_sharedWarning[target];
-    std::wstring      notice   = IsTargetShown (target) ? MakeSharedNotice (TargetAt (target)) : std::wstring();
-    bool              isNew    = !notice.empty() && notice != banner.GetText();
-    int               heightPx = 0;
+    DxuiInfoBar   & banner   = m_sharedWarning[target];
+    std::wstring    notice   = IsTargetShown (target) ? MakeSharedNotice (TargetAt (target)) : std::wstring();
+    bool            isNew    = !notice.empty() && notice != banner.GetText();
+    int             heightPx = 0;
 
 
 

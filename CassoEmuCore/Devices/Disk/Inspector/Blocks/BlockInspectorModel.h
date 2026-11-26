@@ -80,10 +80,11 @@ public:
 
     //  Counts each time the volumes' maps are read, as when an image opens
     //  or edits are applied; zero before an image opens.
-    uint32_t          GetMapGeneration () const { return m_generation; }
-    BlockImageFile  & GetFile          () { return *m_file; }
-    uint32_t          GetBlockCount    () const;
-    uint32_t          GetBlock         () const { return m_block; }
+    uint32_t                GetMapGeneration () const { return m_generation; }
+    BlockImageFile        & GetFile          () { return *m_file; }
+    const BlockImageFile  & GetFile          () const { return *m_file; }
+    uint32_t                GetBlockCount    () const;
+    uint32_t                GetBlock         () const { return m_block; }
 
     //  A block's bytes, its Disk Copy tag bytes and, while comparing, the
     //  other image's block, read and cached. IsLoaded is true once they are.

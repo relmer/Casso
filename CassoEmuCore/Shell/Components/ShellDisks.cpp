@@ -1087,7 +1087,7 @@ void ShellDisks::InstallChangeReporting()
         return true;
     });
 
-    m_changeBanner.SetSeverity (DxuiInfoBanner::Severity::Info);
+    m_changeBanner.SetSeverity (DxuiInfoBar::Severity::Info);
     m_changeBanner.SetVisible  (false);
 
     //  EVERY BUTTON ON THE STRIP DISMISSES IT, and that is all any of them

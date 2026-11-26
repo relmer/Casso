@@ -1951,7 +1951,7 @@ int ShellChrome::GetStandInBarHeightPx (float widthPx) const
 {
     IDxuiTextRenderer *  text = (m_shell.m_host != nullptr) ? m_shell.m_host->GetTextRenderer() : nullptr;
     std::wstring         line = m_shell.GetStandInBannerText();
-    DxuiInfoBanner       measure (line);
+    DxuiInfoBar       measure (line);
 
 
 

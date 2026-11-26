@@ -184,6 +184,14 @@ void FluxView::PaintPlot (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
                      static_cast<float> (plot.left) + m_scaler.ToPxf (s_kGapDip), static_cast<float> (plot.bottom) - 3 * textPx,
                      static_cast<float> (w) - 2 * m_scaler.ToPxf (s_kGapDip), 3 * textPx, theme.ForegroundMuted(), textPx, DxuiTheme::kBodyFace);
 
+    //  While comparing, the plot is of the window's image only.
+    if (m_context.comparison != nullptr)
+    {
+        text.DrawString ((L"Flux timing of " + m_context.comparison->names.a + L" only").c_str(), static_cast<float> (plot.left) + m_scaler.ToPxf (s_kGapDip),
+                         static_cast<float> (plot.top), static_cast<float> (w) - 2 * m_scaler.ToPxf (s_kGapDip), textPx * 1.5f, theme.ForegroundMuted(), textPx,
+                         DxuiTheme::kBodyFace, DxuiTextHAlign::Right, DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
+    }
+
     m_occupied.assign (static_cast<size_t> (w) * static_cast<size_t> (h), 0);
 
     for (const FluxInterval & interval : m_intervals)

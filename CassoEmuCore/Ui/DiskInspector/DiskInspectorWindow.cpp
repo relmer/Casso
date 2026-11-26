@@ -608,6 +608,7 @@ HRESULT DiskInspectorWindow::RenderFrame()
 
     Invalidate();
 
+
     //  Repair reads the image file, so the copy is enough without its
     //  analysis. The flag is cleared first, as the dialog is modal and
     //  frames go on under it.
@@ -925,6 +926,7 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
     in.minColumnPx   = m_corners->GetMinWidthPx (scaler);
     in.sectorsPx     = SectorsView::GetFullWidthPx (scaler);
     in.cornerBandPx  = m_corners->GetBottomBandPx (scaler);
+    in.noticePx      = m_comparisonPart->GetNoticeHeightPx (width - 2 * margin, scaler);
     f                = InspectorWindowLayout::Plan (in, scaler);
     right            = f.trackColumn;
 
@@ -941,7 +943,7 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
     m_findPart->Layout (f.findArea, scaler);
     m_splitterPx = f.splitter;
 
-    m_comparisonPart->Layout        (f.compareBar, scaler);
+    m_comparisonPart->Layout        (f.compareBar, f.notice, scaler);
     m_session.views.platter->Layout (f.platter, scaler);
 
     m_session.layout.platterArea   = f.platterArea;
@@ -974,6 +976,12 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
 
     m_session.views.strip->Layout  (f.strip, scaler);
     m_session.views.stripB->Layout (f.stripB, scaler);
+
+    //  One shimmer crosses both strips of a comparison, a single light.
+    LONG  lightEnd = (f.stripB.bottom > f.stripB.top) ? f.stripB.bottom : f.strip.top;
+
+    m_session.views.strip->SetLightRows  (f.strip.top, lightEnd);
+    m_session.views.stripB->SetLightRows (f.strip.top, lightEnd);
     m_stripControls->Layout        (f.stripControls, scaler);
 
     m_session.layout.stripArea = f.stripArea;
@@ -1080,7 +1088,8 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
     if (!m_isSplitting && !m_session.views.platter->IsDragging() && m_findPart->OnBarMouse (ev))
     {
         m_isFocusShown            = m_isFocusShown && ev.kind != DxuiMouseEventKind::Down;
-        m_session.context.hoverPx = POINT { SHRT_MIN, SHRT_MIN };
+        m_session.context.hoverPx  = POINT { SHRT_MIN, SHRT_MIN };
+        m_session.contextB.hoverPx = m_session.context.hoverPx;
         m_tooltip.RequestHide (static_cast<int64_t> (GetTickCount64()));
         m_tooltips->ClearText();
 
@@ -1167,6 +1176,7 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
     //  the platter draws none under its corner groups (FR-163).
     m_session.context.hoverPx = (ev.kind == DxuiMouseEventKind::Leave || m_corners->Contains (p)) ? POINT { SHRT_MIN, SHRT_MIN }
                               : (ev.kind == DxuiMouseEventKind::Move ? p : m_session.context.hoverPx);
+    m_session.contextB.hoverPx = m_session.context.hoverPx;
 
     if (ev.kind == DxuiMouseEventKind::Move)
     {
@@ -1408,8 +1418,16 @@ void DiskInspectorWindow::OnSelection()
     const TrackAnalysis *   track  = m_session.model.GetTrack();
     const AnalyzedSector *  sector = m_session.model.GetSector();
     int                     nibble = m_session.model.GetFirstNibble();
+    int                     field  = -1;
 
 
+
+    //  A selection outside any sector, as in a data field with no address
+    //  field, is flown to by the field it starts in.
+    for (size_t i = 0; track != nullptr && sector == nullptr && nibble >= 0 && field < 0 && i < track->fields.size(); i++)
+    {
+        field = (nibble >= track->fields[i].firstNibble && nibble < track->fields[i].firstNibble + track->fields[i].nibbleCount) ? static_cast<int> (i) : -1;
+    }
 
     if (nibble < 0 && track != nullptr && sector != nullptr)
     {
@@ -1430,10 +1448,15 @@ void DiskInspectorWindow::OnSelection()
     {
         m_session.model.StartFlight (InspectorMarquee::GetClockMs());
     }
+    else if (!m_hostLink->IsHeadSelecting() && field >= 0 && (m_session.model.GetQuarterTrack() != m_flownQuarterTrack || field != m_flownField))
+    {
+        m_session.model.StartFlight (InspectorMarquee::GetClockMs());
+    }
 
     m_selection->RecordSelection (m_hostLink->IsHeadSelecting());
     m_flownQuarterTrack = m_session.model.GetQuarterTrack();
     m_flownSector       = m_session.model.GetSectorIndex();
+    m_flownField        = field;
 
     //  A selection made by hand ends Follow head (FR-067).
     if (!m_hostLink->IsHeadSelecting() && m_hostLink->IsFollowingHead())

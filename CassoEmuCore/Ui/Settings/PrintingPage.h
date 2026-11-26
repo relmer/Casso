@@ -118,8 +118,8 @@ private:
     SettingsPanelState *  m_state = nullptr;
     std::function<void (const std::wstring &)>  m_onNotice;
 
-    DxuiInfoBanner  m_printerBanner;
-    std::wstring    m_bannerText;
+    DxuiInfoBar   m_printerBanner;
+    std::wstring  m_bannerText;
 
     DxuiLabel                       m_connectionLabel;
     DxuiComboBox                    m_connection;

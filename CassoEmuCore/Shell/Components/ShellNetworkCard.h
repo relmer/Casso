@@ -53,10 +53,10 @@ public:
     // UI thread, once per frame: applies a noted sentence.
     void  Tick ();
 
-    DxuiInfoBanner &  GetBanner           () { return m_banner; }
-    int               GetBandThicknessPx  (int clientWidthPx) const;
-    void              LayoutBanner        (const RECT & bounds);
-    bool              OfferMouseToBanner  (DxuiMouseEventKind kind, int x, int y);
+    DxuiInfoBar  & GetBanner          () { return m_banner; }
+    int            GetBandThicknessPx (int clientWidthPx) const;
+    void           LayoutBanner       (const RECT & bounds);
+    bool           OfferMouseToBanner (DxuiMouseEventKind kind, int x, int y);
 
     // UI thread: the firewall read again for the shell's ListenGate when it
     // may have changed, at most once a second unless `force`.
@@ -68,8 +68,8 @@ private:
 
     static constexpr uint64_t  kFirewallReadMs = 1000;
 
-    EmulatorShell              & m_shell;
-    DxuiInfoBanner               m_banner;
+    EmulatorShell  & m_shell;
+    DxuiInfoBar      m_banner;
 
     mutable mutex                m_pendingLock;
     wstring                      m_pending;

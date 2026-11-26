@@ -173,17 +173,17 @@ public:
 
 
     //  The shown warnings, in page order.
-    static std::vector<const DxuiInfoBanner *> FindWarnings (const ControllersPage & page)
+    static std::vector<const DxuiInfoBar *> FindWarnings (const ControllersPage & page)
     {
-        const DxuiInfoBanner                 * banner = nullptr;
-        std::vector<const DxuiInfoBanner *>    found;
-        size_t                                 i      = 0;
+        const DxuiInfoBar                 * banner = nullptr;
+        std::vector<const DxuiInfoBar *>    found;
+        size_t                              i      = 0;
 
 
 
         for (i = 0; i < page.GetChildCount(); ++i)
         {
-            banner = dynamic_cast<const DxuiInfoBanner *> (page.GetChild (i));
+            banner = dynamic_cast<const DxuiInfoBar *> (page.GetChild (i));
 
             if (banner != nullptr && banner->IsVisible())
             {
@@ -801,11 +801,11 @@ public:
     //  row and has its button rows disabled.
     TEST_METHOD (PlayerRows_BesideTheJoyportWarnAndDisableTheButtons)
     {
-        ControllersPage                        page;
-        ControllersPageState                   state;
-        const DxuiComboBox                   * two      = nullptr;
-        std::vector<const DxuiInfoBanner *>    warnings;
-        std::pair<size_t, size_t>              rows;
+        ControllersPage                     page;
+        ControllersPageState                state;
+        const DxuiComboBox                * two      = nullptr;
+        std::vector<const DxuiInfoBar *>    warnings;
+        std::pair<size_t, size_t>           rows;
 
 
 
@@ -821,7 +821,7 @@ public:
 
         Assert::AreEqual (size_t (1), warnings.size(), L"one warning, under Player 2");
         Assert::AreEqual (std::wstring (kpszCutWarning), warnings[0]->GetText());
-        Assert::IsTrue   (warnings[0]->GetSeverity() == DxuiInfoBanner::Severity::Info, L"as an info notice");
+        Assert::IsTrue   (warnings[0]->GetSeverity() == DxuiInfoBar::Severity::Info, L"as an info notice");
         Assert::IsNull   (warnings[0]->GetIconGlyph(), L"with the banner's own drawn info icon, like every other info banner");
         Assert::IsTrue   (warnings[0]->GetBounds().top >= FindCombos (page, L"Automatic (Joyport right)")[0]->GetBounds().bottom, L"under Player 2's row");
 
@@ -854,14 +854,14 @@ public:
     //  the page's height still reaches its last row.
     TEST_METHOD (PlayerWarning_WithARenderer_HugsItsMeasuredLine)
     {
-        constexpr int                          kLineHeightPx = 18;
-        constexpr int                          kPadYPx       = 4;
-        ControllersPage                        page;
-        ControllersPageState                   state;
-        MockDxuiTextRenderer                   text;
-        std::vector<const DxuiInfoBanner *>    warnings;
-        int                                    heightPx      = 0;
-        RECT                                   bounds        = {};
+        constexpr int                     kLineHeightPx = 18;
+        constexpr int                     kPadYPx       = 4;
+        ControllersPage                   page;
+        ControllersPageState              state;
+        MockDxuiTextRenderer              text;
+        std::vector<const DxuiInfoBar *>  warnings;
+        int                               heightPx      = 0;
+        RECT                              bounds        = {};
 
 
 
@@ -955,11 +955,11 @@ public:
     //  bring the new warning into view.
     TEST_METHOD (SharedWarning_GoesUnderTheEditedTargetGivingTheOthers)
     {
-        ControllersPage                        page;
-        ControllersPageState                   state;
-        std::vector<const DxuiInfoBanner *>    warnings;
-        std::optional<RECT>                    revealed;
-        int                                    heightPx = 0;
+        ControllersPage                   page;
+        ControllersPageState              state;
+        std::vector<const DxuiInfoBar *>  warnings;
+        std::optional<RECT>               revealed;
+        int                               heightPx = 0;
 
 
 
@@ -974,7 +974,7 @@ public:
 
         Assert::AreEqual (size_t (1), warnings.size());
         Assert::AreEqual (std::wstring (L"Button 1 is also assigned to PB0."), warnings[0]->GetText());
-        Assert::IsTrue   (warnings[0]->GetSeverity() == DxuiInfoBanner::Severity::Warning, L"as a warning");
+        Assert::IsTrue   (warnings[0]->GetSeverity() == DxuiInfoBar::Severity::Warning, L"as a warning");
         Assert::IsTrue   (warnings[0]->GetIconGlyph() == s_kpszMdl2Warning, L"with the outlined warning glyph");
         Assert::IsTrue   (IsBetweenLabels (*warnings[0], page, L"PB1:", L"PB2:"), L"under PB1's rows");
         Assert::AreEqual (GetLowestVisibleBottom (page) + kPagePadPx - kTopPx, heightPx, L"the content height follows it");
@@ -987,9 +987,9 @@ public:
     //  Added to the earlier target, the warning goes under that one.
     TEST_METHOD (SharedWarning_GoesUnderAnEarlierTargetWhenThatWasEdited)
     {
-        ControllersPage                        page;
-        ControllersPageState                   state;
-        std::vector<const DxuiInfoBanner *>    warnings;
+        ControllersPage                   page;
+        ControllersPageState              state;
+        std::vector<const DxuiInfoBar *>  warnings;
 
 
 
@@ -1010,9 +1010,9 @@ public:
     //  earlier ones.
     TEST_METHOD (SharedWarning_OnASwitchGoesUnderTheLastTarget)
     {
-        ControllersPage                        page;
-        ControllersPageState                   state;
-        std::vector<const DxuiInfoBanner *>    warnings;
+        ControllersPage                   page;
+        ControllersPageState              state;
+        std::vector<const DxuiInfoBar *>  warnings;
 
 
 
@@ -1035,9 +1035,9 @@ public:
     //  was last added to.
     TEST_METHOD (SharedWarning_GivesEachSharedControlASentence)
     {
-        ControllersPage                        page;
-        ControllersPageState                   state;
-        std::vector<const DxuiInfoBanner *>    warnings;
+        ControllersPage                   page;
+        ControllersPageState              state;
+        std::vector<const DxuiInfoBar *>  warnings;
 
 
 
@@ -1058,10 +1058,10 @@ public:
     //  PDL1's rows and options, above the buttons.
     TEST_METHOD (SharedWarning_GoesUnderTheEditedAxis)
     {
-        ControllersPage                        page;
-        ControllersPageState                   state;
-        std::vector<const DxuiInfoBanner *>    warnings;
-        AxisBinding                            binding;
+        ControllersPage                   page;
+        ControllersPageState              state;
+        std::vector<const DxuiInfoBar *>  warnings;
+        AxisBinding                       binding;
         std::wstring                           suffix   = L" is also assigned to PDL0 (X).";
 
 
@@ -1081,9 +1081,9 @@ public:
     //  Controls shared from different targets get a warning under each.
     TEST_METHOD (SharedWarning_HasABannerForEachTargetWithWarnings)
     {
-        ControllersPage                        page;
-        ControllersPageState                   state;
-        std::vector<const DxuiInfoBanner *>    warnings;
+        ControllersPage                   page;
+        ControllersPageState              state;
+        std::vector<const DxuiInfoBar *>  warnings;
 
 
 
@@ -1207,7 +1207,7 @@ public:
     }
 
     //  Whether a banner sits below one row label and above the next.
-    static bool IsBetweenLabels (const DxuiInfoBanner  & banner,
+    static bool IsBetweenLabels (const DxuiInfoBar  & banner,
                                  const ControllersPage & page,
                                  const std::wstring    & above,
                                  const std::wstring    & below)

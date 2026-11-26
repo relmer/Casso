@@ -170,47 +170,47 @@ private:
     int                  LayOutTable        (size_t target, int x, int y, int width, bool isInPlay, const DxuiDpiScaler & scaler);
     int                  FindChoice         (size_t target, size_t row) const;
 
-    void                 RebuildChoices     ();
-    void                 RefreshRows        ();
-    void                 RefreshPlayers     ();
-    void                 StretchPlayerRows  (int left, int right, int gap, const DxuiDpiScaler & scaler);
-    int                  GetModeWidthPx     (const DxuiDpiScaler & scaler) const;
-    int                  GetEntryFitWidthPx () const;
-    void                 OnPlayerEntrySelect  (size_t player, int item);
-    void                 OnPlayerModeSelect   (size_t player, int item);
-    void                 ApplyPlayerEntry     (size_t player, const PlayerEntry & entry);
-    void                 RefreshAxisOptions ();
-    void                 RefreshCalibration ();
-    void                 OnRowSelect        (size_t target, size_t row, int item);
-    void                 AddRow             (size_t target);
-    void                 SetAxisInverted    (size_t axis, bool inverted);
-    void                 SetAxisResponse    (size_t axis, AxisResponse response, float maxSpeed);
-    void                 OnCalibrateClick   ();
-    void                 RefreshProfiles    ();
-    void                 OnProfileSelect    (int index);
-    void                 SwitchProfile      (const std::string & name);
-    void                 OnNewProfile       ();
-    void                 OpenNewProfileDialog ();
-    void                 SwitchController   (size_t index);
+    void  RebuildChoices       ();
+    void  RefreshRows          ();
+    void  RefreshPlayers       ();
+    void  StretchPlayerRows    (int left, int right, int gap, const DxuiDpiScaler & scaler);
+    int   GetModeWidthPx       (const DxuiDpiScaler & scaler) const;
+    int   GetEntryFitWidthPx   () const;
+    void  OnPlayerEntrySelect  (size_t player, int item);
+    void  OnPlayerModeSelect   (size_t player, int item);
+    void  ApplyPlayerEntry     (size_t player, const PlayerEntry & entry);
+    void  RefreshAxisOptions   ();
+    void  RefreshCalibration   ();
+    void  OnRowSelect          (size_t target, size_t row, int item);
+    void  AddRow               (size_t target);
+    void  SetAxisInverted      (size_t axis, bool inverted);
+    void  SetAxisResponse      (size_t axis, AxisResponse response, float maxSpeed);
+    void  OnCalibrateClick     ();
+    void  RefreshProfiles      ();
+    void  OnProfileSelect      (int index);
+    void  SwitchProfile        (const std::string & name);
+    void  OnNewProfile         ();
+    void  OpenNewProfileDialog ();
+    void  SwitchController     (size_t index);
 
-    void                 AskToSaveProfileEdits (std::function<void ()> proceed);
-    void                 OnRenameProfile    ();
-    void                 OnDeleteProfile    ();
-    void                 ShowDialog         ();
-    void                 AfterEdit          ();
-    bool                 IsJoyportMode      () const;
-    bool                 IsPaddlesMode      () const;
-    void                 PollPaddleBars     (const GamePortContribution * reading);
-    void                 SyncJoyportLayout  ();
-    bool                 IsTargetShown      (size_t target) const;
-    static std::wstring  GetRowLabel        (size_t target, const std::wstring & playLabel, bool isJoyport, bool isPaddles);
-    std::wstring         GetTargetLabel     (PaddleTarget target) const;
-    std::wstring         MakeSharedNotice   (PaddleTarget target) const;
-    int                  LayOutSharedWarning (size_t target, int x, int y, int width, IDxuiTextRenderer * text, const DxuiDpiScaler & scaler);
-    bool                 HasSharedNoticeChanged () const;
-    void                 PollSwitchLights   (const GamePortContribution * reading);
-    ControllerKind       GetSelectedKind    () const;
-    IDxuiTextRenderer  * GetMeasuringRenderer () const;
+    void                   AskToSaveProfileEdits  (std::function<void ()> proceed);
+    void                   OnRenameProfile        ();
+    void                   OnDeleteProfile        ();
+    void                   ShowDialog             ();
+    void                   AfterEdit              ();
+    bool                   IsJoyportMode          () const;
+    bool                   IsPaddlesMode          () const;
+    void                   PollPaddleBars         (const GamePortContribution * reading);
+    void                   SyncJoyportLayout      ();
+    bool                   IsTargetShown          (size_t target) const;
+    static std::wstring    GetRowLabel            (size_t target, const std::wstring & playLabel, bool isJoyport, bool isPaddles);
+    std::wstring           GetTargetLabel         (PaddleTarget target) const;
+    std::wstring           MakeSharedNotice       (PaddleTarget target) const;
+    int                    LayOutSharedWarning    (size_t target, int x, int y, int width, IDxuiTextRenderer * text, const DxuiDpiScaler & scaler);
+    bool                   HasSharedNoticeChanged () const;
+    void                   PollSwitchLights       (const GamePortContribution * reading);
+    ControllerKind         GetSelectedKind        () const;
+    IDxuiTextRenderer    * GetMeasuringRenderer   () const;
 
     ControllersPageState                      * m_state               = nullptr;
     SampleSource                                m_sampleSource;
@@ -243,7 +243,7 @@ private:
     std::array<DxuiLabel, kPlayerCount>                 m_playerLabel;
     std::array<DxuiComboBox, kPlayerCount>              m_playerEntry;
     std::array<DxuiComboBox, kPlayerCount>              m_playerMode;
-    std::array<DxuiInfoBanner, kPlayerCount>            m_playerWarning;
+    std::array<DxuiInfoBar, kPlayerCount>               m_playerWarning;
     std::array<std::vector<PlayerEntry>, kPlayerCount>  m_playerEntries;
     std::array<std::vector<PlayerMode>, kPlayerCount>   m_playerModes;
     std::array<bool, kPlayerCount>                      m_isWarningShown = {};
@@ -287,8 +287,8 @@ private:
     // Under each target's rows, a warning for every control there that is also
     // on another target; the one that last came into view, for the sheet to
     // scroll to.
-    std::array<DxuiInfoBanner, kTargetCount>  m_sharedWarning;
-    std::optional<size_t>                     m_revealedWarning;
+    std::array<DxuiInfoBar, kTargetCount>  m_sharedWarning;
+    std::optional<size_t>                  m_revealedWarning;
 
     DxuiLabel          m_deadZoneLabel;
     DxuiSlider         m_deadZone;

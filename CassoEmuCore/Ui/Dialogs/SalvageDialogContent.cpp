@@ -42,7 +42,7 @@ void SalvageDialogContent::SetAssessment (
 
     m_destLine = L"Save as: " + destName + L" (in the same directory)";
 
-    m_warning.SetSeverity (DxuiInfoBanner::Severity::Warning);
+    m_warning.SetSeverity (DxuiInfoBar::Severity::Warning);
     m_warning.SetText (L"Repairing the checksums makes the disk structurally sound, "
                        L"but cannot recover corrupt data within the sectors.");
 

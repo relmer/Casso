@@ -13,6 +13,10 @@
 static constexpr LPCWSTR  s_kpszLabel  = L"Sectors, in the order they pass the head";
 static constexpr float    s_kHitDotDip = 3.0f;
 
+//  While comparing, a sector that matches the other image's is dimmed by
+//  this, as a matching nibble is.
+static constexpr uint32_t  s_kDimMatch = 0x99000000u;
+
 
 
 
@@ -25,15 +29,17 @@ static constexpr float    s_kHitDotDip = 3.0f;
 
 void SectorRowView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    const TrackAnalysis *  track    = m_context.GetTrack();
-    float                  x        = static_cast<float> (m_boundsDip.left);
-    float                  y        = static_cast<float> (m_boundsDip.top);
+    const TrackAnalysis  * track      = m_context.GetTrack();
+    float                  x          = static_cast<float> (m_boundsDip.left);
+    float                  y          = static_cast<float> (m_boundsDip.top);
     vector<int>            order;
-    size_t                 i        = 0;
-    RECT                   r        = {};
+    size_t                 i          = 0;
+    RECT                   r          = {};
     std::wstring           caption;
-    uint32_t               color    = 0;
-    bool                   selected = false;
+    uint32_t               color      = 0;
+    bool                   selected   = false;
+    std::set<int>          differ;
+    bool                   isCompared = m_context.comparison != nullptr && m_context.model != nullptr;
 
 
 
@@ -46,6 +52,17 @@ void SectorRowView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
             caption = InspectorText::FormatNoSectors (m_context.analysis->entries[m_context.model->GetQuarterTrack()]);
             text.DrawString (caption.c_str(), x, y, GetWidth(), m_scaler.ToPxf (static_cast<float> (kRowDip)), theme.Foreground(),
                              m_scaler.ToPxf (kTextDip), DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        }
+
+        //  The sectors of this quarter track with a difference listed.
+        for (size_t k = 0; isCompared && k < m_context.comparison->differences.size(); k++)
+        {
+            const Difference &  d = m_context.comparison->differences[k];
+
+            if (d.quarterTrack == m_context.model->GetQuarterTrack() && d.sector >= 0)
+            {
+                differ.insert (d.sector);
+            }
         }
 
         for (i = 0; track != nullptr && i < order.size(); i++)
@@ -63,6 +80,12 @@ void SectorRowView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
                                         DxuiTheme::kCornerRadiusDip, m_scaler.ToPxf (selected ? 2.0f : 1.0f), selected ? theme.Accent() : color);
             text.DrawString (caption.c_str(), static_cast<float> (r.left), static_cast<float> (r.top), static_cast<float> (r.right - r.left), static_cast<float> (r.bottom - r.top),
                              color, m_scaler.ToPxf (kTextDip), DxuiTheme::kBodyFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
+
+            if (isCompared && !differ.contains (sector.sector))
+            {
+                painter.FillRoundedRect (static_cast<float> (r.left), static_cast<float> (r.top), static_cast<float> (r.right - r.left), static_cast<float> (r.bottom - r.top),
+                                         DxuiTheme::kCornerRadiusDip, s_kDimMatch);
+            }
 
             //  A corner mark at the top left of a sector with pending edits (FR-097).
             if (m_context.edits != nullptr && m_context.edits->HasChanges (track->slot, sector.sector))

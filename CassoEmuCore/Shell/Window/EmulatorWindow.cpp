@@ -484,7 +484,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     //  FIXED WORDS, SET ONCE. The bar says the same thing every time it is up,
     //  and its band is measured from that text before the bar has ever been
     //  shown -- so the text cannot wait until the first capture to exist.
-    m_chrome->m_standInBar.SetSeverity (DxuiInfoBanner::Severity::Info);
+    m_chrome->m_standInBar.SetSeverity (DxuiInfoBar::Severity::Info);
 
     //  CENTERED, because this bar spans the window rather than sitting in a
     //  dialog: one short line held against the leading edge of a wide strip

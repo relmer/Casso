@@ -1219,10 +1219,10 @@ public:
         Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (L"E:\\"));
         rig.parts->listPane.FillList();
 
-        DxuiInfoBanner &  bar = rig.parts->listPane.GetBars().GetCardBar();
+        DxuiInfoBar &  bar = rig.parts->listPane.GetBars().GetCardBar();
 
         Assert::IsTrue   (bar.IsVisible(), rig.browser.GetLocation().path.c_str());
-        Assert::IsTrue   (bar.GetSeverity() == DxuiInfoBanner::Severity::Warning, bar.GetText().c_str());
+        Assert::IsTrue   (bar.GetSeverity() == DxuiInfoBar::Severity::Warning, bar.GetText().c_str());
         Assert::IsTrue   (bar.GetText().starts_with (L"This A2Pico card is using 1 of its 2 drives.\n"), bar.GetText().c_str());
         Assert::AreEqual ((size_t) 2, bar.GetActionCount(), L"A2retroNET drives and Repair");
 
@@ -1239,7 +1239,7 @@ public:
         //  through IsA2PicoCard, so it is written there too.
         AssertSucceeded (rig.fs.WriteAllText (L"E:\\A2retroNET.txt", "[drives]\nnumber=2\n1=system.po\n"));
         rig.parts->listPane.FillList();
-        Assert::IsTrue   (bar.GetSeverity() == DxuiInfoBanner::Severity::Info, bar.GetText().c_str());
+        Assert::IsTrue   (bar.GetSeverity() == DxuiInfoBar::Severity::Info, bar.GetText().c_str());
         Assert::AreEqual ((size_t) 1, bar.GetActionCount(), L"A2retroNET drives alone");
 
         Assert::IsTrue  (rig.browser.GetNavigator().NavigateToAddress (L"C:\\Disks"));
@@ -1279,7 +1279,7 @@ public:
         Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (L"E:\\games"));
         rig.parts->listPane.FillList();
 
-        DxuiInfoBanner &  bar = rig.parts->listPane.GetBars().GetCardBar();
+        DxuiInfoBar &  bar = rig.parts->listPane.GetBars().GetCardBar();
 
         Assert::IsTrue   (bar.IsVisible());
         Assert::AreEqual (std::wstring (L"Only .po images can be mounted as drives. Convert \"zork.dsk\" to .po?"), bar.GetText());
@@ -1339,7 +1339,7 @@ public:
         Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (L"E:\\games"));
         rig.parts->listPane.FillList();
 
-        DxuiInfoBanner &  bar = rig.parts->listPane.GetBars().GetCardBar();
+        DxuiInfoBar &  bar = rig.parts->listPane.GetBars().GetCardBar();
 
         Assert::IsTrue   (bar.IsVisible());
         Assert::AreEqual (std::wstring (L"Only .po images can be mounted as drives. Convert 3 images to .po?"), bar.GetText());

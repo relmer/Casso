@@ -63,6 +63,7 @@
 #include <cstdio>
 #include <ctime>
 #include <deque>
+#include <execution>
 #include <fcntl.h>
 #include <filesystem>
 #include <io.h>

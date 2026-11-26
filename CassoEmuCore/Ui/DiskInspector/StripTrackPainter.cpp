@@ -6,6 +6,7 @@
 #include "Ui/DiskInspector/FluxTiming.h"
 #include "Ui/DiskInspector/InspectorText.h"
 #include "Ui/DiskInspector/StripTrackPainter.h"
+#include "Ui/DiskInspector/OrphanFields.h"
 
 
 
@@ -537,6 +538,79 @@ void StripTrackPainter::PaintLabels (IDxuiPainter & painter, IDxuiTextRenderer &
             }
         }
     }
+
+    PaintOrphanLabels (painter, text, theme, track, g);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StripTrackPainter::PaintOrphanLabels
+//
+//  Each data field with no address field before it, bracketed in the label
+//  row as a sector is, in the bad address's color.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void StripTrackPainter::PaintOrphanLabels (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track,
+                                           const StripGeometry & g) const
+{
+    const vector<double> &       turns   = m_scene.hits.GetTurns();
+    std::array<StripSegment, 2>  parts   = {};
+    std::array<StripSegment, 2>  ticks   = {};
+    int                          count   = 0;
+    int                          k       = 0;
+    float                        rowTop  = static_cast<float> (m_scene.bounds.top);
+    float                        line    = m_scene.scaler.ToPxf (s_kBracketDip);
+    float                        ruleY   = static_cast<float> (m_scene.bar.top) - line - 1.0f;
+    float                        tickTop = rowTop + (ruleY - rowTop) * s_kTickShare;
+    float                        gap     = m_scene.scaler.ToPxf (s_kBracketGapDip);
+    std::wstring                 symbol  = DiskInspectorPalette::GetStateSymbol (SectorState::BadAddress);
+    uint32_t                     color   = m_scene.context.palette.GetStateColor (SectorState::BadAddress);
+    std::wstring                 label;
+
+
+
+    for (int f : OrphanFields::Find (track))
+    {
+        const LocatedField &  field = track.fields[static_cast<size_t> (f)];
+        int                   end   = field.firstNibble + field.nibbleCount;
+        double                a     = 0;
+        double                b     = 0;
+
+        if (turns.empty() || field.firstNibble >= static_cast<int> (turns.size()))
+        {
+            continue;
+        }
+
+        a     = turns[static_cast<size_t> (field.firstNibble)];
+        b     = (end < static_cast<int> (turns.size())) ? turns[static_cast<size_t> (end)] : turns.back();
+        count = g.GetSegments (a, b - a - std::floor (b - a), parts);
+
+        for (k = 0; k < count; k++)
+        {
+            painter.DrawLine (parts[k].x0, ruleY, parts[k].x1, ruleY, line, theme.ForegroundMuted());
+
+            if (GetFittingLabel (text, { symbol + L" No address field", symbol + L" No address", symbol }, parts[k].x1 - parts[k].x0 - 2 * gap, label) > 0)
+            {
+                text.DrawString (label.c_str(), parts[k].x0 + gap, rowTop, parts[k].x1 - parts[k].x0 - gap, ruleY - rowTop, color, m_scene.scaler.ToPxf (s_kLabelDip),
+                                 DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
+            }
+        }
+
+        for (double at : { a, b - s_kTickTurn })
+        {
+            for (k = 0; k < g.GetSegments (at, s_kTickTurn, ticks); k++)
+            {
+                float  x = (at == a) ? ticks[k].x0 : ticks[k].x1;
+
+                painter.DrawLine (x, tickTop, x, ruleY + line / 2, line, theme.ForegroundMuted());
+            }
+        }
+    }
 }
 
 
@@ -587,16 +661,37 @@ float StripTrackPainter::GetSectorLabel (IDxuiTextRenderer & text, const Analyze
 {
     std::wstring  symbol = DiskInspectorPalette::GetStateSymbol (sector.state);
     std::wstring  number = InspectorFormat::FormatSector (sector.sector);
-    float         textPx = m_scene.scaler.ToPxf (s_kLabelDip);
-    float         textW  = 0;
-    float         textH  = 0;
-    float         fitW   = 0;
+
+
+
+    return GetFittingLabel (text, { symbol + L" Sector " + number, symbol + L" " + number }, widthPx, outLabel);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StripTrackPainter::GetFittingLabel
+//
+//  The first of the labels, longest first, that fits in the width given.
+//  Returns its width, or 0 when none fits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float StripTrackPainter::GetFittingLabel (IDxuiTextRenderer & text, std::initializer_list<std::wstring> labels, float widthPx, std::wstring & outLabel) const
+{
+    float  textPx = m_scene.scaler.ToPxf (s_kLabelDip);
+    float  textW  = 0;
+    float  textH  = 0;
+    float  fitW   = 0;
 
 
 
     outLabel.clear();
 
-    for (const std::wstring & label : { symbol + L" Sector " + number, symbol + L" " + number })
+    for (const std::wstring & label : labels)
     {
         text.MeasureString (label.c_str(), textPx, DxuiTheme::kBodyFace, textW, textH);
 

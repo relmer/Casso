@@ -176,6 +176,7 @@ HRESULT DxuiPainter::CreateShaders()
         { "TEXCOORD", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 32, D3D11_INPUT_PER_VERTEX_DATA, 0 },
         { "TEXCOORD", 2, DXGI_FORMAT_R32_FLOAT,          0, 48, D3D11_INPUT_PER_VERTEX_DATA, 0 },
         { "TEXCOORD", 3, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 52, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "TEXCOORD", 4, DXGI_FORMAT_R32G32B32_FLOAT,    0, 68, D3D11_INPUT_PER_VERTEX_DATA, 0 },
     };
 
 
@@ -423,6 +424,9 @@ DxuiPainter::Vertex DxuiPainter::LerpVertex (const Vertex & a, const Vertex & b,
     v.edge1  = a.edge1  + (b.edge1  - a.edge1)  * t;
     v.edge2  = a.edge2  + (b.edge2  - a.edge2)  * t;
     v.edge3  = a.edge3  + (b.edge3  - a.edge3)  * t;
+    v.band0  = a.band0;
+    v.band1  = a.band1;
+    v.band2  = a.band2;
 
     return v;
 }
@@ -522,22 +526,33 @@ void DxuiPainter::PushQuad (
     const Vertex & bottomLeft,
     const Vertex & bottomRight)
 {
-    Vertex  tl  = topLeft;
-    Vertex  tr  = topRight;
-    Vertex  bl  = bottomLeft;
-    Vertex  br  = bottomRight;
-    float   x0  = xPx + m_originXPx;
-    float   y0  = yPx + m_originYPx;
-    float   cx0 = x0;
-    float   cy0 = y0;
-    float   cx1 = x0 + widthPx;
-    float   cy1 = y0 + heightPx;
-    float   u0  = 0.0f;
-    float   u1  = 0.0f;
-    float   v0  = 0.0f;
-    float   v1  = 0.0f;
+    Vertex    tl        = topLeft;
+    Vertex    tr        = topRight;
+    Vertex    bl        = bottomLeft;
+    Vertex    br        = bottomRight;
+    float     x0        = xPx + m_originXPx;
+    float     y0        = yPx + m_originYPx;
+    float     cx0       = x0;
+    float     cy0       = y0;
+    float     cx1       = x0 + widthPx;
+    float     cy1       = y0 + heightPx;
+    float     u0        = 0.0f;
+    float     u1        = 0.0f;
+    float     v0        = 0.0f;
+    float     v1        = 0.0f;
+    bool      isTrimmed = false;
+    size_t    count     = m_vertices.size();
+    Vertex  * out       = nullptr;
 
 
+
+    //  A quad wholly outside the target is never drawn, once the target's
+    //  size is known.
+    if (m_viewportWidthPx > 0 && m_viewportHeightPx > 0 &&
+        (x0 >= static_cast<float> (m_viewportWidthPx) || y0 >= static_cast<float> (m_viewportHeightPx) || x0 + widthPx <= 0.0f || y0 + heightPx <= 0.0f))
+    {
+        return;
+    }
 
     // The clip trims the quad itself rather than discarding pixels. Every
     // vertex attribute -- color, shape-local position, edge distances -- is
@@ -569,6 +584,13 @@ void DxuiPainter::PushQuad (
             return;
         }
 
+        isTrimmed = cx0 > x0 || cy0 > y0 || cx1 < x0 + widthPx || cy1 < y0 + heightPx;
+    }
+
+    //  A quad the clip trims has its corners moved in, every attribute
+    //  interpolated to the new corner; most quads lie wholly inside.
+    if (isTrimmed)
+    {
         u0 = (cx0 - x0) / widthPx;
         u1 = (cx1 - x0) / widthPx;
         v0 = (cy0 - y0) / heightPx;
@@ -592,10 +614,17 @@ void DxuiPainter::PushQuad (
     NdcFromPixel (x0,            y0 + heightPx, bl.x, bl.y);
     NdcFromPixel (x0 + widthPx,  y0 + heightPx, br.x, br.y);
 
-    // Two triangles per quad: (tl, tr, bl) and (bl, tr, br). Append all six in
-    // one insert so the vector grows/size-checks once rather than six times
-    // (the six 24-byte copies are the same either way; Vertex is a POD).
-    m_vertices.insert (m_vertices.end(), { tl, tr, bl, bl, tr, br });
+    // Two triangles per quad: (tl, tr, bl) and (bl, tr, br), written in place
+    // after one resize.
+    m_vertices.resize (count + 6);
+    out = m_vertices.data() + count;
+
+    out[0] = tl;
+    out[1] = tr;
+    out[2] = bl;
+    out[3] = bl;
+    out[4] = tr;
+    out[5] = br;
 }
 
 
@@ -1287,6 +1316,172 @@ void DxuiPainter::FillTaperedCapsuleOnPlane (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FillRingSector
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPainter::FillRingSector (
+    float     cxPx,
+    float     cyPx,
+    float     eyePx,
+    float     tilt,
+    float     r0,
+    float     r1,
+    double    angle0,
+    double    angle1,
+    int       hardEdges,
+    uint32_t  argbColor)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    if (r1 > r0)
+    {
+        PushSectorQuad (cxPx, cyPx, eyePx, tilt, r0, r1, 0.0f, angle0, angle1, r0, r1, (int) ShapeKind::RingSector + (hardEdges & 15), argbColor);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StrokeRingSector
+//
+//  The box is the one around the arc at r, grown on screen by half the
+//  line's width.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPainter::StrokeRingSector (
+    float     cxPx,
+    float     cyPx,
+    float     eyePx,
+    float     tilt,
+    float     r,
+    float     thicknessPx,
+    double    angle0,
+    double    angle1,
+    int       hardEnds,
+    uint32_t  argbColor)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    if (thicknessPx > 0.0f && r > 0.0f)
+    {
+        PushSectorQuad (cxPx, cyPx, eyePx, tilt, r, r, thicknessPx / 2.0f, angle0, angle1, r, thicknessPx / 2.0f,
+                        (int) ShapeKind::RingStroke + (hardEnds & 3), argbColor);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PushSectorQuad
+//
+//  One quad over the stretch's box on screen. Each corner has its offset
+//  from the disk's center, affine in screen position, and the pixel shader
+//  takes each pixel back onto the disk to test its radius and its side of
+//  each end. The box is around the trapezoid that contains the stretch: the
+//  inner chord, the two ends, and the tangent to the outer arc at its
+//  middle. The map onto the screen maps straight lines to straight lines, so the box
+//  contains the stretch on screen too.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPainter::PushSectorQuad (
+    float     cxPx,
+    float     cyPx,
+    float     eyePx,
+    float     tilt,
+    float     r0,
+    float     r1,
+    float     growPx,
+    double    angle0,
+    double    angle1,
+    float     edge0,
+    float     edge1,
+    int       kind,
+    uint32_t  argbColor)
+{
+    double  half   = (angle1 - angle0) / 2.0;
+    double  reach  = r1 / std::max (std::cos (half), 1e-3);
+    double  cosT   = std::cos ((double) tilt);
+    double  sinT   = std::sin ((double) tilt);
+    double  left   = DBL_MAX;
+    double  top    = DBL_MAX;
+    double  right  = -DBL_MAX;
+    double  bottom = -DBL_MAX;
+    Vertex  tl     = MakeVertex (argbColor, m_globalAlpha);
+    Vertex  tr;
+    Vertex  bl;
+    Vertex  br;
+
+
+
+    if (angle1 <= angle0 || eyePx <= 0.0f)
+    {
+        return;
+    }
+
+    //  On the pixel shader's 1/64 pixel grid, with the origin.
+    cxPx = std::round ((cxPx + m_originXPx) * kSectorGridPx) / kSectorGridPx - m_originXPx;
+    cyPx = std::round ((cyPx + m_originYPx) * kSectorGridPx) / kSectorGridPx - m_originYPx;
+
+    for (double angle : { angle0, angle1 })
+    {
+        for (double r : { (double) r0, reach })
+        {
+            double  dx = r * std::sin (angle);
+            double  dy = -r * std::cos (angle);
+            double  s  = eyePx / std::max (eyePx - dy * sinT, 1e-6);
+
+            left   = std::min (left,   dx * s);
+            right  = std::max (right,  dx * s);
+            top    = std::min (top,    dy * cosT * s);
+            bottom = std::max (bottom, dy * cosT * s);
+        }
+    }
+
+    left   -= kShapeFringePx + growPx;
+    top    -= kShapeFringePx + growPx;
+    right  += kShapeFringePx + growPx;
+    bottom += kShapeFringePx + growPx;
+
+    tl.shape0 = (float) std::sin (angle0);
+    tl.shape1 = (float) std::cos (angle0);
+    tl.shape2 = (float) std::sin (angle1);
+    tl.shape3 = (float) std::cos (angle1);
+    tl.edge0  = edge0;
+    tl.edge1  = edge1;
+    tl.edge2  = eyePx;
+    tl.edge3  = tilt;
+    tl.band0  = m_band[0] + m_originXPx + m_originYPx;
+    tl.band1  = m_band[1];
+    tl.band2  = m_band[2];
+    tl.kind   = (float) kind;
+
+    tr = tl;
+    bl = tl;
+    br = tl;
+
+    tl.localX = (float) left;   tl.localY = (float) top;
+    tr.localX = (float) right;  tr.localY = (float) top;
+    bl.localX = (float) left;   bl.localY = (float) bottom;
+    br.localX = (float) right;  br.localY = (float) bottom;
+
+    PushQuad ((float) (cxPx + left), (float) (cyPx + top), (float) (right - left), (float) (bottom - top), tl, tr, bl, br);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  End
 //
 //  Flushes everything accumulated since Begin as ONE draw call.
@@ -1479,6 +1674,7 @@ HRESULT DxuiPainter::Flush (ID3D11RenderTargetView * pRtv)
     m_context->PSSetShader (m_ps.Get(), nullptr, 0);
 
     m_context->Draw ((UINT) m_vertices.size(), 0);
+
 
     m_vertices.clear();
 

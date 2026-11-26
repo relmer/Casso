@@ -37,7 +37,7 @@ enum DifferenceColumn
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring ComparisonText::FormatVerdict (const TrackComparison & track)
+std::wstring ComparisonText::FormatVerdict (const TrackComparison & track, const SideNames & names)
 {
     std::wstring  text;
 
@@ -50,8 +50,8 @@ std::wstring ComparisonText::FormatVerdict (const TrackComparison & track)
         case TrackVerdict::Identical:       text = L"Identical";        break;
         case TrackVerdict::SameSectorData:  text = L"Same sector data"; break;
         case TrackVerdict::NibblesDiffer:   text = L"Nibbles differ";   break;
-        case TrackVerdict::OnlyInA:         text = L"Only in A";        break;
-        case TrackVerdict::OnlyInB:         text = L"Only in B";        break;
+        case TrackVerdict::OnlyInA:         text = L"Only in " + names.a; break;
+        case TrackVerdict::OnlyInB:         text = L"Only in " + names.b; break;
 
         case TrackVerdict::SameCells:
             text = L"Same cells";
@@ -74,7 +74,7 @@ std::wstring ComparisonText::FormatVerdict (const TrackComparison & track)
 
             if (track.lengthChange != 0)
             {
-                text += std::format (L", B {} cells {}", NumberFormat::FormatInteger (static_cast<uint64_t> (std::abs (track.lengthChange))),
+                text += std::format (L", {} {} cells {}", names.b, NumberFormat::FormatInteger (static_cast<uint64_t> (std::abs (track.lengthChange))),
                                      track.lengthChange > 0 ? L"longer" : L"shorter");
             }
 
@@ -85,7 +85,8 @@ std::wstring ComparisonText::FormatVerdict (const TrackComparison & track)
             break;
 
         case TrackVerdict::NotCompared:
-            text = track.reason.empty() ? std::wstring (L"Not compared") : L"Not compared: " + track.reason;
+            text = (track.damagedSide >= 0) ? L"Not compared: the record in " + names.Get (track.damagedSide) + L" is damaged"
+                 : track.reason.empty()     ? std::wstring (L"Not compared") : L"Not compared: " + track.reason;
             break;
     }
 
@@ -115,13 +116,15 @@ std::wstring ComparisonText::FormatResult (const DiskComparison & comparison)
     int                        notCompared = 0;
     vector<std::wstring>       parts;
     std::wstring               text;
+    std::wstring               inA         = L"only in " + comparison.names.a;
+    std::wstring               inB         = L"only in " + comparison.names.b;
 
 
 
     comparison.Count (identical, differ, onlyInA, onlyInB, notCompared);
 
-    for (const auto & [count, label] : { std::pair { identical, L"identical" }, std::pair { differ, L"differ" }, std::pair { onlyInA, L"only in A" },
-                                         std::pair { onlyInB, L"only in B" }, std::pair { notCompared, L"not compared" } })
+    for (const auto & [count, label] : { std::pair { identical, L"identical" }, std::pair { differ, L"differ" }, std::pair { onlyInA, inA.c_str() },
+                                         std::pair { onlyInB, inB.c_str() }, std::pair { notCompared, L"not compared" } })
     {
         if (count > 0)
         {
@@ -147,29 +150,29 @@ std::wstring ComparisonText::FormatResult (const DiskComparison & comparison)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring ComparisonText::FormatKind (DifferenceKind kind)
+std::wstring ComparisonText::FormatKind (DifferenceKind kind, const SideNames & names)
 {
-    LPCWSTR  text = L"";
+    std::wstring  text;
 
 
 
     switch (kind)
     {
-        case DifferenceKind::TrackOnlyInA:    text = L"Track only in A";    break;
-        case DifferenceKind::TrackOnlyInB:    text = L"Track only in B";    break;
+        case DifferenceKind::TrackOnlyInA:    text = L"Track only in " + names.a;  break;
+        case DifferenceKind::TrackOnlyInB:    text = L"Track only in " + names.b;  break;
         case DifferenceKind::Nibbles:         text = L"Nibbles";            break;
         case DifferenceKind::Timing:          text = L"Flux timing";        break;
         case DifferenceKind::SectorBytes:     text = L"Sector data";        break;
         case DifferenceKind::SectorChecksum:  text = L"Checksum results";   break;
-        case DifferenceKind::SectorOnlyInA:   text = L"Sector only in A";   break;
-        case DifferenceKind::SectorOnlyInB:   text = L"Sector only in B";   break;
+        case DifferenceKind::SectorOnlyInA:   text = L"Sector only in " + names.a; break;
+        case DifferenceKind::SectorOnlyInB:   text = L"Sector only in " + names.b; break;
         case DifferenceKind::Volume:          text = L"Volume number";      break;
         case DifferenceKind::FileContents:    text = L"File contents";      break;
         case DifferenceKind::FileLength:      text = L"File length";        break;
         case DifferenceKind::FileAttributes:  text = L"File attributes";    break;
         case DifferenceKind::FileDates:       text = L"File dates";         break;
-        case DifferenceKind::FileOnlyInA:     text = L"File only in A";     break;
-        case DifferenceKind::FileOnlyInB:     text = L"File only in B";     break;
+        case DifferenceKind::FileOnlyInA:     text = L"File only in " + names.a;   break;
+        case DifferenceKind::FileOnlyInB:     text = L"File only in " + names.b;   break;
         case DifferenceKind::FileNotCompared: text = L"File not compared";  break;
     }
 
@@ -190,7 +193,7 @@ std::wstring ComparisonText::FormatKind (DifferenceKind kind)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring ComparisonText::FormatDetail (const Difference & difference)
+std::wstring ComparisonText::FormatDetail (const Difference & difference, const SideNames & names)
 {
     const Difference &  d    = difference;
     std::wstring        text;
@@ -200,8 +203,7 @@ std::wstring ComparisonText::FormatDetail (const Difference & difference)
     switch (d.kind)
     {
         case DifferenceKind::Nibbles:
-            text = std::format (L"A {}, B {}{}", FormatNibbles (d.firstNibbleA, d.nibbleCountA), FormatNibbles (d.firstNibbleB, d.nibbleCountB),
-                                d.isSyncOnly ? L", sync only" : L"");
+            text = FormatNibbleDetail (d, names);
             break;
 
         case DifferenceKind::Timing:
@@ -210,7 +212,8 @@ std::wstring ComparisonText::FormatDetail (const Difference & difference)
             break;
 
         case DifferenceKind::SectorBytes:
-            text = std::format (L"{} {} {}, the first at {}", d.count == 1 ? L"There is" : L"There are", d.count, d.count == 1 ? L"byte that differs" : L"bytes that differ", InspectorFormat::FormatHexOffset (d.firstOffset));
+            text = std::format (L"{} {} {}, the first at {}{}", d.count == 1 ? L"There is" : L"There are", d.count, d.count == 1 ? L"byte that differs" : L"bytes that differ", InspectorFormat::FormatHexOffset (d.firstOffset),
+                                (d.bitsChanged > 0) ? std::format (L", {} {} on the disk", d.bitsChanged, d.bitsChanged == 1 ? L"bit" : L"bits") : std::wstring());
             break;
 
         case DifferenceKind::FileContents:
@@ -219,12 +222,16 @@ std::wstring ComparisonText::FormatDetail (const Difference & difference)
             break;
 
         case DifferenceKind::FileLength:
-            text = std::format (L"{}: B is {} {} {}", d.path, NumberFormat::FormatInteger (static_cast<uint64_t> (std::abs (d.count))),
+            text = std::format (L"{}: {} is {} {} {}", d.path, names.b, NumberFormat::FormatInteger (static_cast<uint64_t> (std::abs (d.count))),
                                 std::abs (d.count) == 1 ? L"byte" : L"bytes", d.count > 0 ? L"longer" : L"shorter");
             break;
 
         case DifferenceKind::FileNotCompared:
             text = d.path + L": " + d.detail;
+            break;
+
+        case DifferenceKind::Volume:
+            text = std::format (L"Volume {} in {}, {} in {}", d.count, names.a, d.firstOffset, names.b);
             break;
 
         case DifferenceKind::FileAttributes:
@@ -282,13 +289,13 @@ std::wstring ComparisonText::FormatSource (const ComparisonSource & source, bool
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring ComparisonText::FormatGroup (int group)
+std::wstring ComparisonText::FormatGroup (int group, int count)
 {
-    static constexpr LPCWSTR  s_kpszGroups[kGroupCount] = { L"Tracks", L"Nibbles", L"Timing", L"Sectors", L"Volumes", L"Files" };
+    static constexpr LPCWSTR  s_kpszGroups[kGroupCount] = { L"track", L"nibble", L"timing", L"sector", L"volume", L"file" };
 
 
 
-    return (group >= 0 && group < kGroupCount) ? s_kpszGroups[group] : L"";
+    return (group >= 0 && group < kGroupCount) ? std::format (L"{} {} {}", count, s_kpszGroups[group], count == 1 ? L"change" : L"changes") : L"";
 }
 
 
@@ -368,7 +375,7 @@ vector<std::wstring> ComparisonText::GetColumns()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-vector<TableRow> ComparisonText::BuildRows (const vector<Difference> & listed, uint32_t groupMask, int sortColumn, bool isDescending)
+vector<TableRow> ComparisonText::BuildRows (const vector<Difference> & listed, uint32_t groupMask, int sortColumn, bool isDescending, const SideNames & names)
 {
     vector<TableRow>  rows;
     size_t            i       = 0;
@@ -392,8 +399,8 @@ vector<TableRow> ComparisonText::BuildRows (const vector<Difference> & listed, u
         row.cells        = { d.quarterTrack >= 0 ? InspectorFormat::FormatQuarterTrack (d.quarterTrack) : std::wstring (s_kpszNone),
                              d.sector >= 0       ? InspectorFormat::FormatSector (d.sector)             : std::wstring (s_kpszNone),
                              hasCell             ? NumberFormat::FormatInteger (d.cell)                : std::wstring (s_kpszNone),
-                             FormatKind (d.kind),
-                             FormatDetail (d) };
+                             FormatKind (d.kind, names),
+                             FormatDetail (d, names) };
 
         rows.push_back (std::move (row));
     }
@@ -462,7 +469,7 @@ void ComparisonText::AddVerdictColumn (vector<std::wstring> & inOutColumns, vect
         }
         else
         {
-            row.cells.insert (row.cells.begin() + 1, FormatVerdict (comparison.tracks[qt]));
+            row.cells.insert (row.cells.begin() + 1, FormatVerdict (comparison.tracks[qt], comparison.names));
         }
     }
 }
@@ -515,17 +522,74 @@ bool ComparisonText::FindInHunk (const vector<Difference> & hunks, int nibbleA, 
 
 std::wstring ComparisonText::FormatNibbles (int first, int count)
 {
-    std::wstring  text = L"no nibbles";
+    std::wstring  text;
 
 
 
     if (count == 1)
     {
-        text = std::format (L"nibble {}", NumberFormat::FormatInteger (static_cast<uint64_t> (first)));
+        text = std::format (L"Nibble {}", InspectorFormat::FormatHexOffset (first));
     }
     else if (count > 1)
     {
-        text = std::format (L"nibbles {} to {}", NumberFormat::FormatInteger (static_cast<uint64_t> (first)), NumberFormat::FormatInteger (static_cast<uint64_t> (first + count - 1)));
+        text = std::format (L"Nibbles {} to {}", InspectorFormat::FormatHexOffset (first), InspectorFormat::FormatHexOffset (first + count - 1));
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComparisonText::FormatNibbleDetail
+//
+//  A nibble difference in plain words: which nibbles change and by how many
+//  bits, or which are missing from or extra in the other image. Extra or
+//  missing nibbles have no bits that changed, so no count of them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ComparisonText::FormatNibbleDetail (const Difference & difference, const SideNames & names)
+{
+    const Difference &  d     = difference;
+    bool                isOne = d.nibbleCountA == 1;
+    std::wstring        bits;
+    std::wstring        text;
+
+
+
+    if (d.bitsChanged > 0)
+    {
+        bits = std::format (L" by {} {}", d.bitsChanged, d.bitsChanged == 1 ? L"bit" : L"bits");
+    }
+
+    if (d.nibbleCountA == 0)
+    {
+        text = std::format (L"{} has {} extra {} here", names.Get (1), d.nibbleCountB, d.nibbleCountB == 1 ? L"nibble" : L"nibbles");
+    }
+    else if (d.nibbleCountB == 0)
+    {
+        text = std::format (L"{} {} missing from {}", FormatNibbles (d.firstNibbleA, d.nibbleCountA), isOne ? L"is" : L"are", names.b);
+    }
+    else if (d.bitsChanged == 0)
+    {
+        text = std::format (L"{} {} the same bits, framed differently", FormatNibbles (d.firstNibbleA, d.nibbleCountA), isOne ? L"has" : L"have");
+    }
+    else if (d.nibbleCountA == d.nibbleCountB)
+    {
+        text = std::format (L"{} {}{}", FormatNibbles (d.firstNibbleA, d.nibbleCountA), isOne ? L"differs" : L"differ", bits);
+    }
+    else
+    {
+        text = std::format (L"{} {} {} nibbles in {}{}", FormatNibbles (d.firstNibbleA, d.nibbleCountA), isOne ? L"is" : L"are", d.nibbleCountB, names.b, bits);
+    }
+
+    if (d.isSyncOnly)
+    {
+        text += L". Only sync nibbles differ";
     }
 
     return text;

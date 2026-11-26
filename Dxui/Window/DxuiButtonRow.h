@@ -46,7 +46,7 @@ namespace DxuiButtonRow
     //
     //  Estimated from an average glyph width rather than measured: layout
     //  runs without a text renderer. The estimate is generous, matching
-    //  DxuiInfoBanner's, so a label is never cut off -- a button a little
+    //  DxuiInfoBar's, so a label is never cut off -- a button a little
     //  wide reads as deliberate, a clipped one reads as broken.
     inline int  GetWidthForLabel (const std::wstring & label)
     {

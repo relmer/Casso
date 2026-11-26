@@ -1,9 +1,10 @@
 #include "Pch.h"
 
-#include "Widgets/DxuiInfoBanner.h"
+#include "Widgets/DxuiInfoBar.h"
 #include "Widgets/DxuiSeverityBadge.h"
 #include "Widgets/DxuiWarningBadge.h"
 #include "Core/DxuiUnicodeSymbols.h"
+#include "Core/DxuiSystemSettings.h"
 
 #include "Render/IDxuiPainter.h"
 #include "Render/IDxuiTextRenderer.h"
@@ -15,7 +16,103 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiInfoBanner::EstimateLines
+//  DxuiInfoBar::DxuiInfoBar
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiInfoBar::DxuiInfoBar()
+{
+    m_scrim.SetToken   (DxuiSurface::Token::Background);
+    m_scrim.SetOpacity (kDefaultScrimOpacity);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiInfoBar::ResolveDefaultDurationMs
+//
+//  The system's notification duration is an accessibility setting -- Settings
+//  > Accessibility > Visual effects, "Dismiss notifications after this amount
+//  of time" -- set by people who cannot read a notice in the time a default
+//  one is up. It is taken as a FLOOR rather than as the value, because its
+//  default of five seconds would otherwise quietly retune every timed bar in
+//  the app away from kDefaultDurationMs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int64_t DxuiInfoBar::ResolveDefaultDurationMs()
+{
+    int64_t  systemMs = (int64_t) DxuiSystemSettings::Instance().GetMessageDurationMs();
+
+
+
+    return (systemMs > kDefaultDurationMs) ? systemMs : kDefaultDurationMs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiInfoBar::Show
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiInfoBar::Show (const std::wstring & text, int64_t nowMs)
+{
+    SetText (text);
+    m_untilMs = (m_durationMs > 0) ? nowMs + m_durationMs : INT64_MAX;
+    SetVisible (true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiInfoBar::Dismiss
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiInfoBar::Dismiss()
+{
+    m_untilMs = 0;
+    SetVisible (false);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiInfoBar::Tick
+//
+//  Takes a timed bar down once its countdown runs out. A bar shown with
+//  SetVisible rather than Show has no countdown.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiInfoBar::Tick (int64_t nowMs)
+{
+    if (m_visible && m_untilMs != 0 && !IsShowing (nowMs))
+    {
+        SetVisible (false);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiInfoBar::EstimateLines
 //
 //  Renderer-free wrapped-line estimate: how many lines the text takes at
 //  `textWidthPx`, from an average glyph width. Deliberately generous (a wide
@@ -32,7 +129,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiInfoBanner::EstimateLines (float textWidthPx, const DxuiDpiScaler & scaler) const
+int DxuiInfoBar::EstimateLines (float textWidthPx, const DxuiDpiScaler & scaler) const
 {
     float   glyphPx = scaler.ToPxf (s_kFontDip) * s_kEstGlyphEm;
     float   perLine = (glyphPx > 0.0f) ? (textWidthPx / glyphPx) : 1.0f;
@@ -87,7 +184,7 @@ int DxuiInfoBanner::EstimateLines (float textWidthPx, const DxuiDpiScaler & scal
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiInfoBanner::ResolveCenteredLinePx
+//  DxuiInfoBar::ResolveCenteredLinePx
 //
 //  How wide one line of a centered banner is allowed to be.
 //
@@ -104,7 +201,7 @@ int DxuiInfoBanner::EstimateLines (float textWidthPx, const DxuiDpiScaler & scal
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float DxuiInfoBanner::ResolveCenteredLinePx (float availableTextPx, float wantedWidthPx,
+float DxuiInfoBar::ResolveCenteredLinePx (float availableTextPx, float wantedWidthPx,
                                              const DxuiDpiScaler & scaler) const
 {
     float  cap   = scaler.ToPxf (s_kMaxLineDip);
@@ -138,7 +235,7 @@ float DxuiInfoBanner::ResolveCenteredLinePx (float availableTextPx, float wanted
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiInfoBanner::ResolveCenteredBoxPx
+//  DxuiInfoBar::ResolveCenteredBoxPx
 //
 //  The same rule as ResolveCenteredLinePx, asked of the renderer instead of
 //  the estimate -- and this is the answer that counts. The estimate exists for
@@ -152,7 +249,7 @@ float DxuiInfoBanner::ResolveCenteredLinePx (float availableTextPx, float wanted
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float DxuiInfoBanner::ResolveCenteredBoxPx (IDxuiTextRenderer   &  text,
+float DxuiInfoBar::ResolveCenteredBoxPx (IDxuiTextRenderer   &  text,
                                             float                  availableTextPx,
                                             const DxuiDpiScaler &  scaler) const
 {
@@ -196,7 +293,7 @@ float DxuiInfoBanner::ResolveCenteredBoxPx (IDxuiTextRenderer   &  text,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiInfoBanner::FitCenteredBoxPx
+//  DxuiInfoBar::FitCenteredBoxPx
 //
 //  Widens the even-split box until the text actually wraps into the number of
 //  lines that split was calculated for.
@@ -216,7 +313,7 @@ float DxuiInfoBanner::ResolveCenteredBoxPx (IDxuiTextRenderer   &  text,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float DxuiInfoBanner::FitCenteredBoxPx (IDxuiTextRenderer   &  text,
+float DxuiInfoBar::FitCenteredBoxPx (IDxuiTextRenderer   &  text,
                                         float                  availableTextPx,
                                         float                  splitPx,
                                         float                  measuredWidthPx,
@@ -280,11 +377,11 @@ float DxuiInfoBanner::FitCenteredBoxPx (IDxuiTextRenderer   &  text,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiInfoBanner::GetPreferredHeightPx
+//  DxuiInfoBar::GetPreferredHeightPx
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float DxuiInfoBanner::GetPreferredHeightPx (float widthPx, const DxuiDpiScaler & scaler) const
+float DxuiInfoBar::GetPreferredHeightPx (float widthPx, const DxuiDpiScaler & scaler) const
 {
     float   padX      = scaler.ToPxf (s_kPadXDip);
     float   padY      = scaler.ToPxf (m_padYDip);
@@ -330,11 +427,11 @@ float DxuiInfoBanner::GetPreferredHeightPx (float widthPx, const DxuiDpiScaler &
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiInfoBanner::GetMeasuredHeightPx
+//  DxuiInfoBar::GetMeasuredHeightPx
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float DxuiInfoBanner::GetMeasuredHeightPx (IDxuiTextRenderer   &  text,
+float DxuiInfoBar::GetMeasuredHeightPx (IDxuiTextRenderer   &  text,
                                            float                  widthPx,
                                            const DxuiDpiScaler &  scaler) const
 {
@@ -383,14 +480,14 @@ float DxuiInfoBanner::GetMeasuredHeightPx (IDxuiTextRenderer   &  text,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiInfoBanner::StrokeCircle
+//  DxuiInfoBar::StrokeCircle
 //
 //  A ring, walked as chords. Twenty segments is past the point where a mark
 //  this size shows corners, and the painter has no arc of its own.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiInfoBanner::StrokeCircle (IDxuiPainter & painter, float cx, float cy,
+void DxuiInfoBar::StrokeCircle (IDxuiPainter & painter, float cx, float cy,
                                    float radiusPx, float strokePx, uint32_t argb)
 {
     constexpr int  s_kSegments = 20;
@@ -415,7 +512,7 @@ void DxuiInfoBanner::StrokeCircle (IDxuiPainter & painter, float cx, float cy,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiInfoBanner::PaintIconGlyph
+//  DxuiInfoBar::PaintIconGlyph
 //
 //  Draws the caller's Segoe MDL2 Assets glyph in the icon box, in place of the
 //  drawn badge: the same face the toolbar's icons use, sized so the em fills
@@ -427,7 +524,7 @@ void DxuiInfoBanner::StrokeCircle (IDxuiPainter & painter, float cx, float cy,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiInfoBanner::PaintIconGlyph (IDxuiTextRenderer & text, const IDxuiTheme & theme,
+void DxuiInfoBar::PaintIconGlyph (IDxuiTextRenderer & text, const IDxuiTheme & theme,
                                      float iconLeft, float iconTop, float iconBox) const
 {
     constexpr wchar_t  kMdl2Family[] = L"Segoe MDL2 Assets";
@@ -464,7 +561,7 @@ void DxuiInfoBanner::PaintIconGlyph (IDxuiTextRenderer & text, const IDxuiTheme 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiInfoBanner::Paint
+//  DxuiInfoBar::Paint
 //
 //  Draws an informational notice: an accent-tinted surface, an info badge, and
 //  wrapping body text.
@@ -488,7 +585,7 @@ void DxuiInfoBanner::PaintIconGlyph (IDxuiTextRenderer & text, const IDxuiTheme 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+void DxuiInfoBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     HRESULT         hr       = S_OK;
     float           left     = (float) m_boundsDip.left;
@@ -516,6 +613,13 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     if (!m_visible)
     {
         return;
+    }
+
+    //  An overlay's scrim first, sharing the bar's bounds exactly: it is the
+    //  bar's backing, not a margin around it.
+    if (m_placement == Placement::Overlay)
+    {
+        m_scrim.Paint (painter, text, theme);
     }
 
     //  CENTERED AS A GROUP when the caller asked for it: the badge, the gap and
@@ -550,18 +654,18 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     // happens to be.
     if (m_severity == Severity::Warning)
     {
-        painter.FillRect    (left, top, width, height, theme.InfoBannerWarningBackground());
-        painter.OutlineRect (left, top, width, height, borderPx, theme.InfoBannerWarningBorder());
+        painter.FillRect    (left, top, width, height, theme.InfoBarWarningBackground());
+        painter.OutlineRect (left, top, width, height, borderPx, theme.InfoBarWarningBorder());
     }
     else if (m_severity == Severity::Error)
     {
-        painter.FillRect    (left, top, width, height, theme.InfoBannerErrorBackground());
-        painter.OutlineRect (left, top, width, height, borderPx, theme.InfoBannerErrorBorder());
+        painter.FillRect    (left, top, width, height, theme.InfoBarErrorBackground());
+        painter.OutlineRect (left, top, width, height, borderPx, theme.InfoBarErrorBorder());
     }
     else
     {
-        painter.FillRect    (left, top, width, height, theme.InfoBannerBackground());
-        painter.OutlineRect (left, top, width, height, borderPx, theme.InfoBannerBorder());
+        painter.FillRect    (left, top, width, height, theme.InfoBarBackground());
+        painter.OutlineRect (left, top, width, height, borderPx, theme.InfoBarBorder());
     }
 
     if (m_iconGlyph != nullptr)
@@ -627,7 +731,7 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                           top + padY,
                           (textW > 1.0f) ? textW : 1.0f,
                           textH,
-                          theme.InfoBannerForeground(),
+                          theme.InfoBarForeground(),
                           fontPx,
                           DxuiTheme::GetUiFace(),
                           hAlign,
@@ -653,7 +757,7 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiInfoBanner::SetActions
+//  DxuiInfoBar::SetActions
 //
 //  REPLACED RATHER THAN ADDED TO. A standing notice absorbs further changes
 //  instead of stacking, so setting its actions again must result in one
@@ -661,7 +765,7 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiInfoBanner::SetActions (const std::vector<std::wstring> & labels)
+void DxuiInfoBar::SetActions (const std::vector<std::wstring> & labels)
 {
     size_t  i = 0;
 
@@ -698,11 +802,11 @@ void DxuiInfoBanner::SetActions (const std::vector<std::wstring> & labels)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiInfoBanner::GetAction
+//  DxuiInfoBar::GetAction
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiButton * DxuiInfoBanner::GetAction (size_t index)
+DxuiButton * DxuiInfoBar::GetAction (size_t index)
 {
     return (index < m_actions.size()) ? m_actions[index].get() : nullptr;
 }
@@ -713,7 +817,7 @@ DxuiButton * DxuiInfoBanner::GetAction (size_t index)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiInfoBanner::GetControlColumnPx
+//  DxuiInfoBar::GetControlColumnPx
 //
 //  The buttons and the close box, a gap after each, and the trailing edge pad
 //  the last of them is inset by. Leaving the pad out reserves less than Layout
@@ -721,7 +825,7 @@ DxuiButton * DxuiInfoBanner::GetAction (size_t index)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float DxuiInfoBanner::GetControlColumnPx (const DxuiDpiScaler & scaler) const
+float DxuiInfoBar::GetControlColumnPx (const DxuiDpiScaler & scaler) const
 {
     float  width = 0.0f;
 
@@ -747,11 +851,11 @@ float DxuiInfoBanner::GetControlColumnPx (const DxuiDpiScaler & scaler) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiInfoBanner::GetTextReservePx
+//  DxuiInfoBar::GetTextReservePx
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float DxuiInfoBanner::GetTextReservePx (float widthPx, const DxuiDpiScaler & scaler) const
+float DxuiInfoBar::GetTextReservePx (float widthPx, const DxuiDpiScaler & scaler) const
 {
     return m_trailingReservePx + (IsStacked (widthPx, scaler) ? 0.0f : GetControlColumnPx (scaler));
 }
@@ -762,11 +866,11 @@ float DxuiInfoBanner::GetTextReservePx (float widthPx, const DxuiDpiScaler & sca
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiInfoBanner::IsStacked
+//  DxuiInfoBar::IsStacked
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiInfoBanner::IsStacked (float widthPx, const DxuiDpiScaler & scaler) const
+bool DxuiInfoBar::IsStacked (float widthPx, const DxuiDpiScaler & scaler) const
 {
     float  iconCol = scaler.ToPxf (s_kIconBoxDip) + scaler.ToPxf (s_kIconGapDip);
     float  besideW = widthPx - scaler.ToPxf (s_kPadXDip) * 2.0f - iconCol - m_trailingReservePx - GetControlColumnPx (scaler);
@@ -782,14 +886,14 @@ bool DxuiInfoBanner::IsStacked (float widthPx, const DxuiDpiScaler & scaler) con
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiInfoBanner::GetBoxHeightPx
+//  DxuiInfoBar::GetBoxHeightPx
 //
 //  Stacked, the controls' row is under the padded text, its bottom pad
 //  replacing the text's; beside it, the box is at least the controls' height.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float DxuiInfoBanner::GetBoxHeightPx (float textH, float widthPx, const DxuiDpiScaler & scaler) const
+float DxuiInfoBar::GetBoxHeightPx (float textH, float widthPx, const DxuiDpiScaler & scaler) const
 {
     float  padY    = scaler.ToPxf (m_padYDip);
     float  iconH   = scaler.ToPxf (s_kIconBoxDip);
@@ -811,11 +915,11 @@ float DxuiInfoBanner::GetBoxHeightPx (float textH, float widthPx, const DxuiDpiS
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiInfoBanner::GetControlHeightPx
+//  DxuiInfoBar::GetControlHeightPx
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float DxuiInfoBanner::GetControlHeightPx (const DxuiDpiScaler & scaler) const
+float DxuiInfoBar::GetControlHeightPx (const DxuiDpiScaler & scaler) const
 {
     float  height = 0.0f;
 
@@ -845,7 +949,7 @@ float DxuiInfoBanner::GetControlHeightPx (const DxuiDpiScaler & scaler) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiInfoBanner::Layout
+//  DxuiInfoBar::Layout
 //
 //  The strip takes the whole bounds, and the controls sit inside it against
 //  the trailing edge, vertically centered: the close box last, the buttons
@@ -854,7 +958,7 @@ float DxuiInfoBanner::GetControlHeightPx (const DxuiDpiScaler & scaler) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiInfoBanner::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
+void DxuiInfoBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     float  actionW = scaler.ToPxf (m_actionWidthDip);
     float  actionH = scaler.ToPxf (s_kActionHeightDip);
@@ -865,6 +969,8 @@ void DxuiInfoBanner::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
     size_t i       = 0;
 
 
+
+    m_scrim.Layout (boundsDip, scaler);
 
     //  Stacked, the controls are centered on a row along the bottom.
     if (IsStacked ((float) (boundsDip.right - boundsDip.left), scaler))
@@ -903,7 +1009,7 @@ void DxuiInfoBanner::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiInfoBanner::OnMouse
+//  DxuiInfoBar::OnMouse
 //
 //  Offered to each action, then to the close box, which closes on a release
 //  inside it after a press inside it, as a button does. The strip itself
@@ -911,7 +1017,7 @@ void DxuiInfoBanner::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiInfoBanner::OnMouse (const DxuiMouseEvent & ev)
+bool DxuiInfoBar::OnMouse (const DxuiMouseEvent & ev)
 {
     bool    handled = false;
     bool    inClose = m_dismissible && PtInRect (&m_dismissRect, ev.positionDip);
@@ -956,14 +1062,14 @@ bool DxuiInfoBanner::OnMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiInfoBanner::PaintCloseBox
+//  DxuiInfoBar::PaintCloseBox
 //
 //  The X a tab closes with, in the notice's text color, over a faint wash of
 //  that color while the pointer is on it and a stronger one while pressed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiInfoBanner::PaintCloseBox (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const
+void DxuiInfoBar::PaintCloseBox (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const
 {
     constexpr uint32_t  kHoverAlpha   = 0x1F000000u;
     constexpr uint32_t  kPressedAlpha = 0x33000000u;
@@ -973,7 +1079,7 @@ void DxuiInfoBanner::PaintCloseBox (IDxuiPainter & painter, IDxuiTextRenderer & 
     float               top           = (float) m_dismissRect.top;
     float               width         = (float) (m_dismissRect.right  - m_dismissRect.left);
     float               height        = (float) (m_dismissRect.bottom - m_dismissRect.top);
-    uint32_t            glyph         = theme.InfoBannerForeground();
+    uint32_t            glyph         = theme.InfoBarForeground();
 
 
 

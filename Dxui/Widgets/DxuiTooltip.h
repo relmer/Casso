@@ -126,6 +126,10 @@ public:
     static constexpr float  kDefaultMaxTextWidthDip = 340.0f;
     void  SetMaxTextWidthDip (float dip) { m_maxTextWidthDip = dip; }
 
+    //  A pointer tip starts this far right of the pointer, so a line drawn at
+    //  the pointer stays in sight; 0 centers it on the pointer.
+    void  SetPointerOffsetDip (int dip) { m_pointerOffsetDip = dip; }
+
     //  Explorer's tips: centered on the pointer and just above it, or just
     //  below where there is no room above on its monitor, rather than on the
     //  anchor; and a card with a shadow and no border.
@@ -307,4 +311,5 @@ private:
     PointerLocator                            m_pfnLocatePointer  = LocatePointer;
     bool                                      m_isPointerTip      = true;
     bool                                      m_isBelowPointer    = false;
+    int                                       m_pointerOffsetDip  = 0;
 };

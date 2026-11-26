@@ -92,7 +92,7 @@ DxuiMenuMetrics DxuiMenuMetrics::FromSystem (UINT dpi)
     // A floor takes WinUI's size at the Windows default and still yields to
     // a user who has enlarged the menu font past it, which is the direction
     // that matters: somebody who asked for bigger text gets bigger text.
-    // The notification duration in DxuiTimedInfoBanner is a floor in the
+    // The notification duration in DxuiTimedInfoBar is a floor in the
     // same way.
     fontFloorPx    = MulDiv (kMinFontDip, (int) effective, (int) kBaseDpi);
     m.fontPx       = (float) ((emPx > fontFloorPx) ? emPx : fontFloorPx);

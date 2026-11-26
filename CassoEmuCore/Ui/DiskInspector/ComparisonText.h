@@ -69,17 +69,17 @@ public:
         kGroupCount,
     };
 
-    static std::wstring  FormatVerdict (const TrackComparison & track);
+    static std::wstring  FormatVerdict (const TrackComparison & track, const SideNames & names = {});
     static std::wstring  FormatResult  (const DiskComparison & comparison);
-    static std::wstring  FormatKind    (DifferenceKind kind);
-    static std::wstring  FormatDetail  (const Difference & difference);
+    static std::wstring  FormatKind    (DifferenceKind kind, const SideNames & names = {});
+    static std::wstring  FormatDetail  (const Difference & difference, const SideNames & names = {});
     static std::wstring  FormatSource  (const ComparisonSource & source, bool isFileHost = false);
-    static std::wstring  FormatGroup   (int group);
+    static std::wstring  FormatGroup   (int group, int count);
     static int           GetGroup      (DifferenceKind kind);
     static uint32_t      GetAllGroups  ();
 
     static vector<std::wstring>  GetColumns ();
-    static vector<TableRow>      BuildRows  (const vector<Difference> & listed, uint32_t groupMask, int sortColumn, bool isDescending);
+    static vector<TableRow>      BuildRows  (const vector<Difference> & listed, uint32_t groupMask, int sortColumn, bool isDescending, const SideNames & names = {});
 
     static std::array<int, kGroupCount>  CountGroups (const vector<Difference> & listed);
 
@@ -93,5 +93,6 @@ public:
     static bool  FindInHunk (const vector<Difference> & hunks, int nibbleA, int & outNibbleB);
 
 private:
-    static std::wstring  FormatNibbles (int first, int count);
+    static std::wstring  FormatNibbles      (int first, int count);
+    static std::wstring  FormatNibbleDetail (const Difference & difference, const SideNames & names);
 };

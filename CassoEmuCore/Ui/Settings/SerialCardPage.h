@@ -123,8 +123,8 @@ private:
     BrowseFn                 m_onBrowse;
     std::function<void (const std::wstring &)>  m_onNotice;
 
-    DxuiInfoBanner           m_firmwareBanner;
-    DxuiInfoBanner           m_listenBanner;
+    DxuiInfoBar           m_firmwareBanner;
+    DxuiInfoBar           m_listenBanner;
     std::function<std::wstring ()>  m_listenProblem;
     DxuiButton               m_download;
     bool                     m_offerDownload = false;

@@ -31,11 +31,15 @@ public:
 
     void  RefreshTables ();
     void  SyncTables    ();
-    void  SelectFromRow (const TableRow & row);
+
+    std::wstring             GetSideName    (int side) const;
+    static vector<TableRow>  MergeImageRows (vector<TableRow> rowsA, const vector<TableRow> & rowsB);
+    void                     SelectFromRow  (const TableRow & row);
 
 private:
     InspectorSession         & m_session;
     IInspectorComponentHost  & m_host;
     bool                       m_isTracksCompared   = false;
+    bool                       m_isImageCompared    = false;
     int                        m_syncedQuarterTrack = -1;
 };

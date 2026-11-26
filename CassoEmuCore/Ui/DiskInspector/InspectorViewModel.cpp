@@ -39,6 +39,24 @@ void InspectorViewModel::SetDisk (uint64_t mediaId)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  InspectorViewModel::Rebind
+//
+//  Moves the view to another disk without resetting the zoom, the strip or
+//  the selection, as when a comparison swaps its sides.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorViewModel::Rebind (uint64_t mediaId)
+{
+    m_mediaId = mediaId;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  InspectorViewModel::SetAnalysis
 //
 //  After a track is analyzed again, the sector nearest the cell the
@@ -266,6 +284,7 @@ void InspectorViewModel::SelectNibbles (int quarterTrack, int firstNibble, int n
         m_anchorCell  = track->framed.nibbles[firstNibble].startCell;
         m_hasAnchor   = true;
         field         = (firstNibble < static_cast<int> (track->fieldOfNibble.size())) ? track->fieldOfNibble[firstNibble] : -1;
+        m_sectorIndex = -1;    // nibbles outside every sector, as a data field with no address field, select none
 
         for (i = 0; i < track->sectors.size() && field >= 0; i++)
         {
@@ -807,6 +826,10 @@ void InspectorViewModel::StartFlight (double nowMs)
     Point   center = { -m_pan.x / m_zoom, -m_pan.y / m_zoom };
     Point   a;
     Point   b;
+    Point   aOut;
+    Point   bOut;
+    Point   aIn;
+    Point   bIn;
 
 
 
@@ -816,7 +839,20 @@ void InspectorViewModel::StartFlight (double nowMs)
         a               = GetFitPoint (m_quarterTrack, start + m_rotation);
         b               = GetFitPoint (m_quarterTrack, end + m_rotation);
         m_flightFrom    = GetView();
-        m_flightTo      = GetChordView (a, b);
+
+        //  The ring's width is fit as well as the arc: its edges lie halfway
+        //  to the rings either side.
+        Point  inA  = GetFitPoint (m_quarterTrack - 1, start + m_rotation);
+        Point  inB  = GetFitPoint (m_quarterTrack - 1, end + m_rotation);
+        Point  outA = GetFitPoint (m_quarterTrack + 1, start + m_rotation);
+        Point  outB = GetFitPoint (m_quarterTrack + 1, end + m_rotation);
+
+        aIn             = { (a.x + inA.x) / 2, (a.y + inA.y) / 2 };
+        bIn             = { (b.x + inB.x) / 2, (b.y + inB.y) / 2 };
+        aOut            = { (a.x + outA.x) / 2, (a.y + outA.y) / 2 };
+        bOut            = { (b.x + outB.x) / 2, (b.y + outB.y) / 2 };
+        m_flightTo      = GetChordView ({ std::min ({ aIn.x, bIn.x, aOut.x, bOut.x }), std::min ({ aIn.y, bIn.y, aOut.y, bOut.y }) },
+                                        { std::max ({ aIn.x, bIn.x, aOut.x, bOut.x }), std::max ({ aIn.y, bIn.y, aOut.y, bOut.y }) });
         m_flightMid     = GetChordView ({ std::min ({ center.x, a.x, b.x }), std::min ({ center.y, a.y, b.y }) },
                                         { std::max ({ center.x, a.x, b.x }), std::max ({ center.y, a.y, b.y }) });
         m_isTwoLegs     = m_flightMid.zoom < std::min (m_flightFrom.zoom, m_flightTo.zoom) - 1e-9;
@@ -1189,6 +1225,55 @@ vector<std::pair<double, double>> InspectorViewModel::GetByteRuns() const
     }
 
     return runs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorViewModel::GetBytesOfNibbles
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool InspectorViewModel::GetBytesOfNibbles (int & outFirst, int & outCount) const
+{
+    static constexpr int  kDataPrologNibbles = 3;
+
+
+
+    const TrackAnalysis *   track  = GetTrack();
+    const AnalyzedSector *  sector = GetSector();
+    vector<int>             low;
+    int                     base   = 0;
+    int                     high   = 0;
+    int                     last   = -1;
+
+
+
+    outFirst = -1;
+    outCount = 0;
+
+    if (track != nullptr && sector != nullptr && sector->dataField >= 0 && m_firstNibble >= 0 && m_nibbleCount > 0)
+    {
+        base = track->fields[sector->dataField].firstNibble + kDataPrologNibbles;
+
+        for (int b = 0; b < DiskFieldFormat::kSectorBytes; b++)
+        {
+            DiskFieldFormat::GetByteNibbles (sector->kind, b, high, low);
+
+            if (base + high >= m_firstNibble && base + high < m_firstNibble + m_nibbleCount)
+            {
+                outFirst = (outFirst < 0) ? b : outFirst;
+                last     = b;
+            }
+        }
+
+        outCount = (outFirst >= 0) ? last - outFirst + 1 : 0;
+    }
+
+    return outFirst >= 0;
 }
 
 

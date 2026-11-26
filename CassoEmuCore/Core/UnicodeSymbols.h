@@ -41,6 +41,7 @@ static constexpr LPCWSTR s_kpszEmDash       = L"\x2014";       // U+2014 EM DASH
 static constexpr LPCWSTR s_kpszMiddleDot    = L"\x00B7";       // U+00B7 MIDDLE DOT
 static constexpr LPCWSTR s_kpszPlusMinus    = L"\x00B1";       // U+00B1 PLUS-MINUS SIGN
 static constexpr LPCWSTR s_kpszRightArrow    = L"\x2192";       // U+2192 RIGHTWARDS ARROW
+static constexpr LPCWSTR s_kpszSwapArrows    = L"\x2194";       // U+2194 LEFT RIGHT ARROW
 static constexpr LPCWSTR s_kpszMultiplyX     = L"\x00D7";       // U+00D7 MULTIPLICATION SIGN (×), window-close glyph
 static constexpr LPCWSTR s_kpszRocket        = L"\U0001F680";   // U+1F680 ROCKET (🚀)
 static constexpr LPCWSTR s_kpszStar          = L"\x2B50";       // U+2B50 WHITE MEDIUM STAR (gold via color-emoji font)

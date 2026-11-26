@@ -172,10 +172,10 @@ vector<DxuiMenuBarItem> InspectorMenuBar::BuildItems (const InspectorCommands & 
 
     add (c.compareWith);
     add (c.swapSides);
-    add (c.bSettings);
     add (c.endComparison);
     separator();
     add (c.decodeSettings);
+    add (c.bSettings);
     separator();
     add (c.readAsCpm);
     add (c.detectFilesystem);

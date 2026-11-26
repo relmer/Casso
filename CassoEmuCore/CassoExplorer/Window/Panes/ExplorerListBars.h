@@ -5,7 +5,7 @@
 #include "CassoExplorer/Actions/ActionsA2retroNet.h"
 
 struct ExplorerContext;
-class  DxuiInfoBanner;
+class  DxuiInfoBar;
 
 
 
@@ -41,7 +41,7 @@ public:
     //  The visible bars at the top of the rect, and the rect below them.
     RECT  Layout      (const RECT & rect);
 
-    DxuiInfoBanner & GetCardBar () { return *m_cardBar; }
+    DxuiInfoBar & GetCardBar () { return *m_cardBar; }
 
 private:
     enum class CardAction { Drives, Repair, WritePo, SetDrive };
@@ -55,15 +55,15 @@ private:
 
     ExplorerContext            & m_context;
     RelayoutFn                   m_relayout;
-    DxuiInfoBanner             * m_searchBar = nullptr;
-    DxuiInfoBanner             * m_cardBar   = nullptr;
+    DxuiInfoBar                * m_searchBar       = nullptr;
+    DxuiInfoBar                * m_cardBar         = nullptr;
     std::wstring                 m_searchBarClosed;   // the search whose infobar was closed
-    std::wstring                 m_cardBarClosed;     // the folder whose card infobar was closed
+    std::wstring                 m_cardBarClosed;   // the folder whose card infobar was closed
     ActionsA2retroNet::Card      m_card;
-    std::vector<CardAction>      m_cardActions;       // the card infobar's buttons, in order
-    std::vector<std::wstring>    m_cardLabels;        // the labels the buttons were made with
-    std::vector<std::wstring>    m_convertible;       // the images to convert to .po
-    std::vector<std::wstring>    m_settable;          // images copied or written to a card, offered as a drive
-    std::wstring                 m_setPath;           // the image Set as drive sets
-    int                          m_setDrive  = 0;     // its drive, from 1, or 0 for no offer
+    std::vector<CardAction>      m_cardActions;   // the card infobar's buttons, in order
+    std::vector<std::wstring>    m_cardLabels;   // the labels the buttons were made with
+    std::vector<std::wstring>    m_convertible;   // the images to convert to .po
+    std::vector<std::wstring>    m_settable;   // images copied or written to a card, offered as a drive
+    std::wstring                 m_setPath;   // the image Set as drive sets
+    int                          m_setDrive        = 0;   // its drive, from 1, or 0 for no offer
 };

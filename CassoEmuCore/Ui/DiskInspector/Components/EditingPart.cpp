@@ -540,6 +540,7 @@ void EditingPart::UpdateEditBar()
     state.isWaiting        = m_isApplyWaiting;
     state.isMachinePaused  = m_isApplyPaused;
     state.canUseB          = reason.empty() && GetBSectorBytes (paired);
+    state.nameB            = m_session.comparison.HasResult() ? m_session.comparison.GetResult().names.b : std::wstring();
     state.canUndoApplied   = m_historyAt > 0 && m_applyRequest == 0 && state.applyBlocked.empty() && m_session.edits.IsEmpty() &&
                              (IsHistoryCurrent (m_history[m_historyAt - 1].countsAfter) || m_history[m_historyAt - 1].edits.IsCurrentIn (m_session.analysis));
     state.canRedoApplied   = m_historyAt < static_cast<int> (m_history.size()) && m_applyRequest == 0 && state.applyBlocked.empty() &&

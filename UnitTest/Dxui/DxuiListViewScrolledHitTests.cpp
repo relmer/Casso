@@ -151,4 +151,31 @@ public:
         Assert::AreEqual ((size_t) 1, list.GetSelectedRows().size());
         Assert::AreEqual (expected, list.GetSelectedRows()[0]);
     }
+
+
+
+    TEST_METHOD (HitTest_FindsTheRowAcrossAStretchedLastColumn)
+    {
+        DxuiListView                                  list;
+        DxuiDpiScaler                                 scaler;
+        std::vector<DxuiListView::Column>             cols;
+        std::vector<std::vector<DxuiListView::Cell>>  data;
+
+        scaler.SetDpi (96);
+
+        cols.push_back (DxuiListView::Column { L"Track", 100 });
+        cols.push_back (DxuiListView::Column { L"Details", 80 });
+        cols.back().stretch = true;
+
+        data.push_back ({ DxuiListView::Cell { L"17", false }, DxuiListView::Cell { L"There are 3 bytes that differ", false } });
+
+        list.SetColumns    (std::move (cols));
+        list.SetShowHeader (true);
+        list.SetRows       (std::move (data));
+        list.Layout        (RECT { 0, 0, 600, 300 }, scaler);
+
+        //  Details is 80 wide by itself and fills the list's width laid out.
+        Assert::AreEqual (0,  list.HitTestRow (500, 49), L"A point well past Details' own width is still on the row");
+        Assert::AreEqual (-1, list.HitTestRow (500, 200), L"and below the row is not");
+    }
 };

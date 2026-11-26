@@ -24,7 +24,7 @@ class EmulatorShell;
 //  thread applies it on its next frame (Tick). The download runs on a
 //  background queue and is applied the same way.
 //
-//  The banner itself is a DxuiInfoBanner with buttons and a close box. It
+//  The banner itself is a DxuiInfoBar with buttons and a close box. It
 //  shares the chrome's change band with the disk-change banner, below it, so
 //  ShellChrome lays the two out together.
 //
@@ -55,19 +55,19 @@ public:
     bool            DidLastDownloadSucceed    () const { return m_lastDownloadSucceeded; }
     const string &  GetLastDownloadError      () const { return m_lastDownloadError; }
 
-    DxuiInfoBanner &    GetBanner           () { return m_banner; }
-    int                 GetBandThicknessPx  (int clientWidthPx) const;
-    void                LayoutBanner        (const RECT & bounds);
-    bool                OfferMouseToBanner  (DxuiMouseEventKind kind, int x, int y);
+    DxuiInfoBar  & GetBanner          () { return m_banner; }
+    int            GetBandThicknessPx (int clientWidthPx) const;
+    void           LayoutBanner       (const RECT & bounds);
+    bool           OfferMouseToBanner (DxuiMouseEventKind kind, int x, int y);
 
 private:
     void  Show     (const SerialCardNotice & notice);
     void  OnAction (size_t index);
 
-    EmulatorShell                        & m_shell;
-    DxuiInfoBanner                         m_banner;
-    SerialCardNotice                       m_notice;
-    vector<wstring>                        m_buttons;   // the notice's actions but Dismiss, in order
+    EmulatorShell     & m_shell;
+    DxuiInfoBar         m_banner;
+    SerialCardNotice    m_notice;
+    vector<wstring>     m_buttons;   // the notice's actions but Dismiss, in order
 
     mutex                                  m_pendingLock;
     SerialCardNotice                       m_pendingNotice;

@@ -3,6 +3,7 @@
 #include "Ui/DiskInspector/Components/ViewTables.h"
 #include "Ui/DiskInspector/Components/IInspectorComponentHost.h"
 #include "Ui/DiskInspector/Components/InspectorSession.h"
+#include "Ui/DiskInspector/InspectorMarquee.h"
 #include "Ui/DiskInspector/InspectorTableView.h"
 #include "Ui/DiskInspector/Views/DifferencesView.h"
 #include "Ui/DiskInspector/Views/FilesView.h"
@@ -71,13 +72,32 @@ void ViewTables::RefreshTables()
         m_session.repairPlan = m_session.context.hasDisk ? DiskRepair::Plan (m_session.analysis, {}) : RepairPlan();
         m_session.views.issues->SetRepairPlan (&m_session.repairPlan);
         m_session.isLayoutStale = true;
+        m_session.views.issues->SetComparedWith ((m_session.comparison.IsComparing() && m_session.comparison.GetB().copy != nullptr) ? &m_session.comparison.GetB() : nullptr,
+                                                 GetSideName (0), GetSideName (1));
         m_session.views.issues->Refresh();
 
         vector<TableRow>  imageRows = m_session.context.hasDisk ? InspectorTables::BuildImage (m_session.analysis.image, m_session.context.drive != nullptr ? m_session.analysis.copy.get() : nullptr,
                                                                                                m_session.context.drive)
                                                                 : vector<TableRow>();
 
-        m_session.views.image->SetRows (std::move (imageRows));
+        //  While comparing, the Image tab has each image's details side by
+        //  side, and the Issues and Find results tabs have the name of the
+        //  image they cover.
+        if (m_session.comparison.IsComparing() != m_isImageCompared)
+        {
+            m_isImageCompared = m_session.comparison.IsComparing();
+            m_session.views.image->SetColumns (m_isImageCompared ? vector<std::wstring> { L"Item", GetSideName (0), GetSideName (1) } : InspectorTables::GetImageColumns());
+        }
+
+        if (m_session.comparison.IsComparing())
+        {
+            imageRows = MergeImageRows (std::move (imageRows), m_session.comparison.GetB().copy != nullptr
+                                                                ? InspectorTables::BuildImage (m_session.comparison.GetB().image) : vector<TableRow>());
+        }
+
+        m_session.views.image->SetRows        (std::move (imageRows));
+
+        m_session.views.findResults->SetCaption (m_session.comparison.IsComparing() ? L"Find results in " + GetSideName (0) : std::wstring());
         m_session.views.files->RefreshFileList();
 
         //  Casso does not analyze 3.5" disks; such a WOZ opens on the Image
@@ -99,6 +119,89 @@ void ViewTables::RefreshTables()
     }
 
     m_session.isTablesDirty = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ViewTables::GetSideName
+//
+//  A side's name in the comparison's text, or its file name before the
+//  first result.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ViewTables::GetSideName (int side) const
+{
+    const DiskCopy *  copy = (side == 0) ? m_session.analysis.copy.get() : m_session.comparison.GetB().copy.get();
+    std::wstring      name;
+
+
+
+    if (m_session.comparison.HasResult())
+    {
+        name = m_session.comparison.GetResult().names.Get (side);
+    }
+    else if (copy != nullptr)
+    {
+        name = std::filesystem::path (copy->fileName).filename().wstring();
+    }
+
+    return name.empty() ? SideNames().Get (side) : name;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ViewTables::MergeImageRows
+//
+//  A's rows with B's value for the same item beside each, then the items
+//  only B has.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<TableRow> ViewTables::MergeImageRows (vector<TableRow> rowsA, const vector<TableRow> & rowsB)
+{
+    vector<bool>  isUsed (rowsB.size(), false);
+
+
+
+    for (TableRow & row : rowsA)
+    {
+        std::wstring  value;
+
+        for (size_t j = 0; j < rowsB.size() && !row.cells.empty(); j++)
+        {
+            if (!isUsed[j] && rowsB[j].cells.size() > 1 && rowsB[j].cells[0] == row.cells[0])
+            {
+                isUsed[j] = true;
+                value     = rowsB[j].cells[1];
+                break;
+            }
+        }
+
+        row.cells.resize (2);
+        row.cells.push_back (value);
+    }
+
+    for (size_t j = 0; j < rowsB.size(); j++)
+    {
+        if (!isUsed[j] && rowsB[j].cells.size() > 1)
+        {
+            TableRow  row = rowsB[j];
+
+            row.cells = { rowsB[j].cells[0], std::wstring(), rowsB[j].cells[1] };
+            rowsA.push_back (std::move (row));
+        }
+    }
+
+    return rowsA;
 }
 
 
@@ -131,13 +234,15 @@ void ViewTables::SyncTables()
 //  ViewTables::SelectFromRow
 //
 //  A row goes to what it refers to: a field's nibbles, a sector, or a
-//  quarter track.
+//  quarter track. A row with only a sector number goes to the track's
+//  sector with that number. The platter then flies to the selection.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ViewTables::SelectFromRow (const TableRow & row)
 {
-    const TrackAnalysis *  track = nullptr;
+    const TrackAnalysis *  track  = nullptr;
+    int                    sector = row.sectorIndex;
 
 
 
@@ -146,9 +251,14 @@ void ViewTables::SelectFromRow (const TableRow & row)
         m_session.model.SelectQuarterTrack (row.quarterTrack);
         track = m_session.model.GetTrack();
 
-        if (row.sectorIndex >= 0)
+        for (size_t i = 0; track != nullptr && sector < 0 && row.sector >= 0 && i < track->sectors.size(); i++)
         {
-            m_session.model.SelectSector (row.quarterTrack, row.sectorIndex);
+            sector = (track->sectors[i].sector == row.sector) ? static_cast<int> (i) : -1;
+        }
+
+        if (sector >= 0)
+        {
+            m_session.model.SelectSector (row.quarterTrack, sector);
         }
         else if (track != nullptr && row.field >= 0 && row.field < static_cast<int> (track->fields.size()))
         {
@@ -163,5 +273,6 @@ void ViewTables::SelectFromRow (const TableRow & row)
         m_session.context.errorNibbleCount  = m_session.model.GetNibbleCount();
 
         m_host.OnSelection();
+        m_session.model.StartFlight (InspectorMarquee::GetClockMs());
     }
 }

@@ -10,8 +10,10 @@
 static constexpr float     s_kDividerMinDip = 4.0f;
 static constexpr float     s_kFilesShare    = 0.3f;
 static constexpr float     s_kDiffBandDip   = 4.0f;
+static constexpr float     s_kDiffLiftDip   = 2.0f;
 static constexpr float     s_kMinHitDip     = 4.0f;
 static constexpr float     s_kHitLineDip    = 2.0f;
+static constexpr uint32_t  s_kDimMatch      = 0xCC000000u;
 static constexpr float     s_kHeadLineDip   = 2.0f;
 static constexpr float     s_kTrailDip      = 48.0f;
 static constexpr int       s_kTrailSteps    = 12;
@@ -25,22 +27,26 @@ static constexpr uint32_t  s_kTrailAlpha    = 0x90u;
 //
 //  StripOverlayPainter::PaintDiffs
 //
-//  While comparing, a band along the bottom of the bar under each run of
-//  this side's nibbles that differs from the other side's (FR-121).
+//  While comparing, the bar is dimmed except where this side's nibbles
+//  differ from the other side's, and a band along the bottom of the bar,
+//  above the focused strip's outline, marks each differing run (FR-121).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void StripOverlayPainter::PaintDiffs (IDxuiPainter & painter, const TrackAnalysis & track, const StripGeometry & g) const
 {
-    RECT                         bar    = m_scene.bar;
-    float                        h      = m_scene.scaler.ToPxf (s_kDiffBandDip);
-    int                          size   = static_cast<int> (track.framed.nibbles.size());
-    std::array<StripSegment, 2>  parts  = {};
-    int                          count  = 0;
-    int                          first  = 0;
-    int                          length = 0;
-    double                       a      = 0;
-    double                       b      = 0;
+    RECT                             bar    = m_scene.bar;
+    float                            h      = m_scene.scaler.ToPxf (s_kDiffBandDip);
+    float                            lift   = m_scene.scaler.ToPxf (s_kDiffLiftDip);
+    int                              size   = static_cast<int> (track.framed.nibbles.size());
+    std::array<StripSegment, 2>      parts  = {};
+    int                              count  = 0;
+    int                              first  = 0;
+    int                              length = 0;
+    double                           a      = 0;
+    double                           b      = 0;
+    vector<std::pair<float, float>>  spans;
+    float                            at     = static_cast<float> (bar.left);
 
 
 
@@ -60,8 +66,31 @@ void StripOverlayPainter::PaintDiffs (IDxuiPainter & painter, const TrackAnalysi
 
         for (int k = 0; k < count; k++)
         {
-            painter.FillRect (parts[k].x0, static_cast<float> (bar.bottom) - h, std::max (parts[k].x1 - parts[k].x0, 1.0f), h, m_scene.context.palette.colors.difference);
+            painter.FillRect (parts[k].x0, static_cast<float> (bar.bottom) - h - lift, std::max (parts[k].x1 - parts[k].x0, 1.0f), h, m_scene.context.palette.colors.difference);
+            spans.push_back ({ parts[k].x0, std::max (parts[k].x1, parts[k].x0 + 1.0f) });
         }
+    }
+
+    if (m_scene.context.nibbleDiffs == nullptr || size == 0)
+    {
+        return;
+    }
+
+    std::sort (spans.begin(), spans.end());
+
+    for (const auto & [x0, x1] : spans)
+    {
+        if (x0 > at)
+        {
+            painter.FillRect (at, static_cast<float> (bar.top), x0 - at, static_cast<float> (bar.bottom - bar.top), s_kDimMatch);
+        }
+
+        at = std::max (at, x1);
+    }
+
+    if (at < static_cast<float> (bar.right))
+    {
+        painter.FillRect (at, static_cast<float> (bar.top), static_cast<float> (bar.right) - at, static_cast<float> (bar.bottom - bar.top), s_kDimMatch);
     }
 }
 
@@ -175,7 +204,9 @@ void StripOverlayPainter::PaintShimmer (IDxuiPainter & painter, const StripGeome
     float                        height = static_cast<float> (bar.bottom - bar.top);
     int                          count  = 0;
     int                          nibble = -1;
-    RECT                         box    = { bar.right, bar.top, bar.left, bar.bottom };
+    LONG                         top    = (m_scene.lightEnd > m_scene.lightTop) ? m_scene.lightTop : bar.top;
+    LONG                         bottom = (m_scene.lightEnd > m_scene.lightTop) ? m_scene.lightEnd : bar.bottom;
+    RECT                         box    = { bar.right, top, bar.left, bottom };
 
 
 
@@ -194,7 +225,7 @@ void StripOverlayPainter::PaintShimmer (IDxuiPainter & painter, const StripGeome
         for (int k = 0; k < runCount; k++)
         {
             InspectorMarquee::PaintShimmer (painter, runParts[k].x0, static_cast<float> (bar.top), runParts[k].x1 - runParts[k].x0, height, now,
-                                            { static_cast<LONG> (runParts[k].x0), bar.top, static_cast<LONG> (runParts[k].x1), bar.bottom });
+                                            { static_cast<LONG> (runParts[k].x0), top, static_cast<LONG> (runParts[k].x1), bottom });
         }
     }
 

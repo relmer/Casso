@@ -15,6 +15,7 @@ struct VSIn
     float4  shape : TEXCOORD1;
     float   kind  : TEXCOORD2;
     float4  edges : TEXCOORD3;
+    float3  band  : TEXCOORD4;
 };
 
 struct VSOut
@@ -25,6 +26,7 @@ struct VSOut
     nointerpolation float4  shape : TEXCOORD1;
     nointerpolation float   kind  : TEXCOORD2;
     float4                  edges : TEXCOORD3;
+    nointerpolation float3  band  : TEXCOORD4;
 };
 
 VSOut main (VSIn input)
@@ -36,5 +38,6 @@ VSOut main (VSIn input)
     output.shape = input.shape;
     output.kind  = input.kind;
     output.edges = input.edges;
+    output.band  = input.band;
     return output;
 }

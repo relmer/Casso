@@ -65,7 +65,9 @@ enum class DifferenceKind
 //  The three options change only which differences are listed and the file
 //  comparison, never a verdict (FR-120). A track's comparison gives its
 //  verdict with the rotation and length change that qualify it; a
-//  difference gives its place on A and on B; a file pair gives the outcome
+//  difference has its place on A and on B, and for nibbles the span of
+//  cells whose bits differ, with bitsChanged -1 where the bits were not
+//  compared and 0 where only the framing differs; a file pair has the outcome
 //  of comparing two files of one path, with A's map cells that have bytes
 //  differing from B's.
 //
@@ -76,6 +78,19 @@ struct ComparisonOptions
     bool  isIgnoringSync    = false;
     bool  isIgnoringVolumes = false;
     bool  isIgnoringDates   = false;
+};
+
+
+//  What a comparison's text calls each side: its file name, with the
+//  nearest folder where the two paths differ when the file names match
+//  (DiskComparer::GetSideNames), and with its source when the paths match
+//  too (ComparisonSession).
+struct SideNames
+{
+    std::wstring  a = L"A";
+    std::wstring  b = L"B";
+
+    const std::wstring &  Get (int side) const { return (side == 0) ? a : b; }
 };
 
 
@@ -92,6 +107,7 @@ struct TrackComparison
     int           sectorsDiffer   = 0;
     bool          isTimingDiffer  = false;
     bool          isFluxOnOneSide = false;
+    int           damagedSide     = -1;    // the side whose record is damaged, for "Not compared"
     std::wstring  reason;
 };
 
@@ -111,6 +127,11 @@ struct Difference
     bool            isSyncOnly    = false;
     std::wstring    path;
     std::wstring    detail;
+    int             firstBitA     = -1;
+    int             bitCountA     = 0;
+    int             firstBitB     = -1;
+    int             bitCountB     = 0;
+    int             bitsChanged   = -1;
 };
 
 
@@ -132,6 +153,12 @@ struct DiskComparison
     vector<Difference>       differences;
     vector<FilePair>         files;
     std::wstring             fileNote;
+
+    //  One side is a sector image, which doesn't contain a track layout, so only the
+    //  sectors' data is compared.
+    bool  isSectorsOnly = false;
+
+    SideNames  names;
 
     //  The differences the options leave in the Differences tab, in order.
     vector<Difference>  GetListed (const ComparisonOptions & options) const;

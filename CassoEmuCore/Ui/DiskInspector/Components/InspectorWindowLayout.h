@@ -11,8 +11,8 @@
 //  InspectorWindowLayout
 //
 //  Where the disk inspector's content goes under its menus: the toolbar
-//  row across the top, the comparison bar under it while comparing, the
-//  platter column, the splitter, the track column, and the strips and
+//  row across the top, the comparison bar under it while comparing and
+//  any infobar of the comparison's under that, the platter column, the splitter, the track column, and the strips and
 //  their controls along the bottom.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -33,12 +33,14 @@ public:
         int     minColumnPx    = 0;    // the platter's control row
         int     sectorsPx      = 0;    // a sector's bytes at their full width
         int     cornerBandPx   = 0;    // the band under the platter for its corner groups
+        int     noticePx       = 0;    // the comparison's infobar under its bar
     };
 
     struct Frames
     {
         RECT  toolbar       = {};
         RECT  compareBar    = {};
+        RECT  notice        = {};
         RECT  findArea      = {};
         RECT  splitter      = {};
         RECT  platter       = {};

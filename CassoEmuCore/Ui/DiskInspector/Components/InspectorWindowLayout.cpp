@@ -23,7 +23,8 @@ InspectorWindowLayout::Frames InspectorWindowLayout::Plan (const Inputs & in, co
     int           width     = b.right - b.left;
     int           splitX    = b.left + static_cast<int> (width * in.splitFraction);
     int           bar       = in.isComparing ? scaler.ToPx (s_kBarDip) : 0;
-    int           top       = b.top + in.toolbarPx + bar;
+    int           notice    = in.isComparing ? in.noticePx : 0;
+    int           top       = b.top + in.toolbarPx + bar + notice;
     int           strip     = scaler.ToPx (s_kStripDip);
     int           band      = 2 * margin + strip + (in.isComparing ? strip + margin / 2 : 0) + margin / 2 + row;
     int           bandTop   = std::max (top, static_cast<int> (b.bottom) - band);
@@ -58,7 +59,8 @@ InspectorWindowLayout::Frames InspectorWindowLayout::Plan (const Inputs & in, co
     f.findArea      = { b.left, top, b.right, bandTop };
     f.splitter      = { splitX, top, splitX + scaler.ToPx (s_kSplitterDip), bandTop };
     f.trackColumn   = { f.splitter.right + margin, top + margin, b.right - margin, bandTop - margin / 2 };
-    f.compareBar    = { b.left, top - bar, b.right, top };
+    f.compareBar    = { b.left, top - notice - bar, b.right, top - notice };
+    f.notice        = { b.left + margin, top - notice + ((notice > 0) ? margin : 0), b.right - margin, top };
     f.platter       = { b.left + margin + (column - side) / 2, top + margin, b.left + margin + (column - side) / 2 + side, top + margin + side };
     f.platter.bottom = std::max<LONG> (f.platter.top + 1, std::min<LONG> (f.platter.bottom, top + margin + areaH - in.cornerBandPx));
     f.platterArea   = { b.left, top, splitX, bandTop };

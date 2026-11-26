@@ -2231,3 +2231,21 @@ No MVP: each story ships whole. Merge master into this branch after each phase. 
 - [X] T1413 [US44] Add the Open on submenu after Open in Casso on a disk image's context menu in the tree and the list, in `CassoEmuCore/CassoExplorer/Window/Managers/ExplorerListMenus.cpp` and the tree pane's menu, one row per `StockMachines` entry, with menu ids checked against the other branches' ids.
 - [ ] T1414 [US44] Run quickstart.md 7i on screen with the build registered: each of the 13 types double-clicked, each Open on row in File Explorer and Casso Explorer for a 140K, an 800K and a 32 MB image, and `CassoData\Machines` and `UserPrefs.json` compared byte for byte before and after (SC-079, SC-080). Record the results in validation.md. In progress: the File Explorer side is recorded in validation.md; the guest screens, Casso Explorer's rows and the package's submenu remain.
 - [ ] T1415 [US44] Add the CHANGELOG lines and the `--launch` and `--machine` rows in README.md and docs, once the owner approves the UI text (FR-317).
+
+## Phase 66: Disk Inspector comparison DCRs
+
+**Goal**: the inspector's comparison matches the design changes the owner requested while testing (2026-11-25). 040 is closed, so these are recorded here.
+
+- [X] T1416 Compare only sector data when either side is a sector image (.dsk, .do or .po): each sector's bytes and checksum results, and sectors on one side only. Sync, gaps, volume numbers and timing are not compared, and quarter tracks off the whole tracks are set aside (`DiskComparer::CompareSectorData`, `DiskComparison::isSectorsOnly`)
+- [X] T1417 Show a docked, timed infobar under the comparison bar when a sector image is compared with a nibble image: "Comparing sector data only because .dsk files do not contain sync, gaps, volume numbers, or timing information." (text approved by the owner)
+- [X] T1418 Rename `DxuiInfoBanner` to `DxuiInfoBar`, and give it a placement (docked or overlay, with a scrim) and a duration (until dismissed, or timed). `DxuiTimedInfoBar` is an overlay preset of it
+- [X] T1419 Keep A's and B's selected sectors linked when B follows A to another track, and clear the other side's selection when it doesn't have the sector
+- [X] T1420 Label a data field with no address field before it on the strip, with its most likely sector in its tooltip (`OrphanFields`)
+- [X] T1421 Use each image's file name in place of "A" and "B": verdicts, difference kinds, the summary chip, "Use B's bytes" on the sector edit bar and in block mode and their tooltips, and Sector data's tooltips. Done 2026-11-25: `DiskComparison::names` (`SideNames`), "the first image" and "the second image" when the file names match. The buttons are "Use other image's bytes", and the menu item "Decode settings for the other image..."
+- [X] T1422 Show comparison tooltips in two columns: the lines both images share on top, then a column for each image headed by its file name. Done 2026-11-25 for the strips (`InspectorTooltips::BuildComparedTip`). Open: the platter
+- [X] T1423 Sector data while comparing: dim what doesn't apply, and move the hex view to a selection made in the strip. Done 2026-11-25: matching sector buttons and bytes are dimmed, differing ones drawn at full strength, and a strip selection selects the bytes whose high bits it covers (`InspectorViewModel::GetBytesOfNibbles`)
+- [ ] T1424 Fields and Flux timing while comparing: show B's values, or state that only A's are shown. Flux done 2026-11-25 ("Flux timing of <file> only"). Open: the Fields sections of the Nibbles tab
+- [X] T1425 Image tab while comparing: B's details beside A's. Done 2026-11-25: a column per image, items paired by name (`ViewTables::MergeImageRows`)
+- [X] T1426 Findings and Find results while comparing: state which image they cover. Done 2026-11-25: "Issues in <file>" and "Find results in <file>" captions
+- [X] T1427 Reword "by 8 bits" on the extra and missing rows of the Differences tab. Done 2026-11-25: extra and missing nibbles have no bit count
+- [X] T1428 Check whether the inspector builds a sector image's tracks as Convert does, and share one nibblizer if they differ. Checked 2026-11-25: both go through `Nibblizer::NibblizeWithMap`, so no change

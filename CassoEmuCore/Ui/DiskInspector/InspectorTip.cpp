@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/DiskInspector/InspectorTip.h"
+#include "Ui/DiskInspector/OrphanFields.h"
 #include "Core/UnicodeSymbols.h"
 #include "Devices/Disk/Inspector/FindingFormatter.h"
 #include "Devices/Disk/Inspector/InspectorFormat.h"
@@ -265,6 +266,8 @@ InspectorTip InspectorTip::BuildNibbleTip (const InspectorViewContext & context,
     int                   sector   = PlatterGeometry::GetSectorAt (track, n.startCell);
     int                   qt       = (context.model != nullptr) ? context.model->GetQuarterTrack() : -1;
     bool                  isTimed  = isTimingMode && IsTimed (track);
+    int                   orphan   = -1;
+    int                   guess    = -1;
     std::wstring          line;
     InspectorTip          tip;
 
@@ -280,6 +283,17 @@ InspectorTip InspectorTip::BuildNibbleTip (const InspectorViewContext & context,
     }
 
     tip.AddLine (line);
+
+    //  A data field whose address field is missing has no sector, but its
+    //  sector can usually be worked out from its place on the track.
+    orphan = (sector < 0) ? OrphanFields::FindAt (track, nibble) : -1;
+
+    if (orphan >= 0)
+    {
+        guess = OrphanFields::GuessSector (track, orphan);
+        tip.AddLine ((guess >= 0) ? std::format (L"Data field with no address field before it, most likely sector {}", InspectorFormat::FormatSector (static_cast<Byte> (guess)))
+                                  : std::wstring (L"Data field with no address field before it"));
+    }
 
     //  A nibble's own cells: the "+N" (or for a sync nibble, the width) in
     //  the Nibbles tab.

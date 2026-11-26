@@ -13,7 +13,7 @@
 
 
 static constexpr uint32_t  s_kRangeAlpha      = 0x60000000u;
-static constexpr uint32_t  s_kDiffAlpha       = 0x50000000u;
+static constexpr uint32_t  s_kDimMatch        = 0x99000000u;
 static constexpr uint32_t  s_kHitAlpha        = 0x60000000u;
 static constexpr int       s_kWheelLines      = 3;
 static constexpr float     s_kSelectDip       = 2.0f;
@@ -202,16 +202,18 @@ void NibblesView::PaintHeader (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
 void NibblesView::PaintRow (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const Line & line, float y)
 {
-    float         rowH    = m_scaler.ToPxf (static_cast<float> (kRowDip));
-    float         cellW   = m_scaler.ToPxf (static_cast<float> (kCellDip));
-    float         offW    = m_scaler.ToPxf (static_cast<float> (kOffsetDip));
-    float         textPx  = m_scaler.ToPxf (kTextDip);
-    float         smallPx = m_scaler.ToPxf (kSmallDip - 2.0f);
-    float         x       = 0;
-    int           nibbleB = -1;
-    bool          failed  = false;
-    uint32_t      color   = 0;
-    std::wstring  extra;
+    const TrackAnalysis *  trackB   = m_context.trackB;
+    float                  rowH     = m_scaler.ToPxf (static_cast<float> (kRowDip));
+    float                  cellW    = m_scaler.ToPxf (static_cast<float> (kCellDip));
+    float                  offW     = m_scaler.ToPxf (static_cast<float> (kOffsetDip));
+    float                  textPx   = m_scaler.ToPxf (kTextDip);
+    float                  smallPx  = m_scaler.ToPxf (kSmallDip - 2.0f);
+    float                  x        = 0;
+    int                    nibbleB  = -1;
+    bool                   failed   = false;
+    bool                   isDiffer = false;
+    uint32_t               color    = 0;
+    std::wstring           extra;
 
 
 
@@ -244,12 +246,9 @@ void NibblesView::PaintRow (IDxuiPainter & painter, IDxuiTextRenderer & text, co
             painter.OutlineRect (x + 1, y + 1, cellW - 2, rowH - 2, m_scaler.ToPxf (1.0f), m_context.palette.colors.findHit);
         }
 
-        //  While comparing, a nibble that differs from B's (FR-121).
-        if (m_context.nibbleDiffs != nullptr && ComparisonText::FindInHunk (*m_context.nibbleDiffs, n, nibbleB))
-        {
-            painter.FillRect    (x, y, cellW, rowH, (m_context.palette.colors.difference & 0x00FFFFFFu) | s_kDiffAlpha);
-            painter.OutlineRect (x + 1, y + 1, cellW - 2, rowH - 2, m_scaler.ToPxf (1.0f), m_context.palette.colors.difference);
-        }
+        //  While comparing, a nibble that matches the other image's is
+        //  dimmed, and one that differs has the other image's value (FR-121).
+        isDiffer = m_context.nibbleDiffs != nullptr && ComparisonText::FindInHunk (*m_context.nibbleDiffs, n, nibbleB);
 
         painter.FillRect (x + 1, y + rowH - m_scaler.ToPxf (3.0f), cellW - 2, m_scaler.ToPxf (2.0f), color);
 
@@ -263,6 +262,19 @@ void NibblesView::PaintRow (IDxuiPainter & painter, IDxuiTextRenderer & text, co
         if (nibble.isNoise)
         {
             painter.OutlineRect (x + 1, y + 1, cellW - 2, rowH - 2, m_scaler.ToPxf (1.0f), m_context.palette.GetKindColor (PlatterKind::Noise));
+        }
+
+        if (isDiffer)
+        {
+            text.DrawString ((nibbleB >= 0 && trackB != nullptr && !trackB->framed.nibbles.empty())
+                                 ? std::format (L"{:02X}", trackB->framed.nibbles[static_cast<size_t> (nibbleB) % trackB->framed.nibbles.size()].value).c_str()
+                                 : L"--",
+                             x + cellW * 0.6f, y + rowH * 0.4f, cellW * 0.4f, rowH * 0.6f, theme.Accent(), smallPx, DxuiTheme::kMonoFace, DxuiTextHAlign::Left,
+                             DxuiTextVAlign::Center, DxuiFontWeight::Bold, false);
+        }
+        else if (m_context.nibbleDiffs != nullptr)
+        {
+            painter.FillRect (x, y, cellW, rowH, s_kDimMatch);
         }
 
         if (!extra.empty())
@@ -404,12 +416,15 @@ bool NibblesView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & outA
     {
         outText = InspectorTip::BuildNibbleTip (m_context, *track, nibble, track->framed.nibbles[nibble].startCell, GetOwnCells (*track, nibble), false).GetText();
 
-        //  For a nibble that differs, the tooltip has B's value (FR-121).
+        //  For a nibble that differs, the tooltip has the other image's value
+        //  (FR-121).
         if (m_context.nibbleDiffs != nullptr && trackB != nullptr && ComparisonText::FindInHunk (*m_context.nibbleDiffs, nibble, nibbleB))
         {
+            std::wstring  other = (m_context.comparison != nullptr) ? m_context.comparison->names.Get (1) : SideNames().Get (1);
+
             outText += (nibbleB >= 0 && !trackB->framed.nibbles.empty())
-                     ? std::format (L"\nB: {:02X}", trackB->framed.nibbles[static_cast<size_t> (nibbleB) % trackB->framed.nibbles.size()].value)
-                     : std::wstring (L"\nB has no nibble here");
+                     ? std::format (L"\n{} has ${:02X}", other, trackB->framed.nibbles[static_cast<size_t> (nibbleB) % trackB->framed.nibbles.size()].value)
+                     : L"\n" + other + L" has no nibble here";
         }
 
         outAnchorPx = { pointPx.x, pointPx.y, pointPx.x + 1, pointPx.y + 1 };

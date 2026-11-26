@@ -51,19 +51,38 @@ public:
     bool                                 IsOverSelection  (const PlatterPlacement & view, POINT pointPx) const;
 
 private:
+    //  The stretches of a range of turns in view: at most one a turn for the
+    //  turns either side of the view's.
+    struct VisibleParts
+    {
+        std::array<std::pair<double, double>, 5>  parts = {};
+        size_t                                    count = 0;
+
+        const std::pair<double, double> *  begin () const { return parts.data(); }
+        const std::pair<double, double> *  end   () const { return parts.data() + count; }
+    };
+
     void                               PaintArcMark       (IDxuiPainter & painter, const PlatterPlacement & view, int quarterTrack, double start, double end, bool isSelected) const;
     void                               GetMarkBand        (const PlatterPlacement & view, int quarterTrack, double & outR0, double & outR1) const;
     RECT                               GetArcBox          (const PlatterPlacement & view, double start, double end, double r0, double r1) const;
-    void                               GetVisibleRadii    (const PlatterPlacement & view, double r0, double r1, double & outNear, double & outFar) const;
     static void                        GetDiffTurns       (const Difference & difference, const TrackAnalysis & track, const PlatterView::RingTurns & turns, double & outA, double & outB);
     void                               ShadeRingArc       (IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r0, double r1, uint32_t argb) const;
     void                               ShadeTrackField    (IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, int ring, uint32_t argb) const;
-    vector<std::pair<double, double>>  GetVisibleParts    (const PlatterPlacement & view, double a, double b) const;
+    VisibleParts                       GetVisibleParts    (const PlatterPlacement & view, double a, double b) const;
     bool                               IsBandVisible      (const PlatterPlacement & view, double r0, double r1) const;
+    bool                               IsPieceVisible     (const PlatterPlacement & view, double a, double b, double r0, double r1) const;
     void                               DrawMarqueeArc     (const InspectorMarquee & marquee, IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r) const;
     void                               DrawMarqueeClear   (const InspectorMarquee & marquee, IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r) const;
     double                             GetClearTurn       (const PlatterPlacement & view, double turn, double inner, double outer) const;
     bool                               GetSelectionBorder (const PlatterPlacement & view, double & outStart, double & outEnd, double & outR0, double & outR1) const;
 
-    PlatterView  & m_view;
+    PlatterView       & m_view;
+
+    //  The view's turns, as GetVisibleParts last found them.
+    mutable PlatterPlacement  m_turnsView    = {};
+    mutable RECT              m_turnsBounds  = {};
+    mutable double            m_turnsStart   = 0;
+    mutable double            m_turnsEnd     = 1;
+    mutable bool              m_isTurnsPart  = false;
+    mutable bool              m_hasTurns     = false;
 };

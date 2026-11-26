@@ -58,6 +58,7 @@ public:
 
     //  Disk and analysis.
     void  SetDisk     (uint64_t mediaId);
+    void  Rebind      (uint64_t mediaId);
     void  SetAnalysis (const DiskAnalysis * analysis);
 
     //  Selection.
@@ -184,6 +185,11 @@ public:
 
     //  Every run of nibbles the selected bytes occupy, as start and end turns.
     vector<std::pair<double, double>>  GetByteRuns () const;
+
+    //  The bytes of the selected sector whose high bits lie in the selected
+    //  nibbles, first to last, which the hex view selects for a strip selection;
+    //  false when the selection doesn't contain any.
+    bool  GetBytesOfNibbles (int & outFirst, int & outCount) const;
 
 private:
     void           SelectFirstSector      ();

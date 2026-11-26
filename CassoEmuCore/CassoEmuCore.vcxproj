@@ -1348,6 +1348,7 @@
     <ClCompile Include="Ui\DiskInspector\Views\SectorsView.cpp" />
     <ClCompile Include="Ui\DiskInspector\SectorRowView.cpp" />
     <ClCompile Include="Ui\DiskInspector\StripGeometry.cpp" />
+    <ClCompile Include="Ui\DiskInspector\OrphanFields.cpp" />
     <ClCompile Include="Ui\DiskInspector\StripHitTest.cpp" />
     <ClCompile Include="Ui\DiskInspector\StripTrackPainter.cpp" />
     <ClCompile Include="Ui\DiskInspector\StripOverlayPainter.cpp" />
@@ -2536,6 +2537,7 @@
     <ClInclude Include="Ui\DiskInspector\Views\SectorsView.h" />
     <ClInclude Include="Ui\DiskInspector\SectorRowView.h" />
     <ClInclude Include="Ui\DiskInspector\StripGeometry.h" />
+    <ClInclude Include="Ui\DiskInspector\OrphanFields.h" />
     <ClInclude Include="Ui\DiskInspector\StripHitTest.h" />
     <ClInclude Include="Ui\DiskInspector\StripPaintScene.h" />
     <ClInclude Include="Ui\DiskInspector\StripTrackPainter.h" />

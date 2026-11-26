@@ -15,6 +15,7 @@
 
 
 
+static constexpr int    s_kCirclePieces     = 8;
 static constexpr float  s_kIndexMarkDip     = 10.0f;
 static constexpr float  s_kIndexLabelDip    = 36.0f;
 static constexpr float  s_kIndexStepDip     = 6.0f;
@@ -36,6 +37,9 @@ static constexpr float  s_kTickMinDip       = 3.0f;
 static constexpr float  s_kBitMinDip        = 9.0f;
 static constexpr float  s_kNibbleSeenDip    = 1.0f;
 static constexpr float  s_kBitRowEm         = 0.8f;
+static constexpr uint32_t  s_kShadowArgb       = 0xFF101418u;
+static constexpr float     s_kStackEm          = 0.6f;
+static constexpr uint32_t  s_kChangedBitAlpha = 0xA0000000u;
 static constexpr double s_kFineRatio        = 1.25;
 static constexpr double s_kMinStepRatio     = 1.2;
 static constexpr double s_kTypicalCells     = 51200.0;
@@ -335,6 +339,9 @@ void PlatterView::PaintRing (IDxuiPainter & painter, IDxuiTextRenderer & text, c
     double               local      = 1.0;
     uint32_t             color      = 0;
     uint32_t             ink        = 0;
+    int                  other      = -1;
+    int                  otherBit   = -1;
+    double               half       = 0;
 
 
 
@@ -369,7 +376,26 @@ void PlatterView::PaintRing (IDxuiPainter & painter, IDxuiTextRenderer & text, c
             if (showValues && shortest * local >= m_scaler.ToPxf (s_kValueMinDip) && ringW * local >= m_scaler.ToPxf (kSmallDip))
             {
                 DrawRadial (painter, view, a, rInner, rOuter, 1.0f, theme.Background());
-                DrawUpright (text, view, (a + b) / 2, rText, std::format (L"{:02X}", framed.nibbles[i].value), static_cast<float> (arc * local), textPx, ink);
+
+                //  A nibble that differs from the other image's has both
+                //  values, the other image's straight below this image's on
+                //  the screen, in the accent color over a dark shadow.
+                other = GetOtherNibble (quarterTrack, static_cast<int> (i));
+
+                if (other == -1 || ringW * local < m_scaler.ToPxf (kSmallDip) * 2.0f)
+                {
+                    DrawUpright (text, view, (a + b) / 2, rText, std::format (L"{:02X}", framed.nibbles[i].value), static_cast<float> (arc * local), textPx, ink);
+                }
+                else
+                {
+                    DrawUpright (text, view, (a + b) / 2, rText, std::format (L"{:02X}", framed.nibbles[i].value), static_cast<float> (arc * local), textPx, ink,
+                                 -textPx * s_kStackEm);
+
+                    if (other >= 0)
+                    {
+                        DrawTag (text, theme, view, (a + b) / 2, rText, std::format (L"{:02X}", other), textPx, textPx * s_kStackEm);
+                    }
+                }
             }
 
             if (showTicks)
@@ -386,6 +412,17 @@ void PlatterView::PaintRing (IDxuiPainter & painter, IDxuiTextRenderer & text, c
                     turn -= std::floor (turn);
                     turn += a + (turns.cells[k + 1] - turns.cells[k]) / 2;
 
+                    //  A changed cell is shaded under this image's tick, with the
+                    //  other image's bit in the shaded band.
+                    otherBit = GetOtherBit (track, quarterTrack, k);
+                    half     = (turns.cells[k + 1] - turns.cells[k]) / 2;
+
+                    if (otherBit >= 0)
+                    {
+                        ShadeArc (painter, view, turn - half, turn + half, rInner, rInner + ringW * s_kTickShare,
+                                  (m_context.palette.colors.difference & 0x00FFFFFFu) | s_kChangedBitAlpha);
+                    }
+
                     if (framed.cells[k] != 0)
                     {
                         DrawRadial (painter, view, turn, rInner + 1.0, rInner + ringW * s_kTickShare, 1.0f, ink);
@@ -394,8 +431,15 @@ void PlatterView::PaintRing (IDxuiPainter & painter, IDxuiTextRenderer & text, c
                     if (showBits)
                     {
                         DrawUpright (text, view, turn, rInner + ringW * s_kTickShare + textPx * s_kBitRowEm / local, (framed.cells[k] != 0) ? L"1" : L"0",
-                                     static_cast<float> ((turns.cells[k + 1] - turns.cells[k]) * s_kTwoPi * rMid * local), textPx,
+                                     static_cast<float> (half * 2 * s_kTwoPi * rMid * local), textPx,
                                      (framed.cells[k] != 0) ? ink : (ink & 0x00FFFFFFu) | s_kZeroBitAlpha);
+                    }
+
+                    //  Inserted or deleted bits are shaded, and no bit from the
+                    //  other image is drawn for them.
+                    if (showBits && (otherBit == 0 || otherBit == 1))
+                    {
+                        DrawTag (text, theme, view, turn, rInner + ringW * s_kTickShare / 2, std::to_wstring (otherBit), textPx);
                     }
                 }
             }
@@ -437,22 +481,35 @@ void PlatterView::DrawRadial (IDxuiPainter & painter, const PlatterPlacement & v
 //
 //  PlatterView::ShadeArc
 //
-//  A stretch of a ring filled between two turns; zoomed in this far the
-//  arc is near enough straight for a quadrilateral.
+//  A stretch of a ring filled between two turns, its curve exact, in
+//  sectors of at most an eighth of a turn that abut with no seam.
+//  hardEdges is as IDxuiPainter::FillRingSector takes it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PlatterView::ShadeArc (IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r0, double r1, uint32_t argb)
+void PlatterView::ShadeArc (IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r0, double r1, uint32_t argb, int hardEdges)
 {
-    std::array<float, 8>  q = {};
+    static constexpr double  kMaxTurn = 0.125;
 
 
 
-    PlatterGeometry::ProjectAt (view, a, r0, q[0], q[1]);
-    PlatterGeometry::ProjectAt (view, a, r1, q[2], q[3]);
-    PlatterGeometry::ProjectAt (view, b, r1, q[4], q[5]);
-    PlatterGeometry::ProjectAt (view, b, r0, q[6], q[7]);
-    painter.FillConvexQuad (q[0], q[1], q[2], q[3], q[4], q[5], q[6], q[7], argb);
+    int     pieces = std::max (1, static_cast<int> (std::ceil ((b - a) / kMaxTurn)));
+    double  eye    = PlatterGeometry::kEyeDistance * std::max (static_cast<double> (view.outerRadiusPx), 1.0);
+    double  pa     = 0;
+    double  pb     = 0;
+    int     edges  = 0;
+
+
+
+    for (int k = 0; k < pieces; k++)
+    {
+        pa    = a + (b - a) * k / pieces;
+        pb    = a + (b - a) * (k + 1) / pieces;
+        edges = (hardEdges & ~3) | (k > 0 ? 1 : (hardEdges & 1)) | (k < pieces - 1 ? 2 : (hardEdges & 2));
+
+        painter.FillRingSector (view.centerXPx, view.centerYPx, static_cast<float> (eye), view.tilt, static_cast<float> (r0), static_cast<float> (r1),
+                                (pa + view.rotation) * s_kTwoPi, (pb + view.rotation) * s_kTwoPi, edges, argb);
+    }
 }
 
 
@@ -480,6 +537,97 @@ bool PlatterView::IsSelectedNibble (int quarterTrack, int nibble) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PlatterView::GetOtherNibble
+//
+//  The other image's value for a nibble of the selected track that differs,
+//  -2 when the other image has no nibble there, or -1 when it doesn't
+//  differ.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int PlatterView::GetOtherNibble (int quarterTrack, int nibble) const
+{
+    const TrackAnalysis *  other  = m_context.trackB;
+    int                    value  = -1;
+    int                    offset = 0;
+    size_t                 index  = 0;
+
+
+
+    if (m_context.nibbleDiffs != nullptr && other != nullptr && quarterTrack == m_context.model->GetQuarterTrack())
+    {
+        for (const Difference & d : *m_context.nibbleDiffs)
+        {
+            if (value == -1 && d.firstNibbleA >= 0 && nibble >= d.firstNibbleA && nibble < d.firstNibbleA + d.nibbleCountA)
+            {
+                offset = nibble - d.firstNibbleA;
+                index  = static_cast<size_t> (d.firstNibbleB + offset);
+                value  = (d.firstNibbleB >= 0 && offset < d.nibbleCountB && index < other->framed.nibbles.size()) ? other->framed.nibbles[index].value : -2;
+            }
+        }
+    }
+
+    return value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::GetOtherBit
+//
+//  For a cell of the selected track inside a difference's span of changed
+//  bits, the other image's bit at the same place when it differs, or 2 for
+//  any cell of a span where bits were inserted or deleted; otherwise -1.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int PlatterView::GetOtherBit (const TrackAnalysis & track, int quarterTrack, uint32_t cell) const
+{
+    const TrackAnalysis *  other     = m_context.trackB;
+    int                    bit       = -1;
+    uint32_t               nA        = 0;
+    uint32_t               nB        = 0;
+    uint32_t               offset    = 0;
+
+
+
+    if (m_context.nibbleDiffs == nullptr || other == nullptr || quarterTrack != m_context.model->GetQuarterTrack())
+    {
+        return -1;
+    }
+
+    nA = std::max<uint32_t> (track.framed.cellCount, 1);
+    nB = std::max<uint32_t> (other->framed.cellCount, 1);
+
+    for (const Difference & d : *m_context.nibbleDiffs)
+    {
+        if (bit >= 0 || d.bitsChanged <= 0 || d.firstBitA < 0)
+        {
+            continue;
+        }
+
+        offset = (cell + nA - static_cast<uint32_t> (d.firstBitA)) % nA;
+
+        if (offset < static_cast<uint32_t> (d.bitCountA))
+        {
+            Byte  theirs = other->framed.cells[(static_cast<uint32_t> (d.firstBitB) + offset) % nB];
+
+            bit = (d.bitCountA != d.bitCountB) ? 2 : (track.framed.cells[cell] != theirs) ? theirs : -1;
+        }
+    }
+
+    return bit;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PlatterView::DrawUpright
 //
 //  Text centered on a point of a ring, kept level rather than turned with
@@ -489,7 +637,7 @@ bool PlatterView::IsSelectedNibble (int quarterTrack, int nibble) const
 ////////////////////////////////////////////////////////////////////////////////
 
 void PlatterView::DrawUpright (IDxuiTextRenderer & text, const PlatterPlacement & view, double turn, double radius, const std::wstring & value, float widthPx,
-                               float textPx, uint32_t argb) const
+                               float textPx, uint32_t argb, float dyPx) const
 {
     float  x = 0.0f;
     float  y = 0.0f;
@@ -497,11 +645,55 @@ void PlatterView::DrawUpright (IDxuiTextRenderer & text, const PlatterPlacement 
 
 
     PlatterGeometry::ProjectAt (view, turn, radius, x, y);
+    y += dyPx;
 
     if (x - textPx >= m_boundsDip.left && x + textPx <= m_boundsDip.right && y - textPx >= m_boundsDip.top && y + textPx <= m_boundsDip.bottom)
     {
         text.DrawString (value.c_str(), x - widthPx / 2, y - textPx, widthPx, 2 * textPx, argb, textPx, DxuiTheme::kMonoFace, DxuiTextHAlign::Center,
                          DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::DrawTag
+//
+//  The other image's value centered on a point of a ring, in the accent
+//  color over a dark shadow so it reads on any fill.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterView::DrawTag (IDxuiTextRenderer & text, const IDxuiTheme & theme, const PlatterPlacement & view, double turn, double radius,
+                           const std::wstring & value, float textPx, float dyPx) const
+{
+    float  x      = 0.0f;
+    float  y      = 0.0f;
+    float  w      = textPx * (0.65f * static_cast<float> (value.size()) + 0.5f);
+    float  h      = textPx * 1.25f;
+    float  shadow = m_scaler.ToPxf (1.0f);
+
+
+
+    PlatterGeometry::ProjectAt (view, turn, radius, x, y);
+    y += dyPx;
+
+    if (x - textPx >= m_boundsDip.left && x + textPx <= m_boundsDip.right && y - textPx >= m_boundsDip.top && y + textPx <= m_boundsDip.bottom)
+    {
+        for (float dx : { -shadow, shadow })
+        {
+            for (float dy : { -shadow, shadow })
+            {
+                text.DrawString (value.c_str(), x - w / 2 + dx, y - h / 2 + dy, w, h, s_kShadowArgb, textPx, DxuiTheme::kMonoFace, DxuiTextHAlign::Center,
+                                 DxuiTextVAlign::Center, DxuiFontWeight::Bold, false);
+            }
+        }
+
+        text.DrawString (value.c_str(), x - w / 2, y - h / 2, w, h, theme.Accent(), textPx, DxuiTheme::kMonoFace, DxuiTextHAlign::Center,
+                         DxuiTextVAlign::Center, DxuiFontWeight::Bold, false);
     }
 }
 
@@ -1556,19 +1748,15 @@ std::array<float, 4> PlatterView::GetPlaneMap (const PlatterPlacement & view, do
 //
 //  PlatterView::StrokeDiskCircle
 //
-//  Tilted, the circle is a closed line through its projected points, about
-//  six pixels apart.
+//  Tilted, the circle is drawn in stretches that abut with no seam, its
+//  width even all the way around.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void PlatterView::StrokeDiskCircle (IDxuiPainter & painter, const PlatterPlacement & view, float radiusPx, float thicknessPx, uint32_t argb)
 {
-    int    count = std::clamp (static_cast<int> (s_kTwoPi * radiusPx / 6.0), 48, 720);
-    float  x0    = 0.0f;
-    float  y0    = 0.0f;
-    float  x1    = 0.0f;
-    float  y1    = 0.0f;
-    int    k     = 0;
+    double  eye = PlatterGeometry::kEyeDistance * std::max (static_cast<double> (view.outerRadiusPx), 1.0);
+    int     k   = 0;
 
 
 
@@ -1576,16 +1764,12 @@ void PlatterView::StrokeDiskCircle (IDxuiPainter & painter, const PlatterPlaceme
     {
         OutlineCircle (painter, view.centerXPx, view.centerYPx, radiusPx, thicknessPx, argb);
     }
-    else if (radiusPx > 0.0f)
+    else
     {
-        PlatterGeometry::Project (view, 0.0, -radiusPx, x0, y0);
-
-        for (k = 1; k <= count; k++)
+        for (k = 0; k < s_kCirclePieces; k++)
         {
-            PlatterGeometry::Project (view, radiusPx * std::sin (s_kTwoPi * k / count), -radiusPx * std::cos (s_kTwoPi * k / count), x1, y1);
-            painter.DrawLine (x0, y0, x1, y1, thicknessPx, argb);
-            x0 = x1;
-            y0 = y1;
+            painter.StrokeRingSector (view.centerXPx, view.centerYPx, static_cast<float> (eye), view.tilt, radiusPx, thicknessPx, s_kTwoPi * k / s_kCirclePieces,
+                                      s_kTwoPi * (k + 1) / s_kCirclePieces, 3, argb);
         }
     }
 }
@@ -1598,37 +1782,19 @@ void PlatterView::StrokeDiskCircle (IDxuiPainter & painter, const PlatterPlaceme
 //
 //  PlatterView::FillDiskCircle
 //
-//  Tilted, the disk is a fan of triangles from its center. The projection
-//  maps the center to a point inside the projected disk.
+//  Tilted, the circle is drawn as a ring stretch from the center out.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void PlatterView::FillDiskCircle (IDxuiPainter & painter, const PlatterPlacement & view, float radiusPx, uint32_t argb)
 {
-    int    count = std::clamp (static_cast<int> (s_kTwoPi * radiusPx / 6.0), 48, 720);
-    float  x0    = 0.0f;
-    float  y0    = 0.0f;
-    float  x1    = 0.0f;
-    float  y1    = 0.0f;
-    int    k     = 0;
-
-
-
     if (view.tilt == 0.0f)
     {
         painter.FillCircle (view.centerXPx, view.centerYPx, radiusPx, argb);
     }
-    else if (radiusPx > 0.0f)
+    else
     {
-        PlatterGeometry::Project (view, 0.0, -radiusPx, x0, y0);
-
-        for (k = 1; k <= count; k++)
-        {
-            PlatterGeometry::Project (view, radiusPx * std::sin (s_kTwoPi * k / count), -radiusPx * std::cos (s_kTwoPi * k / count), x1, y1);
-            painter.FillConvexQuad (view.centerXPx, view.centerYPx, x0, y0, x1, y1, x1, y1, argb);
-            x0 = x1;
-            y0 = y1;
-        }
+        ShadeArc (painter, view, 0.0, 1.0, 0.0, radiusPx, argb, 1 | 2 | 4);
     }
 }
 

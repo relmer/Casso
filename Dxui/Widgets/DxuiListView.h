@@ -59,7 +59,7 @@ public:
     //  it. Tiles and the big icon views draw a box over the item's corner.
     void  SetItemCheckBoxes  (bool on)                       { m_itemCheckBoxes = on; }
     bool  HasCheckBoxSpace   (const Cell & cell, size_t column) const { return cell.check != Cell::Check::None || (column == 0 && m_itemCheckBoxes); }
-    void  SetHoveredRow      (int row)                        { m_hovered = row; if (row >= 0) { m_grouping.ClearHover(); } }
+    void  SetHoveredRow      (int row);
 
     //  Draws check boxes as File Explorer does: the visual style's box, where
     //  Explorer draws it in each view, and with item check boxes a box in the
@@ -365,6 +365,7 @@ public:
     int   HitTestColumnResize (int xPx, int yPx, int tolerancePx) const { return m_header.HitTestColumnResize (xPx, yPx, tolerancePx); }
     int   HitTestHeaderColumn (int xPx, int yPx) const { return m_header.HitTestHeaderColumn (xPx, yPx); }
     int   HitTestRow          (int xPx, int yPx) const;
+    int   GetColumnsRightPx   () const;
 
     //  The full text of the cell under a point, list-relative as HitTestRow's,
     //  when the last paint cut it short.

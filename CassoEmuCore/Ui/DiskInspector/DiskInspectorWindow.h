@@ -228,6 +228,7 @@ private:
     DxuiButton            * m_copySector        = nullptr;
     int                     m_flownQuarterTrack = -1;
     int                     m_flownSector       = -1;
+    int                     m_flownField        = -1;   // the field outside any sector last flown to
     bool                    m_isFocusShown      = false;
     bool                    m_wasEditing        = false;
     bool                    m_isFileGone        = false;

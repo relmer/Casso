@@ -1027,8 +1027,8 @@
     <ClCompile Include="Dxui\DxuiDragDropSourceTests.cpp" />
     <ClCompile Include="Dxui\DxuiSvgPathTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewWrapTests.cpp" />
-    <ClCompile Include="Dxui\DxuiInfoBannerTests.cpp" />
-    <ClCompile Include="Dxui\DxuiTimedInfoBannerTests.cpp" />
+    <ClCompile Include="Dxui\DxuiInfoBarTests.cpp" />
+    <ClCompile Include="Dxui\DxuiTimedInfoBarTests.cpp" />
     <ClCompile Include="Dxui\DxuiNoticeStackTests.cpp" />
     <ClCompile Include="Dxui\DxuiSlideTests.cpp" />
     <ClCompile Include="Dxui\DxuiMagnifiedRowTests.cpp" />

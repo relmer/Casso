@@ -67,7 +67,7 @@ SerialCardPage::SerialCardPage (std::wstring title)
 {
     Adopt (m_firmwareBanner);
     Adopt (m_listenBanner);
-    m_listenBanner.SetSeverity (DxuiInfoBanner::Severity::Warning);
+    m_listenBanner.SetSeverity (DxuiInfoBar::Severity::Warning);
     m_listenBanner.SetVisible  (false);
     Adopt (m_download);
     Adopt (m_switchesHeading);
@@ -169,8 +169,8 @@ void SerialCardPage::SetPopupHost (DxuiHwndSource * host)
 void SerialCardPage::SetFirmwareStatus (const std::wstring & text, bool offerDownload)
 {
     m_firmwareBanner.SetText     (text);
-    m_firmwareBanner.SetSeverity (offerDownload ? DxuiInfoBanner::Severity::Warning
-                                                : DxuiInfoBanner::Severity::Info);
+    m_firmwareBanner.SetSeverity (offerDownload ? DxuiInfoBar::Severity::Warning
+                                                : DxuiInfoBar::Severity::Info);
     m_offerDownload = offerDownload;
     Relayout();
 }
