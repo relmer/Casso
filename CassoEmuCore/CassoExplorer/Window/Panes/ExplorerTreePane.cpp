@@ -1010,9 +1010,10 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
 
 
 
-    //  A picker changes no file and opens no menu of file commands.
+    //  A picker has its own menu, with the commands of a file dialog.
     if (m_context.IsPicker())
     {
+        m_context.listPane.GetMenus().GetPickerMenus().ShowTreeMenu (x, y, id);
         return;
     }
 

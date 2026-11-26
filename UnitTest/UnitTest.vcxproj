@@ -688,6 +688,7 @@
     <ClCompile Include="CassoExplorer\FileMaskSetTests.cpp" />
     <ClCompile Include="CassoExplorer\ExplorerPickerHostTests.cpp" />
     <ClCompile Include="CassoExplorer\ExplorerPickerWindowTests.cpp" />
+    <ClCompile Include="CassoExplorer\ExplorerPickerMenusTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoHostDialogsTests.cpp" />
     <ClCompile Include="CassoExplorer\PickerSaveFormTests.cpp" />
     <ClCompile Include="CassoExplorer\PickerScopeTests.cpp" />

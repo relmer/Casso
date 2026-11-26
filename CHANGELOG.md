@@ -42,6 +42,9 @@ Entries before versioning was introduced use dates only.
   first, and stays open until you insert a disk or close it.
 - Every request to open or save a disk or tape image, in Casso and in Casso
   Explorer, uses the new picker, as does the boot disk choice at startup.
+  Right-click a file or folder in the picker to cut, copy, paste, rename or
+  delete it, or to see its properties. Right-click empty space for View, Sort
+  by, New folder and Refresh.
 - The pointer is the no-drop cursor while you drag an image over a drive that
   can't use it.
 - The recent list has room for 1,000 images, up from 16.
