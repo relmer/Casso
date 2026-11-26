@@ -260,7 +260,7 @@ int DxuiWindow::ShowModalDialog (int defaultButtonId)
 
         CWRA (gotMessage != -1);
 
-        if (!ProcessDialogMessage (msg))
+        if (!m_keys.ProcessDialogMessage (msg))
         {
             TranslateMessage (&msg);
             DispatchMessageW  (&msg);
@@ -325,52 +325,6 @@ void DxuiWindow::ShowModelessDialog (int defaultButtonId, bool activate)
         OnDialogShowing();
         Show (activate);
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ProcessDialogMessage
-//
-//  Dxui's IsDialogMessage analog for modeless dialogs. Intercepts only
-//  the dialog-navigation keys for this window (Tab/Shift+Tab, Enter,
-//  Escape) before TranslateMessage can manufacture a WM_CHAR or the
-//  normal dispatch path can bypass the focus manager. Everything else
-//  falls through to the host's standard Translate/Dispatch path.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiWindow::ProcessDialogMessage (const MSG & msg)
-{
-    bool  isHandled = false;
-    HWND  hwnd      = GetHwnd();
-
-
-
-    // Only intercept the dialog-navigation keys while a dialog is active and
-    // the message targets THIS window; otherwise fall through to normal
-    // dispatch. A message aimed at a sibling window must not be swallowed.
-    bool  isOurs = m_dialog.IsActive() && hwnd != nullptr && msg.hwnd == hwnd;
-
-    if (isOurs)
-    {
-        switch (msg.message)
-        {
-            case WM_KEYDOWN:
-            case WM_SYSKEYDOWN:
-                if (msg.wParam == VK_TAB || msg.wParam == VK_RETURN || msg.wParam == VK_ESCAPE)
-                {
-                    isHandled = (DispatchDialogKey (msg.wParam) == DxuiMessageResult::Handled);
-                }
-
-                break;
-        }
-    }
-
-    return isHandled;
 }
 
 
@@ -791,39 +745,9 @@ DxuiMessageResult DxuiWindow::OnMouseWheel (WPARAM wParam, LPARAM lParam, bool h
 
 DxuiMessageResult DxuiWindow::OnKeyDown (WPARAM vk, LPARAM lParam)
 {
-    DxuiMessageResult  result = DxuiMessageResult::NotHandled;
-
-
-
     UNREFERENCED_PARAMETER (lParam);
 
-    BeginPaintBatch();
-
-    // A modal overlay swallows every key (routing the ones it wants to its own
-    // handler) so dialog navigation can't leak to the page behind it. The
-    // overlay's own return is discarded on purpose: handled or not, the key
-    // stops here.
-    if (HasModalOverlay())
-    {
-        (void) OnOverlayKey (vk);
-        result = DxuiMessageResult::Handled;
-    }
-    else if (GetPopupHost() != nullptr && GetPopupHost()->GetContextMenu().IsVisible())
-    {
-        //  An open context menu is where the keyboard is, as a Windows menu's
-        //  is: arrows, Enter, Escape and mnemonics act on it, not the page.
-        (void) GetPopupHost()->GetContextMenu().OnKey (vk);
-        result = DxuiMessageResult::Handled;
-    }
-    else
-    {
-        result = m_dialog.IsActive() ? DispatchDialogKey (vk)
-                                : DispatchKey (DxuiKeyEventKind::Down, vk);
-    }
-
-    EndPaintBatch();
-
-    return result;
+    return m_keys.OnKeyDown (vk);
 }
 
 
@@ -834,62 +758,13 @@ DxuiMessageResult DxuiWindow::OnKeyDown (WPARAM vk, LPARAM lParam)
 //
 //  OnChar
 //
-//  Routes a typed character, in three tiers by what currently owns text entry.
-//
-//  A MODAL OVERLAY takes precedence over everything and always reports
-//  handled, because it is modal: a character reaching anything behind it --
-//  the color picker's hex field being the case in point -- would type into a
-//  control the user cannot see.
-//
-//  A DIALOG routes to the focused control only, with no fan-out. There is no
-//  sensible recipient for a character when nothing has focus, so an unfocused
-//  dialog reports NotHandled and lets default processing run rather than
-//  swallowing the keystroke.
-//
-//  Everything else goes through the normal key dispatch, which is the path a
-//  plain window's content uses.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiMessageResult DxuiWindow::OnChar (WPARAM ch, LPARAM lParam)
 {
-    DxuiMessageResult  result    = DxuiMessageResult::NotHandled;
-    IDxuiControl *     focused   = nullptr;
-    bool               isHandled = false;
-
-
-
     UNREFERENCED_PARAMETER (lParam);
 
-    BeginPaintBatch();
-
-    // A modal overlay owns text entry (e.g. the color picker's hex field).
-    if (HasModalOverlay())
-    {
-        (void) OnOverlayChar ((wchar_t) ch);
-        result = DxuiMessageResult::Handled;
-    }
-    else if (m_dialog.IsActive())
-    {
-        // Dialog text entry goes to the focused control only -- there is no
-        // fanout, so an unfocused dialog reports NotHandled.
-        focused = m_focus.GetFocusedControl();
-
-        if (focused != nullptr)
-        {
-            isHandled = focused->OnChar ((wchar_t) ch);
-        }
-
-        result = isHandled ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
-    }
-    else
-    {
-        result = DispatchKey (DxuiKeyEventKind::Char, ch);
-    }
-
-    EndPaintBatch();
-
-    return result;
+    return m_keys.OnChar ((wchar_t) ch);
 }
 
 
@@ -1263,23 +1138,23 @@ void DxuiWindow::TickDialogMenu()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DispatchKey
+//  RouteOverlayKey
+//
+//  A modal overlay swallows every key, routing the ones it wants to its own
+//  handler. The overlay's own return is discarded on purpose: handled or
+//  not, the key stops here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiMessageResult DxuiWindow::DispatchKey (DxuiKeyEventKind kind, WPARAM code)
+bool DxuiWindow::RouteOverlayKey (WPARAM vk)
 {
-    DxuiKeyEvent  ev;
+    if (!HasModalOverlay())
+    {
+        return false;
+    }
 
-
-
-    ev.kind  = kind;
-    ev.vk    = code;
-    ev.shift = (GetKeyState (VK_SHIFT)   & 0x8000) != 0;
-    ev.ctrl  = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
-    ev.alt   = (GetKeyState (VK_MENU)    & 0x8000) != 0;
-
-    return OnKey (ev) ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
+    (void) OnOverlayKey (vk);
+    return true;
 }
 
 
@@ -1288,36 +1163,40 @@ DxuiMessageResult DxuiWindow::DispatchKey (DxuiKeyEventKind kind, WPARAM code)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DispatchDialogKey
+//  RouteOverlayChar
 //
-//  Dialog key routing (modal or modeless), after the modal overlay has had
-//  the key: the dialog controller handles the rest.
+//  A modal overlay has text entry, as the color picker's hex field does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiMessageResult DxuiWindow::DispatchDialogKey (WPARAM vk)
+bool DxuiWindow::RouteOverlayChar (wchar_t ch)
 {
-    DxuiMessageResult  result    = DxuiMessageResult::NotHandled;
-    bool               shift     = (GetKeyState (VK_SHIFT)   & 0x8000) != 0;
-    bool               ctrl      = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
-    bool               isHandled = false;
-
-
-
-    // A modal overlay owns every key, Tab / Enter / Escape included. The
-    // modeless pre-translate path (ProcessDialogMessage) arrives here without
-    // passing through OnKeyDown, so the check has to live here too, or Tab
-    // walks the focus of the page hidden behind the overlay.
-    if (HasModalOverlay())
+    if (!HasModalOverlay())
     {
-        (void) OnOverlayKey (vk);
-        return DxuiMessageResult::Handled;
+        return false;
     }
 
-    isHandled = m_dialog.HandleKey (vk, shift, ctrl);
-    result    = isHandled ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
+    (void) OnOverlayChar (ch);
+    return true;
+}
 
-    return result;
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetOpenContextMenu
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiPopupMenu * DxuiWindow::GetOpenContextMenu()
+{
+    DxuiHwndSource  * host = GetPopupHost();
+
+
+
+    return (host != nullptr && host->GetContextMenu().IsVisible()) ? &host->GetContextMenu() : nullptr;
 }
 
 

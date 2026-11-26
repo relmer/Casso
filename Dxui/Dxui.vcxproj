@@ -273,6 +273,7 @@
     <ClCompile Include="Window\DxuiPropertyPage.cpp" />
     <ClCompile Include="Window\DxuiPropertySheet.cpp" />
     <ClCompile Include="Window\DxuiDialogController.cpp" />
+    <ClCompile Include="Window\DxuiKeyRouter.cpp" />
     <ClCompile Include="Window\DxuiMouseRouter.cpp" />
     <ClCompile Include="Window\DxuiWindow.cpp" />
     <ClCompile Include="Window\DxuiPopupHost.cpp" />
@@ -432,6 +433,7 @@
     <ClInclude Include="Window\DxuiButtonRow.h" />
     <ClInclude Include="Window\DxuiPropertySheet.h" />
     <ClInclude Include="Window\DxuiDialogController.h" />
+    <ClInclude Include="Window\DxuiKeyRouter.h" />
     <ClInclude Include="Window\DxuiMouseRouter.h" />
     <ClInclude Include="Window\DxuiWindow.h" />
     <ClInclude Include="Window\IDxuiDialogHost.h" />

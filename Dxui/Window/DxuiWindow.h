@@ -5,6 +5,7 @@
 #include "Core/DxuiFocusManager.h"
 #include "Window/DxuiDialogController.h"
 #include "Window/DxuiHwndSource.h"
+#include "Window/DxuiKeyRouter.h"
 #include "Window/DxuiMouseRouter.h"
 #include "Window/IDxuiDialogHost.h"
 #include "Window/IDxuiHostClient.h"
@@ -48,7 +49,8 @@
 class DxuiWindow : public DxuiPanel,
                    private IDxuiHostClient,
                    private IDxuiDialogHost,
-                   private IDxuiMouseRouterHost
+                   private IDxuiMouseRouterHost,
+                   private IDxuiKeyRouterHost
 {
 public:
     struct CreateParams
@@ -146,7 +148,7 @@ public:
     //  emphasis, auto-EndDialog button wiring, and the periodic tick --
     //  but does NOT disable the owner and does NOT run a private loop:
     //  it shows the window and returns immediately. The host's own
-    //  message loop drives it; call ProcessDialogMessage() before
+    //  message loop drives it; call GetKeyRouter().ProcessDialogMessage() before
     //  TranslateMessage / DispatchMessage to mirror Win32
     //  CreateDialog + IsDialogMessage.
     //
@@ -167,14 +169,9 @@ public:
     //
     void     SetComposedOpacity (float opacity);
 
-    //
-    //  Dxui's IsDialogMessage equivalent for a modeless dialog. The host's
-    //  shared message loop calls this BEFORE TranslateMessage /
-    //  DispatchMessage; it consumes only the dialog-navigation keys
-    //  (Tab/Shift+Tab, Enter, Escape) for this window, leaving normal text
-    //  input and all other messages to the standard dispatch path.
-    //
-    bool     ProcessDialogMessage (const MSG & msg);
+    //  The window's key routing, whose ProcessDialogMessage the host's
+    //  shared message loop calls for a modeless dialog.
+    DxuiKeyRouter &  GetKeyRouter () { return m_keys; }
 
     //
     //  Modeless close callback: invoked by EndDialog() with the result
@@ -407,9 +404,6 @@ private:
     DxuiMessageResult  OnClose         () override;
     void               OnDestroy       () override;
 
-    DxuiMessageResult  DispatchKey       (DxuiKeyEventKind kind, WPARAM code);
-    DxuiMessageResult  DispatchDialogKey (WPARAM vk);
-
     //  IDxuiMouseRouterHost
     IDxuiControl &     GetMouseRoot        () override                            { return *this; }
     HWND               GetMouseHwnd        () const override                      { return GetHwnd(); }
@@ -419,6 +413,15 @@ private:
     void               BeginMouseBatch     () override                            { BeginPaintBatch(); }
     void               EndMouseBatch       () override                            { EndPaintBatch(); }
     void               InvalidateForMouse  () override                            { Invalidate(); }
+
+    //  IDxuiKeyRouterHost
+    HWND               GetKeyHwnd          () const override                      { return GetHwnd(); }
+    bool               RouteOverlayKey     (WPARAM vk) override;
+    bool               RouteOverlayChar    (wchar_t ch) override;
+    DxuiPopupMenu *    GetOpenContextMenu  () override;
+    bool               RouteKeyToControls  (const DxuiKeyEvent & ev) override     { return OnKey (ev); }
+    void               BeginKeyBatch       () override                            { BeginPaintBatch(); }
+    void               EndKeyBatch         () override                            { EndPaintBatch(); }
 
     std::unique_ptr<DxuiHwndSource>    m_source;
     SIZE                               m_minSizeDip      = { 0, 0 };
@@ -433,4 +436,5 @@ private:
     std::function<void (int)>        m_onDialogEnd;            // modeless close callback
     std::function<void ()>           m_onModalLoopTick;        // OS size/move-loop keep-alive tick
     DxuiMouseRouter                    m_mouse           { *this };
+    DxuiKeyRouter                      m_keys            { *this, m_dialog, m_focus };
 };

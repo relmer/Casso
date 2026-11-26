@@ -1138,7 +1138,7 @@ int EmulatorShell::RunMessageLoop()
             // heap-allocated copy of the text, handed over by ShowNotification.
             // Modeless Settings: let the sheet claim its dialog-navigation keys
             // (Tab / Enter / Escape) first (Dxui's IsDialogMessage equivalent).
-            if (m_settings->GetSheet() != nullptr && m_settings->GetSheet()->ProcessDialogMessage (msg))
+            if (m_settings->GetSheet() != nullptr && m_settings->GetSheet()->GetKeyRouter().ProcessDialogMessage (msg))
             {
                 continue;
             }
