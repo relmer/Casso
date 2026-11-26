@@ -932,8 +932,8 @@ void CassoLinkManager::AddConnectionRows (std::vector<DxuiPopupMenuItem> & items
         //  has no CassoLink disk or format here.
         bool          isBlock = TreeModel::TryParseLinkId (location.path, link, slot, drive) && drive >= CassoLinkBlockDevices::kFirstDrive;
 
-        m_context.menus.AddMenuCommand (items, L"Create &image...", [this, location]() { m_context.linkDrives.ReadDiskToImage (location); });
-        m_context.menus.AddMenuCommand (items, L"&Write image...",  [this, location]() { m_context.linkDrives.WriteImageToDisk (location); });
+        m_context.menus.AddMenuCommand (items, L"Create &image from...", [this, location]() { m_context.linkDrives.ReadDiskToImage (location); });
+        m_context.menus.AddMenuCommand (items, L"&Write image to...",    [this, location]() { m_context.linkDrives.WriteImageToDisk (location); });
 
         if (!isBlock)
         {
