@@ -937,7 +937,6 @@ void CassoLinkManager::AddConnectionRows (std::vector<DxuiPopupMenuItem> & items
 
         if (!isBlock)
         {
-            m_context.menus.AddMenuCommand (items, L"Capture &raw disk...", [this, location]() { m_context.linkDrives.CaptureRawDisk (location); });
             m_context.menus.AddMenuCommand (items, L"Write &CassoLink to disk...", [this, location]() { m_context.linkDrives.SaveLinkToDisk (location); });
 
             if (HasVirtualDrives (TextEncoding::WideToNarrow (link)))
