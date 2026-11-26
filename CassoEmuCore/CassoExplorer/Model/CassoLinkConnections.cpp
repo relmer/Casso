@@ -1325,6 +1325,33 @@ bool CassoLinkConnections::IsAnyTransferring() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkConnections::IsAnyBusy
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkConnections::IsAnyBusy() const
+{
+    std::lock_guard<std::mutex>  lock (m_lock);
+    bool                         jobs  = std::any_of (m_jobs.begin(), m_jobs.end(), [] (const Job & job)
+    {
+        return job.operation->state == LinkOperationState::Queued || job.operation->state == LinkOperationState::Running;
+    });
+    bool                         links = std::any_of (m_started.begin(), m_started.end(), [] (const std::unique_ptr<Link> & link)
+    {
+        return link->session != nullptr && (link->sink->IsFullSending() || link->sink->IsTransferring (link->session->IsServingAdtPro()));
+    });
+
+
+
+    return jobs || links;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkConnections::IsWritingDisk
 //
 ////////////////////////////////////////////////////////////////////////////////

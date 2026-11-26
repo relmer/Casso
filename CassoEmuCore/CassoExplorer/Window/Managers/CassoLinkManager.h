@@ -81,6 +81,7 @@ public:
 private:
     void  UpdateUnseenFiles   ();
     void  UpdateTransferTimer ();
+    void  UpdateKeepAwake     ();
 
     static constexpr UINT  kTransferFrameMs = 33;
     static constexpr UINT  kPulseFrameMs    = 150;
@@ -96,6 +97,7 @@ private:
 
     ExplorerContext  & m_context;
     bool               m_transferTimer    = false;
+    bool               m_keptAwake        = false;
     int                m_pulseFrame       = 0;
     uint32_t           m_announcedChanges = 0;   // ILinkAnnouncements::GetChangeCount at the last look
     bool               m_linkJobsShown    = false;
