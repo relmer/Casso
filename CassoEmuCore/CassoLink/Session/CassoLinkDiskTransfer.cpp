@@ -1225,6 +1225,8 @@ HRESULT CassoLinkDiskTransfer::WriteRawDisk (LinkOperation & operation, const st
     int                                 tooLong  = -1;
     int                                 turn     = 0;
     bool                                canceled = false;
+    std::string                         wrapped;
+    int                                 wraps    = 0;
 
 
 
@@ -1253,7 +1255,11 @@ HRESULT CassoLinkDiskTransfer::WriteRawDisk (LinkOperation & operation, const st
     {
         RawWriteTrack  & track = tracks[i];
 
-        track.stream.FitToTurn ((size_t) turn);
+        if (!track.stream.FitToTurn ((size_t) turn))
+        {
+            wrapped += std::format ("{}{}", wraps == 0 ? "" : ", ", track.position / 4.0);
+            wraps++;
+        }
 
         canceled = m_session.m_canceled.load();
         CBREx (!canceled, HRESULT_FROM_WIN32 (ERROR_CANCELLED));
@@ -1270,6 +1276,15 @@ HRESULT CassoLinkDiskTransfer::WriteRawDisk (LinkOperation & operation, const st
         {
             MarkWrittenTrack (operation, track.position / DiskImage::kQuarterTracksPerWholeTrack);
         }
+    }
+
+    if (wraps == 1)
+    {
+        operation.message = std::format ("Track {} is longer than the disk allows, so it wrapped around. This copy may not work.", wrapped);
+    }
+    else if (wraps > 1)
+    {
+        operation.message = std::format ("Tracks {} are longer than the disk allows, so they wrapped around. This copy may not work.", wrapped);
     }
 
 Error:
