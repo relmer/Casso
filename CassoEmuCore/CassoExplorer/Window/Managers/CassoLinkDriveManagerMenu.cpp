@@ -55,8 +55,9 @@ bool CassoLinkDriveManager::IsFloppyImage (const std::wstring & path)
 //
 //  CassoLinkDriveManager::AddWriteToFloppyMenu
 //
-//  A submenu of each connected Apple's floppy drives, or the drives alone
-//  when one Apple is connected. A drive that is busy is grayed, and with no
+//  A submenu of each connected Apple's floppy drives, titled with its
+//  connection, or with one Apple connected, its drives under a heading of the
+//  connection. A drive that is busy is grayed, and with no
 //  Apple connected the row is grayed.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -100,11 +101,19 @@ void CassoLinkDriveManager::AddWriteToFloppyMenu (std::vector<DxuiPopupMenuItem>
 
         if (apples == 1)
         {
-            rows = std::move (drives);
+            DxuiPopupMenuItem  heading = DxuiPopupMenuItem::ForHeader (DescribeConnection (entry.name));
+
+            apple->label     = DescribeConnection (entry.name);
+            apple->menuImage = m_context.shellIcons.GetForKind (IShellIcons::Kind::AppleMachine);
+            heading.command  = apple;
+
+            rows.push_back (std::move (heading));
+            rows.insert (rows.end(), std::make_move_iterator (drives.begin()), std::make_move_iterator (drives.end()));
+            m_context.menus.GetMenuCommands().push_back (std::move (apple));
             break;
         }
 
-        apple->label     = entry.name;
+        apple->label     = DescribeConnection (entry.name);
         apple->menuImage = m_context.shellIcons.GetForKind (IShellIcons::Kind::AppleMachine);
 
         rows.push_back (DxuiPopupMenuItem::ForSubmenu (apple, std::move (drives)));
@@ -150,6 +159,7 @@ void CassoLinkDriveManager::AddWriteToFloppyRow (std::vector<DxuiPopupMenuItem> 
 
     row->label     = TreeModel::GetLinkDriveLabel (drive) + (drive.volume.empty() ? std::wstring() : std::format (L" {} {}", s_kpszMiddleDot, drive.volume));
     row->dispatch  = [this, target, image] () { StartImageWrite (target, image); };
+    row->menuSvg   = m_context.menus.GetMenuSvg (L"casso.floppy525");
     row->isEnabled = [this, name, number] () { CassoLinkConnections  * links = m_context.browser.GetLinks(); return links != nullptr && !links->IsDriveBusy (name, number); };
 
     rows.push_back (DxuiPopupMenuItem::ForCommand (row));

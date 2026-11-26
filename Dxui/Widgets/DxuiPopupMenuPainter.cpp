@@ -259,6 +259,19 @@ void DxuiPopupMenuPainter::PaintRow (
                               fontDip,
                               DxuiTheme::GetUiFace());
         IGNORE_RETURN_VALUE (hr, S_OK);
+
+        //  A header's image, when it has one, in the icon column as a row's.
+        if (row.command->menuImage != nullptr && !row.command->menuImage->bgraPremul.empty())
+        {
+            const DxuiIconImage &  image    = *row.command->menuImage;
+            float                  iconDip  = (float) m_menu.m_scaler.ToPx (DxuiPopupMenu::s_kRowIconDip);
+            float                  iconLeft = m_menu.m_layout.m_hasGutter ? left + (float) (pad + gutter + m_menu.m_metrics.gutterGapPx + m_menu.m_scaler.ToPx (DxuiPopupMenu::s_kGutterIconShiftDip)) : left + (float) m_menu.m_scaler.ToPx (DxuiPopupMenu::s_kRowIconLeftDip);
+
+            hr = text.DrawIconBitmap (image.bgraPremul.data(), image.width, image.height,
+                                      iconLeft, std::floor (y + ((float) rowH - iconDip) * 0.5f), iconDip, iconDip);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
         return;
     }
 
