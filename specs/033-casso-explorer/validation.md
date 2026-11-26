@@ -1436,9 +1436,7 @@ rows on screen, and the package's submenu, which can only be checked in an insta
 
 ## Hex dump as a copy conversion (T1432, 2026-11-26)
 
-The owner checked Copy to folder with options on screen with "Hex dump of
-every file" chosen. Each file was written as `NAME.hex dump.txt`, and the
-destination folder opened in a new tab.
+The owner checked the hex dump conversion on screen in Casso Explorer.
 
 Not checked here: the hex dump item on File Explorer's right-drag menu, as
 the registered shell extension was an older build. The 033 gate wasn't run.
