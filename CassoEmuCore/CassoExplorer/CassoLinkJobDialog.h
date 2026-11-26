@@ -91,6 +91,7 @@ public:
     static constexpr float  kSectionGapDip = 12.0f;
     static constexpr float  kHeadingShare  = 0.6f;    // the status line's share of the first row; the connection is right-aligned in the rest
     static constexpr float  kPageShade     = 0.07f;   // the page and its tab, mixed this far toward the text color
+    static constexpr float  kFooterDip     = 32.0f;   // the row under the page, for the checkbox
 
     void  Init          (DxuiTooltip * tooltip);
     void  SetViews      (std::vector<CassoLinkJobView> views, const std::string & selected);
@@ -99,6 +100,7 @@ public:
     void  SetOnOpenFile (ImageFn open)   { m_onOpenFile = std::move (open); }
 
     const CassoLinkJobView *  GetSelected  () const;
+    DxuiCheckbox            & GetAutoOpen  () { return m_autoOpen; }
     bool                      IsMagnifying (int64_t nowMs) const { return m_drive.IsMagnifying (nowMs); }
 
     bool     OnMouse           (const DxuiMouseEvent & ev) override;
@@ -118,6 +120,7 @@ private:
 
     DxuiTabStrip                   m_tabs;
     FullSendPanel                  m_drive;
+    DxuiCheckbox                   m_autoOpen   { L"Open this dialog automatically when a transfer begins", true };
     RECT                           m_tabsPx     = {};
     DxuiDpiScaler                  m_scaler;
     std::vector<CassoLinkJobView>  m_views;
@@ -172,6 +175,11 @@ public:
         LinkFn   readAgain;
         ImageFn  showInFolder;
         ImageFn  open;
+
+        //  The checkbox under the page: its state when the window opens, and
+        //  each change.
+        bool                        autoOpen = true;
+        std::function<void (bool)>  setAutoOpen;
     };
 
     void  Configure (const IDxuiTheme * theme, Actions actions);

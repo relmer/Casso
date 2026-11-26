@@ -52,6 +52,7 @@ void CassoLinkJobManager::Update()
 {
     ULONGLONG    now   = GetTickCount64();
     std::string  ended;
+    std::string  started;
 
 
 
@@ -81,6 +82,7 @@ void CassoLinkJobManager::Update()
         if (job.startedMs == 0 && state != LinkOperationState::Queued)
         {
             job.startedMs = now;
+            started       = link;
         }
 
         if (job.endedMs == 0 && job.operation != nullptr && state != LinkOperationState::Queued && state != LinkOperationState::Running)
@@ -96,6 +98,10 @@ void CassoLinkJobManager::Update()
     if (!ended.empty())
     {
         Show (ended, false);
+    }
+    else if (!started.empty() && m_context.prefs.openJobsWindow)
+    {
+        Show (started, false);
     }
 }
 
@@ -213,6 +219,12 @@ void CassoLinkJobManager::Show (const std::string & link, bool activate)
     };
     //  The job window is owned by the main window and covers it, so it closes
     //  once the file is selected or opened.
+    actions.autoOpen     = m_context.prefs.openJobsWindow;
+    actions.setAutoOpen  = [this] (bool checked)
+    {
+        m_context.prefs.openJobsWindow = checked;
+        m_context.window.SaveSession();
+    };
     actions.showInFolder = [this] (const std::wstring & imagePath)
     {
         m_context.tabManager.SelectInFolder (imagePath);
