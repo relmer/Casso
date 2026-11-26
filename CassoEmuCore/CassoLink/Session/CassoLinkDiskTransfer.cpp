@@ -1239,13 +1239,15 @@ HRESULT CassoLinkDiskTransfer::WriteRawDisk (LinkOperation & operation, const st
 
     CHR (hr);
 
+    //  Timing the drive uses the buffers the module is loaded on, so the
+    //  module is loaded after.
+    hr = TimeDriveForLayout (operation.drive, turn);
+    CHR (hr);
+
     hr = m_session.m_host->BuildThirteenSectorModule (module);
     CHR (hr);
 
     hr = m_session.m_host->EnsureModule (module);
-    CHR (hr);
-
-    hr = TimeDriveForLayout (operation.drive, turn);
     CHR (hr);
 
     m_session.m_disks[index]->Clear();
