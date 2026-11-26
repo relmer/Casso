@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Model/FolderWatch.h"
+#include "CassoExplorer/Model/RemovableMediaWatch.h"
 #include "Seams/Win32DeviceChangeWatch.h"
 
 
@@ -27,11 +28,11 @@ class ExplorerFolderSync
 public:
     explicit ExplorerFolderSync (ExplorerContext & context);
 
-    //  How often the drive letters are compared for one attached or removed.
-    //  The comparison doesn't read a device. Windows sends a notification
-    //  for a card or a reader attached or removed, and the cards are listed
-    //  again kDeviceSoonMs and kDeviceLateMs after it, since a device just
-    //  attached may not be readable yet.
+    //  How often the drive letters are compared for one attached or removed,
+    //  and the media watch checks for a card put in or taken out. Windows
+    //  sends a notification for a card or a reader attached or removed, and
+    //  the cards are listed again kDeviceSoonMs and kDeviceLateMs after it,
+    //  since a device just attached may not be readable yet.
     static constexpr UINT  kDrivePollMs   = 2000;
     static constexpr UINT  kDeviceSoonMs  = 500;
     static constexpr UINT  kDeviceLateMs  = 3000;
@@ -77,11 +78,11 @@ public:
 private:
     bool          UpdateStorageCards     ();
     void          LeaveDriveWithoutMedia (DWORD media);
-    static DWORD  GetRemovableMediaMask  (DWORD driveMask);
 
     ExplorerContext               & m_context;
     std::unique_ptr<FolderWatch>    m_folderWatch;
     Win32DeviceChangeWatch          m_deviceWatch;
+    RemovableMediaWatch             m_mediaWatch;
     ULONGLONG                       m_firstChangeMs    = 0;   // 0: no change waiting
     DWORD                           m_driveMask        = 0;   // GetLogicalDrives at the last look
     DWORD                           m_mediaMask        = 0;   // the removable drives with media in them at the last look

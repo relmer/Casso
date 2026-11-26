@@ -31,7 +31,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 ExplorerFolderSync::ExplorerFolderSync (ExplorerContext & context)
-    : m_context (context)
+    : m_context    (context),
+      m_mediaWatch (&HostFolderNames::IsMediaPresent, &GetLogicalDrives)
 {
 }
 
@@ -326,7 +327,7 @@ void ExplorerFolderSync::CheckDrives()
 {
     HRESULT   hr           = S_OK;
     DWORD     mask         = GetLogicalDrives();
-    DWORD     media        = GetRemovableMediaMask (mask);
+    DWORD     media        = m_mediaWatch.GetMask (mask);
     bool      cardsChanged = UpdateStorageCards();
     Location  showing;
 
@@ -446,43 +447,15 @@ void ExplorerFolderSync::LeaveDriveWithoutMedia (DWORD media)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerFolderSync::GetRemovableMediaMask
-//
-//  One bit per drive with media in it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DWORD ExplorerFolderSync::GetRemovableMediaMask (DWORD driveMask)
-{
-    DWORD  media = 0;
-
-
-
-    for (int drive = 0; drive < 26; drive++)
-    {
-        std::wstring  root = { (wchar_t) (L'A' + drive), L':', L'\\' };
-
-        if ((driveMask & (1u << drive)) != 0 && HostFolderNames::IsMediaPresent (root))
-        {
-            media |= 1u << drive;
-        }
-    }
-
-    return media;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ExplorerFolderSync::PollDrives
 //
 //  Listing the cards calls GetVolumeInformationW for each volume, and for a
 //  volume Windows can't read, as a CFFA card's are, Windows reads the card
 //  again for each file system it has. So the cards are listed only when the
 //  drive letters changed, or Windows reports a device attached or removed.
+//  Which drives have media comes from the media watch's last check, since a
+//  drive can take half a second to answer and the window can't move while
+//  its thread waits.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -492,7 +465,7 @@ void ExplorerFolderSync::PollDrives()
 
 
 
-    if (mask != m_driveMask || GetRemovableMediaMask (mask) != m_mediaMask)
+    if (mask != m_driveMask || m_mediaWatch.GetMask (mask) != m_mediaMask)
     {
         CheckDrives();
     }
@@ -510,6 +483,8 @@ void ExplorerFolderSync::PollDrives()
 
 void ExplorerFolderSync::HandleDeviceChange()
 {
+    m_mediaWatch.Kick();
+
     SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerDeviceSoon, kDeviceSoonMs, nullptr);
     SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerDeviceLate, kDeviceLateMs, nullptr);
 }
@@ -1024,7 +999,8 @@ void ExplorerFolderSync::StartPolling()
 
 
     m_driveMask = GetLogicalDrives();
-    m_mediaMask = GetRemovableMediaMask (m_driveMask);
+    m_mediaMask = m_mediaWatch.GetMask (m_driveMask);
+    m_mediaWatch.Start (kDrivePollMs);
     CheckDrives();
     SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerDrive, kDrivePollMs, nullptr);
 

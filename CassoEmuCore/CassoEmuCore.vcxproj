@@ -728,6 +728,7 @@
     <ClCompile Include="FileTypes\CodeListing.cpp" />
     <ClCompile Include="FileTypes\HexDump.cpp" />
     <ClCompile Include="FileTypes\QuickDrawCanvas.cpp" />
+    <ClCompile Include="CassoExplorer\Model\RemovableMediaWatch.cpp" />
     <ClCompile Include="FileTypes\QuickDrawPicture.cpp" />
     <ClCompile Include="FileTypes\Disassembler65816.cpp" />
     <ClCompile Include="FileTypes\MacPaintPicture.cpp" />
@@ -2059,6 +2060,7 @@
     <ClInclude Include="FileTypes\CodeListing.h" />
     <ClInclude Include="FileTypes\HexDump.h" />
     <ClInclude Include="FileTypes\QuickDrawCanvas.h" />
+    <ClInclude Include="CassoExplorer\Model\RemovableMediaWatch.h" />
     <ClInclude Include="FileTypes\QuickDrawPicture.h" />
     <ClInclude Include="FileTypes\Disassembler65816.h" />
     <ClInclude Include="FileTypes\MacPaintPicture.h" />
