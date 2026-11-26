@@ -437,15 +437,14 @@ Error:
 HRESULT CassoLinkCapture::ProbeHasData (CassoLinkHost & host, Byte drive, std::span<const Byte> module, bool & outHasData)
 {
     static constexpr int  kProbeTracks[] = { 0, 17, 3 };
-
-    HRESULT            hr     = S_OK;
-    Result             result;
-    ProgressFn         none;
-    Run                run    { host, drive, module, none, result };
-    std::vector<Byte>  bytes;
-    size_t             start  = 0;
-    size_t             length = 0;
-    bool               missed = false;
+    HRESULT               hr             = S_OK;
+    Result                result;
+    ProgressFn            none;
+    Run                   run            { host, drive, module, none, result };
+    std::vector<Byte>     bytes;
+    size_t                start          = 0;
+    size_t                length         = 0;
+    bool                  missed         = false;
 
 
 
