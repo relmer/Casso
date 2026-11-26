@@ -56,6 +56,7 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
     run.started = GetTickCount64();
     run.stop    = stop;
     run.planned = (last / 4 + 1) * kWholeReads;
+    run.tracks  = last / 4 + 1;
 
     for (int position = 0; position <= last; position += 4)
     {
@@ -65,6 +66,7 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
         bool      made       = false;
         bool      isStandard = false;
         bool      unsure     = false;
+        int       before     = run.done;
 
         //  Each whole track after the first waits on a marker on the one
         //  before, so the tracks can be placed relative to each other. The
@@ -105,11 +107,15 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
         standard.push_back (isStandard);
         positions.push_back (std::move (read));
 
+        run.tracksDone++;
+        run.trackReads += run.done - before;
+
         //  The gap below this track is read when either track beside it isn't
         //  standard, so its three positions count as soon as both are known.
         if (standard.size() >= 2 && !(standard[standard.size() - 2] && standard.back()))
         {
             run.planned += 3;
+            run.gaps    += 3;
         }
     }
 
@@ -140,6 +146,8 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
 
         read = Position();
 
+        int  before = run.done;
+
         hr = ReadPosition (run, position, 1, read);
         CHR (hr);
 
@@ -168,6 +176,9 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
                 CHR (hr);
             }
         }
+
+        run.gapsDone++;
+        run.gapReads += run.done - before;
 
         positions.push_back (std::move (read));
     }
@@ -596,7 +607,7 @@ HRESULT CassoLinkCapture::ReadOnce (Run & run, int position, Byte delay, int rea
     report.reads       = reads;
     report.pass        = run.pass;
     report.percent     = run.percent;
-    report.secondsLeft = (run.done >= s_kPaceReads) ? (double) elapsed / 1000.0 / run.done * std::max (0, run.planned - run.done) : -1.0;
+    report.secondsLeft = (run.done >= s_kPaceReads) ? (double) elapsed / 1000.0 / run.done * EstimateReadsLeft (run) : -1.0;
 
     if (run.progress)
     {
@@ -605,6 +616,43 @@ HRESULT CassoLinkCapture::ReadOnce (Run & run, int position, Byte delay, int rea
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::EstimateReadsLeft
+//
+//  The tracks left at the reads per track so far, and the positions between
+//  tracks at the reads per position so far, with one read each before any is
+//  done. Before the second pass, the positions between the tracks left are
+//  expected at the share found so far.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int CassoLinkCapture::EstimateReadsLeft (const Run & run)
+{
+    double  perTrack   = run.tracksDone > 0 ? (double) run.trackReads / run.tracksDone : (double) kWholeReads;
+    double  perGap     = run.gapsDone > 0 ? (double) run.gapReads / run.gapsDone : 1.0;
+    int     tracksLeft = run.tracks - run.tracksDone;
+    int     current    = run.done - run.trackReads - run.gapReads;
+    double  gaps       = run.gaps;
+    double  left       = 0.0;
+
+
+
+    if (run.pass == 1 && run.tracksDone > 1)
+    {
+        gaps += (double) run.gaps / (run.tracksDone - 1) * tracksLeft;
+    }
+
+    //  The reads of the track or position in progress are part of its share.
+    left = perTrack * tracksLeft + perGap * (gaps - run.gapsDone) - current;
+
+    return std::max (0, (int) (left + 0.5));
 }
 
 

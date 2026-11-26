@@ -212,7 +212,15 @@ private:
         bool                     writeProtected = false;
         StopFn                   stop;
         int                      position       = 0;     // the position last read
+        int                      tracks         = 0;     // the whole tracks to read
+        int                      tracksDone     = 0;
+        int                      trackReads     = 0;     // the reads of the whole tracks done
+        int                      gaps           = 0;     // the positions between tracks to read, as far as known
+        int                      gapsDone       = 0;
+        int                      gapReads       = 0;     // the reads of the positions between tracks done
     };
+
+    static int                  EstimateReadsLeft (const Run & run);
 
     static HRESULT              ReadOnce       (Run & run, int position, Byte delay, int read, int reads, Byte syncPosition, std::span<const Byte> marker, std::vector<Byte> & outBytes, bool & outMissed);
     static HRESULT              ReadPosition   (Run & run, int position, int reads, Position & outPosition);
