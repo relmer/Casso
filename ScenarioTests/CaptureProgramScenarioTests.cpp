@@ -20,6 +20,12 @@
 #include "Devices/Disk/DiskImage.h"
 #include "CassoLink/ProgramRig.h"
 #include "TextScreenScraper.h"
+#include "EmulatorLink.h"
+#include "Seams/IByteStreamFactory.h"
+#include "FakeDiskFileIo.h"
+#include "CassoLink/CassoLinkSession.h"
+#include "CassoLink/InMemoryCassoLinkFolder.h"
+#include "CassoLink/FullSend/FullSendStatus.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -987,4 +993,85 @@ public:
     static constexpr size_t  s_kWeakBits            = 24;    // three bytes
     static constexpr size_t  s_kNoiseZeros          = 3;     // the MC3470 reads noise after this many
     static constexpr Byte    s_kThreeZeros          = 0xE2;
+
+
+    //  A session's streams are the rig's, as a serial port's would be.
+    struct RigStreams : IByteStreamFactory
+    {
+        std::shared_ptr<IByteStream>  stream;
+
+        struct Shared : IByteStream
+        {
+            std::shared_ptr<IByteStream>  inner;
+
+            HRESULT   Write (const Byte * data, size_t count) override                                  { return inner->Write (data, count); }
+            HRESULT   Read (Byte * buffer, size_t capacity, DWORD timeoutMs, size_t & outRead) override { return inner->Read (buffer, capacity, timeoutMs, outRead); }
+            size_t    GetReadableCount() override                                                       { return inner->GetReadableCount(); }
+            bool      IsClosed() const override                                                         { return inner->IsClosed(); }
+            void      Close() override                                                                  { }
+            uint64_t  GetTickMs() override                                                              { return inner->GetTickMs(); }
+        };
+
+        HRESULT  ListComPorts (std::vector<std::wstring> & outPorts) override { outPorts = { L"COM9" }; return S_OK; }
+        HRESULT  ListenTcp    (uint16_t, LinkTransport, std::unique_ptr<IByteStream> &) override { return E_NOTIMPL; }
+        HRESULT  ConnectTcp   (const std::string &, uint16_t, std::unique_ptr<IByteStream> &) override { return E_NOTIMPL; }
+
+        HRESULT  OpenComPort (const std::wstring &, const ComSettings &, std::unique_ptr<IByteStream> & outStream) override
+        {
+            auto  shared = std::make_unique<Shared>();
+
+            shared->inner = stream;
+            outStream     = std::move (shared);
+            return S_OK;
+        }
+    };
+
+
+    //  A raw capture through a session, as Casso Explorer runs one: the
+    //  drive's time is the capture's, and its title the saved file's name.
+    TEST_METHOD (OnDemand_ARawCapture_IsTimedAndTitled_ThroughASession)
+    {
+        static constexpr DWORD  kTimeoutMs = 3'600'000;
+        static constexpr char   kImage[]   = "C:\\Captures\\Slot 6 Drive 1.woz";
+
+        ProgramRig                         rig (MakeDisk());
+        RigStreams                         streams;
+        InMemoryCassoLinkFolder            folder;
+        FakeDiskFileIo                     fileIo;
+        EmulatorLink::Sink                 sink;
+        std::unique_ptr<CassoLinkSession>  session;
+        CassoLinkSettings                  settings;
+        FullSendSnapshot                   snapshot;
+        ULONGLONG                          started  = GetTickCount64();
+        double                             took     = 0.0;
+
+
+
+        if (GetEnvironmentVariableW (L"CASSO_SESSION_CAPTURE", nullptr, 0) == 0)
+        {
+            Logger::WriteMessage ("CASSO_SESSION_CAPTURE isn't set; nothing captured.\n");
+            return;
+        }
+
+        streams.stream     = rig.stream;
+        settings.name      = "Rig";
+        settings.transport = LinkTransport::Serial;
+        settings.port      = "COM9";
+
+        session = std::make_unique<CassoLinkSession> (streams, folder, fileIo, sink);
+        AssertSucceeded (session->Start (settings));
+        Assert::IsTrue (sink.WaitForState (LinkState::Ready, kTimeoutMs), L"the Apple connects");
+
+        auto  capture = EmulatorLink::Finish (sink, session->CaptureDisk (1, kImage), kTimeoutMs);
+
+        snapshot = capture->status->GetSnapshot();
+        took     = (GetTickCount64() - started) / 1000.0;
+
+        Logger::WriteMessage (std::format ("Took {:.1f} s of {:.1f} s; titled {}\n", snapshot.drives[0].elapsed, took, snapshot.drives[0].title).c_str());
+        Assert::IsTrue (snapshot.drives[0].state == FullSendDiskState::Sent);
+        Assert::IsTrue (snapshot.drives[0].elapsed > 0.0 && snapshot.drives[0].elapsed <= took);
+        Assert::AreEqual (std::string ("Slot 6 Drive 1"), snapshot.drives[0].title);
+
+        session.reset();
+    }
 };
