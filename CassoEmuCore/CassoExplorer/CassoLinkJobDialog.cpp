@@ -163,9 +163,11 @@ CassoLinkJobView CassoLinkJobView::Build (const LinkOperation & operation, const
         view.drive.snapshot.present[(size_t) (2 - operation.drive)] = false;
     }
 
+    //  A failed job wrote no image, so it has no link to one.
     if (view.state == State::Failed)
     {
         view.message = TextEncoding::NarrowToWide (operation.message);
+        view.imagePath.clear();
     }
 
     if (view.IsRunning())
