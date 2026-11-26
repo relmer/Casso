@@ -220,8 +220,9 @@ void ExplorerWindowParts::CreateControls()
 
 void ExplorerWindowParts::Configure()
 {
-    HWND  hwnd = context.window.GetHwnd();
-    int   dpi  = (hwnd != nullptr) ? (int) GetDpiForWindow (hwnd) : (int) DxuiDpiScaler::kBaseDpi;
+    HWND               hwnd  = context.window.GetHwnd();
+    int                dpi   = (hwnd != nullptr) ? (int) GetDpiForWindow (hwnd) : (int) DxuiDpiScaler::kBaseDpi;
+    Win32ShellIcons  * shell = dynamic_cast<Win32ShellIcons *> (services.shellIcons.get());
 
 
 
@@ -235,7 +236,14 @@ void ExplorerWindowParts::Configure()
     treePane.ApplyNavPaneOptions();
     listPane.SizeListIcons();
     listPane.StartLoaders();
-    static_cast<Win32ShellIcons *> (services.shellIcons.get())->LoadTreeInBackground (hwnd, (UINT) AppMessage::ExplorerTreeIcons);
+
+    //  The tree's icons load in the background when the shell supplies them;
+    //  a test's stand-in loads none.
+    if (shell != nullptr)
+    {
+        shell->LoadTreeInBackground (hwnd, (UINT) AppMessage::ExplorerTreeIcons);
+    }
+
     services.infoTips->Start (hwnd, (UINT) AppMessage::ExplorerInfoTip);
 
     layout.ConfigureWidgets();
@@ -386,7 +394,9 @@ bool ExplorerWindowParts::HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lPar
 
     if (msg == (UINT) AppMessage::ExplorerTreeIcons)
     {
-        if (static_cast<Win32ShellIcons *> (services.shellIcons.get())->TakeLoaded())
+        Win32ShellIcons *  shell = dynamic_cast<Win32ShellIcons *> (services.shellIcons.get());
+
+        if (shell != nullptr && shell->TakeLoaded())
         {
             treePane.RefreshTreeIcons();
         }
