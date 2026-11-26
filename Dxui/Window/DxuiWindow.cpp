@@ -9,7 +9,6 @@
 #include "Widgets/DxuiPopupMenu.h"
 
 
-static constexpr UINT_PTR  s_kDialogTimerId   = 1;      // dialog caret-blink / poll timer id
 static constexpr UINT_PTR  s_kMenuTimerId     = 2;      // advances a dialog's context menu
 static constexpr UINT      s_kMenuTickMs      = 16;
 
@@ -205,174 +204,6 @@ void DxuiWindow::Hide()
 void DxuiWindow::Close()
 {
     DestroyBackend();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShowModalDialog
-//
-//  Modal show: emphasize + auto-wire the command buttons, attach the
-//  focus manager, disable the owner, and run a private message pump
-//  until EndDialog() resolves a result (a command button click, Enter
-//  on the default button, or Escape / close-box on IDCANCEL). Re-enables
-//  the owner and returns the result. Mirrors Win32 DialogBox / EndDialog.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiWindow::ShowModalDialog (int defaultButtonId)
-{
-    HRESULT  hr            = S_OK;
-    MSG      msg           = {};
-    BOOL     gotMessage    = FALSE;
-    bool     ownerDisabled = false;
-    int      result        = IDCANCEL;
-
-
-
-    CBRA (m_source != nullptr);
-
-    m_dialog.Begin (m_theme, defaultButtonId, true, m_initialFocus);
-
-    m_source->SetTimer (s_kDialogTimerId, m_dialogTickMs);
-
-    if (m_ownerHwnd != nullptr)
-    {
-        EnableWindow (m_ownerHwnd, FALSE);
-        ownerDisabled = true;
-    }
-
-    OnDialogShowing();
-    Show();
-
-    while (!m_dialog.IsModalDone())
-    {
-        gotMessage = GetMessageW (&msg, nullptr, 0, 0);
-
-        if (gotMessage == 0)
-        {
-            PostQuitMessage ((int) msg.wParam);
-            break;
-        }
-
-        CWRA (gotMessage != -1);
-
-        if (!m_keys.ProcessDialogMessage (msg))
-        {
-            TranslateMessage (&msg);
-            DispatchMessageW  (&msg);
-        }
-    }
-
-    result = m_dialog.GetModalResult();
-
-Error:
-    if (ownerDisabled)
-    {
-        EnableWindow (m_ownerHwnd, TRUE);
-
-        //  When the active dialog is hidden, Windows chooses the next active
-        //  window, which after an Alt+Tab away and back can be another
-        //  program's. The owner is activated first, as DialogBox does.
-        if (GetActiveWindow() == GetHwnd())
-        {
-            SetActiveWindow (m_ownerHwnd);
-        }
-    }
-
-    if (m_source != nullptr)
-    {
-        m_source->KillTimer (s_kDialogTimerId);
-    }
-
-    m_dialog.Deactivate();
-    Hide();
-
-    return result;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShowModelessDialog
-//
-//  Modeless show: applies the same dialog behaviors as ShowModalDialog
-//  (button wiring, focus-manager Tab traversal, default-button emphasis,
-//  periodic tick) but does NOT disable the owner and does NOT run a
-//  private loop -- it shows the window and returns immediately. The
-//  host's own message loop drives it; dialog-key nav flows through this
-//  window's WndProc (all controls live in this one HWND, so no
-//  IsDialogMessage pump is needed). Close via EndDialog(), which hides
-//  the window and fires the SetOnDialogEnd callback. Mirrors Win32
-//  CreateDialog.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiWindow::ShowModelessDialog (int defaultButtonId, bool activate)
-{
-    if (m_source != nullptr)
-    {
-        m_dialog.Begin (m_theme, defaultButtonId, false, m_initialFocus);
-
-        m_source->SetTimer (s_kDialogTimerId, m_dialogTickMs);
-
-        OnDialogShowing();
-        Show (activate);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EndDialog
-//
-//  Resolves an open dialog. Modal: records the result once and flags the
-//  private pump to exit (posts a no-op so a blocked GetMessage re-checks
-//  the done flag) -- ShowModalDialog returns the result. Modeless: no
-//  loop to break, so it deactivates the dialog behaviors, hides the
-//  window, and fires the SetOnDialogEnd callback with the result. A
-//  command button, Enter / Escape, or content code calls this. Mirrors
-//  Win32 EndDialog.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiWindow::EndDialog (int result)
-{
-    HWND                 hwnd   = GetHwnd();
-    DxuiDialogEndAction  action = m_dialog.End (result);
-
-
-
-    if (action == DxuiDialogEndAction::ExitModalLoop)
-    {
-        if (hwnd != nullptr)
-        {
-            PostMessageW (hwnd, WM_NULL, 0, 0);
-        }
-    }
-    else if (action == DxuiDialogEndAction::CloseModeless)
-    {
-        if (m_source != nullptr)
-        {
-            m_source->KillTimer (s_kDialogTimerId);
-        }
-
-        Hide();
-
-        if (m_onDialogEnd)
-        {
-            m_onDialogEnd (result);
-        }
-    }
 }
 
 
@@ -943,10 +774,8 @@ DxuiMessageResult DxuiWindow::OnTimer (UINT_PTR timerId)
 
 
 
-    if (m_dialog.IsActive() && timerId == s_kDialogTimerId)
+    if (m_dialogRunner.OnTimer (timerId))
     {
-        OnDialogTick();
-        Invalidate();
         result = DxuiMessageResult::Handled;
     }
 
@@ -969,34 +798,6 @@ DxuiMessageResult DxuiWindow::OnTimer (UINT_PTR timerId)
     }
 
     return result;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetDialogTickIntervalMs
-//
-//  Re-arming a timer under the same id replaces it, so a dialog already
-//  showing moves to the new cadence at once.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiWindow::SetDialogTickIntervalMs (UINT ms)
-{
-    HRESULT  hr = S_OK;
-
-
-
-    m_dialogTickMs = ms;
-
-    if (m_dialog.IsActive() && m_source != nullptr)
-    {
-        hr = m_source->SetTimer (s_kDialogTimerId, m_dialogTickMs);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
 }
 
 
