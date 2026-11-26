@@ -116,7 +116,7 @@ HRESULT QuickDrawPicture::Decode (std::span<const Byte> bytes, const FileFacts &
     for (const auto & [family, size] : pb.missingFonts)
     {
         name = QuickDrawText::GetFamilyName (family);
-        pb.notes.insert (pb.notes.begin(), std::format (L"Text in {} {} isn't drawn, since the font isn't available.",
+        outFile.fontNotes.push_back (std::format (L"Text in {} {} isn't drawn, since the font isn't available.",
                                                         (name != nullptr) ? std::wstring (name) : std::format (L"font family ${:04X}", family), size));
     }
 
@@ -129,7 +129,6 @@ HRESULT QuickDrawPicture::Decode (std::span<const Byte> bytes, const FileFacts &
     outFile.width        = width;
     outFile.height       = height;
     outFile.notes        = std::move (pb.notes);
-    outFile.fontsMissing = !pb.missingFonts.empty();
     canvas->WriteBgra (outFile.bgra);
 
 Error:

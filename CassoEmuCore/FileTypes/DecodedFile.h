@@ -350,7 +350,7 @@ struct DecodedFile
     int                        width        = 0;
     int                        height       = 0;
     std::vector<std::wstring>  notes;
-    bool                       fontsMissing = false;    // a picture's text in a font that isn't available
+    std::vector<std::wstring>  fontNotes;   // a picture's text in fonts that aren't available, a note a font
     Charset                    charset      = Charset::Default;
     size_t                     recordLength = 0;
     SheetForm                  sheetForm    = SheetForm::None;

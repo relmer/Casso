@@ -420,7 +420,8 @@ public:
 
         file = DecodePicture (bytes);
 
-        Assert::IsTrue (HasNote (file, L"Text in Shaston 8 isn't drawn"), L"No fonts are given");
+        Assert::AreEqual ((size_t) 1, file.fontNotes.size(), L"No fonts are given");
+        Assert::IsTrue   (file.fontNotes[0].find (L"Text in Shaston 8 isn't drawn") != std::wstring::npos);
         Assert::AreEqual (s_kBlack, GetPixel (file, 1, 1), L"The rect after the text is drawn");
     }
 

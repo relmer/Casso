@@ -158,7 +158,7 @@ bool ExplorerCommandManager::IsEnabled (int id) const
         case CassoExplorerCommands::kCrossReference:    return m_context.preview.GetBarMode() == CassoExplorerCommands::kPreviewBarListing;
         case CassoExplorerCommands::kPictureMonochrome:
         case CassoExplorerCommands::kPictureColor:      return m_context.browser.GetPreviewer().GetMonitorChoice().CanTogglePictureColor();
-        case CassoExplorerCommands::kGetFonts:          return m_context.browser.GetPreviewer().GetPreview().fontsMissing && !AssetBootstrap::AreIIgsFontsCached();
+        case CassoExplorerCommands::kGetFonts:          return !m_context.browser.GetPreviewer().GetPreview().fontNotes.empty() && !AssetBootstrap::AreIIgsFontsCached();
         case CassoExplorerCommands::kPictureCrt:
         case CassoExplorerCommands::kSavePicture:       return m_context.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Picture && !m_context.browser.GetPreviewer().GetPreview().bgra.empty();
         case CassoExplorerCommands::kExpandPreview:     return m_context.preview.IsShown();
@@ -726,20 +726,27 @@ void ExplorerCommandManager::ChooseCharset (Charset charset)
 //
 //  ExplorerCommandManager::GetFonts
 //
-//  The fonts disks downloaded, then the picture made again with its text.
+//  The fonts offered in the download dialog, then the picture made again
+//  with its text.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerCommandManager::GetFonts()
 {
     std::string  error;
-    HRESULT      hr    = AssetBootstrap::EnsureIIgsFonts (error);
+    bool         downloaded = false;
+    HRESULT      hr         = AssetBootstrap::OfferIIgsFonts (m_context.window.GetHwnd(), m_context.theme, downloaded, error);
 
 
 
-    if (FAILED (hr))
+    if (FAILED (hr) || !error.empty())
     {
-        m_context.window.ShowMessage (std::format (L"The Apple IIgs fonts could not be downloaded. {}", TextEncoding::NarrowToWide (error)), MB_ICONERROR);
+        m_context.window.ShowMessage (std::format (L"The Apple fonts could not be downloaded. {}", TextEncoding::NarrowToWide (error)), MB_ICONERROR);
+        return;
+    }
+
+    if (!downloaded)
+    {
         return;
     }
 

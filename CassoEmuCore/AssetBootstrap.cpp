@@ -2608,27 +2608,140 @@ bool AssetBootstrap::AreIIgsFontsCached()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EnsureIIgsFonts
+//  MakeFontDownloadFn
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT AssetBootstrap::EnsureIIgsFonts (string & outError)
+static StartupAssetEntry::DownloadFn MakeFontDownloadFn (const BootDiskSpec & spec, fs::path destPath)
 {
-    HRESULT  hr = S_OK;
-    wstring  path;
-
-
-
-    for (const BootDiskSpec & spec : s_kIIgsFontDisks)
+    return [&spec, destPath] (
+        std::atomic<std::uint64_t> & bytesDone,
+        std::atomic<bool>          & cancel,
+        std::string                & err) -> HRESULT
     {
-        hr = DownloadStockBootDisk (spec, GetDiskDirectory(), path, outError);
+        HRESULT       hr      = S_OK;
+        HINTERNET     hSes    = nullptr;
+        vector<Byte>  payload;
+
+
+
+        hSes = WinHttpOpen (s_kpszUserAgent,
+                            WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+                            WINHTTP_NO_PROXY_NAME,
+                            WINHTTP_NO_PROXY_BYPASS,
+                            0);
+        CBRF (hSes != nullptr, err = "Cannot initialize WinHTTP session");
+
+        hr = DownloadHttp (hSes, spec.host, spec.asimovUrlPath, spec.expectedSize, spec.shortLabel, payload, err, &bytesDone, &cancel);
         CHR (hr);
+
+        hr = WriteFileBytes (destPath, payload);
+        CHRF (hr, err = format ("Cannot write {}", destPath.string()));
+
+    Error:
+        if (hSes != nullptr)
+        {
+            WinHttpCloseHandle (hSes);
+        }
+
+        return hr;
+    };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OfferIIgsFonts
+//
+//  A file already downloaded isn't listed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssetBootstrap::OfferIIgsFonts (
+    HWND                 owner,
+    const IDxuiTheme   * theme,
+    bool               & outDownloaded,
+    string             & outError)
+{
+    HRESULT                 hr      = S_OK;
+    auto                    failure = std::make_shared<string>();
+    StartupDownloadSet      set;
+    StartupDownloadPrompt   prompt;
+    StartupDownloadResult   result  = StartupDownloadResult::Exit;
+    error_code              ec;
+    const BootDiskSpec    * specs[] = { &s_kIIgsFontDisks[0], &s_kIIgsFontDisks[1], &s_kIIgsRom };
+
+
+
+    outDownloaded = false;
+    outError.clear();
+
+    fs::create_directories (GetDiskDirectory(), ec);
+
+    for (const BootDiskSpec * spec : specs)
+    {
+        StartupAssetEntry              entry;
+        StartupAssetEntry::DownloadFn  fetch;
+
+
+
+        entry.destPaths.push_back (GetDiskDirectory() / spec->cassoName);
+
+        if (fs::exists (entry.destPaths.front(), ec))
+        {
+            continue;
+        }
+
+        entry.kind          = StartupAssetKind::BootDisk;
+        entry.groupLabel    = L"Apple IIgs fonts";
+        entry.displayName   = AsciiToWide (spec->shortLabel);
+        entry.kindLabel     = (spec == &s_kIIgsRom) ? L"ROM" : L"Disk";
+        entry.source        = L"Asimov archive";
+        entry.selectable    = false;
+        entry.selected      = true;
+        entry.expectedBytes = (std::uint64_t) spec->expectedSize;
+
+        // The dialog reports a failed row only as "Failed", so the reason is
+        // copied out for the caller.
+        fetch            = MakeFontDownloadFn (*spec, entry.destPaths.front());
+        entry.downloadFn = [fetch, failure] (
+            std::atomic<std::uint64_t> & bytesDone,
+            std::atomic<bool>          & cancel,
+            std::string                & err) -> HRESULT
+        {
+            HRESULT  hrFetch = fetch (bytesDone, cancel, err);
+
+
+
+            if (FAILED (hrFetch))
+            {
+                *failure = err;
+            }
+
+            return hrFetch;
+        };
+
+        set.entries.push_back (std::move (entry));
     }
 
-    hr = DownloadStockBootDisk (s_kIIgsRom, GetDiskDirectory(), path, outError);
-    CHR (hr);
+    BAIL_OUT_IF (set.IsEmpty(), S_OK);
+
+    prompt.title = L"Download Apple fonts";
+    prompt.intro = L"Casso draws the text in Apple IIgs pictures in Apple's fonts. Download these files from the Asimov archive?";
+    prompt.theme = theme;
+
+    result = StartupDownloadDialog::Show (GetModuleHandleW (nullptr), owner, "", L"", set, &prompt);
+
+    if (result == StartupDownloadResult::PartialDone)
+    {
+        outError = failure->empty() ? string ("The download failed.") : *failure;
+    }
 
 Error:
+    outDownloaded = AreIIgsFontsCached();
     return hr;
 }
 

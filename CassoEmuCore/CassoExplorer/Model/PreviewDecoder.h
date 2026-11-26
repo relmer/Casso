@@ -141,8 +141,8 @@ struct PreviewContent
     std::vector<Paragraph>     paragraphs;
     Grid                       grid;
 
-    //  Text in the picture isn't drawn, since its font isn't available.
-    bool                       fontsMissing = false;
+    //  A note for each font of the picture's text that isn't available.
+    std::vector<std::wstring>  fontNotes;
 
     //  The rows are what an archive holds, shown as the file list shows a
     //  folder rather than as a catalog.

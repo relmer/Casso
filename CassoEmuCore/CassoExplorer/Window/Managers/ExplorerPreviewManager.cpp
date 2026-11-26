@@ -65,6 +65,7 @@ void ExplorerPreviewManager::Create()
     ExplorerTextStyles::Apply (*m_summary, ExplorerTextStyles::kPreviewText);
     m_summary->SetProportional (true);
     m_summary->SetVisible      (false);
+    m_summary->SetOnRowClick   ([this] (int) { m_context.commandManager.Dispatch (CassoExplorerCommands::kGetFonts); });
 
     m_sections = m_context.window.CreateChild<DxuiSegmentedControl>();
     m_sections->SetSegments ({ L"Saved game", L"Disk" });
@@ -371,12 +372,55 @@ Error:
 
 void ExplorerPreviewManager::FillPreview()
 {
-    if (m_context.browser.GetPreviewer().GetPreview().fontsMissing)
+    if (!m_context.browser.GetPreviewer().GetPreview().fontNotes.empty())
     {
         TryLoadFonts();
     }
 
     FillContent();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::BuildNoteRows
+//
+//  A picture whose text is in fonts that aren't downloaded has one link
+//  row that offers them, in place of a warning for each font.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiTextView::Row> ExplorerPreviewManager::BuildNoteRows (const PreviewContent & preview) const
+{
+    std::vector<DxuiTextView::Row>  rows;
+    std::vector<DxuiTextView::Row>  warnings = PreviewText::BuildWarningRows (preview.warning);
+    DxuiTextView::Row               offer;
+
+
+
+    if (!preview.fontNotes.empty() && !AssetBootstrap::AreIIgsFontsCached())
+    {
+        offer.cells   = { L"This image uses Apple fonts that are not downloaded yet. Click here to download." };
+        offer.info    = true;
+        offer.link    = true;
+        offer.heading = true;
+        rows.push_back (offer);
+    }
+    else
+    {
+        for (const std::wstring & note : preview.fontNotes)
+        {
+            std::vector<DxuiTextView::Row>  noteRows = PreviewText::BuildWarningRows (note);
+
+            rows.insert (rows.end(), noteRows.begin(), noteRows.end());
+        }
+    }
+
+    rows.insert (rows.end(), warnings.begin(), warnings.end());
+    return rows;
 }
 
 
@@ -417,7 +461,7 @@ void ExplorerPreviewManager::FillContent()
     bool                    sets     = preview.charset != Charset::Default;
     bool                    sheet    = preview.sheetForm != SheetForm::None;
     bool                    details  = visible && ((woz && preview.kind == PreviewContent::Kind::Catalog) || preview.detailsAbove) && !preview.details.empty();
-    bool                    warned   = visible && (hex || picture) && !preview.warning.empty();
+    bool                    warned   = visible && (hex || picture) && (!preview.warning.empty() || !preview.fontNotes.empty());
     bool                    hadThem  = m_summary->IsVisible();
     int                     mode     = !visible ? CassoExplorerCommands::kPreviewBarNone
                                      : hex      ? CassoExplorerCommands::kPreviewBarHex
@@ -496,7 +540,7 @@ void ExplorerPreviewManager::FillContent()
     //  A file whose format's decoder failed has the reason above its bytes,
     //  and a picture has its decoder's notes above it.
     m_summary->SetRows    (details ? PreviewText::BuildDetailRows (preview.details)
-                         : warned  ? PreviewText::BuildWarningRows (preview.warning)
+                         : warned  ? BuildNoteRows (preview)
                                    : std::vector<DxuiTextView::Row>());
     m_summary->SetVisible (details || warned);
 

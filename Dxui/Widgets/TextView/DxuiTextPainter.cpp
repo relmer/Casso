@@ -133,11 +133,11 @@ void DxuiTextPainter::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & tex
         painter.FillRect (left, (float) (y + m_layout.GetCellHeightPx() - m_geometry.GetScaler().ToPx (1)), (float) m_geometry.GetTextColumns (m_viewport.IsScrollbarVisible()) * m_layout.GetCellAdvance(), (float) m_geometry.GetScaler().ToPx (1), theme.Divider());
     }
 
-    if (line.first && row.warning)
+    if (line.first && row.HasMark())
     {
-        hr = text.DrawString (s_kpszMdl2WarningSolid,
+        hr = text.DrawString (row.warning ? s_kpszMdl2WarningSolid : s_kpszMdl2InfoRing,
                               left, (float) y, (float) (DxuiTextLayout::kWarningCells * m_layout.GetCellAdvance()), (float) m_layout.GetCellHeightPx(),
-                              theme.WarningAccent(),
+                              row.warning ? theme.WarningAccent() : theme.Accent(),
                               (float) m_layout.GetCellHeightPx() * 0.8f,
                               m_paintIconFace,
                               DxuiTextHAlign::Left,

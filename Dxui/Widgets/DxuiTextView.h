@@ -62,6 +62,9 @@ public:
     //  Called for a context menu at a point in the same coordinates as the bounds.
     using ContextMenuFn = std::function<void (POINT atPoint)>;
 
+    //  Called for a click on a link row, by its index.
+    using RowClickFn    = std::function<void (int row)>;
+
     DxuiTextView() { m_focusable = true; }
     ~DxuiTextView() override = default;
 
@@ -80,6 +83,7 @@ public:
     void  SetIconFace      (const wchar_t * face) { m_iconFace = face; }
     void  SetOwnerWindow   (HWND hwnd)            { m_hwnd = hwnd; }
     void  SetOnContextMenu (ContextMenuFn fn)     { m_onContextMenu = std::move (fn); }
+    void  SetOnRowClick    (RowClickFn fn)        { m_onRowClick = std::move (fn); }
 
     //  The face's size as a multiple of the theme's, and how far the text
     //  color goes from the background toward the theme's foreground (1 is
@@ -109,6 +113,7 @@ public:
     void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool                OnMouse           (const DxuiMouseEvent & ev) override;
+    LPCWSTR             GetCursorForPoint (POINT clientPx) const override;
     bool                ShowScrollbarMenu (HWND hwnd, POINT pt) override { return DxuiScrollbar::ShowMenu (hwnd, pt, m_scroll.GetScrollbarMenu (pt)); }
     bool                OnKey             (const DxuiKeyEvent & ev) override { return m_scroll.OnKey (ev); }
     bool                QueryCommand      (DxuiStandardCommand command, bool & outEnabled) const override;
@@ -131,6 +136,7 @@ private:
 
     void  Rebuild        ();
     void  EnsureCellSize (IDxuiTextRenderer & text, const IDxuiTheme & theme);
+    int   GetLinkRowAt   (POINT point) const;
 
     DxuiTextLayout     m_layout;
     DxuiTextScroll     m_scroll        { m_layout, *this };
@@ -142,5 +148,7 @@ private:
     HWND               m_hwnd          = nullptr;
     const wchar_t    * m_iconFace      = L"Segoe MDL2 Assets";
     ContextMenuFn      m_onContextMenu;
+    RowClickFn         m_onRowClick;
+    int                m_pressedLink   = -1;     // the link row a press began on, or -1
     DxuiDpiScaler      m_scaler;
 };

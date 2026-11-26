@@ -1022,7 +1022,7 @@ void PreviewDecoder::FromDecoded (const DecodedFile & decoded, PreviewContent & 
             break;
     }
 
-    outContent.fontsMissing = decoded.fontsMissing;
+    outContent.fontNotes = decoded.fontNotes;
 
     for (const std::wstring & note : decoded.notes)
     {

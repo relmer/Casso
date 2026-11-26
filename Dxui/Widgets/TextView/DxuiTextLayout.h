@@ -47,6 +47,8 @@ public:
     {
         std::vector<std::wstring>       cells;
         bool                            warning     = false;
+        bool                            info        = false;     // an info mark in the warning mark's place
+        bool                            link        = false;     // a click on the row calls the view's row click function
         bool                            heading     = false;     // drawn in the accent color
         std::vector<Span>               spans;
         DxuiTextHAlign                  alignment   = DxuiTextHAlign::Left;
@@ -54,6 +56,8 @@ public:
         std::shared_ptr<const Picture>  picture;
         bool                            rule        = false;     // a line across the text under the row, in the divider color
         int                             columnGroup = 0;         // rows of one group line their cells up in columns; groups are apart
+
+        bool  HasMark () const { return warning || info; }
     };
 
     //  A character in a row's text, its cells joined by tabs.

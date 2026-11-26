@@ -324,7 +324,7 @@ public:
 
         file = DecodeWithFont (bytes);
 
-        for (const std::wstring & note : file.notes)
+        for (const std::wstring & note : file.fontNotes)
         {
             found = found || note.find (L"Times 12") != std::wstring::npos;
         }

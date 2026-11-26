@@ -178,4 +178,6 @@ private:
     bool          UpdateAutoPreview ();
     bool          UpdateShown       ();
     void          FillContent       ();
+
+    std::vector<DxuiTextView::Row>  BuildNoteRows (const PreviewContent & preview) const;
 };
