@@ -99,7 +99,7 @@ public:
     void  SetOnClose    (LinkFn close)   { m_onClose = std::move (close); }
     void  SetOnOpenFile (ImageFn open)   { m_onOpenFile = std::move (open); }
 
-    const CassoLinkJobView *  GetSelected  () const;
+    const CassoLinkJobView  * GetSelected  () const;
     DxuiCheckbox            & GetAutoOpen  () { return m_autoOpen; }
     bool                      IsMagnifying (int64_t nowMs) const { return m_drive.IsMagnifying (nowMs); }
 
