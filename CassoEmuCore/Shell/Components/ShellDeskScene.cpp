@@ -2495,6 +2495,10 @@ bool ShellDeskScene::TryMakeDriveRowQuad (const DeskSceneComposition & comp, boo
     rowPx.x = (LONG) screen[0];
     rowPx.y = (LONG) screen[1] + rowGapPx + size.cy / 2;
 
+    //  Rows that would run off the bottom of the scene go on the drive's
+    //  front too, both of them, so the name and caption stay together.
+    isCovered = DeskSceneLayout::DoLabelRowsLeaveViewport (comp.viewportPx, (LONG) screen[1], gapPx, size.cy);
+
     for (int j = 0; j < comp.driveCount && j < 2; j++)
     {
         isCovered = isCovered || ((isExtra || j != index) && PtInRect (&comp.driveRectPx[j], rowPx));

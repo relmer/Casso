@@ -64,7 +64,7 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
     Location                   location    = m_browser.GetLocation();
     Location                   rowLocation;
     bool                       nested      = location.kind == Location::Kind::DiskDirectory && !location.innerPath.empty();
-    bool                       onDisk      = location.kind == Location::Kind::HostFolder || m_browser.GetSelection().AreSelectedRowsSearchFiles();
+    bool                       onDisk      = location.kind == Location::Kind::HostFolder || m_browser.GetSelection().AreSelectedRowsSearchFiles() || m_browser.GetSelection().AreSelectedRowsCassoFiles();
     std::wstring               partition;
     bool                       isPartition = m_partitions.TryGetTarget (partition);
     bool                       imageMenu   = false;

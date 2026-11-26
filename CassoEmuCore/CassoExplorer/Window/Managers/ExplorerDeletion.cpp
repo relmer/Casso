@@ -143,7 +143,7 @@ void ExplorerDeletion::DeleteHostSelection()
     //  does from its own folder. An item a shell folder such as Home
     //  lists may be a recent or a cloud file with no path of its
     //  own; its own Delete command removes it, as File Explorer's does.
-    if (m_context.browser.GetSelection().AreSelectedRowsSearchFiles())
+    if (m_context.browser.GetSelection().AreSelectedRowsSearchFiles() || m_context.browser.GetSelection().AreSelectedRowsCassoFiles())
     {
         m_context.browser.GetSelection().GetSelectedHostPaths (hostPaths);
         thumbnails = GetThumbnailKeys (hostPaths);
@@ -173,7 +173,7 @@ void ExplorerDeletion::DeleteHostSelection()
         m_context.window.ShowMessage (L"The selected items could not be deleted.", MB_ICONWARNING);
     }
 
-    if (SUCCEEDED (hr) && !hostPaths.empty() && (m_context.browser.GetLocation().kind == Location::Kind::HostFolder || m_context.browser.GetSelection().AreSelectedRowsSearchFiles()))
+    if (SUCCEEDED (hr) && !hostPaths.empty() && (m_context.browser.GetLocation().kind == Location::Kind::HostFolder || m_context.browser.GetSelection().AreSelectedRowsSearchFiles() || m_context.browser.GetSelection().AreSelectedRowsCassoFiles()))
     {
         m_context.undo.Push (ExplorerUndoStep { ExplorerUndoStep::Kind::Recycle, Location(), hostPaths });
         m_context.manifestSync.NoteDeletes (hostPaths);
