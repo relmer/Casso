@@ -14,7 +14,9 @@
 //  QuickDrawFontLibrary
 //
 //  The $C8 fonts read from IIgs disks. AddVolume adds every font in a
-//  ProDOS volume's System/Fonts folder. Find returns the font of the family
+//  ProDOS volume's System/Fonts folder. AddRom adds Shaston 8, the system
+//  font, from a IIgs ROM, which has it in a font file's layout without the
+//  name. Find returns the font of the family
 //  at the size, or else the nearest size, preferring the smaller of two
 //  equally near.
 //
@@ -27,6 +29,7 @@ public:
 
     bool     Add       (std::span<const Byte> bytes);
     HRESULT  AddVolume (const vector<Byte> & blocks);
+    bool     AddRom    (const vector<Byte> & rom);
 
     size_t   GetCount  () const { return m_fonts.size(); }
 

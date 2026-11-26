@@ -14,6 +14,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 static constexpr Word    s_kHelvetica   = 21;
 static constexpr Word    s_kTimes       = 20;
+static constexpr Word    s_kShaston     = 0xFFFE;
 static constexpr size_t  s_kBlockBytes  = 512;
 static constexpr size_t  s_kBlocks      = 1600;
 
@@ -192,6 +193,34 @@ public:
         Assert::AreEqual ((size_t) 2, fonts.GetCount());
         Assert::AreEqual (12, fonts.Find (s_kHelvetica, 12)->GetSize());
         Assert::AreEqual (10, fonts.Find (s_kTimes, 24)->GetSize(), L"The font outside System/Fonts isn't read");
+    }
+
+    TEST_METHOD (AddRom_FindsShaston8ByItsHeader)
+    {
+        QuickDrawFontLibrary  fonts;
+        std::vector<Byte>     rom   (100, 0xEA);
+        std::vector<Byte>     font  = MakeFontFile (s_kShaston, 8);
+
+
+
+        rom.insert (rom.end(), { 0x06, 0x00, 0xFE, 0xFF, 0x00, 0x00, 0x08, 0x00 });   // a header after a nonzero byte, which isn't a font
+        rom.push_back (0);
+        rom.insert (rom.end(), font.begin() + 2, font.end());
+        rom.resize (rom.size() + 50, 0xEA);
+
+        Assert::IsTrue   (fonts.AddRom (rom));
+        Assert::AreEqual (8, fonts.Find (s_kShaston, 8)->GetSize());
+    }
+
+    TEST_METHOD (AddRom_NoShaston_IsFalse)
+    {
+        QuickDrawFontLibrary  fonts;
+        std::vector<Byte>     rom (256, 0xEA);
+
+
+
+        Assert::IsFalse  (fonts.AddRom (rom));
+        Assert::AreEqual ((size_t) 0, fonts.GetCount());
     }
 
     TEST_METHOD (AddVolume_NoFontsFolder_Fails)

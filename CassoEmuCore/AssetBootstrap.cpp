@@ -2513,7 +2513,8 @@ HRESULT AssetBootstrap::EnsureStockBootDisk (
 //  and Venice from 9 to 24 points and Shaston 16, and its Fonts disk, with
 //  the larger sizes. Apple's System 6.0.1 is posted only as Macintosh
 //  self-extracting archives; these disks have the same Apple fonts as plain
-//  ProDOS images. Shaston 8 is in the IIgs ROM and on neither disk.
+//  ProDOS images. Shaston 8, the system font, is on neither disk; it's in
+//  the IIgs ROM, and ROM 01 is the smaller of the two.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2539,6 +2540,16 @@ static constexpr BootDiskSpec s_kIIgsFontDisks[] =
     },
 };
 
+static constexpr BootDiskSpec s_kIIgsRom =
+{
+    L"IIgs ROM 01.rom",
+    L"/ftp.apple.asimov.net/emulators/rom_images/xgs.rom",
+    131072,
+    "IIgs ROM 01",
+    "Apple IIgs ROM 01, with Shaston 8.",
+    s_kpszBootDiskMirrorHost
+};
+
 
 
 
@@ -2560,6 +2571,7 @@ std::vector<fs::path> AssetBootstrap::GetIIgsFontDiskPaths()
         paths.push_back (GetDiskDirectory() / spec.cassoName);
     }
 
+    paths.push_back (GetDiskDirectory() / s_kIIgsRom.cassoName);
     return paths;
 }
 
@@ -2613,6 +2625,9 @@ HRESULT AssetBootstrap::EnsureIIgsFonts (string & outError)
         CHR (hr);
     }
 
+    hr = DownloadStockBootDisk (s_kIIgsRom, GetDiskDirectory(), path, outError);
+    CHR (hr);
+
 Error:
     return hr;
 }
@@ -2625,7 +2640,7 @@ Error:
 //
 //  LoadIIgsFonts
 //
-//  Adds the fonts on each fonts disk that has been downloaded.
+//  Adds the fonts on each fonts disk that has been downloaded, and the ROM's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2649,6 +2664,12 @@ HRESULT AssetBootstrap::LoadIIgsFonts (QuickDrawFontLibrary & ioFonts)
 
         hr = ReadFileBytes (path, blocks);
         CHR (hr);
+
+        if (path.filename() == s_kIIgsRom.cassoName)
+        {
+            ioFonts.AddRom (blocks);
+            continue;
+        }
 
         hr = ioFonts.AddVolume (blocks);
         CHR (hr);

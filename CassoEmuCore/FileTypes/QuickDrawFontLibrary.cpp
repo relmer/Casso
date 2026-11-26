@@ -83,6 +83,43 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  QuickDrawFontLibrary::AddRom
+//
+//  The font is found by its IIgs header: the offset to the font record,
+//  six words, then Shaston's family number, a plain style and the size, 8.
+//  The byte before the header is taken as an empty name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool QuickDrawFontLibrary::AddRom (const vector<Byte> & rom)
+{
+    static constexpr Byte  s_kShastonHeader[] = { 0x06, 0x00, 0xFE, 0xFF, 0x00, 0x00, 0x08, 0x00 };
+
+
+
+    auto  found = std::search (rom.begin(), rom.end(), std::begin (s_kShastonHeader), std::end (s_kShastonHeader));
+
+
+
+    while (found != rom.end())
+    {
+        if (found != rom.begin() && *(found - 1) == 0 && Add (std::span<const Byte> (found - 1, rom.end())))
+        {
+            return true;
+        }
+
+        found = std::search (found + 1, rom.end(), std::begin (s_kShastonHeader), std::end (s_kShastonHeader));
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  QuickDrawFontLibrary::Find
 //
 ////////////////////////////////////////////////////////////////////////////////

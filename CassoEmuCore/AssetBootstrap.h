@@ -235,8 +235,8 @@ public:
                                             string      & outError);
 
     // The IIgs System 6 disks whose System/Fonts folders have the fonts a
-    // QuickDraw II picture's text is drawn in, downloaded on request into
-    // the disk cache. Blocking, no UI.
+    // QuickDraw II picture's text is drawn in, and the IIgs ROM, which has
+    // Shaston 8, downloaded on request into the disk cache. Blocking, no UI.
     static std::vector<fs::path>  GetIIgsFontDiskPaths ();
     static bool                   AreIIgsFontsCached   ();
     static HRESULT                EnsureIIgsFonts      (string & outError);
