@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Core/IntRange.h"
 #include "Debugger/Handlers/DataDirectiveHandlers.h"
 
 #include "Debugger/DebugSession.h"
@@ -456,7 +457,7 @@ void DataDirectiveHandlers::MakeDataLine (DebugSession & session, const DataBloc
     default:                                              break;
     }
 
-    count = std::max (1, std::min (block.perLine * itemBytes, remaining));
+    count = IntRange::Limit (block.perLine * itemBytes, remaining, 1);
 
     line.instruction.address    = address;
     line.instruction.mnemonic   = kMnemonics[(int) block.kind];

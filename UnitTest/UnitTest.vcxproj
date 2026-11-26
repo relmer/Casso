@@ -1039,6 +1039,7 @@
     <ClCompile Include="EmuTests\Ay8910Tests.cpp" />
     <ClCompile Include="EmuTests\Ssi263Tests.cpp" />
     <ClCompile Include="EmuTests\MockingboardCardTests.cpp" />
+    <ClCompile Include="EmuTests\IntRangeTests.cpp" />
     <ClCompile Include="EmuTests\InterruptControllerTests.cpp" />
     <ClCompile Include="EmuTests\MmuTests.cpp" />
     <ClCompile Include="EmuTests\ResetSemanticsTests.cpp" />

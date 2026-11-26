@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Core/IntRange.h"
 #include "Ui/Debugger/Panes/HeatMapSections.h"
 #include "Core/TextEncoding.h"
 #include "Debugger/HeatMapRangeSets.h"
@@ -159,7 +160,6 @@ std::vector<HeatMapSections::Band> HeatMapSections::SplitAtSections (const std::
 int HeatMapSections::GetColumnsOf (int columns, int count)
 {
     int  fitted = 1;
-    int  result = 0;
 
 
 
@@ -168,12 +168,7 @@ int HeatMapSections::GetColumnsOf (int columns, int count)
         fitted *= 2;
     }
 
-    //  Not std::max (1, std::min (...)): MSVC 14.52's whole-program
-    //  optimizer miscompiled that form inlined into a caller, reading the
-    //  value 1 as an address.
-    result = fitted < columns ? fitted : columns;
-
-    return result > 1 ? result : 1;
+    return IntRange::Limit (fitted, columns, 1);
 }
 
 

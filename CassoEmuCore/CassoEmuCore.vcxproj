@@ -2399,6 +2399,7 @@
     <ClInclude Include="CassoExplorer\CrtPictureRenderer.h" />
     <ClInclude Include="Seams\Win32InfoTips.h" />
     <ClInclude Include="Core\IInterruptController.h" />
+    <ClInclude Include="Core\IntRange.h" />
     <ClInclude Include="Core\InterruptController.h" />
     <ClInclude Include="Core\IMachineState.h" />
     <ClInclude Include="Core\StateReader.h" />

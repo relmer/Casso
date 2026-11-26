@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Core/IntRange.h"
 #include "Ui/DiskInspector/Components/InspectorWindowLayout.h"
 
 
@@ -30,7 +31,7 @@ InspectorWindowLayout::Frames InspectorWindowLayout::Plan (const Inputs & in, co
     int           x         = b.left + margin;
     int           column    = splitX - b.left - 2 * margin;
     int           areaH     = std::max (0, bandTop - top - 2 * margin);
-    int           side      = std::max (0, std::min (column, areaH));
+    int           side      = IntRange::Limit (column, areaH, 0);
     int           minColumn = std::max (scaler.ToPx (s_kMinPlatterColumnDip), in.minColumnPx);
     int           fitted    = 0;
     int           y         = 0;
@@ -40,9 +41,9 @@ InspectorWindowLayout::Frames InspectorWindowLayout::Plan (const Inputs & in, co
 
     if (column < minColumn)
     {
-        column = std::max (0, std::min (minColumn, static_cast<int> (width * kMaxSplit) - 2 * margin));
+        column = IntRange::Limit (minColumn, static_cast<int> (width * kMaxSplit) - 2 * margin, 0);
         splitX = b.left + 2 * margin + column;
-        side   = std::max (0, std::min (column, areaH));
+        side   = IntRange::Limit (column, areaH, 0);
     }
 
     fitted = std::max (minColumn, std::min (areaH, width - 4 * margin - scaler.ToPx (s_kSplitterDip) - in.sectorsPx));

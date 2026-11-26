@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Core/IntRange.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
 
 
@@ -275,7 +276,7 @@ void DebuggerPaneFrame::LayOutOverlays (const RECT & filled, const DxuiDpiScaler
             continue;
         }
 
-        width  = std::max (0, std::min<int> (scaler.ToPx (part.overlayDip), (filled.right - filled.left) - 2 * gap));
+        width  = IntRange::Limit ((int) scaler.ToPx (part.overlayDip), (filled.right - filled.left) - 2 * gap, 0);
         height = (part.height != nullptr) ? part.height (width, scaler) : 0;
         left   = (filled.left + filled.right - width) / 2;
         top    = (filled.top + filled.bottom - height) / 2;
