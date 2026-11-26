@@ -1,5 +1,7 @@
 #include "Pch.h"
 #include "Core/AppTimerIds.h"
+#include "AssetBootstrap.h"
+#include "FileTypes/QuickDrawFontLibrary.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "CassoExplorer/InspectorWindowSet.h"
@@ -325,7 +327,65 @@ void ExplorerPreviewManager::Hide()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerPreviewManager::TryLoadFonts
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerPreviewManager::TryLoadFonts()
+{
+    HRESULT                                hr        = S_OK;
+    PreviewViewState                     & viewState = m_context.browser.GetPreviewer().GetViewState();
+    std::unique_ptr<QuickDrawFontLibrary>  fonts;
+    bool                                   loaded    = false;
+
+
+
+    BAIL_OUT_IF (viewState.HasQuickDrawFonts() || !AssetBootstrap::AreIIgsFontsCached(), S_OK);
+
+    fonts = std::make_unique<QuickDrawFontLibrary>();
+    CPRA (fonts);
+
+    hr = AssetBootstrap::LoadIIgsFonts (*fonts);
+    CHR (hr);
+
+    viewState.SetQuickDrawFonts (std::move (fonts));
+    m_context.browser.GetPreviewer().UpdatePreview();
+    loaded = true;
+
+Error:
+    return loaded;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerPreviewManager::FillPreview
+//
+//  A picture with text in a font that isn't loaded is made again once the
+//  downloaded IIgs fonts are loaded.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPreviewManager::FillPreview()
+{
+    if (m_context.browser.GetPreviewer().GetPreview().fontsMissing)
+    {
+        TryLoadFonts();
+    }
+
+    FillContent();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::FillContent
 //
 //  The preview's kind picks the view: a picture in the picture view, a
 //  catalog as rows under the list's columns, bytes in the hex view, the
@@ -334,7 +394,7 @@ void ExplorerPreviewManager::Hide()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerPreviewManager::FillPreview()
+void ExplorerPreviewManager::FillContent()
 {
     const PreviewContent  & preview  = m_context.browser.GetPreviewer().GetPreview();
     bool                    autoOpen = UpdateAutoPreview();

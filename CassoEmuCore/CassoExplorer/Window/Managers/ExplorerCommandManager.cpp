@@ -158,6 +158,7 @@ bool ExplorerCommandManager::IsEnabled (int id) const
         case CassoExplorerCommands::kCrossReference:    return m_context.preview.GetBarMode() == CassoExplorerCommands::kPreviewBarListing;
         case CassoExplorerCommands::kPictureMonochrome:
         case CassoExplorerCommands::kPictureColor:      return m_context.browser.GetPreviewer().GetMonitorChoice().CanTogglePictureColor();
+        case CassoExplorerCommands::kGetFonts:          return m_context.browser.GetPreviewer().GetPreview().fontsMissing && !AssetBootstrap::AreIIgsFontsCached();
         case CassoExplorerCommands::kPictureCrt:
         case CassoExplorerCommands::kSavePicture:       return m_context.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Picture && !m_context.browser.GetPreviewer().GetPreview().bgra.empty();
         case CassoExplorerCommands::kExpandPreview:     return m_context.preview.IsShown();
@@ -553,6 +554,7 @@ void ExplorerCommandManager::Dispatch (int id)
         case CassoExplorerCommands::kPictureColor:       m_context.preview.GetPicture().ShowForm (true);                                break;
         case CassoExplorerCommands::kSavePicture:        m_context.preview.GetPicture().SavePicture();                                  break;
         case CassoExplorerCommands::kPictureCrt:         m_context.preview.GetPicture().ToggleCrt();                                    break;
+        case CassoExplorerCommands::kGetFonts:           GetFonts();                                                                    break;
         case CassoExplorerCommands::kEditWozMetadata:    m_context.properties.ShowWozProperties (m_context.browser.GetPreviewer().GetPreview().wozPath, WozPropertiesDialog::kMetaTab); break;
 
         case CassoExplorerCommands::kCharsetAppleText:   ChooseCharset (Charset::AppleText);  break;
@@ -714,6 +716,37 @@ void ExplorerCommandManager::ChooseCharset (Charset charset)
 {
     m_context.browser.GetPreviewer().GetViewState().SetCharset (charset);
     m_context.preview.FillPreview();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerCommandManager::GetFonts
+//
+//  The fonts disks downloaded, then the picture made again with its text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerCommandManager::GetFonts()
+{
+    std::string  error;
+    HRESULT      hr    = AssetBootstrap::EnsureIIgsFonts (error);
+
+
+
+    if (FAILED (hr))
+    {
+        m_context.window.ShowMessage (std::format (L"The Apple IIgs fonts could not be downloaded. {}", TextEncoding::NarrowToWide (error)), MB_ICONERROR);
+        return;
+    }
+
+    if (m_context.preview.TryLoadFonts())
+    {
+        m_context.preview.FillPreview();
+    }
 }
 
 

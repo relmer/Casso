@@ -135,6 +135,7 @@ void HostFilePreviewer::PreviewHostFile (const std::wstring & folder, const Cata
     bool                     loaded  = false;
     PreviewDecoder::HexForm  hexForm = PreviewDecoder::HexForm::Auto;
     HRESULT                  hr      = S_OK;
+    DecodeOptions            options;
 
 
 
@@ -160,7 +161,9 @@ void HostFilePreviewer::PreviewHostFile (const std::wstring & folder, const Cata
     //  previews as its details.
     if (typed)
     {
-        hr = PreviewViewChoices::Render (m_previewParts.viewState.GetViewAs(), entry, VolumeKind::ProDos, payload, hexForm, m_previewParts.bus, m_previewParts.preview, m_previewParts.monitor.GetPreviewMonitor(), m_previewParts.monitor.GetCustomArgb(), DecodeOptions());
+        options.quickDrawFonts = m_previewParts.viewState.GetQuickDrawFonts();
+
+        hr = PreviewViewChoices::Render (m_previewParts.viewState.GetViewAs(), entry, VolumeKind::ProDos, payload, hexForm, m_previewParts.bus, m_previewParts.preview, m_previewParts.monitor.GetPreviewMonitor(), m_previewParts.monitor.GetCustomArgb(), options);
 
         //  An AppleSingle file's details head the preview of the file it holds.
         if (SUCCEEDED (hr) && !m_singleDetails.empty())

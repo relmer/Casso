@@ -24,6 +24,7 @@ using MediaFilter = bool (*) (const std::wstring & path);
 class IDxuiTheme;
 struct CassoTheme;
 struct EmbeddedConfig;
+class QuickDrawFontLibrary;
 
 
 
@@ -232,6 +233,14 @@ public:
     static HRESULT   EnsureStockBootDisk   (StockBootDisk disk,
                                             wstring     & outDiskPath,
                                             string      & outError);
+
+    // The IIgs System 6 disks whose System/Fonts folders have the fonts a
+    // QuickDraw II picture's text is drawn in, downloaded on request into
+    // the disk cache. Blocking, no UI.
+    static std::vector<fs::path>  GetIIgsFontDiskPaths ();
+    static bool                   AreIIgsFontsCached   ();
+    static HRESULT                EnsureIIgsFonts      (string & outError);
+    static HRESULT                LoadIIgsFonts        (QuickDrawFontLibrary & ioFonts);
 
     // A catalog ROM no machine config requires (the Super Serial Card's
     // firmware), downloaded on request into its device folder. Blocking, no

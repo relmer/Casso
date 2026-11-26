@@ -15,6 +15,7 @@
 #include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/StockBootDisks.h"
+#include "FileTypes/QuickDrawFontLibrary.h"
 #include "EmbeddedMachineConfigs.h"
 #include "External/StbVorbisWrapper.h"
 #include "resource.h"
@@ -769,6 +770,38 @@ static HRESULT WriteFileBytes (const fs::path & path, span<const Byte> bytes)
 
     wroteWell = out.good();
     CBRA (wroteWell);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadFileBytes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static HRESULT ReadFileBytes (const fs::path & path, vector<Byte> & outBytes)
+{
+    HRESULT     hr       = S_OK;
+    ifstream    in;
+    bool        readWell = false;
+
+
+
+    in.open (path, ios::binary);
+
+    readWell = in.good();
+    CBREx (readWell, HRESULT_FROM_WIN32 (ERROR_OPEN_FAILED));
+
+    outBytes.assign (istreambuf_iterator<char> (in), istreambuf_iterator<char>());
+
+    readWell = !in.bad();
+    CBREx (readWell, HRESULT_FROM_WIN32 (ERROR_READ_FAULT));
 
 Error:
     return hr;
@@ -2466,6 +2499,163 @@ HRESULT AssetBootstrap::EnsureStockBootDisk (
     string        & outError)
 {
     return DownloadStockBootDisk (GetStockBootDiskSpec (disk), GetDiskDirectory(), outDiskPath, outError);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IIgs fonts disks
+//
+//  System 6.0.3's SystemTools1 disk, with Courier, Geneva, Helvetica, Times
+//  and Venice from 9 to 24 points and Shaston 16, and its Fonts disk, with
+//  the larger sizes. Apple's System 6.0.1 is posted only as Macintosh
+//  self-extracting archives; these disks have the same Apple fonts as plain
+//  ProDOS images. Shaston 8 is in the IIgs ROM and on neither disk.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr size_t  s_kFontDiskBytes = 819200;
+
+static constexpr BootDiskSpec s_kIIgsFontDisks[] =
+{
+    {
+        L"IIgs System 6.0.3 SystemTools1.po",
+        L"/ftp.apple.asimov.net/images/gs/os/gsos/Apple_IIGS_System_6.0.3/SystemTools1.po",
+        s_kFontDiskBytes,
+        "IIgs SystemTools1",
+        "Apple IIgs System 6.0.3 SystemTools1, with the IIgs fonts to 24 points.",
+        s_kpszBootDiskMirrorHost
+    },
+    {
+        L"IIgs System 6.0.3 Fonts.po",
+        L"/ftp.apple.asimov.net/images/gs/os/gsos/Apple_IIGS_System_6.0.3/Fonts.po",
+        s_kFontDiskBytes,
+        "IIgs Fonts",
+        "Apple IIgs System 6.0.3 Fonts, with the IIgs fonts from 27 points.",
+        s_kpszBootDiskMirrorHost
+    },
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetIIgsFontDiskPaths
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<fs::path> AssetBootstrap::GetIIgsFontDiskPaths()
+{
+    std::vector<fs::path>  paths;
+
+
+
+    for (const BootDiskSpec & spec : s_kIIgsFontDisks)
+    {
+        paths.push_back (GetDiskDirectory() / spec.cassoName);
+    }
+
+    return paths;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AreIIgsFontsCached
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AssetBootstrap::AreIIgsFontsCached()
+{
+    error_code  ec;
+
+
+
+    for (const fs::path & path : GetIIgsFontDiskPaths())
+    {
+        if (!fs::exists (path, ec))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EnsureIIgsFonts
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssetBootstrap::EnsureIIgsFonts (string & outError)
+{
+    HRESULT  hr = S_OK;
+    wstring  path;
+
+
+
+    for (const BootDiskSpec & spec : s_kIIgsFontDisks)
+    {
+        hr = DownloadStockBootDisk (spec, GetDiskDirectory(), path, outError);
+        CHR (hr);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadIIgsFonts
+//
+//  Adds the fonts on each fonts disk that has been downloaded.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssetBootstrap::LoadIIgsFonts (QuickDrawFontLibrary & ioFonts)
+{
+    HRESULT     hr = S_OK;
+    error_code  ec;
+
+
+
+    for (const fs::path & path : GetIIgsFontDiskPaths())
+    {
+        vector<Byte>  blocks;
+
+
+
+        if (!fs::exists (path, ec))
+        {
+            continue;
+        }
+
+        hr = ReadFileBytes (path, blocks);
+        CHR (hr);
+
+        hr = ioFonts.AddVolume (blocks);
+        CHR (hr);
+    }
+
+Error:
+    return hr;
 }
 
 

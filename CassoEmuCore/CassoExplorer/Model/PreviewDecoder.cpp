@@ -1022,6 +1022,8 @@ void PreviewDecoder::FromDecoded (const DecodedFile & decoded, PreviewContent & 
             break;
     }
 
+    outContent.fontsMissing = decoded.fontsMissing;
+
     for (const std::wstring & note : decoded.notes)
     {
         outContent.warning += (outContent.warning.empty() ? L"" : L" ") + note;

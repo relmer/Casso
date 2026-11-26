@@ -62,6 +62,11 @@ public:
     void                              TakeThumbnail          ();
     void                              TakeFileSystemCheck    ();
 
+    //  The downloaded IIgs fonts loaded into the preview's decode options,
+    //  and the preview made again; false when they're loaded already or
+    //  haven't been downloaded.
+    bool                              TryLoadFonts           ();
+
     //  The text view filled from the preview, with an image's File system
     //  detail from the thumbnail's analysis once it has one: an image that
     //  doesn't mount reads as having no file system, though the analysis may
@@ -172,4 +177,5 @@ private:
     std::wstring  GetAutoKey        () const;
     bool          UpdateAutoPreview ();
     bool          UpdateShown       ();
+    void          FillContent       ();
 };

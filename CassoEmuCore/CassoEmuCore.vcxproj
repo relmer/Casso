@@ -729,6 +729,7 @@
     <ClCompile Include="FileTypes\HexDump.cpp" />
     <ClCompile Include="FileTypes\QuickDrawCanvas.cpp" />
     <ClCompile Include="FileTypes\QuickDrawFont.cpp" />
+    <ClCompile Include="FileTypes\QuickDrawFontLibrary.cpp" />
     <ClCompile Include="FileTypes\QuickDrawText.cpp" />
     <ClCompile Include="CassoExplorer\Model\RemovableMediaWatch.cpp" />
     <ClCompile Include="FileTypes\QuickDrawPicture.cpp" />
@@ -2064,6 +2065,7 @@
     <ClInclude Include="FileTypes\QuickDrawCanvas.h" />
     <ClInclude Include="FileTypes\IQuickDrawFonts.h" />
     <ClInclude Include="FileTypes\QuickDrawFont.h" />
+    <ClInclude Include="FileTypes\QuickDrawFontLibrary.h" />
     <ClInclude Include="FileTypes\QuickDrawText.h" />
     <ClInclude Include="CassoExplorer\Model\RemovableMediaWatch.h" />
     <ClInclude Include="FileTypes\QuickDrawPicture.h" />

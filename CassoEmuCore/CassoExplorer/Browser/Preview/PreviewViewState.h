@@ -4,6 +4,7 @@
 
 #include "CassoExplorer/Model/PreviewDecoder.h"
 #include "FileTypes/DecodedFile.h"
+#include "FileTypes/QuickDrawFontLibrary.h"
 
 class IPreviewRefresh;
 
@@ -52,6 +53,14 @@ public:
     void                   SetDefaultDecodeOptions (const DecodeOptions & options);
     const DecodeOptions &  GetDefaultDecodeOptions () const { return m_defaultOptions; }
 
+    //  The fonts a QuickDraw II picture's text is drawn in, in every file's
+    //  decode options. They are set once and stay until the window closes,
+    //  since a preview decoding on another thread may be drawing in them.
+    void  SetQuickDrawFonts (std::unique_ptr<QuickDrawFontLibrary> fonts);
+    bool  HasQuickDrawFonts () const { return m_fonts != nullptr; }
+
+    const IQuickDrawFonts *  GetQuickDrawFonts () const { return m_fonts.get(); }
+
     //  Whether a disk with a saved game previews as the saved game or as the
     //  disk. The choice applies to every such disk until it is changed.
     void  SetSavedGameShown (bool shown);
@@ -69,4 +78,6 @@ private:
     //  The decode choices of each file one was made for, by file key.
     std::map<std::wstring, DecodeOptions>  m_decodeOptions;
     DecodeOptions                          m_defaultOptions;
+
+    std::unique_ptr<QuickDrawFontLibrary>  m_fonts;
 };

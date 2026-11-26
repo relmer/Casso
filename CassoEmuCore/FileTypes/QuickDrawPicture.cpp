@@ -125,10 +125,11 @@ HRESULT QuickDrawPicture::Decode (std::span<const Byte> bytes, const FileFacts &
         pb.notes.push_back (L"The picture ends partway through an opcode.");
     }
 
-    outFile.kind   = DecodedFile::Kind::Picture;
-    outFile.width  = width;
-    outFile.height = height;
-    outFile.notes  = std::move (pb.notes);
+    outFile.kind         = DecodedFile::Kind::Picture;
+    outFile.width        = width;
+    outFile.height       = height;
+    outFile.notes        = std::move (pb.notes);
+    outFile.fontsMissing = !pb.missingFonts.empty();
     canvas->WriteBgra (outFile.bgra);
 
 Error:
