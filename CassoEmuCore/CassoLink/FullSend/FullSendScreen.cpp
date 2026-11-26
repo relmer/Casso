@@ -162,7 +162,6 @@ const char * FullSendScreen::GetQuipText (Byte quip)
         "This drive is hungry",
         "Next victim, please",
         "Please sir, some more",
-        "Bigger stack needed",
         "Need input!",
         "Me want disk! Nom nom nom",
         "Hit me again, dealer",

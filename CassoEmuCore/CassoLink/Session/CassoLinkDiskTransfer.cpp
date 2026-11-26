@@ -79,6 +79,17 @@ HRESULT CassoLinkDiskTransfer::CaptureWholeDisk (LinkOperation & operation)
 
     BeginStatus (operation, true);
 
+    //  A blank disk is reported in seconds, not after every track is read.
+    hr = CassoLinkCapture::ProbeHasData (*m_session.m_host, (Byte) operation.drive, module, hasData);
+    CHR (hr);
+
+    if (!hasData)
+    {
+        operation.message = std::format ("Nothing was found on the disk in drive {}, so no image was written. The drive may be empty, or the disk unformatted.", operation.drive);
+    }
+
+    CBREx (hasData, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
+
     hr = CassoLinkCapture::Capture (*m_session.m_host, (Byte) operation.drive, module, date, [this, &operation] (const CassoLinkCapture::Progress & where)
     {
         ReportCapture (operation, where);

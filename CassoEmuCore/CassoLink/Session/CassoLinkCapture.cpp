@@ -430,6 +430,46 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkCapture::ProbeHasData
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkCapture::ProbeHasData (CassoLinkHost & host, Byte drive, std::span<const Byte> module, bool & outHasData)
+{
+    static constexpr int  kProbeTracks[] = { 0, 17, 3 };
+
+    HRESULT            hr     = S_OK;
+    Result             result;
+    ProgressFn         none;
+    Run                run    { host, drive, module, none, result };
+    std::vector<Byte>  bytes;
+    size_t             start  = 0;
+    size_t             length = 0;
+    bool               missed = false;
+
+
+
+    outHasData = false;
+
+    for (int track : kProbeTracks)
+    {
+        hr = ReadOnce (run, track * 4, 0, 1, 1, CassoLinkHost::kNoSync, {}, bytes, missed);
+        CHR (hr);
+
+        outHasData = FindReference (bytes, start, length) && length != 0;
+        BAIL_OUT_IF (outHasData, S_OK);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkCapture::ProbeRevolution
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -96,11 +96,18 @@ public:
 
         Assert::IsTrue (FullSendProtection::GetBootFamily (image) == FullSendProtection::BootFamily::None, L"Zeros");
 
+        std::fill_n (image.begin(), 256, (Byte) 0xE5);
+        Assert::IsTrue (FullSendProtection::GetBootFamily (image) == FullSendProtection::BootFamily::None, L"A CP/M data disk's $E5 fill");
+        std::fill_n (image.begin(), 256, (Byte) 0);
+
         Put (image, 0, { 0x01, 0xA5, 0x27, 0xC9, 0x09, 0xD0, 0x18, 0xA5, 0x2B });
         Assert::IsTrue (FullSendProtection::GetBootFamily (image) == FullSendProtection::BootFamily::Dos33, L"DOS 3.3");
 
         Put (image, 0, { 0x01, 0xA5, 0x27, 0xC9, 0x09, 0xD0, 0x0F, 0x8A });
         Assert::IsTrue (FullSendProtection::GetBootFamily (image) == FullSendProtection::BootFamily::Cpm, L"CP/M");
+
+        Put (image, 0, { 0x01, 0xA5, 0x27, 0xC9, 0x09, 0xD0, 0x15, 0x8A });
+        Assert::IsTrue (FullSendProtection::GetBootFamily (image) == FullSendProtection::BootFamily::Cpm, L"WordStar's CP/M");
 
         Put (image, 0, { 0x01, 0x38, 0xB0, 0x03, 0x4C, 0x00, 0x00, 0x00, 0x00 });
         Assert::IsTrue (FullSendProtection::GetBootFamily (image) == FullSendProtection::BootFamily::ProDos, L"ProDOS");

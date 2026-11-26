@@ -135,11 +135,13 @@ std::vector<std::string> FullSendBootResults::GetLines() const
         lines.push_back ("Capture it again");
         lines.push_back ("in raw mode, or put in a new disk,");
         lines.push_back ("then press Space.");
+        lines.push_back ("");
     }
     else if (!m_retryImage.empty())
     {
         lines.push_back (std::format ("{} did not boot. Capture it again", m_retryImage));
         lines.push_back ("or put in a new disk, then press Space.");
+        lines.push_back ("");
     }
 
     return lines;
