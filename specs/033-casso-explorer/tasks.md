@@ -2257,7 +2257,7 @@ No MVP: each story ships whole. Merge master into this branch after each phase. 
 
 **Goal**: three conversions CiderPress II has that Casso Explorer lacks.
 
-- [ ] T1430 Decode IIgs QuickDraw II pictures, $C1/$0001 and packed $C0/$0003, as File Type Notes $C0 and $C1 set them out, in `CassoEmuCore/FileTypes/`. Draw the picture by running its opcodes into a bitmap, with a preview and a PNG conversion, and add the rows to `FileFormatRows.cpp` and `contracts/file-types.md`. An opcode the decoder doesn't draw is listed in the preview's notes. Unit tests with sample pictures.
+- [X] T1430 Decode IIgs QuickDraw II pictures, $C1/$0001 and packed $C0/$0003, as File Type Notes $C0 and $C1 set them out, in `CassoEmuCore/FileTypes/`. Draw the picture by running its opcodes into a bitmap, with a preview and a PNG conversion, and add the rows to `FileFormatRows.cpp` and `contracts/file-types.md`. An opcode the decoder doesn't draw is listed in the preview's notes. Unit tests with sample pictures.
 - [ ] T1431 List a IIgs file's resource fork in the preview: each resource's type, ID, attributes and size, with the type's name for the standard types from the IIgs Toolbox Reference, and a hex dump of the selected resource. Export it as a text file. Tests in `UnitTest/FileTypes/` with a sample fork.
 - [X] T1432 Add Hex dump as a conversion for every file: 16 bytes a line, offsets on the left, and the characters on the right in the file's character set, written as text. Offer it on the right-drag menu, in the Get dialog and in Copy to folder with options. Tests for the layout and the character sets.
 - [ ] T1433 Validate T1430 and T1431 on screen in Casso Explorer, run the 033 gate, and record the results in validation.md. T1432 was checked on screen 2026-11-26.

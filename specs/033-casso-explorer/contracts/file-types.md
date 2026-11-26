@@ -34,6 +34,8 @@ its decoder is written. The table is the test list for
 | Paintworks | $C0/$0000 | none | picture | `NAME.Super Hi-Res.png` | no | SuperHiRes |
 | 3200-color | $C1/$0002 | none | picture | `NAME.3200 Color.png` | no | SuperHiRes |
 | DreamGrafix | $C0/$8005 | none | picture | `NAME.3200 Color.png` | no | SuperHiRes |
+| QuickDraw II picture | $C1/$0001: the port's SCB, the frame, then opcodes to the end of the file, as IIgs Technical Note 46 sets them out | none | picture, the frame's size, drawn by running the opcodes in the standard palette; text, PnMask and BitsRgn's mask aren't drawn and are listed in the notes | `NAME.QuickDraw II.png` | no | SuperHiRes |
+| Packed QuickDraw II picture | $C0/$0003: a $C1/$0001 picture packed with PackBytes | none | picture, as the unpacked picture | `NAME.QuickDraw II.png` | no | SuperHiRes |
 | 3201 | BIN, name ending `.3201`, starting `APP` $00 or `NRL` $00 | none | picture | `NAME.3200 Color.png` | no | SuperHiRes |
 | IIgs animation | $C2/$0000 | none | picture, first frame | `NAME.Animation.png` | no | PaintworksAnim |
 | LZ4FH | $08/$8066 | none | picture | `NAME.LZ4FH.png` | no | HiRes, fhpack |
@@ -86,7 +88,8 @@ enum class FileFormat { None, PascalText, RandomText, Merlin, ScAssembler, Lisa,
                         Lz4fh, PrintShopGraphic, PrintShopGsClipArt, ShapeTable,
                         IigsIcons, HiResFont, Apple3Font, FontrixFont, PrintShopFont,
                         IigsFont, WizardryScenario, InfocomStory, HiResScreen,
-                        DoubleHiResScreen, LoResScreen, MacPaint };
+                        DoubleHiResScreen, LoResScreen, MacPaint, QuickDrawPicture,
+                        PackedQuickDrawPicture };
 
 class FileFormatTable
 {

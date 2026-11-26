@@ -727,6 +727,8 @@
     <ClCompile Include="FileTypes\HiResFormats.cpp" />
     <ClCompile Include="FileTypes\CodeListing.cpp" />
     <ClCompile Include="FileTypes\HexDump.cpp" />
+    <ClCompile Include="FileTypes\QuickDrawCanvas.cpp" />
+    <ClCompile Include="FileTypes\QuickDrawPicture.cpp" />
     <ClCompile Include="FileTypes\Disassembler65816.cpp" />
     <ClCompile Include="FileTypes\MacPaintPicture.cpp" />
     <ClCompile Include="FileTypes\ScreenPicture.cpp" />
@@ -2056,6 +2058,8 @@
     <ClInclude Include="FileTypes\HiResFormats.h" />
     <ClInclude Include="FileTypes\CodeListing.h" />
     <ClInclude Include="FileTypes\HexDump.h" />
+    <ClInclude Include="FileTypes\QuickDrawCanvas.h" />
+    <ClInclude Include="FileTypes\QuickDrawPicture.h" />
     <ClInclude Include="FileTypes\Disassembler65816.h" />
     <ClInclude Include="FileTypes\MacPaintPicture.h" />
     <ClInclude Include="FileTypes\ScreenPicture.h" />
