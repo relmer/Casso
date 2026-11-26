@@ -19,6 +19,7 @@
 #include "Devices/Disk/DiskFieldFormat.h"
 #include "Devices/Disk/DiskImage.h"
 #include "CassoLink/ProgramRig.h"
+#include "TextScreenScraper.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -256,6 +257,22 @@ public:
             AssertSucceeded (rig.host->WriteRawTrack (1, (Byte) position, stream, status));
             Assert::AreEqual ((Byte) 0, status.error);
             Assert::IsTrue (IsWithin (bits, GetTrackBits (rig, position)), std::format (L"Position {}'s bits", position).c_str());
+        }
+
+        //  The last track's write ends with the Apple's bar at 100%.
+        AssertSucceeded (rig.host->WriteRawTrack (1, 136, stream, status));
+        rig.machine.RunCycles (100'000);
+
+        {
+            std::vector<std::string>  rows   = TextScreenScraper::Scrape (rig.machine);
+            std::string               screen;
+
+            for (const std::string & row : rows)
+            {
+                screen += row + "\n";
+            }
+
+            Assert::IsTrue (screen.find ("100%") != std::string::npos, TextEncoding::NarrowToWide (screen).c_str());
         }
     }
 
