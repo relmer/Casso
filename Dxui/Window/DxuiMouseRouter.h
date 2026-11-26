@@ -76,7 +76,7 @@ public:
     static DxuiTextInput *  FindTextBoxAt (const IDxuiControl & node, POINT clientPx);
 
 private:
-    DxuiMessageResult  Dispatch (DxuiMouseEventKind kind, DxuiMouseButton button, int x, int y, float wheelDelta, bool wheelHorizontal = false);
+    DxuiMessageResult  Dispatch          (DxuiMouseEventKind kind, DxuiMouseButton button, int x, int y, float wheelDelta, bool wheelHorizontal = false);
     void               UpdatePointerPath (POINT clientPx, bool leftWindow);
 
     static bool  ShowScrollbarMenuIn (IDxuiControl & control, HWND hwnd, POINT clientPx);

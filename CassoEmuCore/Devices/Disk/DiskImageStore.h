@@ -192,16 +192,16 @@ private:
     //  and leaves the bay empty. No flush, no bay change.
     void                        RetireBay                   (DiskBay & entry);
 
-    DiskStoreHooks              m_hooks;
-    DiskBayTable                m_bays;
-    BayFileAccess               m_files         { m_hooks };
-    DiskSalvager                m_salvager      { m_bays, m_hooks };
-    DiskFlusher                 m_flusher       { m_bays, m_hooks, m_files, *this };
-    ExternalChangeActions       m_changeActions { m_bays, m_hooks, m_files, *this, *this };
-    ExternalChangeMonitor       m_changeMonitor { m_bays, m_hooks, m_files, m_changeActions };
-    BayWatchRegistry            m_watches       { m_bays, m_hooks, m_changeMonitor };
-    string                      m_emptyPath;
-    std::vector<DiskBay>        m_retained;
-    const uint64_t            * m_positionSource = nullptr;
-    bool                        m_isRetaining    = false;
+    DiskStoreHooks           m_hooks;
+    DiskBayTable             m_bays;
+    BayFileAccess            m_files          { m_hooks };
+    DiskSalvager             m_salvager       { m_bays, m_hooks };
+    DiskFlusher              m_flusher        { m_bays, m_hooks, m_files, *this };
+    ExternalChangeActions    m_changeActions  { m_bays, m_hooks, m_files, *this, *this };
+    ExternalChangeMonitor    m_changeMonitor  { m_bays, m_hooks, m_files, m_changeActions };
+    BayWatchRegistry         m_watches        { m_bays, m_hooks, m_changeMonitor };
+    string                   m_emptyPath;
+    std::vector<DiskBay>     m_retained;
+    const uint64_t         * m_positionSource = nullptr;
+    bool                     m_isRetaining    = false;
 };

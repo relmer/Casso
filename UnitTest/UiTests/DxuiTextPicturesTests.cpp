@@ -48,9 +48,9 @@ public:
 
     struct Rig
     {
-        FakeHost                          host;
-        DxuiTextPictures                  pictures { host };
-        std::shared_ptr<DxuiTextPicture> & picture  = host.picture;
+        FakeHost                            host;
+        DxuiTextPictures                    pictures { host };
+        std::shared_ptr<DxuiTextPicture>  & picture  = host.picture;
 
         Rig()
         {

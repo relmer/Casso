@@ -27,8 +27,8 @@ class IDxuiDialogRunnerHost
 public:
     virtual ~IDxuiDialogRunnerHost() = default;
 
-    virtual DxuiHwndSource *    GetDialogSource     () const        = 0;
-    virtual const IDxuiTheme *  GetDialogTheme      () const        = 0;
+    virtual DxuiHwndSource    * GetDialogSource     () const        = 0;
+    virtual const IDxuiTheme  * GetDialogTheme      () const        = 0;
     virtual void                ShowDialogWindow    (bool activate) = 0;
     virtual void                HideDialogWindow    ()              = 0;
     virtual void                NotifyDialogShowing ()              = 0;
