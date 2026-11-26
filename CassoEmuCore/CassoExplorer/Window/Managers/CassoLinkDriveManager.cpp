@@ -459,7 +459,7 @@ void CassoLinkDriveManager::StartImageWrite (const Location & drive, const std::
                 ? std::format (L"{} has the CassoLink disk this Apple started from. Overwriting it does not end the connection, "
                                L"but the Apple cannot start CassoLink from that disk again until you choose Write CassoLink to disk."
                                L"\n\nOverwrite {} with {}?", title, title, file)
-                : std::format (L"Write {} to {} on {}? Everything on that disk will be overwritten.", quoted, TreeModel::GetLinkDriveLabel (slot, number), DescribeConnection (link));
+                : std::format (L"Write {} to {} on {}?\n\nEverything on that disk will be overwritten.", quoted, TreeModel::GetLinkDriveLabel (slot, number), DescribeConnection (link));
 
         if (DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, message.c_str(), L"Write image",
                             MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Write", L"Cancel" }) != IDOK)
