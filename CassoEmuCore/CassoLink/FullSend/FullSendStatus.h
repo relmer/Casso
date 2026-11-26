@@ -28,6 +28,7 @@ enum class FullSendActivity : Byte
     Validating,         // the image just written is being booted on the PC
     EditingPrefix,
     Ended,
+    Saving,             // the image just read is being built and written on the PC
 };
 
 enum class FullSendTrackMark : Byte

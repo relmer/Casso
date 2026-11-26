@@ -107,7 +107,9 @@ FullSendProtection::BootFamily FullSendProtection::GetBootFamily (const std::vec
         block.insert (block.end(), image.begin() + (ptrdiff_t) kSecondHalf, image.begin() + (ptrdiff_t) (kSecondHalf + NibbleFormat::kSectorByteSize));
     }
 
-    if (std::all_of (sector.begin(), sector.end(), [] (Byte value) { return value == 0; }))
+    //  A boot sector of one byte repeated is no loader: zeros, or the $E5
+    //  CP/M's FORMAT fills a data disk's boot tracks with.
+    if (!sector.empty() && std::all_of (sector.begin(), sector.end(), [&] (Byte value) { return value == sector[0]; }))
     {
         family = BootFamily::None;
     }
@@ -115,7 +117,7 @@ FullSendProtection::BootFamily FullSendProtection::GetBootFamily (const std::vec
     {
         family = BootFamily::Dos33;
     }
-    else if (HasPrefix (sector, s_kCpmBoot))
+    else if (HasPrefix (sector, s_kCpmBoot) || HasPrefix (sector, s_kCpmBoot2))
     {
         family = BootFamily::Cpm;
     }

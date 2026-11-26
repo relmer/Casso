@@ -1417,6 +1417,12 @@ const std::vector<DxuiListView::Cell> & ExplorerListPane::GetListRowCells (int r
             cells[0].iconBroken                  = !m_rowProblems[(size_t) row].empty();
         }
 
+        //  A file that arrived in a receiving folder since its last listing.
+        if (m_rowLocation.kind == Location::Kind::HostFolder && BrowserRowPaths::TryGetRowPath (m_context.browser.GetRowListing(), row, path))
+        {
+            cells[0].iconNew = m_context.cassoLinkManager.IsNewFile (path);
+        }
+
         //  In Content view a host item has the lines the shell lists for its
         //  kind, once read; until then, its date and size.
         TryApplyContentDetails (row, cells[0]);

@@ -350,6 +350,11 @@ void DxuiListItemPainter::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer 
             DxuiListIcons::PaintBrokenBadge (text, iconX, iconY, (float) iconPx, m_list.m_scaler.ToPxf (DxuiListView::s_kBrokenBadgeMinDip));
         }
 
+        if (cells[0].iconNew && m_list.m_theme != nullptr)
+        {
+            DxuiListIcons::PaintActivityDot (text, iconX, iconY, (float) iconPx, m_list.m_theme->Accent(), m_list.m_theme->ContentBackground(), 1.0f);
+        }
+
         //  An item check box: left of the icon where the name is beside it,
         //  and over the item's top left corner in Tiles and the big icon views,
         //  as File Explorer draws them.

@@ -326,7 +326,12 @@ void CassoLinkDriveManager::CaptureToImage (const std::wstring & link, int numbe
     //  found.
     outcome = m_context.actions.GetDriveImages().CaptureDisk (TextEncoding::WideToNarrow (link), number, image.wstring(), [this] (const std::wstring &) { m_context.linkJobs.Update(); });
 
-    if (!outcome.Succeeded())
+    //  A capture that ran and failed has its reason in the job window.
+    if (!outcome.Succeeded() && m_context.linkJobs.HasJobs())
+    {
+        m_context.linkJobs.ShowWindow();
+    }
+    else if (!outcome.Succeeded())
     {
         m_context.window.ShowMessage (outcome.message, MB_ICONERROR);
     }

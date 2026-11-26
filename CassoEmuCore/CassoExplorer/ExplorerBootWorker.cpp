@@ -11,6 +11,7 @@
 #include "Devices/Disk/Store/DiskSourceFormat.h"
 #include "Devices/Disk/Inspector/Repair/FileSystemCheck.h"
 #include "FileTypes/SaveSummary.h"
+#include "Machines/Apple2/Common/CpmVolume.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
@@ -317,6 +318,14 @@ ExplorerBootWorker::Result ExplorerBootWorker::Check (const std::wstring & path,
 
     hr = BootCheck::Run (bytes, format, model, limits, m_build, report, result.machine, result.missing);
     CHR (hr);
+
+    //  A CP/M data disk has no system on tracks 0 to 2, and its boot runs
+    //  whatever bytes are on track 0.
+    if (report.verdict == BootVerdict::DidNotBoot && IsCpmDataDisk (bytes, narrow))
+    {
+        report.verdict = BootVerdict::NotBootable;
+        report.reason  = "The disk is a CP/M data disk, with no system on tracks 0 to 2.";
+    }
 
     result.hasReport = true;
     result.verdict   = report.verdict;
@@ -747,6 +756,27 @@ void ExplorerBootWorker::Run()
 
         m_idle.notify_all();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBootWorker::IsCpmDataDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerBootWorker::IsCpmDataDisk (const std::vector<Byte> & bytes, const std::string & path)
+{
+    std::vector<Byte>   sectors;
+    SectorDecodeReport  decoded;
+    HRESULT             hr      = VolumeImage::Load (bytes, path, sectors, decoded);
+
+
+
+    return SUCCEEDED (hr) && VolumeImage::DetectFilesystem (sectors) == VolumeKind::Cpm && !CpmVolume::HasSystemTracks (sectors);
 }
 
 

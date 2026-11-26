@@ -25,7 +25,7 @@ static constexpr int     s_kRecordsMax      = 128;
 static constexpr int     s_kBlocksPerEntry  = 16;
 static constexpr Byte    s_kHighBit         = 0x80;
 static constexpr size_t  s_kDirectoryBytes  = (size_t) CpmVolume::kEntries * CpmVolume::kEntryBytes;
-static constexpr int     s_kMinWithInvalid  = 3;
+static constexpr int     s_kMinConsistent   = 3;
 static constexpr int     s_kDirectorySectors = CpmVolume::kDirectoryBlocks * CpmVolume::kSectorsPerBlock;
 static constexpr int     s_kUserVisibleMax  = 15;
 
@@ -190,14 +190,21 @@ bool CpmVolume::IsFound (const vector<Byte> & sectors)
 //
 //  CpmVolume::IsFoundLenient
 //
+//  A directory with damaged entries or leftover bytes: at least
+//  s_kMinConsistent valid entries consistent with each other, and more of
+//  them than valid entries that conflict with them. A slot that isn't a
+//  valid entry is skipped, however many there are.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool CpmVolume::IsFoundLenient (const vector<Byte> & sectors)
 {
     vector<Byte>   directory;
     std::set<int>  skipped;
-    int            inUse     = 0;
-    int            valid     = 0;
+    int            inUse        = 0;
+    int            consistent   = 0;
+    int            inconsistent = 0;
+    int            limit        = 0;
 
 
 
@@ -209,9 +216,49 @@ bool CpmVolume::IsFoundLenient (const vector<Byte> & sectors)
     CopyDirectory (sectors, directory);
 
     skipped = CollectSkippedSlots (directory, inUse);
-    valid   = inUse - (int) skipped.size();
+    limit   = GetSlotLimit (directory);
 
-    return valid >= s_kMinWithInvalid && 2 * valid > inUse;
+    for (int slot = 0; slot < limit; slot++)
+    {
+        std::span<const Byte>  bytes = std::span<const Byte> (directory).subspan ((size_t) slot * kEntryBytes, kEntryBytes);
+
+        if (bytes[0] == kFree)
+        {
+            continue;
+        }
+
+        if (!skipped.contains (slot))
+        {
+            consistent++;
+        }
+        else if (IsVisibleEntry (bytes))
+        {
+            inconsistent++;
+        }
+    }
+
+    return consistent >= s_kMinConsistent && consistent > inconsistent;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CpmVolume::IsVisibleEntry
+//
+//  A valid entry in a user area CP/M lists, or the system entry in user 31.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CpmVolume::IsVisibleEntry (std::span<const Byte> entry)
+{
+    int  user = entry[0];
+
+
+
+    return IsPlausibleEntry (entry) && (user <= s_kUserVisibleMax || user == s_kUserSystem);
 }
 
 
@@ -313,15 +360,18 @@ void CpmVolume::CopyDirectory (const vector<Byte> & sectors, vector<Byte> & outD
 //
 //  CpmVolume::CollectSkippedSlots
 //
-//  Slots past the disk's limit aren't read, as in CollectFiles.
+//  A slot that isn't a valid entry, a valid entry with a block another entry
+//  uses, and a valid entry with the extent number of another entry of the
+//  same file. Slots past the disk's limit aren't read, as in CollectFiles.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::set<int> CpmVolume::CollectSkippedSlots (const vector<Byte> & directory, int & outInUse)
 {
-    int                  limit = GetSlotLimit (directory);
-    std::set<int>        skipped;
-    std::map<Byte, int>  listed;
+    int                         limit = GetSlotLimit (directory);
+    std::set<int>               skipped;
+    std::map<Byte, int>         listed;
+    std::map<std::string, int>  extents;
 
 
 
@@ -339,7 +389,7 @@ std::set<int> CpmVolume::CollectSkippedSlots (const vector<Byte> & directory, in
 
         outInUse++;
 
-        if (!IsPlausibleEntry (bytes) || (user > s_kUserVisibleMax && user != s_kUserSystem))
+        if (!IsVisibleEntry (bytes))
         {
             skipped.insert (slot);
             continue;
@@ -349,6 +399,8 @@ std::set<int> CpmVolume::CollectSkippedSlots (const vector<Byte> & directory, in
         {
             listed[bytes[s_kOffBlocks + i]] += (bytes[s_kOffBlocks + i] != 0) ? 1 : 0;
         }
+
+        extents[GetExtentKey (bytes)]++;
     }
 
     for (int slot = 0; slot < limit; slot++)
@@ -358,6 +410,11 @@ std::set<int> CpmVolume::CollectSkippedSlots (const vector<Byte> & directory, in
         if (bytes[0] == kFree || skipped.contains (slot))
         {
             continue;
+        }
+
+        if (extents[GetExtentKey (bytes)] > 1)
+        {
+            skipped.insert (slot);
         }
 
         for (size_t i = 0; i < (size_t) s_kBlocksPerEntry; i++)
@@ -370,6 +427,36 @@ std::set<int> CpmVolume::CollectSkippedSlots (const vector<Byte> & directory, in
     }
 
     return skipped;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CpmVolume::GetExtentKey
+//
+//  An entry's user, name and extent number, with the attribute bits cleared.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CpmVolume::GetExtentKey (std::span<const Byte> entry)
+{
+    std::string  key;
+
+
+
+    key.push_back ((char) entry[0]);
+
+    for (size_t i = 0; i < s_kNameBytes; i++)
+    {
+        key.push_back ((char) (entry[s_kOffName + i] & ~s_kHighBit));
+    }
+
+    key.push_back ((char) entry[s_kOffExtent]);
+
+    return key;
 }
 
 
@@ -947,6 +1034,19 @@ HRESULT CpmVolume::Enumerate (VolumeListing & outListing) const
         outListing.damage.push_back ((invalid == 1) ? std::string ("There is 1 directory entry that isn't a valid CP/M entry")
                                                     : std::format ("There are {} directory entries that aren't valid CP/M entries", invalid));
         outListing.damage.back() += IsReadOnly() ? ", so the disk is treated as read-only to prevent further damage" : "";
+    }
+
+    //  A file's extents are numbered from 0; a gap is part of the file lost.
+    for (const RawFile & file : files)
+    {
+        for (size_t i = 0; i < file.extents.size(); i++)
+        {
+            if (file.extents[i].extent != (int) i)
+            {
+                outListing.damage.push_back (std::format ("{} is incomplete: part of its data is missing from the directory", file.name));
+                break;
+            }
+        }
     }
 
     hr = BuildIntegrityReport (report);

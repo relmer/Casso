@@ -584,6 +584,7 @@
     <ClCompile Include="CassoExplorer\Model\BrowserModel.cpp" />
     <ClCompile Include="CassoExplorer\Model\CassoTargeting.cpp" />
     <ClCompile Include="CassoExplorer\Model\CassoExplorerPrefs.cpp" />
+    <ClCompile Include="CassoExplorer\Model\NewFileMarks.cpp" />
     <ClCompile Include="CassoExplorer\Model\GroupChoices.cpp" />
     <ClCompile Include="CassoExplorer\Model\RowGrouping.cpp" />
     <ClCompile Include="CassoExplorer\Model\TypedPathHistory.cpp" />
@@ -1896,6 +1897,7 @@
     <ClInclude Include="CassoExplorer\Model\BrowserModel.h" />
     <ClInclude Include="CassoExplorer\Model\CassoTargeting.h" />
     <ClInclude Include="CassoExplorer\Model\CassoExplorerPrefs.h" />
+    <ClInclude Include="CassoExplorer\Model\NewFileMarks.h" />
     <ClInclude Include="CassoExplorer\Model\GroupChoices.h" />
     <ClInclude Include="CassoExplorer\Model\RowGrouping.h" />
     <ClInclude Include="CassoExplorer\Model\TypedPathHistory.h" />

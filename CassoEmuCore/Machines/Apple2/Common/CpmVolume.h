@@ -154,7 +154,9 @@ private:
     static bool         TryParseName     (const std::string & name, ParsedName & outParsed);
     static std::string  MakeName         (const ParsedName & parsed);
     static bool         IsPlausibleEntry (std::span<const Byte> entry);
+    static bool         IsVisibleEntry   (std::span<const Byte> entry);
     static bool         IsFreeSlot       (std::span<const Byte> entry);
+    static std::string  GetExtentKey     (std::span<const Byte> entry);
     static bool         HasInvalidEntry  (const vector<Byte> & sectors);
 
     void  ReadDirectory (vector<Byte> & outDirectory) const;
@@ -180,7 +182,8 @@ private:
 
     //  The slots in use that a lenient read skips, and how many slots are in
     //  use: an entry that isn't plausible, has a user other than 0 to 15 or the
-    //  system's 31, or lists a block another entry lists.
+    //  system's 31, lists a block another entry lists, or has the extent
+    //  number of another entry of the same file.
     static std::set<int>  CollectSkippedSlots (const vector<Byte> & directory, int & outInUse);
 
     //  How many slots this disk's system reads: kEntries when a valid entry is

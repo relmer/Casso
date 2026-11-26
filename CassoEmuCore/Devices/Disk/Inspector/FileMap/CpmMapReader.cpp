@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Devices/Disk/Inspector/FileMap/CpmMapReader.h"
+#include "Machines/Apple2/Common/CpmVolume.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 
 
 
@@ -20,7 +22,6 @@ static constexpr int   s_kRecordCount   = 15;
 static constexpr int   s_kBlocks        = 16;
 static constexpr int   s_kReadOnly      = 9;
 static constexpr int   s_kSystemTracks  = 3;
-static constexpr int   s_kFoundEntries  = 3;
 static constexpr Byte  s_kHighBit       = 0x80;
 static constexpr int   s_kDirectoryBlock = 1;
 static constexpr int   s_kFirstFileBlock = 2;
@@ -89,7 +90,42 @@ bool CpmMapReader::IsFound (const SectorSource & source)
         }
     }
 
-    return (valid >= 1 && invalid == 0) || (valid >= s_kFoundEntries && valid > invalid) || free == kEntries;
+    return (valid >= 1 && invalid == 0) || free == kEntries || IsFoundLenient (source);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CpmMapReader::IsFoundLenient
+//
+//  The disk's readable sectors in DOS logical order, read as CpmVolume reads
+//  a damaged directory, so the inspector and the listing find the same disks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CpmMapReader::IsFoundLenient (const SectorSource & source)
+{
+    vector<Byte>  sectors ((size_t) NibbleFormat::kImageByteSize, 0);
+
+
+
+    for (int track = 0; track < SectorSource::kTracks; track++)
+    {
+        for (int logical = 0; logical < SectorSource::kSectors; logical++)
+        {
+            const SectorSource::Sector &  sector = source.GetDos33 (track, logical);
+
+            if (sector.bytes != nullptr && SectorSource::IsReadable (sector.result))
+            {
+                std::copy_n (sector.bytes, NibbleFormat::kSectorByteSize, sectors.begin() + (ptrdiff_t) (((size_t) track * SectorSource::kSectors + (size_t) logical) * NibbleFormat::kSectorByteSize));
+            }
+        }
+    }
+
+    return CpmVolume::IsFoundLenient (sectors);
 }
 
 
