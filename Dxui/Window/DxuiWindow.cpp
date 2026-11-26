@@ -640,11 +640,7 @@ DxuiMessageResult DxuiWindow::OnLButtonDown (WPARAM wParam, LPARAM lParam)
         SetFocus   (hwnd);
     }
 
-    return DispatchMouse (DxuiMouseEventKind::Down,
-                          DxuiMouseButton::Left,
-                          (int) (short) LOWORD (lParam),
-                          (int) (short) HIWORD (lParam),
-                          0.0f);
+    return m_mouse.OnButton (DxuiMouseEventKind::Down, DxuiMouseButton::Left, lParam);
 }
 
 
@@ -663,11 +659,7 @@ DxuiMessageResult DxuiWindow::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
     ReleaseCapture();
 
-    return DispatchMouse (DxuiMouseEventKind::Up,
-                          DxuiMouseButton::Left,
-                          (int) (short) LOWORD (lParam),
-                          (int) (short) HIWORD (lParam),
-                          0.0f);
+    return m_mouse.OnButton (DxuiMouseEventKind::Up, DxuiMouseButton::Left, lParam);
 }
 
 
@@ -693,11 +685,7 @@ DxuiMessageResult DxuiWindow::OnRButtonDown (WPARAM wParam, LPARAM lParam)
         SetFocus (hwnd);
     }
 
-    return DispatchMouse (DxuiMouseEventKind::Down,
-                          DxuiMouseButton::Right,
-                          (int) (short) LOWORD (lParam),
-                          (int) (short) HIWORD (lParam),
-                          0.0f);
+    return m_mouse.OnButton (DxuiMouseEventKind::Down, DxuiMouseButton::Right, lParam);
 }
 
 
@@ -717,11 +705,7 @@ DxuiMessageResult DxuiWindow::OnRButtonUp (WPARAM wParam, LPARAM lParam)
 {
     UNREFERENCED_PARAMETER (wParam);
 
-    return DispatchMouse (DxuiMouseEventKind::Up,
-                          DxuiMouseButton::Right,
-                          (int) (short) LOWORD (lParam),
-                          (int) (short) HIWORD (lParam),
-                          0.0f);
+    return m_mouse.OnButton (DxuiMouseEventKind::Up, DxuiMouseButton::Right, lParam);
 }
 
 
@@ -743,11 +727,7 @@ DxuiMessageResult DxuiWindow::OnXButtonUp (WPARAM wParam, LPARAM lParam)
 
 
 
-    return DispatchMouse (DxuiMouseEventKind::Up,
-                          button,
-                          (int) (short) LOWORD (lParam),
-                          (int) (short) HIWORD (lParam),
-                          0.0f);
+    return m_mouse.OnButton (DxuiMouseEventKind::Up, button, lParam);
 }
 
 
@@ -762,21 +742,7 @@ DxuiMessageResult DxuiWindow::OnXButtonUp (WPARAM wParam, LPARAM lParam)
 
 DxuiMessageResult DxuiWindow::OnMouseMove (WPARAM wParam, LPARAM lParam)
 {
-    // WM_MOUSEMOVE carries the held-button state in wParam (MK_LBUTTON).
-    // Forward it so controls can distinguish a drag (button held) from a
-    // hover: a scrollbar-thumb / selection drag relies on Move events still
-    // reporting Left, otherwise the control reads the first drag-move as a
-    // button release and aborts the drag.
-    DxuiMouseButton  button = (wParam & MK_LBUTTON) ? DxuiMouseButton::Left
-                                                    : DxuiMouseButton::None;
-
-
-
-    return DispatchMouse (DxuiMouseEventKind::Move,
-                          button,
-                          (int) (short) LOWORD (lParam),
-                          (int) (short) HIWORD (lParam),
-                          0.0f);
+    return m_mouse.OnMove (wParam, lParam);
 }
 
 
@@ -787,24 +753,13 @@ DxuiMessageResult DxuiWindow::OnMouseMove (WPARAM wParam, LPARAM lParam)
 //
 //  OnMouseLeave
 //
-//  The pointer left the client area, off the window or onto its frame. The
-//  panel tree is sent DxuiMouseEventKind::Leave, so hover states and tips
-//  over the content end however fast the pointer went; the last move may
-//  have been over a row. Not while the window has the capture, so a drag
-//  continues until its release. NotHandled, so DefWindowProc is called too.
+//  NotHandled, so DefWindowProc is called too.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiMessageResult DxuiWindow::OnMouseLeave()
 {
-    HWND  hwnd = GetHwnd();
-
-
-
-    if (hwnd != nullptr && GetCapture() != hwnd)
-    {
-        (void) DispatchMouse (DxuiMouseEventKind::Leave, DxuiMouseButton::None, SHRT_MIN, SHRT_MIN, 0.0f);
-    }
+    m_mouse.OnLeave();
 
     return DxuiMessageResult::NotHandled;
 }
@@ -817,38 +772,11 @@ DxuiMessageResult DxuiWindow::OnMouseLeave()
 //
 //  OnMouseWheel
 //
-//  WM_MOUSEWHEEL packs the point in SCREEN coordinates; convert to the
-//  client space the panel tree hit-tests in before dispatching.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiMessageResult DxuiWindow::OnMouseWheel (WPARAM wParam, LPARAM lParam, bool horizontal)
 {
-    HWND               hwnd   = GetHwnd();
-    POINT              point  = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
-    float              notch  = (float) GET_WHEEL_DELTA_WPARAM (wParam) / (float) WHEEL_DELTA;
-    DxuiMessageResult  result = DxuiMessageResult::NotHandled;
-
-
-
-    if (hwnd != nullptr)
-    {
-        ScreenToClient (hwnd, &point);
-    }
-
-    //  The message's flags are the keys as they were when the wheel turned.
-    m_wheelCtrl = (GET_KEYSTATE_WPARAM (wParam) & MK_CONTROL) != 0;
-
-    result = DispatchMouse (DxuiMouseEventKind::Wheel,
-                            DxuiMouseButton::None,
-                            point.x,
-                            point.y,
-                            notch,
-                            horizontal);
-
-    m_wheelCtrl = false;
-
-    return result;
+    return m_mouse.OnWheel (wParam, lParam, horizontal);
 }
 
 
@@ -1267,101 +1195,22 @@ void DxuiWindow::OnDestroy()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DispatchMouse
+//  RouteOverlayMouse
 //
-//  Builds a client-pixel DxuiMouseEvent (plus live modifier state) and
-//  routes it through this panel's OnMouse, mapping the bool result onto
-//  the host client Handled / NotHandled contract.
+//  A modal overlay captures all mouse input so the page beneath it stays
+//  inert (clicks outside the overlay dialog are simply ignored).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiMessageResult DxuiWindow::DispatchMouse (DxuiMouseEventKind kind,
-                                             DxuiMouseButton    button,
-                                             int                x,
-                                             int                y,
-                                             float              wheelDelta,
-                                             bool               wheelHorizontal)
+bool DxuiWindow::RouteOverlayMouse (const DxuiMouseEvent & ev)
 {
-    DxuiMouseEvent     ev;
-    DxuiMessageResult  result = DxuiMessageResult::NotHandled;
-
-
-
-    ev.kind            = kind;
-    ev.button          = button;
-    ev.positionDip     = { x, y };
-    ev.wheelDelta      = wheelDelta;
-    ev.wheelHorizontal = wheelHorizontal;
-    ev.shift       = (GetKeyState (VK_SHIFT)   & 0x8000) != 0;
-    ev.ctrl        = m_wheelCtrl || (GetKeyState (VK_CONTROL) & 0x8000) != 0;
-    ev.alt         = (GetKeyState (VK_MENU)    & 0x8000) != 0;
-
-    BeginPaintBatch();
-
-    // A modal overlay captures all mouse input so the page beneath it stays
-    // inert (clicks outside the overlay dialog are simply ignored).
-    if (HasModalOverlay())
+    if (!HasModalOverlay())
     {
-        result = DxuiMessageResult::Handled;
-        (void) OnOverlayMouse (ev);
-    }
-    else
-    {
-        // In a dialog a press focuses the control under it before the control
-        // sees the press, so a drop-down or slider already has focus when it
-        // handles the click, and Tab continues from it.
-        //  A press anywhere but on a pinned info tip's "i" closes the tip.
-        if (kind == DxuiMouseEventKind::Down)
-        {
-            DxuiInfoTip::CloseOpenOutside (ev.positionDip);
-        }
-
-        if (kind == DxuiMouseEventKind::Down && m_dialog.IsActive() && m_focus.FocusAtPoint (POINT { x, y }))
-        {
-            Invalidate();
-        }
-
-        //  A move with no button down changes the controls under the pointer,
-        //  and the pointer's exit from the window empties them. During a drag
-        //  they aren't updated, so the control dragged from stays on the path.
-        if ((kind == DxuiMouseEventKind::Move && button == DxuiMouseButton::None) || kind == DxuiMouseEventKind::Leave)
-        {
-            if (m_pointerPath.Update (*this, POINT { x, y }, kind == DxuiMouseEventKind::Leave))
-            {
-                Invalidate();
-            }
-        }
-
-        //  A right-press on a scrollbar opens the bar's own menu, as Windows'
-        //  bars do, before the control or the window has the press.
-        if (kind == DxuiMouseEventKind::Down && button == DxuiMouseButton::Right && ShowScrollbarMenuIn (*this, GetHwnd(), POINT { x, y }))
-        {
-            result = DxuiMessageResult::Handled;
-        }
-        else if (OnMouse (ev))
-        {
-            // Repaint immediately when a control consumes the event so drags
-            // (slider thumbs, scrubbing) and hover states track the cursor every
-            // frame instead of only on the ~half-second dialog tick.
-            // InvalidateRect coalesces, so at most one paint lands per frame
-            // regardless of mouse-move rate.
-            result = DxuiMessageResult::Handled;
-            Invalidate();
-        }
-
-        //  A context menu open in a dialog is ticked from here; otherwise only
-        //  an application window ticks one.
-        if (m_dialog.IsActive() && m_source != nullptr && m_source->GetContextMenu().IsVisible())
-        {
-            HRESULT  hr = m_source->SetTimer (s_kMenuTimerId, s_kMenuTickMs);
-
-            IGNORE_RETURN_VALUE (hr, S_OK);
-        }
+        return false;
     }
 
-    EndPaintBatch();
-
-    return result;
+    (void) OnOverlayMouse (ev);
+    return true;
 }
 
 
@@ -1370,33 +1219,42 @@ DxuiMessageResult DxuiWindow::DispatchMouse (DxuiMouseEventKind kind,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShowScrollbarMenuIn
+//  FocusPressedControl
 //
-//  The control itself first, then the visible child under the point, down
-//  to the control whose bar it is on. A container that clips its children
-//  there, as a scrolled page does, is not searched below.
+//  In a dialog a press focuses the control under it before the control sees
+//  the press.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiWindow::ShowScrollbarMenuIn (IDxuiControl & control, HWND hwnd, POINT clientPx)
+void DxuiWindow::FocusPressedControl (POINT clientPx)
 {
-    bool    shown = control.ShowScrollbarMenu (hwnd, clientPx);
-    size_t  count = control.GetChildCount();
-
-
-
-    for (size_t i = 0; !shown && !control.IsPointClipped (clientPx) && i < count; i++)
+    if (m_dialog.IsActive() && m_focus.FocusAtPoint (clientPx))
     {
-        IDxuiControl  * child = control.GetChild (i);
-        RECT            rc    = (child != nullptr) ? child->GetBounds() : RECT {};
-
-        if (child != nullptr && child->IsVisible() && PtInRect (&rc, clientPx))
-        {
-            shown = ShowScrollbarMenuIn (*child, hwnd, clientPx);
-        }
+        Invalidate();
     }
+}
 
-    return shown;
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TickDialogMenu
+//
+//  A context menu open in a dialog is ticked from here; otherwise only an
+//  application window ticks one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::TickDialogMenu()
+{
+    if (m_dialog.IsActive() && m_source != nullptr && m_source->GetContextMenu().IsVisible())
+    {
+        HRESULT  hr = m_source->SetTimer (s_kMenuTimerId, s_kMenuTickMs);
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
 }
 
 

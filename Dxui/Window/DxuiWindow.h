@@ -3,9 +3,9 @@
 #include "Pch.h"
 #include "Core/DxuiPanel.h"
 #include "Core/DxuiFocusManager.h"
-#include "Core/DxuiPointerPath.h"
 #include "Window/DxuiDialogController.h"
 #include "Window/DxuiHwndSource.h"
+#include "Window/DxuiMouseRouter.h"
 #include "Window/IDxuiDialogHost.h"
 #include "Window/IDxuiHostClient.h"
 
@@ -45,7 +45,10 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 
-class DxuiWindow : public DxuiPanel, private IDxuiHostClient, private IDxuiDialogHost
+class DxuiWindow : public DxuiPanel,
+                   private IDxuiHostClient,
+                   private IDxuiDialogHost,
+                   private IDxuiMouseRouterHost
 {
 public:
     struct CreateParams
@@ -404,16 +407,18 @@ private:
     DxuiMessageResult  OnClose         () override;
     void               OnDestroy       () override;
 
-    DxuiMessageResult  DispatchMouse (DxuiMouseEventKind kind,
-                                      DxuiMouseButton    button,
-                                      int                x,
-                                      int                y,
-                                      float              wheelDelta,
-                                      bool               wheelHorizontal = false);
     DxuiMessageResult  DispatchKey       (DxuiKeyEventKind kind, WPARAM code);
     DxuiMessageResult  DispatchDialogKey (WPARAM vk);
 
-    static bool        ShowScrollbarMenuIn (IDxuiControl & control, HWND hwnd, POINT clientPx);
+    //  IDxuiMouseRouterHost
+    IDxuiControl &     GetMouseRoot        () override                            { return *this; }
+    HWND               GetMouseHwnd        () const override                      { return GetHwnd(); }
+    bool               RouteOverlayMouse   (const DxuiMouseEvent & ev) override;
+    void               FocusPressedControl (POINT clientPx) override;
+    void               TickDialogMenu      () override;
+    void               BeginMouseBatch     () override                            { BeginPaintBatch(); }
+    void               EndMouseBatch       () override                            { EndPaintBatch(); }
+    void               InvalidateForMouse  () override                            { Invalidate(); }
 
     std::unique_ptr<DxuiHwndSource>    m_source;
     SIZE                               m_minSizeDip      = { 0, 0 };
@@ -422,11 +427,10 @@ private:
     IDxuiControl                     * m_initialFocus    = nullptr;
     DxuiFocusManager                   m_focus;
     DxuiDialogController               m_dialog          { *this, m_focus, *this };
-    bool                               m_wheelCtrl       = false;   // Ctrl, by the flags of the wheel message being dispatched
-    int                                m_batchDepth      = 0;       // paint batches open, nested ones included
+    int                              m_batchDepth      = 0;       // paint batches open, nested ones included
     bool                               m_paintAfterBatch = false;   // invalidated during the open batch
     UINT                               m_dialogTickMs    = kDefaultDialogTickMs;   // dialog repaint / tick cadence (caret-blink default)
     std::function<void (int)>        m_onDialogEnd;            // modeless close callback
     std::function<void ()>           m_onModalLoopTick;        // OS size/move-loop keep-alive tick
-    DxuiPointerPath                  m_pointerPath;            // the controls under the pointer, outermost first
+    DxuiMouseRouter                    m_mouse           { *this };
 };
