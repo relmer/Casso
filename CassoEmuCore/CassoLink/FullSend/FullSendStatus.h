@@ -38,6 +38,7 @@ enum class FullSendTrackMark : Byte
     Verified,
     Unreliable,
     Unreadable,
+    NotInImage,     // a write: the image has no data for the track
 };
 
 enum class FullSendPositionMark : Byte

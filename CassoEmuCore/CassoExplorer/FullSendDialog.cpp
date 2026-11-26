@@ -22,6 +22,7 @@ uint32_t FullSendPanel::GetColor (FullSendTrackMark mark, const IDxuiTheme & the
         case FullSendTrackMark::Verified:   return 0xFF2EA043;
         case FullSendTrackMark::Unreliable: return 0xFFD29922;
         case FullSendTrackMark::Unreadable: return 0xFFDA3633;
+        case FullSendTrackMark::NotInImage: return theme.ForegroundMuted();
         default:                            return theme.BackgroundElevated();
     }
 }
@@ -210,7 +211,7 @@ std::wstring FullSendPanel::DescribeSummary (const FullSendSnapshot & snapshot, 
 std::wstring FullSendPanel::DescribeCell (const FullSendDriveStatus & drive, int position)
 {
     std::wstring  track = (position % 4 == 0) ? std::format (L"Track {}", position / 4) : std::format (L"Track {:.2f}", position / 4.0);
-    std::wstring  state = L"not read yet";
+    std::wstring  state = drive.writing ? L"not written yet" : L"not read yet";
 
 
 
@@ -228,11 +229,12 @@ std::wstring FullSendPanel::DescribeCell (const FullSendDriveStatus & drive, int
     {
         switch (drive.tracks[(size_t) position / 4])
         {
-            case FullSendTrackMark::Read:       state = L"read";                                  break;
-            case FullSendTrackMark::Verified:   state = L"read and verified";                     break;
-            case FullSendTrackMark::Unreliable: state = L"a sector's reads disagree";             break;
-            case FullSendTrackMark::Unreadable: state = L"a sector could not be read";            break;
-            default:                                                                              break;
+            case FullSendTrackMark::Read:       state = drive.writing ? L"written" : L"read";                           break;
+            case FullSendTrackMark::Verified:   state = drive.writing ? L"written and verified" : L"read and verified"; break;
+            case FullSendTrackMark::NotInImage: state = L"no data in the image";                                        break;
+            case FullSendTrackMark::Unreliable: state = L"a sector's reads disagree";                                   break;
+            case FullSendTrackMark::Unreadable: state = L"a sector could not be read";                                  break;
+            default:                                                                                                    break;
         }
     }
 
@@ -1201,7 +1203,7 @@ float FullSendPanel::PaintLegend (IDxuiPainter & painter, IDxuiTextRenderer & te
         const wchar_t  * label;
     };
 
-    const Entry  entries[] =
+    const Entry  readEntries[] =
     {
         { GetColor (FullSendTrackMark::Read, theme),          L"Read" },
         { GetColor (FullSendTrackMark::Verified, theme),      L"Verified" },
@@ -1210,12 +1212,22 @@ float FullSendPanel::PaintLegend (IDxuiPainter & painter, IDxuiTextRenderer & te
         { GetColor (FullSendPositionMark::Unstable, theme),   L"Reads differ in length" },
     };
 
-    HRESULT  hr     = S_OK;
-    RECT     bounds = GetBounds();
-    float    x      = (float) bounds.left;
-    float    lineH  = m_scaler.ToPxf (kLineDip);
-    float    swatch = m_scaler.ToPxf (kSwatchDip);
-    float    gap    = m_scaler.ToPxf (kColumnGapDip);
+    const Entry  writeEntries[] =
+    {
+        { GetColor (FullSendTrackMark::Read, theme),          L"Written" },
+        { GetColor (FullSendTrackMark::Verified, theme),      L"Verified" },
+        { GetColor (FullSendTrackMark::NotInImage, theme),    L"No data in the image" },
+    };
+
+    HRESULT                 hr      = S_OK;
+    RECT                    bounds  = GetBounds();
+    float                   x       = (float) bounds.left;
+    float                   lineH   = m_scaler.ToPxf (kLineDip);
+    float                   swatch  = m_scaler.ToPxf (kSwatchDip);
+    float                   gap     = m_scaler.ToPxf (kColumnGapDip);
+    bool                    writing = (m_view.snapshot.present[0] && m_view.snapshot.drives[0].writing)
+                                   || (m_view.snapshot.present[1] && m_view.snapshot.drives[1].writing);
+    std::span<const Entry>  entries = writing ? std::span<const Entry> (writeEntries) : std::span<const Entry> (readEntries);
 
 
 

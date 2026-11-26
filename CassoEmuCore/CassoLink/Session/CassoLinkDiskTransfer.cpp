@@ -1300,6 +1300,29 @@ HRESULT CassoLinkDiskTransfer::WriteRawDisk (LinkOperation & operation, const st
         }
     }
 
+    //  A track the image has nothing on, as past the end of a disk that uses
+    //  fewer than 35 tracks, is marked so, not left as not yet written.
+    if (operation.status != nullptr && (operation.drive == 1 || operation.drive == 2))
+    {
+        std::array<bool, FullSendDriveStatus::kTracks>  hasData = {};
+
+        for (const RawWriteTrack & track : tracks)
+        {
+            if (track.position / DiskImage::kQuarterTracksPerWholeTrack < FullSendDriveStatus::kTracks)
+            {
+                hasData[(size_t) (track.position / DiskImage::kQuarterTracksPerWholeTrack)] = true;
+            }
+        }
+
+        for (int track = 0; track < FullSendDriveStatus::kTracks; track++)
+        {
+            if (!hasData[(size_t) track])
+            {
+                operation.status->MarkTrack (operation.drive, track, FullSendTrackMark::NotInImage);
+            }
+        }
+    }
+
     if (wraps == 1)
     {
         operation.message = std::format ("Track {} is longer than the disk allows, so it wrapped around. This copy may not work.", wrapped);
