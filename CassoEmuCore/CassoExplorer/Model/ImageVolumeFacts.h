@@ -22,6 +22,7 @@ struct VolumeFacts
 {
     std::wstring  fileSystem;
     std::wstring  volumeName;
+    std::wstring  problem;      // why the image can't be opened, or empty
 
     bool  operator== (const VolumeFacts &) const = default;
 };

@@ -1410,11 +1410,12 @@ const std::vector<DxuiListView::Cell> & ExplorerListPane::GetListRowCells (int r
             cells[0].iconGhosted = true;
         }
 
-        //  A disk image that is not one says so on its icon.
-        if (rows[(size_t) row].isDiskImage && m_rowLocation.kind == Location::Kind::HostFolder && BrowserRowPaths::TryGetRowPath (m_context.browser.GetRowListing(), row, path))
+        //  A disk image that is not one says so on its icon, once the image
+        //  is read in the background.
+        if (rows[(size_t) row].isDiskImage && m_rowLocation.kind == Location::Kind::HostFolder)
         {
-            m_rowProblems[(size_t) row] = m_context.browser.GetLoader().GetImageProblem (path);
-            cells[0].iconBroken                  = !m_rowProblems[(size_t) row].empty();
+            m_rowProblems[(size_t) row] = rows[(size_t) row].imageProblem;
+            cells[0].iconBroken         = !m_rowProblems[(size_t) row].empty();
         }
 
         //  A file that arrived in a receiving folder since its last listing.
@@ -1538,6 +1539,12 @@ void ExplorerListPane::RefreshVolumeCells()
         {
             m_rowCells[at][fileSystem].text = rows[at].collection.fileSystem;
             m_rowCells[at][volumeName].text = rows[at].collection.volumeName;
+        }
+
+        if (m_rowBuilt[at] && !m_rowCells[at].empty() && at < m_rowProblems.size() && rows[at].isDiskImage && m_rowLocation.kind == Location::Kind::HostFolder)
+        {
+            m_rowProblems[at]           = rows[at].imageProblem;
+            m_rowCells[at][0].iconBroken = !m_rowProblems[at].empty();
         }
     }
 

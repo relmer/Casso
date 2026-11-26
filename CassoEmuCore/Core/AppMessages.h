@@ -59,4 +59,5 @@ enum class AppMessage : UINT
     ExplorerVolumeFacts    = WM_APP + 0x4C,   // an image's file system and volume name were read, posted to the Explorer window
     ExplorerAssocChanged   = WM_APP + 0x4E,   // the shell's notice that a file association changed, sent to the Explorer window
     ExplorerFileSystemCheck = WM_APP + 0x4F,  // an image's file system was checked, posted to the Explorer window
+    ExplorerTreeIcons      = WM_APP + 0x50,   // the tree's icons were read, posted to the Explorer window
 };

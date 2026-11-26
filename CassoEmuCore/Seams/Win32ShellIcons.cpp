@@ -82,6 +82,23 @@ void Win32ShellIcons::LoadInBackground (HWND hwnd, UINT message)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32ShellIcons::LoadTreeInBackground
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32ShellIcons::LoadTreeInBackground (HWND hwnd, UINT message)
+{
+    m_treeOnly = true;
+
+    LoadInBackground (hwnd, message);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32ShellIcons::TakeLoaded
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -893,9 +910,16 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetIconForPath (const std:
         return m_lastThumbnails.contains (path) ? m_lastThumbnails[path] : waiting;
     }
 
+    //  A tree folder that can't have a desktop.ini or a cloud state has the
+    //  icon of every plain folder, so the shell isn't asked about it.
+    if (!overlays && isDirectory && IsPlainFolder (path))
+    {
+        return GetForKind (Kind::Folder);
+    }
+
     //  A per-path icon is the slow kind; one by extension is quick, and the
     //  same for every file of its type.
-    if (!m_loaders.empty() && GetCacheKey (path, isDirectory).starts_with (L"*path:"))
+    if (!m_loaders.empty() && (!m_treeOnly || !overlays) && GetCacheKey (path, isDirectory).starts_with (L"*path:"))
     {
         return Queue (key, path, isDirectory, overlays);
     }
@@ -916,6 +940,38 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetIconForPath (const std:
 
         return Remember (key, icon, overlay);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellIcons::IsPlainFolder
+//
+//  The shell reads a folder's desktop.ini only when the folder is read-only
+//  or a system folder. A reparse point can be a cloud folder, and a drive's
+//  root has the drive's icon. A network folder isn't accessed at all.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Win32ShellIcons::IsPlainFolder (const std::wstring & path)
+{
+    DWORD  attributes = 0;
+
+
+
+    if (path.size() <= 3 || path[1] != L':' || PathResolver::IsNetworkPath (path))
+    {
+        return false;
+    }
+
+    attributes = GetFileAttributesW (path.c_str());
+
+    return attributes != INVALID_FILE_ATTRIBUTES
+        && (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0
+        && (attributes & (FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_REPARSE_POINT)) == 0;
 }
 
 

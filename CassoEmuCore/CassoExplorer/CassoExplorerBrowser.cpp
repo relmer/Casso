@@ -401,6 +401,13 @@ VolumeFacts CassoExplorerBrowser::ReadVolumeFacts (const std::string & path)
         facts.volumeName = TextEncoding::NarrowToWide (CollectionWalk::GetVolumeName (contents.listing));
     }
 
+    //  An image with no file system opens to its sectors, so only another
+    //  failure is a problem.
+    if (FAILED (hr) && contents.result.message.find (BrowserLoader::s_kNoFileSystem) == std::string::npos)
+    {
+        facts.problem = contents.error;
+    }
+
     return facts;
 }
 
@@ -441,6 +448,7 @@ void CassoExplorerBrowser::QueueVolumeFacts (const std::wstring & folder)
         {
             row.collection.fileSystem = facts.fileSystem;
             row.collection.volumeName = facts.volumeName;
+            row.imageProblem          = facts.problem;
             continue;
         }
 
@@ -476,7 +484,7 @@ bool CassoExplorerBrowser::ApplyVolumeFacts()
 
 
 
-        if (!row.isDiskImage || row.isDirectory || path.empty() || !row.collection.fileSystem.empty())
+        if (!row.isDiskImage || row.isDirectory || path.empty() || !row.collection.fileSystem.empty() || !row.imageProblem.empty())
         {
             continue;
         }
@@ -485,6 +493,7 @@ bool CassoExplorerBrowser::ApplyVolumeFacts()
         {
             row.collection.fileSystem = facts.fileSystem;
             row.collection.volumeName = facts.volumeName;
+            row.imageProblem          = facts.problem;
             isChanged                 = true;
         }
     }

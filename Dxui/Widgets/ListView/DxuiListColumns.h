@@ -127,4 +127,12 @@ private:
     };
 
     std::map<size_t, FitStop>  m_fitStops;
+
+    //  Each cell text's width at m_measuredFontPx in m_measuredFace, so a
+    //  column fit measures a string once. Cleared when either changes.
+    float  MeasureCellWidth (IDxuiTextRenderer & text, const std::wstring & cell, float fontPx, const wchar_t * face) const;
+
+    mutable std::unordered_map<std::wstring, float>  m_cellWidths;
+    mutable float                                    m_measuredFontPx = 0.0f;
+    mutable const wchar_t                          * m_measuredFace   = nullptr;
 };

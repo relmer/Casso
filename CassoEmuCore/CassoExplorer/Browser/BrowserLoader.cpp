@@ -1851,17 +1851,27 @@ bool BrowserLoader::CanListImage (const std::wstring & imagePath)
         return true;
     }
 
-    if (GetFileAttributesExW (imagePath.c_str(), GetFileExInfoStandard, &file))
+    //  A file inside an image has no attributes of its own, so its answer is
+    //  kept by the time and size of the image file it is in: a write to the
+    //  image reads it again.
+    for (std::filesystem::path at = imagePath; !at.empty(); at = at.parent_path())
     {
-        auto  found = m_unlistable.find (imagePath);
-
-        time = ((uint64_t) file.ftLastWriteTime.dwHighDateTime << 32) | file.ftLastWriteTime.dwLowDateTime;
-        size = ((uint64_t) file.nFileSizeHigh << 32) | file.nFileSizeLow;
-
-        if (found != m_unlistable.end() && found->second.time == time && found->second.size == size)
+        if (GetFileAttributesExW (at.c_str(), GetFileExInfoStandard, &file))
         {
-            return false;
+            time = ((uint64_t) file.ftLastWriteTime.dwHighDateTime << 32) | file.ftLastWriteTime.dwLowDateTime;
+            size = ((uint64_t) file.nFileSizeHigh << 32) | file.nFileSizeLow;
+            break;
         }
+
+        if (at == at.parent_path())
+        {
+            break;
+        }
+    }
+
+    if (auto found = m_unlistable.find (imagePath); found != m_unlistable.end() && found->second.time == time && found->second.size == size)
+    {
+        return false;
     }
 
     result = m_parts.operations.List (TextEncoding::WideToNarrow (imagePath), listing, kind);

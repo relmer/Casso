@@ -235,6 +235,7 @@ void ExplorerWindowParts::Configure()
     treePane.ApplyNavPaneOptions();
     listPane.SizeListIcons();
     listPane.StartLoaders();
+    static_cast<Win32ShellIcons *> (services.shellIcons.get())->LoadTreeInBackground (hwnd, (UINT) AppMessage::ExplorerTreeIcons);
     services.infoTips->Start (hwnd, (UINT) AppMessage::ExplorerInfoTip);
 
     layout.ConfigureWidgets();
@@ -378,6 +379,16 @@ bool ExplorerWindowParts::HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lPar
         if (context.browser.ApplyVolumeFacts())
         {
             listPane.RefreshVolumeCells();
+        }
+
+        return true;
+    }
+
+    if (msg == (UINT) AppMessage::ExplorerTreeIcons)
+    {
+        if (static_cast<Win32ShellIcons *> (services.shellIcons.get())->TakeLoaded())
+        {
+            treePane.RefreshTreeIcons();
         }
 
         return true;

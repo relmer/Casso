@@ -960,6 +960,39 @@ void ExplorerTreePane::RefreshTree()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerTreePane::RefreshTreeIcons
+//
+//  A folder's icon is read in the background; until then its row draws a
+//  plain folder.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerTreePane::RefreshTreeIcons()
+{
+    DxuiTreeNode  fresh;
+    int           row = 0;
+
+
+
+    for (row = 0; row < m_tree->GetVisibleCount(); row++)
+    {
+        DxuiTreeNode *  node = m_tree->GetNodeAtMutable (row);
+
+        if (node != nullptr && m_context.browser.TryGetTreeNode (node->id, fresh))
+        {
+            node->icon = fresh.icon;
+        }
+    }
+
+    m_context.window.Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerTreePane::ShowTreeContextMenu
 //
 ////////////////////////////////////////////////////////////////////////////////

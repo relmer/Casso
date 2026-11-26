@@ -618,8 +618,7 @@ int DxuiListColumns::GetColumnContentWidthPx (IDxuiTextRenderer & text, size_t c
                 }
             }
 
-            hr = text.MeasureString (measured.c_str(), fontPx, m_list.GetBodyFace(), w, h);
-            IGNORE_RETURN_VALUE (hr, S_OK);
+            w = MeasureCellWidth (text, measured, fontPx, m_list.GetBodyFace());
 
             wpx = (std::max) (wpx, (int) std::ceil (w) + extraPx + ((cells[c].icon || (int) c == m_list.m_iconColumn) ? iconPx : 0)
                                 + (m_list.HasCheckBoxSpace (cells[c], c) ? m_list.GetCheckBoxSpanPx() : 0));
@@ -627,6 +626,49 @@ int DxuiListColumns::GetColumnContentWidthPx (IDxuiTextRenderer & text, size_t c
     }
 
     return wpx + padPx;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MeasureCellWidth
+//
+//  The cache is dropped past s_kMaxCellWidths, as a long session browses
+//  many folders.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiListColumns::MeasureCellWidth (IDxuiTextRenderer & text, const std::wstring & cell, float fontPx, const wchar_t * face) const
+{
+    static constexpr size_t  s_kMaxCellWidths = 50000;
+
+    HRESULT  hr = S_OK;
+    float    w  = 0.0f;
+    float    h  = 0.0f;
+
+
+
+    if (fontPx != m_measuredFontPx || face != m_measuredFace || m_cellWidths.size() >= s_kMaxCellWidths)
+    {
+        m_cellWidths.clear();
+        m_measuredFontPx = fontPx;
+        m_measuredFace   = face;
+    }
+
+    if (auto found = m_cellWidths.find (cell); found != m_cellWidths.end())
+    {
+        return found->second;
+    }
+
+    hr = text.MeasureString (cell.c_str(), fontPx, face, w, h);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    m_cellWidths[cell] = w;
+
+    return w;
 }
 
 

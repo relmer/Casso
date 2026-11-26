@@ -121,6 +121,10 @@ struct CatalogRow
     //  A Disk list or Find duplicates row's columns.
     CollectionCells  collection;
 
+    //  Why a host disk image can't be opened, once the image is read in the
+    //  background; empty while it is unread and when it opens.
+    std::wstring  imageProblem;
+
     //  A host file's form factor and formatted size, when it is an image,
     //  and when Casso last loaded it (0 for never). A stock disk's row is
     //  one of the stock system disks, offered before it is downloaded.
