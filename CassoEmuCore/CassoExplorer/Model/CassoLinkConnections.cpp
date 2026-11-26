@@ -1348,6 +1348,36 @@ bool CassoLinkConnections::IsWritingDisk (const std::string & name, int drive) c
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkConnections::IsDriveBusy
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkConnections::IsDriveBusy (const std::string & name, int drive) const
+{
+    std::lock_guard<std::mutex>  lock (m_lock);
+    auto                         found = std::find_if (m_started.begin(), m_started.end(), [&name] (const std::unique_ptr<Link> & link) { return link->settings.name == name; });
+
+
+
+    if (found != m_started.end() && (*found)->session != nullptr && (*found)->session->IsFullSendRunning())
+    {
+        return true;
+    }
+
+    return std::any_of (m_jobs.begin(), m_jobs.end(), [&] (const Job & job)
+    {
+        LinkOperationState  state = job.operation->state;
+
+        return job.link == name && job.operation->drive == drive && (state == LinkOperationState::Queued || state == LinkOperationState::Running);
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkConnections::WaitForFile
 //
 ////////////////////////////////////////////////////////////////////////////////

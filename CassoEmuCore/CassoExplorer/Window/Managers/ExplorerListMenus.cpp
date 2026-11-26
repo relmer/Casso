@@ -4,6 +4,7 @@
 #include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerListMenus.h"
+#include "CassoExplorer/Window/Managers/CassoLinkDriveManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerOpen.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/Window/Panes/ExplorerToolbars.h"
@@ -727,6 +728,11 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
     //  The later submenu first, so the earlier one's place stays where it was.
     InsertSubmenu (items, convertAt, L"Con&vert", L"Windows.Zip.Action", nullptr,                                                   std::move (convertChoices));
     InsertSubmenu (items, cassoAt,   L"C&asso",   nullptr,               m_context.shellIcons.GetForKind (IShellIcons::Kind::Casso), std::move (cassoChoices));
+
+    if (m_context.browser.GetSelectedRows().size() == 1)
+    {
+        m_context.linkDrives.AddWriteToFloppyMenu (items, cassoAt + 1, m_context.cassoTarget.GetSelectedImagePath());
+    }
 
     //  Casso's known folders, from a folder row or from the background of the
     //  folder being shown, as the tree offers them from a node.

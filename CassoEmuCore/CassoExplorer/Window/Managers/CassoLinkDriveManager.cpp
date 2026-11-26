@@ -8,6 +8,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/Actions/ActionsTypes.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
+#include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "CassoExplorer/CassoExplorerNewDiskDialog.h"
 #include "CassoExplorer/CassoExplorerOptionsDialog.h"
 #include "CassoExplorer/CassoExplorerShell.h"
@@ -437,9 +438,15 @@ void CassoLinkDriveManager::StartImageWrite (const Location & drive, const std::
 
     name = TextEncoding::WideToNarrow (link);
 
-    hr = m_context.actions.GetAppleDrive().CheckLinkDisk (name, number, [this, name, number, title, file, imagePath, forceVerify] (bool linkDisk, HRESULT result)
+    if (IsDriveBusy (name, number, slot))
+    {
+        return;
+    }
+
+    hr = m_context.actions.GetAppleDrive().CheckLinkDisk (name, number, [this, name, number, slot, link, title, file, imagePath, forceVerify] (bool linkDisk, HRESULT result)
     {
         std::wstring                   message;
+        std::wstring                   quoted  = file.find (L' ') != std::wstring::npos ? std::format (L"\"{}\"", file) : file;
         CassoExplorerActions::Outcome  outcome;
 
         if (FAILED (result))
@@ -452,10 +459,15 @@ void CassoLinkDriveManager::StartImageWrite (const Location & drive, const std::
                 ? std::format (L"{} has the CassoLink disk this Apple started from. Overwriting it does not end the connection, "
                                L"but the Apple cannot start CassoLink from that disk again until you choose Write CassoLink to disk."
                                L"\n\nOverwrite {} with {}?", title, title, file)
-                : std::format (L"Overwrite {} with {}?\n\nEverything on that disk is replaced.", title, file);
+                : std::format (L"Write {} to {} on {}? Everything on that disk will be overwritten.", quoted, TreeModel::GetLinkDriveLabel (slot, number), DescribeConnection (link));
 
         if (DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, message.c_str(), L"Write image",
-                            MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Overwrite", L"Cancel" }) != IDOK)
+                            MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Write", L"Cancel" }) != IDOK)
+        {
+            return;
+        }
+
+        if (IsDriveBusy (name, number, slot))
         {
             return;
         }
@@ -474,6 +486,34 @@ void CassoLinkDriveManager::StartImageWrite (const Location & drive, const std::
     }
 
     m_context.cassoLinkManager.HandleConnectionChanged();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDriveManager::IsDriveBusy
+//
+//  A busy drive starts nothing and queues nothing: the disk in it could
+//  change before a queued write ran.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkDriveManager::IsDriveBusy (const std::string & name, int number, int slot)
+{
+    CassoLinkConnections  * links = m_context.browser.GetLinks();
+    bool                    busy  = links != nullptr && links->IsDriveBusy (name, number);
+
+
+
+    if (busy)
+    {
+        m_context.window.ShowMessage (std::format (L"Can't write the image now, {} is busy.", TreeModel::GetLinkDriveLabel (slot, number)), MB_ICONWARNING);
+    }
+
+    return busy;
 }
 
 
