@@ -67,7 +67,7 @@ RLEN       = RPAGES * 512
 RNOPS      = 14                 ; the nops in each run: two for each of 7 zero bits
 
         .org $5000
-        .byte 'C', 'M', 3, 3    ; 13-sector, version 3
+        .byte 'C', 'M', 3, 4    ; 13-sector, version 4
         .word PROGVER
         .word modend - $5000
         .word 0                 ; the CRC, which the PC fills in
@@ -126,7 +126,8 @@ wtlink: lda #p_ERRLINK
 wtgot:  lda #>NBUF
         ldy #0
         jsr p_play
-        lda #1
+        lda #1                  ; the one stream of one, for the bar's end
+        sta p_count
         sta p_index
 wtdone: jmp p_opdone
 
@@ -562,7 +563,8 @@ wrplay: php                     ; no interrupt while the track is written
         and #1
         beq wrok
         jsr rqoff
-wrok:   lda #1
+wrok:   lda #1                  ; the one stream of one, for the bar's end
+        sta p_count
         sta p_index
 wrdone: jmp p_opdone
 
