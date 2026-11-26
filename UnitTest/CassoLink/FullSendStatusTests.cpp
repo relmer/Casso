@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoLink/FullSend/FullSendStatus.h"
+#include "CassoLink/FullSend/FullSendManifest.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -157,6 +158,31 @@ public:
 
         rig.status.BeginDisk (2, true, {});
         Assert::IsTrue (rig.status.GetSnapshot().drives[1].secondsLeft < 0.0, L"no verified disk was sent");
+    }
+
+
+
+    TEST_METHOD (ACaptureOnItsOwn_TakesTheTimeFromItsStart)
+    {
+        Rig               rig;
+        FullSendSnapshot  snapshot;
+        FullSendRow       row;
+
+
+
+        rig.now = 340000.0;
+        rig.status.Begin();
+        rig.status.BeginCapture (2);
+        rig.now += 120.0;
+
+        row.file   = "Slot 6 Drive 2.woz";
+        row.drive  = 2;
+        row.status = FullSendManifest::kStatusRawCapture;
+        rig.status.EndDisk (2, row, 0);
+
+        snapshot = rig.status.GetSnapshot();
+
+        Assert::AreEqual (120.0, snapshot.drives[1].elapsed, 0.001);
     }
 
 

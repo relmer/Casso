@@ -377,6 +377,12 @@ void FullSendStatus::BeginCapture (int drive)
 
 
 
+    //  A capture after a sector read of the disk counts from the read's start.
+    if (status.state != FullSendDiskState::Sending)
+    {
+        status.started = m_seconds();
+    }
+
     status.state       = FullSendDiskState::Capturing;
     status.positions.assign (FullSendDriveStatus::kPositions, FullSendPositionMark::Unread);
     status.pass        = 1;
