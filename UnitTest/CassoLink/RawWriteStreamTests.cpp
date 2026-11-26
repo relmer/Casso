@@ -60,7 +60,11 @@ public:
 
 
 
-        AppendByte (0xFF, 2, bits);
+        for (size_t i = 0; i + 1 < RawWriteStream::kSyncRun; i++)
+        {
+            AppendByte (0xFF, 2, bits);
+        }
+
         AppendByte (0xFF, 1, bits);
         AppendByte (0xD5, 0, bits);
         AppendByte (0xAA, 0, bits);
@@ -76,8 +80,51 @@ public:
         Assert::IsFalse (std::any_of (written.begin() + bits.size(), written.end(), [] (uint8_t bit) { return bit != 0; }));
         Assert::AreEqual (written.size(), stream.GetCellCount());
         Assert::AreEqual ((Byte) 2, stream.zeros[0]);
-        Assert::AreEqual ((Byte) 1, stream.zeros[1]);
-        Assert::AreEqual ((Byte) 0xD5, stream.values[2]);
+        Assert::AreEqual ((Byte) 1, stream.zeros[RawWriteStream::kSyncRun - 1]);
+        Assert::AreEqual ((Byte) 0xD5, stream.values[RawWriteStream::kSyncRun]);
+    }
+
+
+    //  A packed track with no run of kSyncRun sync bytes, as Karateka's, starts
+    //  a few bytes before its densest group of D5 AA AA prologs, not at a lone
+    //  sync byte elsewhere.
+    TEST_METHOD (FromBits_WithNoSyncGap_StartsBeforeTheGroupOfPrologs)
+    {
+        static constexpr size_t  kTrack   = 6000;
+        static constexpr size_t  kGroupAt = 3000;
+        static constexpr size_t  kApart   = 40;
+        static constexpr size_t  kLead    = 10;
+
+        std::vector<Byte>  nibbles (kTrack, 0xBD);
+        Bits               bits;
+        RawWriteStream     stream;
+
+
+
+        //  A lone prolog and sync byte apart from the group.
+        nibbles[499]  = 0xFF;
+        nibbles[500]  = 0xD5;
+        nibbles[501]  = 0xAA;
+        nibbles[502]  = 0xAA;
+
+        for (size_t sector = 0; sector < 4; sector++)
+        {
+            nibbles[kGroupAt + kApart * sector]     = 0xD5;
+            nibbles[kGroupAt + kApart * sector + 1] = 0xAA;
+            nibbles[kGroupAt + kApart * sector + 2] = 0xAA;
+        }
+
+        for (size_t i = 0; i < kTrack; i++)
+        {
+            AppendByte (nibbles[i], i == 499 ? 2 : 0, bits);
+        }
+
+        RawWriteStream::FromBits (bits, stream);
+
+        Assert::AreEqual (kTrack, stream.values.size());
+        Assert::AreEqual ((Byte) 0xD5, stream.values[kLead]);
+        Assert::AreEqual ((Byte) 0xAA, stream.values[kLead + 2]);
+        Assert::AreEqual ((Byte) 0xD5, stream.values[kLead + kApart]);
     }
 
 

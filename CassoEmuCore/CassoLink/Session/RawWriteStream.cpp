@@ -23,6 +23,7 @@ void RawWriteStream::FromBits (std::span<const uint8_t> bits, RawWriteStream & o
     size_t                first     = FindByteStart (bits);
     size_t                runAt     = 0;
     size_t                runLength = 0;
+    bool                  sync      = false;
 
 
 
@@ -31,9 +32,9 @@ void RawWriteStream::FromBits (std::span<const uint8_t> bits, RawWriteStream & o
 
     Split (framed, outStream, starts);
 
-    //  The write starts at the longest sync run, however short, so the end of
-    //  the write overlaps sync bytes rather than data.
-    if (!outStream.FindSyncRun (runAt, runLength))
+    //  The write starts at the seam, so the end of the write overlaps sync
+    //  bytes or junk rather than a sector.
+    if (!outStream.FindSeam (runAt, runLength, sync))
     {
         return;
     }
@@ -176,6 +177,68 @@ bool RawWriteStream::FindSyncRun (size_t & outAt, size_t & outLength) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RawWriteStream::FindSeam
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool RawWriteStream::FindSeam (size_t & outAt, size_t & outLength, bool & outSync) const
+{
+    size_t               count  = values.size();
+    size_t               most   = 0;
+    size_t               group  = 0;
+    std::vector<size_t>  prologs;
+
+
+
+    outSync = FindSyncRun (outAt, outLength) && outLength >= kSyncRun;
+
+    if (outSync || count == 0)
+    {
+        return count != 0;
+    }
+
+    for (size_t at = 0; at < count; at++)
+    {
+        if (values[at] == s_kPrologFirst && values[(at + 1) % count] == s_kPrologSecond && values[(at + 2) % count] == s_kPrologSecond)
+        {
+            prologs.push_back (at);
+        }
+    }
+
+    if (prologs.empty())
+    {
+        return outLength > 0;
+    }
+
+    //  The prolog with the most prologs in the s_kGroupBytes from it.
+    for (size_t i = 0; i < prologs.size(); i++)
+    {
+        size_t  within = 0;
+
+        for (size_t other : prologs)
+        {
+            within += (other + count - prologs[i]) % count < s_kGroupBytes ? 1 : 0;
+        }
+
+        if (within > most)
+        {
+            most  = within;
+            group = prologs[i];
+        }
+    }
+
+    outAt     = (group + count - std::min (s_kSeamLead, count - 1)) % count;
+    outLength = 0;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RawWriteStream::FromNibbles
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -276,12 +339,13 @@ bool RawWriteStream::FitToTurn (size_t cells)
     size_t  total     = 0;
     size_t  low       = cells + s_kOverlapCells;
     size_t  high      = cells + 2 * s_kOverlapCells;
+    bool    sync      = false;
 
 
 
-    //  The seam goes in a run too short to trim too, and a track shorter
-    //  than the turn is lengthened there.
-    if (!FindSyncRun (bestAt, bestRun))
+    //  A track shorter than the turn is lengthened at the seam, and only a
+    //  sync run is trimmed.
+    if (!FindSeam (bestAt, bestRun, sync))
     {
         return false;
     }
@@ -291,8 +355,8 @@ bool RawWriteStream::FitToTurn (size_t cells)
     std::rotate (values.begin(), values.begin() + (ptrdiff_t) middle, values.end());
     std::rotate (zeros.begin(),  zeros.begin()  + (ptrdiff_t) middle, zeros.end());
 
-    headSyncs = bestRun - bestRun / 2;
-    tailSyncs = bestRun / 2;
+    headSyncs = sync ? bestRun - bestRun / 2 : 0;
+    tailSyncs = sync ? bestRun / 2 : 0;
     total     = GetCellCount();
 
     while (total > high && headSyncs > s_kMinSyncRun / 2)

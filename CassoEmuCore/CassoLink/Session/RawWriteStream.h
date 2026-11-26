@@ -22,8 +22,8 @@ struct RawWriteTrack;
 //
 //  A WOZ track's bits are split into bytes of eight bits each, and the zero
 //  bits after each are its zeros, up to kMaxZeros. The split starts at the
-//  track's longest run of sync bytes, so the end of its bits, padded to a
-//  whole byte, falls in that run rather than in a sector. A NIB or NB2 track's
+//  track's seam (FindSeam), so the end of its bits, padded to a whole byte,
+//  falls in sync bytes or junk rather than in a sector. A NIB or NB2 track's
 //  nibbles are written as they are, and $FF in a run of kSyncRun or more
 //  is written as a 10-bit sync byte.
 //
@@ -73,12 +73,11 @@ public:
     //  than the module's buffers, or -1.
     static HRESULT  GetImageTracks (std::span<const Byte> fileBytes, std::vector<RawWriteTrack> & outTracks, int & outTooLong);
 
-    //  The stream rotated to start in the middle of its longest run of sync
-    //  bytes, with sync bytes added to or dropped from that run so that it is
-    //  a little longer than `cells`, one turn of the drive: the end of the
-    //  write then overlaps its start within the run. False when the track has
-    //  no run of s_kMinSyncRun sync bytes, or the run is too short to drop
-    //  the excess.
+    //  The stream rotated to start at its seam (FindSeam), the middle of a
+    //  sync run, with sync bytes added there, or dropped from the run, so
+    //  that it is a little longer than `cells`, one turn of the drive: the
+    //  end of the write then overlaps its start at the seam. False when the
+    //  excess can't be dropped.
     bool    FitToTurn (size_t cells);
 
     //  The bits the stream writes, one to a byte, for a check of FromBits.
@@ -97,6 +96,10 @@ private:
     static constexpr Byte    s_kSyncValue     = 0xFF;
     static constexpr size_t  s_kMinSyncRun    = 16;
     static constexpr size_t  s_kOverlapCells  = 40;
+    static constexpr Byte    s_kPrologFirst   = 0xD5;
+    static constexpr Byte    s_kPrologSecond  = 0xAA;
+    static constexpr size_t  s_kGroupBytes    = 200;      // the stretch a group of prologs is counted over
+    static constexpr size_t  s_kSeamLead      = 10;       // the bytes between the seam and the group's first prolog
 
     //  `bits` split into bytes of eight bits each and the zero bits after,
     //  with outStarts each byte's first bit.
@@ -109,6 +112,15 @@ private:
     //  The longest run of sync bytes, which may wrap past the end: its first
     //  byte and length. False for none.
     bool  FindSyncRun (size_t & outAt, size_t & outLength) const;
+
+    //  Where the write's seam goes: the longest run of sync bytes when it has
+    //  kSyncRun or more, with outSync set and outLength its length. A track
+    //  packed too tightly for one, as Karateka's are, has the junk its master
+    //  left in front of its densest group of D5 AA AA prologs, so the seam
+    //  goes s_kSeamLead bytes before that group's first prolog, with
+    //  outLength 0.
+    //  False for an empty stream.
+    bool  FindSeam (size_t & outAt, size_t & outLength, bool & outSync) const;
 
     bool  IsSyncByte (size_t at) const { return values[at] == s_kSyncValue && zeros[at] >= 1 && zeros[at] <= kSyncZeros; }
 };
