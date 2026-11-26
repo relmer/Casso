@@ -89,7 +89,7 @@ struct SettingsUiPrefs
     bool               tapeAutoStop          = true;        // the deck stops at the end of the tape
     bool               tapeIdleStop          = true;        // playback stops once the computer stops reading
     bool               tapeEightBit          = false;       // new blank tapes are 8-bit WAVs rather than 16-bit
-    bool               tapeRecorderConnected = true;        // the cassette recorder is plugged in (Storage menu)
+    bool               tapeRecorderConnected = false;       // the cassette recorder is plugged in (Storage menu)
     bool               writeProtect[2]       = { false, false };
     // //c only: whether the optional external 5.25" drive is plugged into
     // the disk port. Reveals/hides the second drive-mount widget. Defaults

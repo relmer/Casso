@@ -51,7 +51,7 @@ public:
     TEST_METHOD (TwoFloppiesAndAnHd20sc_FloppiesUnderTheMonitor)
     {
         auto  plan = DeskDrivePlan::Place ({ { M::DiskII, 6, 0 }, { M::DiskII, 6, 1 }, { M::HardDisk20SC, 7, 6 } },
-                                           P::Auto, P::Auto, kMonitorII);
+                                           P::Auto, P::Desk, kMonitorII);
 
 
 
@@ -106,7 +106,7 @@ public:
 
 
     //  The shipped //e: two Disk IIs and a UniDisk 3.5 are three floppies, so
-    //  they go on the drive bar; the HD20SC stays on the desk.
+    //  they go on the drive bar, and so does the HD20SC.
     TEST_METHOD (ThreeFloppies_GoOnTheDriveBarByDefault)
     {
         auto  plan = DeskDrivePlan::Place ({ { M::DiskII, 6, 0 }, { M::DiskII, 6, 1 }, { M::UniDisk35, 5, 0 }, { M::HardDisk20SC, 7, 6 } },
@@ -117,7 +117,7 @@ public:
         Assert::IsTrue (Find (plan, M::DiskII, 0).spot == S::DriveBar);
         Assert::IsTrue (Find (plan, M::UniDisk35).spot == S::DriveBar);
         Assert::AreEqual (2, Find (plan, M::UniDisk35).level, L"the narrowest at the top of the bar's stack");
-        Assert::IsTrue (Find (plan, M::HardDisk20SC, 6).spot == S::LeftStack);
+        Assert::IsTrue (Find (plan, M::HardDisk20SC, 6).spot == S::DriveBar);
     }
 
 
@@ -154,7 +154,7 @@ public:
     TEST_METHOD (SingleProFile_UnderTheMonitorAndFloppiesOnTheRight)
     {
         auto  plan = DeskDrivePlan::Place ({ { M::DiskII, 6, 0 }, { M::DiskII, 6, 1 }, { M::ProFile, 2, 0 } },
-                                           P::Auto, P::Auto, kMonitorII);
+                                           P::Auto, P::Desk, kMonitorII);
 
 
 
@@ -167,8 +167,8 @@ public:
     //  The HD20SC is as wide as the //c's monitor, so it goes under it.
     TEST_METHOD (Hd20sc_UnderTheMonitorCOnly)
     {
-        auto  underC  = DeskDrivePlan::Place ({ { M::HardDisk20SC, 7, 6 } }, P::Auto, P::Auto, kMonitorC);
-        auto  underII = DeskDrivePlan::Place ({ { M::HardDisk20SC, 7, 6 } }, P::Auto, P::Auto, kMonitorII);
+        auto  underC  = DeskDrivePlan::Place ({ { M::HardDisk20SC, 7, 6 } }, P::Auto, P::Desk, kMonitorC);
+        auto  underII = DeskDrivePlan::Place ({ { M::HardDisk20SC, 7, 6 } }, P::Auto, P::Desk, kMonitorII);
 
 
 
@@ -344,7 +344,7 @@ public:
     TEST_METHOD (SingleFloppy_GoesOnTheRight)
     {
         auto  plus = DeskDrivePlan::Place ({ { M::Apple35Plus, 0, 0 } }, P::Auto, P::Auto, kMonitorC);
-        auto  iie  = DeskDrivePlan::Place ({ { M::DiskII, 6, 0 }, { M::HardDisk20SC, 7, 6 } }, P::Auto, P::Auto, kMonitorII);
+        auto  iie  = DeskDrivePlan::Place ({ { M::DiskII, 6, 0 }, { M::HardDisk20SC, 7, 6 } }, P::Auto, P::Desk, kMonitorII);
 
 
 
@@ -370,7 +370,7 @@ public:
     //  class set to the desk stays there.
     TEST_METHOD (Settings_OverrideTheCount)
     {
-        auto  plan = DeskDrivePlan::Place ({ { M::DiskII, 6, 0 }, { M::HardDisk20SC, 7, 6 } }, P::Bar, P::Auto, kMonitorII);
+        auto  plan = DeskDrivePlan::Place ({ { M::DiskII, 6, 0 }, { M::HardDisk20SC, 7, 6 } }, P::Bar, P::Desk, kMonitorII);
 
 
 
