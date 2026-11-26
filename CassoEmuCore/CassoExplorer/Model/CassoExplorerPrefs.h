@@ -136,6 +136,9 @@ struct CassoExplorerPrefs
     //  Whether a BASIC listing shows where each line starts in memory.
     bool                   lineAddresses   = false;
 
+    //  Whether a picture preview is drawn through the CRT pass.
+    bool                   previewCrt      = true;
+
     //  The navigation pane's options, from the menu below its last node.
     //  Each is empty, following File Explorer's own setting, until the user
     //  sets it here; then it holds Casso Explorer's value alone.

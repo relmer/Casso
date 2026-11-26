@@ -384,6 +384,7 @@ const ThemeCrtDefaults * PreviewPictureView::GetCrtDefaults()
 //  A preview has a single frame, so persistence, which blends a frame into
 //  the next, is left out. The picture's glow spills past its edges, into a
 //  black margin drawn around it.
+//  With the CRT effect turned off, the picture is drawn as its pixels.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -403,6 +404,14 @@ void PreviewPictureView::UpdateCrtPicture (bool force)
 
     if (preview.kind != PreviewContent::Kind::Picture || preview.bgra.empty() || m_context.window.GetPopupHost() == nullptr)
     {
+        return;
+    }
+
+    if (!m_context.prefs.previewCrt)
+    {
+        m_picture->SetDisplayImage (std::vector<uint32_t>(), 0, 0);
+        m_crtWidth  = 0;
+        m_crtHeight = 0;
         return;
     }
 
@@ -509,6 +518,27 @@ void PreviewPictureView::ShowContextMenu (int x, int y)
     m_context.menus.AddMenuCommand (items, L"&Save picture as...", [this]() { SavePicture(); });
 
     DxuiContextMenu::Show (*m_context.window.GetPopupHost(), x, y, std::move (items));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewPictureView::ToggleCrt
+//
+//  The CRT effect turned on or off for every picture preview, and saved
+//  for the next start.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewPictureView::ToggleCrt()
+{
+    m_context.prefs.previewCrt = !m_context.prefs.previewCrt;
+
+    UpdateCrtPicture (true);
+    m_context.window.Invalidate();
 }
 
 
