@@ -4,7 +4,6 @@
 
 #include "Core/DxuiEvents.h"
 #include "Core/DxuiIconImage.h"
-#include "Core/DxuiWindowSizeMath.h"
 #include "Widgets/DxuiInfoTip.h"
 #include "Widgets/DxuiPopupMenu.h"
 
@@ -38,8 +37,8 @@ HRESULT DxuiWindow::Create (const CreateParams & params)
     BAIL_OUT_IF (m_source != nullptr, S_OK);
     CBRAEx (params.hInstance, E_INVALIDARG);
 
-    m_minSizeDip = params.minSizeDip;
-    m_ownerHwnd  = params.ownerHwnd;
+    m_ownerHwnd = params.ownerHwnd;
+    m_sizer.SetMinSizeDip (params.minSizeDip);
 
     hostParams.title                 = params.title;
     hostParams.hInstance             = params.hInstance;
@@ -643,115 +642,11 @@ DxuiMessageResult DxuiWindow::OnSetCursor (WORD hitTest)
 //
 //  OnGetMinMax
 //
-//  Clamps the OS minimum track size to the configured minimum client
-//  size scaled to the current DPI, and the maximum to what the subclass
-//  reports, never below the minimum. Borderless, so client size and
-//  window size coincide.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiMessageResult DxuiWindow::OnGetMinMax (MINMAXINFO * info)
 {
-    DxuiMessageResult  result = DxuiMessageResult::NotHandled;
-    SIZE               maxPx  = {};
-    bool               hasMax = false;
-    bool               isSet  = false;
-
-
-
-    if (info == nullptr)
-    {
-        return result;
-    }
-
-    hasMax = TryGetMaxTrackSizePx (maxPx);
-    isSet  = DxuiWindowSizeMath::TryApplyTrackLimits (m_minSizeDip, GetDpi(), hasMax, maxPx, *info);
-
-    if (isSet)
-    {
-        result = DxuiMessageResult::Handled;
-    }
-
-    return result;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ResizeToMaxSize
-//
-//  Fit sizes the window to TryGetMaxClientSizePx within its monitor's work
-//  area, and places it there by its creation-time placement. It is called
-//  before the window is first shown, once its content has been laid out.
-//
-//  Grow grows the window toward TryGetMaxClientSizePx within the work area,
-//  and leaves it alone when the content fits.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiWindow::ResizeToMaxSize (MaxSizeMode mode)
-{
-    HRESULT      hr      = S_OK;
-    HWND         hwnd    = GetHwnd();
-    HMONITOR     monitor = nullptr;
-    MONITORINFO  info    = { sizeof (info) };
-    RECT         rect    = {};
-    RECT         fitted  = {};
-    SIZE         maxPx   = {};
-    SIZE         sizePx  = {};
-    POINT        topLeft = {};
-    bool         hasMax  = false;
-    bool         isSame  = false;
-    bool         grows   = false;
-    BOOL         done    = FALSE;
-
-
-
-    CBRA (hwnd != nullptr);
-
-    hasMax = TryGetMaxClientSizePx (maxPx);
-    BAIL_OUT_IF (!hasMax, S_OK);
-
-    done = GetWindowRect (hwnd, &rect);
-    CWRA (done);
-
-    monitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
-    done    = GetMonitorInfoW (monitor, &info);
-    CWRA (done);
-
-    if (mode == MaxSizeMode::Grow)
-    {
-        grows = DxuiWindowSizeMath::TryGetGrownRect (rect, maxPx, info.rcWork, fitted);
-        BAIL_OUT_IF (!grows, S_OK);
-    }
-    else
-    {
-        fitted = DxuiWindowSizeMath::FitRectToMaxSize (rect, maxPx, info.rcWork);
-
-        // The fit runs while the window is still hidden, once its content can
-        // be measured, so it is placed here at the size it really opens at:
-        // the creation-time placement measured a size that was only a guess.
-        sizePx = { fitted.right - fitted.left, fitted.bottom - fitted.top };
-
-        if (m_source->TryGetPlacementForSize (sizePx, topLeft))
-        {
-            fitted = RECT { topLeft.x, topLeft.y, topLeft.x + sizePx.cx, topLeft.y + sizePx.cy };
-        }
-    }
-
-    isSame = EqualRect (&fitted, &rect) != FALSE;
-    BAIL_OUT_IF (isSame, S_OK);
-
-    done = SetWindowPos (hwnd, nullptr, fitted.left, fitted.top,
-                         fitted.right - fitted.left, fitted.bottom - fitted.top,
-                         SWP_NOZORDER | SWP_NOACTIVATE);
-    CWRA (done);
-
-Error:
-    return;
+    return (info != nullptr && m_sizer.GetMinMax (*info)) ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
 }
 
 

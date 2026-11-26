@@ -106,8 +106,8 @@ void DiskInspectorWindow::SetZoom (double zoom)
 
     if (GetHwnd() != nullptr && GetWindowRect (GetHwnd(), &window))
     {
-        SetMinSizeDip ({ static_cast<LONG> (std::min (std::lround (kMinWidthDip  * std::max (1.0, m_zoom)), std::lround ((window.right - window.left) / scale))),
-                         static_cast<LONG> (std::min (std::lround (kMinHeightDip * std::max (1.0, m_zoom)), std::lround ((window.bottom - window.top) / scale))) });
+        GetSizer().SetMinSizeDip ({ static_cast<LONG> (std::min (std::lround (kMinWidthDip  * std::max (1.0, m_zoom)), std::lround ((window.right - window.left) / scale))),
+                                     static_cast<LONG> (std::min (std::lround (kMinHeightDip * std::max (1.0, m_zoom)), std::lround ((window.bottom - window.top) / scale))) });
     }
 
     Layout (m_boundsDip, m_session.hostScaler);

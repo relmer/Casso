@@ -277,6 +277,7 @@
     <ClCompile Include="Window\DxuiKeyRouter.cpp" />
     <ClCompile Include="Window\DxuiMouseRouter.cpp" />
     <ClCompile Include="Window\DxuiWindow.cpp" />
+    <ClCompile Include="Window\DxuiWindowSizer.cpp" />
     <ClCompile Include="Window\DxuiPopupHost.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -438,6 +439,7 @@
     <ClInclude Include="Window\DxuiKeyRouter.h" />
     <ClInclude Include="Window\DxuiMouseRouter.h" />
     <ClInclude Include="Window\DxuiWindow.h" />
+    <ClInclude Include="Window\DxuiWindowSizer.h" />
     <ClInclude Include="Window\IDxuiDialogHost.h" />
     <ClInclude Include="Window\IDxuiHostClient.h" />
     <ClInclude Include="Window\DxuiPopupHost.h" />

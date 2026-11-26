@@ -8,6 +8,7 @@
 #include "Window/DxuiHwndSource.h"
 #include "Window/DxuiKeyRouter.h"
 #include "Window/DxuiMouseRouter.h"
+#include "Window/DxuiWindowSizer.h"
 #include "Window/IDxuiDialogHost.h"
 #include "Window/IDxuiHostClient.h"
 
@@ -52,7 +53,8 @@ class DxuiWindow : public DxuiPanel,
                    private IDxuiDialogHost,
                    private IDxuiMouseRouterHost,
                    private IDxuiKeyRouterHost,
-                   private IDxuiDialogRunnerHost
+                   private IDxuiDialogRunnerHost,
+                   private IDxuiWindowSizerHost
 {
 public:
     struct CreateParams
@@ -205,19 +207,10 @@ public:
     //  prior control drops its caret / focus cue and the new one arms.
     void     FocusControl    (IDxuiControl * ctl) { m_focus.SetFocused (ctl); }
 
-    //
-    //  Resizes the window to TryGetMaxClientSizePx within its monitor's work
-    //  area. Fit grows or shrinks it, for a window opened before its content
-    //  was laid out. Grow never shrinks it, for content that grows while the
-    //  window is open.
-    //
-    enum class MaxSizeMode
-    {
-        Fit,
-        Grow,
-    };
+    //  The window's size limits and its fit to TryGetMaxClientSizePx.
+    using MaxSizeMode = DxuiWindowSizer::MaxSizeMode;
 
-    void     ResizeToMaxSize (MaxSizeMode mode);
+    DxuiWindowSizer &  GetSizer () { return m_sizer; }
 
     bool     IsCreated  () const { return m_source != nullptr; }
     HWND     GetHwnd    () const { return m_source != nullptr ? m_source->GetHwnd() : nullptr; }
@@ -259,8 +252,6 @@ public:
     static constexpr int  kCaptionIconPx = 32;
     void                SetAppIcon         (HICON icon);
 
-    //  The smallest size the user can resize the window to, as at creation.
-    void                SetMinSizeDip      (const SIZE & sizeDip) { m_minSizeDip = sizeDip; }
     int                 GetCaptionHeightPx () const { return m_source != nullptr ? m_source->GetCaptionHeightPx() : 0; }
     UINT                GetDpi             () const { return m_source != nullptr ? m_source->GetScaler().GetDpi() : USER_DEFAULT_SCREEN_DPI; }
 
@@ -433,8 +424,12 @@ private:
     void                NotifyDialogShowing () override                            { OnDialogShowing(); }
     void                NotifyDialogTick    () override                            { OnDialogTick(); Invalidate(); }
 
+    //  IDxuiWindowSizerHost
+    DxuiHwndSource *   GetSizerSource      () const override                      { return m_source.get(); }
+    bool               GetMaxClientSizePx  (SIZE & outSizePx) const override      { return TryGetMaxClientSizePx (outSizePx); }
+    bool               GetMaxTrackSizePx   (SIZE & outSizePx) const override      { return TryGetMaxTrackSizePx (outSizePx); }
+
     std::unique_ptr<DxuiHwndSource>    m_source;
-    SIZE                               m_minSizeDip      = { 0, 0 };
     HWND                               m_ownerHwnd       = nullptr;
     const IDxuiTheme                 * m_theme           = nullptr;
     DxuiFocusManager                   m_focus;
@@ -445,4 +440,5 @@ private:
     DxuiMouseRouter                    m_mouse           { *this };
     DxuiKeyRouter                      m_keys            { *this, m_dialog, m_focus };
     DxuiDialogRunner                   m_dialogRunner    { *this, m_dialog, m_keys };
+    DxuiWindowSizer                    m_sizer           { *this };
 };
