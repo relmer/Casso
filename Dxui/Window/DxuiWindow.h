@@ -434,7 +434,7 @@ private:
     const IDxuiTheme                 * m_theme           = nullptr;
     DxuiFocusManager                   m_focus;
     DxuiDialogController               m_dialog          { *this, m_focus, *this };
-    int                              m_batchDepth      = 0;       // paint batches open, nested ones included
+    int                                m_batchDepth      = 0;   // paint batches open, nested ones included
     bool                               m_paintAfterBatch = false;   // invalidated during the open batch
     std::function<void ()>           m_onModalLoopTick;        // OS size/move-loop keep-alive tick
     DxuiMouseRouter                    m_mouse           { *this };
