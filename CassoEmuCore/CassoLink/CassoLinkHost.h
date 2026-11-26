@@ -371,6 +371,11 @@ public:
     //  sends Ready, which the next operation takes.
     HRESULT  SendLabel    (const std::string & text);
 
+    //  A note on drive 1 or 2's row, cut to CassoLinkCodec::kNoteLength, or
+    //  with an empty text, the note cleared. The program draws it and sends
+    //  Ready.
+    HRESULT  SendDriveNote (Byte drive, const std::string & text);
+
     //  A line for the program's history, newest at the top: the PC's time,
     //  as the Apple may have no clock, then the text, as SendLabel cuts it,
     //  to GetLogLength.

@@ -115,6 +115,9 @@ std::string CassoLinkPacketText::Describe (Byte command, std::span<const Byte> p
         case CassoLinkCodec::kLabel:
             return "Label: " + GetText (payload);
 
+        case CassoLinkCodec::kDriveNote:
+            return (size >= 1) ? std::format ("Drive note for D{}: {}", payload[0], GetText (payload.subspan (1))) : std::string ("Drive note");
+
         case CassoLinkCodec::kLog:
             return (size >= 2) ? std::format ("History line at {:02}:{:02}: {}", payload[0], payload[1], GetText (payload.subspan (2))) : std::string ("History line");
 

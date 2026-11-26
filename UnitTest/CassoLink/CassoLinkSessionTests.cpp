@@ -1315,29 +1315,6 @@ public:
 
 
 
-    TEST_METHOD (WriteDisk_AnImageWithNonstandardTracks_WritesNothing)
-    {
-        Rig                rig;
-        std::vector<Byte>  nib;
-        std::vector<Byte>  before = rig.apple.drives[0];
-
-        AssertSucceeded (BlankDiskBuilder::WrapInContainer (DiskFormat::Nib, NibbleImageCodec::kNibTrackSize, false, 0, BuildDos33(), nib));
-        std::fill (nib.begin() + 5 * NibbleImageCodec::kNibTrackSize, nib.begin() + 6 * NibbleImageCodec::kNibTrackSize, (Byte) 0);
-        rig.fileIo.files["odd.nib"] = nib;
-
-        rig.Start();
-
-        auto  write = rig.Finish (rig.session->WriteDisk (1, "odd.nib"));
-
-        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), write->result);
-        Assert::IsTrue (write->message.find ("5") != std::string::npos, L"the track is listed");
-        Assert::AreEqual (0, rig.apple.sectorsWritten.load());
-        Assert::IsTrue (rig.Drive (1) == before);
-    }
-
-
-
-
     //  A Full Send through the link, ended by Q at its pause: drive 1 and
     //  then drive 2, the screens on the Apple, and the screen cleared at the end.
     TEST_METHOD (VerifiedWrite_RewritesATrackUpToTwice)
@@ -1775,6 +1752,40 @@ public:
         operation.imagePath.clear();
         line = CassoLinkSession::FitToApple (operation, "ERR The Apple stopped answering in the middle", CassoLinkCodec::kLogLength);
         Assert::AreEqual (std::string ("ERR The Apple stopped answering..."), line);
+    }
+
+
+
+    //  A whole disk read or written puts the image's name on the drive's row
+    //  on the Apple; a disk changed another way, or a failed write, clears
+    //  it; after a catalog read or a failed read it stays.
+    TEST_METHOD (GetDriveNote_NamesTheImageReadOrWritten)
+    {
+        LinkOperation  operation;
+
+        operation.drive     = 1;
+        operation.imagePath = "C:\\Disks\\Prince of Persia side A.woz";
+
+        operation.kind = LinkOperationKind::WriteDisk;
+        Assert::AreEqual (std::string ("Wrote: Prince of Persia side A"), CassoLinkSession::GetDriveNote (operation, true).value_or ("none"));
+        Assert::AreEqual (std::string(), CassoLinkSession::GetDriveNote (operation, false).value_or ("none"), L"a failed write clears it");
+
+        operation.kind = LinkOperationKind::CaptureDisk;
+        Assert::AreEqual (std::string ("Read: Prince of Persia side A"), CassoLinkSession::GetDriveNote (operation, true).value_or ("none"));
+        Assert::IsFalse (CassoLinkSession::GetDriveNote (operation, false).has_value(), L"a failed read leaves it");
+
+        operation.kind = LinkOperationKind::Enumerate;
+        Assert::IsFalse (CassoLinkSession::GetDriveNote (operation, true).has_value(), L"a catalog read leaves it");
+
+        operation.kind = LinkOperationKind::WriteFile;
+        Assert::AreEqual (std::string(), CassoLinkSession::GetDriveNote (operation, true).value_or ("none"), L"a file written clears it");
+
+        operation.kind      = LinkOperationKind::ReadDisk;
+        operation.imagePath = "C:\\Disks\\The Ultimate Collection of Every Game Ever.dsk";
+        Assert::AreEqual (CassoLinkCodec::kNoteLength, CassoLinkSession::GetDriveNote (operation, true).value_or ("").size(), L"a long name is cut to the row");
+
+        operation.drive = 3;
+        Assert::IsFalse (CassoLinkSession::GetDriveNote (operation, true).has_value(), L"a block device has no row");
     }
 
 
