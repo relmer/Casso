@@ -36,6 +36,7 @@ public:
     enum class Verb { Frame, Paint, Erase, Invert, Fill };
 
     using Pattern = std::array<Byte, 32>;
+    using PenMask = std::array<Byte, 8>;
 
     static constexpr int  kModeCopy = 0x0000;
     static constexpr int  kModeOr   = 0x0001;
@@ -53,6 +54,7 @@ public:
     void  SetOvalSize  (Point size)                         { m_ovalSize = size; }
     void  SetOrigin    (Point origin)                       { m_origin   = origin; }
     void  SetClip      (const Region & clip)                { m_clip = clip; m_hasClip = true; }
+    void  SetPenMask   (const PenMask & mask)               { m_penMask = mask; }
 
     void  DrawLine     (Point from, Point to);
     void  DrawRect     (Verb verb, const Rect & rect);
@@ -61,7 +63,7 @@ public:
     void  DrawArc      (Verb verb, const Rect & rect, int startAngle, int arcAngle);
     void  DrawPoly     (Verb verb, const std::vector<Point> & points);
     void  DrawRegion   (Verb verb, const Region & region);
-    void  DrawPixels   (std::span<const Byte> pixels, int rowBytes, bool mode640, const Rect & bounds, const Rect & source, const Rect & dest, int mode);
+    void  DrawPixels   (std::span<const Byte> pixels, int rowBytes, bool mode640, const Rect & bounds, const Rect & source, const Rect & dest, int mode, const Region * mask = nullptr);
 
     void  WriteBgra    (std::vector<uint32_t> & outBgra) const;
 
@@ -76,6 +78,7 @@ private:
 
     void  DrawFigure   (Verb verb, const Rect & bounds, const Inside & inside, const Inside & inner);
     void  Plot         (int h, int v, Byte source, int mode);
+    bool  IsInPenMask  (int h, int v) const;
     Byte  GetPatternAt (const Pattern & pattern, int h, int v) const;
     bool  IsInOval     (const Rect & rect, int h, int v) const;
     bool  IsInRRect    (const Rect & rect, int h, int v) const;
@@ -100,4 +103,5 @@ private:
     Point              m_origin   = {};
     Region             m_clip;
     bool               m_hasClip  = false;
+    PenMask            m_penMask  = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
 };

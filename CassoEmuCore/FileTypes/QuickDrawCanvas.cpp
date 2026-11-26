@@ -13,6 +13,8 @@ static constexpr Word  s_kPalette320[16] =
     0x0FA9, 0x0FF0, 0x00E0, 0x04DF, 0x0DAF, 0x078F, 0x0CCC, 0x0FFF,
 };
 
+static constexpr Byte  s_kQuarter640[4] = { 8, 12, 0, 4 };
+
 static constexpr Word  s_kPalette640[16] =
 {
     0x0000, 0x000F, 0x0FF0, 0x0FFF, 0x0000, 0x0D00, 0x00E0, 0x0FFF,
@@ -69,6 +71,33 @@ QuickDrawCanvas::Pattern QuickDrawCanvas::MakeSolid (Byte value)
     pattern.fill ((Byte) ((nibble << 4) | nibble));
 
     return pattern;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  QuickDrawCanvas::IsInPenMask
+//
+//  The pen mask is eight rows of eight bits, the leftmost pixel in the high
+//  bit, repeated across the port. The pen draws only where a bit is set.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool QuickDrawCanvas::IsInPenMask (int h, int v) const
+{
+    constexpr int  kSide = 8;
+
+
+
+    int  row = ((v % kSide) + kSide) % kSide;
+    int  col = ((h % kSide) + kSide) % kSide;
+
+
+
+    return ((m_penMask[(size_t) row] >> (kSide - 1 - col)) & 1) != 0;
 }
 
 
@@ -220,7 +249,10 @@ void QuickDrawCanvas::DrawLine (Point from, Point to)
 
     for (const auto & [v, h] : covered)
     {
-        Plot (h, v, GetPatternAt (m_penPat, h, v), m_penMode);
+        if (IsInPenMask (h, v))
+        {
+            Plot (h, v, GetPatternAt (m_penPat, h, v), m_penMode);
+        }
     }
 }
 
@@ -256,8 +288,12 @@ void QuickDrawCanvas::DrawFigure (Verb verb, const Rect & bounds, const Inside &
             {
                 case Verb::Frame:
                 case Verb::Paint:
-                    source = GetPatternAt (m_penPat, h, v);
-                    Plot (h, v, source, m_penMode);
+                    if (IsInPenMask (h, v))
+                    {
+                        source = GetPatternAt (m_penPat, h, v);
+                        Plot (h, v, source, m_penMode);
+                    }
+
                     break;
 
                 case Verb::Erase:
@@ -669,13 +705,14 @@ void QuickDrawCanvas::DrawRegion (Verb verb, const Region & region)
 //  QuickDrawCanvas::DrawPixels
 //
 //  A pixel image copied from its source rectangle to the destination,
-//  scaled when the two differ in size. A pixel of a 640-mode image drawn in
+//  scaled when the two differ in size, and only where the mask region, when
+//  there is one, includes the destination pixel. A pixel of a 640-mode image drawn in
 //  320 mode is spread over the sixteen values, and in the reverse a value is
 //  cut to its top two bits.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void QuickDrawCanvas::DrawPixels (std::span<const Byte> pixels, int rowBytes, bool mode640, const Rect & bounds, const Rect & source, const Rect & dest, int mode)
+void QuickDrawCanvas::DrawPixels (std::span<const Byte> pixels, int rowBytes, bool mode640, const Rect & bounds, const Rect & source, const Rect & dest, int mode, const Region * mask)
 {
     constexpr Byte  kSpread640 = 5;
 
@@ -705,7 +742,7 @@ void QuickDrawCanvas::DrawPixels (std::span<const Byte> pixels, int rowBytes, bo
             row = source.top  + v * sourceV / destV - bounds.top;
             at  = (size_t) row * rowBytes + (size_t) (mode640 ? col / 4 : col / 2);
 
-            if (col < 0 || row < 0 || at >= pixels.size())
+            if (col < 0 || row < 0 || at >= pixels.size() || (mask != nullptr && !IsInRegion (*mask, dest.left + h, dest.top + v)))
             {
                 continue;
             }
@@ -735,8 +772,9 @@ void QuickDrawCanvas::DrawPixels (std::span<const Byte> pixels, int rowBytes, bo
 //
 //  QuickDrawCanvas::WriteBgra
 //
-//  The pixels in the standard palette. In 640 mode each column of four
-//  takes its colors from a separate quarter of the palette.
+//  The pixels in the standard palette. In 640 mode the four pixels of a
+//  byte take their colors from palette entries 8, 12, 0 and 4 on, as the
+//  video hardware draws them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -757,7 +795,7 @@ void QuickDrawCanvas::WriteBgra (std::vector<uint32_t> & outBgra) const
     {
         for (int x = 0; x < m_width; x++)
         {
-            color = m_mode640 ? s_kPalette640[(x % 4) * 4 + GetPixel (x, y)]
+            color = m_mode640 ? s_kPalette640[s_kQuarter640[x % 4] + GetPixel (x, y)]
                               : s_kPalette320[GetPixel (x, y)];
 
             outBgra[(size_t) y * m_width + x] = kOpaque

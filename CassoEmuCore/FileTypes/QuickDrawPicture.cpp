@@ -197,13 +197,8 @@ bool QuickDrawPicture::Run (Playback & pb, Canvas & canvas)
 
 bool QuickDrawPicture::RunState (Playback & pb, Canvas & canvas, Word opcode)
 {
-    constexpr size_t  kPenMaskBytes = 8;
-    constexpr Byte    kFullMask     = 0xFF;
-
-
-
     Canvas::Pattern  pattern = {};
-    bool             full    = true;
+    Canvas::PenMask  mask    = {};
 
 
 
@@ -248,16 +243,13 @@ bool QuickDrawPicture::RunState (Playback & pb, Canvas & canvas, Word opcode)
             break;
 
         case 0x0013:
-            for (size_t i = 0; i < kPenMaskBytes && CanRead (pb, 1); i++)
+            if (CanRead (pb, mask.size()))
             {
-                full = full && pb.bytes[pb.at++] == kFullMask;
+                std::copy_n (pb.bytes.begin() + (ptrdiff_t) pb.at, mask.size(), mask.begin());
+                canvas.SetPenMask (mask);
             }
 
-            if (!full)
-            {
-                pb.skipped.insert (opcode);
-            }
-
+            Skip (pb, mask.size());
             break;
 
         default:
@@ -454,8 +446,8 @@ bool QuickDrawPicture::RunFigure (Playback & pb, Canvas & canvas, Word opcode)
 //
 //  A pixel image: its SCB, a reserved word, its bytes a row, its bounds,
 //  the source and destination rectangles and the transfer mode, a mask
-//  region for BitsRgn alone, then the rows of the bounds. BitsRgn's mask
-//  isn't applied. A long comment is passed over.
+//  region for BitsRgn alone, then the rows of the bounds. A long comment is
+//  passed over.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -476,6 +468,7 @@ bool QuickDrawPicture::RunBits (Playback & pb, Canvas & canvas, Word opcode)
     int                    mode     = 0;
     size_t                 size     = 0;
     std::span<const Byte>  pixels;
+    Canvas::Region         mask;
 
 
 
@@ -501,8 +494,7 @@ bool QuickDrawPicture::RunBits (Playback & pb, Canvas & canvas, Word opcode)
 
     if (opcode == kBitsRgn)
     {
-        ReadRegion (pb);
-        pb.skipped.insert (opcode);
+        mask = ReadRegion (pb);
     }
 
     size = (size_t) rowBytes * (size_t) (std::max) (bounds.bottom - bounds.top, 0);
@@ -510,7 +502,7 @@ bool QuickDrawPicture::RunBits (Playback & pb, Canvas & canvas, Word opcode)
     if (!pb.truncated && CanRead (pb, size))
     {
         pixels = pb.bytes.subspan (pb.at, size);
-        canvas.DrawPixels (pixels, rowBytes, (scb & kScb640) != 0, bounds, source, dest, mode);
+        canvas.DrawPixels (pixels, rowBytes, (scb & kScb640) != 0, bounds, source, dest, mode, (opcode == kBitsRgn) ? &mask : nullptr);
     }
 
     Skip (pb, size);
@@ -783,13 +775,11 @@ const wchar_t * QuickDrawPicture::GetOpcodeName (Word opcode)
 {
     switch (opcode)
     {
-        case 0x0013:  return L"PnMask";
         case 0x0028:  return L"LongText";
         case 0x0029:  return L"DHText";
         case 0x002A:  return L"DVText";
         case 0x002B:  return L"DHDVText";
         case 0x002C:  return L"RealLongText";
-        case 0x0091:  return L"BitsRgn's mask";
         default:      return L"Opcode";
     }
 }

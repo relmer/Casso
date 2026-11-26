@@ -370,6 +370,43 @@ public:
         Assert::IsTrue (file.notes.empty());
     }
 
+    TEST_METHOD (Decode_PnMask_LimitsThePen)
+    {
+        std::vector<Byte>  bytes = MakePicture (0, 8, 8);
+        DecodedFile        file;
+
+
+
+        //  Only the left four pixels of each row.
+        AppendWords (bytes, { 0x0013 });
+        bytes.insert (bytes.end(), 8, (Byte) 0xF0);
+        AppendWords (bytes, { 0x0031, 0, 0, 8, 8 });
+
+        file = DecodePicture (bytes);
+
+        Assert::AreEqual (s_kBlack, GetPixel (file, 3, 2));
+        Assert::AreEqual (s_kWhite, GetPixel (file, 4, 2));
+        Assert::IsTrue (file.notes.empty());
+    }
+
+    TEST_METHOD (Decode_BitsRgn_CopiesOnlyInsideItsMask)
+    {
+        std::vector<Byte>  bytes = MakePicture (0, 4, 2);
+        DecodedFile        file;
+
+
+
+        AppendWords (bytes, { 0x0091, 0, 0, 2, 0, 0, 2, 4, 0, 0, 2, 4, 0, 0, 2, 4, 0 });
+        AppendWords (bytes, { 10, 0, 0, 2, 2 });
+        bytes.insert (bytes.end(), 4, (Byte) 0x44);
+
+        file = DecodePicture (bytes);
+
+        Assert::AreEqual (s_kBlue,  GetPixel (file, 1, 1));
+        Assert::AreEqual (s_kWhite, GetPixel (file, 2, 1), L"Outside the mask");
+        Assert::IsTrue (file.notes.empty());
+    }
+
     TEST_METHOD (Decode_Text_IsListedAndPassedOver)
     {
         std::vector<Byte>  bytes = MakePicture (0, 10, 10);
