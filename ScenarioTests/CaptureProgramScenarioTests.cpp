@@ -7,6 +7,7 @@
 #include "CassoLink/LinkProgram.h"
 #include "CassoLink/Session/CaptureStream.h"
 #include "CassoLink/Session/CassoLinkCapture.h"
+#include "CassoLink/Session/CassoLinkDiskTransfer.h"
 #include "CassoLink/Session/CassoLinkThirteenSector.h"
 #include "CassoLink/Session/RawWriteStream.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
@@ -260,9 +261,10 @@ public:
 
 
     //  The image in CASSO_RAW_WRITE_IMAGE, a WOZ, NIB or NB2 file, written
-    //  raw over the link track by track: each track the emulated drive has
-    //  after is the image's track's bits, fitted to the drive's turn, from the
-    //  end of the write back to the part its end overlaps. With
+    //  raw over the link track by track, after the drive is timed, as a write
+    //  from Casso Explorer is: each track the emulated drive has after is the
+    //  image's track's bits, fitted to the drive's turn, from the end of the
+    //  write back to the part its end overlaps. With
     //  CASSO_RAW_WRITE_OUT set, the drive's disk is saved there as a WOZ.
     TEST_METHOD (OnDemand_ARawImage_IsWrittenTrackForTrack_OverTheLink)
     {
@@ -277,6 +279,7 @@ public:
         int                                 tooLong        = -1;
         int                                 failed         = 0;
         size_t                              turn           = 0;
+        double                              revolution     = 0.0;
 
 
 
@@ -293,9 +296,12 @@ public:
         }
 
         AssertSucceeded (RawWriteStream::GetImageTracks (file, tracks, tooLong));
+        AssertSucceeded (rig.host->TimeDrive (1, 0, CassoLinkDiskTransfer::kTimedRevolutions, revolution, status));
         AssertSucceeded (LinkProgram::BuildThirteenSectorModule (module));
         AssertSucceeded (rig.host->EnsureModule (module));
 
+        //  The PC times the drive by its clock, which a stepped machine's
+        //  turn isn't measured against, so the turn is the emulated track's.
         turn = GetTrackBits (rig, 0).size();
 
         for (RawWriteTrack & track : tracks)

@@ -1224,6 +1224,7 @@ HRESULT CassoLinkDiskTransfer::WriteRawDisk (LinkOperation & operation, const st
     CassoLinkStatus                     status;
     int                                 tooLong  = -1;
     int                                 turn     = 0;
+    Byte                                gap      = 0;
     bool                                canceled = false;
     std::string                         wrapped;
     int                                 wraps    = 0;
@@ -1240,9 +1241,12 @@ HRESULT CassoLinkDiskTransfer::WriteRawDisk (LinkOperation & operation, const st
     CHR (hr);
 
     //  Timing the drive uses the buffers the module is loaded on, so the
-    //  module is loaded after.
-    hr = TimeDriveForLayout (operation.drive, turn);
+    //  module is loaded after. A blank disk's track 0 is formatted to be
+    //  timed, since a track longer than the turn overwrites its start.
+    hr = TimeDriveForFormat (operation.drive, gap);
     CHR (hr);
+
+    turn = TrackMeasures::GetBitsPerTurn (m_revolutionMs[index]);
 
     hr = m_session.m_host->BuildThirteenSectorModule (module);
     CHR (hr);
