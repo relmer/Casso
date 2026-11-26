@@ -46,6 +46,55 @@ public:
     }
 
 
+    //  Marks are lines across the whole bar, down the track between the
+    //  arrows, in the match color and the current one's; with marks the bar
+    //  is drawn wide, and once they are cleared it rests narrow again.
+    TEST_METHOD (Marks_ALineAcrossTheBarForEachMatch)
+    {
+        constexpr uint32_t   kMatch   = 0xFF806000u;
+        constexpr uint32_t   kCurrent = 0xFFFFFF00u;
+        DxuiScrollbar        bar      = MakeVertical();
+        MockDxuiPainter      painter;
+        std::vector<float>   tops;
+        float                restW    = 0.0f;
+        float                markedW  = 0.0f;
+
+
+
+        bar.Paint (painter, 0xFFFFFFFFu);
+        restW = painter.Calls().back().width;
+
+        bar.SetMarks ({ { 0.0f, false }, { 0.5f, true } }, kMatch, kCurrent);
+        painter.Reset();
+        bar.Paint (painter, 0xFFFFFFFFu);
+
+        for (const RecordedPaintCall & call : painter.Calls())
+        {
+            if (call.kind == RecordedPaintKind::FillRect && (call.argb == kMatch || call.argb == kCurrent))
+            {
+                Assert::AreEqual (100.0f, call.x,     L"across the bar from its left");
+                Assert::AreEqual (10.0f,  call.width, L"the whole bar wide");
+                tops.push_back (call.y);
+            }
+            else if (call.kind == RecordedPaintKind::FillRoundedRect)
+            {
+                markedW = call.width;
+            }
+        }
+
+        Assert::AreEqual ((size_t) 2, tops.size(), L"a line for each mark");
+        Assert::AreEqual (10.0f, tops[0], 0.01f, L"the first at the track's top, below the arrow");
+        Assert::IsTrue   (tops[1] > 95.0f && tops[1] < 100.0f, L"the current one halfway down the track");
+        Assert::IsTrue   (markedW > restW, L"the puck is wide while there are marks");
+
+        bar.ClearMarks();
+        painter.Reset();
+        bar.Paint (painter, 0xFFFFFFFFu);
+
+        Assert::AreEqual (restW, painter.Calls().back().width, L"and narrow again once they are cleared");
+    }
+
+
     TEST_METHOD (Visibility_HiddenWhenContentFitsPage)
     {
         DxuiScrollbar   bar;

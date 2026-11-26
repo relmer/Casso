@@ -84,6 +84,10 @@ public:
     //  through the 13-sector module (CassoLinkThirteenSector).
     HRESULT  ReadThirteenSectorDisk  (LinkOperation & operation);
     HRESULT  WriteThirteenSectorDisk (LinkOperation & operation, const std::vector<Byte> & sectors);
+
+    //  A WOZ, NIB or NB2 image to the disk as its tracks' bits, through the
+    //  13-sector module's Write raw track (RawWriteStream).
+    HRESULT  WriteRawDisk            (LinkOperation & operation, const std::vector<Byte> & fileBytes);
     HRESULT  ReadTrack               (int drive, int track, std::vector<Byte> & sectors, std::vector<std::pair<int, int>> & unreadable, bool autoVerify = false, std::vector<SectorMark> * marks = nullptr);
     HRESULT  ReadVerifiedTrack       (int drive, int track, std::vector<Byte> & sectors, std::vector<std::pair<int, int>> & unreadable, std::vector<SectorMark> & marks);
     HRESULT  TimeDriveForFormat      (int drive, Byte & outGap);

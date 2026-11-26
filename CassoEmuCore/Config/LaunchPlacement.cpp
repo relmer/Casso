@@ -155,6 +155,38 @@ LaunchPlan LaunchPlacement::Place (
         {
             reason = L"it has no 5.25-inch drive";
         }
+
+        //  The //c Plus takes a 5.25-inch drive on its disk port, after any
+        //  3.5-inch drives there.
+        if (hasDrive && !machine.has525)
+        {
+            PortConfig  * diskPort = nullptr;
+            PortConfig    drive;
+
+
+
+            drive.device = kpszDiskIicDevice;
+
+            for (PortConfig & port : plan.config.ports)
+            {
+                diskPort = port.name == "disk" ? &port : diskPort;
+            }
+
+            if (diskPort != nullptr)
+            {
+                diskPort->chain.push_back (drive);
+            }
+            else
+            {
+                reason = L"it has no 5.25-inch drive";
+            }
+        }
+
+        //  The ][ monitor doesn't boot a disk, so slot 6 is started for it.
+        if (hasDrive && machine.romBoot == RomBoot::None)
+        {
+            plan.config.bootSlot = kDiskIiSlot;
+        }
     }
     else if (machine.hasSlots)
     {
@@ -359,7 +391,9 @@ void LaunchPlacement::PlaceOnCard (LaunchPlan & plan, const DiskImageFacts & fac
     hd[0].slot  = slot;
     hd[0].image = imagePath;
 
-    if (machine.is6502)
+    //  A ROM that passes over the card, or boots nothing, has the card's
+    //  slot started for it.
+    if (machine.romBoot != RomBoot::AnyCard)
     {
         plan.config.bootSlot = slot;
     }

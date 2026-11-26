@@ -1328,13 +1328,14 @@ void ExplorerListPane::FillList()
     }
 
     //  An empty search's message is File Explorer's, at the top of the list;
-    //  any other empty location's is centered in the pane.
+    //  any other empty location's is centered in the pane. Until a search
+    //  finds its first match or ends, the message is that it is searching.
     m_listMessageTop = false;
 
     if (message.empty() && m_context.browser.GetRows().empty() && m_context.browser.GetLocation().kind != Location::Kind::None)
     {
         m_listMessageTop = SearchQuery::IsId (m_context.browser.GetLocation().path);
-        message                   = m_listMessageTop ? std::wstring (kNoSearchMatches) : GetEmptyLocationMessage (m_context.browser.GetLocation().kind);
+        message                   = m_listMessageTop ? std::wstring (m_context.browser.IsSearchRunning() ? kSearching : kNoSearchMatches) : GetEmptyLocationMessage (m_context.browser.GetLocation().kind);
     }
 
     m_listMessage->SetTextAlign (DxuiTextHAlign::Center, m_listMessageTop ? DxuiTextVAlign::Top : DxuiTextVAlign::Center);
@@ -1414,6 +1415,12 @@ const std::vector<DxuiListView::Cell> & ExplorerListPane::GetListRowCells (int r
         {
             m_rowProblems[(size_t) row] = m_context.browser.GetLoader().GetImageProblem (path);
             cells[0].iconBroken                  = !m_rowProblems[(size_t) row].empty();
+        }
+
+        //  A file that arrived in a receiving folder since its last listing.
+        if (m_rowLocation.kind == Location::Kind::HostFolder && BrowserRowPaths::TryGetRowPath (m_context.browser.GetRowListing(), row, path))
+        {
+            cells[0].iconNew = m_context.cassoLinkManager.IsNewFile (path);
         }
 
         //  In Content view a host item has the lines the shell lists for its

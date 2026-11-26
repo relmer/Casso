@@ -31,6 +31,8 @@ public:
     //  buffers the view reuses frame after frame.
     int   ReadRow        (uint64_t row);
     void  PaintRow       (IDxuiTextRenderer & text, const IDxuiTheme & theme, uint64_t row, int count);
+    void  PutRunCells    (int firstCell, int cellX, const std::wstring & chars, uint32_t argb);
+    void  DrawRuns       (IDxuiTextRenderer & text, int firstCell, uint64_t row, const DxuiFontHandle & font);
     void  EnsureCellSize (IDxuiTextRenderer & text, const IDxuiTheme & theme);
 
     //  One cell run of the fixed-width face, and the fill behind it.
@@ -45,6 +47,10 @@ public:
     static void   FillStyled   (IDxuiTextRenderer & text, const RECT & rect, const DxuiHexViewTypes::ByteStyle & style);
     bool          GetByteStyle (const IDxuiTheme & theme, uint64_t offset, uint8_t mark, bool isSelected, DxuiHexViewTypes::Column column, DxuiHexViewTypes::ByteStyle & outStyle) const;
 
+    //  The face the row addresses are drawn in: `grid`, or the proportional
+    //  face at its size.
+    DxuiFontHandle  GetOffsetFont (const DxuiFontHandle & grid) const;
+
     static wchar_t  GetHexDigit      (int value);
     wchar_t         GetCharFor       (uint8_t byte) const;
     static wchar_t  GetCodePageChar  (UINT codePage, DWORD flags, uint8_t byte);
@@ -55,6 +61,7 @@ public:
 
 private:
     friend class DxuiHexView;
+    friend class DxuiHexRegions;
 
     DxuiHexView  & m_view;
 
@@ -64,6 +71,14 @@ private:
     std::wstring                   m_cellFontFace;
     DxuiHexViewTypes::MarkColorFn  m_markColor;
     DxuiHexViewTypes::ByteStyleFn  m_byteStyle;
+    DxuiHexViewTypes::ByteFillFn   m_byteFill;
+    DxuiHexViewTypes::ByteFillFn   m_matchFill;
     std::vector<uint8_t>           m_rowBytes;
     std::vector<uint8_t>           m_rowMarks;
+
+    //  The row PaintRow is drawing, as a line of cells from the value column's
+    //  first: each cell's character and color, zero where nothing is drawn.
+    std::wstring                   m_runChars;
+    std::vector<uint32_t>          m_runInks;
+    std::wstring                   m_runText;
 };

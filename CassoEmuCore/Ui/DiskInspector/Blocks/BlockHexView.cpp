@@ -23,7 +23,7 @@ bool BlockHexView::OnKey (const DxuiKeyEvent & ev)
 
     if (isNavigation && m_onNavigate && m_onNavigate (ev))
     {
-        ResetNibble();
+        GetHostEdit().ResetNibble();
         return true;
     }
 

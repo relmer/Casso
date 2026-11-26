@@ -154,6 +154,7 @@
     <ClCompile Include="CassoExplorer\DiskImageCatalogTests.cpp" />
     <ClCompile Include="CassoExplorer\DiskMessageTextTests.cpp" />
     <ClCompile Include="CassoExplorer\HostFolderReaderTests.cpp" />
+    <ClCompile Include="EmuTests\IntRangeTests.cpp" />
     <ClCompile Include="EmuTests\DiskCommandTextTests.cpp" />
     <ClCompile Include="EmuTests\DiskFilePayloadTests.cpp" />
     <ClCompile Include="Pch.cpp">
@@ -588,6 +589,7 @@
     <ClCompile Include="DiskCheck\BootProbeTests.cpp" />
     <ClCompile Include="CassoLink\FullSendManifestRenameTests.cpp" />
     <ClCompile Include="CassoLink\FullSendProtectionTests.cpp" />
+    <ClCompile Include="CassoLink\RawWriteStreamTests.cpp" />
     <ClCompile Include="CassoLink\FullSendStatusTests.cpp" />
     <ClCompile Include="CassoLink\TrackMeasuresTests.cpp" />
     <ClCompile Include="CassoLink\TrackVerifierTests.cpp" />
@@ -703,6 +705,7 @@
     <ClCompile Include="CassoExplorer\CassoExplorerSessionTests.cpp" />
     <ClCompile Include="CassoExplorer\KnownFolderStoreTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerPrefsTests.cpp" />
+    <ClCompile Include="CassoExplorer\NewFileMarksTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerLinkDialogTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoLinkConnectionsTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoLinkLogFileTests.cpp" />
@@ -1021,6 +1024,9 @@
     <ClCompile Include="Dxui\DxuiSplitterTests.cpp" />
     <ClCompile Include="Dxui\DxuiStatusBarTests.cpp" />
     <ClCompile Include="Dxui\DxuiFramebufferViewTests.cpp" />
+    <ClCompile Include="Dxui\DxuiHexViewEditingTests.cpp" />
+    <ClCompile Include="Dxui\DxuiHexViewRegionTests.cpp" />
+    <ClCompile Include="Dxui\DxuiHexViewSelectionContrastTests.cpp" />
     <ClCompile Include="Dxui\DxuiHexViewTests.cpp" />
     <ClCompile Include="Dxui\DxuiStandardCommandTests.cpp" />
     <ClCompile Include="Dxui\DxuiSystemColorsTests.cpp" />

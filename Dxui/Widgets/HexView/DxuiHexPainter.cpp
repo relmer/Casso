@@ -3,6 +3,7 @@
 #include "Widgets/HexView/DxuiHexPainter.h"
 #include "Widgets/DxuiHexView.h"
 #include "Theme/DxuiColor.h"
+#include "Theme/DxuiTheme.h"
 
 
 
@@ -55,10 +56,16 @@ void DxuiHexPainter::PaintLineRow (IDxuiTextRenderer & text, const IDxuiTheme & 
     if (starts)
     {
         label = std::to_wstring (line);
-        label.insert (0, (size_t) (std::max) (0, m_view.m_layout.GetLineDigits() - (int) label.size()), L' ');
+
+        //  Right-aligned with spaces only in the grid; in the proportional
+        //  face the numbers start at the column's left.
+        if (!m_view.m_isProportionalOffsets)
+        {
+            label.insert (0, (size_t) (std::max) (0, m_view.m_layout.GetLineDigits() - (int) label.size()), L' ');
+        }
 
         DrawCell (text, m_view.m_layout.GetRowOffsetRect (row), label.c_str(),
-                  DxuiColor::Mix (theme.ContentBackground(), theme.Foreground(), m_textStrength * s_kAddressStrength), font);
+                  DxuiColor::Mix (theme.TextViewBackground(), theme.Foreground(), m_textStrength * s_kAddressStrength), GetOffsetFont (font));
     }
 
     length = m_view.m_layout.GetShownLength (start, end);
@@ -76,8 +83,8 @@ void DxuiHexPainter::PaintLineRow (IDxuiTextRenderer & text, const IDxuiTheme & 
             fill.top    -= margin;
             fill.bottom += margin;
 
-            FillCell (text, fill, theme.SelectionBackground());
-            argb = theme.Foreground();
+            FillCell (text, fill, DxuiHexView::GetSelectionFill (theme));
+            argb = DxuiHexView::GetSelectionInk (theme);
         }
 
         DrawCell (text, cell, chars, argb, font);
@@ -158,7 +165,7 @@ std::wstring DxuiHexPainter::FormatValue (uint64_t value, int present) const
 
 uint32_t DxuiHexPainter::GetByteColor (const IDxuiTheme & theme, uint8_t mark) const
 {
-    uint32_t  argb = DxuiColor::Mix (theme.ContentBackground(), theme.Foreground(), m_textStrength);
+    uint32_t  argb = DxuiColor::Mix (theme.TextViewBackground(), theme.Foreground(), m_textStrength);
 
 
 
@@ -270,14 +277,23 @@ int DxuiHexPainter::ReadRow (uint64_t row)
 //  lit in both columns at once, which is the whole point of selecting bytes
 //  rather than characters.
 //
+//  The fills go out as each byte is reached, and its characters into a line
+//  of cells for the row, drawn once the fills are down as runs of one color
+//  each: a row is a few draws rather than one for every value and every
+//  character.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiHexPainter::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, uint64_t row, int count)
 {
-    DxuiFontHandle  font    = theme.MonospaceFont();
-    RECT            gutter  = {};
-    int             digits  = m_view.m_layout.GetOffsetDigits();
-    uint64_t        address = m_view.m_originAddress + (row * (uint64_t) m_view.m_bytesPerRow);
+    DxuiFontHandle  font      = theme.MonospaceFont();
+    RECT            gutter    = {};
+    int             digits    = m_view.m_layout.GetOffsetDigits();
+    uint64_t        address   = m_view.m_layout.GetRowAddress (row);
+    int             firstCell = m_view.m_layout.GetColumnStartCell (DxuiHexViewTypes::Column::Hex);
+    int             textCell  = m_view.m_layout.GetColumnStartCell (DxuiHexViewTypes::Column::Text);
+    uint64_t        caret     = m_view.m_selection.GetCaret();
+    bool            hasFocus  = m_view.m_hasFocus;
     std::wstring    label;
 
 
@@ -290,6 +306,9 @@ void DxuiHexPainter::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & them
         return;
     }
 
+    m_runChars.assign ((size_t) (std::max) (0, textCell + count - firstCell), L' ');
+    m_runInks.assign  (m_runChars.size(), 0);
+
     gutter = m_view.m_layout.GetRowOffsetRect (row);
 
     //  The theme's size is in DIPs; the renderer draws in pixels, and the cell
@@ -301,7 +320,7 @@ void DxuiHexPainter::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & them
     }
 
     //  The addresses are a shade darker than the bytes, so the bytes stand out.
-    DrawCell (text, gutter, label.c_str(), DxuiColor::Mix (theme.ContentBackground(), theme.Foreground(), m_textStrength * s_kAddressStrength), font);
+    DrawCell (text, gutter, label.c_str(), DxuiColor::Mix (theme.TextViewBackground(), theme.Foreground(), m_textStrength * s_kAddressStrength), GetOffsetFont (font));
 
     //  The value column, a value at a time.
     for (int first = 0; m_view.m_showValues && (first < count); first += m_view.m_grouping)
@@ -311,8 +330,9 @@ void DxuiHexPainter::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & them
         uint64_t                     value    = 0;
         bool                         selected = false;
         uint32_t                     argb     = GetByteColor (theme, m_rowMarks[(size_t) first]);
-        RECT                         cell     = m_view.m_layout.GetCellRect (m_view.m_layout.GetColumnStartCell (DxuiHexViewTypes::Column::Hex) + ((first / m_view.m_grouping) * (m_view.m_layout.GetValueCells() + 1)),
-                                                                             row, m_view.m_layout.GetValueCells());
+        int                          cellX    = firstCell + ((first / m_view.m_grouping) * (m_view.m_layout.GetValueCells() + 1));
+        RECT                         cell     = m_view.m_layout.GetCellRect (cellX, row, m_view.m_layout.GetValueCells());
+        std::wstring                 shown;
         DxuiHexViewTypes::ByteStyle  style;
 
         for (int index = 0; index < present; index++)
@@ -329,12 +349,57 @@ void DxuiHexPainter::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & them
             continue;
         }
 
-        if (selected)
+        //  A search's match is drawn as a match whatever else the byte is, in
+        //  the ink that reads on its fill. Otherwise the byte the keys act
+        //  on, while the view has them, differs from a selection: the
+        //  accent behind it and the brightest ink on it.
+        if (m_matchFill && m_matchFill (offset) != 0)
         {
-            FillCell (text, m_view.m_layout.GetValueSelectionRect (offset, cell), theme.SelectionBackground());
+            FillCell (text, m_view.m_layout.GetValueSelectionRect (offset, cell), m_matchFill (offset));
+            argb     = DxuiTheme::GetContrastingText (m_matchFill (offset));
+            selected = false;
+        }
+        else if (hasFocus && caret >= offset && caret < offset + (uint64_t) present)
+        {
+            FillCell (text, m_view.m_layout.GetValueSelectionRect (offset, cell), theme.Accent());
+            argb     = DxuiHexView::GetCaretInk (theme);
+            selected = false;
+        }
+        else if (selected)
+        {
+            FillCell (text, m_view.m_layout.GetValueSelectionRect (offset, cell), DxuiHexView::GetSelectionFill (theme));
+        }
+        else if (m_byteFill && m_byteFill (offset) != 0)
+        {
+            FillCell (text, m_view.m_layout.GetValueSelectionRect (offset, cell), m_byteFill (offset));
         }
 
-        DrawCell (text, cell, FormatValue (value, present).c_str(), selected ? theme.Foreground() : argb, font);
+        shown = FormatValue (value, present);
+
+        //  A value being edited is drawn in a box, as the Registers pane's edit
+        //  box is: the view's background inside an accent outline.
+        if (m_view.m_sourceEdit.IsEditing() && offset == m_view.m_sourceEdit.GetEditStart())
+        {
+            RECT  box  = m_view.m_layout.GetValueSelectionRect (offset, cell);
+            LONG  edge = std::max<LONG> (1, (box.bottom - box.top) / 12);
+
+
+
+            FillCell (text, box, theme.Accent());
+            FillCell (text, RECT { box.left + edge, box.top + edge, box.right - edge, box.bottom - edge }, theme.TextViewBackground());
+
+            argb     = theme.Foreground();
+            selected = false;
+        }
+
+        //  The digits typed so far stand in for the value's leading ones, so the
+        //  cell shows what will be written.
+        if (m_view.m_sourceEdit.HasPendingDigits() && offset == m_view.m_sourceEdit.GetEditStart() && m_view.m_sourceEdit.GetPendingDigits().size() <= shown.size())
+        {
+            shown.replace (0, m_view.m_sourceEdit.GetPendingDigits().size(), m_view.m_sourceEdit.GetPendingDigits());
+        }
+
+        PutRunCells (firstCell, cellX, shown, selected ? DxuiHexView::GetSelectionInk (theme) : argb);
     }
 
     //  The text column, a byte at a time.
@@ -356,14 +421,142 @@ void DxuiHexPainter::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & them
             continue;
         }
 
-        if (m_view.IsByteSelected (offset))
+        //  A search's match first, as in the value column. Selected bytes are
+        //  drawn in the full foreground, over the selection; the byte the
+        //  keys act on, in the brightest ink over the accent.
+        if (m_matchFill && m_matchFill (offset) != 0)
         {
-            FillCell (text, m_view.m_layout.GetSelectionCellRect (offset, index, txtRect, false), theme.SelectionBackground());
-            argb = theme.Foreground();
+            FillCell (text, m_view.m_layout.GetSelectionCellRect (offset, index, txtRect, false), m_matchFill (offset));
+            argb = DxuiTheme::GetContrastingText (m_matchFill (offset));
+        }
+        else if (hasFocus && offset == caret)
+        {
+            FillCell (text, m_view.m_layout.GetSelectionCellRect (offset, index, txtRect, false), theme.Accent());
+            argb = DxuiHexView::GetCaretInk (theme);
+        }
+        else if (m_view.IsByteSelected (offset))
+        {
+            FillCell (text, m_view.m_layout.GetSelectionCellRect (offset, index, txtRect, false), DxuiHexView::GetSelectionFill (theme));
+            argb = DxuiHexView::GetSelectionInk (theme);
+        }
+        else if (m_byteFill && m_byteFill (offset) != 0)
+        {
+            FillCell (text, m_view.m_layout.GetSelectionCellRect (offset, index, txtRect, false), m_byteFill (offset));
         }
 
-        DrawCell (text, txtRect, charOf.c_str(), argb, font);
+        PutRunCells (firstCell, textCell + index, charOf, argb);
     }
+
+    DrawRuns (text, firstCell, row, font);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexPainter::PutRunCells
+//
+//  Writes `chars` into the row's line of cells from cell `cellX`, in `argb`.
+//  The line starts at cell `firstCell`; a cell nothing is written to keeps a
+//  space and no color, and joins whichever run it falls inside.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexPainter::PutRunCells (int firstCell, int cellX, const std::wstring & chars, uint32_t argb)
+{
+    for (size_t i = 0; i < chars.size(); i++)
+    {
+        size_t  at = (size_t) (cellX - firstCell) + i;
+
+        if (at < m_runChars.size())
+        {
+            m_runChars[at] = chars[i];
+            m_runInks[at]  = argb;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexPainter::DrawRuns
+//
+//  The row's line of cells, a run of one color at a time. A run starts at a
+//  colored cell and takes in every cell after it of the same color or of
+//  none, then ends at its last colored cell, so the spaces between values
+//  of a color go out with them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexPainter::DrawRuns (IDxuiTextRenderer & text, int firstCell, uint64_t row, const DxuiFontHandle & font)
+{
+    HRESULT  hr    = S_OK;
+    size_t   start = 0;
+    size_t   end   = 0;
+    size_t   last  = 0;
+    RECT     cell  = {};
+
+
+
+    while (start < m_runChars.size())
+    {
+        if (m_runInks[start] == 0)
+        {
+            start++;
+            continue;
+        }
+
+        last = start;
+
+        for (end = start + 1; end < m_runChars.size(); end++)
+        {
+            if (m_runInks[end] != 0 && m_runInks[end] != m_runInks[start])
+            {
+                break;
+            }
+
+            last = (m_runInks[end] != 0) ? end : last;
+        }
+
+        cell = m_view.m_layout.GetCellRect (firstCell + (int) start, row, 1);
+
+        m_runText.assign (m_runChars, start, last + 1 - start);
+
+        hr = text.DrawCells (m_runText.c_str(), (float) cell.left, (float) cell.top, (float) m_view.m_cellWidthDip,
+                             (float) (cell.bottom - cell.top), m_runInks[start], font);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        start = last + 1;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexPainter::GetOffsetFont
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiFontHandle DxuiHexPainter::GetOffsetFont (const DxuiFontHandle & grid) const
+{
+    DxuiFontHandle  font = grid;
+
+
+
+    if (m_view.m_isProportionalOffsets)
+    {
+        font.face = DxuiTheme::GetUiFace();
+    }
+
+    return font;
 }
 
 
@@ -416,7 +609,7 @@ void DxuiHexPainter::DrawCell (IDxuiTextRenderer & text, const RECT & rect, cons
 
 bool DxuiHexPainter::GetByteStyle (const IDxuiTheme & theme, uint64_t offset, uint8_t mark, bool isSelected, DxuiHexViewTypes::Column column, DxuiHexViewTypes::ByteStyle & outStyle) const
 {
-    return m_view.GetByteStyle (theme, offset, mark, isSelected, column, outStyle);
+    return m_view.m_hostEdit.GetByteStyle (theme, m_byteStyle, offset, mark, isSelected, column, m_view.m_hasFocus && offset == m_view.GetCaret(), outStyle);
 }
 
 

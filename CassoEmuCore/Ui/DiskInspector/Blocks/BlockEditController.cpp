@@ -624,6 +624,6 @@ void BlockEditController::PasteIntoBlock()
             : (overflow > 0) ? InspectorText::FormatCount (overflow, L"byte", L"bytes") + L" did not fit before the end of the block"
                              : std::wstring();
 
-    hex->ResetNibble();
+    hex->GetHostEdit().ResetNibble();
     m_parts.view.Refresh();
 }

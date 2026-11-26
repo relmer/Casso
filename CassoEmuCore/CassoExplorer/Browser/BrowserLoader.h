@@ -79,6 +79,7 @@ public:
     HRESULT  LoadCassoImages       ();
     HRESULT  LoadRecycleBin        ();
     HRESULT  LoadShellFolder       (const std::wstring & id);
+    void     AddStockDiskMatches   (const std::wstring & id);
     HRESULT  LoadImage             (const std::wstring & path, const std::string & directory);
     HRESULT  LoadPartition         (const std::wstring & path);
     bool     AddPartitionRows      (const std::wstring & path, PartitionLayoutKind layout, const std::vector<PartitionEntry> & entries);

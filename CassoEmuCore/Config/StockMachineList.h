@@ -16,8 +16,19 @@
 //  label     The model's row in the Open on menus.
 //  hasSlots  Whether the model takes cards.
 //  is6502    Whether the model's CPU is the 6502 rather than the 65C02.
+//  romBoot   What the model's ROM boots at power on.
+//  has525    Whether the stock model has a 5.25-inch drive. The //c Plus's
+//            built-in drive is a 3.5-inch one.
 //
 ////////////////////////////////////////////////////////////////////////////////
+
+enum class RomBoot
+{
+    None,         // the original ][ monitor, which stops at its * prompt
+    DiskIiOnly,   // the Autostart and //e ROMs, which pass over a card without the Disk II's signature
+    AnyCard,      // the enhanced //e and //c ROMs, which boot any card with a ProDOS signature
+};
+
 
 struct StockMachine
 {
@@ -25,6 +36,8 @@ struct StockMachine
     const wchar_t  * label    = nullptr;
     bool             hasSlots = false;
     bool             is6502   = false;
+    RomBoot          romBoot  = RomBoot::AnyCard;
+    bool             has525   = true;
 };
 
 
@@ -43,10 +56,10 @@ struct StockMachine
 
 inline constexpr StockMachine  kStockMachines[] =
 {
-    { "Apple2",          L"Apple ][",           true,  true  },
-    { "Apple2Plus",      L"Apple ][+",          true,  true  },
-    { "Apple2e",         L"Apple //e",          true,  false },
-    { "Apple2eEnhanced", L"Apple //e Enhanced", true,  false },
-    { "Apple2c",         L"Apple //c",          false, false },
-    { "Apple2cPlus",     L"Apple //c Plus",     false, false },
+    { "Apple2",          L"Apple ][",           true,  true,  RomBoot::None,       true  },
+    { "Apple2Plus",      L"Apple ][+",          true,  true,  RomBoot::DiskIiOnly, true  },
+    { "Apple2e",         L"Apple //e",          true,  false, RomBoot::DiskIiOnly, true  },
+    { "Apple2eEnhanced", L"Apple //e Enhanced", true,  false, RomBoot::AnyCard,    true  },
+    { "Apple2c",         L"Apple //c",          false, false, RomBoot::AnyCard,    true  },
+    { "Apple2cPlus",     L"Apple //c Plus",     false, false, RomBoot::AnyCard,    false },
 };

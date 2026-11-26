@@ -176,6 +176,9 @@ struct CassoExplorerPrefs
     //  The address bar's typed path history, newest first.
     std::vector<std::wstring>  typedPaths;
 
+    //  The search box's queries, newest first.
+    std::vector<std::wstring>  searchHistory;
+
     //  The file list's column widths, in order, or empty for File Explorer's
     //  defaults. A column left at its default stores nothing, so only what was
     //  dragged or fitted comes back. Stored as listColumnWidths: the older

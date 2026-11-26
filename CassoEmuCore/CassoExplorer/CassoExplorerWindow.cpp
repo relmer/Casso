@@ -1233,7 +1233,7 @@ void CassoExplorerWindow::EndFastClock()
 
 bool CassoExplorerWindow::IsTickWanted() const
 {
-    return m_parts->tips.WantsTick() || m_parts->addressBar.WantsTick() || m_parts->tabManager.IsSliding() || m_parts->tabManager.IsLoading()
+    return m_parts->tips.WantsTick() || m_parts->addressBar.WantsTick() || m_parts->tabManager.IsSliding() || m_parts->tabManager.IsSpinning()
         || m_parts->toolbars.IsMenuOpen() || m_parts->preview.GetToolbar().IsMenuOpen()
         || m_parts->toolbars.WantsTick() || m_parts->preview.GetToolbar().WantsTick()
         || GetPopupHost()->GetContextMenu().IsVisible() || GetPopupHost()->GetContextMenu().WantsTick()

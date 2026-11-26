@@ -7,7 +7,9 @@
 #include "CassoLink/LinkProgram.h"
 #include "CassoLink/Session/CaptureStream.h"
 #include "CassoLink/Session/CassoLinkCapture.h"
+#include "CassoLink/Session/CassoLinkDiskTransfer.h"
 #include "CassoLink/Session/CassoLinkThirteenSector.h"
+#include "CassoLink/Session/RawWriteStream.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
@@ -180,6 +182,159 @@ public:
         AssertSucceeded (CassoLinkThirteenSector::ReadDisk (*rig.host, 1, nullptr, nullptr, read, readReport, status));
         Assert::AreEqual ((Byte) 0, status.error);
         Assert::IsTrue (read == sectors, L"The sectors read back over the link");
+    }
+
+
+    //  Whether `bits` appears in `track`, which repeats, from some bit.
+    static bool  IsWithin (const std::vector<uint8_t> & bits, const std::vector<uint8_t> & track)
+    {
+        size_t  n = track.size();
+
+
+
+        for (size_t start = 0; start < n; start++)
+        {
+            size_t  at = 0;
+
+            while (at < bits.size() && track[(start + at) % n] == bits[at])
+            {
+                at++;
+            }
+
+            if (at == bits.size())
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+
+    //  Bits written raw over the link at a whole and a half track: nibbles,
+    //  9- and 10-bit sync bytes and a run of zero bits longer than a byte's
+    //  seven come back from the emulated drive bit for bit.
+    TEST_METHOD (ARawTrack_IsWrittenBitForBit_OverTheLink)
+    {
+        static constexpr size_t  kBytes = 5000;
+
+        ProgramRig            rig (MakeDisk());
+        std::vector<Byte>     module;
+        std::vector<uint8_t>  bits;
+        RawWriteStream        stream;
+        CassoLinkStatus       status;
+        uint32_t              seed = 99;
+
+
+
+        for (size_t i = 0; i < kBytes; i++)
+        {
+            Byte    value = 0;
+            size_t  zeros = 0;
+
+            seed  = seed * 1103515245 + 12345;
+            value = (Byte) (0x80 | (seed >> 16));
+            zeros = (i % 50 == 0) ? 2 : (i % 77 == 0) ? 1 : (i == 2500) ? 30 : 0;
+
+            for (int bit = 7; bit >= 0; bit--)
+            {
+                bits.push_back ((uint8_t) ((value >> bit) & 1));
+            }
+
+            bits.insert (bits.end(), zeros, 0);
+        }
+
+        RawWriteStream::FromBits (bits, stream);
+
+        AssertSucceeded (LinkProgram::BuildThirteenSectorModule (module));
+
+        Assert::IsTrue (module.size() <= 0x500, std::format (L"The module is {} bytes, past its buffers", module.size()).c_str());
+        AssertSucceeded (rig.host->EnsureModule (module));
+
+        for (int position : { 20, 22 })
+        {
+            AssertSucceeded (rig.host->WriteRawTrack (1, (Byte) position, stream, status));
+            Assert::AreEqual ((Byte) 0, status.error);
+            Assert::IsTrue (IsWithin (bits, GetTrackBits (rig, position)), std::format (L"Position {}'s bits", position).c_str());
+        }
+    }
+
+
+    //  The image in CASSO_RAW_WRITE_IMAGE, a WOZ, NIB or NB2 file, written
+    //  raw over the link track by track, after the drive is timed, as a write
+    //  from Casso Explorer is: each track the emulated drive has after is the
+    //  image's track's bits, fitted to the drive's turn, from the end of the
+    //  write back to the part its end overlaps. With
+    //  CASSO_RAW_WRITE_OUT set, the drive's disk is saved there as a WOZ.
+    TEST_METHOD (OnDemand_ARawImage_IsWrittenTrackForTrack_OverTheLink)
+    {
+        static constexpr size_t  kOverlapBits = 400;
+
+        ProgramRig                          rig (MakeDisk());
+        std::vector<Byte>                   module;
+        std::vector<Byte>                   file;
+        std::vector<RawWriteTrack>          tracks;
+        CassoLinkStatus                     status;
+        wchar_t                             path[MAX_PATH] = {};
+        int                                 tooLong        = -1;
+        int                                 failed         = 0;
+        size_t                              turn           = 0;
+        double                              revolution     = 0.0;
+
+
+
+        if (GetEnvironmentVariableW (L"CASSO_RAW_WRITE_IMAGE", path, MAX_PATH) == 0)
+        {
+            Logger::WriteMessage ("CASSO_RAW_WRITE_IMAGE isn't set; nothing to write.\n");
+            return;
+        }
+
+        {
+            std::ifstream  in (path, std::ios::binary);
+
+            file.assign (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
+        }
+
+        AssertSucceeded (RawWriteStream::GetImageTracks (file, tracks, tooLong));
+        AssertSucceeded (rig.host->TimeDrive (1, 0, CassoLinkDiskTransfer::kTimedRevolutions, revolution, status));
+        AssertSucceeded (LinkProgram::BuildThirteenSectorModule (module));
+        AssertSucceeded (rig.host->EnsureModule (module));
+
+        //  The PC times the drive by its clock, which a stepped machine's
+        //  turn isn't measured against, so the turn is the emulated track's.
+        turn = GetTrackBits (rig, 0).size();
+
+        for (RawWriteTrack & track : tracks)
+        {
+            std::vector<uint8_t>  bits;
+            std::vector<uint8_t>  onDisk;
+            size_t                compared = 0;
+            bool                  same     = false;
+            bool                  fits     = track.stream.FitToTurn (turn);
+
+            AssertSucceeded (rig.host->WriteRawTrack (1, (Byte) track.position, track.stream, status));
+            Assert::AreEqual ((Byte) 0, status.error);
+
+            track.stream.ToBits (bits);
+            onDisk   = GetTrackBits (rig, track.position);
+            compared = std::min (bits.size(), onDisk.size()) - kOverlapBits;
+            bits.erase (bits.begin(), bits.end() - (ptrdiff_t) compared);
+
+            same = IsWithin (bits, onDisk);
+
+            failed += (same && fits) ? 0 : 1;
+            Logger::WriteMessage (std::format ("Position {}: {} bits{}, {} on the disk, {}\n", track.position, track.stream.GetCellCount(), fits ? "" : " (doesn't fit)", onDisk.size(), same ? "the same" : "DIFFERENT").c_str());
+        }
+
+        if (GetEnvironmentVariableW (L"CASSO_RAW_WRITE_OUT", path, MAX_PATH) != 0)
+        {
+            std::vector<Byte>  written;
+
+            AssertSucceeded (WozLoader::Serialize (*rig.machine.GetDiskStore().GetImage (ProgramRig::kSlot, 0), written));
+            std::ofstream (path, std::ios::binary).write (reinterpret_cast<const char *> (written.data()), (std::streamsize) written.size());
+        }
+
+        Assert::AreEqual (0, failed);
     }
 
 

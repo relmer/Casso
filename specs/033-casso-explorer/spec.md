@@ -3610,9 +3610,9 @@ it was.
   published under a license that allows it. Source code under the GPL MAY
   be read for a format's behavior, and MUST NOT be copied or
   paraphrased into Casso.
-- **FR-174**: A multiple selection's context menu MUST offer Convert to
-  folder, which writes each file with its conversion to a folder the user
-  picks. A file that fails MUST be skipped, and every failure listed when
+- **FR-174**: Get out and Copy to folder on a multiple selection MUST write
+  each file with its conversion to the folder the user picks, as a drag
+  does. A file that fails MUST be skipped, and every failure listed when
   the rest are written.
 
 **Large volumes**
@@ -4746,7 +4746,7 @@ write; Full Send; verified reads and writes; the cassette bootstrap.
 
 **2. File types**: Story 18, in this order, the most used first in each group.
 
-1. RTF and CSV writers, and Convert to folder (FR-174).
+1. RTF and CSV writers, and conversions on Get out (FR-174).
 2. Text: Pascal textfiles, random-access text.
 3. Business: AppleWorks Classic, then AppleWorks GS, Teach, VisiCalc,
    Gutenberg and Magic Window. VisiCalc recalculation, as DiskBrowser does

@@ -314,6 +314,7 @@
     <ClCompile Include="CassoLink\Session\CassoLinkResume.cpp" />
     <ClCompile Include="CassoLink\Session\LinkImageSource.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkThirteenSector.cpp" />
+    <ClCompile Include="CassoLink\Session\RawWriteStream.cpp" />
     <ClCompile Include="DiskCheck\ImageRecordStore.cpp" />
     <ClCompile Include="DiskCheck\ThumbnailStore.cpp" />
     <ClCompile Include="DiskCheck\GivenNames.cpp" />
@@ -550,6 +551,7 @@
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerLayout.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\CassoLinkDriveManager.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\CassoLinkDriveManagerBlocks.cpp" />
+    <ClCompile Include="CassoExplorer\Window\Managers\CassoLinkDriveManagerMenu.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\CassoLinkManager.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\FullSendWindowManager.cpp" />
     <ClCompile Include="CassoExplorer\Window\Panes\ExplorerListPane.cpp" />
@@ -584,6 +586,7 @@
     <ClCompile Include="CassoExplorer\Model\BrowserModel.cpp" />
     <ClCompile Include="CassoExplorer\Model\CassoTargeting.cpp" />
     <ClCompile Include="CassoExplorer\Model\CassoExplorerPrefs.cpp" />
+    <ClCompile Include="CassoExplorer\Model\NewFileMarks.cpp" />
     <ClCompile Include="CassoExplorer\Model\GroupChoices.cpp" />
     <ClCompile Include="CassoExplorer\Model\RowGrouping.cpp" />
     <ClCompile Include="CassoExplorer\Model\TypedPathHistory.cpp" />
@@ -1560,6 +1563,7 @@
     <ClInclude Include="Devices\Tape\ITapeAudioDecoder.h" />
     <ClInclude Include="Devices\Tape\AiffCodec.h" />
     <ClInclude Include="Pch.h" />
+    <ClInclude Include="Core\IntRange.h" />
     <ClInclude Include="Core\AppMessages.h" />
     <ClInclude Include="Core\AppleSingleCodec.h" />
     <ClInclude Include="Core\MemoryDevice.h" />
@@ -1897,6 +1901,7 @@
     <ClInclude Include="CassoExplorer\Model\BrowserModel.h" />
     <ClInclude Include="CassoExplorer\Model\CassoTargeting.h" />
     <ClInclude Include="CassoExplorer\Model\CassoExplorerPrefs.h" />
+    <ClInclude Include="CassoExplorer\Model\NewFileMarks.h" />
     <ClInclude Include="CassoExplorer\Model\GroupChoices.h" />
     <ClInclude Include="CassoExplorer\Model\RowGrouping.h" />
     <ClInclude Include="CassoExplorer\Model\TypedPathHistory.h" />
@@ -2236,6 +2241,7 @@
     <ClInclude Include="CassoLink\Session\CassoLinkResume.h" />
     <ClInclude Include="CassoLink\Session\LinkImageSource.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkThirteenSector.h" />
+    <ClInclude Include="CassoLink\Session\RawWriteStream.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkFullSend.h" />
     <ClInclude Include="DiskCheck\ImageRecordStore.h" />
     <ClInclude Include="DiskCheck\ThumbnailStore.h" />

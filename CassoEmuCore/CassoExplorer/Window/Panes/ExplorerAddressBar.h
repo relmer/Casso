@@ -59,7 +59,7 @@ public:
     void         SetHidden               (bool hidden) { m_address->SetVisible (!hidden); m_findBox->SetVisible (!hidden); }
     static RECT  GetAddressRect          (const RECT & free, const RECT & strip, const DxuiDpiScaler & scaler);
     void         ApplyTheme              (const DxuiTheme * theme);
-    void         CloseSuggestions        () { m_suggest.Close(); }
+    void         CloseSuggestions        () { m_suggest.Close(); m_searchSuggest.Close(); }
     LPCWSTR      GetCursorForPoint       (POINT clientPx) const;
 
     //  Keys, and focus. The address being edited has its keys first.
@@ -111,9 +111,16 @@ public:
     bool  HandleFindBoxKey      (const DxuiKeyEvent & ev);
     bool  HandleAddressKey      (WPARAM vk);
 
+    //  The search box's earlier queries, newest first, that contain `typed`.
+    static std::vector<std::wstring>  GetSearchSuggestions (const std::vector<std::wstring> & history, const std::wstring & typed);
+
 private:
-    bool  HandleAddressMouse (const DxuiMouseEvent & ev);
-    bool  HandleFindBoxMouse (const DxuiMouseEvent & ev);
+    bool  HandleAddressMouse  (const DxuiMouseEvent & ev);
+    bool  HandleFindBoxMouse  (const DxuiMouseEvent & ev);
+    void  ShowSearchHistory   (const std::wstring & typed);
+    void  AddSearchHistory    (const std::wstring & query);
+    void  PickSearchHistory   (const std::wstring & query);
+    void  RemoveSearchHistory (const std::wstring & query);
 
     ExplorerContext  & m_context;
     DxuiAddressBar   * m_address = nullptr;
@@ -122,6 +129,8 @@ private:
     //  folder shown and below it.
     DxuiTextInput                              * m_findBox = nullptr;
     DxuiSuggestionList                           m_suggest;
+    DxuiSuggestionList                           m_searchSuggest;
+    std::wstring                                 m_searchTyped;
     std::vector<BrowserModel::AddressSegment>    m_addressSegments;
     BrowserModel::AddressRoot                    m_addressRoot;
     std::wstring                                 m_addressTyped;

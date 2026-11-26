@@ -264,6 +264,7 @@
     <ClCompile Include="BlankProDosBootTests.cpp" />
     <ClCompile Include="BlockDeviceBootTests.cpp" />
     <ClCompile Include="Floppy35BootTests.cpp" />
+    <ClCompile Include="LaunchBootTests.cpp" />
     <ClCompile Include="PickerTimingTests.cpp" />
     <ClCompile Include="Apple2cPlusTests.cpp" />
     <ClCompile Include="DeskModelAssetTests.cpp" />

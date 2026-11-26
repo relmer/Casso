@@ -146,6 +146,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="Widgets\DxuiDivider.cpp" />
+    <ClCompile Include="Core\DxuiPaneMetrics.cpp" />
     <ClCompile Include="Core\DxuiFocusRing.cpp" />
     <ClCompile Include="Core\DxuiTextElide.cpp" />
     <ClCompile Include="Core\DxuiFrameRate.cpp" />
@@ -252,6 +253,9 @@
     <ClCompile Include="Widgets\DxuiStatusBar.cpp" />
     <ClCompile Include="Widgets\DxuiFramebufferView.cpp" />
     <ClCompile Include="Widgets\DxuiHexView.cpp" />
+    <ClCompile Include="Widgets\HexView\DxuiHexSourceEdit.cpp" />
+    <ClCompile Include="Widgets\HexView\DxuiHexRegions.cpp" />
+    <ClCompile Include="Widgets\HexView\DxuiHexHostEdit.cpp" />
     <ClCompile Include="Widgets\HexView\DxuiHexLayout.cpp" />
     <ClCompile Include="Widgets\HexView\DxuiHexPainter.cpp" />
     <ClCompile Include="Widgets\HexView\DxuiHexScroll.cpp" />
@@ -273,13 +277,18 @@
     <ClCompile Include="Window\DxuiPropertyPage.cpp" />
     <ClCompile Include="Window\DxuiPropertySheet.cpp" />
     <ClCompile Include="Window\DxuiDialogController.cpp" />
+    <ClCompile Include="Window\DxuiDialogRunner.cpp" />
+    <ClCompile Include="Window\DxuiKeyRouter.cpp" />
+    <ClCompile Include="Window\DxuiMouseRouter.cpp" />
     <ClCompile Include="Window\DxuiWindow.cpp" />
+    <ClCompile Include="Window\DxuiWindowSizer.cpp" />
     <ClCompile Include="Window\DxuiPopupHost.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Widgets\DxuiDivider.h" />
     <ClInclude Include="Dxui.h" />
     <ClInclude Include="Pch.h" />
+    <ClInclude Include="Core\DxuiPaneMetrics.h" />
     <ClInclude Include="Core\DxuiFocusRing.h" />
     <ClInclude Include="Core\DxuiTextElide.h" />
     <ClInclude Include="Core\DxuiAbsoluteLayout.h" />
@@ -408,6 +417,10 @@
     <ClInclude Include="Widgets\DxuiStatusBar.h" />
     <ClInclude Include="Widgets\DxuiFramebufferView.h" />
     <ClInclude Include="Widgets\DxuiHexView.h" />
+    <ClInclude Include="Widgets\HexView\IDxuiHexEditHost.h" />
+    <ClInclude Include="Widgets\HexView\DxuiHexSourceEdit.h" />
+    <ClInclude Include="Widgets\HexView\DxuiHexRegions.h" />
+    <ClInclude Include="Widgets\HexView\DxuiHexHostEdit.h" />
     <ClInclude Include="Widgets\HexView\DxuiHexLayout.h" />
     <ClInclude Include="Widgets\HexView\DxuiHexPainter.h" />
     <ClInclude Include="Widgets\HexView\DxuiHexScroll.h" />
@@ -431,7 +444,11 @@
     <ClInclude Include="Window\DxuiButtonRow.h" />
     <ClInclude Include="Window\DxuiPropertySheet.h" />
     <ClInclude Include="Window\DxuiDialogController.h" />
+    <ClInclude Include="Window\DxuiDialogRunner.h" />
+    <ClInclude Include="Window\DxuiKeyRouter.h" />
+    <ClInclude Include="Window\DxuiMouseRouter.h" />
     <ClInclude Include="Window\DxuiWindow.h" />
+    <ClInclude Include="Window\DxuiWindowSizer.h" />
     <ClInclude Include="Window\IDxuiDialogHost.h" />
     <ClInclude Include="Window\IDxuiHostClient.h" />
     <ClInclude Include="Window\DxuiPopupHost.h" />

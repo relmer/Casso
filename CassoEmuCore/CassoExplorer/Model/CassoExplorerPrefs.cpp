@@ -551,6 +551,7 @@ JsonValue CassoExplorerPrefs::ToJson() const
     std::vector<std::pair<std::string, JsonValue>>  splitterFields;
     std::vector<JsonValue>                          tabValues;
     std::vector<JsonValue>                          typedValues;
+    std::vector<JsonValue>                          searchValues;
     std::vector<JsonValue>                          propertyValues;
     std::vector<JsonValue>                          linkValues;
     std::vector<JsonValue>                          widthValues;
@@ -612,6 +613,11 @@ JsonValue CassoExplorerPrefs::ToJson() const
     for (const std::wstring & typed : typedPaths)
     {
         typedValues.push_back (JsonValue (TextEncoding::WideToNarrow (typed)));
+    }
+
+    for (const std::wstring & search : searchHistory)
+    {
+        searchValues.push_back (JsonValue (TextEncoding::WideToNarrow (search)));
     }
 
     for (const std::wstring & property : propertyColumns)
@@ -716,6 +722,7 @@ JsonValue CassoExplorerPrefs::ToJson() const
     root.emplace_back ("splitters",      JsonValue (std::move (splitterFields)));
     root.emplace_back ("tabs",           JsonValue (std::move (tabValues)));
     root.emplace_back ("typedPaths",     JsonValue (std::move (typedValues)));
+    root.emplace_back ("searchHistory",  JsonValue (std::move (searchValues)));
     root.emplace_back ("listColumnWidths", JsonValue (std::move (widthValues)));
     root.emplace_back ("listColumnOrder",  JsonValue (std::move (orderValues)));
     root.emplace_back ("listHiddenColumns", MakeIntArray (hiddenColumns));
@@ -867,6 +874,7 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     const JsonValue  * splitters    = nullptr;
     const JsonValue  * tabArray     = nullptr;
     const JsonValue  * typedArray   = nullptr;
+    const JsonValue  * searchArray  = nullptr;
     const JsonValue  * seenArray    = nullptr;
     const JsonValue  * diskArray    = nullptr;
     const JsonValue  * choiceArray  = nullptr;
@@ -1124,6 +1132,21 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
             if (value.GetType() == JsonType::String)
             {
                 typedPaths.push_back (TextEncoding::NarrowToWide (value.GetString()));
+            }
+        }
+    }
+
+    if (root.HasArray ("searchHistory", searchArray))
+    {
+        searchHistory.clear();
+
+        for (i = 0; i < searchArray->GetArraySize(); i++)
+        {
+            const JsonValue &  value = searchArray->GetArrayElement (i);
+
+            if (value.GetType() == JsonType::String)
+            {
+                searchHistory.push_back (TextEncoding::NarrowToWide (value.GetString()));
             }
         }
     }

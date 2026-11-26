@@ -240,6 +240,21 @@ HRESULT FullSendDriveCheck::CheckRawOnly (int drive, FullSendCheckedDisk & ioDis
 
     hr = m_context.link.ProbeRaw (drive, record.rawRevolution, revolution, same);
     CHR (hr);
+
+    //  A disk whose track 0 is damaged past reading can have directory
+    //  tracks that read: captured raw, with those tracks for its fingerprint.
+    if (revolution.empty())
+    {
+        hr = ProbeDirectory (drive, ioDisk);
+        CHR (hr);
+
+        if (ioDisk.isRawOnly)
+        {
+            ioDisk.check = FullSendDiskCheck::New;
+            m_context.Report (std::format ("Track 0 of the disk in drive {} doesn't read, but its directory track does, so the disk appears to be damaged and is captured in raw mode.", drive), drive);
+        }
+    }
+
     BAIL_OUT_IF (revolution.empty(), S_OK);
 
     ioDisk.isRawOnly = true;
@@ -265,6 +280,47 @@ HRESULT FullSendDriveCheck::CheckRawOnly (int drive, FullSendCheckedDisk & ioDis
     {
         m_context.Report (std::format ("Track 0 of the disk in drive {} has no sectors that read, so the disk is captured in raw mode.", drive), drive);
     }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendDriveCheck::ProbeDirectory
+//
+//  DOS's catalog track and CP/M's directory track, read for a disk whose
+//  track 0 doesn't read. Any sector there that reads is a disk.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT FullSendDriveCheck::ProbeDirectory (int drive, FullSendCheckedDisk & ioDisk)
+{
+    HRESULT  hr      = S_OK;
+    bool     hasDisk = false;
+    bool     whole   = false;
+    bool     found   = false;
+
+
+
+    for (int track : { FullSendDisk::kDosCatalogTrack, FullSendDisk::kCpmDirectoryTrack })
+    {
+        hr = m_context.link.ReadTrack (drive, track, ioDisk.image, hasDisk, whole);
+        CHR (hr);
+
+        found = found || hasDisk;
+    }
+
+    BAIL_OUT_IF (!found, S_OK);
+
+    hr = FullSendDisk::ComputeFingerprint (ioDisk.image, ioDisk.fingerprint);
+    CHR (hr);
+
+    ioDisk.isRawOnly = true;
 
 Error:
     return hr;

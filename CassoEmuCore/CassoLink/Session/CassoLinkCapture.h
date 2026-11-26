@@ -155,6 +155,11 @@ public:
     //  each time.
     static HRESULT  ProbeRevolution (CassoLinkHost & host, Byte drive, std::span<const Byte> module, std::span<const Byte> previous, std::vector<Byte> & outRevolution, bool & outSame);
 
+    //  One read each of track 0, DOS's catalog track and CP/M's directory
+    //  track, for whether a disk has anything written on it before a whole
+    //  capture. outHasData is set when any of them repeats.
+    static HRESULT  ProbeHasData    (CassoLinkHost & host, Byte drive, std::span<const Byte> module, bool & outHasData);
+
 private:
     struct Stream
     {

@@ -5,6 +5,7 @@
 #include "CassoLink/Session/CassoLinkDiskStatus.h"
 #include "CassoLink/Session/CassoLinkThirteenSector.h"
 #include "CassoLink/Session/LinkImageSource.h"
+#include "CassoLink/Session/RawWriteStream.h"
 #include "CassoLink/Session/TrackMeasures.h"
 #include "CassoLink/Session/TrackVerifier.h"
 #include "CassoLink/CassoLinkCodec.h"
@@ -78,6 +79,17 @@ HRESULT CassoLinkDiskTransfer::CaptureWholeDisk (LinkOperation & operation)
     CHR (hr);
 
     BeginStatus (operation, true);
+
+    //  A blank disk is reported in seconds, not after every track is read.
+    hr = CassoLinkCapture::ProbeHasData (*m_session.m_host, (Byte) operation.drive, module, hasData);
+    CHR (hr);
+
+    if (!hasData)
+    {
+        operation.message = std::format ("Nothing was found on the disk in drive {}, so no image was written. The drive may be empty, or the disk unformatted.", operation.drive);
+    }
+
+    CBREx (hasData, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
 
     hr = CassoLinkCapture::Capture (*m_session.m_host, (Byte) operation.drive, module, date, [this, &operation] (const CassoLinkCapture::Progress & where)
     {
@@ -1194,6 +1206,103 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkDiskTransfer::WriteRawDisk
+//
+//  Each track is written at its position, in order, so a half or quarter
+//  track is written after the whole track before it, as a disk mastered in
+//  one pass across it was. The drive's sectors and listing are dropped
+//  after, as the disk is another one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkDiskTransfer::WriteRawDisk (LinkOperation & operation, const std::vector<Byte> & fileBytes)
+{
+    HRESULT                             hr       = S_OK;
+    size_t                              index    = (size_t) operation.drive - 1;
+    std::vector<Byte>                   module;
+    std::vector<RawWriteTrack>          tracks;
+    CassoLinkStatus                     status;
+    int                                 tooLong  = -1;
+    int                                 turn     = 0;
+    Byte                                gap      = 0;
+    bool                                canceled = false;
+    std::string                         wrapped;
+    int                                 wraps    = 0;
+
+
+
+    hr = RawWriteStream::GetImageTracks (fileBytes, tracks, tooLong);
+
+    if (FAILED (hr) && tooLong >= 0)
+    {
+        operation.message = std::format ("Track {} is too large to write.", tooLong / 4.0);
+    }
+
+    CHR (hr);
+
+    //  Timing the drive uses the buffers the module is loaded on, so the
+    //  module is loaded after. A blank disk's track 0 is formatted to be
+    //  timed, since a track longer than the turn overwrites its start.
+    hr = TimeDriveForFormat (operation.drive, gap);
+    CHR (hr);
+
+    turn = TrackMeasures::GetBitsPerTurn (m_revolutionMs[index]);
+
+    hr = m_session.m_host->BuildThirteenSectorModule (module);
+    CHR (hr);
+
+    hr = m_session.m_host->EnsureModule (module);
+    CHR (hr);
+
+    m_session.m_disks[index]->Clear();
+    m_session.m_listings[index].reset();
+
+    for (size_t i = 0; i < tracks.size(); i++)
+    {
+        RawWriteTrack  & track = tracks[i];
+
+        if (!track.stream.FitToTurn ((size_t) turn))
+        {
+            wrapped += std::format ("{}{}", wraps == 0 ? "" : ", ", track.position / 4.0);
+            wraps++;
+        }
+
+        canceled = m_session.m_canceled.load();
+        CBREx (!canceled, HRESULT_FROM_WIN32 (ERROR_CANCELLED));
+
+        m_session.Report (operation, (int) (i * 100 / tracks.size()));
+
+        hr = m_session.m_host->WriteRawTrack ((Byte) operation.drive, (Byte) track.position, track.stream, status);
+        CHR (hr);
+
+        hr = CassoLinkSession::FromStatusError (status.error);
+        CHR (hr);
+
+        if (track.position % DiskImage::kQuarterTracksPerWholeTrack == 0)
+        {
+            MarkWrittenTrack (operation, track.position / DiskImage::kQuarterTracksPerWholeTrack);
+        }
+    }
+
+    if (wraps == 1)
+    {
+        operation.message = std::format ("Track {} is longer than the disk allows, so it wrapped around. This copy may not work.", wrapped);
+    }
+    else if (wraps > 1)
+    {
+        operation.message = std::format ("Tracks {} are longer than the disk allows, so they wrapped around. This copy may not work.", wrapped);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkDiskTransfer::WriteWholeDisk
 //
 //  The image is decoded first, and nothing is written if any track is not
@@ -1227,6 +1336,17 @@ HRESULT CassoLinkDiskTransfer::WriteWholeDisk (LinkOperation & operation)
 
     hr = operation.source->ReadImage (fileBytes);
     CHR (hr);
+
+    if (RawWriteStream::IsRawImage (fileBytes))
+    {
+        BeginWriteStatus (operation);
+
+        hr = WriteRawDisk (operation, fileBytes);
+        CHR (hr);
+
+        EndWriteStatus (operation, fileBytes.size());
+        BAIL_OUT_IF (true, S_OK);
+    }
 
     hr = VolumeImage::Load (fileBytes, operation.source->GetName(), sectors, report);
     CHR (hr);

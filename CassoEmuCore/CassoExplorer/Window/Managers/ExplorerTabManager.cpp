@@ -487,14 +487,15 @@ void ExplorerTabManager::ShowTabContextMenu (int x, int y, int index)
 
 void ExplorerTabManager::FillTabs()
 {
-    const BrowserModel              & model = m_context.browser.GetBrowserModel();
-    RECT                              strip = m_tabs->GetBounds();
-    int                               width = m_context.scaler.ToPx (kTabWidthDip);
-    int                               count = (int) model.GetTabCount();
-    int                               lead  = (int) std::lround (m_context.scaler.ToPxf (ExplorerMetrics::kTabLeadDip));
-    int                               plus  = m_context.scaler.ToPx (DxuiTabStrip::kNewTabWidthDip) + (int) std::lround (m_context.scaler.ToPxf (ExplorerMetrics::kNewTabGapDip));
+    const BrowserModel              & model   = m_context.browser.GetBrowserModel();
+    RECT                              strip   = m_tabs->GetBounds();
+    int                               width   = m_context.scaler.ToPx (kTabWidthDip);
+    int                               count   = (int) model.GetTabCount();
+    int                               lead    = (int) std::lround (m_context.scaler.ToPxf (ExplorerMetrics::kTabLeadDip));
+    int                               plus    = m_context.scaler.ToPx (DxuiTabStrip::kNewTabWidthDip) + (int) std::lround (m_context.scaler.ToPxf (ExplorerMetrics::kNewTabGapDip));
     std::vector<DxuiTabStrip::Tab>    tabs;
-    size_t                            index = 0;
+    size_t                            index   = 0;
+    bool                              loading = false;
 
 
 
@@ -529,14 +530,26 @@ void ExplorerTabManager::FillTabs()
         tabs.push_back (tab);
     }
 
+    //  A search refills the tabs as its results come in. The spinner's frame
+    //  goes into the new tabs, so the strip is never drawn with the search
+    //  icon between frames.
+    loading = IsLoading();
+
+    if (loading && m_spinnerFrame >= 0 && (size_t) m_spinnerFrame < m_spinnerFrames.size() && model.GetActiveIndex() < tabs.size())
+    {
+        tabs[model.GetActiveIndex()].icon = m_spinnerFrames[(size_t) m_spinnerFrame];
+    }
+    else
+    {
+        m_spinnerFrame = -1;
+    }
+
     m_tabs->SetTabs (std::move (tabs));
     m_tabs->SetSelected ((int) model.GetActiveIndex());
 
-    m_spinnerFrame = -1;
-
-    if (IsLoading())
+    if (loading)
     {
-        TickSpinner ((int64_t) GetTickCount64());
+        TickSpinner (CassoExplorerWindow::GetNowMs());
         m_context.window.ArmTick();
     }
 }
@@ -553,7 +566,7 @@ void ExplorerTabManager::FillTabs()
 
 bool ExplorerTabManager::IsLoading() const
 {
-    return m_context.browser.IsListLoading();
+    return m_context.browser.IsListLoading() || m_context.browser.IsSearchRunning();
 }
 
 
@@ -564,8 +577,8 @@ bool ExplorerTabManager::IsLoading() const
 //
 //  ExplorerTabManager::TickSpinner
 //
-//  While the active tab's list loads, a spinner replaces its icon, as in
-//  Explorer. FillTabs restores the icon when the list arrives.
+//  While the active tab's list loads or its search runs, a spinner replaces
+//  its icon, as in Explorer. The icon comes back as soon as that ends.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -578,6 +591,12 @@ bool ExplorerTabManager::TickSpinner (int64_t nowMs)
     int                   frame      = (int) ((nowMs % s_kCycleMs) * s_kFrames / s_kCycleMs);
 
 
+
+    if (!IsLoading() && m_spinnerFrame >= 0)
+    {
+        FillTabs();
+        return true;
+    }
 
     if (!IsLoading() || m_tabs->GetTabs().empty() || frame == m_spinnerFrame)
     {

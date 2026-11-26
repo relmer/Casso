@@ -9,6 +9,7 @@
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "CassoExplorer/Model/TreeModel.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/ImageClassifier.h"
 #include "Machines/Apple2/Common/AppleFileName.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Seams/ShellVerbs/Win32FileContents.h"
@@ -60,6 +61,7 @@ HRESULT Win32ShellSearch::RunSearch (const std::wstring & id, std::vector<IShell
     size_t                                             described = 0;
     Reporter                                           reporter;
     std::map<std::wstring, std::vector<std::wstring>>  walkedImages;
+    std::unordered_set<std::wstring>                   searchedImages;
 
 
 
@@ -77,19 +79,27 @@ HRESULT Win32ShellSearch::RunSearch (const std::wstring & id, std::vector<IShell
         }
     };
 
-    //  A search from Casso's root covers each of its folders.
+    //  A search from Casso's root covers each of its folders. The files inside
+    //  a folder's disk images are tested once the folder is, so their matches
+    //  are listed as each folder is done rather than after the last one.
     for (const std::wstring & folder : SearchQuery::SplitScopes (scope))
     {
         std::vector<std::wstring>  found;
 
+        bool     isFolder   = SearchQuery::IsFolderScope (folder);
         bool     thisPc     = folder == SearchQuery::kThisPc;
         bool     everywhere = thisPc || folder == SearchQuery::kEverywhere;
-        bool     indexed    = everywhere || (CanUseIndex (expression, options) && IsIndexed (folder));
+        bool     indexed    = everywhere || (isFolder && CanUseIndex (expression, options) && IsIndexed (folder));
         HRESULT  hrIndex    = indexed ? QueryIndex (everywhere ? SearchQuery::kEverywhere : folder, query, found, options.currentFolder, &ranks) : S_OK;
 
         if (IsStopped (reporter))
         {
             break;
+        }
+
+        if (!isFolder && !everywhere)
+        {
+            continue;
         }
 
         //  A folder outside the index, or one the index fails on, is searched
@@ -99,10 +109,11 @@ HRESULT Win32ShellSearch::RunSearch (const std::wstring & id, std::vector<IShell
             reporter.images = &walkedImages[folder];
             WalkForNames (folder, expression, options, paths, reporter);
             reporter.images = nullptr;
-            continue;
         }
-
-        AddNewPaths (found, paths);
+        else
+        {
+            AddNewPaths (found, paths);
+        }
 
         if (thisPc)
         {
@@ -115,30 +126,20 @@ HRESULT Win32ShellSearch::RunSearch (const std::wstring & id, std::vector<IShell
             AddRecentMatches (expression, paths);
         }
 
-        reporter.progress (paths);
+        DescribeNew (paths, described, ranks, options.systemFiles, outItems);
+
+        if (!IsStopped (reporter))
+        {
+            SearchFolderImages (folder, expression, options.currentFolder, walkedImages, searchedImages, outItems);
+        }
+
+        if (IShellItemVerbs::s_listingProgress)
+        {
+            IShellItemVerbs::s_listingProgress (outItems);
+        }
     }
 
     DescribeNew (paths, described, ranks, options.systemFiles, outItems);
-
-    //  Files inside the disk images there are tested too.
-    for (const std::wstring & folder : SearchQuery::SplitScopes (scope))
-    {
-        auto  images = walkedImages.find (folder);
-
-        if (IsStopped (reporter))
-        {
-            break;
-        }
-
-        if (images != walkedImages.end())
-        {
-            SearchImages (folder, expression, outItems, options.currentFolder, &images->second);
-        }
-        else if (folder != SearchQuery::kEverywhere && folder != SearchQuery::kThisPc)
-        {
-            SearchImages (folder, expression, outItems, options.currentFolder);
-        }
-    }
 
 Error:
     return hr;
@@ -635,6 +636,61 @@ void Win32ShellSearch::SearchImages (const std::wstring & scope, const SearchExp
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32ShellSearch::SearchFolderImages
+//
+//  The images in one folder of a search: the ones its walk collected, or a
+//  walk for them in a folder the index answered. An image a folder before it
+//  already covered, as in a folder inside another, is read once. Everywhere
+//  has no folder, so it has no images. A tape is left out: finding its files
+//  means decoding the whole recording, a minute or more for a long one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32ShellSearch::SearchFolderImages (
+    const std::wstring                                        & folder,
+    const SearchExpression                                    & expression,
+    bool                                                        currentFolder,
+    const std::map<std::wstring, std::vector<std::wstring>>  & walkedImages,
+    std::unordered_set<std::wstring>                          & ioSearched,
+    std::vector<IShellItemVerbs::ShellFolderItem>             & ioItems)
+{
+    auto                       walked = walkedImages.find (folder);
+    std::vector<std::wstring>  images;
+    std::vector<std::wstring>  unread;
+
+
+
+    if (walked != walkedImages.end())
+    {
+        images = walked->second;
+    }
+    else if (SearchQuery::IsFolderScope (folder))
+    {
+        WalkForImages (folder, images, currentFolder);
+    }
+
+    for (const std::wstring & image : images)
+    {
+        std::wstring  key    = image;
+        bool          isTape = ImageClassifier::IsTapeExtension (std::filesystem::path (image).extension().wstring());
+
+        std::transform (key.begin(), key.end(), key.begin(), towlower);
+
+        if (!isTape && ioSearched.insert (key).second)
+        {
+            unread.push_back (image);
+        }
+    }
+
+    SearchImages (folder, expression, ioItems, currentFolder, &unread);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32ShellSearch::SearchImage
 //
 //  Every directory in the image, the volume's first, as far as the limits
@@ -849,12 +905,16 @@ HRESULT Win32ShellSearch::SaveSearch (HWND owner, const std::wstring & id)
     std::wstring                        name;
     HRESULT                             hrFolder = S_OK;
     bool                                written  = false;
+    std::vector<std::wstring>           folders;
 
 
 
     CBRAEx (parsed, E_INVALIDARG);
 
-    xml  = MakeSavedSearch (query, SearchQuery::SplitScopes (scope));
+    folders = SearchQuery::SplitScopes (scope);
+    std::erase (folders, std::wstring (SearchQuery::kStockDisks));
+
+    xml  = MakeSavedSearch (query, folders);
     name = query;
     std::replace_if (name.begin(), name.end(), [] (wchar_t ch) { return wcschr (L"\\/:*?\"<>|", ch) != nullptr; }, L'_');
 

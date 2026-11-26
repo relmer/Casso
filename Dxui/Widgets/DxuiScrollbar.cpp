@@ -742,7 +742,7 @@ void DxuiScrollbar::Paint (IDxuiPainter & painter, uint32_t foregroundArgb) cons
 {
     HRESULT   hr        = S_OK;
     Metrics   m         = GetMetrics();
-    float     amount    = m_dragging ? 1.0f : m_hoverAmount;
+    float     amount    = (m_dragging || !m_marks.empty()) ? 1.0f : m_hoverAmount;
     float     restA     = (float) (s_kRestThumbAlpha >> 24);
     float     wideA     = (float) (s_kThumbAlpha >> 24);
     uint32_t  thumbArgb = (foregroundArgb & s_kRgbMask) | ((uint32_t) (restA + (wideA - restA) * amount) << 24);
@@ -773,6 +773,8 @@ void DxuiScrollbar::Paint (IDxuiPainter & painter, uint32_t foregroundArgb) cons
         PaintThumb (painter, m.thumbStart, (float) m.bar.top + inset, m.thumbLength, thumbW, thumbArgb);
     }
 
+    PaintMarks (painter, m);
+
     //  Arrows fade in with the widening, and the one under the pointer is
     //  brighter, as in Windows.
     if (amount > 0.0f && m.arrowLess.right > m.arrowLess.left && m.arrowLess.bottom > m.arrowLess.top)
@@ -783,6 +785,78 @@ void DxuiScrollbar::Paint (IDxuiPainter & painter, uint32_t foregroundArgb) cons
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiScrollbar::SetMarks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiScrollbar::SetMarks (std::vector<Mark> marks, uint32_t matchArgb, uint32_t currentArgb)
+{
+    m_marks       = std::move (marks);
+    m_matchArgb   = matchArgb;
+    m_currentArgb = currentArgb;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiScrollbar::PaintMarks
+//
+//  A line across the bar for each mark, along the track between the arrows,
+//  drawn over the puck so a match under it can be seen. The selected
+//  match's line is drawn last, in its color, and a little thicker.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiScrollbar::PaintMarks (IDxuiPainter & painter, const Metrics & m) const
+{
+    constexpr float  kLinePx    = 2.0f;
+    constexpr float  kCurrentPx = 3.0f;
+    bool             vertical   = (m_orientation == Orientation::Vertical);
+    float            start      = (float) (GetMainTrackStart() + GetArrowExtent());
+    float            length     = (float) (GetMainTrackLength() - s_kArrowCount * GetArrowExtent());
+    float            across     = vertical ? (float) m.bar.left : (float) m.bar.top;
+    float            width      = vertical ? (float) (m.bar.right - m.bar.left) : (float) (m.bar.bottom - m.bar.top);
+
+
+
+    if (m_marks.empty() || length <= 0.0f)
+    {
+        return;
+    }
+
+    for (int pass = 0; pass < 2; pass++)
+    {
+        for (const Mark & mark : m_marks)
+        {
+            float  thick = mark.isCurrent ? kCurrentPx : kLinePx;
+            float  along = start + std::clamp (mark.at, 0.0f, 1.0f) * (length - thick);
+
+            if (mark.isCurrent != (pass == 1))
+            {
+                continue;
+            }
+
+            if (vertical)
+            {
+                painter.FillRect (across, along, width, thick, mark.isCurrent ? m_currentArgb : m_matchArgb);
+            }
+            else
+            {
+                painter.FillRect (along, across, thick, width, mark.isCurrent ? m_currentArgb : m_matchArgb);
+            }
+        }
+    }
 }
 
 

@@ -1356,7 +1356,7 @@ void MachineHost::SetDisk2Roms (std::vector<Byte> rom16, std::vector<Byte> rom13
 void MachineHost::MatchDisk2Rom()
 {
     DiskImage  *  image  = m_diskStore->GetImage (6, 0);
-    bool          want13 = image != nullptr && ThirteenSectorCodec::IsThirteenSector (*image);
+    bool          want13 = image != nullptr && ThirteenSectorCodec::IsThirteenSectorBoot (*image);
 
 
 

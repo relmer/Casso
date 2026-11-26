@@ -4,6 +4,7 @@
 #include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerListMenus.h"
+#include "CassoExplorer/Window/Managers/CassoLinkDriveManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerOpen.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/Window/Panes/ExplorerToolbars.h"
@@ -727,6 +728,11 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
     //  The later submenu first, so the earlier one's place stays where it was.
     InsertSubmenu (items, convertAt, L"Con&vert", L"Windows.Zip.Action", nullptr,                                                   std::move (convertChoices));
     InsertSubmenu (items, cassoAt,   L"C&asso",   nullptr,               m_context.shellIcons.GetForKind (IShellIcons::Kind::Casso), std::move (cassoChoices));
+
+    if (m_context.browser.GetSelectedRows().size() == 1)
+    {
+        m_context.linkDrives.AddWriteToFloppyMenu (items, cassoAt + 1, m_context.cassoTarget.GetSelectedImagePath());
+    }
 
     //  Casso's known folders, from a folder row or from the background of the
     //  folder being shown, as the tree offers them from a node.
@@ -1991,6 +1997,11 @@ std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetSearchOptionChoices()
     items.push_back (DxuiPopupMenuItem::ForCommand (option (L"File contents", L"windows.searchoptioncontents", false, [this]() { return m_context.prefs.searchContents; },
         [this, bar]() { m_context.prefs.searchContents = !m_context.prefs.searchContents; bar->ApplySearchPrefs(); })));
     items.push_back (DxuiPopupMenuItem::ForSeparator());
+
+    std::shared_ptr<DxuiCommand>  clearHistory = option (L"Clear search history", nullptr, false, nullptr, [this]() { m_context.prefs.searchHistory.clear(); });
+
+    clearHistory->isEnabled = [this]() { return !m_context.prefs.searchHistory.empty(); };
+    items.push_back (DxuiPopupMenuItem::ForCommand (std::move (clearHistory)));
     items.push_back (DxuiPopupMenuItem::ForCommand (option (L"Change indexed locations", L"windows.changeindexedlocations", false, nullptr, []()
     {
         ShellExecuteW (nullptr, L"open", L"control.exe", L"srchadmin.dll", nullptr, SW_SHOWNORMAL);
@@ -2027,7 +2038,7 @@ bool ExplorerListMenus::IsSearchIndexed()
 
     for (const std::wstring & folder : SearchQuery::SplitScopes (scope))
     {
-        if (folder == SearchQuery::kThisPc || folder == SearchQuery::kEverywhere || m_context.shellVerbs.IsIndexed (folder))
+        if (folder == SearchQuery::kThisPc || folder == SearchQuery::kEverywhere || (SearchQuery::IsFolderScope (folder) && m_context.shellVerbs.IsIndexed (folder)))
         {
             return true;
         }

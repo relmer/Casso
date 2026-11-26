@@ -33,6 +33,7 @@ enum class FullSendDriveState : Byte
     Blank,
     Validating,     // the image is being booted on the PC
     ProtectedSent,  // a likely copy-protected disk saved as sectors, not captured raw
+    Saving,         // the image is being built and written on the PC
 };
 
 enum class FullSendTone : Byte
@@ -61,7 +62,7 @@ struct FullSendScreen
     int                                prot       = 0;      // disks that are likely copy-protected
     std::string                        prefix;              // what begins each image's file name
 
-    static constexpr int  kQuipCount = 16;
+    static constexpr int  kQuipCount = 15;
 
     std::vector<std::string>  GetRows          () const;
     void                      SetDriveState    (int drive, FullSendDriveState state) { drives[(size_t) drive - 1] = state; }

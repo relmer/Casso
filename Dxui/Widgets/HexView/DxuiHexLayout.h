@@ -41,6 +41,20 @@ public:
     int   GetHexCells     () const;
     int   GetGroupCount   () const;
 
+    //  The cells between the offsets and the values, and between the values
+    //  and the text: one more each while regions are outlined, so a box's
+    //  edge sits in a gutter of its own rather than in the middle of the
+    //  usual gap.
+    int   GetGutterCells  () const;
+
+    //  The address a row starts at, wrapped by the address space.
+    uint64_t  GetRowAddress (uint64_t row) const;
+
+    //  Where a character cell's left edge falls, scrolled sideways with the
+    //  rows, and the space before the address column.
+    int   GetCellLeft     (int cellX) const;
+    int   GetPadPx        () const;
+
     //  First character cell of a byte's two hex digits, within the hex column.
     int   GetByteCellInRow     (int indexInRow) const;
     int   GetColumnStartCell   (DxuiHexViewTypes::Column column) const;
@@ -97,6 +111,7 @@ public:
 
 private:
     friend class DxuiHexView;
+    friend class DxuiHexRegions;
 
     DxuiHexView  & m_view;
 
@@ -116,4 +131,5 @@ private:
     mutable bool                   m_spanStarts     = true;
     int                            m_cellHeightDip  = 0;
     int                            m_padDip         = 0;
+    bool                           m_paneTextInset  = false;
 };

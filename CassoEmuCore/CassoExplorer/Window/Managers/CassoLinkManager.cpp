@@ -1268,7 +1268,9 @@ void CassoLinkManager::HandleTransferTimer()
 //
 //  CassoLinkManager::NoteListFilled
 //
-//  A receiving folder now listed has no files waiting to be seen.
+//  A receiving folder now listed has no files waiting to be seen. The files
+//  that arrived since its last listing are marked new until another
+//  location is listed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1276,19 +1278,33 @@ void CassoLinkManager::NoteListFilled()
 {
     TreeModel       & tree     = m_context.browser.GetTreeModel();
     const Location &  location = m_context.browser.GetLocation();
+    bool              isLink   = false;
 
 
-
-    if (location.kind != Location::Kind::HostFolder)
-    {
-        return;
-    }
 
     for (const std::wstring & folder : tree.GetLinkFolders())
     {
-        if (_wcsicmp (folder.c_str(), location.path.c_str()) == 0)
+        if (location.kind == Location::Kind::HostFolder && _wcsicmp (folder.c_str(), location.path.c_str()) == 0)
         {
-            int  unseen = tree.GetUnseenFiles (folder);
+            int                               unseen = tree.GetUnseenFiles (folder);
+            auto                              seen   = m_context.prefs.linkFolderSeen.find (folder);
+            std::vector<NewFileMarks::File>   files;
+            std::error_code                   error;
+
+            isLink = true;
+
+            if (seen != m_context.prefs.linkFolderSeen.end())
+            {
+                for (const std::filesystem::directory_entry & entry : std::filesystem::directory_iterator (folder, std::filesystem::directory_options::skip_permission_denied, error))
+                {
+                    if (entry.is_regular_file (error) && TreeModel::IsReceivedFile (entry.path().filename().wstring()))
+                    {
+                        files.push_back ({ entry.path().filename().wstring(), entry.last_write_time (error).time_since_epoch().count() });
+                    }
+                }
+
+                m_newFiles.AddNew (folder, seen->second, files);
+            }
 
             m_context.prefs.linkFolderSeen[folder] = std::filesystem::file_time_type::clock::now().time_since_epoch().count();
 
@@ -1300,6 +1316,30 @@ void CassoLinkManager::NoteListFilled()
             }
         }
     }
+
+    if (!isLink)
+    {
+        m_newFiles.Clear();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkManager::IsNewFile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkManager::IsNewFile (const std::wstring & path) const
+{
+    std::filesystem::path  file (path);
+
+
+
+    return !m_newFiles.IsEmpty() && m_newFiles.IsNew (file.parent_path().wstring(), file.filename().wstring());
 }
 
 

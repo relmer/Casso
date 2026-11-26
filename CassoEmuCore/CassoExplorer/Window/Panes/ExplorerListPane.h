@@ -39,6 +39,7 @@ public:
     void  SetDarkSurface (bool isDark);
 
     static constexpr const wchar_t *  kNoSearchMatches = L"No items match your search.";
+    static constexpr const wchar_t *  kSearching       = L"Searching...";
 
     void  Create             ();
     void  Configure          ();

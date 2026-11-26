@@ -517,8 +517,8 @@ public:
 
         source.SetBytes (bytes);
         hex.SetSource   (&source);
-        hex.SetEditing  (true);
-        hex.SetOnType  ([&] (uint64_t offset, bool isHex, bool isHigh, wchar_t ch) { (void) isHex; typed.push_back ({ offset, isHigh, ch }); return true; });
+        hex.GetHostEdit().SetEditing (true);
+        hex.GetHostEdit().SetOnType ([&] (uint64_t offset, bool isHex, bool isHigh, wchar_t ch) { (void) isHex; typed.push_back ({ offset, isHigh, ch }); return true; });
         hex.GoToOffset  (10);
 
         Assert::IsTrue (hex.OnChar (L'A'));
@@ -893,20 +893,20 @@ public:
 
 
 
-        Assert::IsFalse (DxuiHexView::PickEditStyle (colors, idleState,   idle),     L"a byte not edited, outside editing, is the hex view's");
-        Assert::IsFalse (DxuiHexView::PickEditStyle (colors, selState,    selected), L"a selected byte is the hex view's selection, edited or not");
+        Assert::IsFalse (DxuiHexHostEdit::PickEditStyle (colors, idleState,   idle),     L"a byte not edited, outside editing, is the hex view's");
+        Assert::IsFalse (DxuiHexHostEdit::PickEditStyle (colors, selState,    selected), L"a selected byte is the hex view's selection, edited or not");
 
-        Assert::IsTrue  (DxuiHexView::PickEditStyle (colors, plainState,  plain));
-        Assert::IsTrue  (DxuiHexView::PickEditStyle (colors, editedState, edited));
-        Assert::IsTrue  (DxuiHexView::PickEditStyle (colors, caretState,  caret));
-        Assert::IsTrue  (DxuiHexView::PickEditStyle (colors, bothState,   both));
-        Assert::IsTrue  (DxuiHexView::PickEditStyle (colors, typedState,  typed));
-        Assert::IsTrue  (DxuiHexView::PickEditStyle (colors, typedText,   typedChar));
+        Assert::IsTrue  (DxuiHexHostEdit::PickEditStyle (colors, plainState,  plain));
+        Assert::IsTrue  (DxuiHexHostEdit::PickEditStyle (colors, editedState, edited));
+        Assert::IsTrue  (DxuiHexHostEdit::PickEditStyle (colors, caretState,  caret));
+        Assert::IsTrue  (DxuiHexHostEdit::PickEditStyle (colors, bothState,   both));
+        Assert::IsTrue  (DxuiHexHostEdit::PickEditStyle (colors, typedState,  typed));
+        Assert::IsTrue  (DxuiHexHostEdit::PickEditStyle (colors, typedText,   typedChar));
 
         Assert::IsTrue   (plain.fill != 0 && plain.fill != colors.background, L"editable bytes have a tint");
         Assert::IsTrue   (!edited.isBold && !plain.isBold && !caret.isBold && !both.isBold, L"edited bytes are regular weight");
-        Assert::AreEqual (DxuiHexView::GetReadableInk (DxuiHexView::GetChangedInk (colors.background), edited.fill), edited.ink, L"an edited byte is in the changed-byte red");
-        Assert::IsTrue   (DxuiColor::ComputeContrastRatio (edited.ink, edited.fill) >= DxuiHexView::kMinContrast);
+        Assert::AreEqual (DxuiHexHostEdit::GetReadableInk (DxuiHexHostEdit::GetChangedInk (colors.background), edited.fill), edited.ink, L"an edited byte is in the changed-byte red");
+        Assert::IsTrue   (DxuiColor::ComputeContrastRatio (edited.ink, edited.fill) >= DxuiHexHostEdit::kMinContrast);
 
         Assert::AreEqual (colors.accent, caret.fill, L"the caret byte has the accent behind it");
         Assert::AreEqual (DxuiColor::GetContrastingInk (colors.accent), caret.ink);

@@ -175,6 +175,7 @@ std::wstring FullSendPanel::DescribeSummary (const FullSendSnapshot & snapshot, 
         case FullSendActivity::EditingPrefix:   text = prefix + L"a file name prefix is being typed on the Apple";           break;
         case FullSendActivity::Checking:        text = prefix + std::format (L"checking drive {}, {}", snapshot.drive, tally); break;
         case FullSendActivity::Validating:      text = prefix + std::format (L"validating the image, {}", tally);             break;
+        case FullSendActivity::Saving:          text = prefix + std::format (L"saving the image, {}", tally);                 break;
         default:                                                                                                                break;
     }
 
@@ -650,6 +651,7 @@ std::wstring FullSendPanel::DescribeActivity (const FullSendSnapshot & snapshot,
         case FullSendActivity::Capturing:       return std::format (L"The disk in drive {} is likely copy-protected; using raw capture mode.", snapshot.drive);
         case FullSendActivity::WaitingForDisk:  return std::format (L"The {} is waiting for more disks to send.", apple);
         case FullSendActivity::Validating:      return std::format (L"Validating the image of the disk in drive {}: booting it to check that it runs.", snapshot.drive);
+        case FullSendActivity::Saving:          return std::format (L"Saving the image of the disk in drive {}.", snapshot.drive);
         case FullSendActivity::WaitingForApple: return std::format (L"Waiting for the Apple to reply, {}.", FormatSeconds (snapshot.waited));
         case FullSendActivity::EditingPrefix:   return L"A file name prefix is being typed on the Apple.";
         case FullSendActivity::Ended:           return L"The session ended. " + TextEncoding::NarrowToWide (snapshot.reason);

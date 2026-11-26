@@ -3,9 +3,11 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Model/Location.h"
+#include "CassoExplorer/Model/TreeModel.h"
 
 class KrunchMapDialog;
 struct CassoLinkBlockDevice;
+struct DxuiPopupMenuItem;
 struct ExplorerContext;
 
 
@@ -53,12 +55,21 @@ public:
     void  SaveLinkProDosToDisk    (const Location & drive);
     void  SaveLinkSosDisk         (const std::string & name);
 
+    //  The Write to CassoLink floppy submenu for `image`, inserted in `items`
+    //  at `at`, when the image is a 5.25-inch one (CassoLinkDriveManagerMenu.cpp).
+    void         AddWriteToFloppyMenu (std::vector<DxuiPopupMenuItem> & items, size_t at, const std::wstring & image);
+    static bool  IsFloppyImage        (const std::wstring & path);
+
 private:
     void                 OfferRawCapture   (const Location & drive, const std::filesystem::path & image);
     static std::wstring  GetProDosDiskNote ();
 
     bool          ChooseProDosDisk   (const std::wstring & title, const std::wstring & note, const std::wstring & confirm, bool destructive, std::filesystem::path & outDisk);
     std::wstring  GetOverwriteTarget (const std::wstring & driveId) const;
+
+    void          AddWriteToFloppyRow (std::vector<DxuiPopupMenuItem> & rows, const std::wstring & link, const LinkTreeEntry::Drive & drive, const std::wstring & image);
+    std::wstring  DescribeConnection  (const std::wstring & link) const;
+    bool          IsDriveBusy         (const std::string & name, int number, int slot);
 
     //  A block device's whole-device read and write, in
     //  CassoLinkDriveManagerBlocks.cpp.

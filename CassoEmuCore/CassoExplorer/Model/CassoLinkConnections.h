@@ -235,6 +235,10 @@ public:
     //  Whether an image is being written to a drive, or waits to be.
     bool  IsWritingDisk (const std::string & name, int drive) const;
 
+    //  Whether a drive has a job running or waiting, or its connection is in
+    //  a Full Send.
+    bool  IsDriveBusy   (const std::string & name, int drive) const;
+
     //  A file's contents, waiting up to timeoutMs for them. Only for a drop,
     //  where the target requests the bytes and cannot finish without them.
     //  pause is called between checks, so the window can paint meanwhile.
