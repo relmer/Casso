@@ -27,7 +27,7 @@ public:
     void  SetOnOpen     (ClickFn fn)    { m_onOpen     = std::move (fn); }
     void  SetOnNavigate (NavigateFn fn) { m_onNavigate = std::move (fn); }
 
-    BlockHexView () { SetEditable (true); }
+    BlockHexView () { GetHostEdit().SetEditable (true); }
 
     bool  OnKey   (const DxuiKeyEvent & ev) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;

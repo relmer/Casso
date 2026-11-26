@@ -135,6 +135,12 @@ public:
     // from the popup surface. Defaults to the popup surface.
     virtual uint32_t  ControlBackground   () const { return BackgroundElevated(); }
 
+    // The background of a text or code view: a console, a memory view, a
+    // source file. Visual Studio's light theme fills these white while its
+    // lists and pane titles sit a step below white. Defaults to the content
+    // fill.
+    virtual uint32_t  TextViewBackground  () const { return ContentBackground(); }
+
     // Lines drawn INSIDE a content surface: a list header's underline, the
     // separators between its columns, the sash between two panes. Lower
     // contrast than Border(), which outlines a panel.

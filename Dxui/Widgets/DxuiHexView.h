@@ -5,6 +5,10 @@
 #include "Widgets/HexView/DxuiHexPainter.h"
 #include "Widgets/HexView/DxuiHexSelection.h"
 #include "Widgets/HexView/DxuiHexScroll.h"
+#include "Widgets/HexView/DxuiHexRegions.h"
+#include "Widgets/HexView/DxuiHexHostEdit.h"
+#include "Widgets/HexView/DxuiHexSourceEdit.h"
+#include "Widgets/HexView/IDxuiHexEditHost.h"
 #include "Widgets/DxuiScrollbar.h"
 
 
@@ -45,6 +49,50 @@ public:
         (void) offset;
         std::fill (out.begin(), out.end(), uint8_t (0));
     }
+
+    //  Writes an edited value at `offset`, returning whether it was taken. A
+    //  source is read-only unless it overrides this. Const because the source
+    //  object passes the write on rather than storing the bytes it changes.
+    virtual bool  WriteBytes (uint64_t offset, std::span<const uint8_t> bytes) const
+    {
+        (void) offset;
+        (void) bytes;
+        return false;
+    }
+
+    //  A tip the view shows at once over the byte at `offset`, such as its
+    //  address, following the pointer from byte to byte. A source without
+    //  one returns false.
+    virtual bool  TryGetByteTip (uint64_t offset, std::wstring & tip) const
+    {
+        (void) offset;
+        (void) tip;
+        return false;
+    }
+
+    //  One region per byte at `offset`, zero for a byte in none. A run of
+    //  bytes with the same nonzero region is one region, which the view
+    //  outlines while its outlines are on. A source with no regions leaves
+    //  the default. kRegionUnknown is a byte whose region isn't known yet,
+    //  such as one not read; the view draws it in the nearest known region,
+    //  so a region's outline doesn't start where the known bytes end.
+    static constexpr uint16_t  kRegionUnknown = 0xFFFF;
+
+    virtual void  ReadRegions (uint64_t offset, std::span<uint16_t> out) const
+    {
+        (void) offset;
+        std::fill (out.begin(), out.end(), uint16_t (0));
+    }
+
+    //  A region's outline color and the label drawn on its top edge. False
+    //  for a region the source does not outline.
+    virtual bool  TryGetRegionStyle (uint16_t region, uint32_t & outArgb, std::wstring & outLabel) const
+    {
+        (void) region;
+        (void) outArgb;
+        (void) outLabel;
+        return false;
+    }
 };
 
 
@@ -79,7 +127,7 @@ public:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DxuiHexView : public IDxuiControl, public DxuiHexViewTypes
+class DxuiHexView : public IDxuiControl, public DxuiHexViewTypes, private IDxuiHexEditHost
 {
 public:
 
@@ -91,6 +139,19 @@ public:
 
     void      SetOriginAddress (uint64_t address);
     uint64_t  GetOriginAddress () const { return m_originAddress; }
+
+    //  Addresses that wrap at `bytes`, as a machine's do: each row's address
+    //  is taken modulo it and given in the digits its last address needs, so
+    //  rows started partway along a 64K space keep four digits. Zero, the
+    //  default, for addresses that run on past the end.
+    void      SetAddressSpace  (uint64_t bytes);
+    uint64_t  GetAddressSpace  () const { return m_addressSpace; }
+
+    //  The row addresses, or line numbers, in the proportional face, left
+    //  aligned in their column; the values and characters stay in the grid
+    //  of the fixed-width face. Off by default.
+    void      SetProportionalOffsets (bool on)  { m_isProportionalOffsets = on; }
+    bool      IsProportionalOffsets  () const   { return m_isProportionalOffsets; }
 
     //  Bytes across a row, and how many of them sit together between spaces.
     //  A grouping that does not divide the row evenly is refused.
@@ -134,11 +195,20 @@ public:
     void      ScrollRows        (int64_t delta) { m_scroll.ScrollRows (delta); }
     void      EnsureByteVisible (uint64_t offset) { m_scroll.EnsureByteVisible (offset); }
 
+    //  A find's matches marked down the vertical scrollbar, as fractions of
+    //  the bytes; see DxuiScrollbar::SetMarks.
+    void      SetScrollMarks    (std::vector<DxuiScrollbar::Mark> marks, uint32_t matchArgb, uint32_t currentArgb) { m_scroll.m_vertScroll.SetMarks (std::move (marks), matchArgb, currentArgb); }
+
     //  Where a byte is drawn, in the same DIPs as the bounds. An off-screen
     //  byte or an absent column comes back empty.
     RECT       GetByteRect      (uint64_t offset, Column column) const { return m_layout.GetByteRect (offset, column); }
     RECT       GetRowOffsetRect (uint64_t row) const { return m_layout.GetRowOffsetRect (row); }
     HitResult  HitTestPoint     (POINT clientDip) const { return m_layout.HitTestPoint (clientDip); }
+
+    //  The source's tip for the byte under a point, and the byte's rect to
+    //  anchor it on. None while a selection is dragged or a value is half
+    //  typed, so the tip never sits over an edit in progress.
+    bool       TryGetByteTipAt  (POINT clientDip, RECT & outCellDip, std::wstring & outTip) const;
 
     //  Selection. `SelectByte` starts a new run, `ExtendSelectionTo` moves the
     //  moving end of it, and the anchor stays where the run began.
@@ -158,46 +228,49 @@ public:
     void          SetTextEncoding (TextEncoding encoding) { m_encoding = encoding; m_layout.ResetLineIndex(); }
     TextEncoding  GetTextEncoding () const                { return m_encoding; }
 
-    //  An editable view reserves room for the edit frame inside its bounds,
-    //  so it doesn't move when editing starts or stops, and draws the edit
-    //  look: the accent behind the caret byte while the view has the keys,
-    //  changed bytes in red, and
-    //  while editing, a light accent tint behind the bytes and an accent
-    //  frame around them. In edit mode, a hex digit typed in the hex column
-    //  sets the caret byte's high nibble, the next its low nibble, and the
-    //  caret moves on; a character typed in the text column replaces the
-    //  caret byte and the caret moves on.
-    void  SetEditable  (bool isEditable)  { m_isEditable = isEditable; }
-    bool  IsEditable   () const           { return m_isEditable; }
-    void  SetEditing   (bool isEditing)   { m_isLowNibble = m_isLowNibble && isEditing == m_isEditing; m_isEditing = isEditing; }
-    bool  IsEditing    () const           { return m_isEditing; }
-    void  SetOnType    (TypeFn fn)        { m_onType    = std::move (fn); }
-    void  SetIsChanged (ChangedFn fn)     { m_isChanged = std::move (fn); }
-    bool  HasFocus     () const           { return m_hasFocus; }
-
-    //  The next hex digit sets a high nibble again.
-    void  ResetNibble () { m_isLowNibble = false; }
-
-    //  True when a byte's high nibble is typed and its low nibble isn't yet.
-    bool  IsTypingAt (uint64_t offset) const { return m_isLowNibble && m_nibbleAt == offset; }
-
-    //  How the edit look draws a byte in one column: false for the view's
-    //  look.
-    static bool  PickEditStyle (const EditColors & colors, const EditByteState & state, ByteStyle & outStyle);
-
-    //  ink, moved toward black or white until it reads on fill.
-    static uint32_t  GetReadableInk (uint32_t ink, uint32_t fill);
-
-    //  A changed byte's ink before it is fitted to its fill.
-    static uint32_t  GetChangedInk  (uint32_t background);
-
-    static constexpr int    kEditFrameDip = 2;       // the edit frame, reserved whether or not it's drawn
-    static constexpr float  kTintShare    = 0.12f;   // the accent's share of the edit tint behind the bytes
-    static constexpr float  kMinContrast  = 4.5f;    // the least contrast of a changed byte's ink with its fill
-
     void  SetMarkColor     (MarkColorFn fn)   { m_painter.m_markColor = std::move (fn); }
+
+    //  A byte's fill in the value and text columns, under the selection and
+    //  the caret, which are drawn over it.
+    void  SetByteFill      (ByteFillFn fn)    { m_painter.m_byteFill = std::move (fn); }
+
+    //  A fill for a byte a search matched, zero for none. It is drawn in
+    //  place of the caret's and the selection's fills, and the byte's text
+    //  over it is in the color that reads on it.
+    void  SetMatchFill     (ByteFillFn fn)    { m_painter.m_matchFill = std::move (fn); }
+
+    //  A byte the host draws its way, ahead of the match, caret, selection
+    //  and byte fills.
     void  SetByteStyle     (ByteStyleFn fn)   { m_painter.m_byteStyle = std::move (fn); }
     void  SetOnContextMenu (ContextMenuFn fn) { m_onContextMenu = std::move (fn); }
+
+    //  Outlines around the source's regions, off unless the host turns them
+    //  on. Each region gets a rounded box that follows its values, stepping
+    //  where it starts or ends partway along a row, with its label centered on
+    //  the box's top edge. Rows move apart only where an edge runs between
+    //  them, so no line or label crosses a value; in line mode, and with the
+    //  values hidden, there are none.
+    void  SetShowRegions    (bool show)       { m_regions.SetShow (show); }
+    bool  IsShowingRegions  () const          { return m_regions.IsShowing(); }
+    bool  AreRegionsDrawn   () const          { return m_regions.IsDrawn(); }
+
+    //  The space above a row that the outlines need, where a row's values
+    //  begin down from the bounds' top, and the row a point's height falls in.
+    int       GetLaneAbove  (uint64_t row) const { return m_regions.GetLaneAbove (row); }
+    int       GetRowTop     (uint64_t row) const { return m_regions.GetRowTop (row); }
+    uint64_t  GetRowAtY     (int clientY) const  { return m_regions.GetRowAtY (clientY); }
+
+    using LabelSegment = DxuiHexRegions::LabelSegment;
+
+    static constexpr int    kEdgeLaneDip = DxuiHexRegions::kEdgeLaneDip;
+    static constexpr int    kLabelPadDip = DxuiHexRegions::kLabelPadDip;
+    static constexpr int    kCornerDip   = DxuiHexRegions::kCornerDip;
+    static constexpr float  kLabelScale  = DxuiHexRegions::kLabelScale;
+    static constexpr float  kOutlineMix  = DxuiHexRegions::kOutlineMix;
+
+    //  The segment the label of the region that starts at a row's value goes
+    //  on. False when no region starts there.
+    bool  TryGetLabelSegment (uint64_t row, int unit, LabelSegment & out) const { return m_regions.TryGetLabelSegment (row, unit, out); }
 
     void  SetOnBuildContextMenu (BuildMenuFn fn) { m_onBuildMenu = std::move (fn); }
     void  SetOnSettingsChanged  (SettingsFn fn)  { m_onSettings  = std::move (fn); }
@@ -211,6 +284,10 @@ public:
     //  Space before the address column.
     void  SetPaddingDip (int padDip) { m_layout.m_padDip = padDip; }
 
+    //  A view that fills a pane: the address column starts where the pane's
+    //  title does, in place of the padding. Off by default.
+    void  SetPaneTextInset (bool on) { m_layout.m_paneTextInset = on; }
+
     //  The active column. A click sets it, and it determines the format Copy
     //  produces.
     Column  GetActiveColumn () const { return m_selection.GetActiveColumn(); }
@@ -218,6 +295,15 @@ public:
 
     //  Puts the caret on a byte and scrolls to it.
     void  GoToOffset (uint64_t offset);
+
+    //  The two ways a view is edited: values typed into its byte source,
+    //  or each keystroke given to the host with the edit look drawn.
+    DxuiHexSourceEdit        & GetSourceEdit ()       { return m_sourceEdit; }
+    const DxuiHexSourceEdit  & GetSourceEdit () const { return m_sourceEdit; }
+    DxuiHexHostEdit          & GetHostEdit   ()       { return m_hostEdit; }
+    const DxuiHexHostEdit    & GetHostEdit   () const { return m_hostEdit; }
+
+    bool  HasFocus () const { return m_hasFocus; }
 
     //  Copies the selection to the clipboard in the active column's format.
     //  With nothing selected, the clipboard is not changed.
@@ -253,6 +339,7 @@ public:
 
     void  Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void  OnFocusEntered (bool forward) override;
+    void  OnFocusChanged (bool focused) override { m_hasFocus = focused; }
     bool  QueryCommand   (DxuiStandardCommand command, bool & outEnabled) const override;
     bool  InvokeCommand  (DxuiStandardCommand command) override;
     bool  OnMouse        (const DxuiMouseEvent & ev) override;
@@ -263,7 +350,6 @@ public:
     bool                            ShowScrollbarMenu (HWND hwnd, POINT pt) override { return DxuiScrollbar::ShowMenu (hwnd, pt, GetScrollbarMenu (pt)); }
     bool                            OnKey             (const DxuiKeyEvent   & ev) override;
     bool                            OnChar            (wchar_t ch) override;
-    void                            OnFocusChanged    (bool isFocused) override { m_hasFocus = isFocused; }
     void                            Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Custom; }
@@ -277,6 +363,19 @@ public:
 
     static constexpr int  kWheelRows = 3;
 
+    //  The fill behind selected bytes, focused or not, and the ink on it:
+    //  the theme's selection, moved off the background until it reaches WCAG
+    //  AA contrast for a non-text mark, and whichever of the foreground and
+    //  the background reads better over it.
+    static constexpr float  kSelectionFillContrast = 3.0f;
+
+    static uint32_t  GetSelectionFill (const IDxuiTheme & theme);
+    static uint32_t  GetSelectionInk  (const IDxuiTheme & theme);
+
+    //  The byte the keys act on: white or black, whichever reads better on
+    //  the accent behind it.
+    static uint32_t  GetCaretInk      (const IDxuiTheme & theme);
+
     //  The most bytes Copy takes.
     static constexpr uint64_t  kMaxCopyBytes = 16 * 1024 * 1024;
 
@@ -286,10 +385,19 @@ private:
     //  starting a new one otherwise, then brings it into view.
     uint64_t  GetLastOffset () const;
 
-    //  The edit frame, and a byte's look with the edit look and the host's
-    //  style combined.
+    //  The host edit's frame.
     void  PaintEditFrame (IDxuiPainter & painter, const IDxuiTheme & theme) const;
-    bool  GetByteStyle   (const IDxuiTheme & theme, uint64_t offset, uint8_t mark, bool isSelected, Column column, ByteStyle & outStyle) const;
+
+    //  IDxuiHexEditHost: the view, for its source edit.
+    const IDxuiHexSource  * GetEditSource     () const override                 { return m_source; }
+    bool                    CanEditValues     () const override                 { return m_source != nullptr && !IsLineMode() && GetRowCount() > 0; }
+    Column                  GetEditColumn     () const override                 { return GetActiveColumn(); }
+    ValueFormat             GetEditFormat     () const override                 { return m_format; }
+    size_t                  GetEditGroupBytes () const override                 { return (size_t) (m_showValues ? m_grouping : 1); }
+    TextEncoding            GetEditEncoding   () const override                 { return m_encoding; }
+    uint64_t                GetEditCaret      () const override                 { return GetCaret(); }
+    uint64_t                SnapEditToValue   (uint64_t offset) const override  { return m_layout.SnapToValue (offset, false); }
+    void                    MoveEditCaretTo   (uint64_t offset) override        { m_selection.MoveCaretTo (offset, false); }
 
     static constexpr int  s_kSelectionMarginDip = 2;
 
@@ -297,13 +405,15 @@ private:
 
 
 
-    const IDxuiHexSource  * m_source        = nullptr;
-    uint64_t                m_originAddress = 0;
-    int                     m_bytesPerRow   = kDefaultBytesPerRow;
-    int                     m_grouping      = kDefaultGrouping;
-    ValueFormat             m_format        = ValueFormat::Hex;
-    bool                    m_showValues    = true;
-    bool                    m_breakLines    = false;
+    const IDxuiHexSource  * m_source                = nullptr;
+    uint64_t                m_originAddress         = 0;
+    uint64_t                m_addressSpace          = 0;
+    bool                    m_isProportionalOffsets = false;
+    int                     m_bytesPerRow           = kDefaultBytesPerRow;
+    int                     m_grouping              = kDefaultGrouping;
+    ValueFormat             m_format                = ValueFormat::Hex;
+    bool                    m_showValues            = true;
+    bool                    m_breakLines            = false;
 
     int                            m_cellWidthDip   = 0;
     HWND                           m_hwnd           = nullptr;
@@ -313,13 +423,7 @@ private:
     BuildMenuFn                    m_onBuildMenu;
     SettingsFn                     m_onSettings;
     std::function<void ()>         m_onSelectionChanged;
-    TypeFn                         m_onType;
-    ChangedFn                      m_isChanged;
     RECT                           m_frameDip       = {};
-    uint64_t                       m_nibbleAt       = 0;
-    bool                           m_isEditable     = false;
-    bool                           m_isEditing      = false;
-    bool                           m_isLowNibble    = false;
     bool                           m_hasFocus       = false;
 
     //  The view's parts, each with the state it uses.
@@ -327,9 +431,13 @@ private:
     friend class      DxuiHexPainter;
     friend class      DxuiHexSelection;
     friend class      DxuiHexScroll;
+    friend class      DxuiHexRegions;
     DxuiHexLayout     m_layout         { *this };
     DxuiHexPainter    m_painter        { *this };
     DxuiHexSelection  m_selection      { *this };
     DxuiHexScroll     m_scroll         { *this };
+    DxuiHexRegions    m_regions        { *this };
+    DxuiHexSourceEdit m_sourceEdit     { *this };
+    DxuiHexHostEdit   m_hostEdit;
 };
 

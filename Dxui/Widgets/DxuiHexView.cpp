@@ -5,6 +5,8 @@
 #include "Core/DxuiClipboard.h"
 #include "Widgets/DxuiContextMenu.h"
 #include "Window/DxuiHwndSource.h"
+#include "Theme/DxuiColor.h"
+#include "Render/IDxuiPainter.h"
 
 
 
@@ -162,6 +164,122 @@ void DxuiHexView::SetOriginAddress (uint64_t address)
     m_originAddress = address;
 
     m_layout.RecomputeRowWidth();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::SetAddressSpace
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::SetAddressSpace (uint64_t bytes)
+{
+    m_addressSpace = bytes;
+
+    m_layout.RecomputeRowWidth();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::TryGetByteTipAt
+//
+//  Anchored on the byte the point landed on, in the column it landed in, so
+//  the tip moves from byte to byte with the pointer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHexView::TryGetByteTipAt (POINT clientDip, RECT & outCellDip, std::wstring & outTip) const
+{
+    HitResult  hit;
+
+
+
+    if (m_source == nullptr || IsDragging() || m_sourceEdit.HasPendingDigits() || IsOverScrollbar (clientDip))
+    {
+        return false;
+    }
+
+    hit = HitTestPoint (clientDip);
+
+    if (!hit.hit || !m_source->TryGetByteTip (hit.offset, outTip))
+    {
+        return false;
+    }
+
+    outCellDip = GetByteRect (hit.offset, hit.column);
+
+    return outCellDip.right > outCellDip.left;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetSelectionFill
+//
+//  A theme's selection can sit close to its background, which reads as faint
+//  once the accent is gone from a view without focus.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DxuiHexView::GetSelectionFill (const IDxuiTheme & theme)
+{
+    return DxuiColor::ComputeFillForContrast (theme.SelectionBackground(), theme.TextViewBackground(), kSelectionFillContrast);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetCaretInk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DxuiHexView::GetCaretInk (const IDxuiTheme & theme)
+{
+    return DxuiColor::ChooseInkFor (theme.Accent(), 0xFFFFFFFF, 0xFF000000);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::GetSelectionInk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DxuiHexView::GetSelectionInk (const IDxuiTheme & theme)
+{
+    constexpr float     kTextContrast = 4.5f;   // WCAG AA for text
+    constexpr uint32_t  kWhite        = 0xFFFFFFFF;
+    constexpr uint32_t  kBlack        = 0xFF000000;
+    uint32_t            fill          = GetSelectionFill (theme);
+    uint32_t            ink           = DxuiColor::ChooseInkFor (fill, theme.Foreground(), theme.TextViewBackground());
+
+
+
+    //  Lifting the fill off the background can bring it close to the theme's
+    //  inks; white or black then reads where they do not.
+    if (DxuiColor::ComputeContrastRatio (ink, fill) < kTextContrast)
+    {
+        ink = DxuiColor::ChooseInkFor (fill, kWhite, kBlack);
+    }
+
+    return ink;
 }
 
 
@@ -460,7 +578,9 @@ bool DxuiHexView::OnMouse (const DxuiMouseEvent & ev)
         }
 
         m_selection.OnPress (ev, hit);
-        m_isLowNibble = false;
+        m_hostEdit.ResetNibble();
+        m_sourceEdit.NotePress (hit.offset, GetTickCount64(), GetDoubleClickTime());
+
         return true;
 
     case DxuiMouseEventKind::Move:
@@ -494,9 +614,10 @@ bool DxuiHexView::OnMouse (const DxuiMouseEvent & ev)
 //
 //  Copy and select all are standard commands, so the keystroke and the menu
 //  row run the same code; the other keys move the caret or the column. A
-//  window passes typed characters here as Char events. A key that doesn't
-//  type a character, such as an arrow, starts the next byte at its high
-//  nibble again; the key-down of a typed digit doesn't change the nibble.
+//  window passes typed characters here as Char events, for the source edit
+//  first and then the host edit. A key that doesn't type a character, such
+//  as an arrow, starts the next byte at its high nibble again; the key-down
+//  of a typed digit doesn't change the nibble.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -508,7 +629,7 @@ bool DxuiHexView::OnKey (const DxuiKeyEvent & ev)
 
     if (ev.kind == DxuiKeyEventKind::Char)
     {
-        return !ev.ctrl && !ev.alt && ev.vk >= 0x20 && OnChar ((wchar_t) ev.vk);
+        return m_sourceEdit.TypeChar ((wchar_t) ev.vk) || (!ev.ctrl && !ev.alt && ev.vk >= 0x20 && OnChar ((wchar_t) ev.vk));
     }
 
     if ((ev.kind != DxuiKeyEventKind::Down) || (m_layout.GetRowCount() == 0))
@@ -518,12 +639,24 @@ bool DxuiHexView::OnKey (const DxuiKeyEvent & ev)
 
     if (!isTyping)
     {
-        m_isLowNibble = false;
+        m_hostEdit.ResetNibble();
     }
 
     if (ev.vk == 'A' || ev.vk == 'C' || ev.vk == 'X' || ev.vk == 'V')
     {
         return InvokeCommand (DxuiCommandRouter::TranslateKey (ev.vk, ev.ctrl, ev.alt, ev.shift));
+    }
+
+    //  Escape drops a value typed only in part; with nothing typed it is not
+    //  the view's, so a dialog can still take it.
+    if (ev.vk == VK_ESCAPE)
+    {
+        return m_sourceEdit.CancelEdit();
+    }
+
+    if (ev.vk == VK_RETURN && !ev.ctrl && !ev.alt && !ev.shift)
+    {
+        return m_sourceEdit.IsEditing() ? m_sourceEdit.CommitEdit() : m_sourceEdit.BeginEdit();
     }
 
     return m_selection.OnKey (ev);
@@ -537,53 +670,31 @@ bool DxuiHexView::OnKey (const DxuiKeyEvent & ev)
 //
 //  DxuiHexView::OnChar  (IDxuiControl override)
 //
-//  In edit mode, a typed byte moves the caret to the next byte, scrolled
-//  into view.
+//  In the host edit's mode, a typed byte moves the caret to the next byte,
+//  scrolled into view.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiHexView::OnChar (wchar_t ch)
 {
-    uint64_t  caret     = GetCaret();
-    bool      isHex     = GetActiveColumn() != Column::Text;
-    bool      isHigh    = false;
-    bool      isChanged = false;
+    uint64_t                     caret  = GetCaret();
+    DxuiHexHostEdit::TypeResult  result = DxuiHexHostEdit::TypeResult::NotTaken;
 
 
 
-    if (!m_isEditing || !m_onType || m_source == nullptr || caret >= m_source->GetByteCount())
+    if (m_source == nullptr || caret >= m_source->GetByteCount())
     {
         return false;
     }
 
-    if (m_isLowNibble && m_nibbleAt != caret)
-    {
-        m_isLowNibble = false;
-    }
+    result = m_hostEdit.Type (caret, GetActiveColumn() != Column::Text, ch);
 
-    isHigh    = isHex && !m_isLowNibble;
-    isChanged = m_onType (caret, isHex, isHigh, ch);
-
-    if (!isChanged)
-    {
-        return false;
-    }
-
-    if (isHigh)
-    {
-        m_isLowNibble = true;
-        m_nibbleAt    = caret;
-        return true;
-    }
-
-    m_isLowNibble = false;
-
-    if (caret + 1 < m_source->GetByteCount())
+    if (result == DxuiHexHostEdit::TypeResult::Byte && caret + 1 < m_source->GetByteCount())
     {
         GoToOffset (caret + 1);
     }
 
-    return true;
+    return result != DxuiHexHostEdit::TypeResult::NotTaken;
 }
 
 
@@ -683,13 +794,14 @@ void DxuiHexView::OnFocusEntered (bool forward)
 //
 //  DxuiHexView::Layout  (IDxuiControl override)
 //
-//  An editable view's bytes are inside the room for its edit frame.
+//  A view in the host edit's mode has its bytes inside the room for its edit
+//  frame.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiHexView::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    LONG  frame = m_isEditable ? (std::max) (1, scaler.ToPx (kEditFrameDip)) : 0;
+    LONG  frame = m_hostEdit.IsEditable() ? (std::max) (1, scaler.ToPx (DxuiHexHostEdit::kEditFrameDip)) : 0;
 
 
 
@@ -726,11 +838,18 @@ void DxuiHexView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 
     //  The background goes through the painter, whose layer is beneath the
     //  text renderer's, so the scrollbar the painter draws is not covered.
-    painter.FillRect (x, y, width, height, theme.ContentBackground());
+    painter.FillRect (x, y, width, height, theme.TextViewBackground());
 
     PaintEditFrame (painter, theme);
 
     m_painter.EnsureCellSize (text, theme);
+
+    //  The regions can change under the view, so their lanes are found again
+    //  for every frame.
+    if (m_regions.IsDrawn())
+    {
+        m_regions.RefreshLanes();
+    }
 
     cap = m_layout.GetRowCap();
 
@@ -747,6 +866,13 @@ void DxuiHexView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 
     hr = text.PushClipRect (x, y, width, height);
     IGNORE_RETURN_VALUE (hr, S_OK);
+
+    if (m_regions.IsDrawn())
+    {
+        painter.PushClipRect (x, y, width, height);
+        m_regions.Paint      (painter, text, theme);
+        painter.PopClipRect  ();
+    }
 
     for (int row = 0; row < cap; row++)
     {
@@ -803,7 +929,7 @@ void DxuiHexView::PaintEditFrame (IDxuiPainter & painter, const IDxuiTheme & the
 
 
 
-    if (!m_isEditable || !m_isEditing || edge <= 0 || width <= 2 * edge || height <= 2 * edge)
+    if (!m_hostEdit.IsEditable() || !m_hostEdit.IsEditing() || edge <= 0 || width <= 2 * edge || height <= 2 * edge)
     {
         return;
     }
@@ -812,175 +938,4 @@ void DxuiHexView::PaintEditFrame (IDxuiPainter & painter, const IDxuiTheme & the
     painter.FillRect (left, top + height - edge, width, edge, color);
     painter.FillRect (left, top + edge, edge, height - 2 * edge, color);
     painter.FillRect (left + width - edge, top + edge, edge, height - 2 * edge, color);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiHexView::GetByteStyle
-//
-//  A view that isn't editable draws the host's style. In an editable one,
-//  the caret and a byte being typed are drawn in the edit look. Any other
-//  byte the host styles is drawn in the host's style, with the edit tint
-//  behind it when the style has no fill, and in the changed-byte ink when
-//  the byte is changed.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiHexView::GetByteStyle (const IDxuiTheme & theme, uint64_t offset, uint8_t mark, bool isSelected, Column column, ByteStyle & outStyle) const
-{
-    ByteStyle      host;
-    ByteStyle      edit;
-    EditColors     colors  = { theme.Accent(), theme.ContentBackground(), theme.Foreground() };
-    EditByteState  state;
-    bool           isHost  = m_painter.m_byteStyle && m_painter.m_byteStyle (offset, mark, isSelected, column, host);
-    bool           isEdit  = false;
-
-
-
-    if (!m_isEditable)
-    {
-        outStyle = host;
-        return isHost;
-    }
-
-    state.isEditing   = m_isEditing;
-    state.isCaret     = m_hasFocus && offset == GetCaret();
-    state.isTyping    = state.isCaret && m_isEditing && IsTypingAt (offset);
-    state.isHexColumn = column == Column::Hex;
-    state.isSelected  = isSelected;
-    state.isChanged   = m_isChanged && m_isChanged (offset, mark);
-    isEdit            = PickEditStyle (colors, state, edit);
-
-    if (!isHost || state.isCaret)
-    {
-        outStyle = edit;
-        return isEdit;
-    }
-
-    outStyle = host;
-
-    if (outStyle.fill == 0)
-    {
-        outStyle.fill = edit.fill;
-    }
-
-    if (state.isChanged && edit.ink != 0)
-    {
-        outStyle.ink = GetReadableInk (edit.ink, outStyle.fill != 0 ? outStyle.fill : colors.background);
-    }
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiHexView::PickEditStyle
-//
-//  As the debugger's memory window draws its bytes. The caret byte has the
-//  accent behind it, in the ink that reads on the accent, whether or not it
-//  is changed or being typed. Selected
-//  bytes are the view's selection. A changed byte is drawn in the
-//  changed-byte red, and while editing, every other byte has a light
-//  accent tint behind it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiHexView::PickEditStyle (const EditColors & colors, const EditByteState & state, ByteStyle & outStyle)
-{
-    uint32_t  tint = DxuiColor::Mix (colors.background, colors.accent, kTintShare);
-
-
-
-    outStyle = ByteStyle();
-
-    if (colors.accent == 0)
-    {
-        return false;
-    }
-
-    if (state.isCaret)
-    {
-        outStyle.fill = colors.accent;
-        outStyle.ink  = DxuiColor::GetContrastingInk (colors.accent);
-        return true;
-    }
-
-    if (state.isSelected || (!state.isEditing && !state.isChanged))
-    {
-        return false;
-    }
-
-    outStyle.fill = state.isEditing ? tint : 0;
-    outStyle.ink  = state.isChanged ? GetReadableInk (GetChangedInk (colors.background), state.isEditing ? tint : colors.background) : 0;
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiHexView::GetChangedInk
-//
-//  The debugger's memory window color for a changed byte: coral on a dark
-//  page and red on a light one, made readable on the page, or on a light
-//  page's row shade.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-uint32_t DxuiHexView::GetChangedInk (uint32_t background)
-{
-    constexpr uint32_t  kDarkChanged  = 0xFFFF6B68;
-    constexpr uint32_t  kLightChanged = 0xFFD00000;
-    constexpr uint32_t  kBlack        = 0xFF000000;
-    constexpr float     kRowShade     = 0.15f;
-    constexpr float     kDarkLimit    = 0.5f;
-
-
-
-    bool  isDark = DxuiColor::ComputeRelativeLuminance (background) < kDarkLimit;
-
-
-
-    return GetReadableInk (isDark ? kDarkChanged : kLightChanged, isDark ? background : DxuiColor::Mix (background | kBlack, kBlack, kRowShade));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiHexView::GetReadableInk
-//
-////////////////////////////////////////////////////////////////////////////////
-
-uint32_t DxuiHexView::GetReadableInk (uint32_t ink, uint32_t fill)
-{
-    constexpr int    kSteps = 10;
-    constexpr float  kStep  = 0.1f;
-
-
-
-    uint32_t  toward = DxuiColor::GetContrastingInk (fill);
-    uint32_t  result = ink;
-
-
-
-    for (int step = 1; step <= kSteps && DxuiColor::ComputeContrastRatio (result, fill) < kMinContrast; step++)
-    {
-        result = DxuiColor::Mix (ink, toward, step * kStep);
-    }
-
-    return result;
 }

@@ -60,6 +60,12 @@ struct DxuiHexViewTypes
     using TypeFn    = std::function<bool (uint64_t offset, bool isHexColumn, bool isHighNibble, wchar_t ch)>;
     using ChangedFn = std::function<bool (uint64_t offset, uint8_t mark)>;
 
+    //  A fill behind a byte, by its offset, or 0 for none.
+    using ByteFillFn = std::function<uint32_t (uint64_t offset)>;
+
+    //  Called with the offset of a value the source would not take.
+    using WriteRefusedFn = std::function<void (uint64_t offset)>;
+
     //  The theme's colors the edit look is made from.
     struct EditColors
     {

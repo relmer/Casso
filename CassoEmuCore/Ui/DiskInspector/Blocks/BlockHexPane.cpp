@@ -30,7 +30,7 @@ void BlockHexPane::Create (DxuiPanel & parent)
 
         return mark != BlockHexSource::kMarkNone;
     });
-    m_hex->SetIsChanged    ([] (uint64_t offset, uint8_t mark)
+    m_hex->GetHostEdit().SetIsChanged ([] (uint64_t offset, uint8_t mark)
     {
         (void) offset;
 
@@ -136,7 +136,7 @@ bool BlockHexPane::ShowBytes (BlockInspectorModel & model)
 
         m_drawn = drawn;
         m_hex->SetSource (&m_source);
-        m_hex->ResetNibble();
+        m_hex->GetHostEdit().ResetNibble();
     }
     else
     {
@@ -297,7 +297,7 @@ int BlockHexPane::MeasureMinHexPx (const DxuiDpiScaler & scaler)
 
 int BlockHexPane::FitHexWidthPx (int widthPx, const DxuiDpiScaler & scaler)
 {
-    int  frame = std::max (1, scaler.ToPx (DxuiHexView::kEditFrameDip));
+    int  frame = std::max (1, scaler.ToPx (DxuiHexHostEdit::kEditFrameDip));
 
 
 

@@ -54,7 +54,7 @@ SectorsView::SectorsView (InspectorViewContext & context) :
     {
         hex->SetParent       (this);
         hex->SetFocusable    (false);
-        hex->SetEditable     (true);
+        hex->GetHostEdit().SetEditable (true);
         hex->SetBytesPerRow  (kBytesPerRow);
         hex->SetTextEncoding (DxuiHexViewTypes::TextEncoding::AppleHighBit);
         hex->SetMarkColor    ([] (uint8_t, uint32_t &) { return false; });
@@ -73,12 +73,12 @@ SectorsView::SectorsView (InspectorViewContext & context) :
         return PickStyle (m_sourceB, offset, mark, isSelected, outStyle);
     });
 
-    m_hexA.SetIsChanged ([] (uint64_t, uint8_t mark)
+    m_hexA.GetHostEdit().SetIsChanged ([] (uint64_t, uint8_t mark)
     {
         return mark == s_kMarkChanged || mark == s_kMarkConflict;
     });
 
-    m_hexA.SetOnType ([this] (uint64_t offset, bool isHexColumn, bool isHighNibble, wchar_t ch)
+    m_hexA.GetHostEdit().SetOnType ([this] (uint64_t offset, bool isHexColumn, bool isHighNibble, wchar_t ch)
     {
         int  edit = GetEdit();
 
@@ -108,7 +108,7 @@ SectorsView::SectorsView (InspectorViewContext & context) :
 
 int SectorsView::GetFullWidthPx (const DxuiDpiScaler & scaler)
 {
-    return static_cast<int> (std::ceil (scaler.ToPxf (s_kByteCells * s_kCellDip + 2.0f * DxuiHexView::kEditFrameDip)));
+    return static_cast<int> (std::ceil (scaler.ToPxf (s_kByteCells * s_kCellDip + 2.0f * DxuiHexHostEdit::kEditFrameDip)));
 }
 
 
@@ -164,7 +164,7 @@ void SectorsView::PlaceBytes (bool isBad, bool isB)
     float  rowDip = m_scaler.ToPxf (static_cast<float> (kRowDip));
     float  top    = static_cast<float> (m_bytesTopPx) + pad + (isBad ? rowDip * 1.25f : 0.0f);
     float  room   = static_cast<float> (m_boundsDip.bottom) - top - pad;
-    float  frame  = 2.0f * std::max (1.0f, m_scaler.ToPxf (static_cast<float> (DxuiHexView::kEditFrameDip)));
+    float  frame  = 2.0f * std::max (1.0f, m_scaler.ToPxf (static_cast<float> (DxuiHexHostEdit::kEditFrameDip)));
     float  rows   = isB ? 2.0f * s_kSectorRows + 1.5f : static_cast<float> (s_kSectorRows);
     float  rowPx  = (m_rowPx > 0.0f) ? m_rowPx : rowDip;
     float  zoom   = std::min ({ 1.0f, (room - (isB ? 2 : 1) * frame) / (rows * rowPx), GetWidth() / GetFullWidthPx (m_scaler) });
@@ -263,7 +263,7 @@ void SectorsView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
     ShowBytes (*sector, *track);
     FollowSelection();
 
-    m_hexA.SetEditing     (m_isEditing && GetEdit() >= 0);
+    m_hexA.GetHostEdit().SetEditing (m_isEditing && GetEdit() >= 0);
     m_hexA.OnFocusChanged (m_isEditing && GetEdit() >= 0 && m_hasKeys);
     m_hexA.SetVisible     (true);
     m_hexA.Paint          (painter, text, m_panelTheme);
@@ -770,7 +770,7 @@ void SectorsView::GoToByte (int offset)
 void SectorsView::SetEditing (bool isEditing)
 {
     m_isEditing = isEditing;
-    m_hexA.ResetNibble();
+    m_hexA.GetHostEdit().ResetNibble();
 }
 
 

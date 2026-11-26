@@ -248,7 +248,7 @@ void BlockInspectorPanel::InitRightColumn (const IDxuiTheme * theme, HWND hwnd)
     BlockHexView     & hex    = m_hexPane.GetHexView();
     BlockFieldsView  & fields = m_hexPane.GetFields();
 
-    hex.SetOnType       ([this] (uint64_t offset, bool isHex, bool isHigh, wchar_t ch) { return OnType (offset, isHex, isHigh, ch); });
+    hex.GetHostEdit().SetOnType ([this] (uint64_t offset, bool isHex, bool isHigh, wchar_t ch) { return OnType (offset, isHex, isHigh, ch); });
     hex.SetOnNavigate   ([this] (const DxuiKeyEvent & ev) { return OnNavigateKey (ev); });
     hex.SetOnClick      ([this] (uint64_t offset)
     {
@@ -434,7 +434,7 @@ void BlockInspectorPanel::OpenBlock (uint32_t block)
 void BlockInspectorPanel::SetEditing (bool isEditing)
 {
     m_isEditing = isEditing && m_model->IsOpen();
-    m_hexPane.GetHexView().SetEditing (m_isEditing);
+    m_hexPane.GetHexView().GetHostEdit().SetEditing (m_isEditing);
 
     if (m_isEditing && m_onPressed)
     {

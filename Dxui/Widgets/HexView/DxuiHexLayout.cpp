@@ -2,6 +2,7 @@
 
 #include "Widgets/HexView/DxuiHexLayout.h"
 #include "Widgets/DxuiHexView.h"
+#include "Core/DxuiPaneMetrics.h"
 
 
 
@@ -493,9 +494,9 @@ void DxuiHexLayout::RecomputeRowWidth()
 
     if (m_columns == 0)
     {
-        width  = (m_view.m_boundsDip.right - m_view.m_boundsDip.left) - m_view.m_scaler.ToPx (m_padDip) - m_view.m_scaler.ToPx (DxuiHexView::s_kScrollbarWidthDip);
+        width  = (m_view.m_boundsDip.right - m_view.m_boundsDip.left) - GetPadPx() - m_view.m_scaler.ToPx (DxuiHexView::s_kScrollbarWidthDip);
         cells  = (m_view.m_cellWidthDip > 0) ? (width / m_view.m_cellWidthDip) : 0;
-        fixed  = GetOffsetDigits() + DxuiHexView::kGutterCells + (m_view.m_showValues ? (DxuiHexView::kGutterCells - 1) : 0);
+        fixed  = GetOffsetDigits() + GetGutterCells() + (m_view.m_showValues ? (GetGutterCells() - 1) : 0);
         each   = m_view.m_grouping + (m_view.m_showValues ? (GetValueCells() + 1) : 0);
         values = (std::max) ((cells - fixed) / each, 1);
     }
@@ -556,7 +557,7 @@ int DxuiHexLayout::GetHeightDip() const
 
 int DxuiHexLayout::GetContentWidthPx() const
 {
-    return m_view.m_scaler.ToPx (m_padDip) + ((GetColumnStartCell (DxuiHexViewTypes::Column::Text) + m_view.m_bytesPerRow) * m_view.m_cellWidthDip);
+    return GetPadPx() + ((GetColumnStartCell (DxuiHexViewTypes::Column::Text) + m_view.m_bytesPerRow) * m_view.m_cellWidthDip);
 }
 
 
@@ -717,6 +718,12 @@ int DxuiHexLayout::GetRowCap() const
         return 0;
     }
 
+    //  With the outlines' lanes, the rows whose values end inside the bounds.
+    if (m_view.m_regions.IsDrawn())
+    {
+        return m_view.m_regions.GetRowCapWithLanes();
+    }
+
     return (std::max) (GetHeightDip() / m_cellHeightDip, 0);
 }
 
@@ -733,9 +740,16 @@ int DxuiHexLayout::GetRowCap() const
 uint64_t DxuiHexLayout::GetMaxTopRow() const
 {
     uint64_t  rows = GetRowCount();
-    uint64_t  cap  = (uint64_t) GetRowCap();
+    uint64_t  cap  = 0;
 
 
+
+    if (m_view.m_regions.IsDrawn() && m_cellHeightDip > 0)
+    {
+        return m_view.m_regions.GetMaxTopRowWithLanes();
+    }
+
+    cap = (uint64_t) GetRowCap();
 
     return (rows > cap) ? (rows - cap) : 0;
 }
@@ -750,7 +764,8 @@ uint64_t DxuiHexLayout::GetMaxTopRow() const
 //
 //  Four hex digits while the last address fits in sixteen bits, eight after
 //  that. A 64 KB file and a machine's memory both label in the four digits
-//  their own listings use.
+//  their own listings use. In an address space that wraps, the last address
+//  is the space's, wherever the rows start.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -766,7 +781,80 @@ int DxuiHexLayout::GetOffsetDigits() const
         return GetLineDigits();
     }
 
+    if (m_view.m_addressSpace > 0)
+    {
+        last = m_view.m_addressSpace - 1;
+    }
+
     return (last > 0xFFFF) ? 8 : 4;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexLayout::GetRowAddress
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t DxuiHexLayout::GetRowAddress (uint64_t row) const
+{
+    uint64_t  address = m_view.m_originAddress + (row * (uint64_t) m_view.m_bytesPerRow);
+
+
+
+    return (m_view.m_addressSpace > 0) ? (address % m_view.m_addressSpace) : address;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexLayout::GetGutterCells
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHexLayout::GetGutterCells() const
+{
+    return m_view.m_regions.IsDrawn() ? (DxuiHexView::kGutterCells + 1) : DxuiHexView::kGutterCells;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexLayout::GetCellLeft
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHexLayout::GetCellLeft (int cellX) const
+{
+    return m_view.m_boundsDip.left + GetPadPx() + (cellX * m_view.m_cellWidthDip) - m_view.m_scroll.GetLeftPx();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexLayout::GetPadPx
+//
+//  The space before the address column: the padding, or in a view that fills
+//  a pane, the pane's text inset, so the addresses start where the pane's
+//  title does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHexLayout::GetPadPx() const
+{
+    return m_paneTextInset ? DxuiPaneMetrics::GetContentTextInsetPx (m_view.m_scaler) : m_view.m_scaler.ToPx (m_padDip);
 }
 
 
@@ -844,7 +932,7 @@ int DxuiHexLayout::GetByteCellInRow (int indexInRow) const
 
 int DxuiHexLayout::GetColumnStartCell (DxuiHexViewTypes::Column column) const
 {
-    int  hexStart = GetOffsetDigits() + DxuiHexView::kGutterCells;
+    int  hexStart = GetOffsetDigits() + GetGutterCells();
 
 
 
@@ -855,7 +943,7 @@ int DxuiHexLayout::GetColumnStartCell (DxuiHexViewTypes::Column column) const
 
     if (column == DxuiHexViewTypes::Column::Text)
     {
-        return m_view.m_showValues ? (hexStart + GetHexCells() + DxuiHexView::kGutterCells) : hexStart;
+        return m_view.m_showValues ? (hexStart + GetHexCells() + GetGutterCells()) : hexStart;
     }
 
     return 0;
@@ -874,9 +962,8 @@ int DxuiHexLayout::GetColumnStartCell (DxuiHexViewTypes::Column column) const
 RECT DxuiHexLayout::GetCellRect (int cellX, uint64_t row, int cellCount) const
 {
     RECT      rect  = {};
-    int64_t   rowUp = (int64_t) (row - m_view.m_scroll.GetTopRow());
-    LONG      top   = m_view.m_boundsDip.top + (LONG) (rowUp * m_cellHeightDip);
-    LONG      left  = m_view.m_boundsDip.left + m_view.m_scaler.ToPx (m_padDip) + (LONG) (cellX * m_view.m_cellWidthDip) - m_view.m_scroll.GetLeftPx();
+    LONG      top   = m_view.m_boundsDip.top + (LONG) m_view.m_regions.GetRowTop (row);
+    LONG      left  = (LONG) GetCellLeft (cellX);
 
 
 
@@ -1024,15 +1111,14 @@ DxuiHexViewTypes::HitResult DxuiHexLayout::HitTestPoint (POINT clientDip) const
         return result;
     }
 
-    rowUp = (int) ((clientDip.y - m_view.m_boundsDip.top) / cellH);
-    cellX = (int) ((clientDip.x - m_view.m_boundsDip.left - m_view.m_scaler.ToPx (m_padDip) + m_view.m_scroll.GetLeftPx()) / cellW);
+    row   = m_view.m_regions.GetRowAtY ((int) clientDip.y);
+    rowUp = (int) (row - m_view.m_scroll.GetTopRow());
+    cellX = (int) ((clientDip.x - m_view.m_boundsDip.left - GetPadPx() + m_view.m_scroll.GetLeftPx()) / cellW);
 
     if (rowUp >= GetRowCap())
     {
         return result;
     }
-
-    row = m_view.m_scroll.GetTopRow() + (uint64_t) rowUp;
 
     if (row >= GetRowCount())
     {

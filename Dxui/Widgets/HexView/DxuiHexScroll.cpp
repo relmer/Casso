@@ -52,7 +52,7 @@ void DxuiHexScroll::KeepCaretInView()
     bool  text  = (m_view.m_selection.GetActiveColumn() == DxuiHexViewTypes::Column::Text) || !m_view.m_showValues;
     int   cell  = text ? (m_view.m_layout.GetColumnStartCell (DxuiHexViewTypes::Column::Text) + index) : (m_view.m_layout.GetColumnStartCell (DxuiHexViewTypes::Column::Hex) + m_view.m_layout.GetByteCellInRow (index));
     int   wide  = text ? 1 : ((m_view.m_format == DxuiHexViewTypes::ValueFormat::Hex) ? 2 : m_view.m_layout.GetValueCells());
-    int   left  = m_view.m_scaler.ToPx (m_view.m_layout.GetPadDip()) + (cell * m_view.m_cellWidthDip);
+    int   left  = m_view.m_layout.GetPadPx() + (cell * m_view.m_cellWidthDip);
     int   right = left + (wide * m_view.m_cellWidthDip);
     int   view  = m_view.m_layout.GetViewWidthPx();
 
@@ -60,7 +60,7 @@ void DxuiHexScroll::KeepCaretInView()
 
     if (left < m_leftPx)
     {
-        SetLeftPx (left - m_view.m_scaler.ToPx (m_view.m_layout.GetPadDip()));
+        SetLeftPx (left - m_view.m_layout.GetPadPx());
     }
     else if (right > (m_leftPx + view))
     {

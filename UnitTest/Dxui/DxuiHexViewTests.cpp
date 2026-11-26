@@ -77,6 +77,34 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TipHexSource
+//
+//  Bytes whose tip is their address, counted from a base, as a debugger's
+//  memory window gives it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class TipHexSource : public CountingHexSource
+{
+public:
+    TipHexSource (uint64_t count, uint64_t base) : CountingHexSource (count), m_base (base) {}
+
+    bool  TryGetByteTip (uint64_t offset, std::wstring & tip) const override
+    {
+        tip = std::format (L"${:04X}", m_base + offset);
+        return true;
+    }
+
+private:
+    uint64_t  m_base = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiHexViewTests
 //
 //  Which byte a point selects, where each byte is drawn in either column, what
@@ -348,6 +376,37 @@ public:
             L"Without values, only the characters take room");
     }
 
+
+    //  A row of one color goes out in one draw: its values, the spaces
+    //  between them, the gutter and its characters, from the hex column's
+    //  first cell.
+    TEST_METHOD (Paint_DrawsARowOfOneColorAsOneRun)
+    {
+        VectorHexSource       source ("ABCD");
+        DxuiHexView           view;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+        int                   runs = 0;
+
+
+        view.SetSource      (&source);
+        view.SetBytesPerRow (4);
+        LayOut (view);
+
+        view.Paint (painter, text, theme);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            if (call.kind == RecordedTextKind::DrawString && call.text == L"41 42 43 44  ABCD")
+            {
+                runs++;
+                Assert::AreEqual ((float) view.GetByteRect (0, DxuiHexView::Column::Hex).left, call.x, L"from the hex column");
+            }
+        }
+
+        Assert::AreEqual (1, runs, L"the row is one draw");
+    }
 
     TEST_METHOD (SetGrouping_RefusesWhatTheRowDoesNotDivide)
     {
@@ -758,6 +817,40 @@ public:
     }
 
 
+    //  A machine's 64K wraps: rows started partway along it keep its four
+    //  digits, and the row that runs past $FFFF is labeled from $0000 again.
+    TEST_METHOD (AddressSpace_WrapsTheLabelsAndKeepsItsDigits)
+    {
+        CountingHexSource     source (0x10000);
+        DxuiHexView           view;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+        RECT                  rect    = {};
+        bool                  wrapped = false;
+
+
+        view.SetSource        (&source);
+        view.SetOriginAddress (0xFFF8);
+        view.SetAddressSpace  (0x10000);
+        LayOut (view);
+
+        rect = view.GetRowOffsetRect (0);
+
+        Assert::AreEqual ((LONG) (4 * kCellW), rect.right - rect.left,
+            L"64K from $FFF8 wraps, so the column stays four digits");
+
+        view.Paint (painter, text, theme);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            wrapped = wrapped || call.text == L"0008";
+        }
+
+        Assert::IsTrue (wrapped, L"the second row, past $FFFF, is $0008");
+    }
+
+
     TEST_METHOD (Source_ChangingItDropsTheOldSelection)
     {
         CountingHexSource  first  (256);
@@ -856,7 +949,7 @@ public:
 
         for (const RecordedTextCall & call : text.Calls())
         {
-            if ((call.kind == RecordedTextKind::FillRect) && (call.argb == theme.SelectionBackground()))
+            if ((call.kind == RecordedTextKind::FillRect) && (call.argb == DxuiHexView::GetSelectionFill (theme)))
             {
                 fills++;
             }
@@ -1207,5 +1300,126 @@ public:
 
         Assert::AreEqual (3, changes,
             L"Start, extend and loss are each reported, and clearing nothing is not a change");
+    }
+
+
+    //  A source that gives a byte a tip has it shown at once over that byte,
+    //  in either column, anchored on the byte; none while a selection is
+    //  dragged or a value is half typed, and none from a source without tips.
+    TEST_METHOD (ByteTip_ComesFromTheSourceForTheByteUnderThePointer)
+    {
+        TipHexSource       source (256, 0x0400);
+        CountingHexSource  plain  (256);
+        DxuiHexView        view;
+        RECT               hex    = {};
+        RECT               text   = {};
+        RECT               cell   = {};
+        std::wstring       tip;
+
+
+
+        view.SetSource (&source);
+        LayOut (view);
+
+        hex  = view.GetByteRect (0x12, DxuiHexView::Column::Hex);
+        text = view.GetByteRect (0x12, DxuiHexView::Column::Text);
+
+        Assert::IsTrue   (view.TryGetByteTipAt (POINT { hex.left + 1, hex.top + 1 }, cell, tip), L"over the hex column");
+        Assert::AreEqual (std::wstring (L"$0412"), tip);
+        Assert::IsTrue   (EqualRect (&cell, &hex) != FALSE, L"anchored on the byte");
+
+        Assert::IsTrue   (view.TryGetByteTipAt (POINT { text.left + 1, text.top + 1 }, cell, tip), L"over the text column");
+        Assert::AreEqual (std::wstring (L"$0412"), tip);
+        Assert::IsTrue   (EqualRect (&cell, &text) != FALSE);
+
+        Assert::IsFalse  (view.TryGetByteTipAt (POINT { 1, hex.top + 1 }, cell, tip), L"the offset column is no byte");
+
+        (void) view.OnMouse (MakeMouse (DxuiMouseEventKind::Down, hex.left + 1, hex.top + 1));
+        Assert::IsFalse  (view.TryGetByteTipAt (POINT { hex.left + 1, hex.top + 1 }, cell, tip), L"not while a selection is dragged");
+        (void) view.OnMouse (MakeMouse (DxuiMouseEventKind::Up, hex.left + 1, hex.top + 1));
+        Assert::IsTrue   (view.TryGetByteTipAt (POINT { hex.left + 1, hex.top + 1 }, cell, tip), L"and back once it ends");
+
+        view.GetSourceEdit().SetEditable (true);
+        view.SelectByte  (0x12, DxuiHexView::Column::Hex);
+        (void) view.OnKey (DxuiKeyEvent { DxuiKeyEventKind::Char, L'4' });
+        Assert::IsFalse  (view.TryGetByteTipAt (POINT { hex.left + 1, hex.top + 1 }, cell, tip), L"not while a value is half typed");
+
+        view.SetSource (&plain);
+        Assert::IsFalse  (view.TryGetByteTipAt (POINT { hex.left + 1, hex.top + 1 }, cell, tip), L"a source gives none unless it chooses to");
+    }
+
+
+    //  A view that fills a pane starts its address column at the pane's text
+    //  inset in place of its padding, the bytes moving with it, and moves
+    //  neither its first row nor its scrollbar. 106 DPI is where the inset in
+    //  pixels is not the sum of its parts converted one at a time.
+    TEST_METHOD (PaneTextInset_MovesTheAddressColumnNotTheTopOrTheScrollbar)
+    {
+        constexpr int       kDpis[]   = { 96, 106, 120, 144, 168 };
+        constexpr LONG      kLeft     = 30;
+        constexpr LONG      kTop      = 20;
+        constexpr LONG      kWidth    = 800;
+        constexpr LONG      kHeight   = 320;
+        constexpr LONG      kBarSweep = 40;
+        constexpr uint64_t  kBytes    = 0x1000;
+
+
+
+        for (int dpi : kDpis)
+        {
+            CountingHexSource     source (kBytes);
+            DxuiHexView           plain;
+            DxuiHexView           inset;
+            MockDxuiPainter       painter;
+            MockDxuiTextRenderer  text;
+            MockDxuiTheme         theme;
+            DxuiDpiScaler         scaler;
+            RECT                  plainAddress = {};
+            RECT                  insetAddress = {};
+            RECT                  plainByte    = {};
+            RECT                  insetByte    = {};
+            int                   textX        = 0;
+            int                   overBar      = 0;
+            std::wstring          at           = std::format (L"at {} DPI", dpi);
+
+
+
+            scaler.SetDpi (dpi);
+            textX = DxuiPaneMetrics::GetContentTextInsetPx (scaler);
+            inset.SetPaneTextInset (true);
+
+            for (DxuiHexView * view : { &plain, &inset })
+            {
+                view->SetSource      (&source);
+                view->SetCellSizeDip (kCellW, kCellH);
+                view->Layout         (RECT { kLeft, kTop, kLeft + kWidth, kTop + kHeight }, scaler);
+            }
+
+            inset.Paint (painter, text, theme);
+
+            plainAddress = plain.GetRowOffsetRect (0);
+            insetAddress = inset.GetRowOffsetRect (0);
+            plainByte    = plain.GetByteRect (0, DxuiHexView::Column::Hex);
+            insetByte    = inset.GetByteRect (0, DxuiHexView::Column::Hex);
+
+            Assert::AreEqual (kLeft,                          plainAddress.left, (L"without it, the addresses start at the padding " + at).c_str());
+            Assert::AreEqual (kLeft + textX,                  insetAddress.left, (L"with it, at the pane's text inset " + at).c_str());
+            Assert::IsTrue   (std::ranges::any_of (text.Calls(), [&] (const RecordedTextCall & call) { return call.text == L"0000" && call.x == (float) (kLeft + textX); }),
+                              (L"where the first address is drawn " + at).c_str());
+            Assert::AreEqual (plainByte.left + textX,         insetByte.left,    (L"the bytes move with them " + at).c_str());
+            Assert::AreEqual (plainAddress.top,               insetAddress.top,  (L"the first row is where it was " + at).c_str());
+
+            Assert::IsTrue (inset.IsScrollbarVisible(), at.c_str());
+
+            for (LONG x = kLeft + kWidth - kBarSweep; x < kLeft + kWidth; x++)
+            {
+                POINT  pt = { x, kTop + kHeight / 2 };
+
+                Assert::AreEqual (plain.IsOverScrollbar (pt), inset.IsOverScrollbar (pt), (L"the scrollbar is where it was " + at).c_str());
+                overBar += inset.IsOverScrollbar (pt) ? 1 : 0;
+            }
+
+            Assert::IsTrue (overBar > 0, (L"and the sweep crossed it " + at).c_str());
+        }
     }
 };
