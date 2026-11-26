@@ -387,7 +387,8 @@ public:
         Assert::IsFalse (CpmVolume::IsFoundLenient (two), L"Two entries are too few");
         Assert::IsTrue  (VolumeImage::DetectFilesystem (two) == VolumeKind::Unknown);
 
-        //  Three good entries are only half of the six in use.
+        //  Three consistent entries are enough, whatever else is in the
+        //  directory.
         PutEntry (three, 0, 0, "ONE     COM", 0, 8, { 2 });
         PutEntry (three, 1, 0, "TWO     COM", 0, 8, { 3 });
         PutEntry (three, 2, 0, "THREE   COM", 0, 8, { 4 });
@@ -395,8 +396,58 @@ public:
         PutGarbage (three, 4, 0xAA);
         PutGarbage (three, 5, 0x40);
 
-        Assert::IsFalse (CpmVolume::IsFoundLenient (three));
-        Assert::IsTrue  (VolumeImage::DetectFilesystem (three) == VolumeKind::Unknown);
+        Assert::IsTrue (CpmVolume::IsFoundLenient (three));
+        Assert::IsTrue (VolumeImage::DetectFilesystem (three) == VolumeKind::Cpm);
+    }
+
+
+
+    //  As Full Send disk 0002 has: a few files among many slots of leftover
+    //  bytes. The disk is CP/M, read-only.
+    TEST_METHOD (AFewFilesAmongManyFailedSlotsAreCpm)
+    {
+        std::vector<Byte>  image = BuildBlank();
+
+        PutEntry (image, 0, 0, "TEST    COM", 0, 8, { 2 });
+        PutEntry (image, 1, 0, "TESTFILE   ", 0, 128, { 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18 });
+        PutEntry (image, 2, 0, "TESTFILE   ", 1, 128, { 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34 });
+        PutEntry (image, 3, 0, "TESTFILE   ", 2, 16,  { 35, 36 });
+
+        for (int slot = 4; slot < 36; slot++)
+        {
+            PutGarbage (image, slot, (Byte) (0x40 + slot));
+        }
+
+        Assert::IsTrue (CpmVolume::IsFoundLenient (image));
+        Assert::IsTrue (VolumeImage::DetectFilesystem (image) == VolumeKind::Cpm);
+        Assert::IsTrue (CpmVolume (image).IsReadOnly());
+        Assert::AreEqual ((size_t) 2, GetNames (image).size());
+    }
+
+
+
+    //  Valid entries that conflict with each other count against the disk:
+    //  as many conflicting as consistent is not CP/M.
+    TEST_METHOD (ConflictingEntriesCountAgainstTheDisk)
+    {
+        std::vector<Byte>  image = BuildBlank();
+
+        PutEntry (image, 0, 0, "ONE     COM", 0, 8, { 2 });
+        PutEntry (image, 1, 0, "TWO     COM", 0, 8, { 3 });
+        PutEntry (image, 2, 0, "THREE   COM", 0, 8, { 4 });
+        PutEntry (image, 3, 0, "FOUR    COM", 0, 8, { 5 });
+        PutEntry (image, 4, 0, "FIVE    COM", 0, 8, { 5 });
+        PutEntry (image, 5, 0, "SIX     COM", 0, 8, { 6 });
+        PutEntry (image, 6, 0, "SIX     COM", 0, 8, { 7 });
+        PutGarbage (image, 7, 0x09);
+
+        Assert::IsFalse (CpmVolume::IsFoundLenient (image), L"Three consistent, four conflicting");
+
+        PutEntry (image, 8, 0, "EIGHT   COM", 0, 8, { 8 });
+        PutEntry (image, 9, 0, "NINE    COM", 0, 8, { 9 });
+
+        Assert::IsTrue (CpmVolume::IsFoundLenient (image), L"Five consistent, four conflicting");
+        Assert::AreEqual ((size_t) 5, GetNames (image).size(), L"The conflicting entries are skipped");
     }
 
 
