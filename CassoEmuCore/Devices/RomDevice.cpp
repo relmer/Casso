@@ -193,3 +193,24 @@ unique_ptr<MemoryDevice> RomDevice::CreateFromData (
 
     return make_unique<RomDevice> (start, end, move (romData));
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RomDevice::Patch
+//
+//  The bytes are copied rather than the vector replaced, so a read on the
+//  CPU thread during the copy sees one ROM or the other.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void RomDevice::Patch (const vector<Byte> & data)
+{
+    if (data.size() == m_data.size())
+    {
+        std::copy (data.begin(), data.end(), m_data.begin());
+    }
+}

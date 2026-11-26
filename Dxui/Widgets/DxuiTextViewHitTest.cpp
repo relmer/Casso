@@ -230,6 +230,40 @@ bool DxuiTextViewHitTest::TryGetLinkAt (POINT point, int & outRow, int & outSpan
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiTextViewHitTest::GetLineAt
+//
+//  The drawn line at a height in the view, or -1 above the first line shown,
+//  past the last, or in the pad.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiTextViewHitTest::GetLineAt (int pointY) const
+{
+    const std::vector<Line>  & lines     = m_layout.GetLines();
+    int                        y         = pointY - (int) m_viewport.bounds.top - m_viewport.padPx;
+    int                        lineIndex = m_viewport.topLine;
+
+
+
+    if (lines.empty() || y < 0 || lineIndex < 0 || lineIndex >= (int) lines.size())
+    {
+        return -1;
+    }
+
+    while (lineIndex + 1 < (int) lines.size() && GetLineOffsetPx (lineIndex + 1) <= y)
+    {
+        lineIndex++;
+    }
+
+    return (y < GetLineOffsetPx (lineIndex) + m_layout.GetLineHeightPx (lineIndex)) ? lineIndex : -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiTextViewHitTest::GetLineOffsetPx
 //
 ////////////////////////////////////////////////////////////////////////////////

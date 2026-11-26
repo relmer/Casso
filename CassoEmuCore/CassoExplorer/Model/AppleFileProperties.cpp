@@ -3,9 +3,11 @@
 #include "CassoExplorer/Model/AppleFileProperties.h"
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/CpmVolume.h"
+#include "Machines/Apple2/Common/Dos33Catalog.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
+#include "Machines/Apple2/Common/ProDosVolumeWriter.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
 
@@ -299,6 +301,7 @@ bool AppleFileProperties::TryParseDate (const std::wstring & text, Word & outDat
 bool AppleFileProperties::IsValidName (VolumeKind kind, const std::wstring & name)
 {
     std::string  narrow = TextEncoding::WideToNarrow (name);
+    std::string  stored;
 
 
 
@@ -312,7 +315,7 @@ bool AppleFileProperties::IsValidName (VolumeKind kind, const std::wstring & nam
         return CpmVolume::IsValidName (narrow);
     }
 
-    return (kind == VolumeKind::ProDos) ? ProDosVolume::IsValidName (narrow) : Dos33Volume::IsValidName (narrow);
+    return (kind == VolumeKind::ProDos) ? ProDosVolumeWriter::TryEncodeDirectoryName (narrow, stored) : Dos33Catalog::IsValidName (narrow);
 }
 
 

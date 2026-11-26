@@ -159,6 +159,43 @@ public:
     }
 
 
+    TEST_METHOD (Paint_AStyledByteIsDrawnWithItsFillInkAndWeight)
+    {
+        VectorHexSource       source ("ABCD");
+        DxuiHexView           view;
+        DxuiDarkTheme         theme;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        int                   styled = 0;
+
+
+
+        view.SetSource    (&source);
+        LayOut (view);
+        view.SetByteStyle ([] (uint64_t offset, uint8_t mark, bool isSelected, DxuiHexViewTypes::Column column, DxuiHexViewTypes::ByteStyle & outStyle)
+        {
+            (void) mark;
+            (void) isSelected;
+            (void) column;
+
+            outStyle.fill   = 0xFF102030;
+            outStyle.ink    = 0xFFA0B0C0;
+            outStyle.isBold = true;
+
+            return offset == 1;
+        });
+
+        view.Paint (painter, text, theme);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            styled += (call.text == L"42" || call.text == L"B") && call.argb == 0xFFA0B0C0 && call.weight == DxuiFontWeight::Bold ? 1 : 0;
+        }
+
+        Assert::AreEqual (2, styled, L"the byte's digits and its character are drawn its way");
+    }
+
+
     TEST_METHOD (RowCount_CountsAPartialLastRow)
     {
         CountingHexSource  source (33);
@@ -1302,7 +1339,7 @@ public:
         (void) view.OnMouse (MakeMouse (DxuiMouseEventKind::Up, hex.left + 1, hex.top + 1));
         Assert::IsTrue   (view.TryGetByteTipAt (POINT { hex.left + 1, hex.top + 1 }, cell, tip), L"and back once it ends");
 
-        view.SetEditable (true);
+        view.GetSourceEdit().SetEditable (true);
         view.SelectByte  (0x12, DxuiHexView::Column::Hex);
         (void) view.OnKey (DxuiKeyEvent { DxuiKeyEventKind::Char, L'4' });
         Assert::IsFalse  (view.TryGetByteTipAt (POINT { hex.left + 1, hex.top + 1 }, cell, tip), L"not while a value is half typed");

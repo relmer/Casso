@@ -103,7 +103,7 @@ struct LinkShimOptions
 class LinkProgram
 {
 public:
-    static constexpr Word    kProgramVersion    = 105;
+    static constexpr Word    kProgramVersion    = 110;
     static constexpr Byte    kShimVersion       = 12;
     static constexpr Word    kShimAddress       = 0x3A00;
 
@@ -156,7 +156,7 @@ public:
     //  The block module's id and version in its header. The SOS build
     //  reports them as loaded, as the block requests are in it.
     static constexpr Byte    kBlockModuleId      = 2;
-    static constexpr Byte    kBlockModuleVersion = 1;
+    static constexpr Byte    kBlockModuleVersion = 2;
 
     //  The universal boot disk's payload: the first stage, which finds the
     //  machine's interfaces and waits for the PC on all of them, then each
@@ -200,7 +200,13 @@ public:
     //  the program's routines and uses its zero page by name. It must start
     //  at kModuleAddress with the header in Program.s's notes, whose CRC is
     //  filled in here, and end below kModuleAddress + kModuleLimit.
-    static HRESULT      AssembleModule   (const std::string & source, std::vector<Byte> & outBytes, std::string & outErrors, LinkChip chip = LinkChip::Acia, bool faults = false);
+    static HRESULT      AssembleModule   (const std::string & source, std::vector<Byte> & outBytes, std::string & outErrors, LinkChip chip = LinkChip::Acia, bool faults = false,
+                                          std::unordered_map<std::string, Word> * outSymbols = nullptr);
+
+    //  The program's and the block module's symbols, built for `chip`, for a
+    //  profile of where the Apple's cycles go.
+    static HRESULT      GetProgramSymbols     (LinkChip chip, std::unordered_map<std::string, Word> & outSymbols);
+    static HRESULT      GetBlockModuleSymbols (LinkChip chip, std::unordered_map<std::string, Word> & outSymbols);
 
     //  The capture, block and 13-sector modules, for the program built for
     //  `chip`.
@@ -225,7 +231,7 @@ public:
 
     static constexpr Word    kInstallerAddress = 0x2000;
     static constexpr Word    kDriverAddress    = 0x9200;
-    static constexpr size_t  kDriverLimit      = 0x200;
+    static constexpr size_t  kDriverLimit      = 0x300;
 
     static constexpr Word    kModuleAddress   = 0x5000;
     static constexpr size_t  kModuleLimit     = 0x4000;

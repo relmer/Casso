@@ -23,6 +23,13 @@ static constexpr Byte  s_kTimedFlag = 0x02;
 static constexpr InfocomSave::Story  s_kStories[] =
 {
     {   1, "841226", "A Mind Forever Voyaging",                0 },
+    {  77, "850814", "A Mind Forever Voyaging",                0 },
+    {  11, "860509", "Trinity",                                0 },
+    {  19, "870722", "Nord and Bert Couldn't Make Head or Tail of It", 0 },
+    {  21, "871214", "Sherlock",                               0 },
+    {  57, "871221", "Beyond Zork",                            0 },
+    {   9, "871008", "Border Zone",                            0 },
+    {  23, "880706", "Wishbringer",                          100 },
     {  97, "851218", "Ballyhoo",                             200 },
     {  99, "861014", "Ballyhoo",                             200 },
     {  23, "840809", "Cutthroats",                           250 },
@@ -136,14 +143,15 @@ static constexpr InfocomSave::Story  s_kStories[] =
     {  48, "840904", "Zork II",                              400 },
     {  63, "860811", "Zork II",                              400 },
     {  10, "820818", "Zork III",                               7 },
+    {  10, "ZORK 3", "Zork III",                               7 },
     {  12, "821025", "Zork III",                               7 },
     {  15, "830331", "Zork III",                               7 },
     {  16, "830410", "Zork III",                               7 },
     {  15, "840518", "Zork III",                               7 },
     {  17, "840727", "Zork III",                               7 },
     {  25, "860811", "Zork III",                               7 },
-    {   2, "840207", "Mini-Zork I",                            0 },
-    {  34, "871124", "Mini-Zork I",                            0 },
+    {   2, "840207", "Mini-Zork I",                          350 },
+    {  34, "871124", "Mini-Zork I",                          350 },
     {   2, "871123", "Mini-Zork II",                           0 },
     {  15, "840330", "Zork I Demo",                            0 },
     {   5, "840512", "Sampler I",                              0 },
@@ -156,6 +164,97 @@ static constexpr InfocomSave::Story  s_kStories[] =
     {  97, "870601", "Sampler II",                             0 },
     {   8, "870601", "Sampler III",                            0 },
 };
+
+
+
+
+
+//  Each game's subtitle, from its box.
+static constexpr struct { const char * title; const char * subtitle; }  s_kSubtitles[] =
+{
+    { "Zork I",       "The Great Underground Empire" },
+    { "Zork II",      "The Wizard of Frobozz"        },
+    { "Zork III",     "The Dungeon Master"           },
+    { "Mini-Zork I",  "The Great Underground Empire" },
+    { "Suspended",    "A Cryogenic Nightmare"        },
+    { "Wishbringer",  "The Magick Stone of Dreams"   },
+    { "Sherlock",     "The Riddle of the Crown Jewels" },
+    { "Beyond Zork",  "The Coconut of Quendor"       },
+    { "Seastalker",   "Jo Smith and the Ultramarine Bioceptor" },
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InfocomSave::GetFullTitle
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string InfocomSave::GetFullTitle (const std::string & title)
+{
+    std::string  full = title;
+
+
+
+    for (const auto & known : s_kSubtitles)
+    {
+        if (title == known.title)
+        {
+            full = title + ": " + known.subtitle;
+        }
+    }
+
+    return full;
+}
+
+
+
+
+
+//  The global of the moves, or of the clock in minutes from midnight, of
+//  each later story measured: two saves three moves apart, and the global
+//  three higher in the second.
+static constexpr struct { int release; const char * serial; int global; bool isClock; }  s_kLateStatus[] =
+{
+    { 77, "850814",  57, true  },     // A Mind Forever Voyaging
+    { 11, "860509", 133, false },     // Trinity
+    { 19, "870722",  97, false },     // Nord and Bert Couldn't Make Head or Tail of It
+    { 21, "871214", 159, false },     // Sherlock
+    { 23, "880706", 125, false },     // Wishbringer
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InfocomSave::GetMovesLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * InfocomSave::GetMovesLabel (const std::string & title)
+{
+    return (title == "Planetfall" || title == "Stationfall") ? L"Time" : L"Moves";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InfocomSave::IsUnscored
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool InfocomSave::IsUnscored (const std::string & title)
+{
+    return title == "Suspended";
+}
 
 
 
@@ -178,41 +277,130 @@ Word InfocomSave::GetWord (const std::vector<Byte> & memory, size_t at)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  InfocomSave::TryReadPosition
+//  InfocomSave::ReadPages
 //
-//  The position's pages in physical order, then the header checked as a
-//  story's: a version from 1 to 3, a serial number of six digits, and the
-//  objects, the globals and the abbreviations in dynamic memory, which fits
-//  the position.
+//  `count` pages from page `first` on, in physical order: page n is track
+//  n / 16, physical sector n % 16. Pages past the disk are left out.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool InfocomSave::TryReadPosition (const std::vector<Byte> & sectors, int number, Position & outPosition)
+void InfocomSave::ReadPages (const std::vector<Byte> & sectors, size_t first, size_t count, std::vector<Byte> & outMemory)
 {
-    constexpr size_t        kTrackBytes = kSectorsPerTrack * kPageBytes;
-    std::vector<Byte>       memory;
-    ZMachineStory::Header   header;
-    size_t                  firstTrack  = (size_t) number * kTracksPerPosition;
-    bool                    isValid     = number >= 0 && number < kPositions && (firstTrack + kTracksPerPosition) * kTrackBytes <= sectors.size();
-    Word                    globals     = 0;
-    int                     room        = 0;
+    outMemory.clear();
+
+    for (size_t page = first; page < first + count; page++)
+    {
+        size_t  at = ((page / kSectorsPerTrack) * kSectorsPerTrack + (size_t) s_kDosSectorOfPhysical[page % kSectorsPerTrack]) * kPageBytes;
+
+        if (at + kPageBytes <= sectors.size())
+        {
+            outMemory.insert (outMemory.end(), sectors.begin() + (ptrdiff_t) at, sectors.begin() + (ptrdiff_t) (at + kPageBytes));
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InfocomSave::TryReadPosition
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool InfocomSave::TryReadPosition (const std::vector<Byte> & sectors, int number, Position & outPosition, int firstTrackOfAll)
+{
+    std::vector<Byte>  memory;
+    size_t             firstPage = ((size_t) firstTrackOfAll + (size_t) number * kTracksPerPosition) * kSectorsPerTrack;
+    size_t             pages     = (size_t) kTracksPerPosition * kSectorsPerTrack;
+    bool               isValid   = number >= 0 && number < kPositions && (firstPage + pages) * kPageBytes <= sectors.size();
 
 
 
     outPosition = Position();
 
-    for (size_t page = kStatePages; isValid && page < (size_t) kTracksPerPosition * kSectorsPerTrack; page++)
+    if (isValid)
     {
-        size_t  at = (firstTrack + page / kSectorsPerTrack) * kTrackBytes + (size_t) s_kDosSectorOfPhysical[page % kSectorsPerTrack] * kPageBytes;
-
-        memory.insert (memory.end(), sectors.begin() + (ptrdiff_t) at, sectors.begin() + (ptrdiff_t) (at + kPageBytes));
+        ReadPages (sectors, firstPage + kStatePages, pages - kStatePages, memory);
+        isValid = ReadMemory (memory, number, false, outPosition);
     }
 
-    isValid = isValid && memory[0] >= 1 && memory[0] <= 3;
+    return isValid;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InfocomSave::TryReadLatePosition
+//
+//  The slot's size must be the one the story's interpreter uses: the small
+//  one for a version 4 story whose state and dynamic memory fit it, else
+//  the large one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool InfocomSave::TryReadLatePosition (const std::vector<Byte> & sectors, int index, size_t slotPages, Position & outPosition)
+{
+    std::vector<Byte>  memory;
+    size_t             firstPage = (size_t) index * slotPages;
+    bool               isValid   = index >= 0 && firstPage + slotPages <= kDiskPages;
+
+
+
+    outPosition = Position();
+
+    if (isValid)
+    {
+        ReadPages (sectors, firstPage + kLateStatePages, slotPages - kLateStatePages, memory);
+        isValid = ReadMemory (memory, index + 1, true, outPosition);
+    }
+
+    if (isValid)
+    {
+        size_t  needed = kLateStatePages + ((size_t) GetWord (memory, 0x0E) + kPageBytes - 1) / kPageBytes;
+        size_t  slot   = (outPosition.version == 4 && needed <= kSmallSlotPages) ? kSmallSlotPages : kLargeSlotPages;
+
+        isValid = slot == slotPages;
+    }
+
+    return isValid;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InfocomSave::ReadMemory
+//
+//  The header checked as a story's: a version from 1 to 3, or 4 or 5 for a
+//  later interpreter's, a serial number of six printable characters, high
+//  bits ignored, and the objects, the globals and the abbreviations in
+//  dynamic memory, which fits the position. Then the room, the status line
+//  of an early story, and what the player has and what's in the room.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool InfocomSave::ReadMemory (std::vector<Byte> & memory, int number, bool isLate, Position & outPosition)
+{
+    ZMachineStory::Header  header;
+    Word                   globals  = 0;
+    int                    room     = 0;
+    int                    lowest   = isLate ? 4 : 1;
+    int                    highest  = isLate ? 5 : 3;
+    bool                   isValid  = memory.size() >= kHeaderBytes && memory[0] >= lowest && memory[0] <= highest;
+
+
 
     for (size_t at = 0x12; isValid && at < 0x18; at++)
     {
-        isValid = memory[at] >= '0' && memory[at] <= '9';
+        memory[at] &= 0x7F;
+        isValid     = memory[at] >= ' ' && memory[at] < 0x7F;
     }
 
     if (isValid)
@@ -238,17 +426,342 @@ bool InfocomSave::TryReadPosition (const std::vector<Byte> & sectors, int number
         globals = header.globals;
         room    = GetWord (memory, globals);
 
-        outPosition.number  = number;
-        outPosition.version = header.version;
-        outPosition.release = header.release;
+        outPosition.number    = number;
+        outPosition.version   = header.version;
+        outPosition.release   = header.release;
         outPosition.serial.assign ((const char *) &memory[0x12], 6);
-        outPosition.isTimed = header.version == 3 && (header.flags1 & s_kTimedFlag) != 0;
-        outPosition.score   = (int16_t) GetWord (memory, globals + 2u);
-        outPosition.moves   = (int16_t) GetWord (memory, globals + 4u);
-        outPosition.room    = (room > 0) ? ZMachineStory::ReadObjectName (memory, header, (size_t) room) : std::wstring();
+        outPosition.hasStatus = !isLate;
+        outPosition.isTimed   = header.version == 3 && (header.flags1 & s_kTimedFlag) != 0;
+        outPosition.score     = isLate ? 0 : (int16_t) GetWord (memory, globals + 2u);
+        outPosition.moves     = isLate ? 0 : (int16_t) GetWord (memory, globals + 4u);
+
+        //  A later story in the table has its moves or its clock, and no score.
+        for (const auto & known : s_kLateStatus)
+        {
+            if (isLate && known.release == header.release && outPosition.serial == known.serial)
+            {
+                int  value = (int16_t) GetWord (memory, globals + 2u * (size_t) known.global);
+
+                outPosition.hasStatus = true;
+                outPosition.hasScore  = false;
+                outPosition.isTimed   = known.isClock;
+                outPosition.score     = known.isClock ? value / kMinutesPerHour : 0;
+                outPosition.moves     = known.isClock ? value % kMinutesPerHour : value;
+            }
+        }
+
+        int  count  = CountObjects (memory, header);
+
+        if (isLate)
+        {
+            room = FindLateRoom (memory, header, count);
+        }
+
+        int  player = (room > 0 && room <= count) ? FindPlayer (memory, header, count, room) : 0;
+
+        outPosition.room = (room > 0 && room <= count) ? ZMachineStory::ReadObjectName (memory, header, (size_t) room) : std::wstring();
+
+        if (room > 0 && room <= count)
+        {
+            AddTree (memory, header, count, player, 0, 0, outPosition.carried);
+            AddTree (memory, header, count, room, player, 0, outPosition.here);
+        }
     }
 
     return isValid;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InfocomSave::CountObjects
+//
+//  The objects run up to the first property table, the lowest address an
+//  object's properties are at.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int InfocomSave::CountObjects (const std::vector<Byte> & memory, const ZMachineStory::Header & header)
+{
+    bool    isEarly  = header.version <= 3;
+    size_t  bytes    = isEarly ? kObjectBytes : kLateObjectBytes;
+    size_t  propsAt  = bytes - 2;
+    int     maximum  = isEarly ? kMaxEarlyObjects : kMaxLateObjects;
+    size_t  lowest   = memory.size();
+    int     count    = 0;
+
+
+
+    for (size_t at = header.objects + (isEarly ? kDefaultsBytes : kLateDefaultsBytes); at + bytes <= lowest && count < maximum; at += bytes)
+    {
+        size_t  properties = GetWord (memory, at + propsAt);
+
+        lowest = (properties > at) ? (std::min) (lowest, properties) : lowest;
+        count++;
+    }
+
+    return count;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InfocomSave::GetObjectLink
+//
+//  An object's parent, sibling or child, 0 to 2, or 0 for none: a byte
+//  each in an early story, a word each in a later one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int InfocomSave::GetObjectLink (const std::vector<Byte> & memory, const ZMachineStory::Header & header, int count, int number, size_t which)
+{
+    bool    isEarly = header.version <= 3;
+    size_t  entry   = header.objects + (isEarly ? kDefaultsBytes : kLateDefaultsBytes) + (size_t) (number - 1) * (isEarly ? kObjectBytes : kLateObjectBytes);
+    size_t  at      = isEarly ? entry + kParentAt + which : entry + kLateParentAt + 2 * which;
+    bool    isIn    = number >= 1 && number <= count && at + 1 < memory.size();
+    int     link    = !isIn ? 0 : isEarly ? memory[at] : (int) GetWord (memory, at);
+
+
+
+    return (link <= count) ? link : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InfocomSave::FindLateRoom
+//
+//  A later story's room: the object the player is in, or is in something
+//  in, whose parent is the top-level object of the rooms. The player is
+//  the object in something that a global has: one called a usual word for
+//  the player first, else one called "it", but none under the game's
+//  global objects. 0 when no global has the player.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int InfocomSave::FindLateRoom (const std::vector<Byte> & memory, const ZMachineStory::Header & header, int count)
+{
+    int  player = 0;
+    int  room   = 0;
+
+
+
+    int  best = 0;
+
+    for (int g = 0; g < kGlobals && header.globals + 2u * (size_t) g + 1 < memory.size(); g++)
+    {
+        int           value = GetWord (memory, header.globals + 2u * (size_t) g);
+        bool          isIn  = value > 0 && value <= count && GetObjectLink (memory, header, count, value, 0) != 0 && !IsInGlobals (memory, header, count, value);
+        std::wstring  name  = isIn ? ZMachineStory::ReadObjectName (memory, header, (size_t) value) : std::wstring();
+        int           score = IsPlayerName (name) ? kNameScore : (name == L"it") ? 1 : 0;
+
+        if (score > best)
+        {
+            best   = score;
+            player = value;
+        }
+    }
+
+    //  Up from the player while the parent is inside another object.
+    room = player;
+
+    for (int depth = 0; room != 0 && depth < kMaxDepth; depth++)
+    {
+        int  parent = GetObjectLink (memory, header, count, room, 0);
+        int  above  = (parent != 0) ? GetObjectLink (memory, header, count, parent, 0) : 0;
+
+        if (parent == 0)
+        {
+            room = 0;
+        }
+        else if (above != 0)
+        {
+            room = parent;
+        }
+        else
+        {
+            depth = kMaxDepth;
+        }
+    }
+
+    //  A player directly in a room with no parent is in that room.
+    if (room != 0 && room == player)
+    {
+        room = GetObjectLink (memory, header, count, player, 0);
+    }
+
+    return room;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InfocomSave::IsInGlobals
+//
+//  Whether the object is under a later story's global objects: under
+//  an object called "GloObj", "LocGlo" or another starting "Glo" or
+//  "LocGlo", as the games' objects of every room are.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool InfocomSave::IsInGlobals (const std::vector<Byte> & memory, const ZMachineStory::Header & header, int count, int number)
+{
+    int   parent = GetObjectLink (memory, header, count, number, 0);
+    bool  isIn   = false;
+
+
+
+    for (int depth = 0; parent != 0 && !isIn && depth < kMaxDepth; depth++)
+    {
+        std::wstring  name = ZMachineStory::ReadObjectName (memory, header, (size_t) parent);
+
+        isIn   = _wcsnicmp (name.c_str(), L"Glo", 3) == 0 || _wcsnicmp (name.c_str(), L"LocGlo", 6) == 0;
+        parent = GetObjectLink (memory, header, count, parent, 0);
+    }
+
+    return isIn;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InfocomSave::FindPlayer
+//
+//  Of the objects with a name in the room, or in something in it, that a global
+//  variable after the room, score and moves has: the first with a player's
+//  name, else the first with something in it, else the first, or 0. The
+//  player can be in a bed or a car, and a global can have a pronoun's
+//  object or another character in the room.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int InfocomSave::FindPlayer (const std::vector<Byte> & memory, const ZMachineStory::Header & header, int count, int room)
+{
+    int  player = 0;
+    int  best   = -1;
+
+
+
+    for (int g = 3; g < kGlobals && header.globals + 2u * (size_t) g + 1 < memory.size(); g++)
+    {
+        int           value = GetWord (memory, header.globals + 2u * (size_t) g);
+        bool          isIn  = value > 0 && value <= count && IsInside (memory, header, count, value, room);
+        std::wstring  name  = isIn ? ZMachineStory::ReadObjectName (memory, header, (size_t) value) : std::wstring();
+        int           score = -1;
+
+        if (!name.empty())
+        {
+            score  = IsPlayerName (name) ? kNameScore : 0;
+            score += (GetObjectLink (memory, header, count, value, 2) != 0) ? 1 : 0;
+        }
+
+        if (score > best)
+        {
+            best   = score;
+            player = value;
+        }
+    }
+
+    return player;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InfocomSave::IsInside
+//
+//  Whether the object is in the room, or in something in it, kMaxDepth
+//  levels down at most.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool InfocomSave::IsInside (const std::vector<Byte> & memory, const ZMachineStory::Header & header, int count, int number, int room)
+{
+    int  parent = GetObjectLink (memory, header, count, number, 0);
+
+
+
+    for (int depth = 1; parent != 0 && parent != room && depth < kMaxDepth; depth++)
+    {
+        parent = GetObjectLink (memory, header, count, parent, 0);
+    }
+
+    return number != room && parent == room;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InfocomSave::IsPlayerName
+//
+//  Whether the object is called what the player usually is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool InfocomSave::IsPlayerName (const std::wstring & name)
+{
+    static constexpr const wchar_t *  s_kNames[] = { L"cretin", L"yourself", L"you", L"player", L"protagonist", L"adventurer", L"me" };
+
+
+
+    return std::any_of (std::begin (s_kNames), std::end (s_kNames), [&] (const wchar_t * known) { return _wcsicmp (name.c_str(), known) == 0; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InfocomSave::AddTree
+//
+//  The objects under parent, each followed by the objects under it, but for
+//  skip, objects without a name, and the empty objects called "it" that
+//  some games have for the pronoun. A tree that loops or runs too deep is cut
+//  off.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InfocomSave::AddTree (const std::vector<Byte> & memory, const ZMachineStory::Header & header, int count, int parent, int skip, int depth, std::vector<Item> & ioItems)
+{
+    int  child = (parent > 0) ? GetObjectLink (memory, header, count, parent, 2) : 0;
+
+
+
+    for (int steps = 0; child != 0 && depth < kMaxDepth && ioItems.size() < kMaxItems && steps < count; steps++)
+    {
+        std::wstring  name    = ZMachineStory::ReadObjectName (memory, header, (size_t) child);
+        bool          isEmpty = GetObjectLink (memory, header, count, child, 2) == 0;
+
+        if (child != skip && !name.empty() && !(isEmpty && name == L"it"))
+        {
+            ioItems.push_back (Item { depth, name });
+            AddTree (memory, header, count, child, skip, depth + 1, ioItems);
+        }
+
+        child = GetObjectLink (memory, header, count, child, 1);
+    }
 }
 
 
@@ -269,11 +782,31 @@ void InfocomSave::FindPositions (const std::vector<Byte> & sectors, std::vector<
 
     outPositions.clear();
 
-    for (int number = 0; number < kPositions; number++)
+    //  Read the early layout only when the usual one has no positions, and a
+    //  later interpreter's only when neither has.
+    for (int first : { 0, kEarlyFirstTrack })
     {
-        if (TryReadPosition (sectors, number, position))
+        bool  isFound = !outPositions.empty();
+
+        for (int number = 0; !isFound && number < kPositions; number++)
         {
-            outPositions.push_back (position);
+            if (TryReadPosition (sectors, number, position, first))
+            {
+                outPositions.push_back (position);
+            }
+        }
+    }
+
+    for (size_t slot : { kSmallSlotPages, kLargeSlotPages })
+    {
+        bool  isFound = !outPositions.empty() && outPositions[0].version <= 3;
+
+        for (int index = 0; !isFound && (size_t) (index + 1) * slot <= kDiskPages; index++)
+        {
+            if (TryReadLatePosition (sectors, index, slot, position))
+            {
+                outPositions.push_back (position);
+            }
         }
     }
 }
@@ -305,7 +838,9 @@ std::string InfocomSave::Describe (const Position & position)
         text += ": " + TextEncoding::WideToNarrow (position.room);
     }
 
-    text += position.isTimed ? std::format (", time {}:{:02} {}", hours, position.moves, (position.score < 12) ? "AM" : "PM")
+    text += !position.hasStatus ? std::string()
+          : (!position.hasScore && !position.isTimed) ? std::format (", {} {}", position.moves, (position.moves == 1) ? "move" : "moves")
+          : position.isTimed ? std::format (", time {}:{:02} {}", hours, position.moves, (position.score < 12) ? "AM" : "PM")
                              : std::format (", score {}{}, {} {}", position.score, max, position.moves, (position.moves == 1) ? "move" : "moves");
 
     return text;

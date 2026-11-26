@@ -5,6 +5,8 @@
 #include "Debugger/Reverse/HistoryRecorder.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/IAciaEndpoint.h"
+#include "Devices/Disk/Store/DiskFlusher.h"
+#include "Devices/Disk/Store/DiskBayTable.h"
 #include "Machines/Apple2/Apple2c/Apple2cRomBank.h"
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Common/AppleMouse.h"
@@ -399,7 +401,7 @@ void MachineHost::PowerCycle()
 
     m_tape.Stop();
 
-    hrFlush = m_diskStore->FlushAllUnlessHeld();
+    hrFlush = m_diskStore->GetFlusher().FlushAllUnlessHeld();
     IGNORE_RETURN_VALUE (hrFlush, S_OK);
 
     m_parts.memoryBus->PowerCycleAll (*m_parts.prng);
@@ -436,6 +438,8 @@ void MachineHost::PowerCycle()
     {
         m_parts.cpu->PowerCycle (*m_parts.prng);
     }
+
+    m_runner.SetBootSlot (m_config != nullptr ? m_config->bootSlot : 0);
 
     // After the CPU's power cycle, which is what fills main RAM.
     ApplyPowerOnOverrides();
@@ -494,9 +498,9 @@ void MachineHost::GetStateParts (std::vector<IMachineState *> & outParts)
     outParts.push_back (&m_parts.interruptController);
     outParts.push_back (m_parts.memoryBus.get());
 
-    for (slot = 0; slot < DiskImageStore::kSlotCount; slot++)
+    for (slot = 0; slot < DiskBayTable::kSlotCount; slot++)
     {
-        for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+        for (drive = 0; drive < DiskBayTable::kDriveCount; drive++)
         {
             image = m_diskStore->IsMounted (slot, drive) ? m_diskStore->GetImage (slot, drive) : nullptr;
 
@@ -592,4 +596,19 @@ void MachineHost::ApplyPowerOnOverrides()
 
     bus.WriteByte (kRandomSeedLo, static_cast<Byte> (kNonzeroBit | prng.NextByte()));
     bus.WriteByte (kRandomSeedHi, static_cast<Byte> (kNonzeroBit | prng.NextByte()));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::SetDisk2Roms
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::SetDisk2Roms (std::vector<Byte> rom16, std::vector<Byte> rom13, RomDevice * device)
+{
+    m_storage.SetDisk2Roms (std::move (rom16), std::move (rom13), device);
 }

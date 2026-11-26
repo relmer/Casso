@@ -448,4 +448,148 @@ public:
             Assert::AreEqual<size_t> (0, consumed);
         }
     }
+
+
+    //  A Block runs packet for block 0x030201 with `sent` as its bytes, and
+    //  the CRC of the block's number and those bytes.
+    static CassoLinkPacket  MakeRuns (const std::vector<Byte> & sent)
+    {
+        CassoLinkPacket  packet;
+        Word             crc = 0;
+
+
+
+        packet.command = CassoLinkCodec::kBlockRuns;
+        packet.payload = { 0x01, 0x02, 0x03 };
+        packet.payload.insert (packet.payload.end(), sent.begin(), sent.end());
+
+        crc = CassoLinkCodec::ComputeCrc (packet.payload);
+        packet.payload.push_back ((Byte) (crc & 0xFF));
+        packet.payload.push_back ((Byte) (crc >> 8));
+        return packet;
+    }
+
+
+    TEST_METHOD (BlockRuns_DecodeRunsLiteralsAndEscapes)
+    {
+        std::vector<Byte>  sent;
+        std::vector<Byte>  block0;
+        std::vector<Byte>  data;
+        uint32_t           block = 0;
+
+        sent     = { 0x11, 0x22, CassoLinkCodec::kRunEscape, CassoLinkCodec::kRunLiteral, CassoLinkCodec::kRunEscape, 252, 0x00, CassoLinkCodec::kRunEscape, 249, 0x7E };
+        block0   = { 0x11, 0x22, CassoLinkCodec::kRunEscape };
+        block0.insert (block0.end(), 256, 0x00);
+        block0.insert (block0.end(), 253, 0x7E);
+
+        AssertSucceeded (CassoLinkCodec::ParseBlock (MakeRuns (sent), true, block, data));
+        Assert::AreEqual<uint32_t> (0x030201, block);
+        Assert::IsTrue (data == block0, L"the block decoded");
+    }
+
+
+    TEST_METHOD (BlockRuns_WithABadCrc_FailWithCrc)
+    {
+        std::vector<Byte>  sent;
+        CassoLinkPacket    packet;
+        std::vector<Byte>  data;
+        uint32_t           block = 0;
+
+        sent    = { CassoLinkCodec::kRunEscape, 252, 0x00, CassoLinkCodec::kRunEscape, 252, 0x00 };
+        packet  = MakeRuns (sent);
+        packet.payload.back() ^= 0x01;
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_CRC), CassoLinkCodec::ParseBlock (packet, true, block, data));
+    }
+
+
+    TEST_METHOD (BlockRuns_ThatArentAWholeBlock_AreInvalid)
+    {
+        constexpr HRESULT  kInvalid = HRESULT_FROM_WIN32 (ERROR_INVALID_DATA);
+
+        std::vector<Byte>  data;
+        uint32_t           block    = 0;
+
+        //  One byte short, one byte over, and a run cut short by the CRC.
+        Assert::AreEqual (kInvalid, CassoLinkCodec::ParseBlock (MakeRuns ({ CassoLinkCodec::kRunEscape, 252, 0x00, CassoLinkCodec::kRunEscape, 251, 0x00 }), true, block, data));
+        Assert::AreEqual (kInvalid, CassoLinkCodec::ParseBlock (MakeRuns ({ CassoLinkCodec::kRunEscape, 252, 0x00, CassoLinkCodec::kRunEscape, 252, 0x00, 0x01 }), true, block, data));
+        Assert::AreEqual (kInvalid, CassoLinkCodec::ParseBlock (MakeRuns ({ CassoLinkCodec::kRunEscape, 252, 0x00, CassoLinkCodec::kRunEscape, 252 }), true, block, data));
+    }
+
+
+    TEST_METHOD (BlockData_IsParsedAsItWas)
+    {
+        CassoLinkPacket    packet;
+        std::vector<Byte>  bytes (CassoLinkCodec::kBlockSize);
+        std::vector<Byte>  data;
+        uint32_t           block = 0;
+        Word               crc   = 0;
+
+        for (size_t i = 0; i < bytes.size(); i++)
+        {
+            bytes[i] = (Byte) (i * 5);
+        }
+
+        crc            = CassoLinkCodec::ComputeCrc (bytes);
+        packet.command = CassoLinkCodec::kBlockData;
+        packet.payload = { 0x07, 0x00, 0x00 };
+        packet.payload.insert (packet.payload.end(), bytes.begin(), bytes.end());
+        packet.payload.push_back ((Byte) (crc & 0xFF));
+        packet.payload.push_back ((Byte) (crc >> 8));
+
+        AssertSucceeded (CassoLinkCodec::ParseBlock (packet, true, block, data));
+        Assert::AreEqual<uint32_t> (7, block);
+        Assert::IsTrue (data == bytes, L"the block's bytes");
+
+        packet.payload[10] ^= 0xFF;
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_CRC), CassoLinkCodec::ParseBlock (packet, true, block, data));
+    }
+
+
+    //  A Block runs packet's EOR isn't checked, since its CRC covers the
+    //  payload.
+    TEST_METHOD (BlockRuns_AreDecodedWithAnyEor)
+    {
+        std::vector<Byte>  wire     = { 0xC1, 0x02, 0x00, CassoLinkCodec::kBlockRuns, (Byte) (0xC1 ^ 0x02 ^ CassoLinkCodec::kBlockRuns), 0x11, 0x22, 0x00 };
+        CassoLinkPacket    packet;
+        size_t             consumed = 0;
+
+        Assert::AreEqual (S_OK, DecodeOne (wire, consumed, packet));
+        Assert::AreEqual (CassoLinkCodec::kBlockRuns, packet.command);
+    }
+
+    //  With no CRC asked for, a read's CRC isn't checked.
+    TEST_METHOD (Blocks_WithNoCrcAskedFor_AreNotChecked)
+    {
+        CassoLinkPacket    packet = MakeRuns ({ CassoLinkCodec::kRunEscape, 252, 0x00, CassoLinkCodec::kRunEscape, 252, 0x00 });
+        std::vector<Byte>  data;
+        uint32_t           block  = 0;
+
+        packet.payload.back() ^= 0x01;
+
+        AssertSucceeded (CassoLinkCodec::ParseBlock (packet, false, block, data));
+        Assert::AreEqual<size_t> (CassoLinkCodec::kBlockSize, data.size());
+    }
+
+
+    //  Block plain is Block data's fields with any EOR, and 0 for its CRC on
+    //  a read with no CRC.
+    TEST_METHOD (BlockPlain_IsDecodedWithAnyEor_AndParsed)
+    {
+        std::vector<Byte>  bytes (CassoLinkCodec::kBlockSize, 0x5A);
+        std::vector<Byte>  wire     = { 0xC1, (Byte) (517 & 0xFF), (Byte) (517 >> 8), CassoLinkCodec::kBlockPlain, (Byte) (0xC1 ^ (517 & 0xFF) ^ (517 >> 8) ^ CassoLinkCodec::kBlockPlain), 0x09, 0x00, 0x00 };
+        CassoLinkPacket    packet;
+        std::vector<Byte>  data;
+        size_t             consumed = 0;
+        uint32_t           block    = 0;
+
+        wire.insert (wire.end(), bytes.begin(), bytes.end());
+        wire.insert (wire.end(), { 0x00, 0x00, 0x00 });
+
+        Assert::AreEqual (S_OK, DecodeOne (wire, consumed, packet));
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_CRC), CassoLinkCodec::ParseBlock (packet, true, block, data));
+        AssertSucceeded (CassoLinkCodec::ParseBlock (packet, false, block, data));
+        Assert::AreEqual<uint32_t> (9, block);
+        Assert::IsTrue (data == bytes, L"the block's bytes");
+    }
 };

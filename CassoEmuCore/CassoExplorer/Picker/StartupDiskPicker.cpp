@@ -28,7 +28,7 @@ PickerRequest StartupDiskPicker::MakeRequest (const std::wstring & machineName, 
 
 
     request.form           = PickerForm::ModalOpen;
-    request.title          = std::format (L"Choose a boot disk - {}", machineName);
+    request.title          = driveLabel.empty() ? std::format (L"Choose a boot disk: {}", machineName) : std::format (L"Choose a boot disk: {}, {}", machineName, driveLabel);
     request.receivingDrive = drive;
     request.driveLabel     = driveLabel;
     request.viewKey        = kViewKey;
@@ -153,6 +153,59 @@ std::vector<StockDiskRow> StartupDiskPicker::GetDemoDisks (IDiskFileIo & fileIo,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  StartupDiskPicker::GetEveryStockDisk
+//
+//  The 5.25-inch drive's disks, then the 3.5-inch drive's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<StockDiskRow> StartupDiskPicker::GetEveryStockDisk()
+{
+    std::vector<StockDiskRow>  rows = GetStockDisks (ReceivingDrive { ReceivingDriveKind::Floppy525, 0 });
+
+
+
+    for (StockDiskRow & row : GetStockDisks (ReceivingDrive { ReceivingDriveKind::Apple35, 0 }))
+    {
+        rows.push_back (std::move (row));
+    }
+
+    return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StartupDiskPicker::GetEveryDemoDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<StockDiskRow> StartupDiskPicker::GetEveryDemoDisk (IDiskFileIo & fileIo)
+{
+    std::vector<StockDiskRow>    rows;
+    std::vector<DiskMru::Entry>  bundled;
+
+
+
+    AssetBootstrap::AppendBundledDemoDisks (bundled, [] (const std::wstring & path) { return ImageClassifier::IsImageExtension (std::filesystem::path (path).extension().wstring()); });
+
+    for (const DiskMru::Entry & entry : bundled)
+    {
+        rows.push_back (StockDiskRow { entry.path.stem().wstring(), entry.path.wstring(), true, std::wstring(), ImageClassifier::Classify (fileIo, TextEncoding::WideToUtf8 (entry.path.wstring())) });
+    }
+
+    return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  StartupDiskPicker::FetchStockDisk
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -250,14 +303,14 @@ HRESULT StartupDiskPicker::Run (HINSTANCE instance, HWND owner, const std::wstri
     HRESULT             hrOle    = OleInitialize (nullptr);
     Win32FileSystem     fs;
     Win32DiskFileIo     fileIo;
-    ExplorerPickerHost  host (fs, fileIo, AssetBootstrap::GetAssetBaseDirectory().wstring());
+    ExplorerPickerHost  host (fs, fileIo, AssetBootstrap::GetAssetBaseDirectory().wstring(), ExplorerPickerHost::Services { .listsStockDisks = true });
 
 
 
     outDiskPath.clear();
     outIsClosed = false;
 
-    host.Prepare (MakeRequest (machineName, drive, driveLabel, GetStockDisks (drive), GetDemoDisks (fileIo, drive)), CassoExplorerPrefs::MapCassoTheme (activeTheme), owner, false);
+    host.Prepare (MakeRequest (machineName, drive, driveLabel, {}, {}), CassoExplorerPrefs::MapCassoTheme (activeTheme), owner, false);
 
     hr = host.RunModal (instance);
     CHR (hr);

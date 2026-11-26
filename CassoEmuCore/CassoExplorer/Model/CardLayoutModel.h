@@ -73,8 +73,10 @@ public:
     //  The space past the last slot the CFFA layout maps.
     uint64_t  GetUnavailableBytes () const;
 
-    //  The text of an adapter in the dropdown.
-    static std::wstring  GetAdapterLabel (Adapter adapter);
+    //  The text of an adapter in the dropdown, and the adapters in the
+    //  dropdown's order.
+    static std::wstring          GetAdapterLabel (Adapter adapter);
+    static std::vector<Adapter>  GetAdapterOrder ();
 
     //  The layout an adapter is best served by: as many volumes as it maps
     //  without a step, or as fit for a CFFA 2.0 on an enhanced Apple, and

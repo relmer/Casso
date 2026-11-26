@@ -105,11 +105,13 @@ void SettingsSheet::OnBuildPages()
 {
     m_generalPage  = CreatePage<GeneralPage>  (L"General");
     m_hardwarePage = CreatePage<HardwarePage> (L"Machine");   // machine + CPU + hardware
+    m_slotsPage    = CreatePage<SlotsPage>    (L"Slots");
+    m_diskPortPage = CreatePage<DiskPortPage> (L"Disk port");
     m_diskPage     = CreatePage<DiskPage>     (L"Storage");
     m_themePage    = CreatePage<ThemePage>    (L"Theme");
     m_displayPage  = CreatePage<DisplayPage>  (L"Display");
     m_printingPage = CreatePage<PrintingPage> (L"Printing");
-    m_serialPage   = CreatePage<SerialCardPage> (L"Serial card");
+    m_serialPage   = &m_slotsPage->GetSerialPage();
     m_networkPage  = CreatePage<NetworkPage>  (L"Network");
     m_shotsPage    = CreatePage<ScreenshotsPage> (L"Screenshots");
     m_controllersPage = CreatePage<ControllersPage> (L"Controllers");
@@ -250,7 +252,7 @@ HRESULT SettingsSheet::OpenModeless (
     // Opened as tall and wide as the content wants, up to the work area, so a
     // page scrolls only when the monitor is too small for it. A size the user
     // chose is kept for the rest of this visit only.
-    FitToMaxSize();
+    GetSizer().ResizeToMaxSize (MaxSizeMode::Fit);
     m_openedSizeDip = GetSizeDip();
 
     SetTheme (&emuShell.GetChrome().GetTheme());
@@ -282,7 +284,8 @@ HRESULT SettingsSheet::OpenModeless (
     // The Disk tab is dynamic (#84): it exists only while the staged config has
     // an enabled Disk ][ controller. Remember its page index for the toggle.
     m_diskPageIndex   = IndexOfPage (m_diskPage);
-    m_serialPageIndex = IndexOfPage (m_serialPage);
+    m_slotsPageIndex  = IndexOfPage (m_slotsPage);
+    m_diskPortPageIndex = IndexOfPage (m_diskPortPage);
 
     // The Network tab likewise exists only while the staged config has the
     // Uthernet II turned on.
@@ -522,11 +525,12 @@ HRESULT SettingsSheet::OpenModeless (
     // Route each page's dropdown menus through the host popup pool so they
     // escape the client clip (FR-054 / FR-061).
     m_hardwarePage->SetPopupHost (GetPopupHost());
+    m_slotsPage->SetPopupHost    (GetPopupHost());
+    m_diskPortPage->SetPopupHost (GetPopupHost());
     m_diskPage->SetPopupHost     (GetPopupHost());
     m_themePage->SetPopupHost    (GetPopupHost());
     m_displayPage->SetPopupHost  (GetPopupHost());
     m_printingPage->SetPopupHost (GetPopupHost());
-    m_serialPage->SetPopupHost   (GetPopupHost());
     m_networkPage->SetPopupHost  (GetPopupHost());
     m_shotsPage->SetPopupHost    (GetPopupHost());
     m_controllersPage->SetPopupHost (GetPopupHost());
@@ -653,51 +657,13 @@ HRESULT SettingsSheet::OpenModeless (
     // reported, and both are synced to it.
     m_printingPage->SetOnNotice ([this] (const std::wstring & notice) { ReportCrossTabChange (notice); });
     m_hardwarePage->SetOnNotice ([this] (const std::wstring & notice) { ReportCrossTabChange (notice); });
-    m_hardwarePage->SetOnCardChosen ([this] (const std::string & device) { m_pendingCardDevice = device; });
-    m_hardwarePage->SetOnBrowseImage ([this] (const std::string & device, std::string & inOutPath) -> bool
-    {
-        FileDialogSpec          spec;
-        fs::path                picked;
-        bool                    isPicked = false;
-        HRESULT                 hr       = S_OK;
-        const BlockDriveSpec  * drive    = BlockDeviceCatalog::FindDrive (device);
-
-
-
-        spec.filters = { { L"Disk images", L"*.po;*.hdv;*.2mg;*.2img;*.dsk;*.dc;*.dc42;*.image;*.woz" }, { L"All files", L"*.*" } };
-        spec.content = FileDialogContent::Images;
-
-        //  The picker lists what the port's drive accepts: a hard disk up to
-        //  its capacity, or a 3.5-inch drive's disks.
-        if (drive != nullptr)
-        {
-            bool  isUniDisk = device == kpszUniDisk35Device;
-            bool  isApple35 = device == kpszApple35DriveDevice;
-
-            spec.receivingDrive = ReceivingDrive { isUniDisk ? ReceivingDriveKind::UniDisk35 : isApple35 ? ReceivingDriveKind::Apple35 : ReceivingDriveKind::HardDisk,
-                                                   (isUniDisk || isApple35) ? 0 : drive->maxBlocks };
-            spec.driveLabel     = TextEncoding::Utf8ToWide (drive->label);
-        }
-
-        if (!inOutPath.empty())
-        {
-            spec.initialFolder   = fs::path (TextEncoding::Utf8ToWide (inOutPath)).parent_path();
-            spec.defaultFileName = fs::path (TextEncoding::Utf8ToWide (inOutPath)).filename().wstring();
-        }
-
-        hr = m_emuShell->GetHostDialogs().PickFileToOpen (GetHwnd(), spec, picked, isPicked);
-
-        if (SUCCEEDED (hr) && isPicked)
-        {
-            inOutPath = TextEncoding::WideToUtf8 (picked.wstring());
-        }
-
-        return SUCCEEDED (hr) && isPicked;
-    });
+    m_slotsPage->SetOnAnimate    ([this] () { UpdateTickInterval(); });
+    m_slotsPage->SetOnCardChosen ([this] (const std::string & device) { m_pendingCardDevice = device; });
 
     // Serial card page: the staged slot entry, the firmware's status in the
     // running machine's config, the shell's download, and the file pickers.
-    m_serialPage->SetState          (&m_state);
+    m_slotsPage->SetState           (&m_state);
+    m_diskPortPage->SetState        (&m_state);
     m_serialPage->SetFirmwareStatus (GetSerialFirmwareStatus(), IsSerialFirmwareMissing());
     m_serialPage->SetOnDownload ([this] ()
     {
@@ -765,7 +731,9 @@ HRESULT SettingsSheet::OpenModeless (
     // Seed the Disk tab's presence from the loaded config before the first
     // Layout so the tab strip is correct on the very first paint.
     UpdateDiskTabVisibility();
+    UpdateSlotsTabVisibility();
     UpdateSerialTabVisibility();
+    UpdateNetworkTabVisibility();
 
     // Show the window BEFORE the final Rebuild: the first valid layout only
     // happens once the window is shown (WM_SIZE against the real client size),
@@ -774,6 +742,8 @@ HRESULT SettingsSheet::OpenModeless (
     // top-left. ShowModelessDialog re-shows harmlessly below.
     Show();
     m_hardwarePage->Rebuild();
+    m_slotsPage->Rebuild();
+    m_diskPortPage->Rebuild();
     m_diskPage->Rebuild();
     m_serialPage->SetComPorts (m_hardwarePage->GetComPorts());
     m_serialPage->Rebuild();
@@ -1035,7 +1005,7 @@ void SettingsSheet::GrowToContent()
         return;
     }
 
-    GrowToMaxSize();
+    GetSizer().ResizeToMaxSize (MaxSizeMode::Grow);
     m_openedSizeDip = GetSizeDip();
 }
 
@@ -1092,6 +1062,7 @@ void SettingsSheet::OnDialogTick()
     RefreshOkLabel();
     UpdateRestartNotice();
     UpdateDiskTabVisibility();
+    UpdateSlotsTabVisibility();
     UpdateSerialTabVisibility();
     UpdateNetworkTabVisibility();
     m_sparkle.Update();
@@ -1188,7 +1159,7 @@ void SettingsSheet::UpdateTickInterval()
         wanted = m_controllersPage->GetPollIntervalMs();
     }
 
-    if (m_sparkle.IsAnySweeping())
+    if (m_sparkle.IsAnySweeping() || (m_slotsPage != nullptr && m_slotsPage->IsAnimating()))
     {
         wanted = std::min (wanted, SettingsTabSparkle::kTickMs);
     }
@@ -1448,12 +1419,46 @@ void SettingsSheet::UpdateDiskTabVisibility()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  UpdateSlotsTabVisibility
+//
+//  The Slots tab is present on a machine with slots. The //c has none, so
+//  its ports are on the Machine tab.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::UpdateSlotsTabVisibility()
+{
+    bool  want = !m_state.GetMachineInfo().supportsExternalDrive;
+
+
+
+    // A //c has a disk port in place of slots.
+    if (m_diskPortPageIndex >= 0 && want == m_diskPortTabVisible)
+    {
+        m_diskPortTabVisible = !want;
+        SetPageVisible (m_diskPortPageIndex, !want);
+    }
+
+    if (m_slotsPageIndex < 0 || want == m_slotsTabVisible)
+    {
+        return;
+    }
+
+    m_slotsTabVisible = want;
+    SetPageVisible (m_slotsPageIndex, want);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  UpdateSerialTabVisibility
 //
-//  The Serial card tab follows the staged Super Serial Card the way the Disk
-//  tab follows the controller. When the user turns the card on and its
-//  firmware is missing, the tab is selected, so the download it offers is
-//  in front of the user at once.
+//  Tracks the staged Super Serial Card. When the user turns the card on and
+//  its firmware is missing, the download is offered at once, and the card
+//  stays off unless the download succeeds.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1461,8 +1466,8 @@ void SettingsSheet::UpdateSerialTabVisibility()
 {
     HRESULT  hr       = S_OK;
     bool     want     = m_state.HasEnabledSerialCard();
-    bool     turnedOn = want && !m_serialTabVisible;
-    bool     settled  = m_serialPageIndex < 0 || want == m_serialTabVisible;
+    bool     turnedOn = want && !m_serialCardOn;
+    bool     settled  = want == m_serialCardOn;
     bool     missing  = false;
     bool     fetched  = false;
 
@@ -1490,19 +1495,11 @@ void SettingsSheet::UpdateSerialTabVisibility()
 
     BAIL_OUT_IF (missing && !fetched, S_OK);
 
-    m_serialTabVisible = want;
-    SetPageVisible (m_serialPageIndex, want);
+    m_serialCardOn = want;
 
     if (turnedOn)
     {
         m_serialPage->Rebuild();
-    }
-
-    // The Machine tab stays open, as it does for any card turned on, and the
-    // new tab is marked.
-    if (turnedOn)
-    {
-        m_sparkle.Start (m_serialPageIndex);
     }
 
 Error:
@@ -1610,6 +1607,8 @@ void SettingsSheet::ReportCrossTabChange (const std::wstring & notice)
     m_serialPage->Rebuild();
     m_printingPage->Sync();
     m_hardwarePage->Rebuild();
+    m_slotsPage->Rebuild();
+    m_diskPortPage->Rebuild();
     Invalidate();
 
     m_pendingNotice = notice;
@@ -1759,6 +1758,8 @@ void SettingsSheet::SetSerialCardEnabled (bool enabled)
         hr = m_state.SetHardwareEnabled (static_cast<size_t> (index), enabled);
         IGNORE_RETURN_VALUE (hr, S_OK);
         m_hardwarePage->Rebuild();
+        m_slotsPage->Rebuild();
+    m_slotsPage->Rebuild();
     }
 }
 

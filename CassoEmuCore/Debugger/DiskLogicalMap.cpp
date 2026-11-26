@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "Debugger/DiskLogicalMap.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 
 
@@ -31,7 +31,7 @@ int DiskLogicalMap::GetDosPhysical (int logical)
 
     for (int physical = 0; physical < kSectorsPerTrack; physical++)
     {
-        found = (NibblizationLayer::GetDosFileIndexForPhysicalSector (physical) == logical) ? physical : found;
+        found = (SectorInterleave::GetDosFileIndexForPhysicalSector (physical) == logical) ? physical : found;
     }
 
     return found;

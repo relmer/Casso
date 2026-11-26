@@ -486,6 +486,8 @@ HRESULT MachineConfigLoader::LoadSystemRom (
               (outConfig.systemRom.fileSize % outConfig.systemRom.romBankSize) == 0,
               outError = format ("systemRom: file size ${:X} is not a whole number of ${:X}-byte banks",
                                  outConfig.systemRom.fileSize, outConfig.systemRom.romBankSize));
+
+        outConfig.builtInDisk2Rom13Path = resolver (searchPaths, fs::path ("Devices") / "DiskII" / "Disk2_13Sector.rom").string();
     }
     else
     {
@@ -1247,6 +1249,12 @@ HRESULT MachineConfigLoader::LoadSlots (
         {
             HRESULT hrEnabled = entry.GetBool ("enabled", slot.enabled);
             IGNORE_RETURN_VALUE (hrEnabled, S_OK);
+        }
+
+        // Optional: cassoFirmware (default false), for a hard disk card.
+        {
+            HRESULT hrCasso = entry.GetBool ("cassoFirmware", slot.cassoFirmware);
+            IGNORE_RETURN_VALUE (hrCasso, S_OK);
         }
 
         // Optional: firmware and switches, which a card with a large ROM and

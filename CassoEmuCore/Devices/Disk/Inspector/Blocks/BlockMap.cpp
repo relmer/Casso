@@ -248,3 +248,59 @@ LPCWSTR BlockMap::GetRoleName (SectorRole role)
 
     return L"Free";
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockMap::FormatRoleFinding
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring BlockMap::FormatRoleFinding (SectorRole role, size_t count, bool isSectors)
+{
+    bool          isOne = count == 1;
+    std::wstring  units = std::format (L"{} {} {}{}", isOne ? L"There is" : L"There are", count, isSectors ? L"sector" : L"block", isOne ? L"" : L"s");
+    std::wstring  text;
+
+
+
+    switch (role)
+    {
+        case SectorRole::OwnedMarkedFree:  text = units + (isOne ? L" in use that is marked free"           : L" in use that are marked free");           break;
+        case SectorRole::AllocatedUnowned: text = units + (isOne ? L" that is marked used but is in no file" : L" that are marked used but are in no file"); break;
+        case SectorRole::CrossLinked:      text = units + L" in two or more files";                                                                          break;
+        default:                                                                                                                                             break;
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockMap::FormatBlockFinding
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring BlockMap::FormatBlockFinding (SectorRole role)
+{
+    std::wstring  text;
+
+
+
+    switch (role)
+    {
+        case SectorRole::OwnedMarkedFree:  text = L"This block is in use but is marked free";    break;
+        case SectorRole::AllocatedUnowned: text = L"This block is marked used but is in no file"; break;
+        case SectorRole::CrossLinked:      text = L"This block is in two or more files";         break;
+        default:                                                                                  break;
+    }
+
+    return text;
+}

@@ -86,8 +86,10 @@ TestMachine::TestMachine (
     const std::string             & machineId,
     Slots                           slots,
     const std::vector<BlockCard>  & cards,
-    IDiskFileIo                   & fileIo)
-    : m_builder (*this, m_nothingListening)
+    IDiskFileIo                   & fileIo,
+    const Customize               & customize)
+    : m_nothingListening (MakeServices (machineId, customize)),
+      m_builder          (*this, m_nothingListening)
 {
     FixtureProvider  fixtures;
     fs::path         root = fs::path (fixtures.GetRoot());
@@ -97,8 +99,13 @@ TestMachine::TestMachine (
     GetStorage().SetBlockMediaFileIo (&fileIo);
     m_hasOwnBlockFiles = true;
 
-    Construct (machineId, slots, [&] (MachineConfig & config, MachineBuildServices &)
+    Construct (machineId, slots, [&] (MachineConfig & config, MachineBuildServices & services)
     {
+        if (customize)
+        {
+            customize (config, services);
+        }
+
         for (const BlockCard & card : cards)
         {
             const BlockCardSpec  * spec = BlockDeviceCatalog::FindCard (card.device);
@@ -110,8 +117,9 @@ TestMachine::TestMachine (
 
             slot.slot     = card.slot;
             slot.device   = card.device;
-            slot.ports    = card.ports;
-            slot.firmware = spec->defaultFirmware;
+            slot.ports         = card.ports;
+            slot.firmware      = spec->defaultFirmware;
+            slot.cassoFirmware = card.cassoFirmware;
 
             std::erase_if (config.slots, [&card] (const SlotConfig & existing) { return existing.slot == card.slot; });
 

@@ -29,6 +29,12 @@ public:
     void                       Push             (ExplorerUndoStep step);
     void                       PushPut          (const CassoExplorerActions::Outcome & outcome, const std::wstring & image, const std::string & inner);
     void                       UndoLast         ();
+
+    //  A file a step made, replaced since by another: its steps undo the
+    //  replacement instead.
+    void                       ReplacePath      (const std::wstring & from, const std::wstring & to)  { ReplacePathIn (m_undo, from, to); }
+    static void                ReplacePathIn    (std::vector<ExplorerUndoStep> & ioSteps, const std::wstring & from, const std::wstring & to);
+
     bool                       CanUndo          () const { return !m_undo.empty(); }
     const ExplorerUndoStep   & GetLast          () const { return m_undo.back(); }
     static const wchar_t     * GetLabel         (ExplorerUndoStep::Kind kind);

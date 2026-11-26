@@ -94,6 +94,13 @@ public:
     //  regular.
     void  SetBoldGlyphWidth (float widthDip) { m_boldGlyphWidthDip = widthDip; }
 
+    //  Test knob: the glyph width while GDI classic text is on, so text laid
+    //  out by GDI's advances measures wider than by DirectWrite's. Zero
+    //  measures both the same.
+    void  SetGdiGlyphWidth (float widthDip) { m_gdiGlyphWidthDip = widthDip; }
+
+    bool  SetGdiClassicText (bool on) override { return std::exchange (m_gdiClassic, on); }
+
     HRESULT  DrawString    (const wchar_t      * text,
                             float                xDip,
                             float                yDip,
@@ -127,6 +134,25 @@ public:
                                     DxuiFontWeight  weight,
                                     float         & outWidthDip,
                                     float         & outHeightDip) override;
+
+    //  A line kLineFactor times the font size tall, with its baseline
+    //  kBaselineFactor times the font size below the line's top.
+    static constexpr float  kLineFactor     = 1.33f;
+    static constexpr float  kBaselineFactor = 1.06f;
+
+    HRESULT  GetLineMetrics (float           fontSizeDip,
+                             const wchar_t * fontFamily,
+                             DxuiFontWeight  weight,
+                             float         & outHeightDip,
+                             float         & outBaselineDip) override
+    {
+        (void) fontFamily;
+        (void) weight;
+
+        outHeightDip   = fontSizeDip * kLineFactor;
+        outBaselineDip = fontSizeDip * kBaselineFactor;
+        return S_OK;
+    }
 
     //  Wrapped measurement, modeled rather than laid out, but broken at WORDS
     //  the way a real renderer breaks. Canned metrics still win outright -- a
@@ -176,6 +202,8 @@ private:
     std::wstring                           m_lastMeasureFamily;
     bool                                   m_measureReturnsZero = false;
     float                                  m_boldGlyphWidthDip  = 0.0f;
+    float                                  m_gdiGlyphWidthDip   = 0.0f;
+    bool                                   m_gdiClassic         = false;
     int                                    m_lastFramebufferW   = 0;
     int                                    m_lastFramebufferH   = 0;
 };

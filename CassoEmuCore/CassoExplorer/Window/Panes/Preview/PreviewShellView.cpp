@@ -207,7 +207,7 @@ void PreviewShellView::ShowBytes()
     KillTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerShellPreview);
     Unload();
 
-    m_context.browser.ShowShellPreviewBytes();
+    m_context.browser.GetPreviewer().GetShellItems().ShowShellPreviewBytes();
     m_manager.FillPreview();
 }
 

@@ -539,7 +539,7 @@ bool DebuggerWindow::RouteBoxKey (const DxuiKeyEvent & ev, bool & handled)
         handled        = decided;
         m_swallowSpace = false;
     }
-    else if (ev.kind == DxuiKeyEventKind::Down && (box != nullptr || inMemory) && !boxKeeps && RouteMappedKey (ev))
+    else if (ev.kind == DxuiKeyEventKind::Down && (box != nullptr || inMemory) && !boxKeeps && GetKeyRouter().RouteMappedKey (ev))
     {
         m_swallowSpace = ev.vk == VK_SPACE;
         handled        = true;
@@ -1206,10 +1206,10 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     //  The second key of a chord goes to the key scheme before any box or
     //  list, so the 1 of Ctrl+Alt+M, 1 opens Memory 1 rather than typing,
     //  and the character it would type goes too.
-    if (ev.kind == DxuiKeyEventKind::Down && IsKeyPrefixPending())
+    if (ev.kind == DxuiKeyEventKind::Down && GetKeyRouter().IsKeyPrefixPending())
     {
         m_swallowChordChar = ev.vk != VK_CONTROL && ev.vk != VK_MENU && ev.vk != VK_SHIFT;
-        (void) RouteMappedKey (ev);
+        (void) GetKeyRouter().RouteMappedKey (ev);
         return true;
     }
 

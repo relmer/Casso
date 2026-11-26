@@ -97,9 +97,9 @@ HRESULT MachineStateFile::Build (
     hr = machine.GetStateStream().SaveState (state);
     CHRF (hr, outError = MakeError ("state not saved", "The machine's state could not be read."));
 
-    for (slot = 0; slot < DiskImageStore::kSlotCount; slot++)
+    for (slot = 0; slot < DiskBayTable::kSlotCount; slot++)
     {
-        for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+        for (drive = 0; drive < DiskBayTable::kDriveCount; drive++)
         {
             image = store.IsMounted (slot, drive) ? store.GetImage (slot, drive) : nullptr;
 
@@ -308,7 +308,7 @@ HRESULT MachineStateFile::Apply (
 
     // The disks leaving the bays keep the writes made to them, as on a
     // machine switch.
-    hr = store.FlushAll();
+    hr = store.GetFlusher().FlushAll();
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     hr = machine.GetStateStream().SaveState (before);
@@ -607,7 +607,7 @@ HRESULT MachineStateFile::ReadPayload (
     reader.ReadUInt64 (outContents.romIdentity);
     reader.ReadUInt32 (count);
 
-    fits = count <= DiskImageStore::kSlotCount * DiskImageStore::kDriveCount;
+    fits = count <= DiskBayTable::kSlotCount * DiskBayTable::kDriveCount;
     CBREx (fits, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     for (i = 0; i < count; i++)
@@ -688,7 +688,7 @@ HRESULT MachineStateFile::CheckDisks (
     const MachineStateContents  & contents,
     MachineStateError           & outError)
 {
-    constexpr size_t              kBayCount = DiskImageStore::kSlotCount * DiskImageStore::kDriveCount;
+    constexpr size_t              kBayCount = DiskBayTable::kSlotCount * DiskBayTable::kDriveCount;
     HRESULT                       hr        = S_OK;
     std::array<bool, kBayCount>   isTaken   = {};
     bool                          isValid   = false;
@@ -700,10 +700,10 @@ HRESULT MachineStateFile::CheckDisks (
 
     for (const SavedDisk & disk : contents.disks)
     {
-        isValid = disk.slot >= 0 && disk.slot < DiskImageStore::kSlotCount && disk.drive >= 0 && disk.drive < DiskImageStore::kDriveCount;
+        isValid = disk.slot >= 0 && disk.slot < DiskBayTable::kSlotCount && disk.drive >= 0 && disk.drive < DiskBayTable::kDriveCount;
         CBRFEx (isValid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outError = MakeError ("damaged state file", "The state file has a disk for a drive Casso does not have."));
 
-        bay = static_cast<size_t> (disk.slot * DiskImageStore::kDriveCount + disk.drive);
+        bay = static_cast<size_t> (disk.slot * DiskBayTable::kDriveCount + disk.drive);
         wasTaken = isTaken[bay];
         CBRFEx (!wasTaken, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outError = MakeError ("damaged state file", "The state file has two disks for one drive."));
 
@@ -745,9 +745,9 @@ HRESULT MachineStateFile::RestoreDisks (
 
 
 
-    for (slot = 0; slot < DiskImageStore::kSlotCount; slot++)
+    for (slot = 0; slot < DiskBayTable::kSlotCount; slot++)
     {
-        for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+        for (drive = 0; drive < DiskBayTable::kDriveCount; drive++)
         {
             saved = nullptr;
 
@@ -810,9 +810,9 @@ HRESULT MachineStateFile::RollBack (
 
 
 
-    for (slot = 0; slot < DiskImageStore::kSlotCount; slot++)
+    for (slot = 0; slot < DiskBayTable::kSlotCount; slot++)
     {
-        for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+        for (drive = 0; drive < DiskBayTable::kDriveCount; drive++)
         {
             seated.push_back (store.GetMediaId (slot, drive));
         }
@@ -821,11 +821,11 @@ HRESULT MachineStateFile::RollBack (
     hr = machine.GetStateStream().LoadState (reader);
     CHRA (hr);
 
-    for (slot = 0; slot < DiskImageStore::kSlotCount; slot++)
+    for (slot = 0; slot < DiskBayTable::kSlotCount; slot++)
     {
-        for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+        for (drive = 0; drive < DiskBayTable::kDriveCount; drive++)
         {
-            store.ReportSeatedMedia (slot, drive, seated[slot * DiskImageStore::kDriveCount + drive]);
+            store.ReportSeatedMedia (slot, drive, seated[slot * DiskBayTable::kDriveCount + drive]);
         }
     }
 

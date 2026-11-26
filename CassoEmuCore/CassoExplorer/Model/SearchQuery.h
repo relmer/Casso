@@ -39,6 +39,14 @@ public:
     //  This PC: the whole index, and each fixed drive walked for what the index leaves out.
     static constexpr const wchar_t *  kThisPc     = L"thispc:";
 
+    //  The Casso node's stock disks, which have no folder: a search from its
+    //  root lists those whose names match.
+    static constexpr const wchar_t *  kStockDisks = L"stock:";
+
+    //  Whether one of a search's scopes is a folder on a drive, and not one
+    //  of the tokens above.
+    static bool  IsFolderScope (const std::wstring & scope) { return scope != kEverywhere && scope != kThisPc && scope != kStockDisks; }
+
     //  File Explorer's Search options, after the query in the id. The defaults
     //  add nothing to it.
     struct Options
@@ -76,10 +84,15 @@ public:
     //  nothing.
     static std::vector<std::pair<int, int>>  FindNameMatches (const std::wstring & name, const std::vector<std::wstring> & words);
 
-    //  A word with * or ? matches the whole name as a pattern, as in File
-    //  Explorer's box; the index is left out of such a search.
-    static bool  HasWildcards   (const std::wstring & query);
-    static bool  MatchesPattern (const wchar_t * name, const wchar_t * pattern);
+    //  A word with * or ? matches as a pattern, as in File Explorer's box; the
+    //  index is left out of such a search.
+    static bool  HasWildcards    (const std::wstring & query);
+    static bool  MatchesPattern  (const wchar_t * name, const wchar_t * pattern);
+    static bool  MatchesWildcard (const std::wstring & name, const std::wstring & pattern);
+
+    //  The parts of a lowercase name between a pattern's * marks, for a
+    //  pattern without a period; none when it doesn't match.
+    static void  FindWildcardRanges (const std::wstring & lower, const std::wstring & pattern, std::vector<std::pair<int, int>> & ioRanges);
 
 private:
     static constexpr wchar_t  s_kOptionsSeparator = L'\x1F';

@@ -33,6 +33,7 @@ void DxuiTextView::SetRows (std::vector<Row> rows)
     m_focusRow   = -1;
     m_input.Reset();
     m_find.Reset();
+    m_pictures.ClearOutline();
 
     Rebuild();
 }
@@ -494,6 +495,7 @@ DxuiTextViewport DxuiTextView::GetViewport() const
     viewport.highlightCell  = m_highlightCell;
     viewport.hoverRow       = m_hoverRow;
     viewport.hoverSpan      = m_hoverSpan;
+    viewport.pictures       = &m_pictures;
 
     return viewport;
 }
@@ -1292,4 +1294,25 @@ std::vector<DxuiPopupMenuItem> DxuiTextView::GetScrollbarMenu (POINT pt)
     SyncScrollbar();
 
     return onVert ? m_vertScroll.BuildContextMenu (pt.x, pt.y) : m_horzScroll.BuildContextMenu (pt.x, pt.y);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::GetRowPicture
+//
+//  A row's picture, or null for a row of text or a row past the last.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const DxuiTextPicture * DxuiTextView::GetRowPicture (int row) const
+{
+    const std::vector<Row>  & rows = m_layout.GetRows();
+
+
+
+    return (row >= 0 && row < (int) rows.size()) ? rows[(size_t) row].picture.get() : nullptr;
 }

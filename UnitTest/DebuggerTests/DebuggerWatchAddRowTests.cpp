@@ -91,7 +91,7 @@ namespace DebuggerWatchAddRowTests
         using DebuggerWindow::OnCreate;
         using DebuggerWindow::Layout;
         using DebuggerWindow::OnKey;
-        using DebuggerWindow::RouteMappedKey;
+        using DebuggerWindow::GetKeyRouter;
         using DebuggerWindow::GetWatchesPane;
         using DebuggerWindow::TakeSnapshot;
         using DebuggerWindow::FocusControl;
@@ -101,7 +101,7 @@ namespace DebuggerWatchAddRowTests
         {
             DxuiKeyEvent  down = { DxuiKeyEventKind::Down, vk, false, false, false, false };
 
-            (void) (OnKey (down) || RouteMappedKey (down));
+            (void) (OnKey (down) || GetKeyRouter().RouteMappedKey (down));
         }
 
         void  Type (const std::wstring & text)
@@ -111,7 +111,7 @@ namespace DebuggerWatchAddRowTests
                 DxuiKeyEvent  down  = { DxuiKeyEventKind::Down, (WPARAM) (ch == L' ' ? VK_SPACE : towupper (ch)), false, false, false, false };
                 DxuiKeyEvent  typed = { DxuiKeyEventKind::Char, (WPARAM) ch, false, false, false, false };
 
-                (void) (OnKey (down) || RouteMappedKey (down));
+                (void) (OnKey (down) || GetKeyRouter().RouteMappedKey (down));
                 (void) OnKey (typed);
             }
         }

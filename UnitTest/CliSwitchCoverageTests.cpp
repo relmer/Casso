@@ -455,6 +455,9 @@ namespace CliSwitchCoverageTests
             { "disk", "yes", { "CassoCli", "disk", "rmdir", "d.po", "GAMES", "--recurse", "--yes" },
               [] (const CommandLineOptions & o) { return o.disk.yes; },
               "--yes answers the confirmation in advance" },
+            { "disk", "json", { "CassoCli", "disk", "get-stamp", "d.woz", "--json" },
+              [] (const CommandLineOptions & o) { return o.disk.isJson && o.disk.command == CommandLineOptions::DiskOptions::Command::GetStamp; },
+              "--json writes the format stamp's JSON as the image stores it" },
 
             //
             //  debug

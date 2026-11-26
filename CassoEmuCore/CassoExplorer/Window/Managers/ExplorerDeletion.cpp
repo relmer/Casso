@@ -8,6 +8,7 @@
 #include "CassoExplorer/Model/DiskImagePictures.h"
 #include "CassoExplorer/Model/TreeModel.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerVerbs.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Window/Managers/ExplorerManifestSync.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
@@ -48,7 +49,7 @@ void ExplorerDeletion::DeleteSelectionPermanently()
 
 
 
-    if (!m_context.browser.TryGetSelectedShellIds (ids))
+    if (!m_context.browser.GetSelection().TryGetSelectedShellIds (ids))
     {
         return;
     }
@@ -142,13 +143,13 @@ void ExplorerDeletion::DeleteHostSelection()
     //  does from its own folder. An item a shell folder such as Home
     //  lists may be a recent or a cloud file with no path of its
     //  own; its own Delete command removes it, as File Explorer's does.
-    if (m_context.browser.AreSelectedRowsSearchFiles())
+    if (m_context.browser.GetSelection().AreSelectedRowsSearchFiles())
     {
-        m_context.browser.GetSelectedHostPaths (hostPaths);
+        m_context.browser.GetSelection().GetSelectedHostPaths (hostPaths);
         thumbnails = GetThumbnailKeys (hostPaths);
         hr         = m_context.shellVerbs.Recycle (m_context.window.GetHwnd(), hostPaths);
     }
-    else if (m_context.browser.TryGetSelectedShellIds (hostPaths))
+    else if (m_context.browser.GetSelection().TryGetSelectedShellIds (hostPaths))
     {
         //  Before an A2Pico card's drive image is deleted, a message lists
         //  its drive, since deleting it empties the drive.
@@ -172,7 +173,7 @@ void ExplorerDeletion::DeleteHostSelection()
         m_context.window.ShowMessage (L"The selected items could not be deleted.", MB_ICONWARNING);
     }
 
-    if (SUCCEEDED (hr) && !hostPaths.empty() && (m_context.browser.GetLocation().kind == Location::Kind::HostFolder || m_context.browser.AreSelectedRowsSearchFiles()))
+    if (SUCCEEDED (hr) && !hostPaths.empty() && (m_context.browser.GetLocation().kind == Location::Kind::HostFolder || m_context.browser.GetSelection().AreSelectedRowsSearchFiles()))
     {
         m_context.undo.Push (ExplorerUndoStep { ExplorerUndoStep::Kind::Recycle, Location(), hostPaths });
         m_context.manifestSync.NoteDeletes (hostPaths);
@@ -312,7 +313,7 @@ void ExplorerDeletion::DeleteFromVolume()
         //  An AppleSingle copy keeps each file's bytes, type and
         //  address, so a put brings it back as it was. The copy holds
         //  files only, so a deletion that takes a folder is not kept.
-        m_context.browser.GetSelectedEntries (entries);
+        m_context.browser.GetSelection().GetSelectedEntries (entries);
 
         if (!m_context.browser.IsAppleDriveLocation() &&
             std::none_of (entries.begin(), entries.end(), [] (const FileEntry & entry) { return entry.isDirectory; }) &&
@@ -341,10 +342,10 @@ void ExplorerDeletion::DeleteFromVolume()
         //  a delete in a folder.
         if (outcome.Succeeded() && m_context.browser.GetSelectedRows().empty())
         {
-            m_context.browser.SelectRowAt (first);
+            m_context.browser.GetSelection().SelectRowAt (first);
         }
 
-        m_context.commandManager.ReportOutcome (outcome, L"Delete");
+        m_context.verbs.ReportOutcome (outcome, L"Delete");
         m_context.listPane.FillList();
     }
 }

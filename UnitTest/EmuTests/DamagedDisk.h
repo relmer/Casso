@@ -86,6 +86,11 @@ public:
     //  would find.
     static int   CountAddressFields (const DiskImage & image, int track);
 
+    //  Rewrites every address field on `track`: its first prolog byte becomes
+    //  `prolog0`, and its sector number is raised by `sectorOffset`, with the
+    //  checksum made right for it.
+    static void  RewriteAddressFields (DiskImage & inOutImage, int track, Byte prolog0, Byte sectorOffset);
+
 private:
     //  Bit offset of the first address prologue at or after `fromBit`, or
     //  SIZE_MAX. The one bit-wise scan every lookup here is built on -- see the

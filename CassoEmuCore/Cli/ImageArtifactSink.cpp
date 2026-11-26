@@ -4,6 +4,7 @@
 #include "Seams/IIntentChannel.h"
 
 #include "Machines/Apple2/Common/AssembledFilePlacement.h"
+#include "Machines/Apple2/Common/Dos33StartupProgram.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Devices/Disk/FilePath.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
@@ -173,7 +174,7 @@ HRESULT ImageArtifactSink::ApplyStartupProgram (const CommandLineOptions        
             listHr = volume->Enumerate (listing);
             IGNORE_RETURN_VALUE (listHr, S_OK);
 
-            runnable = Dos33Volume::IsRunnableAsGreeting (listing, onDisk);
+            runnable = Dos33StartupProgram::IsRunnableAsGreeting (listing, onDisk);
         }
     }
 

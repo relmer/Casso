@@ -6,7 +6,7 @@
 #include "Debugger/Reverse/IReverseStopTest.h"
 #include "Debugger/Reverse/ReverseController.h"
 #include "Devices/Disk/DiskImageStore.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 
 
 
@@ -93,7 +93,7 @@ public:
             0x68,                   // 0929  PLA
             0x60,                   // 092A  RTS
         };
-        std::vector<Byte>  raw (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  raw (NibbleFormat::kImageByteSize, 0);
         HRESULT            hr  = S_OK;
         size_t             i   = 0;
 

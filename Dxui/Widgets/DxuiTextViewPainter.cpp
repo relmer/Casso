@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DxuiTextViewPainter.h"
+#include "DxuiTextPictures.h"
 #include "DxuiTextLayout.h"
 #include "DxuiTextRowLayout.h"
 #include "DxuiTextSearch.h"
@@ -138,10 +139,16 @@ void DxuiTextViewPainter::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer &
     {
         if (line.first || lineIndex == m_viewport.topLine)
         {
-            PaintPicture (text, lineIndex);
+            PaintPicture (text, theme, lineIndex);
         }
 
         return;
+    }
+
+    //  A rule is drawn under the row's last line.
+    if (row.rule && (lineIndex + 1 >= (int) m_layout.GetLines().size() || m_layout.GetLines()[(size_t) lineIndex + 1].row != line.row))
+    {
+        painter.FillRect ((float) left, (float) (y + height - m_viewport.scaler.ToPx (1)), m_viewport.textWidthPx, (float) m_viewport.scaler.ToPx (1), theme.Divider());
     }
 
     if (line.first && row.warning)
@@ -679,25 +686,15 @@ void DxuiTextViewPainter::FillSelectedRange (IDxuiPainter & painter, int y, int 
 //
 //  DxuiTextViewPainter::PaintPicture
 //
-//  At the top of the picture's first line, which can be above the view.
+//  The view's pictures component draws the row's picture from its first
+//  line, which can be above the view, with its zoom, outline and ping.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTextViewPainter::PaintPicture (IDxuiTextRenderer & text, int lineIndex) const
+void DxuiTextViewPainter::PaintPicture (IDxuiTextRenderer & text, const IDxuiTheme & theme, int lineIndex) const
 {
-    const std::vector<Line>  & lines   = m_layout.GetLines();
-    int                        first   = lineIndex;
-    const Picture            & picture = *m_layout.GetRows()[(size_t) lines[(size_t) lineIndex].row].picture;
-    float                      top     = 0.0f;
-
-
-
-    while (first > 0 && lines[(size_t) first - 1].row == lines[(size_t) lineIndex].row)
+    if (m_viewport.pictures != nullptr)
     {
-        first--;
+        m_viewport.pictures->Paint (text, theme, m_layout.GetLines()[(size_t) lineIndex].row);
     }
-
-    top = (float) GetLineY (first);
-
-    DxuiTextRowLayout::PaintPicture (text, picture, (float) m_viewport.textLeft, top, m_viewport.textWidthPx, m_viewport.scaler.ToPxf (1.0f));
 }

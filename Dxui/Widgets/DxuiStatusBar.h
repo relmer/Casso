@@ -70,17 +70,22 @@ public:
         //  Called with the field's rectangle, in the bounds' pixels, when the
         //  field is pressed; a field without one ignores the mouse.
         std::function<void (const RECT &)>  onClick;
+
+        //  Painted over the field's cell after its text, as for an effect
+        //  that marks work under way.
+        std::function<void (IDxuiPainter &, const RECT &)>  overlay;
     };
 
     DxuiStatusBar() = default;
     ~DxuiStatusBar() override = default;
 
-    void  SetFields (std::vector<Field> fields);
-    void  SetText   (size_t index, std::wstring text);
-    void  SetMeter  (size_t index, float fraction, uint32_t argb);
-    void  SetFill   (size_t index, float fraction, uint32_t fromArgb, uint32_t toArgb);
-    void  SetBar    (size_t index, float fraction, uint32_t fromArgb, uint32_t toArgb);
-    void  SetWidth  (size_t index, int widthDip);
+    void  SetFields  (std::vector<Field> fields);
+    void  SetText    (size_t index, std::wstring text);
+    void  SetMeter   (size_t index, float fraction, uint32_t argb);
+    void  SetFill    (size_t index, float fraction, uint32_t fromArgb, uint32_t toArgb);
+    void  SetBar     (size_t index, float fraction, uint32_t fromArgb, uint32_t toArgb);
+    void  SetOverlay (size_t index, std::function<void (IDxuiPainter &, const RECT &)> overlay);
+    void  SetWidth   (size_t index, int widthDip);
 
     //  The width in DIPs a fixed field needs to show the widest of texts
     //  whole at the bar's font, padding included, or 0 when the renderer
@@ -105,6 +110,9 @@ public:
     //  One field's rectangle after the last layout, in the bounds' pixels.
     RECT  GetFieldRect (size_t index) const;
 
+    //  Whether a field's text was cut short to fit at the last paint.
+    bool  IsElided     (size_t index) const { return index < m_elided.size() && m_elided[index]; }
+
     void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool                OnMouse           (const DxuiMouseEvent & ev) override;
@@ -128,6 +136,7 @@ private:
 
     std::vector<Field>  m_fields;
     std::vector<RECT>   m_fieldRects;
+    std::vector<bool>   m_elided;
     DxuiDpiScaler       m_scaler;
     bool                m_dividers = true;
     float               m_leadDip  = (float) kFieldPadDip;

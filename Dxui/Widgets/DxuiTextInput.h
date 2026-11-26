@@ -97,6 +97,10 @@ public:
     //  Draws the field as Explorer's address row draws its boxes.
     void  SetExplorerChrome (bool on)                 { m_explorerChrome = on; }
 
+    //  The Explorer field's fill and edge at rest, in place of the theme's
+    //  control fill and no edge; 0 restores each.
+    void  SetRestColors     (uint32_t fill, uint32_t edge) { m_restFill = fill; m_restEdge = edge; }
+
     //  A glyph drawn at the field's right end, in an icon face.
     void  SetTrailingGlyph (const wchar_t * glyph, const wchar_t * face) { m_trailGlyph = glyph; m_trailFace = face; }
 
@@ -260,6 +264,8 @@ private:
     bool                      m_dragging          = false;
     bool                      m_chromeless        = false;
     bool                      m_explorerChrome    = false;
+    uint32_t                  m_restFill          = 0;
+    uint32_t                  m_restEdge          = 0;
     const wchar_t           * m_trailGlyph        = nullptr;
     const wchar_t           * m_trailFace         = nullptr;
     const wchar_t           * m_clearGlyph        = nullptr;

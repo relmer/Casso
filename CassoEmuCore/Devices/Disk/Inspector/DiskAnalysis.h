@@ -88,4 +88,8 @@ struct DiskAnalysis
     vector<FileMap>                                               fileMaps;
     FileSystemVerdict                                             verdict   = FileSystemVerdict::None;
     int                                                           headLimit = 0;
+
+    //  Whether the disk is read as CP/M whatever volume is found, after Read as
+    //  CP/M in the inspector.
+    bool                                                          isCpmChosen = false;
 };

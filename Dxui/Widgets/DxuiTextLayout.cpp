@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DxuiTextLayout.h"
+#include "DxuiTextPictures.h"
 #include "DxuiTextRowLayout.h"
 #include "Render/IDxuiTextRenderer.h"
 #include "Theme/IDxuiTheme.h"
@@ -188,12 +189,14 @@ void DxuiTextLayout::Measure (IDxuiTextRenderer & text, const DxuiFontHandle & f
 
             if (c + 1 < row.cells.size())
             {
-                if (m_columnPx.size() <= c)
+                std::vector<float> &  columns = GetGroupColumns (m_columnPx, row);
+
+                if (columns.size() <= c)
                 {
-                    m_columnPx.resize (c + 1, 0.0f);
+                    columns.resize (c + 1, 0.0f);
                 }
 
-                m_columnPx[c] = (std::max) (m_columnPx[c], places.back());
+                columns[c] = (std::max) (columns[c], places.back());
             }
         }
     }
@@ -400,16 +403,17 @@ int DxuiTextLayout::GetRowExtent (const Row & row) const
 
 int DxuiTextLayout::GetCellStart (const Row & row, int cell) const
 {
-    int  column = row.warning ? kWarningCells : 0;
+    int                       column  = row.warning ? kWarningCells : 0;
+    const std::vector<int>  * columns = FindGroupColumns (m_columnCells, row);
 
 
 
     //  A cell longer than its capped column pushes the cells after it along.
-    for (int c = 0; c < cell && c < (int) m_columnCells.size(); c++)
+    for (int c = 0; columns != nullptr && c < cell && c < (int) columns->size(); c++)
     {
         int  length = (c < (int) row.cells.size()) ? (int) row.cells[(size_t) c].size() : 0;
 
-        column += (std::max) (m_columnCells[(size_t) c], length) + GetColumnGap (c);
+        column += (std::max) ((*columns)[(size_t) c], length) + GetColumnGap (c);
     }
 
     return column;
@@ -486,7 +490,8 @@ int DxuiTextLayout::GetColumnOfPosition (Position pos) const
 
 float DxuiTextLayout::GetCellX (const Row & row, int cell) const
 {
-    float  x = row.warning ? (float) kWarningCells * m_cellAdvance : 0.0f;
+    float                       x       = row.warning ? (float) kWarningCells * m_cellAdvance : 0.0f;
+    const std::vector<float>  * columns = FindGroupColumns (m_columnPx, row);
 
 
 
@@ -495,9 +500,9 @@ float DxuiTextLayout::GetCellX (const Row & row, int cell) const
         return (float) GetCellStart (row, cell) * m_cellAdvance;
     }
 
-    for (int c = 0; c < cell && c < (int) m_columnPx.size(); c++)
+    for (int c = 0; columns != nullptr && c < cell && c < (int) columns->size(); c++)
     {
-        x += m_columnPx[(size_t) c] + (float) GetColumnGap (c) * m_cellAdvance;
+        x += (*columns)[(size_t) c] + (float) GetColumnGap (c) * m_cellAdvance;
     }
 
     return x;
@@ -651,7 +656,8 @@ void DxuiTextLayout::Wrap (float textWidthPx, int textColumns, float pxPerDip)
 //
 //  DxuiTextLayout::BuildColumns
 //
-//  Each column but the last as wide as its widest cell, or its cap.
+//  Each column but the last as wide as its widest cell in the row's column
+//  group, or its cap.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -661,22 +667,27 @@ void DxuiTextLayout::BuildColumns()
 
     for (const Row & row : m_rows)
     {
+        std::vector<int> &  columns = GetGroupColumns (m_columnCells, row);
+
         for (size_t c = 0; c + 1 < row.cells.size(); c++)
         {
-            if (m_columnCells.size() <= c)
+            if (columns.size() <= c)
             {
-                m_columnCells.resize (c + 1, 0);
+                columns.resize (c + 1, 0);
             }
 
-            m_columnCells[c] = (std::max) (m_columnCells[c], (int) row.cells[c].size());
+            columns[c] = (std::max) (columns[c], (int) row.cells[c].size());
         }
     }
 
-    for (const auto & [column, cells] : m_columnCaps)
+    for (std::vector<int> & columns : m_columnCells)
     {
-        if (column < (int) m_columnCells.size() && cells > 0)
+        for (const auto & [column, cells] : m_columnCaps)
         {
-            m_columnCells[(size_t) column] = (std::min) (m_columnCells[(size_t) column], cells);
+            if (column < (int) columns.size() && cells > 0)
+            {
+                columns[(size_t) column] = (std::min) (columns[(size_t) column], cells);
+            }
         }
     }
 }
@@ -811,7 +822,7 @@ void DxuiTextLayout::BuildProportionalLines (float widthPx, float pxPerDip)
 
 void DxuiTextLayout::AddPictureLines (int row, float widthPx, float pxPerDip)
 {
-    int  count = DxuiTextRowLayout::GetPictureLines (*m_rows[(size_t) row].picture, widthPx, pxPerDip, m_cellHeightPx);
+    int  count = DxuiTextPictures::GetPictureLines (*m_rows[(size_t) row].picture, widthPx, pxPerDip, m_cellHeightPx);
 
 
 
@@ -1079,4 +1090,39 @@ float DxuiTextLayout::GetLineShift (int lineIndex, float textWidthPx) const
     used = GetCharsPx (line.row, 0, line.start, line.start + line.length);
 
     return (row.alignment == DxuiTextHAlign::Right) ? (std::max) (0.0f, textWidthPx - used) : (std::max) (0.0f, textWidthPx - used) / 2.0f;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextLayout::DoColumnsFit
+//
+//  Every row of more than one cell fits `widthPx` with each cell at its
+//  natural width, so no cell wraps: a row's last cell starts past the columns
+//  before it, and its natural width is its last character's place. True
+//  before the text is measured.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextLayout::DoColumnsFit (float widthPx) const
+{
+    bool  fits = true;
+
+
+
+    for (size_t r = 0; fits && r < m_rows.size() && r < m_charX.size(); r++)
+    {
+        const Row &  row  = m_rows[r];
+        int          last = (int) row.cells.size() - 1;
+
+        if (last > 0 && (size_t) last < m_charX[r].size() && !m_charX[r][(size_t) last].empty())
+        {
+            fits = GetCellX (row, last) + m_charX[r][(size_t) last].back() <= widthPx;
+        }
+    }
+
+    return fits;
 }

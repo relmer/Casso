@@ -25,7 +25,7 @@ std::string DeviceDisplayNames::Get (const std::string & type)
         { "serial",                         "Super Serial Card" },
         { "super-serial-card",              "Super Serial Card" },
         { "parallel",                       "Parallel printer" },
-        { "parallel-printer",               "Parallel printer" },
+        { "parallel-printer",               "Parallel printer card" },
         { "videx",                          "Videx 80-Column" },
         { "ramworks",                       "RamWorks" },
         { "ramfactor",                      "RAMFactor" },

@@ -188,6 +188,15 @@ public:
     void                   SetCurrentMachineName (const std::wstring & name) { m_currentMachineName = name; }
     void                   SetAssetBaseDir       (const std::wstring & dir)  { m_assetBaseDir = dir; }
 
+    //  The slot 6 Disk II card's 16-sector and 13-sector boot ROMs, and the
+    //  device on the bus with the card's ROM on a ][ or ][+, null where the
+    //  //e's MMU has it. Either ROM is empty when its file isn't installed.
+    //  Set by the machine build.
+    void                   SetDisk2Roms (std::vector<Byte> rom16, std::vector<Byte> rom13, class RomDevice * device);
+
+    static constexpr const char *  s_kDisk2Rom16 = "Disk2.rom";
+    static constexpr const char *  s_kDisk2Rom13 = "Disk2_13Sector.rom";
+
     //  Where this machine's pending printer strip persists across a switch
     //  or a shutdown: <assetBase>/Machines/<machine>/PendingPrint.
     std::filesystem::path  GetPendingPrintDir() const;

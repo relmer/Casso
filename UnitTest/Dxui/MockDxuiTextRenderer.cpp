@@ -236,7 +236,7 @@ HRESULT MockDxuiTextRenderer::MeasureString (
     }
     else
     {
-        outWidthDip  = (float) key.size() * s_kFallbackGlyphWidthDip;
+        outWidthDip  = (float) key.size() * ((m_gdiClassic && m_gdiGlyphWidthDip > 0.0f) ? m_gdiGlyphWidthDip : s_kFallbackGlyphWidthDip);
         outHeightDip = s_kFallbackLineHeightDip;
     }
 

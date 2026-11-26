@@ -10,7 +10,7 @@
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Floppy35/Gcr35Track.h"
 #include "FakeDiskFileIo.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Shell/MachineStateStream.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -53,13 +53,13 @@ public:
     {
         { "Apple2",          { 0xB354162F3A72E6BA, 0xF002EFD774877666, 0xF80029FD2E707605 } },
         { "Apple2Plus",      { 0xCE98AB57647E671A, 0x3682B8DC5D6AEA19, 0xE9F7D4325469BBE0 } },
-        { "Apple2e",         { 0xA3FD8ADC8E4D4C33, 0x838E3ADAF6DE6821, 0xF56602381B84CFC6 } },
-        { "Apple2eEnhanced", { 0x884448D6D097639B, 0x8769F6617FBE5239, 0x9D4585074839A801 } },
+        { "Apple2e",         { 0xCD95DAFE77A459AC, 0xA88BF5450FD339D9, 0x74D8EA8940357593 } },
+        { "Apple2eEnhanced", { 0x434870331E020C65, 0xE02767AF824ACC3B, 0x5B25621F6EB80CF2 } },
         { "Apple2c",         { 0x18CB5D28EC3C729A, 0xFB782172F97B1198, 0xDA7E37B1CD30C4E8 } },
         { "Apple2cPlus",     { 0x73183A8DF3D9FE10, 0xB0715C130377B6A8, 0xFAE4E40E96374147 } },
     };
 
-    static constexpr uint64_t  kEveryCard[kPoints] = { 0xD405EA8D59300989, 0x2273140D141251CD, 0x1F1CE16E7A622EF4 };
+    static constexpr uint64_t  kEveryCard[kPoints] = { 0xE2923322BC22D7AD, 0xFA05D6D4F29B9DB5, 0x9B68BC3E2693B746 };
 
 
     TEST_METHOD (EachShippedMachineSavesTheSameBytes)
@@ -212,7 +212,7 @@ public:
     //  on, when the machine has a Disk II there.
     static void MountPatternDisk (TestMachine & machine)
     {
-        std::vector<Byte>  raw (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  raw (NibbleFormat::kImageByteSize, 0);
         HRESULT            hr = S_OK;
         size_t             i  = 0;
 

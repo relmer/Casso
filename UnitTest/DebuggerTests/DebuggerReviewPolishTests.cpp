@@ -122,7 +122,7 @@ namespace DebuggerReviewPolishTests
                 DxuiKeyEvent  down  = { DxuiKeyEventKind::Down, (WPARAM) (ch == L' ' ? VK_SPACE : towupper (ch)), false, false, false, false };
                 DxuiKeyEvent  typed = { DxuiKeyEventKind::Char, (WPARAM) ch, false, false, false, false };
 
-                (void) (OnKey (down) || RouteMappedKey (down));
+                (void) (OnKey (down) || GetKeyRouter().RouteMappedKey (down));
                 (void) OnKey (typed);
             }
         }
@@ -131,7 +131,7 @@ namespace DebuggerReviewPolishTests
         {
             DxuiKeyEvent  ev = { DxuiKeyEventKind::Down, vk, false, shift, ctrl, false };
 
-            (void) (OnKey (ev) || RouteMappedKey (ev));
+            (void) (OnKey (ev) || GetKeyRouter().RouteMappedKey (ev));
         }
     };
 

@@ -59,6 +59,7 @@ struct CassoLinkStatus
     Byte  done           = 0;
     Byte  error          = 0;
     bool  writeProtected = false;   // the drive's disk, as the program sensed it at the operation's start
+    bool  thirteenSector = false;   // and whether a 13-sector address field passed during it
 };
 
 //  A ProDOS block device or SmartPort unit, as the block module lists it:
@@ -239,8 +240,10 @@ public:
     //  How long since the last byte arrived from the Apple.
     DWORD    GetSilenceMs () const;
 
-    void     SetActivitySink (ActivityFn sink) { m_adtProServer.m_activity = std::move (sink); }
-    void     ReportActivity  (const std::string & text) { if (m_adtProServer.m_activity) { m_adtProServer.m_activity (text); } }
+    void     SetActivitySink   (ActivityFn sink) { m_adtProServer.m_activity = std::move (sink); }
+    void     ReportActivity    (const std::string & text) { if (m_adtProServer.m_activity) { m_adtProServer.m_activity (text); } }
+    void     ReportVirtualDrop (bool sized) { if (!sized) { ReportActivity ("Dropped a virtual drive request: damaged, the Apple sends it again"); } }
+    void     ReportNak         (const CassoLinkPacket & packet, const std::string & item) { if (!packet.payload.empty() && packet.payload[0] == CassoLinkCodec::kNak) { ReportActivity ("Resent " + item + ": damaged on the Apple"); } }
 
     //  Each packet sent and received, as CassoLinkPacketText describes it, for
     //  a log; sent is false for one received. A pause's report of no key, once
@@ -250,6 +253,14 @@ public:
 
     void     SetTraceSink    (TraceFn sink) { m_trace = std::move (sink); }
 
+    //  Called for each reply sent to a virtual drive request, with the
+    //  model the installer's status request identified, or empty.
+    using VirtualFn = std::function<void (const std::wstring & model)>;
+
+    static constexpr size_t  kVirtualIdSize = 5;   // the ROM's identification bytes
+
+    void     SetVirtualSink  (VirtualFn sink) { m_virtualServed = std::move (sink); }
+
     //  The chip the Apple's program is built for: a 6551, or an Uthernet II's
     //  W5100.
     void     SetProgramChip (LinkChip chip) { m_programChip = chip; m_program.clear(); }
@@ -257,6 +268,10 @@ public:
     //  Whether the program sent to the Apple has the Fault command, which a
     //  Debug build's links and the tests of recovery turn on.
     void     SetFaultProgram (bool faults) { m_faultProgram = faults; m_program.clear(); }
+
+    //  Whether a read's blocks come with their CRC, checked here. A link over
+    //  Ethernet turns it off unless its settings ask for it.
+    void     SetBlockCrc    (bool crc) { m_blockCrc = crc; }
 
     //  A fault for what follows: a PC byte's offset is counted from now, and
     //  the Apple's fault is sent ahead of the request it is for, counted from
@@ -357,8 +372,12 @@ public:
 
     //  A line for the program's history, newest at the top: the PC's time,
     //  as the Apple may have no clock, then the text, as SendLabel cuts it,
-    //  to CassoLinkCodec::kLogLength.
+    //  to GetLogLength.
     HRESULT  SendLog      (int hour, int minute, const std::string & text);
+
+    //  The longest history text after the time: CassoLinkCodec::kWideLogLength
+    //  after SetColumns sets 80 columns, else CassoLinkCodec::kLogLength.
+    size_t   GetLogLength () const { return m_wide ? CassoLinkCodec::kWideLogLength : CassoLinkCodec::kLogLength; }
 
     //  Idle, sent unprompted. A shim or program whose Ready went out before
     //  the host connected is in its receive loop; Idle ends that loop, and
@@ -383,6 +402,12 @@ public:
     HRESULT  QueryModule       (Byte & outId, Byte & outVersion);
     HRESULT  LoadModule        (std::span<const Byte> module);
     HRESULT  EnsureModule      (std::span<const Byte> module);
+
+    //  After a request the client didn't take, or a damaged reply: the line's
+    //  errors are reported to the activity, and what the PC has received and
+    //  not read is dropped, so the next AwaitReady takes a fresh Ready and
+    //  both ends start again from a known state.
+    HRESULT  RecoverLine       ();
 
     //  A raw read of a quarter-track position by the capture module, which
     //  must be loaded: the bytes as the Apple stored them, a sync byte with
@@ -410,6 +435,10 @@ public:
     //  byte (CassoLinkCodec::kWriteNibbleTrack). A write-protected disk is the
     //  Status's error.
     HRESULT  WriteNibbleTrack    (Byte drive, Byte track, std::span<const Byte> stream, CassoLinkStatus & outStatus);
+
+    //  A 13-sector request's last two bytes: the whole disk's percentage at
+    //  the track's start and at its end, for the Apple's bar.
+    static std::array<Byte, 2>  GetTrackPercents (Byte track);
 
     //  A 13-sector track's sectors in `requested`, a bit each, read by the
     //  13-sector module, which must be loaded (CassoLinkCodec::kReadThirteenTrack).
@@ -449,6 +478,11 @@ public:
     //  Any Cancel ends the wait with ERROR_CANCELLED.
     HRESULT  WaitForKey   (const std::vector<std::string> & lines, Byte & outKey);
 
+    //  A key pressed on the PC, from any thread. The next wait for a key
+    //  ends with it, at the Apple's next report that no key is pressed: a
+    //  Cancel ends the Apple's wait, and its Ready follows.
+    void     PressKey     (Byte key) { m_hostKey = key; }
+
     //  As WaitForKey, with every key the Apple's keyboard sends, for a line
     //  typed there.
     HRESULT  WaitForAnyKey (const std::vector<std::string> & lines, Byte & outKey);
@@ -473,6 +507,7 @@ public:
 private:
     HRESULT  Fill            (size_t count, DWORD timeoutMs, bool & outFilled);
     HRESULT  DiscardReceived ();
+    HRESULT  LoadChunk       (const std::vector<Byte> & chunk);
     void     Consume         (size_t count);
     HRESULT  ReadPacket      (DWORD timeoutMs, CassoLinkPacket & outPacket);
     void     TraceReceived   (const CassoLinkPacket & packet);
@@ -501,7 +536,7 @@ private:
 
     static bool  IsKeyReport  (const CassoLinkPacket & packet) { return packet.command == CassoLinkCodec::kWaitForKey && packet.payload.size() == 1 && (packet.payload[0] == CassoLinkCodec::kKeyQuit || packet.payload[0] == CassoLinkCodec::kKeyFullSend || packet.payload[0] == CassoLinkCodec::kKeyVerify); }
     void         NoteKey      (const CassoLinkPacket & packet) { m_quit = m_quit || packet.payload[0] == CassoLinkCodec::kKeyQuit; m_fullSendRequest = m_fullSendRequest || packet.payload[0] == CassoLinkCodec::kKeyFullSend; m_verifyToggle = m_verifyToggle != (packet.payload[0] == CassoLinkCodec::kKeyVerify); }
-    static bool  IsWholeReady (const CassoLinkPacket & packet) { size_t size = packet.payload.size(); return size == 4 || size == 9 || size == 11; }
+    static bool  IsWholeReady (const CassoLinkPacket & packet) { size_t size = packet.payload.size(); return size == 4 || size == 9 || size == 11 || size == 39; }
     static bool  IsBlank      (std::span<const Byte> sector) { return !sector.empty() && std::all_of (sector.begin(), sector.end(), [&sector] (Byte b) { return b == sector[0]; }); }
 
     //  An operation sent again while its request is lost or a reply arrives
@@ -525,8 +560,8 @@ private:
 
             if (m_adtProServer.m_activity)
             {
-                m_adtProServer.m_activity (damaged ? "A reply from the Apple arrived damaged, so the request was sent again"
-                                                   : "The Apple did not take a request, so it was sent again");
+                m_adtProServer.m_activity (damaged ? "Resent a request: its reply was damaged"
+                                                   : "Resent a request: the Apple did not take it");
             }
         }
 
@@ -570,6 +605,8 @@ private:
     bool                            m_fullSendRequest = false;
     bool                            m_verifyToggle    = false;
     bool                            m_awaitingKey     = false;
+    bool                            m_wide            = false;
+    std::atomic<Byte>               m_hostKey         { CassoLinkCodec::kKeyNone };
     std::atomic<uint64_t>           m_lastHeardMs     { 0 };
     std::atomic<uint64_t>           m_lastPacketMs    { 0 };   // the last packet sent or decoded
     Byte                            m_progressStart   = 0;
@@ -579,8 +616,10 @@ private:
     DWORD                           m_waitNoticeMs    = kWaitNoticeMs;
     bool                            m_quiet           = false;
     TraceFn                         m_trace;
+    VirtualFn                       m_virtualServed;
     std::string                     m_tracedReady;     // text of the last Ready traced
     bool                            m_faultProgram    = false;
+    bool                            m_blockCrc        = true;
     LinkByteFault                   m_pcFault;
     std::optional<LinkFault>        m_appleFault;
     int                             m_requests        = 0;   // requests sent since the Apple's fault was armed

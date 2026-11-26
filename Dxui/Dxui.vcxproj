@@ -163,6 +163,8 @@
     <ClCompile Include="Core\DxuiPaneMetrics.cpp" />
     <ClCompile Include="Core\DxuiDockDropZones.cpp" />
     <ClCompile Include="Core\DxuiDockGuide.cpp" />
+    <ClCompile Include="Core\DxuiPointerPath.cpp" />
+    <ClCompile Include="Core\DxuiWindowSizeMath.cpp" />
     <ClCompile Include="Core\DxuiFormLayout.cpp" />
     <ClCompile Include="Core\DxuiGridLayout.cpp" />
     <ClCompile Include="Core\DxuiHitTester.cpp" />
@@ -181,8 +183,8 @@
     <ClCompile Include="Render\Dxui3DRenderer.cpp" />
     <ClCompile Include="Render\DxuiCoverageRaster.cpp" />
     <ClCompile Include="Render\DxuiPainter.cpp" />
-    <ClCompile Include="Render\DxuiShadow.cpp" />
     <ClCompile Include="Render\DxuiRoundedOutline.cpp" />
+    <ClCompile Include="Render\DxuiShadow.cpp" />
     <ClCompile Include="Render\DxuiSvgPath.cpp" />
     <ClCompile Include="Render\DxuiGdiText.cpp" />
     <ClCompile Include="Render\DxuiRenderIcons.cpp" />
@@ -236,7 +238,6 @@
     <ClCompile Include="Widgets\DxuiSearchBox.cpp" />
     <ClCompile Include="Widgets\DxuiSlider.cpp" />
     <ClCompile Include="Widgets\DxuiAddressBar.cpp" />
-    <ClCompile Include="Widgets\DxuiTextRowLayout.cpp" />
     <ClCompile Include="Widgets\DxuiTextView.cpp" />
     <ClCompile Include="Widgets\DxuiTextSearch.cpp" />
     <ClCompile Include="Widgets\DxuiTextViewFind.cpp" />
@@ -245,6 +246,8 @@
     <ClCompile Include="Widgets\DxuiTextViewHitTest.cpp" />
     <ClCompile Include="Widgets\DxuiTextViewInput.cpp" />
     <ClCompile Include="Widgets\DxuiTextViewSelection.cpp" />
+    <ClCompile Include="Widgets\DxuiPictureMap.cpp" />
+    <ClCompile Include="Widgets\DxuiTextPictures.cpp" />
     <ClCompile Include="Widgets\DxuiToolbarEditBox.cpp" />
     <ClCompile Include="Widgets\DxuiImageStrip.cpp" />
     <ClCompile Include="Widgets\DxuiImageStripPreview.cpp" />
@@ -253,6 +256,7 @@
     <ClCompile Include="Widgets\DxuiReorderStack.cpp" />
     <ClCompile Include="Widgets\DxuiTabDragVisual.cpp" />
     <ClCompile Include="Widgets\DxuiZoomControl.cpp" />
+    <ClCompile Include="Widgets\DxuiZoomPopup.cpp" />
     <ClCompile Include="Widgets\DxuiTabSlides.cpp" />
     <ClCompile Include="Widgets\DxuiTabStrip.cpp" />
     <ClCompile Include="Widgets\DxuiTabStripPainter.cpp" />
@@ -315,11 +319,17 @@
     <ClCompile Include="Window\DxuiMessageBox.cpp" />
     <ClCompile Include="Window\DxuiPropertyPage.cpp" />
     <ClCompile Include="Window\DxuiPropertySheet.cpp" />
+    <ClCompile Include="Window\DxuiDialogController.cpp" />
+    <ClCompile Include="Window\DxuiDialogRunner.cpp" />
+    <ClCompile Include="Window\DxuiWindowSizer.cpp" />
+    <ClCompile Include="Window\DxuiMouseRouter.cpp" />
+    <ClCompile Include="Window\DxuiKeyRouter.cpp" />
     <ClCompile Include="Window\DxuiWindow.cpp" />
-    <ClCompile Include="Window\DxuiDialogMode.cpp" />
     <ClCompile Include="Window\DxuiInputFilters.cpp" />
-    <ClCompile Include="Window\DxuiPointerTracker.cpp" />
     <ClCompile Include="Window\DxuiPopupHost.cpp" />
+    <ClCompile Include="Widgets\HexView\DxuiHexHostEdit.cpp" />
+    <ClCompile Include="Widgets\HexView\DxuiHexSourceEdit.cpp" />
+    <ClCompile Include="Widgets\DxuiTextRowLayout.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Widgets\DxuiDivider.h" />
@@ -344,6 +354,8 @@
     <ClInclude Include="Core\DxuiPaneLayoutText.h" />
     <ClInclude Include="Core\DxuiDockDropZones.h" />
     <ClInclude Include="Core\DxuiDockGuide.h" />
+    <ClInclude Include="Core\DxuiPointerPath.h" />
+    <ClInclude Include="Core\DxuiWindowSizeMath.h" />
     <ClInclude Include="Core\DxuiFormLayout.h" />
     <ClInclude Include="Core\DxuiGridLayout.h" />
     <ClInclude Include="Core\DxuiHitTester.h" />
@@ -368,8 +380,8 @@
     <ClInclude Include="Render\Dxui3DRenderer.h" />
     <ClInclude Include="Render\DxuiCoverageRaster.h" />
     <ClInclude Include="Render\DxuiPainter.h" />
-    <ClInclude Include="Render\DxuiShadow.h" />
     <ClInclude Include="Render\DxuiRoundedOutline.h" />
+    <ClInclude Include="Render\DxuiShadow.h" />
     <ClInclude Include="Render\DxuiSvgPath.h" />
     <ClInclude Include="Render\DxuiGdiText.h" />
     <ClInclude Include="Render\DxuiRenderIcons.h" />
@@ -434,10 +446,10 @@
     <ClInclude Include="Widgets\DxuiSearchBox.h" />
     <ClInclude Include="Widgets\DxuiSlider.h" />
     <ClInclude Include="Widgets\DxuiZoomControl.h" />
+    <ClInclude Include="Widgets\DxuiZoomPopup.h" />
     <ClInclude Include="Widgets\DxuiCustomVisual.h" />
     <ClInclude Include="Widgets\DxuiSurface.h" />
     <ClInclude Include="Widgets\DxuiAddressBar.h" />
-    <ClInclude Include="Widgets\DxuiTextRowLayout.h" />
     <ClInclude Include="Widgets\DxuiTextView.h" />
     <ClInclude Include="Widgets\DxuiTextPosition.h" />
     <ClInclude Include="Widgets\DxuiTextRow.h" />
@@ -451,6 +463,8 @@
     <ClInclude Include="Widgets\IDxuiTextInputHost.h" />
     <ClInclude Include="Widgets\DxuiTextViewport.h" />
     <ClInclude Include="Widgets\IDxuiTextScroller.h" />
+    <ClInclude Include="Widgets\DxuiPictureMap.h" />
+    <ClInclude Include="Widgets\DxuiTextPictures.h" />
     <ClInclude Include="Widgets\DxuiToolbarEditBox.h" />
     <ClInclude Include="Widgets\DxuiImageStrip.h" />
     <ClInclude Include="Widgets\IDxuiImageStripSource.h" />
@@ -529,14 +543,22 @@
     <ClInclude Include="Window\DxuiPropertyPage.h" />
     <ClInclude Include="Window\DxuiButtonRow.h" />
     <ClInclude Include="Window\DxuiPropertySheet.h" />
+    <ClInclude Include="Window\DxuiDialogController.h" />
+    <ClInclude Include="Window\DxuiDialogRunner.h" />
+    <ClInclude Include="Window\DxuiWindowSizer.h" />
+    <ClInclude Include="Window\DxuiMouseRouter.h" />
+    <ClInclude Include="Window\DxuiKeyRouter.h" />
     <ClInclude Include="Window\DxuiWindow.h" />
-    <ClInclude Include="Window\DxuiDialogMode.h" />
     <ClInclude Include="Window\IDxuiDialogHost.h" />
     <ClInclude Include="Window\DxuiInputFilters.h" />
-    <ClInclude Include="Window\DxuiPointerTracker.h" />
     <ClInclude Include="Window\IDxuiHostClient.h" />
     <ClInclude Include="Window\DxuiPopupHost.h" />
     <ClInclude Include="Window\DxuiWinRt.h" />
+    <ClInclude Include="Widgets\HexView\DxuiHexHostEdit.h" />
+    <ClInclude Include="Widgets\HexView\DxuiHexSourceEdit.h" />
+    <ClInclude Include="Widgets\HexView\IDxuiHexEditHost.h" />
+    <ClInclude Include="Widgets\DxuiTextRowLayout.h" />
+    <ClInclude Include="Widgets\IDxuiTextPictureHost.h" />
   </ItemGroup>
   <!--
     The desk scene's shaders, compiled to BYTECODE at build time.

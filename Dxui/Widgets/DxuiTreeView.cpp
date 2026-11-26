@@ -539,8 +539,10 @@ bool DxuiTreeView::SetRowExpanded (int flatRow, bool expanded)
 //
 //  The fresh nodes set the order and what each row shows. A node that was
 //  already there keeps whether it is open, and what was read under it -- merged
-//  in turn where the fresh node brings children of its own. A node that is not
-//  in the fresh set is gone, and whatever was under it with it.
+//  in turn where the fresh node brings children of its own. A node that was
+//  read and had no children is read again when the fresh node has children to
+//  read, as a storage card has once it opens. A node that is not in the fresh
+//  set is gone, and whatever was under it with it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -563,7 +565,7 @@ void DxuiTreeView::MergeNodes (std::vector<DxuiTreeNode> & current, std::vector<
             node.children = std::move (found->children);
             MergeNodes (node.children, std::move (children));
         }
-        else
+        else if (!found->childrenLoaded || !found->children.empty())
         {
             node.children       = std::move (found->children);
             node.childrenLoaded = found->childrenLoaded;
@@ -585,28 +587,44 @@ void DxuiTreeView::MergeNodes (std::vector<DxuiTreeNode> & current, std::vector<
 //
 //  Applies a change under one node on a row in place, as Explorer's
 //  navigation pane does: rows elsewhere stay as they are, and the tree never
-//  shows anything in between.
+//  shows anything in between. Every row with the id is changed, since one
+//  folder can have two rows, as a removable drive does at the top level and
+//  under This PC.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiTreeView::ReplaceChildren (const std::wstring & id, std::vector<DxuiTreeNode> children)
 {
-    DxuiTreeNode *  node   = GetNodeAtMutable (FindRowById (id));
-    RowIds          ids    = GetRowIds();
-    bool            opened = false;
+    std::vector<DxuiTreeNode *>  nodes;
+    RowIds                       ids    = GetRowIds();
+    bool                         opened = false;
+    int                          row    = 0;
 
 
 
-    if (node == nullptr)
+    for (row = 0; row < (int) m_flatRows.size() && !id.empty(); row++)
+    {
+        DxuiTreeNode *  n = GetNodeAtMutable (row);
+
+        if (n != nullptr && n->id == id)
+        {
+            nodes.push_back (n);
+        }
+    }
+
+    if (nodes.empty())
     {
         return false;
     }
 
-    MergeNodes (node->children, std::move (children));
+    for (DxuiTreeNode * node : nodes)
+    {
+        MergeNodes (node->children, children);
 
-    node->childrenLoaded = true;
-    opened               = id == m_openWhenFilled && !node->children.empty();
-    node->expanded       = (node->expanded || opened) && !node->children.empty();
+        node->childrenLoaded = true;
+        opened               = opened || (id == m_openWhenFilled && !node->children.empty());
+        node->expanded       = (node->expanded || (id == m_openWhenFilled && !node->children.empty())) && !node->children.empty();
+    }
 
     if (opened)
     {

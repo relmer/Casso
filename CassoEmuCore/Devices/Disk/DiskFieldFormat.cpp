@@ -57,6 +57,56 @@ static constexpr std::array<Byte, DiskFieldFormat::kTableSize53> s_kTable53 =
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Inverse translate tables
+//
+//  Index is a nibble; entry is its translate table value, or kNotInTable. A
+//  sector decode looks up every nibble of its data field, so the lookup is
+//  one index rather than a search of the table.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr size_t  s_kNibbleValues = 256;
+
+
+static constexpr std::array<Byte, s_kNibbleValues> s_kInverse62 = []
+{
+    std::array<Byte, s_kNibbleValues>  inverse = {};
+
+
+
+    inverse.fill (DiskFieldFormat::kNotInTable);
+
+    for (size_t i = 0; i < s_kTable62.size(); i++)
+    {
+        inverse[s_kTable62[i]] = static_cast<Byte> (i);
+    }
+
+    return inverse;
+}();
+
+
+static constexpr std::array<Byte, s_kNibbleValues> s_kInverse53 = []
+{
+    std::array<Byte, s_kNibbleValues>  inverse = {};
+
+
+
+    inverse.fill (DiskFieldFormat::kNotInTable);
+
+    for (size_t i = 0; i < s_kTable53.size(); i++)
+    {
+        inverse[s_kTable53[i]] = static_cast<Byte> (i);
+    }
+
+    return inverse;
+}();
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskFieldFormat::GetAddressPrologue
 //
 //  D5 AA 96 for 16-sector address fields, D5 AA B5 for 13-sector ones. The
@@ -250,21 +300,7 @@ Byte DiskFieldFormat::TranslateValue (DiskFieldKind kind, Byte value)
 
 Byte DiskFieldFormat::TranslateNibble (DiskFieldKind kind, Byte nibble)
 {
-    Byte  value = kNotInTable;
-    int   size  = GetTableSize (kind);
-    int   i     = 0;
-
-
-
-    for (i = 0; i < size && value == kNotInTable; i++)
-    {
-        if (TranslateValue (kind, static_cast<Byte> (i)) == nibble)
-        {
-            value = static_cast<Byte> (i);
-        }
-    }
-
-    return value;
+    return (kind == DiskFieldKind::Sixteen) ? s_kInverse62[nibble] : s_kInverse53[nibble];
 }
 
 

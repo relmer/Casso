@@ -355,17 +355,17 @@ public:
         constexpr int                                               kOtherDrive = 1;
         TestMachine                                                 source ("Apple2e");
         TestMachine                                                 target ("Apple2e");
-        FileLog                                                     sourceLog;
-        FileLog                                                     targetLog;
-        std::vector<Byte>                                           bytes;
-        std::vector<Byte>                                           otherDisk;
-        MachineStateContents                                        contents;
-        MachineStateError                                           error;
-        std::array<Disk2AudioSource, DiskImageStore::kDriveCount>   sounds;
-        DiskImageStore                                            & store       = target.GetDiskStore();
-        bool                                                        isMounted   = false;
-        int                                                         drive       = 0;
-        HRESULT                                                     hr          = S_OK;
+        FileLog                                                    sourceLog;
+        FileLog                                                    targetLog;
+        std::vector<Byte>                                          bytes;
+        std::vector<Byte>                                          otherDisk;
+        MachineStateContents                                       contents;
+        MachineStateError                                          error;
+        std::array<Disk2AudioSource, DiskBayTable::kDriveCount>    sounds;
+        DiskImageStore                                           & store     = target.GetDiskStore();
+        bool                                                       isMounted = false;
+        int                                                        drive     = 0;
+        HRESULT                                                    hr        = S_OK;
 
 
 
@@ -396,7 +396,7 @@ public:
         hr = MachineStateFile::Apply (target, contents, error);
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), hr, L"a state cut short inside its section must not load");
 
-        for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+        for (drive = 0; drive < DiskBayTable::kDriveCount; drive++)
         {
             isMounted = store.IsMounted (ReverseSessionRig::kDiskSlot, drive);
 
@@ -719,7 +719,7 @@ public:
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), hr, L"two disks for one drive fail");
         Assert::AreEqual (std::string ("damaged state file"), error.label);
 
-        good.slot      = DiskImageStore::kSlotCount;
+        good.slot      = DiskBayTable::kSlotCount;
         contents.disks = { good };
         hr = MachineStateFile::CheckDisks (contents, error);
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), hr, L"a slot Casso does not have fails");
@@ -833,7 +833,7 @@ private:
     //  Replaces Prepare's bay-change sink with one that also feeds each slot 6
     //  bay change to that drive's sound, as DiskManager::OnBayChange does.
     //  Each sound starts with a disk exactly when its bay holds one.
-    static void FollowBaysWithSounds (TestMachine & machine, std::array<Disk2AudioSource, DiskImageStore::kDriveCount> & sounds)
+    static void FollowBaysWithSounds (TestMachine & machine, std::array<Disk2AudioSource, DiskBayTable::kDriveCount> & sounds)
     {
         DiskImageStore  & store = machine.GetDiskStore();
         int               drive = 0;
@@ -865,7 +865,7 @@ private:
             }
         });
 
-        for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+        for (drive = 0; drive < DiskBayTable::kDriveCount; drive++)
         {
             if (store.IsMounted (ReverseSessionRig::kDiskSlot, drive))
             {

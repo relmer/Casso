@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Model/PreviewText.h"
+#include "Core/UnicodeSymbols.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "Core/TextEncoding.h"
 #include "ApplesoftTokenizer.h"
@@ -101,7 +102,57 @@ uint32_t PreviewText::GetRunColor (RunColor color, const SourceSyntax::Colors & 
          : (color == RunColor::Bad  || color == RunColor::String)  ? colors.string
          : (color == RunColor::Muted)                              ? colors.address
          : (color == RunColor::Keyword)                            ? colors.mnemonic
+         : (color == RunColor::Number)                             ? colors.number
+         : (color == RunColor::Label)                              ? colors.symbol
                                                                    : 0u;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewText::AddLegendRows
+//
+//  A legend's entries, a run each, `columns` to a row with a cell each, so
+//  an entry's swatch and name stay together and the entries line up in
+//  columns from row to row. The rows are a column group of their own, so
+//  their columns don't widen a table's or follow it. Zero columns is all of
+//  the entries in one row. Each entry's trailing spaces, a separator for a
+//  legend written as one run of text, are dropped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewText::AddLegendRows (const std::vector<Run> & entries, const SourceSyntax::Colors & colors, int columns, std::vector<DxuiTextView::Row> & ioRows)
+{
+    constexpr int  kLegendGroup = 1;
+    size_t         perRow       = (columns > 0) ? (size_t) columns : entries.size();
+
+
+
+    for (size_t first = 0; first < entries.size(); first += perRow)
+    {
+        DxuiTextView::Row  row { {} };
+
+        row.columnGroup = kLegendGroup;
+
+        for (size_t i = first; i < entries.size() && i < first + perRow; i++)
+        {
+            const Run &   entry = entries[i];
+            std::wstring  text  = entry.text;
+
+            while (!text.empty() && text.back() == L' ')
+            {
+                text.pop_back();
+            }
+
+            row.cells.push_back (std::wstring());
+            AddRunText (row, entry, GetRunColor (entry.color, colors), text);
+        }
+
+        ioRows.push_back (std::move (row));
+    }
 }
 
 
@@ -113,23 +164,58 @@ uint32_t PreviewText::GetRunColor (RunColor color, const SourceSyntax::Colors & 
 //  PreviewText::BuildDocumentRows
 //
 //  A row for each paragraph, aligned as it is, a span for each styled or
-//  colored run, and a paragraph with a picture a row of the picture.
+//  colored run, and a paragraph with a picture a row of the picture. A tab
+//  in a run starts the row's next cell, so the cells line up in columns,
+//  and a paragraph with a rule has a line under its row.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DxuiTextView::Row> PreviewText::BuildDocumentRows (const std::vector<Paragraph> & paragraphs, const SourceSyntax::Colors & colors)
+std::vector<DxuiTextView::Row> PreviewText::BuildDocumentRows (const std::vector<Paragraph> & paragraphs, const SourceSyntax::Colors & colors,
+                                                               TableForm form, std::vector<int> * outRowParagraph, int legendColumns)
 {
     std::vector<DxuiTextView::Row>  rows;
+    size_t                          lastMap = paragraphs.size();
 
 
 
-    for (const Paragraph & paragraph : paragraphs)
+    for (size_t index = 0; index < paragraphs.size(); index++)
     {
-        DxuiTextView::Row  row { { std::wstring() } };
+        lastMap = (paragraphs[index].canZoom && !paragraphs[index].picture.empty()) ? index : lastMap;
+    }
+
+    for (size_t index = 0; index < paragraphs.size(); index++)
+    {
+        const Paragraph &  paragraph = paragraphs[index];
+        DxuiTextView::Row  row       { { std::wstring() } };
+
+        if (paragraph.isLegend && !paragraph.runs.empty())
+        {
+            AddLegendRows (paragraph.runs, colors, legendColumns, rows);
+
+            if (outRowParagraph != nullptr)
+            {
+                outRowParagraph->resize (rows.size(), (int) index);
+            }
+
+            continue;
+        }
+
+        if (paragraph.table != nullptr)
+        {
+            AddTableRows (*paragraph.table, colors, form, rows);
+
+            if (outRowParagraph != nullptr)
+            {
+                outRowParagraph->resize (rows.size(), (int) index);
+            }
+
+            continue;
+        }
 
         row.alignment = (paragraph.alignment == Alignment::Center) ? DxuiTextHAlign::Center
                       : (paragraph.alignment == Alignment::Right)  ? DxuiTextHAlign::Right
                                                                    : DxuiTextHAlign::Left;
+        row.rule      = paragraph.hasRule;
 
         if (!paragraph.picture.empty())
         {
@@ -138,33 +224,248 @@ std::vector<DxuiTextView::Row> PreviewText::BuildDocumentRows (const std::vector
             picture->bgra   = paragraph.picture;
             picture->width  = paragraph.width;
             picture->height = paragraph.height;
+            picture->pingX  = paragraph.pingX;
+            picture->pingY  = paragraph.pingY;
+            picture->zoom   = paragraph.canZoom;
             row.picture     = picture;
         }
 
         for (const Run & run : paragraph.runs)
         {
-            uint32_t  argb = GetRunColor (run.color, colors);
+            uint32_t      argb = GetRunColor (run.color, colors);
+            std::wstring  text = run.text;
+            size_t        tab  = text.find (L'\t');
 
-            if (run.bold || run.italic || run.underline || argb != 0)
+            while (tab != std::wstring::npos)
             {
-                DxuiTextView::Span  span;
-
-                span.start     = (int) row.cells[0].size();
-                span.length    = (int) run.text.size();
-                span.argb      = argb;
-                span.bold      = run.bold;
-                span.italic    = run.italic;
-                span.underline = run.underline;
-                row.spans.push_back (span);
+                AddRunText (row, run, argb, text.substr (0, tab));
+                row.cells.push_back (std::wstring());
+                text = text.substr (tab + 1);
+                tab  = text.find (L'\t');
             }
 
-            row.cells[0] += run.text;
+            AddRunText (row, run, argb, text);
         }
 
         rows.push_back (std::move (row));
+
+        //  A map zooms only with Ctrl, so the wheel alone scrolls past it.
+        //  A hint is drawn once, under the last map.
+        if (index == lastMap)
+        {
+            Run                hint { L"Use Ctrl+scroll to zoom", false, false, false, RunColor::Muted };
+            DxuiTextView::Row  hintRow { { std::wstring() } };
+
+            AddRunText (hintRow, hint, GetRunColor (hint.color, colors), hint.text);
+            rows.push_back (std::move (hintRow));
+        }
+
+        if (outRowParagraph != nullptr)
+        {
+            outRowParagraph->resize (rows.size(), (int) index);
+        }
     }
 
     return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewText::AddTableRows
+//
+//  The title in bold first. As a table, a heading row in bold and a row a
+//  record, their cells in columns, each record's details under its row and,
+//  when any record has details, a blank line between them. In
+//  the other forms, a rule under the title, then each record's fields or
+//  card and its details, a blank line between records.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewText::AddTableRows (const RecordTable & table, const SourceSyntax::Colors & colors, TableForm form, std::vector<DxuiTextView::Row> & ioRows)
+{
+    auto  untitled = std::make_shared<RecordTable> (table);
+    bool  wide     = form == TableForm::Table;
+
+
+
+    untitled->title.clear();
+
+    if (!table.title.empty())
+    {
+        DxuiTextView::Row   title { { table.title } };
+        DxuiTextView::Span  span;
+
+        span.length = (int) table.title.size();
+        span.bold   = true;
+        title.spans = { span };
+        title.rule  = !wide;
+        ioRows.push_back (std::move (title));
+    }
+
+    if (form == TableForm::TwoFields || form == TableForm::ThreeFields || form == TableForm::FourFields)
+    {
+        AddFieldRows (table, colors, (int) form - (int) TableForm::TwoFields + 2, ioRows);
+        return;
+    }
+
+    if (!wide)
+    {
+        std::vector<Paragraph>          cards = FlattenRecordTables ({ Paragraph { .table = untitled } });
+        std::vector<DxuiTextView::Row>  rows  = BuildDocumentRows (cards, colors);
+
+        ioRows.insert (ioRows.end(), rows.begin(), rows.end());
+        return;
+    }
+
+    {
+        DxuiTextView::Row  heading;
+
+        for (const std::wstring & title : table.headings)
+        {
+            DxuiTextView::Span  span;
+
+            span.cell   = (int) heading.cells.size();
+            span.length = (int) title.size();
+            span.bold   = true;
+            span.argb   = GetRunColor (RunColor::Muted, colors);
+            heading.cells.push_back (title);
+            heading.spans.push_back (span);
+        }
+
+        ioRows.push_back (std::move (heading));
+    }
+
+    bool  hasDetails = std::any_of (table.records.begin(), table.records.end(), [] (const RecordTable::Record & record) { return !record.details.empty(); });
+
+    for (size_t i = 0; i < table.records.size(); i++)
+    {
+        const RecordTable::Record &     record  = table.records[i];
+        DxuiTextView::Row               row;
+        std::vector<DxuiTextView::Row>  details = BuildDocumentRows (record.details, colors);
+
+        if (i > 0 && hasDetails)
+        {
+            ioRows.push_back (DxuiTextView::Row());
+        }
+
+        for (const Run & run : record.cells)
+        {
+            row.cells.push_back (std::wstring());
+            AddRunText (row, run, GetRunColor (run.color, colors), run.text);
+        }
+
+        ioRows.push_back (std::move (row));
+        ioRows.insert (ioRows.end(), details.begin(), details.end());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewText::AddFieldRows
+//
+//  Each record's first cell on a line, then its other cells as fields, a
+//  heading in the muted color and the cell after it, perLine to a line in
+//  columns, then its details. A blank line between records.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewText::AddFieldRows (const RecordTable & table, const SourceSyntax::Colors & colors, int perLine, std::vector<DxuiTextView::Row> & ioRows)
+{
+    uint32_t  muted = GetRunColor (RunColor::Muted, colors);
+
+
+
+    for (size_t i = 0; i < table.records.size(); i++)
+    {
+        const RecordTable::Record &     record  = table.records[i];
+        DxuiTextView::Row               first   { { std::wstring() } };
+        DxuiTextView::Row               fields;
+        std::vector<DxuiTextView::Row>  details = BuildDocumentRows (record.details, colors);
+
+        if (record.cells.empty())
+        {
+            continue;
+        }
+
+        if (i > 0)
+        {
+            ioRows.push_back (DxuiTextView::Row { { std::wstring() } });
+        }
+
+        AddRunText (first, record.cells[0], GetRunColor (record.cells[0].color, colors), record.cells[0].text);
+        ioRows.push_back (std::move (first));
+
+        for (size_t c = 1; c < record.cells.size(); c++)
+        {
+            const Run &   cell  = record.cells[c];
+            std::wstring  label = L"   " + ((c < table.headings.size()) ? table.headings[c] : std::wstring()) + L" ";
+
+            fields.cells.push_back (std::wstring());
+            AddRunText (fields, Run { label, false, false, false, RunColor::Muted }, muted, label);
+            AddRunText (fields, cell, GetRunColor (cell.color, colors), cell.text);
+
+            if ((int) fields.cells.size() == perLine || c + 1 == record.cells.size())
+            {
+                ioRows.push_back (std::move (fields));
+                fields = DxuiTextView::Row();
+            }
+        }
+
+        ioRows.insert (ioRows.end(), details.begin(), details.end());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewText::AddRunText
+//
+//  Text of a run at the end of the row's last cell, with a span when the
+//  run is styled or colored.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewText::AddRunText (DxuiTextView::Row & ioRow, const Run & run, uint32_t argb, const std::wstring & text)
+{
+    //  A swatch is a square in its color, a glyph of the text.
+    if (run.swatch != 0 && !text.empty())
+    {
+        DxuiTextView::Span  square;
+
+        square.cell   = (int) ioRow.cells.size() - 1;
+        square.start  = (int) ioRow.cells.back().size();
+        square.length = 1;
+        square.argb   = (run.swatch == kHatchedSwatch) ? DxuiTooltipSwatch::kHatchLight : run.swatch;
+        ioRow.spans.push_back (square);
+        ioRow.cells.back() += std::wstring ((run.swatch == kHatchedSwatch) ? s_kpszHatchedSquare : s_kpszSwatchSquare) + L" ";
+    }
+
+    if (!text.empty() && (run.bold || run.italic || run.underline || argb != 0))
+    {
+        DxuiTextView::Span  span;
+
+        span.cell      = (int) ioRow.cells.size() - 1;
+        span.start     = (int) ioRow.cells.back().size();
+        span.length    = (int) text.size();
+        span.argb      = argb;
+        span.bold      = run.bold;
+        span.italic    = run.italic;
+        span.underline = run.underline;
+        ioRow.spans.push_back (span);
+    }
+
+    ioRow.cells.back() += text;
 }
 
 
@@ -230,7 +531,8 @@ std::vector<DxuiTextView::Row> PreviewText::BuildCrossReferenceRows (const Previ
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent & preview, bool lineAddresses, const SourceSyntax::Colors & colors)
+std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent & preview, bool lineAddresses, const SourceSyntax::Colors & colors,
+                                                           TableForm form, std::vector<int> * outRowParagraph, int legendColumns)
 {
     std::vector<DxuiTextView::Row>  rows;
     std::vector<DxuiTextView::Row>  warnings;
@@ -263,7 +565,7 @@ std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent 
     }
     else if (preview.kind == PreviewContent::Kind::Document)
     {
-        rows = BuildDocumentRows (preview.paragraphs, colors);
+        rows = BuildDocumentRows (preview.paragraphs, colors, form, outRowParagraph, legendColumns);
     }
     else if (preview.kind == PreviewContent::Kind::Details)
     {

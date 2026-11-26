@@ -73,7 +73,7 @@ namespace DxuiKeyMapTests
             ev.alt   = alt;
             ev.shift = shift;
 
-            return OnKey (ev) || RouteMappedKey (ev);
+            return OnKey (ev) || GetKeyRouter().RouteMappedKey (ev);
         }
 
         bool  OnKey (const DxuiKeyEvent & ev) override
@@ -178,7 +178,7 @@ namespace DxuiKeyMapTests
 
 
 
-            window.SetKeyMap (&map);
+            window.GetKeyRouter().SetKeyMap (&map);
 
             Assert::IsTrue   (window.Press (VK_F5));
             Assert::AreEqual ((size_t) 1, window.commands.size());
@@ -193,7 +193,7 @@ namespace DxuiKeyMapTests
 
 
 
-            window.SetKeyMap (&map);
+            window.GetKeyRouter().SetKeyMap (&map);
             window.claimed = VK_F5;
 
             Assert::IsTrue (window.Press (VK_F5));
@@ -209,16 +209,16 @@ namespace DxuiKeyMapTests
 
 
 
-            window.SetKeyMap (&vs);
+            window.GetKeyRouter().SetKeyMap (&vs);
             Assert::IsTrue  (window.Press (VK_F10));
             Assert::IsFalse (window.Press (VK_SPACE, true));
 
-            window.SetKeyMap (&other);
+            window.GetKeyRouter().SetKeyMap (&other);
             Assert::IsFalse (window.Press (VK_F10),        L"the old scheme's key is gone");
             Assert::IsTrue  (window.Press (VK_SPACE, true));
 
             Assert::AreEqual ((size_t) 2, window.commands.size());
-            Assert::IsTrue   (window.GetKeyMap() == &other);
+            Assert::IsTrue   (window.GetKeyRouter().GetKeyMap() == &other);
         }
 
 

@@ -8,7 +8,7 @@
 #include "HandlerTestRig.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Machines/Apple2/Common/Disk2NibbleRecord.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "MockDebugTarget.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -41,7 +41,7 @@ namespace DebuggerTests
 
             ValueRig()
             {
-                std::vector<Byte>  blank (NibblizationLayer::kImageByteSize, 0);
+                std::vector<Byte>  blank (NibbleFormat::kImageByteSize, 0);
 
 
 

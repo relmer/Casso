@@ -1,4 +1,4 @@
-CASSQUE TEST NOTES
+CASSO TEST NOTES
 
 This file is ordinary printable text.
 It has a tab	here and ends with a newline.

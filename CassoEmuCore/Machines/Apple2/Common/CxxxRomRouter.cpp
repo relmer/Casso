@@ -111,6 +111,36 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PatchSlotRom
+//
+//  The bytes are copied rather than the page replaced, so a read on the CPU
+//  thread during the copy sees one ROM or the other.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CxxxRomRouter::PatchSlotRom (int slot, const vector<Byte> & data)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    CBRAEx (slot >= kMinSlot && slot <= kMaxSlot, E_INVALIDARG);
+
+    if (data.size() == m_slotRom[slot].size())
+    {
+        std::copy (data.begin(), data.end(), m_slotRom[slot].begin());
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HasSlotRom
 //
 //  True if slot `slot` has a ROM page installed. A slot index outside 1..7

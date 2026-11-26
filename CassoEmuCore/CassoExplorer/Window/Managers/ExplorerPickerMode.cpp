@@ -1,10 +1,13 @@
 #include "Pch.h"
+#include "CassoExplorer/Picker/FileMaskSet.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Picker/PickerRequest.h"
 #include "CassoExplorer/Window/ExplorerContext.h"
 #include "CassoExplorer/Window/IExplorerWindow.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerImageTools.h"
 #include "CassoExplorer/Window/Managers/ExplorerPickerMode.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
@@ -57,29 +60,6 @@ void ExplorerPickerMode::Start()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerPickerMode::ShowStockDisksIfCassoIsEmpty
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ExplorerPickerMode::ShowStockDisksIfCassoIsEmpty()
-{
-    const Location &  location = m_context.browser.GetLocation();
-    bool              inCasso  = location.kind == Location::Kind::Root && location.path == TreeModel::kCassoRootId;
-
-
-
-    if (m_context.IsPicker() && !m_context.app.picker->stockDisks.empty() && inCasso && m_context.browser.GetRows().empty())
-    {
-        m_context.browser.NavigateToLocation (Location::MakeRoot (TreeModel::kStockDisksId));
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ExplorerPickerMode::TryGetRowFile
 //
 //  A file row of a folder on the disk, or of the Casso node's list, the
@@ -106,7 +86,7 @@ bool ExplorerPickerMode::TryGetRowFile (int row, std::wstring & outPath) const
     }
 
     outPath = !rows[(size_t) row].hostPath.empty() ? rows[(size_t) row].hostPath
-            : inFolder                             ? CassoExplorerBrowser::JoinPath (location.path, rows[(size_t) row].name)
+            : inFolder                             ? BrowserRowPaths::JoinPath (location.path, rows[(size_t) row].name)
                                                    : std::wstring();
 
     return !outPath.empty();
@@ -219,7 +199,7 @@ bool ExplorerPickerMode::TryMakeSavePath (const PickerRequest & request, size_t 
         name += L"." + extension;
     }
 
-    outPath = CassoExplorerBrowser::JoinPath (location.path, name);
+    outPath = BrowserRowPaths::JoinPath (location.path, name);
 
     return true;
 }
@@ -411,6 +391,7 @@ void ExplorerPickerMode::ConfirmPath (const std::wstring & path)
     if (m_context.app.outcome != nullptr)
     {
         m_context.app.outcome->isConfirmed = true;
+        m_context.app.outcome->verified    = m_context.pickerBar.IsVerifyChecked();
         m_context.app.outcome->path        = path;
     }
 
@@ -440,7 +421,7 @@ void ExplorerPickerMode::CreateNew()
         return;
     }
 
-    isCreated = request->onCreateNew ? request->onCreateNew (path) : m_context.commandManager.CreateDiskForPicker (path);
+    isCreated = request->onCreateNew ? request->onCreateNew (path) : m_context.imageTools.CreateDiskForPicker (path);
 
     if (isCreated && !path.empty())
     {
@@ -452,6 +433,7 @@ void ExplorerPickerMode::CreateNew()
         if (m_context.app.outcome != nullptr)
         {
             m_context.app.outcome->isConfirmed = true;
+            m_context.app.outcome->verified    = m_context.pickerBar.IsVerifyChecked();
         }
 
         m_context.window.CloseWindow();
@@ -527,7 +509,7 @@ bool ExplorerPickerMode::HandleActivateRow (int row)
         return m_context.IsPicker() && m_context.browser.IsImageLocation();
     }
 
-    m_context.browser.SetSelectedRows ({ row });
+    m_context.browser.GetSelection().SetSelectedRows ({ row });
 
     //  In a save form the opened file's name is the name saved under.
     if (m_context.app.picker->IsSave())
@@ -589,50 +571,26 @@ void ExplorerPickerMode::SetActiveFilter (size_t index)
 
     m_scope.SetActiveFilter (index);
 
+    //  A save form's name takes the new type's extension.
+    if (m_context.app.picker->IsSave() && m_context.pickerBar.HasNameBox())
+    {
+        std::vector<FileMaskSet>  all;
+
+
+
+        for (const FileDialogFilter & filter : m_context.app.picker->filters)
+        {
+            all.emplace_back (filter.pattern);
+        }
+
+        m_context.pickerBar.SetNameText (FileMaskSet::ApplyToName (m_context.pickerBar.GetNameText(), all[index], all));
+    }
+
     hr = m_context.browser.Refresh();
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     m_context.listPane.FillList();
     m_context.pickerBar.Update();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerPickerMode::GetHeaderText
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring ExplorerPickerMode::GetHeaderText() const
-{
-    return m_context.IsPicker() ? MakeHeaderText (*m_context.app.picker) : std::wstring();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerPickerMode::MakeHeaderText
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring ExplorerPickerMode::MakeHeaderText (const PickerRequest & request)
-{
-    std::wstring  accepted = request.receivingDrive.has_value() ? DriveImageRule::GetAcceptedText (*request.receivingDrive) : std::wstring();
-
-
-
-    if (request.driveLabel.empty())
-    {
-        return accepted;
-    }
-
-    return accepted.empty() ? request.driveLabel : request.driveLabel + L": " + accepted;
 }
 
 
@@ -672,7 +630,8 @@ std::wstring ExplorerPickerMode::GetConfirmLabel() const
 //
 //  ExplorerPickerMode::GetFilterLabel
 //
-//  An entry's label with its masks, as the Windows dialogs list them.
+//  An entry's label with its masks, as the Windows dialogs list them. A label
+//  that already ends in a parenthesized list of masks is used as written.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -687,5 +646,12 @@ std::wstring ExplorerPickerMode::GetFilterLabel (size_t index) const
         return std::wstring();
     }
 
-    return std::format (L"{} ({})", request->filters[index].name, request->filters[index].pattern);
+    const FileDialogFilter &  filter = request->filters[index];
+
+    if (filter.name.ends_with (L")") && filter.name.find (L"(*") != std::wstring::npos)
+    {
+        return filter.name;
+    }
+
+    return std::format (L"{} ({})", filter.name, filter.pattern);
 }

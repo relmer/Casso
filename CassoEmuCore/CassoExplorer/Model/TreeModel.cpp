@@ -13,6 +13,7 @@
 #include "Devices/Disk/Archives/ContainerPath.h"
 #include "Devices/Disk/Containers/ImageContainer.h"
 #include "Devices/Disk/Partitions/PartitionAccess.h"
+#include "Devices/Disk/Partitions/PhysicalCards.h"
 
 
 
@@ -24,8 +25,9 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-TreeModel::TreeModel (IFileSystem & fs)
-    : m_fs (fs)
+TreeModel::TreeModel (IFileSystem & fs, HostFolderReader & hostFolders)
+    : m_fs          (fs),
+      m_hostFolders (hostFolders)
 {
 }
 
@@ -127,76 +129,6 @@ void TreeModel::SetStorageCards (std::vector<StorageCardTreeEntry> cards)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TreeModel::IsSupportedImage
-//
-//  The container words the disk tool advertises, as extensions.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool TreeModel::IsSupportedImage (const std::wstring & fileName)
-{
-    size_t                                    count      = 0;
-    const DiskCommandRunner::ContainerName  * containers = DiskCommandRunner::GetAdvertisedContainers (count);
-    size_t                                    dot        = fileName.rfind (L'.');
-    size_t                                    i          = 0;
-    std::string                               extension;
-
-
-
-    if (dot == std::wstring::npos)
-    {
-        return false;
-    }
-
-    for (wchar_t c : fileName.substr (dot + 1))
-    {
-        extension += (char) ((c >= L'A' && c <= L'Z') ? (c - L'A' + L'a') : (c & 0x7F));
-    }
-
-    for (i = 0; i < count; i++)
-    {
-        if (extension == containers[i].name)
-        {
-            return true;
-        }
-    }
-
-    return ImageContainer::IsListedExtension (extension);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TreeModel::BreakAfterFirstSentence
-//
-//  A message about an image leads with what is wrong and follows with the
-//  detail on a line of its own.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring TreeModel::BreakAfterFirstSentence (std::wstring text)
-{
-    size_t  stop = text.find (L". ");
-
-
-
-    if (stop != std::wstring::npos)
-    {
-        text.replace (stop, 2, L".\n");
-    }
-
-    return text;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  TreeModel::MakeFolderId
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -219,6 +151,21 @@ std::wstring TreeModel::MakeFolderId (bool underCasso, const std::wstring & path
 std::wstring TreeModel::MakeImageId (bool underCasso, const std::wstring & path)
 {
     return std::wstring (kImagePrefix) + (underCasso ? kCassoTag : kThisPcTag) + kSeparator + path;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::MakePartitionId
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring TreeModel::MakePartitionId (bool underCasso, const std::wstring & path)
+{
+    return std::wstring (kPartitionPrefix) + (underCasso ? kCassoTag : kThisPcTag) + kSeparator + path;
 }
 
 
@@ -353,26 +300,6 @@ bool TreeModel::TryParseImageOrDirectoryId (
     }
 
     return !outPath.empty();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TreeModel::JoinPath
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring TreeModel::JoinPath (const std::wstring & folder, const std::wstring & name)
-{
-    if (folder.empty() || folder.back() == L'\\' || folder.back() == L'/')
-    {
-        return folder + name;
-    }
-
-    return folder + L"\\" + name;
 }
 
 
@@ -707,40 +634,6 @@ void TreeModel::RefreshShellRoots()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TreeModel::IsArchive
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool TreeModel::IsArchive (const std::wstring & path) const
-{
-    std::wstring  extension = std::filesystem::path (path).extension().wstring();
-    auto          known     = m_archiveExtensions.end();
-
-
-
-    if (m_shellVerbs == nullptr || extension.empty() || IsSupportedImage (path))
-    {
-        return false;
-    }
-
-    std::transform (extension.begin(), extension.end(), extension.begin(), ::towlower);
-
-    known = m_archiveExtensions.find (extension);
-
-    if (known == m_archiveExtensions.end())
-    {
-        known = m_archiveExtensions.emplace (extension, m_shellVerbs->IsArchive (path)).first;
-    }
-
-    return known->second;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  TreeModel::IsPinnedFolder
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -833,7 +726,7 @@ HRESULT TreeModel::ListShellFolders (const std::wstring & id, std::vector<TreeNo
 
     for (const IShellItemVerbs::ShellFolderItem & item : items)
     {
-        if (item.isFolder && !(item.isFile && !item.path.empty() && IsSupportedImage (item.path)))
+        if (item.isFolder && !HostFolderReader::IsShellImage (item))
         {
             outNodes.push_back (MakeShellNode (item));
         }
@@ -1168,6 +1061,10 @@ std::wstring TreeModel::GetLinkDriveLabel (const LinkTreeEntry::Drive & drive)
         //  the drive reads alike.
         label += L" (no disk or unformatted)";
     }
+    else if (drive.thirteenSector)
+    {
+        label += L" (13-sector disk)";
+    }
     else if (!drive.volume.empty())
     {
         label += L" (" + drive.volume + L")";
@@ -1274,6 +1171,79 @@ std::wstring TreeModel::GetLinkDriveTitle (const std::wstring & driveId) const
     }
 
     return title;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::TryGetLinkDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TreeModel::TryGetLinkDrive (const std::wstring & driveId, LinkTreeEntry::Drive & outDrive) const
+{
+    std::wstring  name;
+    int           slot  = 0;
+    int           drive = 0;
+
+
+
+    if (!TryParseLinkId (driveId, name, slot, drive))
+    {
+        return false;
+    }
+
+    for (const LinkTreeEntry & link : m_links)
+    {
+        for (const LinkTreeEntry::Drive & row : link.name == name ? link.drives : std::vector<LinkTreeEntry::Drive>())
+        {
+            if (row.slot == slot && row.drive == drive)
+            {
+                outDrive = row;
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::IsThirteenSectorDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TreeModel::IsThirteenSectorDrive (const std::wstring & driveId) const
+{
+    std::wstring  name;
+    int           slot   = 0;
+    int           drive  = 0;
+    bool          is13   = false;
+
+
+
+    if (!TryParseLinkId (driveId, name, slot, drive))
+    {
+        return is13;
+    }
+
+    for (const LinkTreeEntry & link : m_links)
+    {
+        for (const LinkTreeEntry::Drive & row : link.name == name ? link.drives : std::vector<LinkTreeEntry::Drive>())
+        {
+            is13 = is13 || (row.slot == slot && row.drive == drive && row.thirteenSector);
+        }
+    }
+
+    return is13;
 }
 
 
@@ -1632,7 +1602,8 @@ bool TreeModel::IsHiddenDrive (const std::wstring & path) const
 //
 //  TreeModel::ListStorageCard
 //
-//  An open card's partitions. Their directories are in the list.
+//  An open card's partitions. Each has an expander until it is read, as a
+//  partition is read when it is expanded or selected.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1652,10 +1623,11 @@ void TreeModel::ListStorageCard (const std::wstring & path, std::vector<TreeNode
             std::wstring  partitionPath = card.path + kSeparator + partition.step;
             TreeNode      node;
 
-            node.id       = MakeImageId (false, partitionPath);
-            node.kind     = TreeNode::Kind::DiskImage;
-            node.label    = partition.label;
-            node.location = Location::MakeDiskImage (partitionPath);
+            node.id        = MakeImageId (false, partitionPath);
+            node.kind      = TreeNode::Kind::DiskImage;
+            node.label     = partition.label;
+            node.location  = Location::MakeDiskImage (partitionPath);
+            node.canExpand = true;
 
             outNodes.push_back (node);
         }
@@ -1692,7 +1664,7 @@ bool TreeModel::HasTreeChildren (const std::wstring & path)
 
     for (const FileSystemEntry & entry : entries)
     {
-        found = found || (m_folderOptions.IsShown (entry) && (entry.isFolder || IsSupportedImage (entry.name)));
+        found = found || (m_hostFolders.IsShown (entry) && (entry.isFolder || HostFolderReader::IsSupportedImage (entry.name)));
     }
 
 Error:
@@ -1719,6 +1691,7 @@ HRESULT TreeModel::ListHostFolder (bool underCasso, const std::wstring & path, s
     std::vector<TreeNode>         folders;
     std::vector<TreeNode>         archives;
     std::vector<TreeNode>         images;
+    std::vector<HostFolderItem>   items;
     bool                          network = PathResolver::IsNetworkPath (path);
     bool                          fetched = false;
 
@@ -1740,60 +1713,43 @@ HRESULT TreeModel::ListHostFolder (bool underCasso, const std::wstring & path, s
 
     CHR (hr);
 
-    for (const FileSystemEntry & entry : entries)
+    m_hostFolders.Classify (path, entries, items);
+
+    for (const HostFolderItem & item : items)
     {
         TreeNode  node;
 
-        if (!m_folderOptions.IsShown (entry))
-        {
-            continue;
-        }
+        node.hidden = item.entry.isHidden;
+        node.label  = item.label;
 
-        node.hidden = entry.isHidden;
-
-        if (entry.isFolder)
+        if (item.kind == HostFolderItem::Kind::Folder)
         {
-            node.id        = MakeFolderId (underCasso, JoinPath (path, entry.name));
+            node.id        = MakeFolderId (underCasso, item.path);
             node.kind      = TreeNode::Kind::HostFolder;
-            node.label     = entry.name;
-            node.location  = Location::MakeHostFolder (JoinPath (path, entry.name));
-            node.canExpand = HasTreeChildren (JoinPath (path, entry.name));
-
-            //  Only a read-only or system folder's desktop.ini is honored, so
-            //  no other folder costs a read, and none on the network, which
-            //  could wait on a share that has stopped answering.
-            if ((entry.isReadOnly || entry.isSystem) && !network && m_localizedName)
-            {
-                std::wstring  localized = m_localizedName (JoinPath (path, entry.name));
-
-                if (!localized.empty())
-                {
-                    node.label = localized;
-                }
-            }
+            node.location  = Location::MakeHostFolder (item.path);
+            node.canExpand = HasTreeChildren (item.path);
 
             folders.push_back (node);
         }
-        else if (IsArchive (JoinPath (path, entry.name)))
+        else if (item.kind == HostFolderItem::Kind::Archive)
         {
-            node.id        = std::wstring (kShellRootTag) + JoinPath (path, entry.name);
+            node.id        = std::wstring (kShellRootTag) + item.path;
             node.kind      = TreeNode::Kind::ShellRoot;
-            node.label     = entry.name;
-            node.location  = Location::MakeShellFolder (JoinPath (path, entry.name), entry.name);
+            node.location  = Location::MakeShellFolder (item.path, item.entry.name);
             node.canExpand = true;
             node.archive   = true;
 
             archives.push_back (node);
         }
-        else if (IsSupportedImage (entry.name))
+        else if (item.kind == HostFolderItem::Kind::Image)
         {
-            node.id       = MakeImageId (underCasso, JoinPath (path, entry.name));
+            node.id       = MakeImageId (underCasso, item.path);
             node.kind     = TreeNode::Kind::DiskImage;
-            node.label    = entry.name;
-            node.location = Location::MakeDiskImage (JoinPath (path, entry.name));
+            node.location = Location::MakeDiskImage (item.path);
 
-            hr = DescribeImage (underCasso, JoinPath (path, entry.name), node);
-            CHR (hr);
+            //  The image is read when it is expanded, not when its folder
+            //  is listed, so a folder of large images opens at once.
+            node.canExpand = true;
 
             images.push_back (node);
         }
@@ -1945,18 +1901,17 @@ HRESULT TreeModel::GetChildren (const std::wstring & id, std::vector<TreeNode> &
     {
         hr = ListHostFolder (false, id.substr (wcslen (kThisPcRootId)), outNodes);
     }
+    else if (id.starts_with (kPartitionPrefix) && id.find (kSeparator) != std::wstring::npos)
+    {
+        //  A partition's children are the volumes in it.
+        underCasso = id.substr (wcslen (kPartitionPrefix), id.find (kSeparator) - wcslen (kPartitionPrefix)) == kCassoTag;
+        hr         = m_images.ListPartitionVolumes (underCasso, id.substr (id.find (kSeparator) + 1), outNodes);
+    }
     else if (TryParseImageOrDirectoryId (id, underCasso, path, inner))
     {
         //  An image's children are its directories, and a directory's are the
         //  directories inside it.
-        if (inner.empty())
-        {
-            hr = ListImage (underCasso, path, outNodes);
-        }
-        else
-        {
-            hr = ListImageDirectory (underCasso, path, inner, outNodes);
-        }
+        hr = inner.empty() ? m_images.ListImage (underCasso, path, outNodes) : m_images.ListDirectory (underCasso, path, inner, outNodes);
     }
     else
     {
@@ -1969,6 +1924,39 @@ HRESULT TreeModel::GetChildren (const std::wstring & id, std::vector<TreeNode> &
     {
         m_children[id] = outNodes;
     }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::ReadImageNode
+//
+//  The node's children are cached, as for a node that was expanded. A storage
+//  card is not a file: its partitions are read through its session when it is
+//  opened, so its node is not read here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT TreeModel::ReadImageNode (TreeNode & inOutNode)
+{
+    HRESULT                hr     = S_OK;
+    bool                   isCard = PhysicalCards::IsCardPath (inOutNode.location.path);
+    std::vector<TreeNode>  children;
+
+
+
+    BAIL_OUT_IF (isCard, S_OK);
+
+    hr = m_images.Describe (IsUnderCasso (inOutNode.id), inOutNode.location.path, inOutNode, children);
+    CHR (hr);
+
+    m_children[inOutNode.id] = std::move (children);
 
 Error:
     return hr;

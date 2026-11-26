@@ -2,8 +2,7 @@
 
 #include "Pch.h"
 
-struct SalvageAssessment;
-class DiskImageStore;
+#include "Devices/Disk/Store/DiskSalvager.h"
 
 
 

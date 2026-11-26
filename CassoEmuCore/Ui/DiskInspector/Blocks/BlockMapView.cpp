@@ -37,22 +37,11 @@ void BlockMapView::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 //
 //  BlockMapView::GetGridRect
 //
-//  Below the bands when there are any.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 RECT BlockMapView::GetGridRect() const
 {
-    RECT  grid = GetBounds();
-
-
-
-    if (!m_bands.empty())
-    {
-        grid.top += (LONG) (m_scaler.ToPxf (kBandDip) + m_scaler.ToPxf (kBandGapDip));
-    }
-
-    return grid;
+    return GetBounds();
 }
 
 
@@ -81,7 +70,6 @@ void BlockMapView::Refresh()
 
 
 
-    m_bands      = isOpen ? m_model->GetBands() : vector<BlockBand>();
     m_blockCount = count;
     m_current    = isOpen ? m_model->GetBlock() : 0;
     grid         = GetGridRect();
@@ -548,6 +536,30 @@ void BlockMapView::StepZoom (int steps)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BlockMapView::ZoomTo
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockMapView::ZoomTo (double zoom)
+{
+    RECT  grid = GetGridRect();
+
+
+
+    if (m_stops.empty())
+    {
+        return;
+    }
+
+    ZoomAbout (std::clamp (zoom, 1.0, m_stops.back()), POINT { (grid.left + grid.right) / 2, (grid.top + grid.bottom) / 2 });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BlockMapView::StepZoomAt
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -680,7 +692,7 @@ std::wstring BlockMapView::DescribeCell (uint32_t cell) const
 //
 //  A zoomable map zooms on the wheel about the pointer, pans on a drag,
 //  fits on a double-click, and selects on a click. Any other map selects on
-//  a press. A press on a band steps to the band's first block.
+//  a press.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -690,10 +702,8 @@ bool BlockMapView::OnMouse (const DxuiMouseEvent & ev)
     RECT     grid     = GetGridRect();
     POINT    p        = ev.positionDip;
     int64_t  cell     = FindCellAt (p);
-    bool     isBand   = p.x >= bounds.left && p.x < bounds.right && p.y >= bounds.top && p.y < grid.top;
     bool     isInside = PtInRect (&bounds, p) != FALSE;
     int64_t  now      = (int64_t) GetTickCount64();
-    double   at       = 0.0;
 
 
 
@@ -753,22 +763,6 @@ bool BlockMapView::OnMouse (const DxuiMouseEvent & ev)
 
     if (ev.button != DxuiMouseButton::Left || m_model == nullptr || !m_onSelect)
     {
-        return false;
-    }
-
-    if (ev.kind == DxuiMouseEventKind::Down && isBand && bounds.right > bounds.left)
-    {
-        at = (double) (p.x - bounds.left) / (bounds.right - bounds.left) * m_blockCount;
-
-        for (const BlockBand & band : m_bands)
-        {
-            if (!band.isMap && !band.isNested && band.Contains ((uint32_t) at))
-            {
-                m_onSelect (band.first);
-                return true;
-            }
-        }
-
         return false;
     }
 
@@ -851,8 +845,6 @@ void BlockMapView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     m_isDark      = DiskInspectorPalette::IsDarkSurface (theme.Background());
     m_differsArgb = theme.ErrorForeground();
 
-    PaintBands (painter, text, theme);
-
     painter.PushClip ((float) grid.left, (float) grid.top, (float) (grid.right - grid.left), (float) (grid.bottom - grid.top));
     hr = text.PushClipRect ((float) grid.left, (float) grid.top, (float) (grid.right - grid.left), (float) (grid.bottom - grid.top));
     IGNORE_RETURN_VALUE (hr, S_OK);
@@ -870,66 +862,13 @@ void BlockMapView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BlockMapView::PaintBands
-//
-//  Each partition across the map's width in proportion to its blocks, with
-//  its label, and a partition map's blocks muted. A volume inside a
-//  partition isn't drawn over it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockMapView::PaintBands (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const
-{
-    constexpr float  kTextPadDip = 3.0f;
-
-
-
-    RECT      bounds = GetBounds();
-    float     width  = (float) (bounds.right - bounds.left);
-    float     height = m_scaler.ToPxf (kBandDip);
-    float     count  = (float) std::max<uint32_t> (1, m_blockCount);
-    float     x      = 0.0f;
-    float     w      = 0.0f;
-    float     pad    = m_scaler.ToPxf (kTextPadDip);
-    HRESULT   hr     = S_OK;
-
-
-
-    for (const BlockBand & band : m_bands)
-    {
-        if (band.isNested)
-        {
-            continue;
-        }
-
-        x = bounds.left + width * band.first / count;
-        w = std::max (1.0f, width * band.count / count);
-
-        painter.FillRect    (x, (float) bounds.top, w, height, band.isMap ? theme.BackgroundElevated() : theme.SelectionBackground());
-        painter.OutlineRect (x, (float) bounds.top, w, height, 1.0f, theme.Border());
-
-        if (w > pad * 2)
-        {
-            hr = text.DrawString (band.label.c_str(), x + pad, (float) bounds.top, w - pad * 2, height,
-                                  theme.Foreground(), m_scaler.ToPxf (kFontDip), s_kpszFont,
-                                  DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-            IGNORE_RETURN_VALUE (hr, S_OK);
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  BlockMapView::PaintCells
 //
 //  As the disk inspector's File map grid draws its cells: only those in
 //  view; while blocks are highlighted, every other cell dimmed and a
 //  marching marquee around the highlighted ones; each run of blocks with
-//  its file or structure where the cells have room; the cell under the
+//  its file or structure where the cells have room, the cells of a label
+//  filled as one area without the gaps between them; the cell under the
 //  pointer lit faintly and outlined; and the current block lit by the
 //  shimmer and outlined in the focus ring.
 //
@@ -986,7 +925,7 @@ void BlockMapView::PaintCells (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
         color = GetCellColor (palette, cell);
 
-        if (isRun && color == runArgb && at.top == run.top && at.left == run.right + m_grid.GetGapPx() && m_grid.GetGapPx() == 0)
+        if (isRun && color == runArgb && at.top == run.top && at.left == run.right + m_grid.GetGapPx() && (m_grid.GetGapPx() == 0 || IsSameLabel (cell - 1, cell)))
         {
             run.right = at.right;
             continue;
@@ -1006,6 +945,8 @@ void BlockMapView::PaintCells (IDxuiPainter & painter, IDxuiTextRenderer & text,
     {
         painter.FillRect (left + run.left, top + run.top, (float) (run.right - run.left), (float) (run.bottom - run.top), runArgb);
     }
+
+    PaintLabelGaps (painter, palette, left, top, c0, c1, r0, r1);
 
     for (int r = r0; m_isDiffsShown && r <= r1; r++)
     {
@@ -1060,57 +1001,143 @@ void BlockMapView::PaintCells (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BlockMapView::PaintLabels
+//  BlockMapView::IsSameLabel
 //
-//  Each file or structure in view has its name once, centered on the run of
-//  its cells in a row that is nearest the middle of the view and wide
-//  enough for the name. A run is the cells in a row with the same name.
+//  Whether two cells have the same label, so they are drawn as one area.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BlockMapView::PaintLabels (IDxuiTextRenderer & text, const DiskInspectorPalette & palette, const RECT & grid, float left, float top) const
+bool BlockMapView::IsSameLabel (uint32_t a, uint32_t b) const
 {
-    struct Spot
-    {
-        float     x0       = 0.0f;
-        float     x1       = 0.0f;
-        float     y        = 0.0f;
-        float     height   = 0.0f;
-        uint32_t  cell     = 0;
-        double    distance = 0.0;
-    };
-
-    float                                   pad     = m_scaler.ToPxf (kLabelPadDip);
-    float                                   textPx  = std::min (m_scaler.ToPxf (kFontDip), m_grid.GetCellPx() / 1.6f);
-    float                                   midX    = (grid.left + grid.right) / 2.0f;
-    float                                   midY    = (grid.top + grid.bottom) / 2.0f;
-    int                                     columns = m_grid.GetColumns();
-    int                                     c0      = 0;
-    int                                     c1      = 0;
-    int                                     r0      = 0;
-    int                                     r1      = 0;
-    int                                     first   = 0;
-    int                                     last    = 0;
-    uint32_t                                cell    = 0;
-    RECT                                    from    = {};
-    RECT                                    to      = {};
-    float                                   width   = 0.0f;
-    float                                   height  = 0.0f;
-    std::unordered_map<std::wstring, Spot>  best;
-    Spot                                    spot;
-    HRESULT                                 hr      = S_OK;
+    return a < m_labels.size() && b < m_labels.size() && !m_labels[a].empty() && m_labels[a] == m_labels[b];
+}
 
 
 
-    if (m_labels.empty())
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockMapView::PaintLabelGaps
+//
+//  The gap below each cell is filled where the cell below has the same
+//  label and color, and the corner between four such cells, so a
+//  labeled run of rows is one area.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockMapView::PaintLabelGaps (IDxuiPainter & painter, const DiskInspectorPalette & palette, float left, float top, int c0, int c1, int r0, int r1) const
+{
+    int       columns = m_grid.GetColumns();
+    uint32_t  cell    = 0;
+    uint32_t  below   = 0;
+    uint32_t  color   = 0;
+    RECT      at      = {};
+    RECT      under   = {};
+
+
+
+    if (m_grid.GetGapPx() == 0 || m_labels.empty())
     {
         return;
     }
 
+    for (int r = r0; r < r1; r++)
+    {
+        for (int c = c0; c <= c1; c++)
+        {
+            cell  = (uint32_t) (r * columns + c);
+            below = cell + (uint32_t) columns;
+
+            if (below >= m_grid.GetCellCount() || !IsSameLabel (cell, below) || !m_grid.HasBlocks (cell) || !m_grid.HasBlocks (below))
+            {
+                continue;
+            }
+
+            color = GetCellColor (palette, cell);
+
+            if (color != GetCellColor (palette, below))
+            {
+                continue;
+            }
+
+            at    = m_grid.GetCellRect (cell);
+            under = m_grid.GetCellRect (below);
+
+            painter.FillRect (left + at.left, top + at.bottom, (float) (at.right - at.left), (float) (under.top - at.bottom), color);
+
+            if (c < c1 && IsSameLabel (cell, cell + 1) && IsSameLabel (cell, below + 1) && GetCellColor (palette, cell + 1) == color && GetCellColor (palette, below + 1) == color)
+            {
+                painter.FillRect (left + at.right, top + at.bottom, (float) m_grid.GetGapPx(), (float) (under.top - at.bottom), color);
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockMapView::LabelSpot
+//
+//  A run of cells with the same name in a row, or the same run in rows one
+//  after another, as a rectangle of the view.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct BlockMapView::LabelSpot
+{
+    float     x0      = 0.0f;
+    float     x1      = 0.0f;
+    float     y       = 0.0f;
+    float     height  = 0.0f;
+    uint32_t  cell    = 0;
+    int       lastRow = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockMapView::FindLabelSpots
+//
+//  The runs of labeled cells in view. A run directly below one with the same
+//  name, start and end is added to that one's rectangle, so a tall block of
+//  a file is one spot and its name is centered in the whole block.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockMapView::FindLabelSpots (const RECT & grid, float left, float top, vector<LabelSpot> & outSpots) const
+{
+    int             columns  = m_grid.GetColumns();
+    int             c0       = 0;
+    int             c1       = 0;
+    int             r0       = 0;
+    int             r1       = 0;
+    int             first    = 0;
+    int             last     = 0;
+    uint32_t        cell     = 0;
+    RECT            from     = {};
+    RECT            to       = {};
+    LabelSpot       spot;
+    bool            isJoined = false;
+    vector<size_t>  above;
+    vector<size_t>  here;
+
+
+
+    outSpots.clear();
     GetCellsInView (grid, c0, c1, r0, r1);
 
     for (int row = r0; row <= r1; row++)
     {
+        above.swap (here);
+        here.clear();
+
         for (first = c0; first <= c1; first = last + 1)
         {
             cell = (uint32_t) (row * columns + first);
@@ -1126,38 +1153,113 @@ void BlockMapView::PaintLabels (IDxuiTextRenderer & text, const DiskInspectorPal
                 last++;
             }
 
-            from          = m_grid.GetCellRect (cell);
-            to            = m_grid.GetCellRect (cell + (uint32_t) (last - first));
-            spot.x0       = std::max (left + from.left, (float) grid.left);
-            spot.x1       = std::min (left + to.right, (float) grid.right);
-            spot.y        = top + from.top;
-            spot.height   = (float) (from.bottom - from.top);
-            spot.cell     = cell;
-            spot.distance = std::hypot ((spot.x0 + spot.x1) / 2.0f - midX, spot.y + spot.height / 2.0f - midY);
+            from         = m_grid.GetCellRect (cell);
+            to           = m_grid.GetCellRect (cell + (uint32_t) (last - first));
+            spot.x0      = std::max (left + from.left, (float) grid.left);
+            spot.x1      = std::min (left + to.right, (float) grid.right);
+            spot.y       = top + from.top;
+            spot.height  = (float) (from.bottom - from.top);
+            spot.cell    = cell;
+            spot.lastRow = row;
+            isJoined     = false;
 
-            if (spot.y + spot.height < grid.top || spot.y > grid.bottom || spot.x1 <= spot.x0)
+            for (size_t index : above)
             {
-                continue;
+                LabelSpot  & prior = outSpots[index];
+
+                if (!isJoined && prior.lastRow == row - 1 && prior.x0 == spot.x0 && prior.x1 == spot.x1 && m_labels[prior.cell] == m_labels[cell])
+                {
+                    prior.height  = spot.y + spot.height - prior.y;
+                    prior.lastRow = row;
+                    isJoined      = true;
+                    here.push_back (index);
+                }
             }
 
-            hr = text.MeasureString (m_labels[cell].c_str(), textPx, DxuiTheme::kBodyFace, width, height);
-
-            if (FAILED (hr) || width + 2 * pad > spot.x1 - spot.x0)
+            if (!isJoined)
             {
-                continue;
-            }
-
-            auto  found = best.find (m_labels[cell]);
-
-            if (found == best.end() || spot.distance < found->second.distance)
-            {
-                best[m_labels[cell]] = spot;
+                here.push_back (outSpots.size());
+                outSpots.push_back (spot);
             }
         }
     }
+}
 
-    for (const auto & [label, place] : best)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockMapView::PaintLabels
+//
+//  Each file or structure in view has its name once, centered in the spot
+//  of its cells nearest the middle of the view that is wide enough for the
+//  name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockMapView::PaintLabels (IDxuiTextRenderer & text, const DiskInspectorPalette & palette, const RECT & grid, float left, float top) const
+{
+    float                                     pad      = m_scaler.ToPxf (kLabelPadDip);
+    float                                     textPx   = std::min (m_scaler.ToPxf (kFontDip), m_grid.GetCellPx() / 1.6f);
+    float                                     midX     = (grid.left + grid.right) / 2.0f;
+    float                                     midY     = (grid.top + grid.bottom) / 2.0f;
+    float                                     width    = 0.0f;
+    float                                     height   = 0.0f;
+    float                                     y0       = 0.0f;
+    float                                     y1       = 0.0f;
+    double                                    distance = 0.0;
+    vector<LabelSpot>                         spots;
+    std::unordered_map<std::wstring, size_t>  best;
+    std::unordered_map<std::wstring, double>  nearest;
+    HRESULT                                   hr       = S_OK;
+
+
+
+    if (m_labels.empty())
     {
+        return;
+    }
+
+    FindLabelSpots (grid, left, top, spots);
+
+    for (size_t i = 0; i < spots.size(); i++)
+    {
+        LabelSpot             & spot  = spots[i];
+        const std::wstring    & label = m_labels[spot.cell];
+
+        //  The part of the spot in view, so a name stays on screen.
+        y0          = std::max (spot.y, (float) grid.top);
+        y1          = std::min (spot.y + spot.height, (float) grid.bottom);
+        spot.y      = y0;
+        spot.height = y1 - y0;
+
+        if (spot.height <= 0.0f || spot.x1 <= spot.x0)
+        {
+            continue;
+        }
+
+        hr = text.MeasureString (label.c_str(), textPx, DxuiTheme::kBodyFace, width, height);
+
+        if (FAILED (hr) || width + 2 * pad > spot.x1 - spot.x0)
+        {
+            continue;
+        }
+
+        distance = std::hypot ((spot.x0 + spot.x1) / 2.0f - midX, spot.y + spot.height / 2.0f - midY);
+
+        if (!nearest.contains (label) || distance < nearest[label])
+        {
+            nearest[label] = distance;
+            best[label]    = i;
+        }
+    }
+
+    for (const auto & [label, index] : best)
+    {
+        const LabelSpot  & place = spots[index];
+
         hr = text.DrawString (label.c_str(), place.x0, place.y, place.x1 - place.x0, place.height,
                               DiskInspectorPalette::GetTextColorOn (GetCellColor (palette, place.cell)), textPx, DxuiTheme::kBodyFace,
                               DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);

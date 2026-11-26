@@ -88,7 +88,7 @@ namespace DebuggerCommandTipTests
         using DebuggerWindow::GetMenuBar;
         using DebuggerWindow::GetTooltip;
         using DebuggerWindow::TickTooltip;
-        using DebuggerWindow::SendMouseLeave;
+        using DebuggerWindow::GetMouseRouter;
         using DebuggerWindow::GetCodeList;
         using DebuggerWindow::GetFloatingPanes;
     };
@@ -247,7 +247,7 @@ namespace DebuggerCommandTipTests
             (void) window.TickTooltip ((int64_t) GetTickCount64() + 10000);
             Assert::IsTrue (window.GetTooltip().IsVisible(), L"no tip over Break");
 
-            window.SendMouseLeave();
+            window.GetMouseRouter().SendMouseLeave();
             (void) window.TickTooltip ((int64_t) GetTickCount64() + 20000);
 
             Assert::IsFalse (window.GetTooltip().IsVisible(), L"the tip outlasted the pointer leaving the window");
@@ -291,7 +291,7 @@ namespace DebuggerCommandTipTests
             Assert::IsTrue   (window.GetTooltip().IsVisible(), L"no tip over the disassembly in the debugger window");
             Assert::AreEqual (std::wstring (L"Disassembly"), window.GetTooltip().GetText());
 
-            window.SendMouseLeave();
+            window.GetMouseRouter().SendMouseLeave();
             (void) window.TickTooltip ((int64_t) GetTickCount64() + 20000);
             Assert::IsFalse (window.GetTooltip().IsVisible());
 

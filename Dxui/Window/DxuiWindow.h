@@ -7,10 +7,14 @@
 #include "Window/DxuiHwndSource.h"
 #include "Window/IDxuiHostClient.h"
 #include "Window/IDxuiDialogHost.h"
-#include "Window/DxuiDialogMode.h"
+#include "Window/DxuiDialogController.h"
 #include "Window/DxuiInputFilters.h"
-#include "Window/DxuiPointerTracker.h"
+#include "Core/DxuiPointerPath.h"
 #include "Core/DxuiEvents.h"
+#include "Window/DxuiDialogRunner.h"
+#include "Window/DxuiKeyRouter.h"
+#include "Window/DxuiMouseRouter.h"
+#include "Window/DxuiWindowSizer.h"
 
 
 class DxuiTextInput;
@@ -51,7 +55,13 @@ class DxuiTextInput;
 ////////////////////////////////////////////////////////////////////////////////
 
 
-class DxuiWindow : public DxuiPanel, private IDxuiHostClient, private IDxuiDialogHost
+class DxuiWindow : public DxuiPanel,
+                   private IDxuiHostClient,
+                   private IDxuiDialogHost,
+                   private IDxuiMouseRouterHost,
+                   private IDxuiKeyRouterHost,
+                   private IDxuiWindowSizerHost,
+                   private IDxuiDialogRunnerHost
 {
 public:
     struct CreateParams
@@ -176,7 +186,7 @@ public:
     //  button without a custom SetOnClick auto-closes via EndDialog(its
     //  command id), so plain OK / Cancel / Yes / No need no wiring.
     //
-    int      ShowModalDialog  (int defaultButtonId) { return m_dialog.ShowModal (defaultButtonId); }
+    int      ShowModalDialog  (int defaultButtonId) { return m_dialogRunner.RunModal (defaultButtonId, m_ownerHwnd); }
 
     //
     //  Modeless show. Applies the same dialog behaviors as
@@ -193,8 +203,8 @@ public:
     //  call did not block). Use for a live overlay whose backdrop must
     //  keep animating (e.g. Settings over the running emulator).
     //
-    void  ShowModelessDialog (int defaultButtonId, bool activate = true) { m_dialog.ShowModeless (defaultButtonId, activate); }
-    void  EndDialog          (int result)                                { m_dialog.End (result); }
+    void  ShowModelessDialog (int defaultButtonId, bool activate = true) { m_dialogRunner.ShowModeless (defaultButtonId, activate); }
+    void  EndDialog          (int result) override                       { m_dialogRunner.End (result); }
 
     //
     //  Window-level translucency for a composited window (CreateParams::
@@ -206,21 +216,12 @@ public:
     void     SetComposedOpacity (float opacity);
 
     //
-    //  Dxui's IsDialogMessage equivalent for a modeless dialog. The host's
-    //  shared message loop calls this BEFORE TranslateMessage /
-    //  DispatchMessage; it consumes only the dialog-navigation keys
-    //  (Tab/Shift+Tab, Enter, Escape) for this window, leaving normal text
-    //  input and all other messages to the standard dispatch path.
-    //
-    bool     ProcessDialogMessage (const MSG & msg) { return m_dialog.ProcessMessage (msg); }
-
-    //
     //  Modeless close callback: invoked by EndDialog() with the result
     //  code when a modeless window closes (a command button, Escape, or
     //  content code). The modal path returns the code from
     //  ShowModalDialog instead, so this fires only in the modeless case.
     //
-    void     SetOnDialogEnd (std::function<void (int)> fn) { m_dialog.SetOnEnd (std::move (fn)); }
+    void     SetOnDialogEnd (std::function<void (int)> fn) { m_dialogRunner.SetOnDialogEnd (std::move (fn)); }
 
     //
     //  Keep-alive callback fired on every OS modal move / size loop tick
@@ -256,67 +257,21 @@ public:
     //  nothing, so Enter hits the default button. Call before
     //  ShowModalDialog / ShowModelessDialog.
     //
-    void     SetInitialFocus (IDxuiControl * ctl) { m_dialog.SetInitialFocus (ctl); }
+    void     SetInitialFocus (IDxuiControl * ctl) { m_dialogRunner.SetInitialFocus (ctl); }
 
     //  Moves the dialog's keyboard focus to `ctl` right now (both sides get
     //  their OnFocusChanged), so a host can implement click-to-focus: the
     //  prior control drops its caret / focus cue and the new one arms.
     void     FocusControl    (IDxuiControl * ctl) { m_focus.SetFocused (ctl); }
 
-    //  The map a key-down nothing claimed is looked up in, borrowed; null
-    //  looks nothing up. Swapping it is how an application changes keyboard
-    //  scheme. A match goes to OnMappedCommand.
-    void                SetKeyMap (const DxuiKeyMap * map) { m_keyMap = map; }
-    const DxuiKeyMap *  GetKeyMap () const                 { return m_keyMap; }
+    //  The window's key routing, whose key map a key-down nothing claimed is
+    //  looked up in. A match goes to OnMappedCommand.
+    DxuiKeyRouter &  GetKeyRouter () { return m_keys; }
 
-    //
-    //  Each dimension of size held within [minSize, maxSize], a maximum
-    //  below the minimum giving way to it.
-    //
-    static SIZE  ClampSize (const SIZE & size, const SIZE & minSize, const SIZE & maxSize);
+    //  The window's size limits and its fit to TryGetMaxClientSizePx.
+    using MaxSizeMode = DxuiWindowSizer::MaxSizeMode;
 
-    //
-    //  The window rect at maxPx, cut to the work area and moved only as far
-    //  as it takes to stay inside it.
-    //
-    static RECT  FitRectToMaxSize (const RECT & windowPx, const SIZE & maxPx, const RECT & workPx);
-
-    //
-    //  Grows or shrinks the window to TryGetMaxClientSizePx within its
-    //  monitor's work area. For a window opened before its content was laid
-    //  out.
-    //
-    void     FitToMaxSize ();
-
-    //
-    //  A client size plus the frame around the window's client.
-    //
-    SIZE     AddFrameSizePx (const SIZE & clientPx) const;
-
-    //
-    //  The window rect grown to maxPx in whichever dimension maxPx exceeds
-    //  it, cut to the work area and kept inside it; false when it would not
-    //  grow in either dimension.
-    //
-    static bool  TryGetGrownRect (const RECT & windowPx, const SIZE & maxPx, const RECT & workPx, RECT & outPx);
-
-    //
-    //  The front-most visible text box under a point among the controls under
-    //  `node`, or null.
-    //
-    static DxuiTextInput *  FindTextBoxAt (const IDxuiControl & node, POINT clientPx);
-
-    //
-    //  A key event for the key, with the Shift, Ctrl and Alt keys as they are
-    //  now. Every path to a control, a dialog's included, builds it here.
-    //
-    static DxuiKeyEvent  MakeKeyEvent (DxuiKeyEventKind kind, WPARAM vk);
-
-    //
-    //  Like FitToMaxSize, but never shrinks the window. For content that
-    //  grows while the window is open.
-    //
-    void     GrowToMaxSize ();
+    DxuiWindowSizer &  GetSizer () { return m_sizer; }
 
     bool     IsCreated  () const { return m_source != nullptr; }
     HWND     GetHwnd    () const { return m_source != nullptr ? m_source->GetHwnd() : nullptr; }
@@ -324,17 +279,41 @@ public:
     //
     //  Request a repaint of the window (the backend's WM_PAINT pump
     //  walks this panel tree). Consumers with a per-frame data model
-    //  call this after mutating state.
+    //  call this after mutating state. The window is painted before this
+    //  returns, except between BeginPaintBatch and EndPaintBatch: then it
+    //  is painted once, by the outermost EndPaintBatch.
     //
-    void  Invalidate               ();
+    void  Invalidate               () override;
     void  InvalidateAnimationLayer ();
+
+    //  Every mouse event, key and character is a batch. A subclass makes
+    //  one of its other messages a batch with these two, or with a
+    //  PaintBatch for the length of a scope.
+    void  BeginPaintBatch ();
+    void  EndPaintBatch   ();
+
+    class PaintBatch
+    {
+    public:
+        explicit PaintBatch (DxuiWindow & window) : m_window (window) { m_window.BeginPaintBatch(); }
+        ~PaintBatch () { m_window.EndPaintBatch(); }
+
+        PaintBatch (const PaintBatch &)             = delete;
+        PaintBatch & operator= (const PaintBatch &) = delete;
+
+    private:
+        DxuiWindow  & m_window;
+    };
 
     void                SetTheme           (const IDxuiTheme * theme);
     const IDxuiTheme  * GetTheme           () const { return m_theme; }
     void                SetTitle           (const std::wstring & title, size_t markAt = std::wstring::npos);
+    void                SetTitleChips      (const std::vector<DxuiTitleChip> & chips);
 
-    //  The smallest size the user can resize the window to, as at creation.
-    void                SetMinSizeDip      (const SIZE & sizeDip) { m_minSizeDip = sizeDip; }
+    //  The icon for the taskbar, Alt+Tab and the caption's top left corner.
+    static constexpr int  kCaptionIconPx = 32;
+    void                SetAppIcon         (HICON icon);
+
     int                 GetCaptionHeightPx () const { return m_source != nullptr ? m_source->GetCaptionHeightPx() : 0; }
     UINT                GetDpi             () const { return m_source != nullptr ? m_source->GetScaler().GetDpi() : USER_DEFAULT_SCREEN_DPI; }
 
@@ -349,23 +328,8 @@ public:
 
 
 protected:
-    //  Whether the first key of a two-key chord was pressed and the second
-    //  is awaited.
-    bool  IsKeyPrefixPending () const { return m_keyPrefix.has_value(); }
-
-    //  The pointer left the client area: send the controls a Leave event, at
-    //  a point outside every control, so hover, tips and previews end.
-    //  Not while the left button is down, since a drag goes on outside.
-    void  SendMouseLeave ();
-
-    //  The controls under the pointer, outermost first. Each control the
-    //  pointer moves off, and each on the path when the pointer moves out of
-    //  the window, is sent a move to kNowherePx and a
-    //  DxuiMouseEventKind::Leave event, so a hover can't outlast the pointer,
-    //  however the window routes its input.
-    static constexpr int  kNowherePx = DxuiPointerTracker::kNowherePx;
-
-    void  UpdatePointerPath (POINT clientPx, bool leftWindow) { if (m_pointer.Update (clientPx, leftWindow)) { Invalidate(); } }
+    //  The window's mouse routing.
+    DxuiMouseRouter &  GetMouseRouter () { return m_mouse; }
 
     //
     //  THE TAB ORDER IS A SNAPSHOT of the visible, enabled subtree, taken when
@@ -436,7 +400,7 @@ protected:
     //  plain Tab still does focus traversal. Return true if consumed. Default
     //  no-op (a plain dialog has no page tabs).
     //
-    virtual bool  OnDialogTabSwitch (bool backward) { UNREFERENCED_PARAMETER (backward); return false; }
+    bool  OnDialogTabSwitch (bool backward) override { UNREFERENCED_PARAMETER (backward); return false; }
 
     //
     //  A key-down no control claimed, translated through the key map. Return
@@ -450,16 +414,12 @@ protected:
     //
     virtual bool  OnFilesDropped (const std::vector<std::wstring> & paths) { UNREFERENCED_PARAMETER (paths); return false; }
 
-    //  Looks an unclaimed key up in the map and hands a match to
-    //  OnMappedCommand. DispatchKey calls it after OnKey declines.
-    bool  RouteMappedKey (const DxuiKeyEvent & ev);
-
     //
     //  A dialog key (Tab, an arrow, Enter) was consumed, and `focused` holds
     //  the keyboard focus afterward (null for none). A scrolling window
     //  brings it into view here. Default no-op.
     //
-    virtual void  OnDialogKeyHandled (IDxuiControl * focused) { UNREFERENCED_PARAMETER (focused); }
+    void  OnDialogKeyHandled (IDxuiControl * focused) override { UNREFERENCED_PARAMETER (focused); }
 
     //
     //  The largest client size the user can drag a resizable window to, in
@@ -525,9 +485,9 @@ protected:
     //  blink; a poller (e.g. download progress) sets a faster interval.
     //  Set while a dialog is showing, it takes effect at once.
     //
-    static constexpr UINT  kDefaultDialogTickMs = DxuiDialogMode::kDefaultTickMs;
+    static constexpr UINT  kDefaultDialogTickMs = DxuiDialogRunner::kDefaultDialogTickMs;
 
-    void  SetDialogTickIntervalMs (UINT ms) { m_dialog.SetTickIntervalMs (ms); }
+    void  SetDialogTickIntervalMs (UINT ms) { m_dialogRunner.SetTickIntervalMs (ms); }
 
     //
     //  Tear down the backend (HWND + swap chain). Safe to call from a
@@ -574,48 +534,56 @@ private:
     DxuiMessageResult  OnDropFiles      (HDROP drop) override;
     void               OnDestroy        () override;
 
-    DxuiMessageResult  DispatchMouse (DxuiMouseEventKind kind,
-                                      DxuiMouseButton    button,
-                                      int                x,
-                                      int                y,
-                                      float              wheelDelta,
-                                      bool               wheelHorizontal = false);
-    DxuiMessageResult  DispatchKey       (DxuiKeyEventKind kind, WPARAM code);
-    void               ResizeToMaxSize   (bool growOnly);
+    //  IDxuiMouseRouterHost
+    IDxuiControl &     GetMouseRoot        () override                            { return *this; }
+    HWND               GetMouseHwnd        () const override                      { return GetHwnd(); }
+    bool               RouteOverlayMouse   (const DxuiMouseEvent & ev) override;
+    void               FocusPressedControl (POINT clientPx) override;
+    bool               OpenTextBoxMenu     (POINT clientPx) override              { return TryShowTextBoxMenu (clientPx); }
+    bool               RouteFilteredMouse  (const DxuiMouseEvent & ev) override   { return m_inputFilters.RunMouse (ev); }
+    void               TickDialogMenu      () override;
+    void               BeginMouseBatch     () override                            { BeginPaintBatch(); }
+    void               EndMouseBatch       () override                            { EndPaintBatch(); }
+    void               InvalidateForMouse  () override                            { Invalidate(); }
+
+    //  IDxuiKeyRouterHost
+    HWND               GetKeyHwnd          () const override                      { return GetHwnd(); }
+    bool               RouteFilteredKey    (WPARAM vk) override                   { return m_inputFilters.RunKey (vk); }
+    bool               RouteOverlayKey     (WPARAM vk) override;
+    bool               RouteOverlayChar    (wchar_t ch) override;
+    DxuiPopupMenu *    GetOpenContextMenu  () override;
+    bool               RouteKeyToControls  (const DxuiKeyEvent & ev) override     { return OnKey (ev); }
+    bool               RunMappedCommand    (int commandId) override               { return OnMappedCommand (commandId); }
+    void               BeginKeyBatch       () override                            { BeginPaintBatch(); }
+    void               EndKeyBatch         () override                            { EndPaintBatch(); }
+
+    //  IDxuiWindowSizerHost
+    DxuiHwndSource *   GetSizerSource      () const override                      { return m_source.get(); }
+    bool               GetMaxClientSizePx  (SIZE & outSizePx) const override      { return TryGetMaxClientSizePx (outSizePx); }
+    bool               GetMaxTrackSizePx   (SIZE & outSizePx) const override      { return TryGetMaxTrackSizePx (outSizePx); }
+    void               NotifyWindowPlaced  () override                            { OnWindowPlaced(); }
+
+    //  IDxuiDialogRunnerHost
+    DxuiHwndSource    * GetDialogSource     () const override                      { return m_source.get(); }
+    const IDxuiTheme  * GetDialogTheme      () const override                      { return m_theme; }
+    void                ShowDialogWindow    (bool activate) override               { Show (activate); }
+    void                HideDialogWindow    () override                            { Hide(); }
+    void                NotifyDialogShowing () override                            { OnDialogShowing(); }
+    void                NotifyDialogTick    () override                            { OnDialogTick(); Invalidate(); }
 
     static void        SetTextInputsWindowActive (IDxuiControl * node, bool active);
 
-    //  IDxuiDialogHost: the window and its hooks, for the dialog mode.
-    bool                IsDialogHostCreated     () const override                 { return m_source != nullptr; }
-    HWND                GetDialogHwnd           () const override                 { return GetHwnd(); }
-    HWND                GetDialogOwnerHwnd      () const override                 { return m_ownerHwnd; }
-    const IDxuiTheme  * GetDialogTheme          () const override                 { return m_theme; }
-    void                SetDialogTimer          (UINT ms) override;
-    void                KillDialogTimer         () override;
-    void                ShowDialogWindow        (bool activate) override          { Show (activate); }
-    void                HideDialogWindow        () override                       { Hide(); }
-    void                InvalidateDialog        () override                       { Invalidate(); }
-    bool                TrySendDialogOverlayKey (WPARAM vk) override;
-    void                NotifyDialogShowing     () override                       { OnDialogShowing(); }
-    bool                TrySwitchDialogTab      (bool backward) override          { return OnDialogTabSwitch (backward); }
-    void                NotifyDialogKeyHandled  (IDxuiControl * focused) override { OnDialogKeyHandled (focused); }
-
-
     std::unique_ptr<DxuiHwndSource>    m_source;
-    SIZE                               m_minSizeDip      = { 0, 0 };
-
-    //  True between WM_ENTERSIZEMOVE and WM_EXITSIZEMOVE: while the OS runs
-    //  its own drag loop the geometry changes once per pixel, and the end of
-    //  the loop is the placement. Outside it, one change is one placement.
-    bool                               m_inSizeMove      = false;
     HWND                               m_ownerHwnd       = nullptr;
     const IDxuiTheme                 * m_theme           = nullptr;
-    const DxuiKeyMap                 * m_keyMap          = nullptr;
-    std::optional<DxuiKeyStroke>       m_keyPrefix;                // the first key of a two-key chord, while it waits
     DxuiFocusManager                   m_focus;
-    bool                               m_wheelCtrl       = false;   // Ctrl, by the flags of the wheel message being dispatched
     std::function<void ()>             m_onModalLoopTick;           // OS size/move-loop keep-alive tick
-    DxuiDialogMode                     m_dialog          { *this, *this, m_focus };
+    DxuiDialogController               m_dialog          { *this, m_focus, *this };
+    int                                m_batchDepth      = 0;       // paint batches open, nested ones included
+    bool                               m_paintAfterBatch = false;   // invalidated during the open batch
     DxuiInputFilters                   m_inputFilters;
-    DxuiPointerTracker                 m_pointer         { *this };
+    DxuiMouseRouter                    m_mouse           { *this };
+    DxuiKeyRouter                      m_keys            { *this, m_dialog, m_focus };
+    DxuiWindowSizer                    m_sizer           { *this };
+    DxuiDialogRunner                   m_dialogRunner    { *this, m_dialog, m_keys };
 };

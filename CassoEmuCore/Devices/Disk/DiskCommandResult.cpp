@@ -69,3 +69,20 @@ std::string DiskCommandResult::FormatFailure (
 
     return text;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandResult::FailBadValue
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandResult::FailBadValue (const char * summary)
+{
+    diagnostics    += summary;
+    exitStatus      = kNoOutput;
+    badCommandLine  = true;
+}

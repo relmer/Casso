@@ -26,6 +26,9 @@ Win32RecycleBin::Win32RecycleBin (Win32ShellItemVerbs & verbs)
 //
 //  Win32RecycleBin::GetItemArray
 //
+//  Each item is read again from its volume before its IDList is taken, so
+//  its size and times are current.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Win32RecycleBin::GetItemArray (const std::vector<std::wstring> & paths, IShellItemArray ** outItems)
@@ -42,9 +45,18 @@ HRESULT Win32RecycleBin::GetItemArray (const std::vector<std::wstring> & paths, 
 
     for (const std::wstring & path : paths)
     {
-        PIDLIST_ABSOLUTE  pidl = nullptr;
+        ComPtr<IShellItem2>  item;
+        PIDLIST_ABSOLUTE     pidl    = nullptr;
+        HRESULT              updated = S_OK;
 
-        hr = SHParseDisplayName (path.c_str(), nullptr, &pidl, 0, nullptr);
+        hr = SHCreateItemFromParsingName (path.c_str(), nullptr, IID_PPV_ARGS (&item));
+        CHR (hr);
+
+        //  When the item can't be read again, the parsed data is used.
+        updated = item->Update (nullptr);
+        IGNORE_RETURN_VALUE (updated, S_OK);
+
+        hr = SHGetIDListFromObject (item.Get(), &pidl);
         CHR (hr);
 
         pidls.push_back (pidl);
@@ -131,11 +143,38 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32RecycleBin::GetRecycleFlags
+//
+//  With no prompt, the items on a volume with no Recycle Bin are deleted
+//  at once, as in File Explorer's undo of a copy.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DWORD Win32RecycleBin::GetRecycleFlags (bool hasPrompt)
+{
+    DWORD  flags = FOF_ALLOWUNDO | FOFX_RECYCLEONDELETE | FOFX_ADDUNDORECORD;
+
+
+
+    if (!hasPrompt)
+    {
+        flags |= FOF_NOCONFIRMATION;
+    }
+
+    return flags;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32RecycleBin::Recycle
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Win32RecycleBin::Recycle (HWND owner, const std::vector<std::wstring> & paths)
+HRESULT Win32RecycleBin::Recycle (HWND owner, const std::vector<std::wstring> & paths, bool hasPrompt)
 {
     Win32ShellVerbsTypes::CenterDialogsOver  centered (owner);
     HRESULT                  hr = S_OK;
@@ -150,7 +189,7 @@ HRESULT Win32RecycleBin::Recycle (HWND owner, const std::vector<std::wstring> & 
     hr = CreateOperation (owner, &operation);
     CHR (hr);
 
-    hr = operation->SetOperationFlags (FOF_ALLOWUNDO | FOFX_RECYCLEONDELETE | FOFX_ADDUNDORECORD);
+    hr = operation->SetOperationFlags (GetRecycleFlags (hasPrompt));
     CHR (hr);
 
     hr = operation->DeleteItems (items.Get());

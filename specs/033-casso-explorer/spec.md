@@ -1,6 +1,6 @@
 # Feature Specification: Casso Explorer
 
-**Feature Branch**: `033-cassque`
+**Feature Branch**: `033-casso-explorer`
 
 **Created**: 2026-09-10
 
@@ -614,7 +614,7 @@ hardware.
 - Q: What does the A2Pico do with the card's files that aren't set as drives? -> A: Nothing. ProDOS on the Apple reads only the eight drives' images, as volumes. The firmware's configuration utility on the Apple lists the card's folders and the .po, .hdv and .2mg files in them, for setting a drive, and hides every other file. With the A2retroNET-Link firmware the A2Pico is also a card reader for a PC or a phone over USB, which lists every file. So other files on the card are storage, such as images to switch to.
 - Q: What does an A2Pico card contain, and what are its size limits? -> A: Loose files on one FAT12, FAT16, FAT32 or exFAT volume: `A2retroNET.txt` in the root, and ProDOS block images of up to 32 MB each (65,535 blocks) in the root or in folders, with long file names. Up to eight are drives at one time, and the card can have any number more. The firmware's FatFs build has exFAT and 64-bit block addresses on (`ffconf.h` in FarLeftLane/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico, which its CMakeLists.txt fetches), so the card's size isn't limited by the firmware. It mounts the first volume on the card, so the card has one partition.
 - Q: Is Full Send's raw capture of a likely copy-protected disk a setting in Options? -> A: No. It always happens, and the setting first built for it is removed. A protected disk's sector image rarely runs, so a Full Send without the capture writes an image nobody can use, and a raw capture of a damaged disk assessed alike has more of it than a sector image. The capture's minutes are the cost. The Full Send page's intro is rewritten: many protections are detected and imaged, and Capture raw disk is for the rest.
-- Q: Is an image an A2Pico can't read converted as it is copied to the card? -> A: Yes, after a question (owner, 2026-11-13): "A2Pico doesn't support users.dsk. Would you like to convert it to users.po?" On a yes the copy on the card is replaced by the .po, and the file it was copied from isn't touched. The question follows a copy, paste or drop in Casso Explorer once Windows has finished writing the file. An image copied in File Explorer, or left after a no, has the Write as .po infobar, which writes the .po beside it.
+- Q: Is an image an A2Pico can't read converted as it is copied to the card? -> A: No (owner, 2026-11-21). A question after the copy came first (2026-11-13) and was dropped: the infobar is enough. An image with a ProDOS volume in a form A2retroNET doesn't read, copied in Casso Explorer or File Explorer, has the Convert to .po infobar, which replaces it with the .po.
 - Q: Why did the buttons in the infobars above the list take no clicks, and how is that prevented? -> A: Casso Explorer's window routes the mouse to each pane in ExplorerInput::HandleMouse, one line of code per pane, and a control with no line there was offered nothing. A control made with the window's CreateChild is now offered the mouse where it is, with nothing more written, and a pane that routes its controls makes them with CreatePaneRoutedChild (owner, 2026-11-13). Moving each pane's routing into its controls waits on DxuiListView, which takes its events relative to its origin where other controls take the window's coordinates. Changing that compiles on every branch with a list view and breaks its clicks without an error, so it isn't done on 033 (owner, 2026-11-13). It is a change for master, with the entry point renamed so a caller that translates the event fails to compile, and the panes are converted after it. Master took the change (`903227701`), and the panes' controls were converted after 033 merged it: a pane sets a mouse handler for each of its controls, which ExplorerInput calls in place of the control's OnMouse (owner, 2026-11-13). The window's bars followed in T718, with mouse capture: while a bar has a menu open, or the rename box a rename, ExplorerInput offers it every event first, and an event it doesn't take goes on to the control under the pointer, as Windows' capture does for a popup that closes on a click outside it (owner, 2026-11-13).
 - Q: Does Initialize card's adapter list have "I'm not sure"? -> A: No (owner, 2026-11-13). It listed every adapter's support at once, which wasn't useful. The list starts on the adapter chosen last, or CFFA3000 the first time.
 - Q: Where is a Full Send's progress on the PC? -> A: In a Full Send window, since one line in the status bar can't list both drives, the disks done and the time left. It opens without taking focus when a session starts, and closing it doesn't end the session. It has a state line with what the session is doing or what it waits for, a panel per drive with the disk's title, a track map, a progress bar, the time elapsed and the time left, the session's totals, a list of the disks done, and an activity list with each event's time. The status bar has a one-line summary, and a click on it opens the window.
@@ -699,6 +699,31 @@ hardware.
 - Q: Which audio encoding does Casso's cassette link use? -> A: An encoding designed in Casso, and ADTPro's audio client is served besides by ADTPro's encoding (owner, 2026-11-17: "go with option 2"). ADTPro's protocol document has nothing on its audio encoding, so that encoding comes from recordings of ADTPro 2.1.0's audio client and server, never from ADTPro's source (FR-096). Casso's encoding doesn't wait on that work, and an error in ADTPro's affects ADTPro's client alone.
 - Q: Is a failed track sent again whole, or only its failed sectors? -> A: Only its failed sectors (owner, 2026-11-17: "per-sector retries are fine"). A track is about 15 seconds of audio, so each sector has a CRC in the track's packet, and the reply lists those that failed.
 - Q: What does Casso's audio encoding have to tolerate? -> A: Each bit is one full cycle, 500 microseconds for a 0 and 1,000 for a 1, as the monitor's tape format has, so an offset comparator, an inverted cable and resampling at 44.1 or 48 kHz don't change a bit; a turn starts with a tone and a mark that data can't contain; and the Apple's side is half duplex, sending what it has put when it next waits for a byte. The scenario tests run each direction through resampling, filtering, noise, inverted polarity, an offset threshold and jitter.
+
+### Session 2026-11-24
+
+- Q: Where does a 140K, 400K or 800K block image go, since the SCSI card's
+  drive rejects those sizes as floppies? -> A: On a UniDisk 3.5 (owner,
+  2026-11-24): a UniDisk 3.5 interface card in slot 7 of a model with slots,
+  replacing the copy's slot 7 card so the image boots before slot 6's empty
+  Disk II stops the search; the //c's disk port; the //c Plus's internal
+  drive. The Apple ][ isn't a host of that card, so it reports the image. A
+  hard disk image on a //c is reported, since its disk port takes 3.5-inch
+  and 5.25-inch drives only.
+- Q: How does a disk image opened from File Explorer or Casso Explorer
+  boot, without changing the user's machines? -> A: In a temporary copy of
+  a stock machine (owner, 2026-11-24). `--launch <image>` copies the stock
+  configuration, changes it so the image can be mounted, and never saves
+  it; `--machine` picks the stock model, Apple2eEnhanced by default. An Open
+  on submenu offers the other models. Names weighed: `--ephemeral` was
+  rejected as obscure, `--class` and `--model` in favor of the existing
+  `--machine`. A saved "launch machine" in the picker was weighed and
+  dropped for the temporary copy, which never goes out of date.
+- Q: Is .d13 registered, and what labels go in File Explorer? -> A: .d13 is
+  registered, since Casso swaps in the Disk II's 13-sector ROM, which the ROM
+  download fetches with the 16-sector one, so a 13-sector disk boots without BOOT13 (owner,
+  2026-11-24). File Explorer's submenu is "Open in Casso on", since its menu
+  lists other programs' rows; Casso Explorer's is "Open on".
 
 ## User Scenarios & Testing *(mandatory)*
 ### User Story 1 - Browse and inspect a disk (Priority: P1)
@@ -2061,6 +2086,13 @@ interpreter's.
 4. **Given** an Infocom saved game, **When** it is selected, **Then** the
    story's release and serial number, the score, the moves and the room are
    listed.
+5. **Given** an Ultima III player disk or an Ultima IV Disk C, **When** its
+   saved game is selected, **Then** the roster is listed, and the world map
+   is drawn with the party's position marked.
+6. **Given** an Ultima V Britannia disk, or a player disk of Ultima I: The
+   Beginning, Ultima II or the 1981 Ultima, **When** its saved game is
+   selected, **Then** the characters are listed with their position, and
+   the Britannia disk's world map is drawn with the party marked.
 
 ---
 
@@ -2199,7 +2231,9 @@ The owner has no A2Pico, so nothing is checked on the hardware.
 1. **Given** a FAT volume with `A2retroNET.txt` in its root, **When** it is
    listed, **Then** it is labeled as an A2Pico card, and its drives are
    listed with their number, image and size, and write-protected for a
-   read-only file. A CFFA card is a raw card of ProDOS partitions and is
+   read-only file. The infobar at the card's root reads `This A2Pico card
+   is using N of its M drives.`, with each problem on a line of its own. A
+   CFFA card is a raw card of ProDOS partitions and is
    never listed this way. The card's kind is read from its content at each
    open and isn't saved on the PC.
 2. **Given** a drive whose image is missing or isn't a form the firmware
@@ -2207,12 +2241,16 @@ The owner has no A2Pico, so nothing is checked on the hardware.
    listed, **Then** the problem is listed with the drive, and Repair
    rewrites the file with LF line ends.
 3. **Given** a disk image copied to an A2Pico card, **When** a drive is
-   free, **Then** Casso Explorer offers to set it as that drive. **When** it
+   free, **Then** the infobar offers to set it as that drive, as it does for a
+   selected image the firmware reads that isn't a drive. **When** it
    has a block volume in a form the firmware doesn't read, as a ProDOS
    volume in a DOS-order `.dsk` or a `.2mg` with a longer header, **Then**
-   Casso Explorer offers to write it as a `.po`. An image with no block
-   volume, as a DOS 3.3 disk or a WOZ, is copied as it is and can't be set
-   as a drive.
+   the infobar offers to write it as a `.po`, with no question after the copy:
+   `Only .po images can be mounted as drives. Convert "zork.dsk" to .po?`,
+   or `Convert 3 images to .po?` for several, with Convert to .po.
+   The `.po` replaces the image, and a drive set to the image is set to the
+   `.po`. An image with no block volume, as a DOS 3.3 disk or a WOZ, is
+   copied as it is and can't be set as a drive.
 4. **Given** an image set as a drive, **When** it is renamed or moved on
    the card in Casso Explorer, **Then** the drive's path is updated.
    **When** it is deleted, **Then** the confirmation lists the drive, and
@@ -2341,6 +2379,54 @@ as they arrive.
     number.
 11. **Given** an image is deleted in Casso Explorer, **When** the delete is
     done, **Then** its thumbnail is removed with it.
+
+### User Story 44 - Open a disk image without changing a saved machine (Priority: P1)
+
+A user double-clicks a disk image in File Explorer, or chooses Open in
+Casso in Casso Explorer, and the image boots in a temporary copy of a stock
+machine. The user's machines, with their cards, drives and remembered disks,
+are as they left them afterward.
+
+**Why this priority**: Opening a file used to put it in drive 1 of the
+user's current machine, which changed that machine's remembered disk, and a
+block image couldn't be opened at all: the card or port that takes it
+depends on the machine, and a file type's command is fixed. On 2026-11-24 the owner chose a
+temporary machine for every open from File Explorer or Casso Explorer.
+
+**Independent Test**: Note each saved machine's configuration. Double-click
+a .dsk, a .woz, an 800K .2mg and a .hdv in File Explorer; each boots. Choose
+Open on > Apple //c for each. Close every window: every saved machine is as
+it was.
+
+**Acceptance Scenarios**:
+
+1. **Given** a 5.25-inch image, **When** it is opened from File Explorer,
+   **Then** it boots in drive 1 of a temporary enhanced //e, and the title
+   bar indicates the machine is temporary.
+2. **Given** a block image, **When** it is opened from File Explorer,
+   **Then** it boots from the SCSI card of a temporary enhanced //e.
+3. **Given** any image, **When** Open on > Apple //c is chosen, **Then** a
+   block image boots from the disk port and a 5.25-inch image from the
+   built-in drive.
+4. **Given** a model with nowhere to mount the image, **When** it is
+   chosen, **Then** Casso reports why and doesn't boot.
+5. **Given** a temporary machine, **When** its settings are changed and it
+   is closed, **Then** no configuration file is written.
+6. **Given** a build that registered the types before this change, **When**
+   it next starts, **Then** every type opens with `--launch`.
+7. **Given** a block image, **When** Open on > Apple ][ is chosen, **Then**
+   the temporary copy gets a language card in slot 0 and a hard disk card,
+   and boots; if the hard disk card can't run on a 6502, Casso reports why
+   and doesn't boot.
+
+**Edge cases for this story**:
+
+- **A block image on a 48K machine**: the stock Apple ][ and ][+ have no
+  language card, and ProDOS requires 64K. The temporary copy gets one in slot
+  0, as most real ][ and ][+ owners added.
+- **A card that requires a 65C02**: a hard disk card whose firmware uses 65C02
+  instructions isn't added to a 6502 machine; Casso reports that the model
+  can't take the image instead of booting a machine that hangs.
 
 ### Edge Cases
 
@@ -3911,8 +3997,7 @@ as they arrive.
   partition, or a card with no table, MUST appear as a storage card node.
   Administrator access MUST be requested only when the user first opens a
   storage card node, and once per Casso Explorer session. A tab restored at
-  launch MUST NOT request it. Each command that writes to a card MUST be
-  confirmed once, with the drive's model and size.
+  launch MUST NOT request it.
 - **FR-243**: Raw access MUST run in a separate elevated broker program that
   opens only storage cards: removable media on a USB, SD or MMC bus, with no
   Windows, boot, page file, hibernation or BitLocker volume. Hard disks,
@@ -4154,8 +4239,90 @@ as they arrive.
   allows: the story's release and serial number, the score, the moves and
   the room, read from the saved memory's header, globals and objects. The
   story's grammar, globals and Z-code MUST NOT be listed.
-- **FR-242**: Every format and protocol in FR-190 to FR-241 MUST be
+- **FR-304**: An Ultima IV saved game, the `ROST` and `PRTY` files on
+  Disk C, MUST be drawn as the roster: each character's name, class, sex,
+  status, hit points, level, experience, strength, dexterity,
+  intelligence, armor and weapon. The party's food, gold, virtues,
+  reagents, keys, stones and runes MUST also be listed. The world map MUST
+  be read from tracks 0 to 15 of Disk C and drawn with the party's
+  position from `PRTY` marked. A copy out MUST write one RTF file, with
+  the map as a picture in it.
+- **FR-305**: An Ultima III player disk MUST be recognized by its roster
+  sectors, since it has no catalog, and MUST be drawn as the roster: each
+  character's name, race, class, sex, status, stats, hit points, food,
+  gold, equipment and marks. The world map MUST be read from the player
+  disk itself and drawn with the party's position marked. A copy out MUST
+  write one RTF file, with the map as a picture in it.
+- **FR-306**: An Ultima V Britannia disk, a ProDOS disk with `ROSTER`
+  and `PRTY.DATA`, MUST be drawn as the party and the rest of the roster:
+  each character's name, class, sex, status, stats, hit points, magic
+  points, level and experience, then food, gold and the game's date. The
+  world map MUST be read from blocks 152 to 279 of the same disk and drawn
+  with the party's position marked.
+- **FR-307**: A player disk of Ultima I: The Beginning, a ProDOS disk with
+  `U1.VARS`, MUST be drawn as the character: name, race, class, sex, hit
+  points, the six stats, gold, food, position, readied weapon and armor,
+  and inventory. When the game disk, a ProDOS disk whose `GEN` file has
+  the four continents, is in the same host folder, the player's continent
+  MUST be drawn with the player marked.
+- **FR-310**: The game disk of Ultima I: The Beginning MUST be drawn as its
+  four continents, each by name, with a legend of the tiles. The preview's
+  switch MUST label this view "Map", not "Saved game".
+- **FR-308**: An Ultima II player disk MUST be recognized by its character
+  at track 4 sector 8, since it has no readable catalog, and MUST be drawn
+  as the character: name, race, class, sex, hit points, food, gold, the
+  six stats and position.
+- **FR-309**: A player disk of the 1981 Ultima MUST be recognized by its
+  catalog file `NAME=<character>` and the Applesoft variables the game
+  saves as the file `BEVERY`, and MUST be drawn as the character: name,
+  race, class, hit points, food, gold, experience, the six stats and
+  position. The player's continent MUST be drawn from the file
+  `BTERRA<n>`, n being the variable `FA`, with the player marked. Those
+  files are in a second catalog the game keeps outside the VTOC's chain.
+- **FR-242**: Every format and protocol in FR-190 to FR-241 and FR-304 to
+  FR-310 MUST be
   implemented by the rule FR-171 sets.
+- **FR-311**: Casso MUST take `--launch <image>`: it copies a stock machine
+  configuration in memory, changes the copy so the image can be mounted,
+  and boots it. The copy MUST NOT be saved, and settings changed during
+  that session MUST NOT be written back. The title bar MUST indicate that
+  the machine is temporary.
+- **FR-312**: With `--launch`, `--machine <id>` MUST pick the stock machine
+  copied: Apple2, Apple2Plus, Apple2e, Apple2eEnhanced, Apple2c or
+  Apple2cPlus, and the Apple /// once Casso emulates it. It MUST NOT refer to
+  a saved machine of the user's. Without it, Apple2eEnhanced is copied.
+- **FR-313**: A 5.25-inch image MUST go in drive 1. A 140K, 400K or 800K
+  block image MUST go on a UniDisk 3.5: on a model with slots, a UniDisk 3.5
+  interface card in slot 7 of the copy, where the Apple II looks first; on
+  the //c, the disk port's first drive; on the //c Plus, the internal 3.5-inch
+  drive. Any other block image MUST go on the copy's SCSI card, or on one
+  added to slot 7 when it has none; the //c's disk port takes no hard disk,
+  so Casso reports it there. When the model has nowhere to
+  mount the image, Casso MUST report why and MUST NOT boot. The placement
+  MUST be computed from the image and the configuration alone, so unit
+  tests can check every model and image size.
+- **FR-314**: Every registered disk image type MUST open with
+  `"Casso.exe" --launch "%1"`: .dsk, .do, .po, .woz, .nib, .nb2 and .d13,
+  and the block types .2mg, .2img, .hdv, .dc, .dc42 and .image. A 13-sector
+  image boots on the Disk II's 13-sector ROM, which Casso swaps in for it.
+  A registration
+  made at startup by an earlier build MUST be updated on the next start.
+- **FR-315**: File Explorer's menu for these types and Casso Explorer's
+  context menu for a disk image MUST have an Open on submenu with one row
+  per stock model, each passing `--machine`. Every row MUST be listed for
+  every image; a model that can't take the image reports why when chosen.
+- **FR-316**: Casso Explorer's Open in Casso MUST launch with `--launch`.
+- **FR-317**: The proposed UI text MUST be approved by the owner before it
+  ships: the submenu label, "Open in Casso on" in File Explorer and "Open
+  on" in Casso Explorer; the model rows ("Apple ][", "Apple ][+", "Apple
+  //e", "Apple //e Enhanced", "Apple //c", "Apple //c Plus"); the title bar suffix "(temporary)"; the `--launch` and `--machine` help
+  lines; and the notices in contracts/temporary-launch.md.
+- **FR-318**: Placement MUST check the model as well as the slots. For a
+  block image on a machine with less than 64K, the temporary copy MUST get a
+  language card in slot 0. A hard disk card MUST NOT be added to a 6502
+  machine when its firmware requires a 65C02; Casso then reports that the model
+  can't take the image. Unit tests MUST include the Apple ][ and ][+ with
+  a block image.
 
 ### Key Entities
 
@@ -4453,6 +4620,13 @@ as they arrive.
   window's thread doesn't stall for more than 100 ms while the level fills.
 - **SC-078**: With the region set to German (Germany), block 47790 is
   written as 47.790 and a Go to of 47.790 steps to it.
+- **SC-079**: A double-click on each of the 13 registered disk image types
+  in File Explorer boots it in a temporary machine within 5 seconds, and
+  afterward every saved machine's configuration file is byte-identical to
+  its copy from before the launch.
+- **SC-080**: Each row of the Open on submenu boots an image on that model,
+  or reports why that model can't take it, for a 5.25-inch image, an 800K
+  image and a 32 MB image.
 
 ## Assumptions
 

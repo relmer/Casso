@@ -8,6 +8,7 @@
 
 class DxuiScrollbar;
 class DxuiTextLayout;
+class DxuiTextPictures;
 class DxuiTextViewSelection;
 class IDxuiTextInputHost;
 class IDxuiTextScroller;
@@ -22,8 +23,9 @@ class IDxuiTextScroller;
 //
 //  A text view's mouse and keys: the wheel and the keys scroll, a press and
 //  a drag select by character, a double-click by word and a triple-click
-//  all of it, and a click on a link follows it. Copy and Select all are the
-//  view's standard commands.
+//  all of it, and a click on a link follows it. Ctrl with the wheel zooms a
+//  zoomable picture, and a drag pans it. Copy and Select all are the view's
+//  standard commands.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,7 +42,8 @@ public:
                        DxuiTextViewSelection        & selection,
                        IDxuiTextScroller            & scroller,
                        DxuiScrollbar                & vertBar,
-                       DxuiScrollbar                & horzBar) : m_host (host), m_layout (layout), m_selection (selection), m_scroller (scroller), m_vertBar (vertBar), m_horzBar (horzBar) {}
+                       DxuiScrollbar                & horzBar,
+                       DxuiTextPictures             & pictures) : m_host (host), m_layout (layout), m_selection (selection), m_scroller (scroller), m_vertBar (vertBar), m_horzBar (horzBar), m_pictures (pictures) {}
 
     bool  OnMouse       (const DxuiMouseEvent & ev);
     bool  OnKey         (const DxuiKeyEvent & ev);
@@ -65,6 +68,7 @@ private:
     IDxuiTextScroller      & m_scroller;
     DxuiScrollbar          & m_vertBar;
     DxuiScrollbar          & m_horzBar;
+    DxuiTextPictures       & m_pictures;
     Position                 m_lastClick;
     int64_t                  m_lastClickMs  = 0;
     int                      m_clicks       = 0;      // the clicks in a row on one spot, each within the double-click time

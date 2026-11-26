@@ -579,6 +579,11 @@ void ShellWindow::UpdateWindowTitle()
         title += wideName;
     }
 
+    if (m_shell.m_machine.GetConfig().isTemporary)
+    {
+        title += L" (temporary)";
+    }
+
 #if defined (_DEBUG)
     // Say it outright. The build-identity stamp below appears on debug builds
     // ONLY, so its presence was already the signal -- but that is a fact about

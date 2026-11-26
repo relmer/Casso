@@ -155,6 +155,9 @@ struct HardwareEntry
     std::vector<std::string>  portImages;
     std::vector<bool>         portRealTiming;
 
+    // A hard disk card runs Casso's block firmware in place of Apple's ROM.
+    bool  cassoFirmware = false;
+
     // A Super Serial Card's DIP switches as "on off ..." text, and the host
     // file its first connector's attachment uses. Empty for every other card,
     // and BuildJson does not write the slot's keys while they are empty.
@@ -224,6 +227,9 @@ struct SettingsMachineInfo
     // Annunciator outputs on the game socket, so the Controllers page offers
     // the Joyport. False on the //c.
     bool                                 supportsGamePortAdapter = false;
+    // The most Apple 3.5 Drives and 5.25-inch drives the disk port takes.
+    int                                  diskPortApple35         = 0;
+    int                                  diskPortFloppies        = 0;
 };
 
 
@@ -398,6 +404,13 @@ public:
     void                      AddDiskPortDrive    (const std::string & device);
     void                      RemoveDiskPortDrive (const std::string & device, size_t nth);
 
+    // Every drive plugged into the disk port, in chain order, whichever way
+    // the machine's document records it: a lone 5.25-inch drive is the
+    // port's device, and any other set is the port's chain. Setting the
+    // drives sorts them into chain order and records them the same way.
+    std::vector<std::string>  GetDiskPortDrives   () const;
+    void                      SetDiskPortDrives   (std::vector<std::string> drives);
+
     // What a //c serial port, 1 or 2, connects to, where the ImageWriter II is
     // attached, the Super Serial Card and the Uthernet II: see
     // SettingsConnectors.
@@ -425,6 +438,7 @@ public:
     // A hard disk's real timing switch, by hardware entry and port. Fails on
     // a port without a drive that has the switch.
     HRESULT SetPortRealTiming (size_t index, size_t port, bool isOn);
+    HRESULT SetCassoFirmware  (size_t index, bool isOn);
 
     // The Machine tab's storage card edits; see SlotCards. Each takes a
     // machine reset to apply.
@@ -435,6 +449,8 @@ public:
     HRESULT                      SetSlotPortImage (int slot, size_t port, const std::string & path);
     HRESULT                      AddChainDrive    (size_t index, std::wstring & outError) { return SlotCards::AddChainDrive (m_current.hardware, index, outError); }
     HRESULT                      RemoveChainDrive (size_t index, size_t port) { return SlotCards::RemoveChainDrive (m_current.hardware, index, port); }
+    HRESULT                      SetPortDrive     (size_t index, size_t port, const std::string & device) { return SlotCards::SetPortDrive (m_current.hardware, index, port, device); }
+    HRESULT                      SetChainCount    (size_t index, size_t count) { return SlotCards::SetChainCount (m_current.hardware, index, count); }
 
     // An image on a port of the machine rather than of a card, such as the
     // //c Plus's internal 3.5-inch drive. Not found when the machine has no
@@ -474,6 +490,7 @@ private:
     static constexpr const char *  kpszPortPathKey   = "path";
     static constexpr const char *  kpszPortImageKey  = "image";
     static constexpr const char *  kpszPortTimingKey = "realTiming";
+    static constexpr const char *  kpszCassoFirmwareKey = "cassoFirmware";
     static constexpr const char *  kpszPortBeforeKey = "beforePrinter";
     static constexpr const char *  kpszPortPathBeforeKey = "pathBeforePrinter";
     static constexpr const char *  kpszSwitchesKey   = "switches";
@@ -494,6 +511,11 @@ private:
 
     static int          GetChainRank   (const std::string & device);
     static std::string  GetChainDevice (const JsonValue & entry);
+
+    static std::vector<std::string>  ReadDiskPortChain (const std::vector<SettingsMachinePort> & ports);
+
+    // The staged disk port, when this sheet changed its drives.
+    std::optional<SettingsMachinePort>  GetChangedDiskPort () const;
 
     void  EditDiskPortChain (const std::function<void (std::vector<JsonValue> &)> & edit);
 

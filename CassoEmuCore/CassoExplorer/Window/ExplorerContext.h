@@ -9,11 +9,15 @@ class CassoExplorerBrowser;
 class CassoExplorerCommands;
 class CassoLinkConnections;
 class CassoLinkDriveManager;
+class CassoLinkListActions;
 class CassoLinkManager;
 class GivenNames;
 class IDiskPictures;
+class IImageRecords;
 class ExplorerAddressBar;
 class ExplorerCommandManager;
+class ExplorerImageTools;
+class ExplorerVerbs;
 class ExplorerDragDrop;
 class ExplorerClipboard;
 class ExplorerTransferPrompts;
@@ -38,6 +42,7 @@ class ExplorerToolbars;
 class ExplorerTreePane;
 class FirewallMonitor;
 class FullSendWindowManager;
+class CassoLinkJobManager;
 class IExplorerWindow;
 class IFolderWatcher;
 class IHostDialogs;
@@ -53,6 +58,7 @@ struct PickerRequest;
 struct PickerOutcome;
 class ExplorerPickerMode;
 class ExplorerPickerBar;
+class ExplorerPickerSearch;
 
 
 
@@ -83,6 +89,7 @@ public:
     PhysicalCards              * cards       = nullptr;   // without it, no card can be opened
     IDiskPictures              * pictures    = nullptr;   // without it, a disk image has the floppy icon in every view
     GivenNames                 * givenNames  = nullptr;   // without it, a renamed image's name isn't stored for its disk's fingerprint
+    IImageRecords              * records     = nullptr;   // without it, every image is read each time it's listed or previewed
     const PickerRequest        * picker      = nullptr;   // with it, the window is a picker for this request
     PickerOutcome              * outcome     = nullptr;   // where a picker's confirm puts the path
 };
@@ -121,13 +128,17 @@ public:
     ExplorerFolderSync          & folderSync;
     CassoLinkManager            & cassoLinkManager;
     CassoLinkDriveManager       & linkDrives;
+    CassoLinkListActions        & linkListActions;
     FullSendWindowManager       & fullSendWindows;
+    CassoLinkJobManager         & linkJobs;
     ExplorerDragDrop            & dragDrop;
     ExplorerTabManager          & tabManager;
     ExplorerPreviewManager      & preview;
     ExplorerAddressBar          & addressBar;
     ExplorerMenus               & menus;
     ExplorerCommandManager      & commandManager;
+    ExplorerVerbs               & verbs;
+    ExplorerImageTools          & imageTools;
     ExplorerClipboard           & clipboard;
     ExplorerTransferPrompts     & prompts;
     ExplorerDeletion            & deletion;
@@ -145,6 +156,7 @@ public:
     ExplorerTreePane            & treePane;
     ExplorerPickerMode          & pickerMode;
     ExplorerPickerBar           & pickerBar;
+    ExplorerPickerSearch        & pickerSearch;
 
     //  Whether the window is a picker, which lists and chooses and changes
     //  no file.

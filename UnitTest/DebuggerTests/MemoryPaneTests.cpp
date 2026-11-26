@@ -106,17 +106,17 @@ namespace DebuggerTests
             window.regions = std::vector<MemoryRegion> (16, MemoryRegion::MainRam);
             pane.Apply (window);
 
-            view.SetEditable (true);
+            view.GetSourceEdit().SetEditable (true);
             Assert::IsTrue   (view.GetSource()->WriteBytes (0x0300, typed));
             Assert::AreEqual ((size_t) 1, sent.size());
 
             //  A running machine: the window is not editable, and the edit
             //  stays on the undo list for when it is.
-            view.SetEditable (false);
+            view.GetSourceEdit().SetEditable (false);
             Assert::IsFalse  (pane.Undo(), L"nothing is undone while the window cannot edit");
             Assert::AreEqual ((size_t) 1, sent.size(), L"and no PATCH is sent");
 
-            view.SetEditable (true);
+            view.GetSourceEdit().SetEditable (true);
             Assert::IsTrue   (pane.Undo(), L"the edit is still there to undo");
             Assert::AreEqual (std::string ("PATCH 0300 11"), sent.back());
         }

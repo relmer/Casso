@@ -71,7 +71,7 @@ public:
         //  Mounts a blank disk, starts history and sets the breakpoints.
         void Prepare (std::initializer_list<const char *> breakpoints, Word start)
         {
-            std::vector<Byte>  blank (NibblizationLayer::kImageByteSize, 0);
+            std::vector<Byte>  blank (NibbleFormat::kImageByteSize, 0);
 
 
 

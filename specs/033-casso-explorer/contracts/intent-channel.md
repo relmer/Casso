@@ -1,6 +1,6 @@
 # Contract: Intent channel additions and process launch
 
-**Feature**: 033-cassque | **Date**: 2026-09-10
+**Feature**: 033-casso-explorer | **Date**: 2026-09-10
 
 Extends `CassoEmuCore/Seams/Win32IntentChannel` and adds a process seam.
 

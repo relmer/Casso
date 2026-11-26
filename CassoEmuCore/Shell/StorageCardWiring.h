@@ -44,6 +44,9 @@ public:
 private:
     void  AddChainDrives (const PortConfig & port, SmartPortHost & host);
 
+    template <typename TCard>
+    void  UseCassoFirmware (const SlotConfig & slot, TCard & card, const wchar_t * cardName);
+
     MachineBuilder        & m_builder;
     MachineHost           & m_host;
     MachineBuildServices  & m_services;

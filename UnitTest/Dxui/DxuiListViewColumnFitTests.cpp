@@ -1,4 +1,4 @@
-#include "Pch.h"
+﻿#include "Pch.h"
 #include "MockDxuiPainter.h"
 #include "MockDxuiTextRenderer.h"
 #include "MockDxuiTheme.h"
@@ -244,6 +244,90 @@ public:
 
 
 
+    TEST_METHOD (ASinglePressOnADividerFitsNothing)
+    {
+        Fixture  f;
+
+        f.Build (L"a-name-wider-than-the-column-was-given.txt");
+        f.Paint();
+
+        f.PressDivider();
+        f.Paint();
+
+        Assert::AreEqual (-1, f.list.GetColumnOverrideWidthPx (0),
+                          L"One press starts a drag rather than fitting");
+    }
+
+
+    //  The rows draw by GDI's advances, so the columns are fitted by them too:
+    //  a name measured by DirectWrite's narrower advances would be cut short.
+    TEST_METHOD (AFittedColumnShowsItsWidestNameWhole)
+    {
+        MockDxuiPainter                               painter;
+        MockDxuiTextRenderer                          text;
+        MockDxuiTheme                                 theme;
+        DxuiListView                                  list;
+        DxuiDpiScaler                                 scaler;
+        std::vector<std::vector<DxuiListView::Cell>>  data;
+        bool                                          whole = false;
+
+        scaler.SetDpi (96);
+        text.SetGdiGlyphWidth (9.0f);
+
+        data.push_back ({ DxuiListView::Cell { L"HardPressed.CDV", false } });
+
+        list.SetColumns        ({ DxuiListView::Column { L"Name", 0 } });
+        list.SetShowHeader     (true);
+        list.SetPreciseAutoFit (true);
+        list.SetRows           (std::move (data));
+        list.Layout            (RECT { 0, 0, 600, 400 }, scaler);
+        list.Paint             (painter, text, theme);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            whole = whole || (call.kind == RecordedTextKind::DrawString && call.text == L"HardPressed.CDV");
+        }
+
+        Assert::IsTrue (whole, L"the name is drawn whole");
+    }
+
+    //  A requested fit is measured by GDI's advances too, so the values of a
+    //  fixed column fitted to them are drawn whole.
+    TEST_METHOD (AFitAskedForShowsTheWidestValueWhole)
+    {
+        static constexpr int  kSizeDip = 80;
+
+        MockDxuiPainter                               painter;
+        MockDxuiTextRenderer                          text;
+        MockDxuiTheme                                 theme;
+        DxuiListView                                  list;
+        DxuiDpiScaler                                 scaler;
+        std::vector<std::vector<DxuiListView::Cell>>  data;
+        bool                                          whole = false;
+
+        scaler.SetDpi (96);
+        text.SetGdiGlyphWidth (9.0f);
+
+        data.push_back ({ DxuiListView::Cell { L"120 bytes", false } });
+
+        list.SetColumns    ({ DxuiListView::Column { L"Size", kSizeDip } });
+        list.SetShowHeader (true);
+        list.SetRows       (std::move (data));
+        list.Layout        (RECT { 0, 0, 600, 400 }, scaler);
+
+        list.AutoFitColumnToContent (0);
+        list.Paint (painter, text, theme);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            whole = whole || (call.kind == RecordedTextKind::DrawString && call.text == L"120 bytes");
+        }
+
+        Assert::IsTrue (whole, L"the size is drawn whole");
+    }
+
+
+
     //  Keeps every text measured, so a test can tell which cells were.
     class CountingTextRenderer : public MockDxuiTextRenderer
     {
@@ -326,22 +410,6 @@ public:
         list.Paint   (painter, text, theme);
 
         Assert::AreEqual (4, text.CountMeasured (L"\x2192"), L"an arrow is measured however short");
-    }
-
-
-
-    TEST_METHOD (ASinglePressOnADividerFitsNothing)
-    {
-        Fixture  f;
-
-        f.Build (L"a-name-wider-than-the-column-was-given.txt");
-        f.Paint();
-
-        f.PressDivider();
-        f.Paint();
-
-        Assert::AreEqual (-1, f.list.GetColumnOverrideWidthPx (0),
-                          L"One press starts a drag rather than fitting");
     }
 
 
@@ -503,6 +571,7 @@ public:
 
         Assert::IsTrue (after > before, L"wider by the icon and its gap");
     }
+
 
     //  With grow-to-visible-rows on, a row set after the first paint whose
     //  text measures wider than the column grows it at the next paint: the

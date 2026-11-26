@@ -5,6 +5,7 @@
 #include "CassoLink/CassoLinkHost.h"
 #include "CassoLink/Session/CassoLinkBlockTransfer.h"
 #include "CassoLink/Session/CassoLinkResume.h"
+#include "CassoLink/Session/LinkImageSource.h"
 #include "Devices/Disk/Containers/TwoImgContainer.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -206,6 +207,7 @@ namespace CassoLinkBlockTransferTests
             CassoLinkBlockDevice            device = MakeDevice();
             CassoLinkBlockTransfer::Result  result;
             std::string                     image  = "C:\\Images\\Big.po";
+            FileImageSource                 source (io, image);
             uint32_t                        next   = 0;
 
 
@@ -215,17 +217,46 @@ namespace CassoLinkBlockTransferTests
             blocks.dropAt   = kDropAt;
 
             Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_CONNECTION_ABORTED),
-                              CassoLinkBlockTransfer::WriteDevice (blocks, io, device, image, true, true, nullptr, nullptr, result));
+                              CassoLinkBlockTransfer::WriteDevice (blocks, io, device, source, true, true, nullptr, nullptr, result));
 
             blocks.dropAt = UINT32_MAX;
 
             Assert::IsTrue  (CassoLinkBlockTransfer::FindResume (blocks, io, device, image, false, next));
-            AssertSucceeded (CassoLinkBlockTransfer::WriteDevice (blocks, io, device, image, true, true, nullptr, nullptr, result));
+            AssertSucceeded (CassoLinkBlockTransfer::WriteDevice (blocks, io, device, source, true, true, nullptr, nullptr, result));
 
             Assert::AreEqual (next, result.firstBlock);
             Assert::AreEqual ((uint64_t) kBlocks, blocks.blocksSent, L"Every block written once across both");
             Assert::IsTrue   (blocks.disk == io.files[image], L"The device has the image");
             Assert::IsFalse  (io.files.contains (CassoLinkResume::GetRecordPath (image)));
+        }
+
+
+        //  An image in memory has no record: no file is written when the link
+        //  drops a write, and the next write starts at the first block.
+        TEST_METHOD (AWriteFromMemoryTheLinkDrops_StartsOver)
+        {
+            FakeDiskFileIo                  io;
+            FakeBlocks                      blocks;
+            CassoLinkBlockDevice            device = MakeDevice();
+            CassoLinkBlockTransfer::Result  result;
+            MemoryImageSource               source ("Big.po", MakeDisk());
+
+
+
+            blocks.disk.assign ((size_t) kBlocks * kBlock, 0);
+            blocks.dropAt = kDropAt;
+
+            Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_CONNECTION_ABORTED),
+                              CassoLinkBlockTransfer::WriteDevice (blocks, io, device, source, true, true, nullptr, nullptr, result));
+            Assert::IsTrue  (io.files.empty(), L"No record");
+
+            blocks.dropAt = UINT32_MAX;
+
+            AssertSucceeded (CassoLinkBlockTransfer::WriteDevice (blocks, io, device, source, true, true, nullptr, nullptr, result));
+
+            Assert::AreEqual ((uint32_t) 0, result.firstBlock);
+            Assert::IsTrue   (blocks.disk == MakeDisk(), L"The device has the image");
+            Assert::IsTrue   (io.files.empty(), L"No record");
         }
 
 

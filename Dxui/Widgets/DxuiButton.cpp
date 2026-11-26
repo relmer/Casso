@@ -243,11 +243,23 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
         std::wstring   drawn = DxuiTextElide::ToWidth (text, m_label, fontDip, DxuiTheme::GetUiFace(),
                                                        (float) (m_boundsDip.right - m_boundsDip.left),
                                                        m_elide);
+        float          textL = (float) m_boundsDip.left;
+
+        //  Centered: the text, its underline and its ring start where the
+        //  centered run does.
+        if (m_isLinkCentered)
+        {
+            float  runW = 0.0f;
+            float  runH = 0.0f;
+
+            text.MeasureString (drawn.c_str(), fontDip, DxuiTheme::GetUiFace(), runW, runH);
+            textL += (std::max) (0.0f, ((float) (m_boundsDip.right - m_boundsDip.left) - runW) / 2.0f);
+        }
 
         hr = text.DrawString (drawn.c_str(),
-                              (float) m_boundsDip.left,
+                              textL,
                               (float) m_boundsDip.top,
-                              (float) (m_boundsDip.right  - m_boundsDip.left),
+                              (float) m_boundsDip.right - textL,
                               (float) (m_boundsDip.bottom - m_boundsDip.top),
                               linkColor,
                               fontDip,
@@ -264,7 +276,7 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
             float  runH = 0.0f;
 
             text.MeasureString (drawn.c_str(), fontDip, DxuiTheme::GetUiFace(), runW, runH);
-            painter.FillRect ((float) m_boundsDip.left, ((float) (m_boundsDip.top + m_boundsDip.bottom) + runH) / 2.0f, runW, m_scaler.ToPxf (1.0f), linkColor);
+            painter.FillRect (textL, ((float) (m_boundsDip.top + m_boundsDip.bottom) + runH) / 2.0f, runW, m_scaler.ToPxf (1.0f), linkColor);
         }
 
         //
@@ -277,8 +289,8 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
         if (m_focused && m_focusCueVisible)
         {
             DxuiFocusRing::AroundRun (painter, text, drawn, fontDip, DxuiTheme::GetUiFace(),
-                                      (float) m_boundsDip.left,
-                                      (float) m_boundsDip.left,
+                                      textL,
+                                      textL,
                                       (float) m_boundsDip.top,
                                       (float) (m_boundsDip.bottom - m_boundsDip.top),
                                       0.0f,

@@ -214,7 +214,7 @@ HRESULT FileFormatTable::Export (const DecodedFile & file, std::vector<Byte> & o
     switch (file.kind)
     {
         case DecodedFile::Kind::Document:
-            RtfWriter::Write (file.paragraphs, outBytes);
+            RtfWriter::Write (FlattenRecordTables (file.paragraphs), outBytes);
             break;
 
         case DecodedFile::Kind::Grid:

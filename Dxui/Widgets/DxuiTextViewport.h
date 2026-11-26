@@ -3,6 +3,8 @@
 #include "Pch.h"
 #include "Core/DxuiDpiScaler.h"
 
+class DxuiTextPictures;
+
 
 
 
@@ -40,4 +42,6 @@ struct DxuiTextViewport
     int              highlightCell  = 0;
     int              hoverRow       = -1;     // the link under the pointer, -1 for none
     int              hoverSpan      = -1;
+
+    const DxuiTextPictures  * pictures = nullptr;   // draws the rows' pictures
 };

@@ -1,10 +1,12 @@
 #include "Pch.h"
 
 #include "../EhmTestHelper.h"
+#include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/Inspector/DiskAnalyzer.h"
 #include "Devices/Disk/Inspector/FileMap/FileMap.h"
 #include "Devices/Disk/Inspector/TrackAnalyzer.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "../Dxui/MockDxuiPainter.h"
 #include "../Dxui/MockDxuiTextRenderer.h"
 #include "Ui/DiskInspector/FileMapGridView.h"
@@ -33,18 +35,19 @@ TEST_CLASS (InspectorTipTests)
 {
 public:
 
-    static constexpr double  kOneCell = 1e-6;
+    static constexpr double  kOneCell      = 1e-6;
+    static constexpr int     kEmptyRing    = DiskImage::kQuarterTrackCount - 1;   // empty on a .dsk, beyond the head's reach
 
 
 
     static void AnalyzeDsk (DiskAnalysis & out)
     {
-        vector<Byte>  sectors (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>  sectors (NibbleFormat::kImageByteSize, 0);
         DiskImage     image;
 
 
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, image));
+        AssertSucceeded (Nibblizer::NibblizeDsk (sectors, image));
         DiskAnalyzer::Analyze (DiskCopy::MakeFromImage (image, 7, "test", 0, false), DecodeSettings::MakeStandard(), out);
     }
 
@@ -154,8 +157,33 @@ public:
         tip = InspectorTip::BuildPlatterTip (context, 68, turn, kOneCell, true);
         Assert::IsTrue (tip.GetText().find (L"\nNibble $96 at offset $") != std::wstring::npos, tip.GetText().c_str());
 
-        tip = InspectorTip::BuildPlatterTip (context, DiskImage::kQuarterTrackCount - 1, 0.5, kOneCell, false);
+        analysis.entries[kEmptyRing].isBeyondHeadReach = false;   // an empty ring within reach
+        tip = InspectorTip::BuildPlatterTip (context, kEmptyRing, 0.5, kOneCell, false);
         Assert::IsTrue (tip.GetText().ends_with (L"\nNothing recorded\nThe drive reads random bits here"), tip.GetText().c_str());
+    }
+
+
+
+    //  An empty ring beyond the head's reach has no random bits to read: its
+    //  tip has the line for a track outside the head's range, and its swatch
+    //  is the dimmed empty color the platter draws there.
+    TEST_METHOD (AnEmptyRingBeyondTheHeadsReach_IsMarkedAsBeyondIt)
+    {
+        DiskAnalysis           analysis;
+        InspectorViewContext   context;
+        InspectorTip           tip;
+        uint32_t               dim = 0;
+
+
+
+        analysis = GetDsk();
+        context.analysis = &analysis;
+        dim = context.palette.colors.beyondReach;
+        tip = InspectorTip::BuildPlatterTip (context, kEmptyRing, 0.5, kOneCell, false);
+
+        Assert::IsTrue   (tip.GetText().ends_with (L"\nTrack outside the range of Disk II's read/write head"), tip.GetText().c_str());
+        Assert::AreEqual (static_cast<size_t> (1), tip.GetSwatches().size());
+        Assert::AreEqual (DxuiColor::Mix (context.palette.colors.nothingRecorded, dim | 0xFF000000u, static_cast<float> (dim >> 24) / 255.0f), tip.GetSwatches()[0].argb);
     }
 
 
@@ -215,7 +243,8 @@ public:
         Assert::AreEqual (std::wstring (L"Data field"), GetLine (tip.GetText(), tip.GetSwatches()[0].line));
         Assert::AreEqual (context.palette.GetKindColor (PlatterKind::DataField), tip.GetSwatches()[0].argb);
 
-        tip = InspectorTip::BuildPlatterTip (context, DiskImage::kQuarterTrackCount - 1, 0.5, kOneCell, false);
+        analysis.entries[kEmptyRing].isBeyondHeadReach = false;   // an empty ring within reach
+        tip = InspectorTip::BuildPlatterTip (context, kEmptyRing, 0.5, kOneCell, false);
         Assert::AreEqual (static_cast<size_t> (1), tip.GetSwatches().size());
         Assert::AreEqual (std::wstring (L"Nothing recorded"), GetLine (tip.GetText(), tip.GetSwatches()[0].line));
         Assert::AreEqual (context.palette.colors.nothingRecorded, tip.GetSwatches()[0].argb);
@@ -397,6 +426,62 @@ public:
         }
 
         Assert::IsTrue (byteTip == L"Byte $10\nA match for the search \"q\"" || byteTip == L"Byte $11\nA match for the search \"q\"", byteTip.c_str());
+    }
+
+
+    TEST_METHOD (TheSectorBytesAreTypedInTheHexViewWhileEditing)
+    {
+        DiskAnalysis           analysis;
+        InspectorViewModel     model;
+        InspectorViewContext   context;
+        EditController         edits;
+        const TrackAnalysis  * track  = nullptr;
+        DxuiTheme              theme  = DxuiTheme::Dark();
+        DxuiDpiScaler          scaler;
+        MockDxuiPainter        painter;
+        MockDxuiTextRenderer   text;
+        DxuiKeyEvent           ev     = {};
+        std::wstring           reason;
+        int                    edit   = -1;
+
+
+
+        analysis = GetDsk();
+        track    = analysis.tracks[analysis.entries[68].slot].get();
+
+        model.SetDisk      (1);
+        model.SetAnalysis  (&analysis);
+        model.SelectSector (68, 0);
+        context.analysis = &analysis;
+        context.model    = &model;
+        context.hasDisk  = true;
+        context.edits    = &edits;
+
+        SectorsView  bytes (context);
+
+        bytes.Layout ({ 0, 0, 900, 700 }, scaler);
+        bytes.Paint  (painter, text, theme);
+
+        edit = edits.Begin (*track, 68, 0, reason);
+        Assert::IsTrue (edit >= 0, reason.c_str());
+
+        model.SelectBytes (4, 1, false);
+        ev.kind = DxuiKeyEventKind::Char;
+        ev.vk   = L'C';
+
+        Assert::IsFalse (bytes.OnEditKey (ev), L"typing doesn't edit until Edit");
+
+        bytes.SetEditing (true);
+        bytes.Paint      (painter, text, theme);
+
+        for (wchar_t ch : { L'C', L'3' })
+        {
+            ev.vk = ch;
+            Assert::IsTrue (bytes.OnEditKey (ev));
+        }
+
+        Assert::AreEqual ((int) 0xC3, (int) edits.GetEdit (edit).bytes[4], L"two hex digits set one byte");
+        Assert::AreEqual (5, model.GetFirstByte(), L"the caret moves on to the next byte");
     }
 
 

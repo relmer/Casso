@@ -189,7 +189,7 @@ void CollectionWalk::WalkBytes (const std::string & path, const std::string & na
         return;
     }
 
-    isFilled = layout == PartitionLayoutKind::Cffa || layout == PartitionLayoutKind::FocusDrive
+    isFilled = layout == PartitionLayoutKind::Apm || layout == PartitionLayoutKind::Cffa || layout == PartitionLayoutKind::FocusDrive
             || layout == PartitionLayoutKind::MicroDrive || layout == PartitionLayoutKind::Ppm;
 
     if (isLoaded && !isFilled && (kind != VolumeKind::Unknown || parts.empty()))
@@ -467,7 +467,7 @@ void CollectionWalk::WalkDirectory (const IVolume & volume, VolumeKind kind, con
 
 bool CollectionWalk::IsContainerName (const std::string & name)
 {
-    return HasExtension (name, ".zip") || HasExtension (name, ".gz") || TreeModel::IsSupportedImage (TextEncoding::NarrowToWide (name));
+    return HasExtension (name, ".zip") || HasExtension (name, ".gz") || HostFolderReader::IsSupportedImage (TextEncoding::NarrowToWide (name));
 }
 
 

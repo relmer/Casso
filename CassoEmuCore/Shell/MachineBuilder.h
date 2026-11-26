@@ -177,6 +177,7 @@ public:
 private:
 
     void  WireParallelPrinter   (const SlotConfig & slot, PrinterCard & card);
+    void  WireDisk2Roms         (class RomDevice & device, const SlotConfig & slot);
     void  WireSuperSerialCard   (const SlotConfig & slot, SuperSerialCard & card);
     void  AttachSerialEndpoint  (const SlotConfig & slot, SuperSerialCard & card);
 

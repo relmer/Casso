@@ -88,8 +88,8 @@ public:
                                                        L"Bootstrap the Apple on the connection's menu, and Casso Explorer types a small loader "
                                                        L"into the Apple at this speed. Transfers then run at the transfer speed.";
     static constexpr const wchar_t *  kFolderNote    = L"ADTPro's client reads and writes disk images in this folder and its subfolders only.";
-    static constexpr const wchar_t *  kDrivesNote    = L"Booted on the Apple, a CassoLink ProDOS disk adds two drives in a slot with no card. "
-                                                       L"They read and write these disk images on this PC.";
+    static constexpr const wchar_t *  kDrivesNote    = L"Boot a CassoLink virtual drives disk on the Apple to get two virtual drives, "
+                                                       L"which read and write the disk images below over the CassoLink connection.";
     static constexpr const wchar_t *  kSoundNote     = L"Turn this PC's output most of the way up. The level is red when the Apple's "
                                                        L"output is too quiet to read or loud enough to clip.";
     static constexpr const wchar_t *  kHandshakeTip = L"Start with it off. Many null-modem cables do not connect RTS and CTS, or "
@@ -246,7 +246,7 @@ public:
 
     //  Picks a disk image for a virtual drive, starting at the image given;
     //  false when none is picked.
-    using BrowseImageFn = std::function<bool (HWND owner, std::wstring & inOutImage)>;
+    using BrowseImageFn = std::function<bool (HWND owner, int drive, std::wstring & inOutImage)>;
 
     //  Runs the dialog modally over `owner`, starting from `initial`.
     //  otherNames are the other links', which this one's must differ from,
@@ -264,7 +264,7 @@ private:
     void               Revalidate        ();
     void               ShowTransportRows ();
     void               FitToContent      ();
-    void               BrowseImage       (DxuiTextInput & field);
+    void               BrowseImage       (int drive, DxuiTextInput & field);
     void               UpdateLevel       ();
 
     const IDxuiTheme           * m_theme          = nullptr;

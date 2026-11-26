@@ -1,13 +1,16 @@
 #include "Pch.h"
+#include "Devices/Disk/DiskImage.h"
 #include "EhmTestHelper.h"
 #include "FakeDiskFileIo.h"
 #include "FixtureProvider.h"
 #include "GuestSession.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "TestMachine.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "MachineIdle.h"
 #include "HResultAssert.h"
@@ -338,8 +341,8 @@ public:
         SectorDecodeReport  report;
         std::vector<Byte>   sectors;
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (bytes, image));
-        AssertSucceeded (NibblizationLayer::Denibblize (image, DiskFormat::Dsk, sectors, report));
+        AssertSucceeded (Nibblizer::NibblizeDsk (bytes, image));
+        AssertSucceeded (Denibblizer::Denibblize (image, DiskFormat::Dsk, sectors, report));
 
         return sectors;
     }

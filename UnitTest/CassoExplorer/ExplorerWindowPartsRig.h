@@ -31,7 +31,6 @@
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 
 
@@ -123,6 +122,19 @@ struct ExplorerWindowPartsRig
         {
             narrow.push_back ((char) *p);
         }
+
+        io.files[narrow]  = bytes;
+        io.stamps[narrow] = FileStamp { bytes.size(), 100 };
+    }
+
+    //  Bytes at a path on the in-memory host.
+    void  SeedBytes (const std::vector<Byte> & bytes, const wchar_t * path)
+    {
+        std::string  narrow = TextEncoding::WideToNarrow (path);
+
+
+
+        AssertSucceeded (fs.WriteAllText (path, std::string (bytes.begin(), bytes.end())));
 
         io.files[narrow]  = bytes;
         io.stamps[narrow] = FileStamp { bytes.size(), 100 };

@@ -364,6 +364,25 @@ public:
             L"Keyboard type should be 'apple2-uppercase'");
     }
 
+    TEST_METHOD (Load_IsTemporaryKey_Ignored)
+    {
+        std::string            json  = MinimalJson();
+        MachineConfig          config;
+        std::string            error;
+        std::vector<fs::path>  paths = { "/mock" };
+        size_t                 brace = json.find ('{');
+        HRESULT                hr    = S_OK;
+
+
+
+        json.insert (brace + 1, R"( "isTemporary": true,)");
+
+        hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll, config, error);
+
+        AssertSucceeded (hr);
+        Assert::IsFalse (config.isTemporary, L"a config file can't mark a machine temporary");
+    }
+
     TEST_METHOD (Load_VideoConfig_Parsed)
     {
         std::string   json = MinimalJson();

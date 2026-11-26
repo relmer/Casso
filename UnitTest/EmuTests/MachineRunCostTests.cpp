@@ -6,7 +6,7 @@
 #include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "FakeDiskFileIo.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -115,7 +115,7 @@ public:
 
     static void MountPatternDisk (TestMachine & machine)
     {
-        std::vector<Byte>  raw (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  raw (NibbleFormat::kImageByteSize, 0);
         HRESULT            hr = S_OK;
         size_t             i  = 0;
 

@@ -12,7 +12,7 @@
 #include "Devices/Disk/DiskFieldFormat.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Machines/Apple2/Common/IDisk2EventSink.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -197,7 +197,7 @@ namespace DiskReadProbeTests
 
             for (int physical = 0; physical < kSectorsPerTrack; physical++)
             {
-                if (NibblizationLayer::GetDosFileIndexForPhysicalSector (physical) == logical)
+                if (SectorInterleave::GetDosFileIndexForPhysicalSector (physical) == logical)
                 {
                     found = physical;
                     break;

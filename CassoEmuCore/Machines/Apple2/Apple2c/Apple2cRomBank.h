@@ -62,6 +62,8 @@ public:
 
     static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('R', 'O', 'M', 'C');
     static constexpr uint16_t  kStateVersion = 1;
+    vector<Byte> GetMainBankPage   (Word address) const;
+    void         PatchMainBankPage (Word address, const vector<Byte> & data);
 
 private:
     void ApplyBank     (int bank);
@@ -76,6 +78,7 @@ private:
     static constexpr size_t  kLcRomSize      = 0x3000;      // $D000-$FFFF
     static constexpr size_t  kCxxxOffset     = kCxxxStart  - kBankImageStart;   // $0100
     static constexpr size_t  kLcRomOffset    = kLcRomStart - kBankImageStart;   // $1000
+    static constexpr size_t  kPageSize       = 0x0100;
 
     LanguageCard &  m_lc;
     Apple2eMmu   &  m_mmu;

@@ -30,7 +30,7 @@ public:
     LPCWSTR                   GetCursorForPoint  (POINT clientPx) const;
     void                      SetFocusPane       (ExplorerPane pane);
     ExplorerPane              GetFocusPane       () const { return m_focus; }
-    bool                      HasCaretFocus      () const { return m_focus == ExplorerPane::Search || m_focus == ExplorerPane::GoTo || m_focus == ExplorerPane::LocationSearch || m_focus == ExplorerPane::PickerName; }
+    bool                      HasCaretFocus      () const { return m_focus == ExplorerPane::Search || m_focus == ExplorerPane::GoTo || m_focus == ExplorerPane::LocationSearch || m_focus == ExplorerPane::PickerName || m_focus == ExplorerPane::PickerSearch; }
     FocusStop                 GetFocusStop       () const;
     void                      SetFocusStop       (const FocusStop & stop);
     std::vector<FocusStop>    BuildFocusStops    () const;
@@ -65,5 +65,6 @@ private:
     bool               m_overControl      = false;     // the pointer was over one of those controls at the last move
     int                m_toolbarFocus     = 0;
     int                m_commandBarFocus  = 0;
+    int                m_pickerButton     = 0;         // the picker bar's focused button, left to right
     float              m_iconWheelNotches = 0.0f;   // a touchpad's part notches of Ctrl with the wheel, until they make one
 };

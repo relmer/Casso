@@ -156,9 +156,9 @@ HRESULT MachineStateStream::LoadStateSeating (StateReader & reader, bool isOverM
 
     //  Each mounted disk's tracks may have changed under it, so a viewer
     //  analyzes it again.
-    for (slot = 0; slot < DiskImageStore::kSlotCount; slot++)
+    for (slot = 0; slot < DiskBayTable::kSlotCount; slot++)
     {
-        for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+        for (drive = 0; drive < DiskBayTable::kDriveCount; drive++)
         {
             m_disks.NoteStateRestored (slot, drive);
         }
@@ -331,7 +331,7 @@ HRESULT MachineStateStream::ReadPictureHeader (
     bool          hasPrng     = false;
     uint64_t      prngState   = 0;
     uint32_t      i           = 0;
-    size_t        bayCount    = (size_t) DiskImageStore::kSlotCount * DiskImageStore::kDriveCount;
+    size_t        bayCount    = (size_t) DiskBayTable::kSlotCount * DiskBayTable::kDriveCount;
     size_t        ownLength   = m_name.size();
     uint64_t      ownRom      = m_parts.GetRomIdentity();
 
@@ -487,9 +487,9 @@ void MachineStateStream::WriteStateHeader (StateWriter & writer, size_t partCoun
     writer.WriteUInt64 (m_parts.GetRomIdentity());
     writer.WriteUInt64 (MachineHardwareIdentity::Get (m_config));
 
-    for (slot = 0; slot < DiskImageStore::kSlotCount; slot++)
+    for (slot = 0; slot < DiskBayTable::kSlotCount; slot++)
     {
-        for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+        for (drive = 0; drive < DiskBayTable::kDriveCount; drive++)
         {
             writer.WriteUInt64 (m_disks.GetMediaId (slot, drive));
         }
@@ -621,11 +621,11 @@ bool MachineStateStream::CanSeatMedia (const MediaIds & mediaIds) const
 
 
 
-    for (slot = 0; slot < DiskImageStore::kSlotCount; slot++)
+    for (slot = 0; slot < DiskBayTable::kSlotCount; slot++)
     {
-        for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+        for (drive = 0; drive < DiskBayTable::kDriveCount; drive++)
         {
-            canSeat = canSeat && m_disks.CanSeatMedia (slot, drive, mediaIds[slot * DiskImageStore::kDriveCount + drive]);
+            canSeat = canSeat && m_disks.CanSeatMedia (slot, drive, mediaIds[slot * DiskBayTable::kDriveCount + drive]);
         }
     }
 
@@ -654,11 +654,11 @@ bool MachineStateStream::AreBaysAsSaved (const MediaIds & mediaIds) const
 
 
 
-    for (slot = 0; slot < DiskImageStore::kSlotCount; slot++)
+    for (slot = 0; slot < DiskBayTable::kSlotCount; slot++)
     {
-        for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+        for (drive = 0; drive < DiskBayTable::kDriveCount; drive++)
         {
-            wasLoaded = mediaIds[slot * DiskImageStore::kDriveCount + drive] != 0;
+            wasLoaded = mediaIds[slot * DiskBayTable::kDriveCount + drive] != 0;
             isSame    = isSame && wasLoaded == m_disks.IsMounted (slot, drive);
         }
     }
@@ -690,11 +690,11 @@ HRESULT MachineStateStream::SeatMedia (const MediaIds & mediaIds)
 
 
 
-    for (slot = 0; slot < DiskImageStore::kSlotCount; slot++)
+    for (slot = 0; slot < DiskBayTable::kSlotCount; slot++)
     {
-        for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+        for (drive = 0; drive < DiskBayTable::kDriveCount; drive++)
         {
-            hr = m_disks.SeatMedia (slot, drive, mediaIds[slot * DiskImageStore::kDriveCount + drive], isChanged);
+            hr = m_disks.SeatMedia (slot, drive, mediaIds[slot * DiskBayTable::kDriveCount + drive], isChanged);
             CHR (hr);
         }
     }

@@ -160,6 +160,163 @@ const Microcode * PascalCodefile::GetNmosTable()
 void PascalCodefile::AddLine (DecodedFile & ioFile, const std::string & line)
 {
     ioFile.lines.push_back (TextEncoding::NarrowToWide (line));
+    ioFile.paragraphs.push_back (StyleLine (line));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PascalCodefile::StyleLine
+//
+//  An instruction line is an offset of four hex digits and two spaces, the
+//  bytes as pairs of hex digits, the mnemonic and the operand. A segment's
+//  heading is bold, and any other line is plain.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Paragraph PascalCodefile::StyleLine (const std::string & line)
+{
+    Paragraph  paragraph;
+    size_t     at       = line.find_first_not_of (' ');
+    bool       isCode   = at != std::string::npos && IsHex (line, at, 4) && line.compare (at + 4, 2, "  ") == 0;
+    size_t     mnemonic = 0;
+    size_t     end      = 0;
+
+
+
+    if (!isCode)
+    {
+        AddRun (paragraph, line, RunColor::Text, line.starts_with ("Segment "));
+        return paragraph;
+    }
+
+    //  The bytes run to the first word that isn't two hex digits or the
+    //  two dots of bytes cut off.
+    mnemonic = at + 4;
+
+    for (;;)
+    {
+        size_t  word = line.find_first_not_of (' ', mnemonic);
+        bool    pair = word != std::string::npos && (IsHex (line, word, 2) || line.compare (word, 2, "..") == 0)
+                       && (word + 2 == line.size() || line[word + 2] == ' ');
+
+        if (!pair)
+        {
+            mnemonic = (word == std::string::npos) ? line.size() : word;
+            break;
+        }
+
+        mnemonic = word + 2;
+    }
+
+    end = line.find (' ', mnemonic);
+    end = (end == std::string::npos) ? line.size() : end;
+
+    AddRun (paragraph, line.substr (0, mnemonic), RunColor::Muted);
+    AddRun (paragraph, line.substr (mnemonic, end - mnemonic), RunColor::Keyword);
+    StyleOperand (line.substr (end), paragraph);
+
+    return paragraph;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PascalCodefile::StyleOperand
+//
+//  A quoted string is a string; # and what follows it, a value of $ and
+//  two hex digits, or a decimal number, a number; an address of $ and four
+//  hex digits, a jump table entry or a name, a label; and spaces, commas and
+//  parentheses plain.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PascalCodefile::StyleOperand (const std::string & operand, Paragraph & ioParagraph)
+{
+    size_t  at = 0;
+
+
+
+    while (at < operand.size())
+    {
+        char      first = operand[at];
+        size_t    end   = at + 1;
+        RunColor  color = RunColor::Text;
+
+        if (first == '\'')
+        {
+            end   = operand.find ('\'', at + 1);
+            end   = (end == std::string::npos) ? operand.size() : end + 1;
+            color = RunColor::String;
+        }
+        else if (first == ' ' || first == ',' || first == '(' || first == ')')
+        {
+            end = operand.find_first_not_of (" ,()", at);
+            end = (end == std::string::npos) ? operand.size() : end;
+        }
+        else
+        {
+            end = operand.find_first_of (" ,()", at);
+            end = (end == std::string::npos) ? operand.size() : end;
+
+            color = (first == '#')                                    ? RunColor::Number
+                  : (first == '$' && end - at == 5)                   ? RunColor::Label
+                  : (first == '$')                                    ? RunColor::Number
+                  : (isdigit ((unsigned char) first) || first == '-') ? RunColor::Number
+                                                                      : RunColor::Label;
+        }
+
+        AddRun (ioParagraph, operand.substr (at, end - at), color);
+        at = end;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PascalCodefile::AddRun
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PascalCodefile::AddRun (Paragraph & ioParagraph, const std::string & text, RunColor color, bool bold)
+{
+    if (!text.empty())
+    {
+        ioParagraph.runs.push_back (Run { TextEncoding::NarrowToWide (text), bold, false, false, color });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PascalCodefile::IsHex
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PascalCodefile::IsHex (const std::string & text, size_t at, size_t count)
+{
+    bool  isHex = at + count <= text.size();
+
+
+
+    for (size_t i = 0; isHex && i < count; i++)
+    {
+        isHex = isxdigit ((unsigned char) text[at + i]) != 0;
+    }
+
+    return isHex;
 }
 
 
@@ -500,6 +657,8 @@ HRESULT PascalCodefile::Decode (std::span<const Byte> bytes, const FileFacts & f
     {
         outFile.notes.push_back (L"The segment dictionary is empty.");
     }
+
+    outFile.kind = DecodedFile::Kind::Document;
 
     return S_OK;
 }

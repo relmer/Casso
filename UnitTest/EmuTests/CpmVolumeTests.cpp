@@ -23,7 +23,6 @@
 #include "Devices/Disk/FilePath.h"
 #include "Machines/Apple2/Common/CpmVolume.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
@@ -247,7 +246,9 @@ public:
         PutEntry (image, 1, 0, "TWO     COM", 0, 8, { 3 });
         PutEntry (image, 2, 0, "THREE   COM", 0, 8, { 4 });
 
-        Assert::IsTrue (CpmVolume::IsFound (image));
+        Assert::IsFalse (CpmVolume::IsFound (image));
+        Assert::IsTrue  (CpmVolume::IsFoundLenient (image));
+        Assert::IsTrue  (VolumeImage::DetectFilesystem (image) == VolumeKind::Cpm);
 
         {
             VolumeListing  listing;
@@ -307,6 +308,112 @@ public:
 
         Assert::IsTrue (VolumeImage::DetectFilesystem (dos) == VolumeKind::Dos33);
         Assert::IsTrue (VolumeImage::DetectFilesystem (pro) == VolumeKind::ProDos);
+        Assert::IsFalse (CpmVolume::IsFoundLenient (dos));
+    }
+
+
+
+    //  Lenient detection.
+
+    TEST_METHOD (ACleanDiskIsFoundStrictlyAndCanBeChanged)
+    {
+        std::vector<Byte>  image = BuildSample();
+        std::vector<Byte>  edited;
+
+        Assert::IsTrue  (CpmVolume::IsFound (image));
+        Assert::IsFalse (CpmVolume (image).IsReadOnly());
+        AssertSucceeded (CpmVolume (image).Write (FilePath::Parse ("NEW.COM"), MakePayload (10, 0), edited));
+    }
+
+
+
+    TEST_METHOD (ADamagedDirectoryIsReadWithTheBadEntriesSkipped)
+    {
+        std::vector<Byte>  image = BuildBlank();
+        std::vector<Byte>  edited;
+        VolumeListing      listing;
+
+        PutEntry (image, 0, 0,  "ONE     COM", 0, 8, { 2 });
+        PutEntry (image, 1, 0,  "TWO     COM", 0, 8, { 3 });
+        PutEntry (image, 2, 0,  "THREE   COM", 0, 8, { 4 });
+        PutEntry (image, 3, 0,  "FOUR    COM", 0, 8, { 5 });
+        PutEntry (image, 4, 20, "USER    COM", 0, 8, { 6 });
+        PutGarbage (image, 5, 0x09);
+
+        Assert::IsFalse (CpmVolume::IsFound (image));
+        Assert::IsTrue  (CpmVolume::IsFoundLenient (image));
+        Assert::IsTrue  (VolumeImage::DetectFilesystem (image) == VolumeKind::Cpm);
+        Assert::IsTrue  (CpmVolume (image).IsReadOnly());
+
+        AssertSucceeded (CpmVolume (image).Enumerate (listing));
+        Assert::AreEqual ((size_t) 4, listing.entries.size());
+        Assert::AreEqual ((size_t) 1, listing.damage.size());
+        Assert::AreEqual (std::string ("There are 2 directory entries that aren't valid CP/M entries, so the disk is treated as read-only to prevent further damage"), listing.damage[0]);
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT), CpmVolume (image).Write  (FilePath::Parse ("NEW.COM"), MakePayload (10, 0), edited));
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT), CpmVolume (image).Delete (FilePath::Parse ("ONE.COM"), edited));
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT), CpmVolume (image).Rename (FilePath::Parse ("ONE.COM"), "UNO.COM", edited));
+    }
+
+
+
+    TEST_METHOD (EntriesThatShareABlockAreSkippedOnADamagedDisk)
+    {
+        std::vector<Byte>  image = BuildBlank();
+
+        PutEntry (image, 0, 0, "ONE     COM", 0, 8, { 2 });
+        PutEntry (image, 1, 0, "TWO     COM", 0, 8, { 3 });
+        PutEntry (image, 2, 0, "THREE   COM", 0, 8, { 4 });
+        PutEntry (image, 3, 0, "FOUR    COM", 0, 8, { 5 });
+        PutEntry (image, 4, 0, "FIVE    COM", 0, 8, { 6 });
+        PutEntry (image, 5, 0, "SIX     COM", 0, 8, { 6 });
+        PutGarbage (image, 6, 0x09);
+
+        Assert::IsTrue  (CpmVolume::IsFoundLenient (image));
+        Assert::AreEqual ((size_t) 4, GetNames (image).size());
+    }
+
+
+
+    TEST_METHOD (AFewEntriesAmongJunkAreNotCpm)
+    {
+        std::vector<Byte>  two   = BuildBlank();
+        std::vector<Byte>  three = BuildBlank();
+
+        PutEntry (two, 0, 0, "ONE     COM", 0, 8, { 2 });
+        PutEntry (two, 1, 0, "TWO     COM", 0, 8, { 3 });
+        PutGarbage (two, 2, 0x09);
+
+        Assert::IsFalse (CpmVolume::IsFoundLenient (two), L"Two entries are too few");
+        Assert::IsTrue  (VolumeImage::DetectFilesystem (two) == VolumeKind::Unknown);
+
+        //  Three good entries are only half of the six in use.
+        PutEntry (three, 0, 0, "ONE     COM", 0, 8, { 2 });
+        PutEntry (three, 1, 0, "TWO     COM", 0, 8, { 3 });
+        PutEntry (three, 2, 0, "THREE   COM", 0, 8, { 4 });
+        PutGarbage (three, 3, 0x09);
+        PutGarbage (three, 4, 0xAA);
+        PutGarbage (three, 5, 0x40);
+
+        Assert::IsFalse (CpmVolume::IsFoundLenient (three));
+        Assert::IsTrue  (VolumeImage::DetectFilesystem (three) == VolumeKind::Unknown);
+    }
+
+
+
+    TEST_METHOD (RandomBytesOnTrack3AreNotCpm)
+    {
+        std::vector<Byte>  image (kImageBytes, 0);
+        uint32_t           seed  = 12345;
+
+        for (size_t i = 0; i < 16 * kSectorBytes; i++)
+        {
+            seed = seed * 1103515245 + 12345;
+            image[3 * 16 * kSectorBytes + i] = (Byte) (seed >> 16);
+        }
+
+        Assert::IsFalse (CpmVolume::IsFoundLenient (image));
+        Assert::IsTrue  (VolumeImage::DetectFilesystem (image) == VolumeKind::Unknown);
     }
 
 
@@ -597,13 +704,12 @@ public:
         PutGarbage (image, 10, 0xAA);
 
         AssertSucceeded (CpmVolume (image).Enumerate (listing));
-        Assert::AreEqual (std::string ("1 directory entry isn't a valid CP/M entry"), listing.damage[0], L"Below 48 reports as before");
+        Assert::AreEqual (std::string ("There is 1 directory entry that isn't a valid CP/M entry, so the disk is treated as read-only to prevent further damage"), listing.damage[0], L"A bad entry below 48 is reported");
     }
 
     TEST_METHOD (BlocksInAnInvalidEntryWithAUserNumberAreUsed)
     {
         std::vector<Byte>  image = BuildBlank();
-        std::vector<Byte>  edited;
         VolumeListing      listing;
 
         PutGarbage (image, 0, 0x09);
@@ -616,11 +722,6 @@ public:
         AssertSucceeded (CpmVolume (image).Enumerate (listing));
 
         Assert::AreEqual ((uint32_t) 125, listing.freeUnits);
-
-        AssertSucceeded (CpmVolume (image).Write (FilePath::Parse ("BIG.COM"), MakePayload (39 * kBlockBytes, 0), edited));
-        
-        //  With 125 blocks free, one more than that doesn't fit.
-        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_DISK_FULL), CpmVolume (image).Write (FilePath::Parse ("FULL.COM"), MakePayload (126 * kBlockBytes, 0), edited));
     }
 
     TEST_METHOD (WritesNeverAllocateTheBootTracksAndTotalsCountWhatIsClaimedThere)
@@ -652,7 +753,7 @@ public:
         AssertSucceeded (CpmVolume (image).Enumerate (listing));
 
         PreviewDecoder::RenderCatalog (listing, VolumeKind::Cpm, content);
-        Assert::AreEqual (std::wstring (L"1 directory entry isn't a valid CP/M entry"), content.warning);
+        Assert::AreEqual (std::wstring (L"There is 1 directory entry that isn't a valid CP/M entry, so the disk is treated as read-only to prevent further damage"), content.warning);
 
         BrowserCells::DescribeVolumeSpace (L"C:\\disks\\cpm.dsk", listing, VolumeKind::Cpm, status);
         Assert::IsTrue (status.freeSpace.find (L"isn't a valid CP/M entry") != std::wstring::npos);
@@ -673,24 +774,44 @@ public:
 
 
 
-    TEST_METHOD (WriteNeverReusesAnInvalidSlot)
+    TEST_METHOD (AChosenDiskWithAnInvalidEntryIsReadOnly)
     {
         std::vector<Byte>  image = BuildBlank();
         std::vector<Byte>  edited;
+        VolumeListing      listing;
 
+        //  Two entries beside one bad one: a disk only the choice reads as CP/M.
         PutEntry (image, 0, 0, "ONE     COM", 0, 8, { 2 });
         PutEntry (image, 1, 0, "TWO     COM", 0, 8, { 3 });
-        PutEntry (image, 2, 0, "THREE   COM", 0, 8, { 4 });
 
         for (size_t i = 0; i < kEntryBytes; i++)
         {
-            image[GetOffset (0, 3 * kEntryBytes + i)] = (Byte) (0x30 + i);
+            image[GetOffset (0, 2 * kEntryBytes + i)] = (Byte) (0x30 + i);
         }
 
-        AssertSucceeded (CpmVolume (image).Write (FilePath::Parse ("NEW.COM"), MakePayload (10, 0), edited));
+        Assert::IsFalse (CpmVolume::IsFound (image));
+        Assert::IsFalse (CpmVolume::IsFoundLenient (image));
+        Assert::IsTrue  (CpmVolume (image).IsReadOnly());
 
-        Assert::AreEqual ((int) 0x30, (int) edited[GetOffset (0, 3 * kEntryBytes)], L"The bad entry stays");
-        Assert::AreEqual ((int) 'N', (int) edited[GetOffset (0, 4 * kEntryBytes + 1)]);
+        AssertSucceeded (CpmVolume (image).Enumerate (listing));
+        Assert::AreEqual ((size_t) 2, listing.entries.size());
+        Assert::AreEqual (std::string ("There is 1 directory entry that isn't a valid CP/M entry, so the disk is treated as read-only to prevent further damage"), listing.damage[0]);
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT), CpmVolume (image).Write  (FilePath::Parse ("NEW.COM"), MakePayload (10, 0), edited));
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT), CpmVolume (image).Delete (FilePath::Parse ("ONE.COM"), edited));
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT), CpmVolume (image).Rename (FilePath::Parse ("ONE.COM"), "UNO.COM", edited));
+    }
+
+
+
+    TEST_METHOD (AChosenDiskWithNoInvalidEntryCanBeChanged)
+    {
+        std::vector<Byte>  image = BuildDamaged();
+        std::vector<Byte>  edited;
+
+        Assert::IsFalse (CpmVolume::IsFound (image));
+        Assert::IsFalse (CpmVolume (image).IsReadOnly());
+        AssertSucceeded (CpmVolume (image).Write (FilePath::Parse ("NEW.COM"), MakePayload (10, 0), edited));
     }
 
 
@@ -1180,7 +1301,7 @@ public:
 
         result = RunVerb (io, CommandLineOptions::DiskOptions::Command::List, "", "cpm");
         Assert::AreNotEqual (DiskCommandResult::kNoOutput, result.exitStatus);
-        Assert::IsTrue (result.output.find ("Bytes Remaining On A: ") != std::string::npos);
+        Assert::IsTrue (result.output.find ("k free") != std::string::npos);
 
         result = RunVerb (io, CommandLineOptions::DiskOptions::Command::List, "", "nonsense");
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);

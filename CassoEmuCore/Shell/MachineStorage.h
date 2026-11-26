@@ -77,6 +77,12 @@ public:
     void  ConnectDiskToController (int slot, int drive);
     void  BindDiskDrives          ();
 
+    //  The slot 6 Disk II card's 16-sector and 13-sector boot ROMs, and the
+    //  device on the bus with the card's ROM on a ][ or ][+, null where the
+    //  //e's MMU has it. Either ROM is empty when its file isn't installed.
+    //  ConnectDiskToController swaps the card's ROM to match drive 1's disk.
+    void  SetDisk2Roms            (std::vector<Byte> rom16, std::vector<Byte> rom13, class RomDevice * device);
+
     //  The hard disks, ProFiles and 3.5-inch drives, in an order two machines
     //  built from one configuration share. A replay on a second machine
     //  copies the first machine's disks (CopyReplayMedia, on the thread that
@@ -91,12 +97,20 @@ private:
     //  The slot whose Disk II the refs have, which the drive bays feed.
     static constexpr int  kDiskControllerSlot = 6;
 
-    MachineParts                   & m_parts;
-    MachineConfig                  & m_config;
-    DiskImageStore                 & m_diskStore;
-    std::unique_ptr<IDiskFileIo>     m_hostBlockFileIo;
-    IDiskFileIo                    * m_blockFileIo = nullptr;
-    WriteProtectProbe                m_blockProbe;
-    std::vector<std::wstring>        m_blockMediaProblems;
-    std::string                      m_stockImageFolder;
+    //  The card's ROM to match the disk in drive 1: the 13-sector ROM for a
+    //  13-sector disk, the 16-sector ROM for any other, when both are set.
+    void  MatchDisk2Rom();
+
+    MachineParts                  & m_parts;
+    MachineConfig                 & m_config;
+    DiskImageStore                & m_diskStore;
+    std::unique_ptr<IDiskFileIo>    m_hostBlockFileIo;
+    IDiskFileIo                   * m_blockFileIo        = nullptr;
+    WriteProtectProbe               m_blockProbe;
+    std::vector<std::wstring>       m_blockMediaProblems;
+    std::string                     m_stockImageFolder;
+    std::vector<Byte>               m_disk2Rom16;
+    std::vector<Byte>               m_disk2Rom13;
+    class RomDevice               * m_disk2RomDevice     = nullptr;
+    bool                            m_isDisk2Rom13       = false;
 };

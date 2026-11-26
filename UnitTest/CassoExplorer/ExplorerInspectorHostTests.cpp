@@ -3,7 +3,8 @@
 #include "../EhmTestHelper.h"
 #include "../EmuTests/FakeDiskFileIo.h"
 #include "CassoExplorer/ExplorerInspectorHost.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Devices/Disk/Archives/GzipFile.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Seams/IIntentChannel.h"
 #include "Seams/Win32IntentChannel.h"
@@ -53,7 +54,7 @@ public:
         FakeDiskFileIo         fileIo;
         FakeIntents            intents;
         ExplorerInspectorHost  host     { kPath, fileIo, &intents };
-        vector<Byte>           original = vector<Byte> (NibblizationLayer::kImageByteSize, 0x11);
+        vector<Byte>           original = vector<Byte> (NibbleFormat::kImageByteSize, 0x11);
         uint64_t               mediaId  = 0;
         int                    slot     = -1;
 
@@ -149,6 +150,68 @@ public:
         Assert::AreEqual (std::string (kUtf8Path), rig.intents.stated[0].first);
         Assert::IsTrue   (rig.intents.stated[0].second == ExternalChangeIntent::ReloadInPlace);
         Assert::IsTrue   (rig.host.IsFileCurrent(), L"the window's save is not a change to read again");
+    }
+
+
+
+    //  A DSK in a gzip file is read from the gzip file, and an apply is saved
+    //  into it, compressed again.
+    TEST_METHOD (AnImageInAGzipFileIsSavedIntoIt)
+    {
+        static constexpr const char *  kGzipPath = "C:\\Disks\\mist.dsk.gz";
+
+        FakeDiskFileIo          fileIo;
+        FakeIntents             intents;
+        ExplorerInspectorHost   host     (L"C:\\Disks\\mist.dsk.gz", fileIo, &intents);
+        vector<Byte>            original (NibbleFormat::kImageByteSize, 0x11);
+        vector<Byte>            gzip;
+        vector<Byte>            expanded;
+        vector<InspectorReply>  replies;
+        InspectorRequest        request;
+        SectorWrite             write;
+        std::string             name;
+        std::string             error;
+        size_t                  changed  = 0;
+
+
+
+        GzipFile::Build (original, "mist.dsk", gzip);
+        fileIo.files[kGzipPath]  = gzip;
+        fileIo.stamps[kGzipPath] = FileStamp { gzip.size(), 1 };
+
+        (void) host.PostInspectorRequest ({ InspectorRequestKind::CopyDisk, 0, 0, {}, -1 });
+        host.TakeInspectorReplies (replies);
+        Assert::AreEqual  (static_cast<size_t> (1), replies.size());
+        Assert::IsNotNull (replies[0].disk.get(), L"the DSK in the gzip file is read");
+
+        write.track  = 3;
+        write.slot   = replies[0].disk->playedSlot[3 * 4];
+        write.sector = 5;
+        write.bytes.fill (0xA5);
+
+        request.kind           = InspectorRequestKind::Apply;
+        request.mediaId        = replies[0].mediaId;
+        request.applyKind      = ApplyKind::Apply;
+        request.writes         = { write };
+        request.expectedCounts = { { write.slot, 0 } };
+
+        replies.clear();
+        (void) host.PostInspectorRequest (request);
+        host.TakeInspectorReplies (replies);
+        Assert::AreEqual (static_cast<size_t> (1), replies.size());
+        Assert::IsTrue   (replies[0].applyOutcome == ApplyOutcome::Applied, replies[0].reason.c_str());
+
+        AssertSucceeded (GzipFile::Expand (fileIo.files[kGzipPath], expanded, name, error));
+        Assert::AreEqual (original.size(), expanded.size());
+
+        for (size_t i = 0; i < expanded.size(); i++)
+        {
+            changed += (expanded[i] != original[i]) ? 1 : 0;
+        }
+
+        Assert::AreEqual (static_cast<size_t> (256), changed, L"only the sector's bytes, in the gzip file");
+        Assert::IsTrue   (fileIo.files[kGzipPath].size() < original.size() / 20, L"the image is compressed again");
+        Assert::IsTrue   (host.IsFileCurrent(), L"the window's save is not a change to read again");
     }
 
 
@@ -284,7 +347,7 @@ public:
     TEST_METHOD (AsFirstOpenedIsTheFileAsFirstRead)
     {
         Rig             rig;
-        vector<Byte>    changed = vector<Byte> (NibblizationLayer::kImageByteSize, 0x22);
+        vector<Byte>    changed = vector<Byte> (NibbleFormat::kImageByteSize, 0x22);
         InspectorReply  reply;
 
 

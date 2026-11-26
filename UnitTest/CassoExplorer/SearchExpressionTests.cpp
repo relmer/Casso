@@ -172,6 +172,15 @@ public:
         Assert::IsTrue  (IsMatch (L"k?rateka.*", MakeFile (L"Karateka.dsk")));
     }
 
+    TEST_METHOD (AWildcardWithoutAPeriod_MatchesFromAnyWord)
+    {
+        Assert::IsTrue  (IsMatch (L"wiz*scenario", MakeFile (L"Wizardry III (Scenario).po")));
+        Assert::IsTrue  (IsMatch (L"wiz*scenario", MakeFile (L"Wizardry I scenario.woz")));
+        Assert::IsFalse (IsMatch (L"ard*scen",     MakeFile (L"Wizardry I scenario.woz")));
+        Assert::IsTrue  (IsMatch (L"scen*",        MakeFile (L"Wizardry I scenario.woz")));
+        Assert::IsFalse (IsMatch (L"wiz*lode",     MakeFile (L"Wizardry I scenario.woz")));
+    }
+
     TEST_METHOD (ARegularExpression_MatchesAnywhere_IgnoringCase)
     {
         SearchExpression  expression = SearchExpression::Parse (L"/^kb\\d+/", MakeOptions (true));

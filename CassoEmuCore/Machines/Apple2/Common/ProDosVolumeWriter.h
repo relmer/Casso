@@ -43,16 +43,6 @@ public:
                             const FileAttributes  & attributes,
                             BlockBuffer           & outBuffer) const;
 
-private:
-    friend class ProDosVolume;
-    friend class ProDosVolumeRemover;
-
-    static void  WriteByteAt (BlockBuffer  & buffer, int block, size_t offset, Byte value);
-    static void  WriteWordAt (BlockBuffer  & buffer, int block, size_t offset, Word value);
-
-    //  Volume bitmap: one bit per block, MSB of byte 0 is block 0, SET is free.
-    static void  SetFreeInBitmap (BlockBuffer  & buffer, uint32_t block, bool isFree);
-
     //  Fifteen characters, a letter first, then letters digits and periods --
     //  ProDOS's own rule. THIS VALIDATES ONLY NAMES BEING CREATED; reading
     //  imposes no rule at all, on either filesystem.
@@ -62,6 +52,16 @@ private:
     //  stored name is upper case either way; the word is what a IIgs reads to
     //  show the name back the way it was written.
     static bool  TryEncodeDirectoryName (const std::string & name, std::string & outName, Word & outCaseFlags);
+
+private:
+    friend class ProDosVolume;
+    friend class ProDosVolumeRemover;
+
+    static void  WriteByteAt (BlockBuffer  & buffer, int block, size_t offset, Byte value);
+    static void  WriteWordAt (BlockBuffer  & buffer, int block, size_t offset, Word value);
+
+    //  Volume bitmap: one bit per block, MSB of byte 0 is block 0, SET is free.
+    static void  SetFreeInBitmap (BlockBuffer  & buffer, uint32_t block, bool isFree);
 
     //  Which storage type a file of this many data blocks needs, and how many
     //  index blocks come with it -- none for a seedling, one for a sapling, and

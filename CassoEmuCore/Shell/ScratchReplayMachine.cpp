@@ -149,21 +149,21 @@ HRESULT ScratchReplayMachine::MountDisks (const std::vector<ReplayDisk> & disks,
 
     for (const ReplayDisk & disk : disks)
     {
-        wanted[(size_t) disk.slot * DiskImageStore::kDriveCount + (size_t) disk.drive] = disk.mediaId;
+        wanted[(size_t) disk.slot * DiskBayTable::kDriveCount + (size_t) disk.drive] = disk.mediaId;
     }
 
     for (bay = 0; bay < wanted.size(); bay++)
     {
         if (wanted[bay] == 0 && m_mounted[bay] != 0)
         {
-            m_machine->GetDiskStore().Eject ((int) (bay / DiskImageStore::kDriveCount), (int) (bay % DiskImageStore::kDriveCount));
+            m_machine->GetDiskStore().Eject ((int) (bay / DiskBayTable::kDriveCount), (int) (bay % DiskBayTable::kDriveCount));
             m_mounted[bay] = 0;
         }
     }
 
     for (const ReplayDisk & disk : disks)
     {
-        bay = (size_t) disk.slot * DiskImageStore::kDriveCount + (size_t) disk.drive;
+        bay = (size_t) disk.slot * DiskBayTable::kDriveCount + (size_t) disk.drive;
 
         if (m_mounted[bay] == disk.mediaId)
         {
@@ -237,7 +237,7 @@ bool ScratchReplayMachine::IsSavedWith (
 
     for (const ReplayDisk & disk : disks)
     {
-        given[(size_t) disk.slot * DiskImageStore::kDriveCount + (size_t) disk.drive] = disk.mediaId;
+        given[(size_t) disk.slot * DiskBayTable::kDriveCount + (size_t) disk.drive] = disk.mediaId;
     }
 
     return given == saved;

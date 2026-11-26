@@ -17,6 +17,11 @@ IDI_CASSO_PHOTOREAL          ICON "..\\Resources\\Icons\\Casso-3-photoreal.ico"
 // the program for its type.
 IDI_DISK_IMAGE               ICON "..\\Resources\\Icons\\Casso-disk-image.ico"
 
+// A partition's icon in the block inspector's tree, for dark and light
+// surfaces.
+IDI_PARTITION_DARK           ICON "..\\Resources\\Icons\\Casso-partition-dark.ico"
+IDI_PARTITION_LIGHT          ICON "..\\Resources\\Icons\\Casso-partition-light.ico"
+
 // Embedded default machine configs (extracted to Machines/<name>/<name>.json
 // on first run by AssetBootstrap::EnsureMachineConfigs). Sources live under
 // Resources/ which is tracked; the runtime Machines/ tree is .gitignored
@@ -80,6 +85,15 @@ IDR_SOUND_PAPER_TEAR_2            RCDATA "..\\Assets\\ImageWriter II Sounds\\pap
 IDR_SOUND_PAPER_TEAR_3            RCDATA "..\\Assets\\ImageWriter II Sounds\\paper_tear_03.mp3"
 IDR_SOUND_PAPER_TEAR_4            RCDATA "..\\Assets\\ImageWriter II Sounds\\paper_tear_04.mp3"
 IDR_SOUND_PAPER_TEAR_5            RCDATA "..\\Assets\\ImageWriter II Sounds\\paper_tear_05.mp3"
+
+// Embedded drive sounds (extracted to the asset base by EnsureDriveSounds;
+// decoded by Floppy35AudioSource). CC0 -- see
+// Assets/Drive Sounds/Sony 3.5/ATTRIBUTION.txt.
+IDR_SOUND_SONY35_SPIN_START       RCDATA "..\\Assets\\Drive Sounds\\Sony 3.5\\35_spin_start_loaded.wav"
+IDR_SOUND_SONY35_SPIN_LOOP        RCDATA "..\\Assets\\Drive Sounds\\Sony 3.5\\35_spin_loaded.wav"
+IDR_SOUND_SONY35_SPIN_END         RCDATA "..\\Assets\\Drive Sounds\\Sony 3.5\\35_spin_end.wav"
+IDR_SOUND_SONY35_STEP             RCDATA "..\\Assets\\Drive Sounds\\Sony 3.5\\35_step_1_1.wav"
+IDR_SOUND_SONY35_SEEK             RCDATA "..\\Assets\\Drive Sounds\\Sony 3.5\\35_seek_12ms.wav"
 
 // Embedded CRT HLSL sources (compiled at runtime by CrtPostProcess).
 IDR_HLSL_SETTINGS_GAUSSIAN_H RCDATA "Shaders\\Settings\\gaussian_h.hlsl"

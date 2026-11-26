@@ -20,7 +20,7 @@ static constexpr int   s_kRecordCount   = 15;
 static constexpr int   s_kBlocks        = 16;
 static constexpr int   s_kReadOnly      = 9;
 static constexpr int   s_kSystemTracks  = 3;
-static constexpr int   s_kFoundEntries  = 4;
+static constexpr int   s_kFoundEntries  = 3;
 static constexpr Byte  s_kHighBit       = 0x80;
 static constexpr int   s_kDirectoryBlock = 1;
 static constexpr int   s_kFirstFileBlock = 2;
@@ -89,7 +89,7 @@ bool CpmMapReader::IsFound (const SectorSource & source)
         }
     }
 
-    return (valid >= 1 && invalid == 0) || valid > s_kFoundEntries || free == kEntries;
+    return (valid >= 1 && invalid == 0) || (valid >= s_kFoundEntries && valid > invalid) || free == kEntries;
 }
 
 
@@ -167,7 +167,7 @@ void CpmMapReader::Read (const SectorSource & source, FileMap & outMap)
 
             if (!seen.insert (key).second)
             {
-                writer.AddFinding (FindingKind::CpmDuplicateEntry, -1, std::format (L"{}:{}: found multiple entries for extent {}", entry.user, entry.name, entry.extent));
+                writer.AddFinding (FindingKind::CpmDuplicateEntry, -1, std::format (L"{}: found multiple entries for extent {}", FormatPath (entry.user, entry.name), entry.extent));
             }
 
             entries.push_back (entry);
@@ -181,7 +181,7 @@ void CpmMapReader::Read (const SectorSource & source, FileMap & outMap)
     {
         for (const Entry & entry : isDeleted ? deleted : entries)
         {
-            std::wstring  path   = std::format (L"{}:{}", isDeleted ? 0 : entry.user, entry.name);
+            std::wstring  path   = FormatPath (isDeleted ? 0 : entry.user, entry.name);
             int           blocks = (entry.records + s_kRecordsPerBlk - 1) / s_kRecordsPerBlk;
             auto          found  = fileOf.find (path + (isDeleted ? L"*" : L""));
             int           index  = -1;
@@ -327,7 +327,7 @@ void CpmMapReader::CheckEntries (FileMapWriter & writer, const vector<Entry> & e
 
     for (const Entry & entry : entries)
     {
-        path  = std::format (L"{}:{}", entry.user, entry.name);
+        path  = FormatPath (entry.user, entry.name);
         slots = (entry.records + s_kRecordsPerBlk - 1) / s_kRecordsPerBlk;
         cell  = kDirectoryTrack * SectorSource::kSectors + entry.index / (SectorSource::kBytes / kEntrySize);
         past  = 0;
@@ -413,6 +413,24 @@ std::wstring CpmMapReader::DescribeInvalid (const Byte * entry)
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CpmMapReader::FormatPath
+//
+//  A file's name with its user, as "3:NAME.TYP"; user 0's has no prefix, as
+//  the volume layer lists it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CpmMapReader::FormatPath (int user, const std::wstring & name)
+{
+    return (user != 0) ? std::format (L"{}:{}", user, name) : name;
 }
 
 

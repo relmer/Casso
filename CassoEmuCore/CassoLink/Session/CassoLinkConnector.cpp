@@ -259,6 +259,7 @@ HRESULT CassoLinkConnector::Connect (std::stop_token stop, DWORD openAt)
     std::wstring        model;
     HRESULT             logged   = S_OK;
     HRESULT             columns  = S_OK;
+    HRESULT             left     = S_OK;
     DWORD               linkBaud = m_session.m_settings.baud;
 
 
@@ -405,12 +406,19 @@ HRESULT CassoLinkConnector::Connect (std::stop_token stop, DWORD openAt)
         std::lock_guard<std::mutex>  lock (m_lock);
 
         m_modelName = model;
+        m_client    = m_session.m_host->GetClient();
     }
 
     m_session.SetState (LinkState::Ready);
 
     columns = m_session.m_host->SetColumns (!m_session.m_settings.use40);
     IGNORE_RETURN_VALUE (columns, S_OK);
+
+    //  After a Full Send that ended with CE closed or the line down, the
+    //  Apple is on the session's screen; the standard screen is drawn again
+    //  either way.
+    left = m_session.m_host->SendSessionScreen (false, 0, {});
+    IGNORE_RETURN_VALUE (left, S_OK);
 
     logged = LogOnApple ("PC connected");
     IGNORE_RETURN_VALUE (logged, S_OK);
@@ -837,8 +845,10 @@ HRESULT CassoLinkConnector::OpenStream (DWORD baud, std::stop_token stop)
 
         m_session.m_host->SetActivitySink ([this] (const std::string & text) { m_session.m_sink.OnActivity (text); });
         m_session.m_host->SetTraceSink    ([this] (bool sent, const std::string & text) { m_session.m_sink.OnTrace (sent, text); });
+        m_session.m_host->SetVirtualSink  ([this] (const std::wstring & model) { m_session.OnVirtualServed (model); });
         m_session.m_host->SetProgramChip (CassoLinkSession::GetLinkChip (m_session.m_settings.transport));
         m_session.m_host->SetFaultProgram (LinkFaults::IsEnabled());
+        m_session.m_host->SetBlockCrc     (!m_session.m_settings.IsEthernet());
         m_session.m_host->SetClients (m_session.m_settings.transport == LinkTransport::AdtProServer ? CassoLinkHost::Clients::AdtPro : CassoLinkHost::Clients::Casso);
         m_session.m_host->SetVirtualDrives (&m_session.m_virtualDrives);
         m_openBaud = baud;
@@ -912,16 +922,15 @@ std::string CassoLinkConnector::DescribeOpenFailure (HRESULT hr, uint16_t port, 
 
 HRESULT CassoLinkConnector::AwaitProgram (std::stop_token stop, DWORD timeoutMs, bool & outReady)
 {
-    static constexpr int       kPromptRepeats    = 4;
     static constexpr uint64_t  kPromptIntervalMs = 1000;
 
 
 
-    HRESULT  hr          = S_OK;
-    uint64_t deadline    = m_session.m_factory.GetTickMs() + timeoutMs;
-    uint64_t prompted    = 0;
-    int      repeatsLeft = 0;
-    bool     waiting     = false;
+    HRESULT  hr        = S_OK;
+    uint64_t deadline  = m_session.m_factory.GetTickMs() + timeoutMs;
+    uint64_t prompted  = 0;
+    bool     repeating = false;
+    bool     waiting   = false;
 
 
 
@@ -937,26 +946,21 @@ HRESULT CassoLinkConnector::AwaitProgram (std::stop_token stop, DWORD timeoutMs,
         //  opened. A prompt is an envelope, which ADTPro's client, idle on
         //  the same line, would read as the start of its next reply.
         //
-        //  The prompt is sent again each second, a few times, until a Ready
-        //  arrives: the first step of a universal disk written before it
-        //  took any byte as the PC could miss the Idle's start byte at
-        //  115,200 baud, and wait on.
-        if (!m_prompted && waiting)
+        //  The prompt is sent again each second until a Ready arrives or the
+        //  attempt ends: an Apple that boots its disk after the first prompt
+        //  doesn't send a Ready unprompted, and the first step of a universal
+        //  disk written before it took any byte as the PC could miss the
+        //  Idle's start byte at 115,200 baud. A prompt goes out only between
+        //  packets, since ServeOne reads a whole one, so a Ready on its way
+        //  is read before the next prompt.
+        if (waiting && (!m_prompted || (repeating && m_session.m_factory.GetTickMs() - prompted >= kPromptIntervalMs)))
         {
             hr = m_session.m_host->PromptReady();
             CHR (hr);
 
-            m_prompted  = true;
-            prompted    = m_session.m_factory.GetTickMs();
-            repeatsLeft = kPromptRepeats;
-        }
-        else if (repeatsLeft > 0 && waiting && m_session.m_factory.GetTickMs() - prompted >= kPromptIntervalMs)
-        {
-            hr = m_session.m_host->PromptReady();
-            CHR (hr);
-
-            prompted = m_session.m_factory.GetTickMs();
-            repeatsLeft--;
+            m_prompted = true;
+            repeating  = true;
+            prompted   = m_session.m_factory.GetTickMs();
         }
 
         hr = m_session.m_host->ServeOne (CassoLinkSession::kIdlePollMs);

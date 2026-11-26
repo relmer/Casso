@@ -45,6 +45,10 @@ public:
         IDiskPictures     * pictures   = nullptr;
         GivenNames        * givenNames = nullptr;
         PickerShellRoots  * shellRoots = nullptr;
+
+        //  A picker that opens on the Casso node lists Casso's stock and
+        //  demo disks under it, each stock disk downloaded when picked.
+        bool                listsStockDisks = false;
     };
 
     ExplorerPickerHost (IFileSystem & fs, IDiskFileIo & fileIo, std::wstring baseDir);
@@ -105,6 +109,8 @@ public:
     bool                   OfferMouseToUpdater (HWND hwnd, const DxuiMouseEvent & ev) override { (void) hwnd; (void) ev; return false; }
 
 private:
+    void  AddStockDisks ();
+
     void  End ();
 
     IFileSystem                            & m_fs;

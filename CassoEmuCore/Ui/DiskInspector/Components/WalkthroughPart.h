@@ -3,7 +3,6 @@
 #include "Pch.h"
 
 #include "Ui/DiskInspector/InspectorWalkthrough.h"
-
 class InspectorSession;
 
 
@@ -22,11 +21,11 @@ class InspectorSession;
 class WalkthroughPart
 {
 public:
-    explicit WalkthroughPart (const InspectorSession & session) : m_session (session) {}
+    explicit WalkthroughPart (const InspectorSession & session);
 
     void  Open   () { m_walkthrough.Open(); }
     bool  IsOpen () const { return m_walkthrough.IsOpen(); }
-    void  Paint  (IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & boundsPx);
+    void  Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & boundsPx);
 
     bool  OnWalkthroughMouse (const DxuiMouseEvent & ev);
     bool  OnWalkthroughKey   (const DxuiKeyEvent & ev);
@@ -36,4 +35,7 @@ private:
 
     const InspectorSession  & m_session;
     InspectorWalkthrough      m_walkthrough;
+    DxuiButton                m_close { L"Close" };
+    DxuiButton                m_back  { L"Back" };
+    DxuiButton                m_next  { L"Next" };
 };

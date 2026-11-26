@@ -137,7 +137,8 @@ void EmulatorShell::ShowDiskInspector (int drive, bool activate)
         hr = entry->window->Create (hInstance, m_hwnd, &m_chrome->GetTheme(), entry->host.get(), activate);
         CHR (hr);
 
-        m_window->ApplyAppIconToWindow (entry->window->GetHwnd());
+        //  Casso's icon, in the caption as well as on the taskbar.
+        entry->window->SetAppIcon (reinterpret_cast<HICON> (SendMessageW (m_hwnd, WM_GETICON, ICON_BIG, 0)));
         entry->host->SetOnClosed ([this, created] () { created->isClosed = true; SaveInspectorPrefs (created); });
         //  The first window open takes the saved position, and the others
         //  are placed by Windows.

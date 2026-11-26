@@ -4,7 +4,7 @@
 #include "Devices/Disk/DiskImageStore.h"
 #include "HandlerTestRig.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -42,7 +42,7 @@ namespace DebuggerTests
         static std::unique_ptr<Rig> MakeRig (bool isMounted = true)
         {
             auto               rig   = std::make_unique<Rig> ("Apple2e", TestMachine::Slots::DiskOnly);
-            std::vector<Byte>  blank (NibblizationLayer::kImageByteSize, 0);
+            std::vector<Byte>  blank (NibbleFormat::kImageByteSize, 0);
             DiskImage        * image = nullptr;
 
 
@@ -331,7 +331,7 @@ namespace DebuggerTests
         TEST_METHOD (APausedInsertStopsNothing)
         {
             auto               insert = MakeRig (false);
-            std::vector<Byte>  blank (NibblizationLayer::kImageByteSize, 0);
+            std::vector<Byte>  blank (NibbleFormat::kImageByteSize, 0);
 
 
 

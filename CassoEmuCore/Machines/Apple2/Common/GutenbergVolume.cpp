@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/GutenbergVolume.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 
 
 
@@ -160,7 +160,7 @@ bool GutenbergVolume::IsDirectorySector (const vector<Byte> & sectors, uint32_t 
 bool GutenbergVolume::IsFound (const vector<Byte> & sectors)
 {
     Chain  directory;
-    bool   isFound = sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool   isFound = sectors.size() == (size_t) NibbleFormat::kImageByteSize;
 
 
 
@@ -338,7 +338,7 @@ void GutenbergVolume::NoteRead (const Chain & chain) const
 HRESULT GutenbergVolume::Enumerate (VolumeListing & outListing) const
 {
     HRESULT          hr    = S_OK;
-    bool             whole = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool             whole = m_sectors.size() == (size_t) NibbleFormat::kImageByteSize;
     uint32_t         spare = 0;
     vector<RawFile>  files;
     Chain            directory;
@@ -414,7 +414,7 @@ Error:
 HRESULT GutenbergVolume::Read (const FilePath & path, FilePayload & outPayload) const
 {
     HRESULT          hr     = S_OK;
-    bool             whole  = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool             whole  = m_sectors.size() == (size_t) NibbleFormat::kImageByteSize;
     bool             found  = false;
     bool             intact = false;
     size_t           index  = 0;
@@ -625,7 +625,7 @@ bool GutenbergVolume::IsReserved (const vector<Byte> & sectors, uint32_t unit)
 HRESULT GutenbergVolume::BuildIntegrityReport (VolumeIntegrityReport & outReport) const
 {
     HRESULT          hr    = S_OK;
-    bool             whole = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool             whole = m_sectors.size() == (size_t) NibbleFormat::kImageByteSize;
     uint32_t         map   = (uint32_t) (kDirectoryTrack * kSectorsPerTrack + kMapSector);
     vector<bool>     claimed (kUnitCount, false);
     vector<RawFile>  files;
@@ -977,7 +977,7 @@ Error:
 HRESULT GutenbergVolume::Write (const FilePath & path, const FilePayload & payload, vector<Byte> & outBuffer) const
 {
     HRESULT                hr         = S_OK;
-    bool                   whole      = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool                   whole      = m_sectors.size() == (size_t) NibbleFormat::kImageByteSize;
     std::string            name       = path.ToString();
     bool                   nameOk     = IsNameValid (name);
     bool                   intact     = false;
@@ -1136,7 +1136,7 @@ HRESULT GutenbergVolume::Delete (const FilePath & path, vector<Byte> & outBuffer
 HRESULT GutenbergVolume::Delete (const FilePath & path, vector<Byte> & outBuffer, DeleteOutcome & outOutcome) const
 {
     HRESULT                hr     = S_OK;
-    bool                   whole  = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool                   whole  = m_sectors.size() == (size_t) NibbleFormat::kImageByteSize;
     bool                   found  = false;
     bool                   locked = false;
     size_t                 index  = 0;
@@ -1188,7 +1188,7 @@ HRESULT GutenbergVolume::Delete (const FilePath & path, vector<Byte> & outBuffer
 
     if (!outOutcome.leakedUnits.empty())
     {
-        outOutcome.warnings.push_back (std::format ("{} sectors of {} are also in another file and stay allocated", outOutcome.leakedUnits.size(), files[index].name));
+        outOutcome.warnings.push_back (std::format ("{} has {} sectors that are also in another file and stay allocated", files[index].name, outOutcome.leakedUnits.size()));
     }
 
     ClearEntry (result, files[index].entryAt);
@@ -1234,7 +1234,7 @@ HRESULT GutenbergVolume::SetStartupProgram (const FilePath & path, vector<Byte> 
 HRESULT GutenbergVolume::Rename (const FilePath & from, const std::string & to, vector<Byte> & outBuffer) const
 {
     HRESULT                hr     = S_OK;
-    bool                   whole  = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool                   whole  = m_sectors.size() == (size_t) NibbleFormat::kImageByteSize;
     bool                   nameOk = IsNameValid (to);
     bool                   found  = false;
     bool                   locked = false;
@@ -1294,7 +1294,7 @@ Error:
 HRESULT GutenbergVolume::SetAttributes (const FilePath & path, const FileAttributes & attributes, vector<Byte> & outBuffer) const
 {
     HRESULT                hr          = S_OK;
-    bool                   whole       = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool                   whole       = m_sectors.size() == (size_t) NibbleFormat::kImageByteSize;
     bool                   supported   = !attributes.hasAuxType && !attributes.hasCreated && !attributes.hasModified;
     bool                   found       = false;
     bool                   isDirectory = false;

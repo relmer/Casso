@@ -2426,6 +2426,59 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetLineMetrics
+//
+//  A line's height and its baseline below the line's top, from the same
+//  cached layout MeasureString uses.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::GetLineMetrics (
+    float            fontSizeDip,
+    const wchar_t  * fontFamily,
+    DxuiFontWeight   weight,
+    float          & outHeightDip,
+    float          & outBaselineDip)
+{
+    HRESULT                      hr            = S_OK;
+    ComPtr<IDWriteTextLayout>    layout;
+    IDWriteTextLayout          * rawLayout     = nullptr;
+    DWRITE_LINE_METRICS          line          = {};
+    UINT32                       lineCount     = 0;
+    constexpr float              kUnboundedDip = 1.0e6f;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    outHeightDip   = 0.0f;
+    outBaselineDip = 0.0f;
+
+    CBR (m_dwriteFactory);
+
+    hr = EnsureLayout (L"Ag", fontFamily, fontSizeDip, weight,
+                       DxuiTextHAlign::Left, DxuiTextVAlign::Top, false,
+                       kUnboundedDip, kUnboundedDip, &rawLayout);
+    CHRA (hr);
+
+    layout.Attach (rawLayout);
+
+    hr = layout->GetLineMetrics (&line, 1, &lineCount);
+    CHRA (hr);
+
+    outHeightDip   = line.height;
+    outBaselineDip = line.baseline;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HitTestText
 //
 //  The same cached, shaped layout a wrapping DrawString of this box uses, so

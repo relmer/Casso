@@ -1779,3 +1779,30 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
                           body.GetFace());
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetSwatches
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiTooltipSwatch> DxuiTooltip::GetSwatches() const
+{
+    std::vector<DxuiTooltipSwatch>  swatches;
+
+
+
+    for (size_t line = 0; line < m_look.lineSwatches.size(); line++)
+    {
+        if (m_look.lineSwatches[line] != 0)
+        {
+            swatches.push_back ({ (int) line, m_look.lineSwatches[line] });
+        }
+    }
+
+    return swatches;
+}

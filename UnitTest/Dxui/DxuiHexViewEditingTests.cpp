@@ -98,7 +98,7 @@ namespace DxuiHexViewEditingTests
             view.SetSource      (&source);
             view.SetCellSizeDip (8, 16);
             view.SetGrouping    (grouping);
-            view.SetEditable    (true);
+            view.GetSourceEdit().SetEditable    (true);
             view.Layout         (RECT { 0, 0, 800, 320 }, scaler);
             view.GoToOffset     (0);
         }
@@ -163,14 +163,14 @@ namespace DxuiHexViewEditingTests
 
 
             rig.view.GoToOffset (5);
-            Assert::IsFalse  (rig.view.IsEditing());
+            Assert::IsFalse  (rig.view.GetSourceEdit().IsEditing());
 
             rig.Type (L"7");
-            Assert::IsTrue   (rig.view.IsEditing(), L"the digit begins an edit");
-            Assert::AreEqual ((uint64_t) 5, rig.view.GetEditStart(), L"of the byte under the caret");
+            Assert::IsTrue   (rig.view.GetSourceEdit().IsEditing(), L"the digit begins an edit");
+            Assert::AreEqual ((uint64_t) 5, rig.view.GetSourceEdit().GetEditStart(), L"of the byte under the caret");
 
             Assert::IsTrue   (rig.Press (VK_ESCAPE));
-            Assert::IsFalse  (rig.view.IsEditing());
+            Assert::IsFalse  (rig.view.GetSourceEdit().IsEditing());
             Assert::IsTrue   (rig.source.writes.empty(), L"nothing is written");
             Assert::AreEqual ((uint8_t) 0, rig.source.bytes[5], L"the byte is as it was");
         }
@@ -186,12 +186,12 @@ namespace DxuiHexViewEditingTests
 
             rig.view.GoToOffset (2);
             Assert::IsTrue   (rig.Press (VK_RETURN));
-            Assert::IsTrue   (rig.view.IsEditing());
-            Assert::IsTrue   (rig.view.GetPendingDigits().empty());
+            Assert::IsTrue   (rig.view.GetSourceEdit().IsEditing());
+            Assert::IsTrue   (rig.view.GetSourceEdit().GetPendingDigits().empty());
 
             rig.Type (L"9");
             Assert::IsTrue   (rig.Press (VK_RETURN));
-            Assert::IsFalse  (rig.view.IsEditing());
+            Assert::IsFalse  (rig.view.GetSourceEdit().IsEditing());
             Assert::AreEqual ((size_t) 1, rig.source.writes.size());
             Assert::AreEqual ((uint8_t) 0x09, rig.source.bytes[2]);
         }
@@ -205,7 +205,7 @@ namespace DxuiHexViewEditingTests
 
             Assert::IsTrue   (rig.Type (L"4"));
             Assert::IsTrue   (rig.source.writes.empty());
-            Assert::AreEqual (std::wstring (L"4"), rig.view.GetPendingDigits());
+            Assert::AreEqual (std::wstring (L"4"), rig.view.GetSourceEdit().GetPendingDigits());
             Assert::AreEqual ((uint64_t) 0, rig.view.GetCaret());
         }
 
@@ -248,10 +248,10 @@ namespace DxuiHexViewEditingTests
 
             rig.Type (L"7");
             Assert::IsTrue   (rig.Press (VK_ESCAPE));
-            Assert::AreEqual (std::wstring(), rig.view.GetPendingDigits());
+            Assert::AreEqual (std::wstring(), rig.view.GetSourceEdit().GetPendingDigits());
 
             rig.Type (L"5");
-            Assert::AreEqual (std::wstring (L"5"), rig.view.GetPendingDigits(), L"the next digit starts afresh");
+            Assert::AreEqual (std::wstring (L"5"), rig.view.GetSourceEdit().GetPendingDigits(), L"the next digit starts afresh");
         }
 
 
@@ -264,7 +264,7 @@ namespace DxuiHexViewEditingTests
             rig.Type  (L"7");
             rig.Press (VK_RIGHT);
 
-            Assert::AreEqual (std::wstring(), rig.view.GetPendingDigits());
+            Assert::AreEqual (std::wstring(), rig.view.GetSourceEdit().GetPendingDigits());
             Assert::IsTrue   (rig.source.writes.empty());
         }
 
@@ -276,7 +276,7 @@ namespace DxuiHexViewEditingTests
 
 
             Assert::IsFalse (rig.Type (L"g"));
-            Assert::IsTrue  (rig.view.GetPendingDigits().empty());
+            Assert::IsTrue  (rig.view.GetSourceEdit().GetPendingDigits().empty());
         }
 
 
@@ -288,13 +288,13 @@ namespace DxuiHexViewEditingTests
 
 
             rig.source.refused = 0;
-            rig.view.SetOnWriteRefused ([&] (uint64_t offset) { refusedAt = offset; });
+            rig.view.GetSourceEdit().SetOnWriteRefused ([&] (uint64_t offset) { refusedAt = offset; });
 
             rig.Type (L"FF");
 
             Assert::AreEqual ((uint64_t) 0, refusedAt);
             Assert::AreEqual ((uint64_t) 0, rig.view.GetCaret(),      L"the caret stays on the cell that refused");
-            Assert::IsTrue   (rig.view.GetPendingDigits().empty(),    L"and the digits are dropped");
+            Assert::IsTrue   (rig.view.GetSourceEdit().GetPendingDigits().empty(),    L"and the digits are dropped");
         }
     };
 
@@ -367,7 +367,7 @@ namespace DxuiHexViewEditingTests
             ev.kind = DxuiKeyEventKind::Char;
             ev.vk   = L'A';
 
-            Assert::IsFalse (view.IsEditable());
+            Assert::IsFalse (view.GetSourceEdit().IsEditable());
             Assert::IsFalse (view.OnKey (ev));
             Assert::IsTrue  (source.writes.empty());
         }
@@ -386,9 +386,9 @@ namespace DxuiHexViewEditingTests
             scaler.SetDpi (96);
             view.SetSource        (&source);
             view.SetCellSizeDip   (8, 16);
-            view.SetEditable      (true);
+            view.GetSourceEdit().SetEditable      (true);
             view.Layout           (RECT { 0, 0, 800, 320 }, scaler);
-            view.SetOnWriteRefused ([&] (uint64_t offset) { refusedAt = offset; });
+            view.GetSourceEdit().SetOnWriteRefused ([&] (uint64_t offset) { refusedAt = offset; });
 
             ev.kind = DxuiKeyEventKind::Char;
 

@@ -31,6 +31,14 @@ public:
     //  or empty: what a save form adds to a name typed without one.
     std::wstring  GetFirstExtension () const;
 
+    //  The plain "*.ext" extensions, without the dots.
+    std::vector<std::wstring>  GetPlainExtensions () const;
+
+    //  `name` for the file type `chosen`: a type with one extension replaces
+    //  a known extension or adds its own, and a type with several removes a
+    //  known extension. An extension is known when one of `all` has it.
+    static std::wstring  ApplyToName (std::wstring_view name, const FileMaskSet & chosen, const std::vector<FileMaskSet> & all);
+
     static bool  MatchesMask (std::wstring_view mask, std::wstring_view name);
 
 private:

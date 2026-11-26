@@ -58,7 +58,10 @@ void StatusBand::Tick (int64_t nowMs)
 {
     (void) nowMs;
 
-    m_bar.Tick (m_host.GetOwnerHwnd());
+    if (m_bar.Tick (m_host.GetOwnerHwnd()))
+    {
+        m_host.Relayout();
+    }
 }
 
 
@@ -86,7 +89,8 @@ void StatusBand::PaintUnder (IDxuiPainter & painter, IDxuiTextRenderer & text, c
 //
 //  The band's left end in order: the count of unsaved sectors, the
 //  comparison's result while comparing (FR-121), the summary chips
-//  (FR-018), a chip for custom decode settings, "Analyzing" while analysis
+//  (FR-018), a chip while the disk is read as CP/M by the user's choice, a
+//  chip for custom decode settings, "Analyzing" while analysis
 //  is pending, and the selection.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -119,6 +123,12 @@ vector<InspectorStatusBar::LeadItem> StatusBand::BuildLead() const
         {
             items.push_back ({ chip.text, chip.isBad ? LeadKind::BadChip : LeadKind::Chip });
             items.back().isLinked = chip.kind == SummaryChipKind::FileSystem && FileSystemCheck::GetVerdictFinding (m_session.analysis) != nullptr;
+        }
+
+        if (m_session.analysis.isCpmChosen)
+        {
+            items.push_back ({ InspectorText::MakeReadAsCpmChip().text, LeadKind::Chip });
+            items.back().isInfo = true;
         }
 
         if (!m_session.analysis.settings.IsStandard())
@@ -218,6 +228,7 @@ std::wstring StatusBand::GetTip (POINT pointPx, RECT & outAnchorPx) const
 
 
     const InspectorStatusBar::LeadItem  * chip = m_bar.GetLinkedChipAt (pointPx);
+    const InspectorStatusBar::LeadItem  * info = m_bar.GetChipAt (pointPx);
 
 
 
@@ -229,6 +240,11 @@ std::wstring StatusBand::GetTip (POINT pointPx, RECT & outAnchorPx) const
     else if (chip != nullptr)
     {
         tip         = L"Go to this issue on the Issues tab";
+        outAnchorPx = RECT { pointPx.x, pointPx.y, pointPx.x + 1, pointPx.y + 1 };
+    }
+    else if (info != nullptr && info->isInfo)
+    {
+        tip         = InspectorText::kpszReadAsCpmTip;
         outAnchorPx = RECT { pointPx.x, pointPx.y, pointPx.x + 1, pointPx.y + 1 };
     }
 

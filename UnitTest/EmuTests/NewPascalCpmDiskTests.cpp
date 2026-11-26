@@ -57,8 +57,8 @@ public:
 
     TEST_METHOD (CreateMakesAPascalDiskInEveryContainer)
     {
-        size_t                                    count      = 0;
-        const DiskCommandRunner::ContainerName *  containers = DiskCommandRunner::GetAdvertisedContainers (count);
+        size_t                                        count      = 0;
+        const BlankDiskSpecResolver::ContainerName  * containers = BlankDiskSpecResolver::GetAdvertisedContainers (count);
 
         Assert::IsTrue (count > 0);
 
@@ -129,8 +129,8 @@ public:
 
     TEST_METHOD (CreateMakesACpmDiskInEveryContainerAndItIsDetected)
     {
-        size_t                                    count      = 0;
-        const DiskCommandRunner::ContainerName *  containers = DiskCommandRunner::GetAdvertisedContainers (count);
+        size_t                                        count      = 0;
+        const BlankDiskSpecResolver::ContainerName  * containers = BlankDiskSpecResolver::GetAdvertisedContainers (count);
 
         Assert::IsTrue (count > 0);
 
@@ -196,8 +196,8 @@ public:
 
     TEST_METHOD (AFileOnANewDiskIsReadBackInEveryContainer)
     {
-        size_t                                    count      = 0;
-        const DiskCommandRunner::ContainerName *  containers = DiskCommandRunner::GetAdvertisedContainers (count);
+        size_t                                        count      = 0;
+        const BlankDiskSpecResolver::ContainerName  * containers = BlankDiskSpecResolver::GetAdvertisedContainers (count);
 
         Assert::IsTrue (count > 0);
 
@@ -877,7 +877,7 @@ public:
         Assert::IsTrue (listing.entries[0].isSystem);
 
         result = RunOn (io, "C:\\disks\\c.dsk", CommandLineOptions::DiskOptions::Command::List);
-        Assert::IsTrue (result.output.find ("R/O (A:TOOL.COM)") != std::string::npos, TextEncoding::NarrowToWide (result.output).c_str());
+        Assert::IsTrue (result.output.find ("R/O (2:TOOL.COM)") != std::string::npos, TextEncoding::NarrowToWide (result.output).c_str());
 
         options.disk.typeName = "B";
 

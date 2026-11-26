@@ -3,6 +3,7 @@
 #include "CassoExplorer/Model/CatalogModel.h"
 #include "CassoExplorer/Picker/PickerRequest.h"
 #include "CassoExplorer/Picker/PickerScope.h"
+#include "Machines/Apple2/Common/ThirteenSectorCodec.h"
 
 
 
@@ -53,7 +54,31 @@ bool PickerScope::Passes (const CatalogRow & row) const
         return false;
     }
 
-    return !m_drive.has_value() || DriveImageRule::Accepts (*m_drive, row.imageClass);
+    if (!m_drive.has_value() || DriveImageRule::Accepts (*m_drive, row.imageClass))
+    {
+        return true;
+    }
+
+    return m_drive->isRealDrive && IsThirteenSectorImage (row);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PickerScope::IsThirteenSectorImage
+//
+//  The emulator's drives can't mount a .d13, so it is unclassified. A real
+//  drive takes one of the right size.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PickerScope::IsThirteenSectorImage (const CatalogRow & row)
+{
+    return _wcsicmp (std::filesystem::path (row.name).extension().c_str(), L".d13") == 0 &&
+           row.sizeBytes == ThirteenSectorCodec::kImageByteSize;
 }
 
 

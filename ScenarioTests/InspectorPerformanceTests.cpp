@@ -3,7 +3,7 @@
 #include "EhmTestHelper.h"
 #include "Devices/Disk/Inspector/DiskAnalyzer.h"
 #include "Devices/Disk/Inspector/FileMap/FileMap.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Shell/InspectorStatusPublisher.h"
 #include "TestMachine.h"
 #include "FileMapTestImages.h"
@@ -150,7 +150,7 @@ public:
         TestMachine               machine   ("Apple2e");
         StoreDiskSource           source    (machine);
         InspectorStatusPublisher  publisher;
-        vector<Byte>              sectors   (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>              sectors   (NibbleFormat::kImageByteSize, 0);
         LARGE_INTEGER             start     = {};
         double                    frameMs   = 0;
         double                    publishMs = 0;

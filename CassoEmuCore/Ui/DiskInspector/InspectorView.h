@@ -156,6 +156,22 @@ public:
         return false;
     }
 
+    //  Called when a focusable view gets the focus, by Tab or by a click, so
+    //  the window can move the keys to it.
+    using FocusFn = std::function<void()>;
+    void  SetOnFocus (FocusFn fn) { m_onFocus = std::move (fn); }
+
+    void  OnFocusChanged (bool isFocused) override
+    {
+        if (isFocused && m_onFocus)
+        {
+            m_onFocus();
+        }
+    }
+
+    //  Whether the keys go to this view now, for its focused look.
+    void  SetHasKeys (bool hasKeys) { m_hasKeys = hasKeys; }
+
 protected:
     //  The theme for content over a near-black panel (FR-150): the
     //  window's on a dark surface, the dark theme on a light one.
@@ -183,5 +199,7 @@ protected:
     float  GetHeight () const { return static_cast<float> (m_boundsDip.bottom - m_boundsDip.top); }
 
     InspectorViewContext &  m_context;
+    FocusFn                 m_onFocus;
+    bool                    m_hasKeys = false;
     DxuiDpiScaler           m_scaler;
 };

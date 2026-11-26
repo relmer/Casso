@@ -320,7 +320,7 @@ void DxuiListHeader::PaintHeader (
             float  thick = (float) m_list.m_scaler.ToPxf (0.75f);
             float  right = x + colOff + (float) (colXPx[c] + colWPx[c]) + shift - endPad;
             float  cx    = sortAbove ? x + colOff + (float) colXPx[c] + shift + (float) colWPx[c] / 2.0f : right - sortW / 2.0f;
-            float  cy    = sortAbove ? y + (float) m_list.m_scaler.ToPxf (6.0f) : y + titleH / 2.0f;
+            float  cy    = sortAbove ? y + (float) m_list.m_scaler.ToPxf (s_kSortGlyphCenterDip) : y + titleH / 2.0f;
             float  tipY  = m_sortDescending ? (cy + halfH) : (cy - halfH);
             float  endY  = m_sortDescending ? (cy - halfH) : (cy + halfH);
 

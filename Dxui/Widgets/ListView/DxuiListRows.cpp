@@ -734,9 +734,13 @@ DxuiListViewTypes::ScrollLayout DxuiListRows::MeasureForPaint (IDxuiTextRenderer
 
 
 
+    //  The columns are measured by GDI's advances, as the rows draw with them.
     if (m_list.m_theme != nullptr && !m_list.m_columns.empty())
     {
+        bool  wasGdi = text.SetGdiClassicText (true);
+
         m_list.m_columnSizing.EnsureMeasured (text);
+        text.SetGdiClassicText (wasGdi);
     }
 
     layout = m_list.m_scrollbars.ComputeScrollLayout();
@@ -923,13 +927,13 @@ void DxuiListRows::Paint (
         bool                                          isHov      = (r == m_list.m_hovered);
         //  Selected text is the selection while there is any; the row it
         //  began on is not marked as well.
-        bool                                          isSel      = ((m_list.m_listFocused || m_list.m_alwaysShowSelection) && !m_list.m_textSelect.HasSelection() &&
+        bool                                          isSel      = m_list.m_selectionPainted && ((m_list.m_listFocused || m_list.m_alwaysShowSelection) && !m_list.m_textSelect.HasSelection() &&
                                                                     (m_list.m_multiSelect ? m_list.IsRowSelected (r) : r == m_list.m_selectedRow));
         //  A row an in-place tip is up for is drawn in the selection color,
         //  the tip's fill, from its highlight column on, so the row and the
         //  tip read as one block.
         bool                                          isLit      = r == m_list.m_highlightRow;
-        DxuiRowLook                                   look       = DxuiRowLook::Resolve (*m_list.m_theme, isSel, r == m_list.m_selectedRow && m_list.m_focusGroup < 0, isHov && !isLit, m_list.m_listFocused);
+        DxuiRowLook                                   look       = DxuiRowLook::Resolve (*m_list.m_theme, isSel, m_list.m_selectionPainted && r == m_list.m_selectedRow && m_list.m_focusGroup < 0, isHov && !isLit, m_list.m_listFocused);
         size_t                                        lastColumn = 0;
         float                                         rowInsetY  = boxInsetY;
         CellSpot                                      place;
@@ -966,12 +970,27 @@ void DxuiListRows::Paint (
 
         if (look.fill != 0)
         {
-            painter.FillRect (x + boxL, ry + rowInsetY, boxW - boxL, thisH - rowInsetY * 2.0f, look.fill);
+            if (m_list.m_rowCornerDip > 0.0f)
+            {
+                painter.FillRoundedRect (x + boxL, ry + rowInsetY, boxW - boxL, thisH - rowInsetY * 2.0f, m_list.m_scaler.ToPxf (m_list.m_rowCornerDip), look.fill);
+            }
+            else
+            {
+                painter.FillRect (x + boxL, ry + rowInsetY, boxW - boxL, thisH - rowInsetY * 2.0f, look.fill);
+            }
         }
 
         if (look.edge != 0)
         {
-            painter.OutlineRect (x + boxL, ry + rowInsetY, boxW - boxL, thisH - rowInsetY * 2.0f, DxuiRowLook::GetOutlinePx (m_list.m_scaler.ToPxf (1.0f)), look.edge);
+            if (m_list.m_rowCornerDip > 0.0f)
+            {
+                painter.OutlineRoundedRect (x + boxL, ry + rowInsetY, boxW - boxL, thisH - rowInsetY * 2.0f, m_list.m_scaler.ToPxf (m_list.m_rowCornerDip),
+                                            DxuiRowLook::GetOutlinePx (m_list.m_scaler.ToPxf (1.0f)), look.edge);
+            }
+            else
+            {
+                painter.OutlineRect (x + boxL, ry + rowInsetY, boxW - boxL, thisH - rowInsetY * 2.0f, DxuiRowLook::GetOutlinePx (m_list.m_scaler.ToPxf (1.0f)), look.edge);
+            }
         }
 
         //  The last column drawn is filled to the row's end, so a filled row

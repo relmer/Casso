@@ -222,8 +222,9 @@ public:
     static vector<FileMap>  Build (const DiskAnalysis & analysis);
 
     //  The same from a volume's sectors, with the volume number of its address
-    //  fields for a DOS 3.3 VTOC whose header is lost.
-    static vector<FileMap>  Build (const SectorSource & source, int volume);
+    //  fields for a DOS 3.3 VTOC whose header is lost. With `isCpmChosen`,
+    //  the disk is read as CP/M without looking for another volume.
+    static vector<FileMap>  Build (const SectorSource & source, int volume, bool isCpmChosen = false);
 
     //  A volume's verdict from its findings, and a disk's: the worst of its
     //  volumes', or None when no volume was mapped.

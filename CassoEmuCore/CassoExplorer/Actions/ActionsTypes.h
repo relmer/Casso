@@ -84,6 +84,15 @@ struct ActionsTypes
         ConvertToTapeAudio,
         ConvertToDiskAudio,
 
+        //  The selected image written beside it in another image format.
+        ConvertToDsk,
+        ConvertToPo,
+        ConvertToTwoImg,
+        ConvertToHdv,
+        ConvertToWoz,
+        ConvertToNib,
+        ConvertToNb2,
+
         //  The selected image set as a drive in an A2Pico card's A2retroNET.txt.
         AddToA2retroNet,
 
@@ -102,6 +111,14 @@ struct ActionsTypes
 
         //  Copy to folder, its conversion options chosen first.
         GetWithOptions,
+
+        //  The selected image stored as the first of a later comparison, and
+        //  the selected image compared with the stored one.
+        SelectForCompare,
+        CompareToPick,
+
+        //  A break between groups of a menu's rows, not a command.
+        Separator,
     };
 
     //  What a put does with the bytes. ByContent is the rule a left-drag

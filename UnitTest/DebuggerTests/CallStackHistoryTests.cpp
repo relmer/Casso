@@ -7,7 +7,7 @@
 #include "EmuTests/ReverseSessionRig.h"
 #include "HandlerTestRig.h"
 #include "HResultAssert.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Shell/ScratchCallReplayer.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
 #include "Debugger/DebugSessionView.h"
@@ -183,7 +183,7 @@ namespace DebuggerTests
         //  history records it; the program never reads it.
         static void MountDisk (TestMachine & machine, const std::string & name, int drive = kDiskDrive)
         {
-            std::vector<Byte>  bytes (NibblizationLayer::kImageByteSize, 0);
+            std::vector<Byte>  bytes (NibbleFormat::kImageByteSize, 0);
             HRESULT            hr    = S_OK;
 
 

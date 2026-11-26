@@ -56,7 +56,7 @@ void MemoryPane::Configure (HWND hwnd)
     m_view->SetColumns      (m_columns);
     m_view->SetShowValues   (true);
     m_view->SetTextEncoding (DxuiHexView::TextEncoding::AppleHighBit);
-    m_view->SetEditable     (true);
+    m_view->GetSourceEdit().SetEditable (true);
     m_view->SetShowRegions  (true);
 
     //  The CPU's 64K wraps, so rows started partway along it keep four digits.
@@ -91,7 +91,7 @@ void MemoryPane::Configure (HWND hwnd)
         return mark != MemoryEditModel::kMarkNone;
     });
 
-    m_view->SetOnWriteRefused ([this] (uint64_t offset) { NoteRefusal (offset); });
+    m_view->GetSourceEdit().SetOnWriteRefused ([this] (uint64_t offset) { NoteRefusal (offset); });
 
     //  A find's hits, the selected one in the current-match color.
     m_view->SetMatchFill ([this] (uint64_t offset) -> uint32_t
@@ -523,7 +523,7 @@ bool MemoryPane::UndoOrRedo (bool redo)
 
 
 
-    if (!m_view->IsEditable())
+    if (!m_view->GetSourceEdit().IsEditable())
     {
         return false;
     }

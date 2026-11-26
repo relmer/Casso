@@ -780,7 +780,7 @@ Error:
 void PartitionAccess::ReadVolumeLabel (IBlockStore & store, PartitionEntry & ioEntry)
 {
     HRESULT                   hr       = S_OK;
-    bool                      readable = !ioEntry.partition.damaged && ioEntry.partition.volumeKind != VolumeKind::Unknown;
+    bool                      readable = !ioEntry.partition.damaged && (ioEntry.partition.volumeKind != VolumeKind::Unknown || ioEntry.partition.isHfs);
     std::vector<Byte>         sectors;
     std::unique_ptr<IVolume>  volume;
     VolumeListing             listing;
@@ -795,6 +795,13 @@ void PartitionAccess::ReadVolumeLabel (IBlockStore & store, PartitionEntry & ioE
         ioEntry.partition.span == PartitionSpan::WholeBlocks && !ioEntry.partition.dosSectors)
     {
         ReadProDosName (store, ioEntry);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    //  An HFS volume's name is in its master directory block.
+    if (ioEntry.partition.isHfs)
+    {
+        ReadHfsName (store, ioEntry);
         BAIL_OUT_IF (true, S_OK);
     }
 
@@ -814,6 +821,45 @@ void PartitionAccess::ReadVolumeLabel (IBlockStore & store, PartitionEntry & ioE
 
     ioEntry.hasVolumeNumber = listing.hasVolumeNumber;
     ioEntry.volumeNumber    = listing.volumeNumber;
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PartitionAccess::ReadHfsName
+//
+//  The volume name in the master directory block, block 2: a length byte,
+//  then up to 27 characters.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PartitionAccess::ReadHfsName (IBlockStore & store, PartitionEntry & ioEntry)
+{
+    static constexpr uint32_t  kMasterBlock   = 2;
+    static constexpr size_t    kNameAt        = 0x24;
+    static constexpr size_t    kMostNameBytes = 27;
+
+
+
+    HRESULT            hr     = S_OK;
+    std::vector<Byte>  block (IBlockStore::kBlockBytes);
+    size_t             length = 0;
+
+
+
+    BAIL_OUT_IF (ioEntry.partition.blockCount <= kMasterBlock, S_OK);
+
+    hr = store.ReadBlocks (ioEntry.partition.firstBlock + kMasterBlock, 1, block);
+    CHR (hr);
+
+    length = std::min<size_t> (block[kNameAt], kMostNameBytes);
+    ioEntry.volumeName.assign ((const char *) &block[kNameAt + 1], length);
 
 Error:
     return;
@@ -889,6 +935,56 @@ std::string PartitionAccess::GetLabel (const PartitionEntry & entry, bool withSi
     }
 
     return label;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PartitionAccess::GetPartitionLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string PartitionAccess::GetPartitionLabel (const Partition & partition)
+{
+    if (!partition.name.empty() && !partition.type.empty())
+    {
+        return partition.name + " (" + partition.type + ")";
+    }
+
+    if (!partition.type.empty())
+    {
+        return partition.type;
+    }
+
+    return std::format ("Partition {}", partition.index);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PartitionAccess::GetVolumeLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string PartitionAccess::GetVolumeLabel (const PartitionEntry & entry)
+{
+    if (!entry.volumeName.empty())
+    {
+        return entry.volumeName;
+    }
+
+    if (entry.hasVolumeNumber)
+    {
+        return std::format ("DOS 3.3 volume {}", entry.volumeNumber);
+    }
+
+    return "Untitled";
 }
 
 

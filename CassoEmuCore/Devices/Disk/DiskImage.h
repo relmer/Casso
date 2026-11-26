@@ -105,7 +105,7 @@ public:
 //  Phase 9 scope: bit-stream storage + the soft sector-level Load that
 //  preserves Phase 8 runtime behavior (.dsk → 6+2 nibblization → packed
 //  bit stream). The full WOZ / .DO / .PO loaders + true round-trip
-//  Serialize land in Phase 10 (NibblizationLayer / WozLoader).
+//  Serialize land in Phase 10 (Nibblizer / WozLoader).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -216,6 +216,10 @@ public:
     //  dirty ones otherwise sees a rewritten track as untouched.
     void             MarkTrackDirty      (int track);
 
+    // Marks the image as changed when no track did, as after its WOZ
+    // metadata is replaced, so the next flush writes it.
+    void             MarkDirty           () { m_dirty = true; }
+
     //  A slot the shared sector writer changed, apart from guest writes
     //  through the drive. A save clears both. A slot only the writer changed
     //  can be saved in place where a guest-written one is rebuilt.
@@ -269,7 +273,7 @@ public:
     void  SetQuarterTrackSlot  (int quarterTrack, int slot);
     void  EnsureTrackSlots     (int slotCount);
 
-    // Direct bit-buffer access for bulk writers (NibblizationLayer, WozLoader).
+    // Direct bit-buffer access for bulk writers (Nibblizer, WozLoader).
     // ResizeTrack must be called first; the returned buffer length matches the
     // packed-byte size for the track. Bypasses write-protect.
     vector<Byte> &   GetTrackBitsForWrite (int track) { TouchTrack (track); return m_trackBits[track]; }

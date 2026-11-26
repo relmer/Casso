@@ -1,5 +1,7 @@
 #include "Pch.h"
 #include "ExplorerWindowPartsRig.h"
+#include "Devices/Disk/Store/DiskFileCommit.h"
+#include "CassoExplorer/Window/Panes/Preview/PreviewDiskThumbnail.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -51,9 +53,10 @@ public:
 
     //  The preview of a disk image has the picture of its screen and the
     //  line with its boot result under it, at 100% and at 150%: beside the
-    //  platter in a wide pane, and three quarters as tall as it is wide. The
-    //  platter's analysis reads the file from the disk, so the image is in a
-    //  folder of the test's in the temporary folder as well.
+    //  platter, scaled down where the pane is narrow, and three quarters as
+    //  tall as it is wide. The platter's analysis reads the file from the
+    //  disk, so the image is in a folder of the test's in the temporary
+    //  folder as well.
     TEST_METHOD (Preview_HasADiskImagesScreenAndResultLine_At100And150Percent)
     {
         for (UINT dpi : { 96u, 144u })
@@ -77,9 +80,9 @@ public:
             rig.prefs.previewVisible = true;
             rig.Seed ("CassoExplorer/dos33.dsk", image.c_str());
             std::filesystem::create_directories (folder);
-            AssertSucceeded (DiskImageStore::WriteFileAtomically (image.string(), rig.io.files[image.string()]));
+            AssertSucceeded (DiskFileCommit::WriteFileAtomically (image.string(), rig.io.files[image.string()]));
             rig.Open();
-            Assert::IsTrue (rig.browser.NavigateToAddress (folder.wstring()));
+            Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (folder.wstring()));
             rig.parts->listPane.FillList();
             Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"a.dsk"));
             rig.parts->preview.FillPreview();
@@ -95,7 +98,8 @@ public:
             Assert::AreEqual (pictures.resultLine, rig.parts->preview.GetThumbnail().GetResultLine());
 
             screen = rig.parts->preview.GetThumbnail().GetScreenRect();
-            Assert::AreEqual ((long) rig.scaler.ToPx (PreviewDiskThumbnail::kScreenDip), screen.right - screen.left);
+            Assert::IsTrue (screen.right > screen.left && screen.right - screen.left <= (long) rig.scaler.ToPx (PreviewDiskThumbnail::kScreenDip),
+                            std::format (L"The screen's picture is {} px wide at {} dpi", screen.right - screen.left, dpi).c_str());
             Assert::AreEqual ((screen.right - screen.left) * 3 / 4, screen.bottom - screen.top);
 
             RemoveFolder (folder);
@@ -132,12 +136,12 @@ public:
                 std::filesystem::path  image = folder / name;
 
                 rig.Seed ("CassoExplorer/dos33.dsk", image.c_str());
-                AssertSucceeded (DiskImageStore::WriteFileAtomically (image.string(), rig.io.files[image.string()]));
+                AssertSucceeded (DiskFileCommit::WriteFileAtomically (image.string(), rig.io.files[image.string()]));
             }
 
             rig.Open();
             rig.parts->layout.SetClient (RECT { 0, 0, rig.scaler.ToPx (1280), rig.scaler.ToPx (900) });
-            Assert::IsTrue (rig.browser.NavigateToAddress (folder.wstring()));
+            Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (folder.wstring()));
             rig.parts->listPane.FillList();
 
             auto  select = [&rig] (const wchar_t * name)
@@ -178,6 +182,19 @@ public:
     }
 
 
+    //  The damage a disk's listing reports, such as a CP/M directory's entries
+    //  that aren't valid, is the infobar's finding, with the pointer to
+    //  Inspect... under it.
+    TEST_METHOD (ListingDamage_IsTheInfobarsWarningText)
+    {
+        std::wstring  damage = L"There are 6 directory entries that aren't valid CP/M entries, so the disk is treated as read-only to prevent further damage";
+
+
+
+        Assert::AreEqual (damage + L".\nClick Inspect for more information.", PreviewDiskThumbnail::FormatListingWarning (damage));
+        Assert::AreEqual (std::wstring(), PreviewDiskThumbnail::FormatListingWarning (L""), L"no damage, no infobar");
+    }
+
     //  The preview of a disk image has its file-system verdict at the top, at
     //  100% and at 150%: Bad as an error infobar with its first finding of
     //  damage and Repair disk image, Suspect as an info infobar with its
@@ -190,9 +207,9 @@ public:
 
         const Case  cases[] =
         {
-            { L"bad.dsk",     RepairFixtures::MakeDos33Bitmap().damaged,       L"File system damaged.\nTrack 18, sector $E is used by HELLO but marked free.\n\nInspect for more details.",
+            { L"bad.dsk",     RepairFixtures::MakeDos33Bitmap().damaged,       L"Track 18, sector $2 is used by HELLO but marked free.\nClick Inspect for more information.",
               DxuiInfoBanner::Severity::Error, L"" },
-            { L"suspect.dsk", RepairFixtures::MakeDos33NextTrackOff().damaged, L"Possible inconsistencies found.\nThe VTOC's next track to allocate, track 40, is off the disk.\n\nInspect for more details.",
+            { L"suspect.dsk", RepairFixtures::MakeDos33NextTrackOff().damaged, L"The VTOC's next track to allocate, track 40, is off the disk.\nClick Inspect for more information.",
               DxuiInfoBanner::Severity::Info,  L"" },
             { L"ok.dsk",      RepairFixtures::MakeDos33(),                     L"", DxuiInfoBanner::Severity::Info, L"" },
         };
@@ -218,9 +235,9 @@ public:
                 rig.io.files[narrow]  = c.bytes;
                 rig.io.stamps[narrow] = FileStamp { c.bytes.size(), 100 };
                 std::filesystem::create_directories (folder);
-                AssertSucceeded (DiskImageStore::WriteFileAtomically (narrow, c.bytes));
+                AssertSucceeded (DiskFileCommit::WriteFileAtomically (narrow, c.bytes));
                 rig.Open();
-                Assert::IsTrue (rig.browser.NavigateToAddress (folder.wstring()));
+                Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (folder.wstring()));
                 rig.parts->listPane.FillList();
                 Assert::IsTrue (rig.parts->listPane.SelectRowNamed (c.name));
                 rig.parts->preview.FillPreview();
@@ -292,12 +309,12 @@ public:
                 AssertSucceeded (rig.fs.WriteAllText ((folder / file.first).c_str(), std::string (file.second->begin(), file.second->end())));
                 rig.io.files[narrow]  = *file.second;
                 rig.io.stamps[narrow] = FileStamp { file.second->size(), 100 };
-                AssertSucceeded (DiskImageStore::WriteFileAtomically (narrow, *file.second));
+                AssertSucceeded (DiskFileCommit::WriteFileAtomically (narrow, *file.second));
             }
 
             rig.Open();
             rig.parts->layout.SetClient (RECT { 0, 0, rig.scaler.ToPx (1280), rig.scaler.ToPx (900) });
-            Assert::IsTrue (rig.browser.NavigateToAddress (folder.wstring()));
+            Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (folder.wstring()));
             rig.parts->listPane.FillList();
 
             auto  select = [&rig] (const wchar_t * name)
@@ -364,7 +381,7 @@ public:
         AssertSucceeded (rig.fs.WriteAllText (before.c_str(), std::string (bytes.begin(), bytes.end())));
         rig.io.files[before.string()]  = bytes;
         rig.io.stamps[before.string()] = FileStamp { bytes.size(), 100 };
-        AssertSucceeded (DiskImageStore::WriteFileAtomically (before.string(), bytes));
+        AssertSucceeded (DiskFileCommit::WriteFileAtomically (before.string(), bytes));
 
         rig.verbs->onRename = [&] (const std::wstring &, const std::wstring &)
         {
@@ -380,7 +397,7 @@ public:
 
         rig.Open();
         rig.parts->layout.SetClient (RECT { 0, 0, rig.scaler.ToPx (1280), rig.scaler.ToPx (900) });
-        Assert::IsTrue (rig.browser.NavigateToAddress (folder.wstring()));
+        Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (folder.wstring()));
         rig.parts->listPane.FillList();
         Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"a.dsk"));
         rig.parts->preview.FillPreview();
@@ -447,10 +464,10 @@ public:
             rig.io.files[narrow]  = bytes;
             rig.io.stamps[narrow] = FileStamp { bytes.size(), 100 };
             std::filesystem::create_directories (folder);
-            AssertSucceeded (DiskImageStore::WriteFileAtomically (narrow, bytes));
+            AssertSucceeded (DiskFileCommit::WriteFileAtomically (narrow, bytes));
             rig.Open();
             rig.parts->layout.SetClient (RECT { 0, 0, rig.scaler.ToPx (1280), rig.scaler.ToPx (440) });
-            Assert::IsTrue (rig.browser.NavigateToAddress (folder.wstring()));
+            Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (folder.wstring()));
             rig.parts->listPane.FillList();
             Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"bad.dsk"));
             rig.parts->preview.FillPreview();
@@ -560,9 +577,9 @@ public:
         rig.io.files[narrow]  = bytes;
         rig.io.stamps[narrow] = FileStamp { bytes.size(), 100 };
         std::filesystem::create_directories (folder);
-        AssertSucceeded (DiskImageStore::WriteFileAtomically (narrow, bytes));
+        AssertSucceeded (DiskFileCommit::WriteFileAtomically (narrow, bytes));
         rig.Open();
-        Assert::IsTrue (rig.browser.NavigateToAddress (folder.wstring()));
+        Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (folder.wstring()));
         rig.parts->listPane.FillList();
         Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"lost.dsk"));
         rig.parts->preview.FillPreview();
@@ -577,7 +594,7 @@ public:
         Assert::IsTrue (isDrawn);
         rig.parts->preview.TakeThumbnail();
         Assert::AreEqual (std::wstring (L"DOS 3.3, damaged"), rig.parts->preview.GetThumbnail().GetFileSystemText());
-        Assert::IsTrue   (rig.browser.GetPreview().kind == PreviewContent::Kind::Details, L"the disk doesn't mount");
+        Assert::IsTrue   (rig.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Details, L"the disk doesn't mount");
 
         for (const DxuiTextView::Row & row : static_cast<DxuiTextView *> (rig.parts->preview.GetText().GetControl())->GetRows())
         {
@@ -616,7 +633,7 @@ public:
 
         rig.prefs.previewVisible = true;
         rig.Open();
-        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks"));
+        Assert::IsTrue (rig.browser.GetNavigator().NavigateToAddress (L"C:\\Disks"));
         rig.parts->listPane.FillList();
         Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"big.po"));
         rig.parts->preview.FillPreview();

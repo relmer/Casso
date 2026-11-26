@@ -103,18 +103,21 @@ public:
     //  is attached to its ports. Its firmware resolves out of the fixtures.
     struct BlockCard
     {
-        int                      slot = 0;
+        int                      slot          = 0;
         std::string              device;
         std::vector<PortConfig>  ports;
+        bool                     cassoFirmware = false;
     };
 
     //  The machine with each card in its slot, replacing what the slot had,
     //  and every image read and written through `fileIo`, so a test can run
-    //  a card over in-memory images.
+    //  a card over in-memory images. `customize`, when given, is applied as
+    //  the customized constructor applies it, before the cards are placed.
     TestMachine (const std::string             & machineId,
                  Slots                           slots,
                  const std::vector<BlockCard>  & cards,
-                 IDiskFileIo                   & fileIo);
+                 IDiskFileIo                   & fileIo,
+                 const Customize               & customize = nullptr);
 
     //  The machine with each of `ports` in place of its port of the same
     //  name, each chain drive's ROM resolved out of the fixtures and each

@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "TestMachine.h"
 #include "TextScreenScraper.h"
 #include "FixtureProvider.h"
@@ -11,7 +12,6 @@
 #include "CassoLink/RunningCassoRegistry.h"
 #include "../EhmTestHelper.h"
 #include "../UiTests/InMemoryFileSystem.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "HResultAssert.h"
 
@@ -156,7 +156,7 @@ public:
 
         // Raw DOS-order .dsk; boot ROM reads T0S0 (256 bytes) into $0800 and
         // JMPs $0801, so the code sits at file offset 1 (byte $0800 is unused).
-        std::vector<Byte>  raw (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  raw (NibbleFormat::kImageByteSize, 0);
         for (size_t i = 0; i < sizeof (kBootSector); i++)
         {
             raw[1 + i] = kBootSector[i];
@@ -207,7 +207,7 @@ public:
 
         // Any non-blank disk works -- the nibblizer frames every track with
         // sync + address marks, so even a mostly-zero image streams valid bytes.
-        std::vector<Byte>  raw (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  raw (NibbleFormat::kImageByteSize, 0);
         raw[1] = 0xEA;
 
         TestMachine machine ("Apple2c");

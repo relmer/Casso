@@ -12,7 +12,6 @@
 static constexpr size_t  s_kEntryBytes    = 23;     // slot, unit, SmartPort, blocks (3), kind, volume name (16)
 static constexpr size_t  s_kNameBytes     = 16;
 static constexpr size_t  s_kSosEntryBytes = s_kEntryBytes + s_kNameBytes;   // and the SOS device's name
-static constexpr size_t  s_kBlockPayload = 3 + CassoLinkCodec::kBlockSize + 2;   // the block's number, its bytes and their CRC
 static constexpr Byte    s_kNameLength   = 0x0F;
 
 
@@ -108,7 +107,7 @@ void CassoLinkHost::MakeBlockRequest (const CassoLinkBlockDevice & device, uint3
 {
     outRequest = { device.slot, device.unit, (Byte) (device.isSmartPort ? 1 : 0),
                    (Byte) (first & 0xFF), (Byte) ((first >> 8) & 0xFF), (Byte) ((first >> 16) & 0xFF),
-                   count, (Byte) (verify ? 1 : 0), m_progressStart, m_progressEnd };
+                   count, (Byte) ((verify ? CassoLinkCodec::kBlockVerify : 0) | (m_blockCrc ? 0 : CassoLinkCodec::kBlockNoCrc)), m_progressStart, m_progressEnd };
 }
 
 
@@ -119,7 +118,8 @@ void CassoLinkHost::MakeBlockRequest (const CassoLinkBlockDevice & device, uint3
 //
 //  CassoLinkHost::ReadBlocks
 //
-//  Each Block data packet must be the next block, whole and with its CRC.
+//  Each Block plain or Block runs packet must be the next block, whole, and
+//  with its CRC when the host checks them (SetBlockCrc).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -145,10 +145,9 @@ HRESULT CassoLinkHost::ReadBlocks (const CassoLinkBlockDevice & device, uint32_t
 
     for (;;)
     {
-        std::span<const Byte>  data;
-        uint32_t               block = 0;
-        Word                   crc   = 0;
-        bool                   valid = false;
+        std::vector<Byte>  data;
+        uint32_t           block = 0;
+        bool               valid = false;
 
         hr = ReadReply (packet);
         CHR (hr);
@@ -160,18 +159,11 @@ HRESULT CassoLinkHost::ReadBlocks (const CassoLinkBlockDevice & device, uint32_t
             break;
         }
 
-        valid = packet.command == CassoLinkCodec::kBlockData && packet.payload.size() == s_kBlockPayload;
-        CBREx (valid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-
-        block = (uint32_t) packet.payload[0] | ((uint32_t) packet.payload[1] << 8) | ((uint32_t) packet.payload[2] << 16);
-        data  = std::span<const Byte> (packet.payload).subspan (3, CassoLinkCodec::kBlockSize);
-        crc   = (Word) (packet.payload[3 + CassoLinkCodec::kBlockSize] | (packet.payload[4 + CassoLinkCodec::kBlockSize] << 8));
+        hr = CassoLinkCodec::ParseBlock (packet, m_blockCrc, block, data);
+        CHR (hr);
 
         valid = block == next;
         CBREx (valid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-
-        valid = CassoLinkCodec::ComputeCrc (data) == crc;
-        CBREx (valid, HRESULT_FROM_WIN32 (ERROR_CRC));
 
         outData.insert (outData.end(), data.begin(), data.end());
         next++;
@@ -233,6 +225,7 @@ HRESULT CassoLinkHost::WriteBlocks (const CassoLinkBlockDevice & device, uint32_
         CBREx (valid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
         index = packet.payload[1];
+        ReportNak (packet, std::format ("block {}", first + (uint32_t) index));
 
         hr = SendBlock (first + (uint32_t) index, data.subspan (index * CassoLinkCodec::kBlockSize, CassoLinkCodec::kBlockSize));
         CHR (hr);
@@ -307,7 +300,9 @@ std::string CassoLinkHost::DescribeBlockError (Byte error, uint32_t block)
 //  CassoLinkHost::ServeVirtualBlock
 //
 //  A request whose size doesn't match its operation, or a write whose block
-//  fails its CRC, has no reply, so the driver sends it again.
+//  fails its CRC, has no reply, so the driver sends it again. A status
+//  request has the ROM's identification bytes after the block, which
+//  identify the model.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -324,16 +319,20 @@ HRESULT CassoLinkHost::ServeVirtualBlock (const CassoLinkPacket & packet)
     Byte                   error     = CassoLinkVirtualDrives::kNoDevice;
     bool                   sized     = false;
     Word                   crc       = 0;
+    std::wstring           model;
 
 
 
     sized = payload.size() >= 4;
+    ReportVirtualDrop (sized);
     BAIL_OUT_IF (!sized, S_OK);
 
     drive     = payload[0];
     operation = payload[1];
     block     = (uint32_t) payload[2] | ((uint32_t) payload[3] << 8);
-    sized     = payload.size() == ((operation == CassoLinkCodec::kVirtualWrite) ? 4 + CassoLinkVirtualDrives::kBlockSize + 2 : 4);
+    sized     = payload.size() == ((operation == CassoLinkCodec::kVirtualWrite) ? 4 + CassoLinkVirtualDrives::kBlockSize + 2 : 4)
+             || (operation == CassoLinkCodec::kVirtualStatus && payload.size() == 4 + kVirtualIdSize);
+    ReportVirtualDrop (sized);
     BAIL_OUT_IF (!sized, S_OK);
 
     if (operation == CassoLinkCodec::kVirtualWrite)
@@ -343,6 +342,12 @@ HRESULT CassoLinkHost::ServeVirtualBlock (const CassoLinkPacket & packet)
 
         crc    = (Word) (payload[4 + CassoLinkVirtualDrives::kBlockSize] | (payload[5 + CassoLinkVirtualDrives::kBlockSize] << 8));
         intact = CassoLinkCodec::ComputeCrc (written) == crc;
+
+        if (!intact)
+        {
+            ReportActivity (std::format ("Dropped virtual drive {}'s block {}: damaged, the Apple sends it again", drive, block));
+        }
+
         BAIL_OUT_IF (!intact, S_OK);
 
         if (m_virtualDrives != nullptr)
@@ -368,6 +373,15 @@ HRESULT CassoLinkHost::ServeVirtualBlock (const CassoLinkPacket & packet)
     }
     else
     {
+        if (payload.size() == 4 + kVirtualIdSize)
+        {
+            CassoLinkClient  id;
+
+            id.hasRomId = true;
+            std::copy_n (payload.begin() + 4, kVirtualIdSize, id.romId.begin());
+            model = id.GetModelName();
+        }
+
         if (m_virtualDrives != nullptr)
         {
             error = m_virtualDrives->GetBlocks (drive, blocks);
@@ -380,6 +394,11 @@ HRESULT CassoLinkHost::ServeVirtualBlock (const CassoLinkPacket & packet)
 
     hr = SendPacket (CassoLinkCodec::kVirtualBlock, reply);
     CHR (hr);
+
+    if (m_virtualServed)
+    {
+        m_virtualServed (model);
+    }
 
 Error:
     return hr;

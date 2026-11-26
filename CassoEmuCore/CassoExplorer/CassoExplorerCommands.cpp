@@ -40,7 +40,7 @@ CassoExplorerCommands::CassoExplorerCommands (Handlers handlers)
         //  with a dot, as Explorer marks it.
         command->radio       = (row.id >= kSortByColumn) || (row.id == kSortByRelevance) || (row.id >= kSortAscending && row.id <= kSortDescending)
                             || (row.id >= kGroupAscending && row.id <= kGroupDescending)
-                            || (row.id >= kThemeLight && row.id <= kThemeRetroTerminal)
+                            || (row.id >= kThemeLight && row.id <= kThemePhosphor)
                             || (row.id >= kPictureMonochrome && row.id <= kPictureColor)
                             || (row.id >= kCharsetAppleText && row.id <= kCharsetIso8859)
                             || row.id == kSheetValues || row.id == kSheetFormulas

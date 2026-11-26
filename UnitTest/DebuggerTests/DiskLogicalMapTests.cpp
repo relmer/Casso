@@ -3,7 +3,9 @@
 #include "Debugger/DiskLogicalMap.h"
 #include "Devices/Disk/DiskFieldFormat.h"
 #include "Devices/Disk/DiskImage.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
+#include "Machines/Apple2/Common/TrackBitReader.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -29,7 +31,7 @@ namespace DebuggerTests
     public:
 
         static constexpr size_t  kSectorBytes = 256;
-        static constexpr int     kTrackCount  = NibblizationLayer::kTrackCount;
+        static constexpr int     kTrackCount  = NibbleFormat::kTrackCount;
 
         using TrackSectors = std::array<std::vector<Byte>, DiskLogicalMap::kSectorsPerTrack>;
 
@@ -48,7 +50,7 @@ namespace DebuggerTests
 
             for (size_t i = 0; i < image.GetTrackBitCount (track) / 4; i++)
             {
-                nibbles.push_back (NibblizationLayer::ReadNibbleAt (image, track, bitPos));
+                nibbles.push_back (TrackBitReader::ReadNibbleAt (image, track, bitPos));
             }
 
             for (size_t i = 0; i + 3 + kBody < nibbles.size(); i++)
@@ -81,7 +83,7 @@ namespace DebuggerTests
 
         TEST_METHOD (EachDosSectorIsThePhysicalSectorTheMapGives)
         {
-            std::vector<Byte>  raw (NibblizationLayer::kImageByteSize, 0);
+            std::vector<Byte>  raw (NibbleFormat::kImageByteSize, 0);
             DiskImage          image;
 
 
@@ -91,7 +93,7 @@ namespace DebuggerTests
                 raw[at] = static_cast<Byte> ((at / kSectorBytes) + at * 3);
             }
 
-            Assert::AreEqual (S_OK, NibblizationLayer::NibblizeDsk (raw, image));
+            Assert::AreEqual (S_OK, Nibblizer::NibblizeDsk (raw, image));
 
             for (int track : { 0, 17, 34 })
             {
@@ -114,7 +116,7 @@ namespace DebuggerTests
         TEST_METHOD (EachBlockIsTheTwoPhysicalSectorsTheMapGives)
         {
             constexpr size_t   kBlockBytes = 2 * kSectorBytes;
-            std::vector<Byte>  raw (NibblizationLayer::kImageByteSize, 0);
+            std::vector<Byte>  raw (NibbleFormat::kImageByteSize, 0);
             DiskImage          image;
             TrackSectors       sectors;
             int                decoded = -1;
@@ -126,7 +128,7 @@ namespace DebuggerTests
                 raw[at] = static_cast<Byte> ((at / kBlockBytes) * 7 + at);
             }
 
-            Assert::AreEqual (S_OK, NibblizationLayer::NibblizePo (raw, image));
+            Assert::AreEqual (S_OK, Nibblizer::NibblizePo (raw, image));
 
             for (Word block = 0; block < DiskLogicalMap::kBlockCount; block++)
             {

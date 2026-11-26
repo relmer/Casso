@@ -56,7 +56,7 @@ class MachineStateStream
 public:
     //  The disk each drive bay holds, slot-major, as a snapshot records it,
     //  zero for an empty bay.
-    using MediaIds = std::array<uint64_t, DiskImageStore::kSlotCount * DiskImageStore::kDriveCount>;
+    using MediaIds = std::array<uint64_t, DiskBayTable::kSlotCount * DiskBayTable::kDriveCount>;
 
     static constexpr uint32_t  kStateTag           = IMachineState::MakeTag ('M', 'A', 'C', 'H');
     static constexpr uint16_t  kStateVersion       = 3;

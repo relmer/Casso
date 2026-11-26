@@ -2,7 +2,6 @@
 
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/SectorFieldWriter.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "InspectorTrackBuilder.h"
 #include "FluxTestImages.h"
 #include "Devices/Disk/SectorWrite.h"

@@ -265,7 +265,7 @@ HRESULT BlockDeviceMedia::DecodeWoz (const std::vector<Byte> & bytes, std::vecto
             list += (i == 0) ? std::format (L"{}", missing[i]) : std::format (L", {}", missing[i]);
         }
 
-        outError = std::format (L"{} of the WOZ image's blocks don't decode: {}{}.", missing.size(), list, missing.size() > kListed ? L" and more" : L"");
+        outError = std::format (L"The WOZ image has {} blocks that don't decode: {}{}.", missing.size(), list, missing.size() > kListed ? L" and more" : L"");
         CBREx (false, HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
     }
 

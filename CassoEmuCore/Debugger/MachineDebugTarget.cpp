@@ -1166,7 +1166,7 @@ DebugMachineInfo MachineDebugTarget::GetMachineInfo() const
         return info;
     }
 
-    for (int drive = 0; drive < DiskImageStore::kDriveCount; ++drive)
+    for (int drive = 0; drive < DiskBayTable::kDriveCount; ++drive)
     {
         info.disks.push_back (disks.IsMounted (kDiskSlot, drive) ? disks.GetSourcePath (kDiskSlot, drive) : std::string());
     }

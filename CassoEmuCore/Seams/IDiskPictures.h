@@ -51,6 +51,9 @@ public:
     virtual bool     HasThumbnail    (const std::wstring & path) = 0;
     virtual HRESULT  RemoveThumbnail (const std::wstring & path) = 0;
 
+    //  The PNG becomes the thumbnail the user set for the image.
+    virtual HRESULT  SetThumbnail (const std::wstring & path, std::span<const Byte> png) = 0;
+
     //  The keys of the thumbnails of files to be deleted, and the removal of
     //  those thumbnails once the files are gone.
     virtual std::vector<std::string>  GetKeys       (const std::vector<std::wstring> & paths) = 0;

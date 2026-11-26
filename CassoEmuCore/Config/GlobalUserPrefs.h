@@ -57,6 +57,9 @@ struct GlobalUserPrefs
     std::string  deskFloppies        = "auto";
     std::string  deskHardDisks       = "auto";
 
+    // The cassette recorder is in the drive dock rather than on the desk.
+    bool         recorderInDock      = false;
+
     // Two floppies on the desk stack beside the monitor rather than under it.
     bool         deskFloppyPairBeside = false;
 

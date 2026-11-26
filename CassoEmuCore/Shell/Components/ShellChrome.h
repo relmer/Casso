@@ -193,6 +193,7 @@ public:
     // puts on the bar, the class's other drives fanned out above it on hover.
     // The Disk II widgets are placed in their drives' slots.
     void    LayoutDriveBar         (int bottomInsetPx, int clientW, int clientH, UINT dpi);
+    int     GetDockRecorderDp      () const;
     void    HideDriveBar           ();
     bool    UpdateDriveBarHover    (POINT pt);
     bool    HandleDriveBarClick    (POINT pt);
@@ -368,6 +369,7 @@ private:
     // room at the right, at a zoom of 100%. The row starts this far in from
     // the window's sides, with at least the minimum gap between boxes.
     static constexpr int       s_kDriveBarPadDp       = 6;
+    static constexpr float     s_kDriveBarBaseScale   = 1.2f;   // the widgets' size at a zoom of 100%
     static constexpr int       s_kDriveBarArrowDp     = 14;
     static constexpr int       s_kDriveBarEdgeDp      = 8;
     static constexpr int       s_kDriveBarMinBoxGapDp = 6;

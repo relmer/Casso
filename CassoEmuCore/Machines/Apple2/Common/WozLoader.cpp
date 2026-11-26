@@ -2,6 +2,8 @@
 
 #include "Version.h"
 #include "Machines/Apple2/Common/WozLoader.h"
+#include "Machines/Apple2/Common/WozChunkWalker.h"
+#include "Devices/Disk/Stamp/FormatStampRefresher.h"
 #include "Devices/Disk/DiskImage.h"
 
 
@@ -628,11 +630,11 @@ HRESULT WozLoader::ApplyEdits (vector<Byte> & fileBytes, const Edits & edits)
     uint32_t                crc    = 0;
     bool                    intact = false;
     bool                    atEnd  = false;
-    std::vector<ChunkSpan>  chunks;
+    vector<WozChunkSpan>    chunks;
     size_t                  end    = 0;
-    const ChunkSpan       * info   = nullptr;
-    const ChunkSpan       * meta   = nullptr;
-    const ChunkSpan       * flux   = nullptr;
+    const WozChunkSpan    * info   = nullptr;
+    const WozChunkSpan    * meta   = nullptr;
+    const WozChunkSpan    * flux   = nullptr;
     Byte                  * fields = nullptr;
     std::string             text;
     size_t                  at     = 0;
@@ -650,9 +652,9 @@ HRESULT WozLoader::ApplyEdits (vector<Byte> & fileBytes, const Edits & edits)
     hr = FormatMeta (edits.meta, text);
     CHR (hr);
 
-    WalkChunks (bytes, chunks, end);
+    WozChunkWalker::Walk (bytes, chunks, end);
 
-    for (const ChunkSpan & chunk : chunks)
+    for (const WozChunkSpan & chunk : chunks)
     {
         info = MatchMagic (chunk.id, kInfoMagic) ? &chunk : info;
         meta = MatchMagic (chunk.id, kMetaMagic) ? &chunk : meta;
@@ -720,46 +722,6 @@ Error:
 bool WozLoader::IsStandardMetaKey (const std::string & key)
 {
     return std::any_of (std::begin (s_kStandardMetaKeys), std::end (s_kStandardMetaKeys), [&key] (const char * standard) { return key == standard; });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WozLoader::WalkChunks
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void WozLoader::WalkChunks (const vector<Byte> & raw, std::vector<ChunkSpan> & outChunks, size_t & outEnd)
-{
-    size_t  pos  = kHeaderSize;
-    bool    more = true;
-
-
-
-    outChunks.clear();
-
-    while (more && pos + kChunkHeaderSize <= raw.size())
-    {
-        ChunkSpan  chunk;
-        bool       isId = std::all_of (raw.begin() + (ptrdiff_t) pos, raw.begin() + (ptrdiff_t) (pos + sizeof (chunk.id)), [] (Byte b) { return b >= 'A' && b <= 'Z'; });
-
-        chunk.start   = pos;
-        chunk.payload = pos + kChunkHeaderSize;
-        chunk.size    = Read32LE (raw.data() + pos + sizeof (chunk.id));
-        more          = isId && chunk.payload + chunk.size <= raw.size();
-
-        if (more)
-        {
-            memcpy (chunk.id, raw.data() + pos, sizeof (chunk.id));
-            outChunks.push_back (chunk);
-            pos = chunk.payload + chunk.size;
-        }
-    }
-
-    outEnd = pos;
 }
 
 
@@ -1887,7 +1849,7 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
     size_t               pos                     = 0;
     int                  slot                    = 0;
     int                  qt                      = 0;
-    const WozMetadata  & meta                    = img.GetWozMetadata();
+    WozMetadata          meta;
     bool                 hasSourceInfo           = false;
     size_t               chunkCount              = 0;
     size_t               chunkIdx                = 0;
@@ -1897,6 +1859,8 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
     {
         slotCount = static_cast<int> (kV2TrkRecordCount);
     }
+
+    FormatStampRefresher::GetMetadataForSave (img, meta);
 
     hasSourceInfo = (meta.infoPayload.size() >= kInfoChunkSize);
     chunkCount    = meta.passThrough.size();

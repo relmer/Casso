@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "MockDxuiTextRenderer.h"
+#include "MockDxuiTheme.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -257,5 +258,44 @@ public:
         Assert::AreEqual (21.0f, layout.GetCharsPx (0, 0, 0, 3));
         Assert::AreEqual (2,     layout.GetLineCount(), L"five 7-pixel characters fit in 35 pixels");
         Assert::AreEqual (5,     layout.GetLines()[1].start);
+    }
+
+
+    //  Rows of one column group line their cells up with each other only: a
+    //  wide cell in one group doesn't move the columns of another.
+    TEST_METHOD (ColumnGroups_LineUpApart)
+    {
+        DxuiTextLayout  layout;
+        DxuiTextRow     legend = MakeRow ({ L"Water", L"Grass" });
+        DxuiTextRow     wide   = MakeRow ({ L"A much wider cell", L"x" });
+
+        legend.columnGroup = 1;
+
+        WrapAt (layout, { legend, wide }, 80);
+
+        Assert::AreEqual (5 + 2,  layout.GetCellStart (layout.GetRows()[0], 1), L"the legend's column is as wide as its own widest cell, and the gap");
+        Assert::AreEqual (17 + 2, layout.GetCellStart (layout.GetRows()[1], 1), L"the other group's is as wide as its cell");
+    }
+
+
+    //  A table fits when each row's cells fit at their natural widths; a
+    //  narrower width would wrap the last cell, so it doesn't fit.
+    TEST_METHOD (DoColumnsFit_OnlyWhenNoCellWraps)
+    {
+        DxuiTextLayout        layout;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+
+        layout.SetProportional (true);
+        layout.SetCellSize (8, 8.0f, 16);
+        layout.SetRows ({ MakeRow ({ L"Name", L"Weapon" }), MakeRow ({ L"IOLO", L"Dagger and sling" }) });
+
+        Assert::IsFalse (layout.IsMeasured(), L"Nothing is measured until a paint");
+
+        layout.Measure (text, theme.BodyFont());
+
+        Assert::IsTrue  (layout.IsMeasured());
+        Assert::IsTrue  (layout.DoColumnsFit (1984.0f), L"Wide enough");
+        Assert::IsFalse (layout.DoColumnsFit (48.0f),   L"Too narrow: the last cell would wrap");
     }
 };

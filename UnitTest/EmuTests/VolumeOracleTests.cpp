@@ -2,8 +2,8 @@
 #include "../EhmTestHelper.h"
 #include "FixtureProvider.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "HResultAssert.h"
@@ -461,7 +461,7 @@ public:
     {
         // Refusing to name a filesystem is an answer. Guessing one would send
         // a reader at structures that are not there.
-        vector<Byte>  noise (NibblizationLayer::kImageByteSize, 0x55);
+        vector<Byte>  noise (NibbleFormat::kImageByteSize, 0x55);
 
         Assert::IsTrue (VolumeKind::Unknown == VolumeImage::DetectFilesystem (noise));
     }

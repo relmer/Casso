@@ -2,9 +2,11 @@
 
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
 #include "CassoExplorer/Model/IconSizeSteps.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 #include "CassoExplorer/Window/Panes/ExplorerListColumns.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
+#include "CassoExplorer/Model/CassoImagesListing.h"
 #include "CassoExplorer/Model/CollectionQuery.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Core/PathResolver.h"
@@ -57,8 +59,8 @@ void ExplorerListColumns::ShowChosenColumns()
         m_pane.GetListView()->SetColumnVisible (c, IsListColumnShown (c, m_chosen[c], location.kind, SearchQuery::IsId (location.path), IsResultsList (location)));
 
         //  File Explorer's filters, on a folder's or a disk's list.
-        m_pane.GetListView()->SetColumnFilter (c, CassoExplorerBrowser::GetFilterField (c) != RowGrouping::Field::None && location.kind != Location::Kind::Root,
-                                               m_context.browser.IsFiltering (CassoExplorerBrowser::GetFilterField (c)));
+        m_pane.GetListView()->SetColumnFilter (c, BrowserColumnFilters::GetFilterField (c) != RowGrouping::Field::None && location.kind != Location::Kind::Root,
+                                               m_context.browser.GetColumnFilters().IsFiltering (BrowserColumnFilters::GetFilterField (c)));
     }
 }
 
@@ -180,6 +182,68 @@ bool ExplorerListColumns::IsCassoImageList (const Location & location)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerListColumns::IsUnderCassoNode
+//
+//  The stock and demo disks, and a folder in or below one of the Casso
+//  node's folders.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerListColumns::IsUnderCassoNode (const Location & location) const
+{
+    HRESULT                hr      = S_OK;
+    std::vector<TreeNode>  nodes;
+    std::wstring           path;
+    std::wstring           folder;
+    bool                   isUnder = false;
+
+
+
+    if (location.kind == Location::Kind::Root)
+    {
+        return location.path == TreeModel::kStockDisksId || location.path == TreeModel::kDemoDisksId;
+    }
+
+    if (location.kind != Location::Kind::HostFolder)
+    {
+        return false;
+    }
+
+    hr = m_context.browser.GetTreeModel().GetChildren (TreeModel::kCassoRootId, nodes);
+
+    if (FAILED (hr))
+    {
+        return false;
+    }
+
+    path = CassoImagesListing::MakePathKey (location.path);
+
+    for (const TreeNode & node : nodes)
+    {
+        if (node.location.kind != Location::Kind::HostFolder || node.location.path.empty())
+        {
+            continue;
+        }
+
+        folder = CassoImagesListing::MakePathKey (node.location.path);
+
+        while (!folder.empty() && folder.back() == L'\\')
+        {
+            folder.pop_back();
+        }
+
+        isUnder = isUnder || path == folder || (path.starts_with (folder) && path.size() > folder.size() && path[folder.size()] == L'\\');
+    }
+
+    return isUnder;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerListColumns::IsResultsList
 //
 //  A list of files from several folders, which has the Folder column and
@@ -211,7 +275,7 @@ bool ExplorerListColumns::IsListColumnShown (size_t column, bool chosen, Locatio
 {
     bool  catalog     = column == (size_t) CatalogModel::Column::Address || column == (size_t) CatalogModel::Column::Locked;
     bool  recycled    = column == (size_t) CatalogModel::Column::OriginalLocation || column == (size_t) CatalogModel::Column::DateDeleted;
-    bool  insideImage = kind == Location::Kind::DiskImage || kind == Location::Kind::DiskDirectory || kind == Location::Kind::AppleDrive;
+    bool  insideImage = kind == Location::Kind::DiskImage || kind == Location::Kind::DiskDirectory || kind == Location::Kind::AppleDrive || kind == Location::Kind::Partition;
     bool  inBin       = kind == Location::Kind::RecycleBin;
 
 
@@ -460,7 +524,7 @@ void ExplorerListColumns::ApplyFolderView()
 
 
 
-    if (key == m_viewKey && (m_view == DxuiListView::View::Home) == m_context.browser.IsHomeSectioned() && !(m_context.browser.IsHomeLocation() && m_view != DxuiListView::View::Home && m_view != DxuiListView::View::Details))
+    if (key == m_viewKey && (m_view == DxuiListView::View::Home) == m_context.browser.GetRowOrder().IsHomeSectioned() && !(m_context.browser.IsHomeLocation() && m_view != DxuiListView::View::Home && m_view != DxuiListView::View::Details))
     {
         return;
     }
@@ -470,7 +534,7 @@ void ExplorerListColumns::ApplyFolderView()
     if (m_context.browser.IsHomeLocation())
     {
         m_viewKey = key;
-        m_view    = m_context.browser.IsHomeSectioned() ? DxuiListView::View::Home : DxuiListView::View::Details;
+        m_view    = m_context.browser.GetRowOrder().IsHomeSectioned() ? DxuiListView::View::Home : DxuiListView::View::Details;
         m_iconDip = 0;
         m_pane.GetListView()->SetItemIconDip (0);
         m_pane.GetListView()->SetView (m_view);
@@ -503,7 +567,7 @@ void ExplorerListColumns::ApplyFolderView()
     {
         sortColumn = (size_t) CatalogModel::kRelevance;
     }
-    else if (!CatalogModel::TryGetColumn (entry.sortColumn, sortColumn) || (sortColumn >= CatalogModel::kColumnCount && !m_context.browser.IsPropertyColumn ((int) sortColumn)))
+    else if (!CatalogModel::TryGetColumn (entry.sortColumn, sortColumn) || (sortColumn >= CatalogModel::kColumnCount && !m_context.browser.GetRowOrder().IsPropertyColumn ((int) sortColumn)))
     {
         sortColumn = 0;
     }
@@ -558,8 +622,8 @@ void ExplorerListColumns::ApplyFolderView()
         entry.groupBy = 0;
     }
 
-    m_context.browser.SetSortAndGroup ((CatalogModel::Column) sortColumn, entry.sortDescending,
-                                        (RowGrouping::Field) entry.groupBy, entry.groupDescending);
+    m_context.browser.GetRowOrder().SetSortAndGroup ((CatalogModel::Column) sortColumn, entry.sortDescending,
+                                                      (RowGrouping::Field) entry.groupBy, entry.groupDescending);
 
     if (entry.columnWidthsDip.empty() && entry.addedColumnWidthsDip.empty())
     {
@@ -587,8 +651,9 @@ void ExplorerListColumns::ApplyFolderView()
             m_chosen[(size_t) CatalogModel::Column::Folder] = true;
         }
 
-        //  The Casso node's images, with what each is and when Casso last loaded it.
-        if (IsCassoImageList (m_context.browser.GetLocation()) && m_chosen.size() > (size_t) CatalogModel::Column::LastUsed)
+        //  The Casso node's images, with what each is and when Casso last loaded
+        //  it, and in a picker, the images of every folder under the node.
+        if ((IsCassoImageList (m_context.browser.GetLocation()) || (m_context.IsPicker() && IsUnderCassoNode (m_context.browser.GetLocation()))) && m_chosen.size() > (size_t) CatalogModel::Column::LastUsed)
         {
             for (CatalogModel::Column column : { CatalogModel::Column::FormFactor, CatalogModel::Column::FormattedSize, CatalogModel::Column::LastUsed })
             {
@@ -1080,14 +1145,14 @@ void ExplorerListColumns::LoadPropertyColumns()
     m_pane.GetPropertyValues().SetProperties (names);
 
     //  A sort by a property reads the values it lacks at once.
-    m_context.browser.SetPropertyColumns (names.size(), [this] (size_t row, size_t property)
+    m_context.browser.GetRowOrder().SetPropertyColumns (names.size(), [this] (size_t row, size_t property)
     {
         const std::vector<CatalogRow> &  rows = m_context.browser.GetRows();
         CatalogModel::PropertyKey        key;
         std::wstring                     path;
 
         //  A shell item with no file, as a device in Network, goes by its id.
-        if (row < rows.size() && (m_context.browser.TryGetRowPath ((int) row, path) || !(path = rows[row].shellId).empty()))
+        if (row < rows.size() && (BrowserRowPaths::TryGetRowPath (m_context.browser.GetRowListing(), (int) row, path) || !(path = rows[row].shellId).empty()))
         {
             Win32PropertyColumns::Values  values = m_pane.GetPropertyValues().ReadNow (path, ExplorerListPane::GetPropertyStamp (rows[row]));
 
@@ -1108,7 +1173,7 @@ void ExplorerListColumns::LoadPropertyColumns()
 
         //  Grouping never waits: a device or a large folder can take seconds,
         //  so what isn't read yet is queued, and the rows regroup as it arrives.
-        if (row < rows.size() && (m_context.browser.TryGetRowPath ((int) row, path) || !(path = rows[row].shellId).empty())
+        if (row < rows.size() && (BrowserRowPaths::TryGetRowPath (m_context.browser.GetRowListing(), (int) row, path) || !(path = rows[row].shellId).empty())
             && m_pane.GetPropertyValues().TryGet (path, ExplorerListPane::GetPropertyStamp (rows[row]), values) && property < values.size())
         {
             key = values[property];

@@ -78,7 +78,7 @@ public:
     //  Where the program's Ready packet is in memory, from its header.
     static Word  FindReady (ProgramRig & rig)
     {
-        static constexpr Byte  kHeader[] = { 0xC1, 0x0B, 0x00, CassoLinkCodec::kReady };
+        static constexpr Byte  kHeader[] = { 0xC1, 0x27, 0x00, CassoLinkCodec::kReady };
 
         for (Word at = LinkProgram::kProgramAddress; at < LinkProgram::kZeroPageSave; at++)
         {

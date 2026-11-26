@@ -1581,12 +1581,14 @@ void ShellRenderer::RenderFramebuffer()
     // testable independent of the Win32 shell).
     if (color != ColorMode::Color)
     {
+        uint32_t  greenMonitor = m_greenMonitor.load (memory_order_acquire);
+
         for (auto & pixel : m_cpuFramebuffer)
         {
             switch (color)
             {
                 case ColorMode::GreenMono:
-                    pixel = Casso::Video::TintGreenMono (pixel);
+                    pixel = (greenMonitor != 0) ? Casso::Video::TintMonoToColor (pixel, greenMonitor) : Casso::Video::TintGreenMono (pixel);
                     break;
 
                 case ColorMode::AmberMono:

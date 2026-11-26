@@ -7,9 +7,11 @@
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Model/BrowserModel.h"
+#include "CassoExplorer/Model/DiskMessageText.h"
 #include "CassoExplorer/Model/TreeModel.h"
 #include "Devices/Disk/Archives/ContainerDiskFileIo.h"
 #include "Devices/Disk/Partitions/PartitionAccess.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -62,7 +64,7 @@ public:
 
         void OpenCard()
         {
-            browser.NavigateToLocation (Location::MakeDiskImage (PartitionCard::kCardPath));
+            browser.GetNavigator().NavigateToLocation (Location::MakeDiskImage (PartitionCard::kCardPath));
         }
 
         bool HasVerb (ActionsTypes::Verb verb)
@@ -101,16 +103,35 @@ public:
     }
 
 
+    //  Up from a partition's volume goes to its partition, and from a member
+    //  of an archive to the folder.
+    TEST_METHOD (Up_PartitionVolumeGoesToItsPartition)
+    {
+        Assert::IsTrue  (BrowserRowPaths::IsPartitionVolume (L"C:\\walk\\MultiPart.hdv|#1.po"));
+        Assert::IsTrue  (BrowserRowPaths::IsPartitionVolume (L"C:\\walk\\MultiPart.hdv|#1.po|#3.do"));
+        Assert::IsFalse (BrowserRowPaths::IsPartitionVolume (L"C:\\walk\\Masters.zip|Master.dsk"));
+        Assert::IsFalse (BrowserRowPaths::IsPartitionVolume (L"C:\\walk\\MultiPart.hdv"));
+    }
+
+
+    //  Each partition is a node, and the volume in it is its child.
     TEST_METHOD (Tree_CardHasOneNodeForEachPartition)
     {
         CardHost                   host;
-        std::vector<DxuiTreeNode>  nodes = host.browser.GetTreeChildren (TreeModel::MakeImageId (false, PartitionCard::kCardPath));
+        std::vector<DxuiTreeNode>  nodes   = host.browser.GetTreeChildren (TreeModel::MakeImageId (false, PartitionCard::kCardPath));
+        std::vector<DxuiTreeNode>  volumes;
 
         Assert::AreEqual ((size_t) 3, nodes.size());
-        Assert::IsTrue (nodes[0].label.starts_with (L"Partition 1: FLOPPY"));
-        Assert::IsTrue (nodes[1].label.starts_with (L"Partition 2: SECOND"));
+        Assert::AreEqual (std::wstring (L"Partition 1"), nodes[0].label);
+        Assert::AreEqual (std::wstring (L"Partition 2"), nodes[1].label);
         Assert::IsFalse (nodes[1].iconBroken);
         Assert::IsTrue (nodes[2].iconBroken, L"The third partition ends past the end of the card");
+
+        volumes = host.browser.GetTreeChildren (nodes[1].id);
+
+        Assert::AreEqual ((size_t) 1, volumes.size());
+        Assert::AreEqual (std::wstring (L"SECOND"), volumes[0].label);
+        Assert::AreEqual (TreeModel::MakeImageId (false, kSecondPath), volumes[0].id);
     }
 
 
@@ -134,12 +155,23 @@ public:
 
         Assert::IsTrue (host.browser.IsPartitionListLocation());
         Assert::AreEqual ((size_t) 3, host.browser.GetRows().size());
-        Assert::AreEqual (std::wstring (L"Partition 2: SECOND"), host.browser.GetRows()[1].name);
+        Assert::AreEqual (std::wstring (L"Partition 2"), host.browser.GetRows()[1].name);
         Assert::AreEqual (std::wstring (L"MicroDrive partition"), host.browser.GetRows()[1].typeText);
         Assert::AreEqual (std::wstring (L"MicroDrive partition, damaged"), host.browser.GetRows()[2].typeText);
         Assert::AreEqual ((uint64_t) PartitionCard::kSecondBytes, (uint64_t) host.browser.GetRows()[1].sizeBytes);
 
-        Assert::IsTrue (host.browser.TryGetRowLocation (1, target));
+        //  A partition opens as the list of its volume, and the volume as its
+        //  catalog.
+        Assert::IsTrue (BrowserRowPaths::TryGetRowLocation (host.browser.GetRowListing(), 1, target));
+        Assert::IsTrue (target.kind == Location::Kind::Partition);
+        Assert::AreEqual (std::wstring (kSecondPath), target.path);
+
+        host.browser.GetNavigator().NavigateToLocation (target);
+
+        Assert::AreEqual ((size_t) 1, host.browser.GetRows().size());
+        Assert::AreEqual (std::wstring (L"SECOND"), host.browser.GetRows()[0].name);
+        Assert::AreEqual (std::wstring (L"ProDOS volume"), host.browser.GetRows()[0].typeText);
+        Assert::IsTrue (BrowserRowPaths::TryGetRowLocation (host.browser.GetRowListing(), 0, target));
         Assert::IsTrue (target.kind == Location::Kind::DiskImage);
         Assert::AreEqual (std::wstring (kSecondPath), target.path);
     }
@@ -152,6 +184,8 @@ public:
         host.OpenCard();
 
         Assert::IsTrue (host.browser.OpenRow (1));
+        Assert::IsTrue (host.browser.GetLocation().kind == Location::Kind::Partition);
+        Assert::IsTrue (host.browser.OpenRow (0));
         Assert::IsFalse (host.browser.IsPartitionListLocation());
         Assert::IsTrue (HasRow (host.browser, L"HELLO"));
     }
@@ -161,10 +195,35 @@ public:
     {
         CardHost  host;
 
-        host.browser.NavigateToLocation (Location::MakeDiskImage (kDamagedPath));
+        host.browser.GetNavigator().NavigateToLocation (Location::MakeDiskImage (kDamagedPath));
 
         Assert::IsTrue (host.browser.GetRows().empty());
         Assert::IsFalse (host.browser.GetListError().empty());
+    }
+
+
+    TEST_METHOD (Problem_DamagedPartitionHasTheDamagedReason)
+    {
+        CardHost      host;
+        std::wstring  problem = host.browser.GetLoader().GetImageProblem (kDamagedPath);
+
+        Assert::IsTrue (problem.ends_with (DiskMessageText::kDamagedPartitionText), problem.c_str());
+        Assert::IsTrue (problem.find (L'|') == std::wstring::npos, problem.c_str());
+    }
+
+
+    TEST_METHOD (List_DamagedPartitionRowOpensWithTheTreesReason)
+    {
+        CardHost  host;
+        Location  target;
+
+        host.OpenCard();
+        Assert::IsTrue (BrowserRowPaths::TryGetRowLocation (host.browser.GetRowListing(), 2, target));
+
+        host.browser.GetNavigator().NavigateToLocation (target);
+
+        Assert::IsTrue (host.browser.GetRows().empty());
+        Assert::IsTrue (host.browser.GetListError().ends_with (DiskMessageText::kDamagedPartitionText), host.browser.GetListError().c_str());
     }
 
 
@@ -174,7 +233,7 @@ public:
         std::wstring  partition;
 
         host.OpenCard();
-        host.browser.SetSelectedRows ({ 1 });
+        host.browser.GetSelection().SetSelectedRows ({ 1 });
 
         Assert::IsTrue (host.actions.TryGetPartition (partition));
         Assert::AreEqual (std::wstring (kSecondPath), partition);
@@ -186,18 +245,47 @@ public:
     }
 
 
+    //  With no partition selected, the card image is what Inspect opens.
+    TEST_METHOD (CanInspect_TheOpenCardWithNoPartitionSelected)
+    {
+        CardHost  host;
+
+        host.OpenCard();
+
+        Assert::IsTrue (host.browser.IsPartitionListLocation());
+        Assert::IsTrue (host.browser.GetSelectedRows().empty());
+        Assert::IsTrue (host.actions.CanInspect(), L"the card image itself");
+    }
+
+
     TEST_METHOD (Verbs_OpenPartitionHasCopyAndReplaceAndNoFormat)
     {
         CardHost      host;
         std::wstring  partition;
 
-        host.browser.NavigateToLocation (Location::MakeDiskImage (kSecondPath));
+        host.browser.GetNavigator().NavigateToLocation (Location::MakeDiskImage (kSecondPath));
 
         Assert::IsTrue (host.actions.TryGetPartition (partition));
         Assert::AreEqual (std::wstring (kSecondPath), partition);
         Assert::IsTrue (host.HasVerb (ActionsTypes::Verb::CopyPartitionToImage));
         Assert::IsTrue (host.HasVerb (ActionsTypes::Verb::ReplacePartition));
         Assert::IsFalse (host.HasVerb (ActionsTypes::Verb::Format));
+    }
+
+
+    //  The tree's menu on a partition node uses the same verbs as the list.
+    TEST_METHOD (Verbs_SharedPartitionVerbsHaveCopyAndReplaceAndNoFormat)
+    {
+        std::vector<ActionsTypes::Verb>  writable;
+        std::vector<ActionsTypes::Verb>  locked;
+
+        ActionsPartition::AddVerbs (true,  writable);
+        ActionsPartition::AddVerbs (false, locked);
+
+        Assert::IsTrue  (ActionsPartition::IsPartitionPath (kSecondPath));
+        Assert::IsFalse (ActionsPartition::IsPartitionPath (PartitionCard::kCardPath));
+        Assert::IsTrue  (writable == std::vector<ActionsTypes::Verb> { ActionsTypes::Verb::CopyPartitionToImage, ActionsTypes::Verb::ReplacePartition });
+        Assert::IsTrue  (locked   == std::vector<ActionsTypes::Verb> { ActionsTypes::Verb::CopyPartitionToImage });
     }
 
 
@@ -274,9 +362,9 @@ public:
         AssertSucceeded (outcome.hr);
         Assert::IsTrue (host.io.files[PartitionCard::kCardName] == replaced);
 
-        host.OpenCard();
+        host.browser.GetNavigator().NavigateToLocation (Location::MakePartition (kSecondPath));
 
-        Assert::AreEqual (std::wstring (L"Partition 2: FRESH"), host.browser.GetRows()[1].name);
+        Assert::AreEqual (std::wstring (L"FRESH"), host.browser.GetRows()[0].name);
     }
 
 

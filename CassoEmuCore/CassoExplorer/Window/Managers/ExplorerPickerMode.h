@@ -36,7 +36,6 @@ public:
 
     //  After the first listing: a picker with stock disks opens on them when
     //  the Casso node lists nothing the picker can use.
-    void  ShowStockDisksIfCassoIsEmpty ();
 
     //  The path of the one file row selected, in a folder or in the Casso
     //  node's list.
@@ -71,13 +70,8 @@ public:
     size_t  GetActiveFilter () const { return m_scope.GetActiveFilter(); }
     void    SetActiveFilter (size_t index);
 
-    //  "Apple 3.5 Drive, slot 5 drive 1: 400K and 800K disk images" for a
-    //  drive, and empty for a request with none.
-    std::wstring  GetHeaderText   () const;
     std::wstring  GetConfirmLabel () const;
     std::wstring  GetFilterLabel  (size_t index) const;
-
-    static std::wstring  MakeHeaderText (const PickerRequest & request);
 
 private:
     bool  TryGetRowFile      (int row, std::wstring & outPath) const;

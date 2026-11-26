@@ -139,6 +139,7 @@ void EmulatorShell::SubscribeAndActivateTheme()
     m_settings->GetThemeManager()->AddChangeListener ([this] (const LoadedTheme & t)
     {
         m_scene->ApplyChromeThemeByName (t.name);
+        m_renderer->SetGreenMonitor     (CassoTheme::MakeByName (t.name).greenMonitor);
 
         // The command bar's theme picker is built from this catalog, and the
         // manager outlives every other path that can change the active theme

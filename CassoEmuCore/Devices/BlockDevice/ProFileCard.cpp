@@ -33,6 +33,7 @@ static constexpr Byte  s_kArmLine      = 0x08;
 ProFileCard::ProFileCard (int slot, MemoryBus & bus) :
     m_slot     (slot),
     m_bus      (bus),
+    m_casso    (slot, bus),
     m_slotPage (slot, *this),
     m_drive    (std::make_unique<ProFileDrive> (slot, BlockDeviceCatalog::FindDrive (kpszProFile5Device)->maxBlocks))
 {
@@ -82,7 +83,11 @@ Byte ProFileCard::Read (Word address)
 
 
 
-    if (offset == s_kDataIn)
+    if (m_casso.IsEnabled())
+    {
+        value = m_casso.Read (offset);
+    }
+    else if (offset == s_kDataIn)
     {
         m_drive->TakeData();
     }
@@ -154,7 +159,11 @@ void ProFileCard::Write (Word address, Byte value)
 
 
 
-    if (offset == s_kDataOut)
+    if (m_casso.IsEnabled())
+    {
+        m_casso.Write (offset, value);
+    }
+    else if (offset == s_kDataOut)
     {
         m_drive->WriteData (value);
     }
@@ -192,6 +201,7 @@ void ProFileCard::SoftReset()
     m_lines    = 0;
     m_selected = false;
     m_drive->Reset();
+    m_casso.Reset();
 }
 
 
@@ -203,7 +213,8 @@ void ProFileCard::SoftReset()
 //  OnSlotPageAccess
 //
 //  An access to $Cn00-$CnFF selects the expansion space and reads the ROM's
-//  last page; one to $Cn00-$Cn07 also sets a handshake line.
+//  last page; one to $Cn00-$Cn07 also sets a handshake line. With Casso's
+//  firmware it reads that firmware's page, and nothing is selected.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -216,6 +227,11 @@ Byte ProFileCard::OnSlotPageAccess (Word address, bool isWrite, Byte value)
 
     (void) isWrite;
     (void) value;
+
+    if (m_casso.IsEnabled())
+    {
+        return m_casso.ReadSlotPage (address);
+    }
 
     m_selected = true;
 
@@ -280,6 +296,21 @@ Byte ProFileCard::PeekExpansionRom (Word address) const
 
 
     return (m_rom.empty() || offset >= kRomPageAt) ? m_bus.GetFloatingBusValue() : m_rom[offset];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UseCassoFirmware
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProFileCard::UseCassoFirmware()
+{
+    return m_casso.Enable ([this] (int drive) -> ICassoBlockUnit * { return drive == 0 ? m_drive.get() : nullptr; }, { "PROFILE", 0x02, 0x00 });
 }
 
 

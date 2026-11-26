@@ -30,15 +30,6 @@ class DxuiPopupHost;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-//  A square of a color beside one line of a tip, for a tip about colors.
-struct DxuiTooltipSwatch
-{
-    int       line = 0;
-    uint32_t  argb = 0;
-};
-
-
-
 class DxuiTooltip : public IDxuiControl
 {
 public:
@@ -138,6 +129,9 @@ public:
     //  is indented by the squares' width, and the tip is laid out as a
     //  table. Set before the request it goes with, as the line colors are.
     void  SetLineSwatches (std::vector<uint32_t> argbs) { m_look.lineSwatches = std::move (argbs); }
+
+    //  The swatches SetSwatches set, one per line that has one.
+    std::vector<DxuiTooltipSwatch>  GetSwatches () const;
 
     //  The same squares, each with the line it is beside; with an empty list,
     //  no squares are drawn.

@@ -41,6 +41,10 @@ public:
     //  an image that cannot be read.
     ActionsTypes::Outcome  DescribeReplace (const std::wstring & partitionPath, const std::wstring & imagePath, std::wstring & outQuestion);
 
+    //  The partition verbs in the list's and the tree's menus.
+    static void  AddVerbs        (bool writable, std::vector<ActionsTypes::Verb> & inOutVerbs);
+    static bool  IsPartitionPath (const std::wstring & path);
+
 private:
     HRESULT  FindEntry (const std::wstring & partitionPath, PartitionEntry & outEntry);
 

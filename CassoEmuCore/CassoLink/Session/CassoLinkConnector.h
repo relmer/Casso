@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "CassoLink/Session/CassoLinkSessionTypes.h"
+#include "CassoLink/CassoLinkClient.h"
 #include "CassoLink/LinkBootstrap.h"
 #include "Seams/ByteStreamSettings.h"
 
@@ -111,6 +112,7 @@ private:
     std::string                      m_openFailure;
     bool                             m_bootstrapped = false;
     std::wstring                     m_modelName;
+    CassoLinkClient                  m_client;          // the Apple's last Ready
     std::shared_ptr<LinkOperation>   m_bootstrap;
     std::jthread                     m_thread;
 };

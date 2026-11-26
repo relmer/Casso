@@ -124,7 +124,7 @@ public:
 
         RenderDos33 ("HELLO", PreviewDecoder::HexForm::Auto, content);
         Assert::IsTrue (content.kind == Kind::Listing);
-        Assert::AreEqual (std::wstring (L"10  PRINT \"HELLO, CASSQUE\""), content.lines[0]);
+        Assert::AreEqual (std::wstring (L"10  PRINT \"HELLO, CASSO\""), content.lines[0]);
 
         RenderDos33 ("INTPROG", PreviewDecoder::HexForm::Auto, content);
         Assert::IsTrue (content.kind == Kind::Listing);
@@ -712,7 +712,7 @@ public:
         FileEntry       hello;
         FileEntry       subdir;
 
-        listing.volumeName    = "CASSQUE";
+        listing.volumeName    = "CASSO";
         listing.hasVolumeName = true;
         listing.totalUnits    = 280;
         listing.freeUnits     = 214;
@@ -733,7 +733,7 @@ public:
 
         Assert::AreEqual ((size_t) 8, content.lines.size());
         Assert::AreEqual (std::wstring (L"ProDOS disk"), content.heading);
-        Assert::AreEqual (std::wstring (L"/CASSQUE"), content.lines[0]);
+        Assert::AreEqual (std::wstring (L"/CASSO"), content.lines[0]);
         Assert::AreEqual (std::wstring (L" NAME" L"           " L"TYPE  BLOCKS  MODIFIED"), content.lines[2]);
         Assert::AreEqual (std::wstring (L" HELLO" L"           " L"BAS" L"       " L"1  17-AUG-84"), content.lines[4]);
         Assert::AreEqual (std::wstring (L" SUBDIR" L"          " L"DIR" L"       " L"1  <NO DATE>"), content.lines[5]);

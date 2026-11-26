@@ -13,6 +13,24 @@ class IDxuiTextRenderer;
 
 
 
+//  A square of a color beside one line of a tip, for a tip about colors.
+struct DxuiTooltipSwatch
+{
+    //  A swatch of this color is drawn as dark and light diagonal stripes, as
+    //  a picture marks what couldn't be read. Its alpha is 0, so it can't be
+    //  a real color.
+    static constexpr uint32_t  kHatchedArgb = 0x00FFFFFF;
+    static constexpr uint32_t  kHatchDark   = 0xFF282828;
+    static constexpr uint32_t  kHatchLight  = 0xFFC8C8C8;
+
+    int       line = 0;
+    uint32_t  argb = 0;
+};
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiTooltipLook
@@ -121,6 +139,8 @@ public:
     float            GetFrameWidthPx     (const TextMeasure & measure) const;
     float            GetCornerTagPx      (const TextMeasure & measure) const;
     float            GetSwatchIndentPx   (float lineHeight) const;
+
+    static void      PaintHatch          (IDxuiPainter & painter, float left, float top, float side);
     float            GetLineIndentPx     (float lineHeight) const;
     uint32_t         GetEdgeArgb         () const;
     HRESULT          LayOutTableWith     (IDxuiTextRenderer & text, TableLayout & table) const;

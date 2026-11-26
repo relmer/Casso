@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/TrackWritability.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
 
 

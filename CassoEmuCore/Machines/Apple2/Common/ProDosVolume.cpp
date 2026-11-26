@@ -3,9 +3,6 @@
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Utils.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
-#include "Devices/Disk/ChainWalkGuard.h"
-#include "Machines/Apple2/Common/VolumeIntegrityReport.h"
 #include "Machines/Apple2/Common/ProDosStartup.h"
 
 
@@ -1102,7 +1099,7 @@ HRESULT ProDosVolume::BuildIntegrityReport (VolumeIntegrityReport & outReport) c
     outReport.SetCatalogFullyParsed (fullyParsed);
 
     //  The boot blocks, the volume directory and the bitmap's blocks.
-    reserved = (uint32_t) ProDosSkeleton::GetReservedBlockCount (bufferBytes);
+    reserved = (uint32_t) ProDosSkeleton::GetReservedBlocks (GetBlockCount());
 
     for (block = 0; block < reserved; block++)
     {
@@ -1446,7 +1443,7 @@ bool ProDosVolume::TryToUnixTime (Word date, Word time, int64_t & outUnix)
 
 int ProDosVolume::GetBlockCount() const
 {
-    return ProDosSkeleton::GetBlockCount (m_sectors.size());
+    return ProDosSkeleton::GetVolumeBlockCount (m_sectors);
 }
 
 

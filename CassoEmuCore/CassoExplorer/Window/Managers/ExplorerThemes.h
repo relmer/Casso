@@ -33,6 +33,12 @@ public:
     void         Select            (const char * name);
     static bool  IsCassoThemeName  (const std::string & name);
 
+    //  A Theme menu row's theme, or nullptr for any other command; whether
+    //  its theme is the one in use; and choosing it.
+    static const char *  GetCommandTheme  (int id);
+    bool                 IsCommandChecked (int id) const;
+    void                 SelectForCommand (int id);
+
     void  HandleSystemThemeChanged ();
 
 private:
@@ -41,4 +47,5 @@ private:
     DxuiDarkTheme      m_darkTheme;
     CassoTheme         m_cassoTheme;
     bool               m_applying   = false;   // a theme being applied, which sends a theme change to the window
+    bool               m_isDark     = true;    // the surface the tree's icons were drawn for
 };

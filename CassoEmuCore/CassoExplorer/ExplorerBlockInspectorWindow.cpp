@@ -20,7 +20,7 @@ ExplorerBlockInspectorWindow::ExplorerBlockInspectorWindow (const std::wstring &
     m_fileIo (fileIo),
     m_window (std::make_unique<BlockInspectorWindow>())
 {
-    m_window->SetDisplayName (displayName);
+    m_window->GetFileSession().SetDisplayName (displayName);
 }
 
 
@@ -65,6 +65,11 @@ HRESULT ExplorerBlockInspectorWindow::Create (HINSTANCE hInstance, HWND anchor, 
         }
     });
 
+    if (host != nullptr && host->CanTransferRaw())
+    {
+        m_window->SetOnTransferRaw ([host] (const InspectorRawTransfer & transfer) { host->TransferRaw (transfer); });
+    }
+
     hr = m_window->Open (hInstance, anchor, theme, m_fileIo, m_path, error);
 
     if (FAILED (hr))
@@ -75,12 +80,9 @@ HRESULT ExplorerBlockInspectorWindow::Create (HINSTANCE hInstance, HWND anchor, 
 
     CHR (hr);
 
+    //  Casso Explorer's icon, in the caption as well as on the taskbar.
     icon = (anchor != nullptr) ? reinterpret_cast<HICON> (SendMessageW (anchor, WM_GETICON, ICON_BIG, 0)) : nullptr;
-
-    if (icon != nullptr)
-    {
-        SendMessageW (m_window->GetHwnd(), WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM> (icon));
-    }
+    m_window->SetAppIcon (icon);
 
 Error:
     return hr;
@@ -116,6 +118,41 @@ void ExplorerBlockInspectorWindow::ApplyPrefs (const DiskInspectorPrefs & prefs,
 void ExplorerBlockInspectorWindow::GetPrefs (DiskInspectorPrefs & inOut) const
 {
     InspectorPlacement::Get (GetHwnd(), inOut);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBlockInspectorWindow::ConfirmExit
+//
+//  A minimized window with unsaved edits is restored first, so its prompt
+//  opens over it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerBlockInspectorWindow::ConfirmExit()
+{
+    BOOL  isShown = FALSE;
+
+
+
+    if (!m_window->HasUnsavedEdits())
+    {
+        return true;
+    }
+
+    if (IsIconic (m_window->GetHwnd()))
+    {
+        isShown = ShowWindow (m_window->GetHwnd(), SW_RESTORE);
+        IGNORE_RETURN_VALUE (isShown, TRUE);
+    }
+
+    Front();
+
+    return m_window->ConfirmClose();
 }
 
 
@@ -168,7 +205,7 @@ HRESULT ExplorerBlockInspectorWindow::RenderFrame()
 
 void ExplorerBlockInspectorWindow::ReloadDisk()
 {
-    m_window->Reload();
+    m_window->GetFileSession().Reload();
 }
 
 
@@ -183,7 +220,7 @@ void ExplorerBlockInspectorWindow::ReloadDisk()
 
 void ExplorerBlockInspectorWindow::NoteFileGone()
 {
-    m_window->NoteFileGone();
+    m_window->GetFileSession().NoteFileGone();
 }
 
 
@@ -228,5 +265,20 @@ HWND ExplorerBlockInspectorWindow::GetHwnd() const
 
 void ExplorerBlockInspectorWindow::CompareWith (const std::wstring & pathB)
 {
-    m_window->CompareWithFile (pathB);
+    m_window->GetFileSession().CompareWithFile (pathB);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBlockInspectorWindow::Close
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerBlockInspectorWindow::Close()
+{
+    m_window->CloseWindow();
 }

@@ -1,7 +1,7 @@
 #include "Pch.h"
 
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "MountDiagnosis.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "DiskCommandRunner.h"
 #include "Core/TextEncoding.h"
@@ -49,7 +49,7 @@ string MountDiagnosis::Describe() const
             //  The list is read off the container table rather than typed out:
             //  typed out, it named four kinds for a release that read five.
             text = "is not a disk image Casso can read. Casso reads "
-                 + DiskCommandRunner::FormatContainerWordList (".", "and") + " images";
+                 + BlankDiskSpecResolver::FormatContainerWordList (".", "and") + " images";
             break;
 
         case MountFailure::FileUnreadable:
@@ -63,7 +63,7 @@ string MountDiagnosis::Describe() const
 
         case MountFailure::WrongSizeForFormat:
             observed = FormatByteCount (fileByteSize);
-            required = FormatByteCount ((size_t) NibblizationLayer::kImageByteSize);
+            required = FormatByteCount ((size_t) NibbleFormat::kImageByteSize);
 
             //  A 400K or 800K image is a 3.5-inch disk, a real format rather than
             //  a damaged 140K one, so the message is about the drive.

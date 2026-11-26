@@ -38,7 +38,7 @@ public:
     HRESULT      Open                   (HWND owner, const std::wstring & path) override { return m_menus.Open (owner, path); }
     HRESULT      ShowInFolder           (const std::wstring & path) override;
     HRESULT      GetOpenWithHandlers    (const std::wstring & path, std::vector<Handler> & outHandlers) override { return m_menus.GetOpenWithHandlers (path, outHandlers); }
-    HRESULT      OpenWith               (HWND owner, const std::wstring & path, size_t handlerIndex) override { return m_menus.OpenWith (owner, path, handlerIndex); }
+    HRESULT      OpenWith               (HWND owner, const std::wstring & path, const Handler & handler) override { return m_menus.OpenWith (owner, path, handler); }
     HRESULT      ChooseOtherApp         (HWND owner, const std::wstring & path) override { return m_menus.ChooseOtherApp (owner, path); }
     HRESULT      ShowShellMenu          (HWND owner, const std::vector<std::wstring> & paths, POINT screenPx, const std::function<void()> & rename) override { return m_menus.ShowShellMenu (owner, paths, screenPx, rename); }
     HRESULT      ShowBackgroundMenu     (HWND owner, const std::wstring & folder, POINT screenPx) override { return m_menus.ShowBackgroundMenu (owner, folder, screenPx); }
@@ -46,8 +46,12 @@ public:
     HRESULT      GetItemVerbLabels      (HWND owner, const std::vector<std::wstring> & paths, std::vector<std::wstring> & outLabels) override { return m_menus.GetItemVerbLabels (owner, paths, outLabels); }
     HRESULT      RunItemVerbByLabel     (HWND owner, const std::vector<std::wstring> & paths, const std::wstring & label) override { return m_menus.RunItemVerbByLabel (owner, paths, label); }
     HRESULT      ListItemVerbs          (const std::vector<std::wstring> & paths, const std::vector<std::string> & verbs, std::vector<ItemVerb> & outFound) override { return m_menus.ListItemVerbs (paths, verbs, outFound); }
+    HRESULT      ListSendToTargets      (std::vector<SendToTarget> & outTargets) override                                { return m_menus.ListSendToTargets (outTargets); }
+    HRESULT      ListFileActions        (const std::vector<std::wstring> & paths, const std::vector<std::string> & verbs, std::vector<ItemVerb> & outFound) override { return m_menus.ListFileActions (paths, verbs, outFound); }
+    HRESULT      SendTo                 (const std::vector<std::wstring> & paths, const std::wstring & target) override { return m_menus.SendTo (paths, target); }
     bool         HasShellPreview        (const std::wstring & path) override { return Win32ShellPreview::HasPreview (path); }
-    HRESULT      Recycle                (HWND owner, const std::vector<std::wstring> & paths) override { return m_recycleBin.Recycle (owner, paths); }
+    HRESULT      Recycle                (HWND owner, const std::vector<std::wstring> & paths) override { return m_recycleBin.Recycle (owner, paths, true); }
+    HRESULT      RecycleCopies          (HWND owner, const std::vector<std::wstring> & paths) override { return m_recycleBin.Recycle (owner, paths, false); }
     HRESULT      RestoreRecycled        (HWND owner, const std::vector<std::wstring> & paths) override { return m_recycleBin.RestoreRecycled (owner, paths); }
     HRESULT      ListRecycled           (std::vector<RecycledItem> & outItems) override { return m_recycleBin.ListRecycled (outItems); }
     HRESULT      RunRecycledVerb        (HWND owner, const std::vector<std::wstring> & ids, RecycledVerb verb) override { return m_recycleBin.RunRecycledVerb (owner, ids, verb); }
@@ -73,6 +77,8 @@ public:
     HRESULT      PlaceOnClipboard       (HWND owner, const std::vector<std::wstring> & paths, bool cut) override { return m_transfers.PlaceOnClipboard (owner, paths, cut); }
     bool         ClipboardHasFiles      () const override { return m_transfers.ClipboardHasFiles(); }
     HRESULT      PasteInto              (HWND owner, const std::wstring & folder, PasteResult & outResult) override { return m_transfers.PasteInto (owner, folder, outResult); }
+    HRESULT      DropInto               (HWND owner, IDataObject * data, const std::wstring & folder, bool isMove, PasteResult & outResult) override { return m_transfers.DropInto (owner, data, folder, isMove, outResult); }
+    bool         HasNamedStreams        (const std::wstring & folder) const override { return Win32ShellTransfers::HasNamedStreams (folder); }
     HRESULT      MoveItemsTo            (HWND owner, const std::vector<std::wstring> & paths, const std::vector<std::wstring> & targets) override { return m_transfers.MoveItemsTo (owner, paths, targets); }
     HRESULT      CreateFolder           (HWND owner, const std::wstring & parent, const std::wstring & name) override { return m_transfers.CreateFolder (owner, parent, name); }
     HRESULT      Share                  (HWND owner, const std::vector<std::wstring> & paths) override { return m_transfers.Share (owner, paths); }

@@ -48,6 +48,9 @@ public:
 
     void SetInternalRom (vector<Byte> data);
     void SetSlotRom     (int slot, vector<Byte> data);
+
+    //  Copies `data` over a slot's ROM page in place, for a page of that size.
+    void PatchSlotRom   (int slot, const vector<Byte> & data);
     bool HasSlotRom     (int slot) const;
 
     // The images as loaded, for the machine's ROM identity.

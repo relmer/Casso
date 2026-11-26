@@ -1,12 +1,10 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 #include "FixtureProvider.h"
+#include "Machines/Apple2/Common/Dos33IntegrityScanner.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
-#include "HResultAssert.h"
-#include "Machines/Apple2/Common/VolumeTypes.h"
-#include "Machines/Apple2/Common/VolumeIntegrityReport.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -81,7 +79,7 @@ public:
 
     vector<Byte> MakeFormattedVolume()
     {
-        vector<Byte>  buffer (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>  buffer (NibbleFormat::kImageByteSize, 0);
 
         AssertSucceeded (Dos33Skeleton::Write (buffer, kVolumeNumber));
 
@@ -789,9 +787,9 @@ public:
 
         // Every sector spoken for, so the replacement cannot fit even once the
         // original's two come back.
-        for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+        for (track = 0; track < NibbleFormat::kTrackCount; track++)
         {
-            for (sector = 0; sector < NibblizationLayer::kSectorsPerTrack; sector++)
+            for (sector = 0; sector < NibbleFormat::kSectorsPerTrack; sector++)
             {
                 MarkAllocated (withProg, track, sector);
             }
@@ -842,9 +840,9 @@ public:
         int            sector  = 0;
         HRESULT        hr      = S_OK;
 
-        for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+        for (track = 0; track < NibbleFormat::kTrackCount; track++)
         {
-            for (sector = 0; sector < NibblizationLayer::kSectorsPerTrack; sector++)
+            for (sector = 0; sector < NibbleFormat::kSectorsPerTrack; sector++)
             {
                 MarkAllocated (buffer, track, sector);
             }
@@ -1301,7 +1299,7 @@ public:
 
         AssertSucceeded (volume.BuildIntegrityReport (before));
 
-        hr = Dos33Volume::HandBackVerifiedResult (before, result, handedBack);
+        hr = Dos33IntegrityScanner::HandBackVerifiedResult (before, result, handedBack);
 
         Assert::AreEqual (E_UNEXPECTED, hr,
             L"a bad buffer from our own writer is a defect, not a verdict on input");
@@ -1327,7 +1325,7 @@ public:
         // the pool -- the state that lets the next allocation destroy it.
         MarkFree (result, 18, 14);
 
-        hr = Dos33Volume::HandBackVerifiedResult (before, result, handedBack);
+        hr = Dos33IntegrityScanner::HandBackVerifiedResult (before, result, handedBack);
 
         Assert::AreEqual (E_UNEXPECTED, hr);
         Assert::AreEqual (size_t (0), handedBack.size());
@@ -1351,7 +1349,7 @@ public:
         // HELLO's track/sector list chained onward to a track the disk lacks.
         result[listAt + 0x01] = kTrackOffTheVolume;
 
-        hr = Dos33Volume::HandBackVerifiedResult (before, result, handedBack);
+        hr = Dos33IntegrityScanner::HandBackVerifiedResult (before, result, handedBack);
 
         Assert::AreEqual (E_UNEXPECTED, hr);
         Assert::AreEqual (size_t (0), handedBack.size());
@@ -1394,7 +1392,7 @@ public:
                           after.GetAllocatedButUnclaimed().size());
         Assert::AreEqual (before.GetClaimedButFree().size(), after.GetClaimedButFree().size());
 
-        hr = Dos33Volume::HandBackVerifiedResult (before, result, handedBack);
+        hr = Dos33IntegrityScanner::HandBackVerifiedResult (before, result, handedBack);
 
         Assert::AreEqual (E_UNEXPECTED, hr);
         Assert::AreEqual (size_t (0), handedBack.size());
@@ -1439,7 +1437,7 @@ public:
                           after.GetAllocatedButUnclaimed().size());
         Assert::AreEqual (before.GetCrossLinked().size(), after.GetCrossLinked().size());
 
-        hr = Dos33Volume::HandBackVerifiedResult (before, result, handedBack);
+        hr = Dos33IntegrityScanner::HandBackVerifiedResult (before, result, handedBack);
 
         Assert::AreEqual (E_UNEXPECTED, hr);
         Assert::AreEqual (size_t (0), handedBack.size());
@@ -1465,7 +1463,7 @@ public:
 
         result[entryAt + 0x00] = 0xFF;   // tombstoned, bitmap untouched
 
-        hr = Dos33Volume::HandBackVerifiedResult (before, result, handedBack);
+        hr = Dos33IntegrityScanner::HandBackVerifiedResult (before, result, handedBack);
 
         Assert::AreEqual (E_UNEXPECTED, hr);
         Assert::AreEqual (size_t (0), handedBack.size());
@@ -1494,7 +1492,7 @@ public:
 
         result[catalogAt + 0x01] = kTrackOffTheVolume;
 
-        hr = Dos33Volume::HandBackVerifiedResult (before, result, handedBack);
+        hr = Dos33IntegrityScanner::HandBackVerifiedResult (before, result, handedBack);
 
         Assert::AreEqual (E_UNEXPECTED, hr);
         Assert::AreEqual (size_t (0), handedBack.size());
@@ -1531,7 +1529,7 @@ public:
 
         Assert::IsFalse (after.IsClean(),
             L"the pre-existing disagreement is still there, and was not the write's to fix");
-        AssertSucceeded (Dos33Volume::HandBackVerifiedResult (before, result, handedBack));
+        AssertSucceeded (Dos33IntegrityScanner::HandBackVerifiedResult (before, result, handedBack));
 
         Assert::IsTrue (handedBack == result, L"an accepted buffer is handed over unchanged");
     }
@@ -1674,7 +1672,7 @@ public:
 
     TEST_METHOD (CreateDirectory_IsNotSomethingThisFilesystemHas)
     {
-        vector<Byte>  disk (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>  disk (NibbleFormat::kImageByteSize, 0);
         vector<Byte>  result;
         Dos33Volume   volume (disk);
 
@@ -1830,11 +1828,11 @@ public:
 
         for (track = 0; track < kDosImageTracks; track++)
         {
-            for (sector = 0; sector < NibblizationLayer::kSectorsPerTrack; sector++)
+            for (sector = 0; sector < NibbleFormat::kSectorsPerTrack; sector++)
             {
                 size_t  at = Dos33Skeleton::GetSectorOffset (track, sector);
 
-                for (i = 0; i < (size_t) NibblizationLayer::kSectorByteSize; i++)
+                for (i = 0; i < (size_t) NibbleFormat::kSectorByteSize; i++)
                 {
                     buffer[at + i] = (Byte) ((at + i) & 0xFF);
                 }

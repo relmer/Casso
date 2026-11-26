@@ -721,6 +721,7 @@ void DxuiPopupHost::Close (int resultCode)
 
         SetSlideCloaked (false);
         m_isShowPending = false;
+        SetSlideOpacity (1.0f);
         ShowWindow (m_hwnd, SW_HIDE);
 
         //  A submenu took the mouse from the menu it opened from; closing hands
@@ -1656,8 +1657,12 @@ void DxuiPopupHost::ShowDrawn()
         ApplyReveal (0.0f);
     }
 
-    // Show without activating (WS_EX_NOACTIVATE) so the owner keeps
-    // keyboard focus / caption activation state.
+    // Raised to the top first: a popup taken again from the pool is where
+    // it was last in the z-order, under any window its owner opened since,
+    // such as a dialog the owner owns. Then shown without activating
+    // (WS_EX_NOACTIVATE) so the owner keeps keyboard focus / caption
+    // activation state.
+    SetWindowPos (m_hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     ShowWindow (m_hwnd, SW_SHOWNOACTIVATE);
 
     // Click-outside dismiss: capture so off-popup clicks route to
@@ -2265,7 +2270,7 @@ void DxuiPopupHost::BeginReveal (int durationMs, bool fade)
     m_revealing        = true;
     m_revealFade       = fade;
     m_revealDurationMs = durationMs;
-    m_revealStartMs    = (int64_t) GetTickCount64();
+    m_revealStartMs    = GetRevealNowMs();
     m_revealUpward     = m_placedRectScreenPx.top < m_params.anchorRectScreen.top;
     m_revealOut        = false;
     m_revealAlpha      = fade ? 0.0f : 1.0f;
@@ -2299,8 +2304,12 @@ void DxuiPopupHost::BeginFadeOut (int durationMs)
     m_revealFade       = true;
     m_revealOut        = true;
     m_revealDurationMs = durationMs;
-    m_revealStartMs    = (int64_t) GetTickCount64();
+    m_revealStartMs    = GetRevealNowMs();
     m_revealAlpha      = 1.0f;
+
+    //  A fade out can start before the compositor's fade in finishes.
+    SetSlideCloaked (false);
+    SetSlideOpacity (1.0f);
 }
 
 
@@ -2352,6 +2361,40 @@ void DxuiPopupHost::ApplyReveal (float t)
 
     t     = (t < 0.0f) ? 0.0f : (t > 1.0f) ? 1.0f : t;
     eased = 1.0f - ((1.0f - t) * (1.0f - t));
+
+    //  A FADE IN IS THE COMPOSITOR'S. The acrylic backdrop is a sprite in the
+    //  composition tree, not something the swap chain draws, so fading only
+    //  the swap chain's content left the backdrop fully opaque from the first
+    //  frame: until the frame loop's next tick, an empty blurred box appeared
+    //  where the menu was about to open. The content is drawn once at full
+    //  alpha, and the compositor fades the whole tree, backdrop included, at
+    //  the display's rate.
+    //
+    //  THE WINDOW STAYS CLOAKED UNTIL THE COMPOSITOR COMMITS THE FADE'S START.
+    //  Until then DWM draws the tree as the previous popup left it, at full
+    //  opacity, and uncloaking on the next tick put the finished menu on
+    //  screen for a frame before the fade began.
+    if (m_revealFade && !m_revealOut && m_comp)
+    {
+        if (t <= 0.0f)
+        {
+            m_revealAlpha = 1.0f;
+            RenderNow();
+            StartCompositorFade();
+            SetSlideCloaked (true);
+        }
+        else if (t >= 1.0f || (m_fadeLanded && *m_fadeLanded))
+        {
+            SetSlideCloaked (false);
+        }
+
+        if (t >= 1.0f)
+        {
+            SetSlideOpacity (1.0f);
+        }
+
+        return;
+    }
 
     if (m_revealFade)
     {
@@ -2568,6 +2611,53 @@ void DxuiPopupHost::StartCompositorSlide (int fullW, int fullH)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  StartCompositorFade
+//
+//  Fades the whole composition tree, the acrylic backdrop with the content,
+//  from transparent to opaque on the ease-out curve the stepped fade used.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupHost::StartCompositorFade()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    try
+    {
+        winrt::Windows::UI::Composition::Compositor                    compositor = m_comp->compositor;
+        winrt::Windows::UI::Composition::CubicBezierEasingFunction     easeOut    = compositor.CreateCubicBezierEasingFunction ({ 0.25f, 0.46f }, { 0.45f, 0.94f });
+        winrt::Windows::UI::Composition::ScalarKeyFrameAnimation       opacity    = compositor.CreateScalarKeyFrameAnimation();
+        winrt::Windows::Foundation::TimeSpan                           duration   = std::chrono::milliseconds (m_revealDurationMs);
+
+        opacity.InsertKeyFrame (0.0f, 0.0f);
+        opacity.InsertKeyFrame (1.0f, 1.0f, easeOut);
+        opacity.Duration       (duration);
+
+        m_comp->slide.Opacity (0.0f);
+        m_comp->slide.StartAnimation (L"Opacity", opacity);
+
+        //  A fresh flag per fade, so a late commit from an earlier fade sets
+        //  the earlier flag.
+        m_fadeLanded = std::make_shared<bool> (false);
+
+        compositor.RequestCommitAsync().Completed ([landed = m_fadeLanded] (auto &&, auto &&) { *landed = true; });
+    }
+    catch (...)
+    {
+        hr = winrt::to_hresult();
+    }
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetSlideCloaked
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2633,6 +2723,43 @@ void DxuiPopupHost::SetSlide (float offsetY, const D2D1_RECT_F * clip)
         }
 
         m_comp->slide.Clip (inset);
+    }
+    catch (...)
+    {
+        hr = winrt::to_hresult();
+    }
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetSlideOpacity
+//
+//  Sets the composition tree's opacity directly, stopping any fade the
+//  compositor is playing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupHost::SetSlideOpacity (float opacity)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (!m_comp)
+    {
+        return;
+    }
+
+    try
+    {
+        m_comp->slide.StopAnimation (L"Opacity");
+        m_comp->slide.Opacity (opacity);
     }
     catch (...)
     {
@@ -2884,7 +3011,12 @@ bool DxuiPopupHost::AdvanceReveal (int64_t nowMs)
         return false;
     }
 
-    t = (float) (nowMs - m_revealStartMs) / (float) m_revealDurationMs;
+    //  The reveal's clock, not the caller's: a caller's clock can count
+    //  from another start, and against it every reveal read as finished on
+    //  its first frame.
+    (void) nowMs;
+
+    t = (float) (GetRevealNowMs() - m_revealStartMs) / (float) m_revealDurationMs;
 
     if (t >= 1.0f || m_hwnd == nullptr)
     {
@@ -3250,3 +3382,13 @@ bool DxuiPopupHost::TryMakeRepost (
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetRevealNowMs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int64_t DxuiPopupHost::GetRevealNowMs()
+{
+    return (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (std::chrono::steady_clock::now().time_since_epoch()).count();
+}

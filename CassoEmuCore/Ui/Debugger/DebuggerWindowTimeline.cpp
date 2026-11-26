@@ -101,7 +101,7 @@ void DebuggerWindow::ConfigureTimeline()
     m_timelineHost.SetOnFloatCreated ([this] (DxuiToolbarWindow & window)
     {
         window.SetTheme  (m_look.GetTheme());
-        window.SetKeyMap (&DebuggerKeySchemes::GetMap (m_keyScheme));
+        window.GetKeyRouter().SetKeyMap (&DebuggerKeySchemes::GetMap (m_keyScheme));
     });
 
     //  The preview opens from whichever window holds the strip.

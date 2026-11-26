@@ -340,7 +340,7 @@ void FileMapWriter::Finalize()
 
     if (m_map.usesUnchecked)
     {
-        AddFinding (FindingKind::FileMapUnchecked, -1, std::format (L"{} sectors of the file map were read with checksum checks turned off in Decode settings", CountUnchecked()));
+        AddFinding (FindingKind::FileMapUnchecked, -1, std::format (L"The file map has {} sectors that were read with checksum checks turned off in Decode settings", CountUnchecked()));
     }
 }
 
@@ -566,7 +566,7 @@ void FileMapWriter::CheckAlmostBlank()
 
     if (fileCells > 0 && blank * kPercent >= kBlankPercent * sectors && blankCells * kPercent >= kBlankFilePercent * fileCells)
     {
-        AddFinding (FindingKind::ImageAlmostBlank, -1, std::format (L"{} of the disk's {} sectors are filled with one repeated byte", blank, sectors));
+        AddFinding (FindingKind::ImageAlmostBlank, -1, std::format (L"Of the disk's {} sectors, {} are filled with one repeated byte", sectors, blank));
     }
 }
 
@@ -637,6 +637,10 @@ bool FileMapWriter::IsOneByte (const vector<Byte> & bytes, size_t count)
 //
 //  FileMapWriter::DescribeCell
 //
+//  A sector by the number in its address field, as the inspector's sector
+//  buttons and the findings' Sector column have it, not the file system's
+//  own numbering.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring FileMapWriter::DescribeCell (int cell) const
@@ -655,8 +659,7 @@ std::wstring FileMapWriter::DescribeCell (int cell) const
     }
     else
     {
-        text = std::format (L"track {}, {}sector {}", m_map.GetTrack (cell), m_map.fileSystem == MapFileSystem::Cpm ? L"CP/M " : L"",
-                            InspectorFormat::FormatSector (m_map.GetColumn (cell)));
+        text = std::format (L"track {}, sector {}", m_map.GetTrack (cell), InspectorFormat::FormatSector (GetPhysical (cell)));
     }
 
     return text;
@@ -863,7 +866,9 @@ int FileMapWriter::CountBad (const MappedFile & file) const
 //  Damage makes a volume Bad: a link off the volume, a loop, a sector two
 //  files use or a file uses that the bitmap marks free, a count that
 //  disagrees, a header or directory that can't be read, or an image almost
-//  blank. A file of one repeated byte is worth a look. A finding that is only
+//  blank. A DOS 3.3 catalog entry's sector count is worth a look instead:
+//  DOS uses it only to list the catalog, and commercial disks often have
+//  one that differs from the file. A file of one repeated byte is worth a look. A finding that is only
 //  worth a look makes it Suspect, and a note doesn't change the verdict.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -904,6 +909,7 @@ FindingWeight FileMapWriter::GetWeight (FindingKind kind)
         case FindingKind::Dos33EntryNameMixed:
         case FindingKind::Dos33EntryTypeUnknown:
         case FindingKind::Dos33EntryCountTooLarge:
+        case FindingKind::Dos33EntryCountDiffers:
         case FindingKind::Dos33CatalogNonstandard:
         case FindingKind::ProDosDirectoryPointer:
         case FindingKind::ProDosParentPointer:

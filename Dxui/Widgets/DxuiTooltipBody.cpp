@@ -771,8 +771,18 @@ void DxuiTooltipBody::DrawTable (
 
         if (line < m_look.lineSwatches.size() && m_look.lineSwatches[line] != 0)
         {
-            painter.FillRect    (left, y + std::round ((table.lineHeight - side) / 2.0f), side, side, m_look.lineSwatches[line]);
-            painter.OutlineRect (left, y + std::round ((table.lineHeight - side) / 2.0f), side, side, 1.0f, edge);
+            float  top = y + std::round ((table.lineHeight - side) / 2.0f);
+
+            if (m_look.lineSwatches[line] == DxuiTooltipSwatch::kHatchedArgb)
+            {
+                PaintHatch (painter, left, top, side);
+            }
+            else
+            {
+                painter.FillRect (left, top, side, side, m_look.lineSwatches[line]);
+            }
+
+            painter.OutlineRect (left, top, side, side, 1.0f, edge);
         }
 
         if (scale)
@@ -864,4 +874,37 @@ float DxuiTooltipBody::GetSwatchIndentPx (float lineHeight) const
 
 
     return m_look.lineSwatches.empty() ? 0.0f : std::round (lineHeight * kIndentShare);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTooltipBody::PaintHatch
+//
+//  Light, with dark diagonal stripes two pixels wide every four, a pixel
+//  at a time.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltipBody::PaintHatch (IDxuiPainter & painter, float left, float top, float side)
+{
+    int  count = (int) side;
+
+
+
+    painter.FillRect (left, top, side, side, DxuiTooltipSwatch::kHatchLight);
+
+    for (int y = 0; y < count; y++)
+    {
+        for (int x = 0; x < count; x++)
+        {
+            if ((x + y) % 4 < 2)
+            {
+                painter.FillRect (left + (float) x, top + (float) y, 1.0f, 1.0f, DxuiTooltipSwatch::kHatchDark);
+            }
+        }
+    }
 }

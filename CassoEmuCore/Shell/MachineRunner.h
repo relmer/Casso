@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 class DebugHook;
+class EmuCpu;
 struct DebugHookFilter;
 class HistoryRecorder;
 class HeldInputWatch;
@@ -77,6 +78,11 @@ public:
     //  an instruction that read a line that input would change.
     void  SetHeldInputWatch (const HeldInputWatch * watch) noexcept { m_heldInputWatch = watch; }
 
+    //  The slot a power cycle boots, or 0 for the machine's own boot. Set, the
+    //  next instruction in slot 6's ROM or at the monitor's keyboard input
+    //  routine jumps to the slot instead, as PR#n or Cn00G does.
+    void  SetBootSlot (int slot) noexcept { m_bootSlot = slot; }
+
 private:
     //  The cards with separate processors catch up every 16,384 cycles.
     static constexpr int  kCatchUpShift = 14;
@@ -85,6 +91,7 @@ private:
     Byte  StepOneAsked    (const DebugHookFilter & filter, Word pc);
     Byte  FinishStep      ();
     void  CatchUpCards    ();
+    void  StartBootSlot   (EmuCpu & cpu);
 
     MachineParts               & m_parts;
     MachineConnectors          & m_connectors;
@@ -96,4 +103,5 @@ private:
     IOpcodeWatcher             * m_watcher         = nullptr;
     const HeldInputWatch       * m_heldInputWatch  = nullptr;
     uint64_t                     m_position        = 0;
+    int                          m_bootSlot        = 0;
 };

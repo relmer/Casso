@@ -119,7 +119,10 @@ HRESULT CassoLinkActivityDialog::Show (HWND owner, const IDxuiTheme * theme, Cas
     list.SetMultiSelect             (true);
     list.SetRows                    (BuildRows (log));
 
+    //  The columns are fitted to the rows when the dialog opens, and again
+    //  each time rows arrive.
     list.UpdateAutoFitFromRows();
+    list.FitAllColumnsToContent();
 
     content->Init (&list);
     dialog.Watch  (&list, std::move (getLog), log);
@@ -239,6 +242,7 @@ void CassoLinkActivityPicker::OnDialogTick()
 
         m_list->SetRows (CassoLinkActivityDialog::BuildRows (log));
         m_list->UpdateAutoFitFromRows();
+        m_list->FitAllColumnsToContent();
 
         m_list->SetSelectedRows (std::move (selected), (anchor < 0 || anchor + added >= (int) log.size()) ? -1 : anchor + added);
 

@@ -55,12 +55,12 @@ public:
 
     //  Whether saved, the media in a keyframe's bays, are the disks' media,
     //  bay for bay, and no others.
-    static bool   IsSavedWith (const std::array<uint64_t, DiskImageStore::kSlotCount * DiskImageStore::kDriveCount> & saved,
+    static bool   IsSavedWith (const std::array<uint64_t, DiskBayTable::kSlotCount * DiskBayTable::kDriveCount> & saved,
                                const std::vector<ReplayDisk> & disks);
 
 private:
     //  The medium each drive bay holds, slot-major, zero for none.
-    using BayIds = std::array<uint64_t, DiskImageStore::kSlotCount * DiskImageStore::kDriveCount>;
+    using BayIds = std::array<uint64_t, DiskBayTable::kSlotCount * DiskBayTable::kDriveCount>;
 
     void          Release     ();
 

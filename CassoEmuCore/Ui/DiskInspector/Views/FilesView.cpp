@@ -6,7 +6,9 @@
 #include "Ui/DiskInspector/Components/InspectorSession.h"
 #include "Ui/DiskInspector/FileMapGridView.h"
 #include "Ui/DiskInspector/FileMapText.h"
+#include "Ui/DiskInspector/InspectorFilesystemOffer.h"
 #include "Ui/DiskInspector/InspectorTableView.h"
+#include "Devices/Disk/Inspector/DiskAnalyzer.h"
 #include "Devices/Disk/Inspector/Repair/FileSystemCheck.h"
 
 
@@ -311,18 +313,29 @@ void FilesView::Layout (const RECT & area, const DxuiDpiScaler & scaler)
     int                          copyLeft    = area.right - scaler.ToPx (InspectorMetrics::kExportButtonDip);
     int                          verdict     = scaler.ToPx (s_kMapVerdictDip);
     int                          verdictLeft = copyLeft - margin - verdict;
+    int                          pickerRight = area.left + 2 * button + margin + label + picker;
     vector<DxuiTabStrip::Tab>    tabs;
 
 
 
     //  The step buttons, their label and the file picker, the volume tabs,
-    //  and "Copy map" at the right, on one row.
+    //  and "Copy map" at the right, on one row. The verdict is between them
+    //  only when it fits; otherwise it is hidden, the status bar's verdict
+    //  chip is the only one, and the volume tabs extend to Copy map.
+    m_isVerdictRoom = verdictLeft >= pickerRight + margin;
+
+    if (!m_isVerdictRoom)
+    {
+        verdictLeft = copyLeft;
+    }
+
     m_mapPrev->Layout      ({ area.left,          y, area.left + button,     y + row }, scaler);
     m_mapNext->Layout      ({ area.left + button, y, area.left + 2 * button, y + row }, scaler);
     m_mapStepLabel->Layout ({ area.left + 2 * button + margin, y, area.left + 2 * button + margin + label, y + row }, scaler);
-    m_filePicker->Layout   ({ area.left + 2 * button + margin + label, y, area.left + 2 * button + margin + label + picker, y + row }, scaler);
+    m_filePicker->Layout   ({ area.left + 2 * button + margin + label, y, pickerRight, y + row }, scaler);
     m_mapCopy->Layout      ({ copyLeft, y, area.right, y + row }, scaler);
     m_mapVerdict->Layout   ({ verdictLeft, y, verdictLeft + verdict, y + row }, scaler);
+    m_mapVerdict->SetVisible (m_isVerdictRoom && m_mapCopy->IsVisible() && map != nullptr && map->verdict != FileSystemVerdict::None);
 
     for (size_t v = 0; v < m_session.analysis.fileMaps.size() && m_session.analysis.fileMaps.size() > 1; v++)
     {
@@ -334,6 +347,7 @@ void FilesView::Layout (const RECT & area, const DxuiDpiScaler & scaler)
     m_mapVolumes->SetTabs     (std::move (tabs));
     m_mapVolumes->SetSelected (m_session.mapIndex);
     m_mapVolumes->Layout      ({ area.left + 2 * button + 2 * margin + label + picker, y, verdictLeft - margin, y + row }, scaler);
+
     y += (isList || m_session.analysis.fileMaps.size() > 1) ? row + margin / 2 : 0;
 
     //  Open, the picker has the list's filters and the file list in the rest
@@ -410,7 +424,7 @@ void FilesView::Show (bool isShown)
     m_mapNext->SetVisible    (isList);
     m_mapStepLabel->SetVisible (isList);
     m_mapCopy->SetVisible    (isList);
-    m_mapVerdict->SetVisible (isList && map->verdict != FileSystemVerdict::None);
+    m_mapVerdict->SetVisible (isList && m_isVerdictRoom && map->verdict != FileSystemVerdict::None);
     m_mapVerdict->SetEnabled (IsVerdictLinked());
     m_mapVolumes->SetVisible (isShown && m_session.analysis.fileMaps.size() > 1);
 }
@@ -565,7 +579,8 @@ int FilesView::GetPickerWidthPx (const DxuiDpiScaler & scaler) const
 
 void FilesView::RefreshFileList()
 {
-    const FileMap *  map = m_session.GetFileMap();
+    const FileMap *                  map   = m_session.GetFileMap();
+    InspectorFilesystemOffer::Offer  offer = InspectorFilesystemOffer::Offer::None;
 
 
 
@@ -583,6 +598,18 @@ void FilesView::RefreshFileList()
     else
     {
         m_fileList->SetRows (vector<TableRow>());
+    }
+
+    //  The note's "Read as CP/M" reads the disk that way.
+    offer = InspectorFilesystemOffer::GetOffer (m_session.analysis, *m_session.host);
+
+    if (offer == InspectorFilesystemOffer::Offer::ReadAsCpm)
+    {
+        m_mapGrid->SetNote (InspectorFilesystemOffer::GetNote (offer), InspectorFilesystemOffer::GetButtonLabel (offer), [this] () { ChooseFilesystem(); });
+    }
+    else
+    {
+        m_mapGrid->SetNote (std::wstring());
     }
 
     m_session.context.fileMap      = map;
@@ -908,4 +935,40 @@ void FilesView::ShowVerdictFinding()
     {
         m_host.ShowFinding (static_cast<int> (finding - m_session.analysis.findings.data()));
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FilesView::ChooseFilesystem
+//
+//  Read as CP/M or Detect file system: the host's choice set, and the disk's
+//  maps and findings assembled again with it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FilesView::ChooseFilesystem()
+{
+    InspectorFilesystemOffer::Offer  offer = InspectorFilesystemOffer::GetOffer (m_session.analysis, *m_session.host);
+
+
+
+    if (offer == InspectorFilesystemOffer::Offer::None || !m_session.context.hasDisk)
+    {
+        return;
+    }
+
+    InspectorFilesystemOffer::Accept (offer, *m_session.host, m_session.analysis);
+    DiskAnalyzer::Assemble (m_session.analysis);
+
+    m_session.model.SetAnalysis (&m_session.analysis);
+    m_session.mapIndex      = 0;
+    m_session.mapFile       = -1;
+    m_session.isTablesDirty = true;
+    m_session.isLayoutStale = true;
+    m_host.NotifyAnalysisChanged();
+    RefreshFileList();
 }

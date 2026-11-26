@@ -4,12 +4,12 @@
 #include "FakeDiskFileIo.h"
 #include "GuestSession.h"
 #include "KeystrokeInjector.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "TestMachine.h"
 #include "CassoLink/CassoLinkHost.h"
 #include "CassoLink/CassoLinkProDosDisk.h"
 #include "CassoLink/InMemoryCassoLinkFolder.h"
 #include "CassoLink/Host/CassoLinkVirtualDrives.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Seams/InProcessByteStream.h"
 
@@ -46,7 +46,7 @@ public:
     //  A blank 140K ProDOS volume, in DOS 3.3 order as a .dsk has it.
     static std::vector<Byte>  MakeVolume (const std::string & name)
     {
-        std::vector<Byte>  volume (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  volume (NibbleFormat::kImageByteSize, 0);
 
 
 

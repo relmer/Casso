@@ -48,7 +48,7 @@ function Invoke-Cli {
 # ---------------------------------------------------------------------------
 
 $applesoft = @(
-    '10 PRINT "HELLO, CASSQUE"',
+    '10 PRINT "HELLO, CASSO"',
     '20 FOR I = 1 TO 3',
     '30 PRINT I * 2',
     '40 NEXT I',
@@ -84,7 +84,7 @@ $integerListing = @(
 $integerListing += "`r`n"
 
 $text = @(
-    'CASSQUE TEST NOTES',
+    'CASSO TEST NOTES',
     '',
     'This file is ordinary printable text.',
     "It has a tab`there and ends with a newline."
@@ -150,7 +150,7 @@ $integerProgram += IntLine 50 ([byte[]]@(0x51))                                 
 Remove-Item -Force -ErrorAction SilentlyContinue $dos, $pro
 
 Invoke-Cli @('disk', 'create', $dos, '--format', 'dos33', '--volume', '77') | Out-Null
-Invoke-Cli @('disk', 'create', $pro, '--format', 'prodos', '--volume', 'CASSQUE') | Out-Null
+Invoke-Cli @('disk', 'create', $pro, '--format', 'prodos', '--volume', 'CASSO') | Out-Null
 
 foreach ($image in @($dos, $pro)) {
     Invoke-Cli @('disk', 'put', $image, (Join-Path $hostDir 'applesoft.txt'), '--as', 'HELLO',   '--basic') | Out-Null
@@ -244,7 +244,7 @@ $bytes[$hdr + 0x1F] = $entryLength
 $bytes[$hdr + 0x20] = $entriesPerBlock
 $bytes[$hdr + 0x21] = 0; $bytes[$hdr + 0x22] = 0                    # file count
 $bytes[$hdr + 0x23] = $dirKeyBlock; $bytes[$hdr + 0x24] = 0         # parent pointer
-$bytes[$hdr + 0x25] = [byte]$slotIndex                              # parent entry number
+$bytes[$hdr + 0x25] = [byte]($slotIndex + 1)                        # parent entry number; the header is entry 1
 $bytes[$hdr + 0x26] = $entryLength                                  # parent entry length
 
 # Mark the key block used and count the new entry.

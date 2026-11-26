@@ -6,10 +6,10 @@
 #include "AssemblerTypes.h"
 
 #include "GuestSession.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "TestMachine.h"
 #include "KeystrokeInjector.h"
 #include "Devices/Disk/DiskImageStore.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Common/AppleHiResMode.h"
@@ -45,7 +45,7 @@ namespace fs = std::filesystem;
 //      PAGE2 off, HIRES on),
 //    - leaves the cassowary on screen.
 //
-//  Exercises: HgrPreprocess.py output -> Assembler -> NibblizationLayer
+//  Exercises: HgrPreprocess.py output -> Assembler -> Nibblizer
 //  -> DiskImageStore -> Disk2Controller -> Disk2NibbleEngine ->
 //  Disk2.rom slot 6 boot -> 6502 CPU executing our RWTS -> MMU HGR
 //  page-1 writes -> Apple2eSoftSwitchBank graphics-mode latching.
@@ -395,7 +395,7 @@ public:
                 0, 7, 14, 6, 13, 5, 12, 4, 11, 3, 10, 2, 9, 1, 8, 15
             };
 
-            std::vector<Byte>  raw (NibblizationLayer::kImageByteSize, 0);
+            std::vector<Byte>  raw (NibbleFormat::kImageByteSize, 0);
 
             for (size_t i = 0; i < asmResult.bytes.size(); i++)
             {

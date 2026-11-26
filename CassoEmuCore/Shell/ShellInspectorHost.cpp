@@ -4,6 +4,7 @@
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "resource.h"
+#include "Devices/Disk/Store/DiskFlusher.h"
 
 
 
@@ -302,7 +303,7 @@ InspectorSaveResult ShellInspectorHost::SaveDrive (int drive)
 
 
 
-    result.hr   = store.Flush (kDiskSlot, drive);
+    result.hr   = store.GetFlusher().Flush (kDiskSlot, drive);
     result.path = store.GetSourcePath (kDiskSlot, drive);
 
     if (FAILED (result.hr))

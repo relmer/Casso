@@ -1,6 +1,6 @@
 #include "Pch.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "TestMachine.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -122,7 +122,7 @@ public:
 
 
 
-        vector<Byte>   raw (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>   raw (NibbleFormat::kImageByteSize, 0);
 
         for (track = 0; track < kTrackCount; track++)
         {
@@ -571,7 +571,7 @@ public:
         HRESULT       hrField  = S_OK;
         HRESULT       hrData   = S_OK;
         wstring       failures;
-        vector<Byte>   raw (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>   raw (NibbleFormat::kImageByteSize, 0);
 
         for (int i = 0; i < 256; i++)
         {

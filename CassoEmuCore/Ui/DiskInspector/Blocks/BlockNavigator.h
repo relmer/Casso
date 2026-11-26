@@ -42,6 +42,10 @@ public:
     //  separator does nothing.
     void  SetPopupHost (DxuiHwndSource * host) { m_popupHost = host; }
 
+    //  The text for the tree's root and the address bar's first segment;
+    //  with none, the file's name.
+    void  SetRootLabel (const std::wstring & label) { m_rootLabel = label; }
+
     //  Casso Explorer's address bar menu at a point: Copy Address, Copy
     //  Address as Text and Edit Address. `focus` moves the keyboard focus to
     //  the address bar for the edit.
@@ -56,6 +60,10 @@ public:
     //  or the tree and the list built again from the new maps.
     void  Sync ();
 
+    //  The tree is built again at the next Sync, as after an icon set's
+    //  change of surface.
+    void  InvalidateIcons () { m_isIconsStale = true; }
+
     void  GoTo         (const BlockPlace & place);
     void  ShowBlock    (uint32_t block);
     void  ReplaceBlock (uint32_t block);
@@ -66,10 +74,11 @@ public:
     //  selected, or the block's file is selected in its directory.
     void  SelectForBlock (uint32_t block);
 
-    const BlockPlace     & GetPlace     () const { return m_browser.GetPlace(); }
-    const BlockBrowser   & GetBrowser   () const { return m_browser; }
-    const BlockListing   & GetListing   () const { return m_listing; }
-    bool                   IsBlockPlace () const { return GetPlace().kind == BlockPlace::Kind::Block; }
+    const BlockPlace    & GetPlace     () const { return m_browser.GetPlace(); }
+    const BlockBrowser  & GetBrowser   () const { return m_browser; }
+    BlockBrowser        & GetBrowser   ()       { return m_browser; }
+    const BlockListing  & GetListing   () const { return m_listing; }
+    bool                  IsBlockPlace () const { return GetPlace().kind == BlockPlace::Kind::Block; }
 
     //  The selected row's name or path, or the place's, for the status line.
     std::wstring  GetSelectionLine () const;
@@ -89,21 +98,22 @@ public:
     const BlockListRow  * GetSelectedRow () const { return GetRow (m_selected); }
 
 private:
-    void          Show             ();
-    void          FillList         ();
-    void          SortRows         ();
-    void          SelectTreeNode   (const BlockPlace & container);
-    BlockPlace    GetRowContainer  (const BlockListRow & row) const;
-    bool          HasCardPlace     () const;
-    void          OnRowSelected    (int row);
-    void          OnRowActivated   (int row);
-    std::wstring  GetCardLabel     () const;
-    BlockPlace    GetListPlace     () const;
-    void          SetTreeIcons     (vector<DxuiTreeNode> & nodes);
-    void          SubmitPath       (const std::wstring & text);
-    void          ShowChildMenu    (int index, const RECT & anchor);
-    void          ShowOverflowMenu (const RECT & anchor);
-    void          AddMenuCommand   (vector<DxuiPopupMenuItem> & items, const std::wstring & label, std::function<void ()> dispatch);
+    void                     Show             ();
+    void                     FillList         ();
+    void                     SortRows         ();
+    void                     SelectTreeNode   (const BlockPlace & container);
+    BlockPlace               GetRowContainer  (const BlockListRow & row) const;
+    bool                     HasCardPlace     () const;
+    void                     OnRowSelected    (int row);
+    void                     OnRowActivated   (int row);
+    std::wstring             GetCardLabel     () const;
+    BlockPlace               GetListPlace     () const;
+    void                     SetTreeIcons     (vector<DxuiTreeNode> & nodes);
+    static vector<uint32_t>  GetRun           (uint32_t first, uint32_t count);
+    void                     SubmitPath       (const std::wstring & text);
+    void                     ShowChildMenu    (int index, const RECT & anchor);
+    void                     ShowOverflowMenu (const RECT & anchor);
+    void                     AddMenuCommand   (vector<DxuiPopupMenuItem> & items, const std::wstring & label, std::function<void ()> dispatch);
 
     std::shared_ptr<const DxuiIconImage>  GetRowIcon  (const BlockListRow & row);
     const vector<DxuiListView::Cell>    & GetRowCells (int row);
@@ -112,6 +122,7 @@ private:
     IShellIcons                           * m_icons        = nullptr;
     DxuiHwndSource                        * m_popupHost    = nullptr;
     HWND                                    m_hwnd         = nullptr;
+    std::wstring                            m_rootLabel;
     vector<std::shared_ptr<DxuiCommand>>    m_menuCommands;
     BlockBrowser                            m_browser;
     BlockListing                            m_listing;
@@ -132,4 +143,5 @@ private:
     int                                     m_sortColumn   = 0;
     bool                                    m_isDescending = false;
     bool                                    m_isFilling    = false;
+    bool                                    m_isIconsStale = false;
 };

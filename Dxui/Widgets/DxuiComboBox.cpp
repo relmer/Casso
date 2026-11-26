@@ -20,7 +20,6 @@ static constexpr wchar_t   s_kGlyphFamily[]   = L"Segoe MDL2 Assets";
 static constexpr float     s_kGlyphColumn     = 1.75f;   // glyph column width, in font sizes
 static constexpr float     s_kFocusInsetPx    = -2.0f;
 static constexpr int       s_kRowHeightDip     = 28;
-static constexpr int       s_kTextInsetDip     = 8;
 static constexpr int       s_kChevronWidthDip  = 10;
 static constexpr int       s_kChevronHeightDip = 5;
 static constexpr int       s_kChevronRightDip  = 10;
@@ -185,7 +184,7 @@ void DxuiComboBox::MeasureRows()
 {
     HRESULT  hr        = S_OK;
     int      boxPx     = m_boundsDip.right - m_boundsDip.left;
-    float    widthDip  = (float) MulDiv (boxPx, DxuiDpiScaler::kBaseDpi, (int) m_scaler.GetDpi()) - 2.0f * s_kTextInsetDip;
+    float    widthDip  = (float) MulDiv (boxPx, DxuiDpiScaler::kBaseDpi, (int) m_scaler.GetDpi()) - 2.0f * kTextInsetDip;
     float    textDip   = 0.0f;
 
 
@@ -1109,7 +1108,7 @@ void DxuiComboBox::PaintBase (IDxuiPainter & painter, IDxuiTextRenderer & text) 
     edgeColor = m_enabled ? c.edge : c.edgeDisabled;
     edgePx = m_scaler.ToPxf (s_kEdgePx);
     fontDip = m_scaler.ToPxf (s_kFontDip);
-    textInset = m_scaler.ToPx (s_kTextInsetDip);
+    textInset = m_scaler.ToPx (kTextInsetDip);
     chevronW = m_scaler.ToPx (s_kChevronWidthDip);
     chevronH = m_scaler.ToPx (s_kChevronHeightDip);
     chevronRight = m_scaler.ToPx (s_kChevronRightDip);
@@ -1198,7 +1197,7 @@ float DxuiComboBox::GetFitWidthPx (IDxuiTextRenderer & text) const
     float               widest  = 0.0f;
     float               width   = 0.0f;
     float               height  = 0.0f;
-    float               inset   = (float) m_scaler.ToPx (s_kTextInsetDip);
+    float               inset   = (float) m_scaler.ToPx (kTextInsetDip);
     float               arrow   = (float) (m_scaler.ToPx (s_kChevronWidthDip) + m_scaler.ToPx (s_kChevronRightDip));
     std::vector<float>  columns;
 
@@ -1466,7 +1465,7 @@ void DxuiComboBox::PaintMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) 
 void DxuiComboBox::PaintRow (IDxuiTextRenderer & text, int index, const RECT & row, float fontPx, const ResolvedColors & c) const
 {
     HRESULT   hr            = S_OK;
-    float     inset         = (float) m_scaler.ToPx (s_kTextInsetDip);
+    float     inset         = (float) m_scaler.ToPx (kTextInsetDip);
     float     indent        = GetGlyphIndent (fontPx);
     float     left          = (float) row.left + inset;
     float     width         = (float) (row.right - row.left) - inset;

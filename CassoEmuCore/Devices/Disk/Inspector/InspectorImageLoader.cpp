@@ -3,6 +3,8 @@
 #include "Devices/Disk/Inspector/InspectorImageLoader.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/DiskFileCommit.h"
+#include "Devices/Disk/Store/DiskSourceFormat.h"
 #include "Devices/Disk/MountDiagnosis.h"
 
 
@@ -30,7 +32,7 @@ HRESULT InspectorImageLoader::LoadFile (const std::string & utf8Path, std::share
 
     outCopy = nullptr;
 
-    hr = DiskImageStore::ReadFileBytes (utf8Path, bytes);
+    hr = DiskFileCommit::ReadFileBytes (utf8Path, bytes);
     CHRF (hr, outReason = std::format (L"{} could not be read.", fs::path (widePath).filename().wstring()));
 
     hr = LoadBytes (bytes, utf8Path, isReadOnly, outCopy, outReason);
@@ -67,14 +69,14 @@ HRESULT InspectorImageLoader::LoadBytes (const vector<Byte> & bytes, const std::
     outCopy = nullptr;
     outReason.clear();
 
-    hr = DiskImageStore::GetSourceFormatByExtension (utf8Path, format);
+    hr = DiskSourceFormat::GetSourceFormatByExtension (utf8Path, format);
     CHRF (hr, outReason = std::format (L"{} is not a disk image Casso opens.", name));
 
     image.LoadFromBytes (format, bytes, utf8Path);
 
     if (!image.IsLoaded())
     {
-        diagnosis = DiskImageStore::ClassifyLoadFailure (format, bytes);
+        diagnosis = DiskSourceFormat::ClassifyLoadFailure (format, bytes);
         outReason = diagnosis.FormatSentence (name);
         CHR (E_FAIL);
     }

@@ -37,10 +37,15 @@ public:
 
     //  Field widths: free space, and the preview's detail and zoom when the
     //  preview is hidden and they cannot follow its edge.
-    static constexpr int     kStatusBandDip   = 26;      // Explorer's status bar, measured at 150%
-    static constexpr int     kStatusFreeDip   = 140;
-    static constexpr int     kStatusDetailDip = 280;
-    static constexpr int     kStatusZoomDip   = 64;
+    static constexpr int     kStatusBandDip    = 26;      // Explorer's status bar, measured at 150%
+    static constexpr int     kStatusFreeDip    = 140;
+    static constexpr int     kStatusDetailDip  = 280;
+    static constexpr int     kStatusZoomPadDip = 6;
+    static constexpr int     kStatusZoomDip    = DxuiZoomControl::kWidthDip + 2 * kStatusZoomPadDip;
+
+    //  While a CassoLink job runs, the detail field is at least this share of
+    //  the band, for its progress line.
+    static constexpr int     kJobShareDivisor = 2;
 
     //  The CassoLink line's tip: the latest entries of the activity log.
     static constexpr size_t  kActivityTipLines    = 10;
@@ -49,9 +54,12 @@ public:
     void  Create      ();
     void  Configure   ();
     void  Layout      (const RECT & band);
-    void  SetHidden   (bool hidden) { m_status->SetVisible (!hidden); }
+    void  SetHidden   (bool hidden) { m_status->SetVisible (!hidden); m_zoom->SetVisible (!hidden); }
+    bool  Tick        (int64_t nowMs);
+    bool  IsZoomShown () const { return m_zoom != nullptr && m_zoom->IsPanelShown(); }
     void  Fill        ();
-    void  SetDetail   (const std::wstring & text) { m_status->SetText (kStatusDetail, text); }
+    void  SetDetail   (const std::wstring & text);
+    void  SetShimmer  (bool on);
     void  SetActivity (const std::wstring & text) { m_status->SetText (kStatusFill, text); }
     void  UpdateTip   (const DxuiMouseEvent & ev, POINT point);
 
@@ -65,13 +73,19 @@ public:
     static std::wstring  DescribePickerCount (const std::wstring & count, size_t listed, size_t scopedOut, bool isForDrive, bool isCassoList);
 
 private:
-    bool  HandleZoomClick     (const DxuiMouseEvent & ev);
     bool  HandleSummaryClick  (const DxuiMouseEvent & ev);
     bool  HandleActivityClick (const DxuiMouseEvent & ev);
 
     ExplorerContext  & m_context;
     DxuiStatusBar    * m_status  = nullptr;
+    DxuiZoomControl  * m_zoom    = nullptr;
 
     //  The text of the CassoLink line's tip, for as long as the tip is up.
     std::wstring           m_activityTip;
+    std::wstring           m_detailTip;
+
+    //  The band at the last layout, and whether the detail field was widened
+    //  then for a CassoLink job's progress.
+    RECT                   m_band    = {};
+    bool                   m_widened = false;
 };

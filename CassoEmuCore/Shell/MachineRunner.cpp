@@ -62,6 +62,11 @@ Byte MachineRunner::StepOne()
         return 0;
     }
 
+    if (m_bootSlot != 0)
+    {
+        StartBootSlot (*cpu);
+    }
+
     if (m_debugHook != nullptr)
     {
         return StepOneWithHook();
@@ -340,5 +345,35 @@ void MachineRunner::ApplyOpcodeWatch()
     if (m_parts.cpu != nullptr)
     {
         m_parts.cpu->GetCpu6502()->GetFetchObservers().SetOpcodeWatch (m_watchOpcodes, m_watcher);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineRunner::StartBootSlot
+//
+//  After the monitor's setup, a ][+'s ROM jumps to slot 6, and a ]['s
+//  monitor reads the keyboard at the * prompt. Either point is where a user
+//  types PR#7 or C700G. Slot 6's ROM hasn't run yet, so its drive is off.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineRunner::StartBootSlot (EmuCpu & cpu)
+{
+    constexpr Word  kSlot6Page = 0xC600;
+    constexpr Word  kKeyIn     = 0xFD1B;
+    Word            pc         = cpu.GetPC();
+    bool            isAtBoot   = (pc & 0xFF00) == kSlot6Page || pc == kKeyIn;
+
+
+
+    if (isAtBoot)
+    {
+        cpu.SetPC ((Word) (0xC000 | (m_bootSlot << 8)));
+        m_bootSlot = 0;
     }
 }

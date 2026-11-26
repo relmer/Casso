@@ -1,8 +1,10 @@
 #include "Pch.h"
 
 #include "../EhmTestHelper.h"
+#include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/Inspector/DiskAnalyzer.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Ui/DiskInspector/EditController.h"
 #include "InspectorTrackBuilder.h"
 
@@ -31,7 +33,7 @@ public:
     //  first byte of every sector $C1 so the text column has a high bit set.
     static void AnalyzePlanted (DiskAnalysis & out)
     {
-        vector<Byte>                                     sectors (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>                                     sectors (NibbleFormat::kImageByteSize, 0);
         DiskImage                                        image;
         InspectorTrackBuilder                            odd;
         std::array<Byte, DiskFieldFormat::kSectorBytes>  bytes = {};
@@ -39,7 +41,7 @@ public:
 
 
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, image));
+        AssertSucceeded (Nibblizer::NibblizeDsk (sectors, image));
 
         odd.AppendSync (48);
 
@@ -53,7 +55,7 @@ public:
             odd.AppendSync         (20);
         }
 
-        odd.PadToCells (NibblizationLayer::kTrackBitCapacity);
+        odd.PadToCells (NibbleFormat::kTrackBitCapacity);
         odd.PackBits (image.GetTrackBitsForWrite (5));
         image.SetTrackBitCount (5, odd.GetCellCount());
 
@@ -110,6 +112,34 @@ public:
 
         Assert::AreEqual (2, edits.GetCounts().bytes);
         Assert::AreEqual (1, edits.GetCounts().sectors);
+    }
+
+
+
+    TEST_METHOD (UndoRestoresBothHexDigitsOfAByteAtOnce)
+    {
+        DiskAnalysis    analysis;
+        EditController  edits;
+        std::wstring    reason;
+        int             edit     = -1;
+        Byte            original = 0;
+
+
+
+        AnalyzePlanted (analysis);
+        edit = edits.Begin (GetTrack (analysis), 20, GetSectorIndex (GetTrack (analysis), 2), reason);
+        Assert::IsTrue (edit >= 0, reason.c_str());
+
+        original = edits.GetEdit (edit).bytes[1];
+
+        Assert::IsTrue   (edits.TypeHexDigit (edit, 1, true, L'a'));
+        Assert::IsTrue   (edits.TypeHexDigit (edit, 1, false, L'7'));
+        Assert::IsTrue   (edits.Undo());
+        Assert::AreEqual (original, edits.GetEdit (edit).bytes[1]);
+        Assert::IsFalse  (edits.CanUndo());
+
+        Assert::IsTrue   (edits.Redo());
+        Assert::AreEqual (static_cast<Byte> (0xA7), edits.GetEdit (edit).bytes[1]);
     }
 
 

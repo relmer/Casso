@@ -69,7 +69,7 @@ private:
     void                   PaintCellRun       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const DxuiFontHandle & font, int y, int row, int cell, int cellFrom,
                                                int flatStart, const std::wstring & chars, float trailPx, const LineMarks & marks) const;
     void                   PaintLinkUnderline (IDxuiPainter & painter, const IDxuiTheme & theme, int lineIndex, int y) const;
-    void                   PaintPicture       (IDxuiTextRenderer & text, int lineIndex) const;
+    void                   PaintPicture       (IDxuiTextRenderer & text, const IDxuiTheme & theme, int lineIndex) const;
     std::vector<uint32_t>  GetRowColors       (const Row & row, const IDxuiTheme & theme) const;
     void                   FillHighlights     (IDxuiPainter & painter, const IDxuiTheme & theme, int y, int row, int cell, int cellFrom, int flatStart, int count, uint32_t edge) const;
     void                   FillSelectedRange  (IDxuiPainter & painter, int y, int row, int cell, int cellFrom, int flatStart, int count, float trailPx, int selFrom, int selTo, uint32_t argb) const;

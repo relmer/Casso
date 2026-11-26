@@ -56,7 +56,7 @@ uint64_t MachineRomIdentity::Get (const std::vector<std::unique_ptr<MemoryDevice
         }
     }
 
-    for (index = 0; router != nullptr && index < DiskImageStore::kSlotCount; index++)
+    for (index = 0; router != nullptr && index < DiskBayTable::kSlotCount; index++)
     {
         hash = HashBytes (hash, router->GetSlotRom (index));
     }

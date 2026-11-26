@@ -5,7 +5,7 @@
 #include "CassoLink/CassoLinkHost.h"
 #include "CassoLink/LinkProgram.h"
 #include "Core/TextEncoding.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "ProgramRig.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -80,7 +80,7 @@ public:
 
     TEST_METHOD (LoadedModule_RunsItsRequest)
     {
-        ProgramRig         rig (std::vector<Byte> (NibblizationLayer::kImageByteSize, 0));
+        ProgramRig         rig (std::vector<Byte> (NibbleFormat::kImageByteSize, 0));
         std::vector<Byte>  module  = BuildEcho();
         Byte               id      = 0xFF;
         Byte               version = 0xFF;
@@ -101,7 +101,7 @@ public:
 
     TEST_METHOD (DiskOperation_OverwritesTheModule_AndEnsureLoadsItAgain)
     {
-        ProgramRig            rig (std::vector<Byte> (NibblizationLayer::kImageByteSize, 0));
+        ProgramRig            rig (std::vector<Byte> (NibbleFormat::kImageByteSize, 0));
         std::vector<Byte>  module    = BuildEcho();
         std::vector<Byte>  data;
         const Byte         sectors[] = { 0 };
@@ -128,7 +128,7 @@ public:
 
     TEST_METHOD (ChangedModule_FailsItsCheck)
     {
-        ProgramRig         rig (std::vector<Byte> (NibblizationLayer::kImageByteSize, 0));
+        ProgramRig         rig (std::vector<Byte> (NibbleFormat::kImageByteSize, 0));
         std::vector<Byte>  module = BuildEcho();
         HRESULT            hr     = S_OK;
 
@@ -158,4 +158,21 @@ public:
 
     //  Capture.s's CAPCODE less the module's .
     static constexpr size_t  kCaptureCodeOffset = 0x470;
+
+    //  The block module, built for each chip, ends before BLKBUF, where a
+    //  block is read.
+    TEST_METHOD (BlockModule_EndsBeforeItsBlockBuffer)
+    {
+        for (LinkChip chip : { LinkChip::Acia, LinkChip::W5100, LinkChip::Cassette, LinkChip::Network })
+        {
+            std::vector<Byte>  module;
+
+            AssertSucceeded (LinkProgram::BuildBlockModule (module, chip));
+            Logger::WriteMessage (std::format ("block module, chip {}: {} bytes\n", (int) chip, module.size()).c_str());
+            Assert::IsTrue (module.size() <= kBlockBufferOffset, std::format (L"chip {}: {} bytes", (int) chip, module.size()).c_str());
+        }
+    }
+
+    //  Block.s's BLKBUF less the module's address.
+    static constexpr size_t  kBlockBufferOffset = 0xC00;
 };

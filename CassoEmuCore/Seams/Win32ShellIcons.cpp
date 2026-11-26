@@ -1502,6 +1502,22 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetForKind (Kind kind)
         return found->second;
     }
 
+    //  A partition is a disk with a slice pulled out, from this program's
+    //  resources, in the version for the surface.
+    if (kind == Kind::Partition)
+    {
+        key += m_isDarkSurface ? L":dark" : L":light";
+        found = m_cache.find (key);
+
+        if (found != m_cache.end())
+        {
+            return found->second;
+        }
+
+        return Remember (key, (HICON) LoadImageW (GetModuleHandleW (nullptr), MAKEINTRESOURCEW (m_isDarkSurface ? IDI_PARTITION_DARK : IDI_PARTITION_LIGHT),
+                                                  IMAGE_ICON, m_sizePx, m_sizePx, 0));
+    }
+
     //  A disk image has Casso's own floppy, from this program's resources.
     if (kind == Kind::DiskImage)
     {

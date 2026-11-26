@@ -1,10 +1,11 @@
 #include "Pch.h"
 
+#include "Devices/Disk/DiskImage.h"
 #include "GuestSession.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/Inspector/DiskAnalyzer.h"
 #include "Devices/Disk/Inspector/FileMap/FileMap.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -35,7 +36,7 @@ public:
 
 
 
-        hr = NibblizationLayer::NibblizeDsk (raw, image);
+        hr = Nibblizer::NibblizeDsk (raw, image);
         Assert::IsTrue (SUCCEEDED (hr));
         DiskAnalyzer::Analyze (DiskCopy::MakeFromImage (image, 1, "stock.dsk", raw.size(), true), DecodeSettings::MakeStandard(), analysis);
         maps = FileMapBuilder::Build (analysis);

@@ -78,6 +78,8 @@ public:
 
         //  The display name of a card's drive. None: "Physical drive N".
         std::function<std::wstring (int drive)>          getCardLabel;
+        std::function<std::wstring (const std::wstring & path)>  getPartitionLabel;   // empty when the partition isn't known
+        std::function<std::wstring (const std::wstring & path)>  getVolumeLabel;
     };
 
     size_t  OpenTab   (const Location & location);
@@ -114,6 +116,9 @@ public:
     void  CacheCatalog          (const std::wstring & imagePath, const VolumeListing & listing, VolumeKind kind);
     void  InvalidateCatalog     (const std::wstring & imagePath);
     void  InvalidateAllCatalogs ();
+
+    //  Every tab but the active one on a storage card goes to `to`.
+    size_t  MoveTabsOffCard (const std::wstring & cardPath, const Location & to);
 
     //  Every open tab's location, for persistence.
     void  GetLocations (std::vector<Location> & outLocations) const;

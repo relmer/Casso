@@ -117,7 +117,7 @@ namespace DebuggerTests
         using DebuggerWindow::ApplyCodeSnapshot;
         using DebuggerWindow::GetCodeList;
         using DebuggerWindow::OnMappedCommand;
-        using DebuggerWindow::RouteMappedKey;
+        using DebuggerWindow::GetKeyRouter;
         using DebuggerWindow::ApplyKeyScheme;
         using DebuggerWindow::AppendConsole;
         using DebuggerWindow::GetFindWidgets;
@@ -138,14 +138,14 @@ namespace DebuggerTests
         {
             DxuiKeyEvent  ev = { DxuiKeyEventKind::Down, vk, false, shift, ctrl, false };
 
-            return OnKey (ev) || RouteMappedKey (ev);
+            return OnKey (ev) || GetKeyRouter().RouteMappedKey (ev);
         }
 
         bool  PressCtrlAlt (WPARAM vk)
         {
             DxuiKeyEvent  ev = { DxuiKeyEventKind::Down, vk, false, false, true, true };
 
-            return OnKey (ev) || RouteMappedKey (ev);
+            return OnKey (ev) || GetKeyRouter().RouteMappedKey (ev);
         }
 
         void  Type (const std::wstring & text)
@@ -155,7 +155,7 @@ namespace DebuggerTests
                 DxuiKeyEvent  down  = { DxuiKeyEventKind::Down, (WPARAM) (ch == L' ' ? VK_SPACE : towupper (ch)), false, false, false, false };
                 DxuiKeyEvent  typed = { DxuiKeyEventKind::Char, (WPARAM) ch, false, false, false, false };
 
-                (void) (OnKey (down) || RouteMappedKey (down));
+                (void) (OnKey (down) || GetKeyRouter().RouteMappedKey (down));
                 (void) OnKey (typed);
             }
         }

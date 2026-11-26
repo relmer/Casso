@@ -1,14 +1,18 @@
 #include "Pch.h"
 #include "Assembler.h"
 #include "AssemblerTypes.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "TestMachine.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/DiskFlusher.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Machines/Apple2/Common/Disk2NibbleEngine.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "HResultAssert.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
@@ -265,7 +269,7 @@ public:
         machine.PowerCycle();
 
         // Mount a synthetic blank .dsk (nibblizes to a formatted track 0).
-        std::vector<Byte>  blank (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  blank (NibbleFormat::kImageByteSize, 0);
         hr = machine.GetDiskStore().MountFromBytes (kSlot6, kDrive1, "blank.dsk",
                                              DiskFormat::Dsk, blank);
         AssertSucceeded (hr, L"MountFromBytes must succeed");
@@ -369,7 +373,7 @@ public:
     static vector<Byte>  BuildNibbleImage()
     {
         DiskImage     img;
-        vector<Byte>  sectors (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>  sectors (NibbleFormat::kImageByteSize, 0);
         vector<Byte>  file;
         size_t        i  = 0;
         HRESULT       hr = S_OK;
@@ -379,7 +383,7 @@ public:
             sectors[i] = static_cast<Byte> ((i * 13 + (i / 256)) & 0xFF);
         }
 
-        hr = NibblizationLayer::NibblizeDsk (sectors, img);
+        hr = Nibblizer::NibblizeDsk (sectors, img);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         hr = NibbleImageCodec::Serialize (img, vector<Byte>(), file);
@@ -493,7 +497,7 @@ public:
                 L"the container must not grow or shrink across cycles");
 
             AssertSucceeded (NibbleImageCodec::Load (file, reloaded));
-            AssertSucceeded (NibblizationLayer::Denibblize (reloaded, DiskFormat::Dsk,
+            AssertSucceeded (Denibblizer::Denibblize (reloaded, DiskFormat::Dsk,
                                                            recovered, report));
             cycles++;
         }
@@ -531,7 +535,7 @@ public:
         img = store.GetImage (6, 0);
         Assert::IsNotNull (img);
 
-        AssertSucceeded (store.SetImageWriteProtect (6, 0, true));
+        AssertSucceeded (store.GetFlusher().SetImageWriteProtect (6, 0, true));
 
         AssertSucceeded (WozLoader::Load (file, reloaded));
         Assert::IsTrue (reloaded.GetWriteProtectInfo().imageFlag,
@@ -539,7 +543,7 @@ public:
         Assert::IsTrue (img->GetWriteProtectInfo().imageFlag,
             L"and the live image must agree with the file");
 
-        AssertSucceeded (store.SetImageWriteProtect (6, 0, false));
+        AssertSucceeded (store.GetFlusher().SetImageWriteProtect (6, 0, false));
 
         AssertSucceeded (WozLoader::Load (file, reloaded));
         Assert::IsFalse (reloaded.GetWriteProtectInfo().imageFlag,
@@ -580,7 +584,7 @@ public:
         });
 
         AssertSucceeded (store.MountFromBytes (6, 0, "t.woz", DiskFormat::Woz, file));
-        AssertSucceeded (store.SetImageWriteProtect (6, 0, true));
+        AssertSucceeded (store.GetFlusher().SetImageWriteProtect (6, 0, true));
 
         Assert::AreEqual (original.size(), file.size(),
             L"patching one flag must not resize the file");
@@ -648,7 +652,7 @@ public:
         img->WriteBit (0, 0, (uint8_t) (bit0 ^ 1));
         Assert::IsTrue (img->IsDirty(), L"precondition: there is a pending guest write");
 
-        AssertSucceeded (store.SetImageWriteProtect (6, 0, true));
+        AssertSucceeded (store.GetFlusher().SetImageWriteProtect (6, 0, true));
 
         AssertSucceeded (WozLoader::Load (file, reloaded));
 
@@ -686,7 +690,7 @@ public:
 
         // The gate the toggle's ordering exists for: a protected image's
         // regular flush drops the dirty content without writing.
-        AssertSucceeded (store.Flush (6, 0));
+        AssertSucceeded (store.GetFlusher().Flush (6, 0));
         Assert::AreEqual (0, sinkCalls, L"no write may happen through the gate");
         Assert::IsFalse (img->IsDirty(), L"the dirty bit is consumed");
     }

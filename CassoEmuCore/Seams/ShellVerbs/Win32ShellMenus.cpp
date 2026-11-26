@@ -2,6 +2,7 @@
 #include "Seams/ShellItemId.h"
 
 #include "Seams/ShellVerbs/Win32ShellMenus.h"
+#include "Seams/Win32ExplorerCommandEntries.h"
 #include "Seams/Win32ShellItemVerbs.h"
 #include "Core/TextEncoding.h"
 
@@ -113,21 +114,64 @@ HRESULT Win32ShellMenus::GetOpenWithHandlers (const std::wstring & path, std::ve
     hr = EnumHandlers (path, handlers);
     CHR (hr);
 
-    for (IAssocHandler * handler : handlers)
+    for (size_t i = 0; i < handlers.size(); i++)
     {
-        wchar_t  * name  = nullptr;
-        HRESULT    named = handler->GetUIName (&name);
+        IAssocHandler             * handler    = handlers[i];
+        wchar_t                   * name       = nullptr;
+        wchar_t                   * iconFile   = nullptr;
+        int                         iconIndex  = 0;
+        HRESULT                     named      = handler->GetUIName (&name);
+        HRESULT                     iconed     = handler->GetIconLocation (&iconFile, &iconIndex);
+        wchar_t                   * program    = nullptr;
+        HRESULT                     programmed = handler->GetName (&program);
+        IShellItemVerbs::Handler    entry;
 
-        if (SUCCEEDED (named) && name != nullptr)
+
+
+        //  Casso Explorer opens what it browses itself, so it is left out.
+        if (SUCCEEDED (programmed) && program != nullptr && IsThisProgram (program))
         {
-            outHandlers.push_back (IShellItemVerbs::Handler { name });
+            CoTaskMemFree (program);
             CoTaskMemFree (name);
+            CoTaskMemFree (iconFile);
+            continue;
         }
-        else
+
+        CoTaskMemFree (program);
+        program = nullptr;
+
+        entry.name       = (SUCCEEDED (named) && name != nullptr) ? std::wstring (name) : std::wstring (L"?");
+        entry.assocIndex = i;
+
+        if (SUCCEEDED (iconed) && iconFile != nullptr)
         {
-            outHandlers.push_back (IShellItemVerbs::Handler { L"?" });
+            entry.iconFile  = iconFile;
+            entry.iconIndex = iconIndex;
         }
+
+        //  A packaged app's icon is an indirect string for a picture file.
+        if (entry.iconFile.starts_with (L"@"))
+        {
+            wchar_t  resolved[MAX_PATH] = {};
+            HRESULT  loaded             = SHLoadIndirectString (entry.iconFile.c_str(), resolved, (UINT) std::size (resolved), nullptr);
+
+            entry.iconFile  = SUCCEEDED (loaded) ? std::wstring (resolved) : std::wstring();
+            entry.iconIndex = 0;
+        }
+
+        outHandlers.push_back (std::move (entry));
+        CoTaskMemFree (name);
+        CoTaskMemFree (iconFile);
     }
+
+    //  The programs recently used for the type follow, and the list is in
+    //  name order, as File Explorer has it.
+    AddRecentApplications (path, outHandlers);
+
+    std::stable_sort (outHandlers.begin(), outHandlers.end(), [] (const IShellItemVerbs::Handler & a, const IShellItemVerbs::Handler & b)
+    {
+        return _wcsicmp (a.name.c_str(), b.name.c_str()) < 0;
+    });
 
 Error:
     for (IAssocHandler * handler : handlers)
@@ -148,17 +192,34 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Win32ShellMenus::OpenWith (HWND owner, const std::wstring & path, size_t handlerIndex)
+HRESULT Win32ShellMenus::OpenWith (HWND owner, const std::wstring & path, const IShellItemVerbs::Handler & handler)
 {
-    HRESULT                       hr       = S_OK;
+    HRESULT                       hr           = S_OK;
     std::vector<IAssocHandler *>  handlers;
     ComPtr<IShellItem>            item;
     ComPtr<IDataObject>           data;
-    size_t                        count    = 0;
+    size_t                        count        = 0;
+    size_t                        handlerIndex = handler.assocIndex;
+    std::wstring                  className    = L"Applications\\" + handler.application;
+    SHELLEXECUTEINFOW             execute      = { sizeof (execute) };
 
 
 
-    (void) owner;
+    //  A recently used program runs by its Applications key.
+    if (!handler.application.empty())
+    {
+        execute.fMask   = SEE_MASK_CLASSNAME;
+        execute.hwnd    = owner;
+        execute.lpVerb  = L"open";
+        execute.lpFile  = path.c_str();
+        execute.lpClass = className.c_str();
+        execute.nShow   = SW_SHOWNORMAL;
+
+        BOOL  executed = ShellExecuteExW (&execute);
+
+        CWRA (executed);
+        BAIL_OUT_IF (true, S_OK);
+    }
 
     hr = EnumHandlers (path, handlers);
     CHR (hr);
@@ -174,6 +235,7 @@ HRESULT Win32ShellMenus::OpenWith (HWND owner, const std::wstring & path, size_t
 
     hr = handlers[handlerIndex]->Invoke (data.Get());
     CHR (hr);
+
 
 Error:
     for (IAssocHandler * handler : handlers)
@@ -861,4 +923,341 @@ Error:
     }
 
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellMenus::ListSendToTargets
+//
+//  The SendTo folder's visible files, with the display name of each.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ShellMenus::ListSendToTargets (std::vector<IShellItemVerbs::SendToTarget> & outTargets)
+{
+    HRESULT          hr     = S_OK;
+    PWSTR            folder = nullptr;
+    std::error_code  error;
+
+
+
+    outTargets.clear();
+
+    hr = SHGetKnownFolderPath (FOLDERID_SendTo, KF_FLAG_DEFAULT, nullptr, &folder);
+    CHR (hr);
+
+    for (const std::filesystem::directory_entry & entry : std::filesystem::directory_iterator (folder, error))
+    {
+        SHFILEINFOW  info       = {};
+        DWORD        attributes = GetFileAttributesW (entry.path().c_str());
+
+        if (!entry.is_regular_file (error) || attributes == INVALID_FILE_ATTRIBUTES || (attributes & (FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM)) != 0)
+        {
+            continue;
+        }
+
+        if (SHGetFileInfoW (entry.path().c_str(), 0, &info, sizeof (info), SHGFI_DISPLAYNAME) == 0)
+        {
+            continue;
+        }
+
+        outTargets.push_back ({ entry.path().wstring(), info.szDisplayName });
+    }
+
+    std::sort (outTargets.begin(), outTargets.end(), [] (const IShellItemVerbs::SendToTarget & a, const IShellItemVerbs::SendToTarget & b)
+    {
+        return _wcsicmp (a.label.c_str(), b.label.c_str()) < 0;
+    });
+
+Error:
+    CoTaskMemFree (folder);
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellMenus::SendTo
+//
+//  Drop the items on the target, as Send to does: a zip folder compresses
+//  them, a drive copies them, a shortcut opens them in its program.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ShellMenus::SendTo (const std::vector<std::wstring> & paths, const std::wstring & target)
+{
+    HRESULT                  hr     = S_OK;
+    ComPtr<IShellItem>       item;
+    ComPtr<IDropTarget>      drop;
+    ComPtr<IShellItemArray>  items;
+    ComPtr<IDataObject>      data;
+    DWORD                    effect = DROPEFFECT_COPY | DROPEFFECT_MOVE | DROPEFFECT_LINK;
+    POINTL                   point  = {};
+
+
+
+    hr = SHCreateItemFromParsingName (target.c_str(), nullptr, IID_PPV_ARGS (&item));
+    CHR (hr);
+
+    hr = item->BindToHandler (nullptr, BHID_SFUIObject, IID_PPV_ARGS (&drop));
+    CHR (hr);
+
+    hr = Win32ExplorerCommandEntries::MakeItems (paths, &items);
+    CHR (hr);
+
+    hr = items->BindToHandler (nullptr, BHID_DataObject, IID_PPV_ARGS (&data));
+    CHR (hr);
+
+    hr = drop->DragEnter (data.Get(), MK_LBUTTON, point, &effect);
+    CHR (hr);
+
+    if (effect == DROPEFFECT_NONE)
+    {
+        hr = drop->DragLeave();
+        CHR (hr);
+
+        BAIL_OUT_IF (true, S_FALSE);   // EHM-ALLOW-SFALSE: the target takes no drop of these items
+    }
+
+    hr = drop->Drop (data.Get(), MK_LBUTTON, point, &effect);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellMenus::ListFileActions
+//
+//  Each verb that applies to every item, with the shell menu's label for it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ShellMenus::ListFileActions (const std::vector<std::wstring> & paths, const std::vector<std::string> & verbs, std::vector<IShellItemVerbs::ItemVerb> & outFound)
+{
+    static const std::map<std::string, std::wstring>  s_kLabels =
+    {
+        { "print",     L"&Print"           },
+        { "link",      L"Create &shortcut" },
+        { "rotate90",  L"Rotate righ&t"    },
+        { "rotate270", L"Rotate &left"     },
+    };
+
+
+
+    outFound.clear();
+
+    if (paths.empty())
+    {
+        return S_OK;
+    }
+
+    for (const std::string & verb : verbs)
+    {
+        auto  label = s_kLabels.find (verb);
+
+        if (label == s_kLabels.end())
+        {
+            continue;
+        }
+
+        if (std::all_of (paths.begin(), paths.end(), [&verb] (const std::wstring & path) { return AppliesToFile (path, verb); }))
+        {
+            outFound.push_back ({ verb, label->second });
+        }
+    }
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellMenus::AppliesToFile
+//
+//  Create shortcut applies to any item, Print to a type registered with a
+//  print verb, and Rotate to an image.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Win32ShellMenus::AppliesToFile (const std::wstring & path, const std::string & verb)
+{
+    HRESULT                     hr             = S_OK;
+    ComPtr<IShellItem>          item;
+    ComPtr<IQueryAssociations>  assoc;
+    wchar_t                     text[MAX_PATH] = {};
+    DWORD                       length         = 0;
+    std::wstring                extension      = std::filesystem::path (path).extension().wstring();
+    PERCEIVED                   perceived      = PERCEIVED_TYPE_UNSPECIFIED;
+    PERCEIVEDFLAG               flags          = 0;
+
+
+
+    if (verb == "link")
+    {
+        return true;
+    }
+
+    if (verb == "rotate90" || verb == "rotate270")
+    {
+        HRESULT  typed = extension.empty() ? E_FAIL : AssocGetPerceivedType (extension.c_str(), &perceived, &flags, nullptr);
+
+        return SUCCEEDED (typed) && perceived == PERCEIVED_TYPE_IMAGE;
+    }
+
+    hr = SHCreateItemFromParsingName (path.c_str(), nullptr, IID_PPV_ARGS (&item));
+    CHR (hr);
+
+    hr = item->BindToHandler (nullptr, BHID_SFUIObject, IID_PPV_ARGS (&assoc));
+    CHR (hr);
+
+    //  A print verb runs a command, a delegate or a drop target.
+    for (ASSOCSTR kind : { ASSOCSTR_COMMAND, ASSOCSTR_DELEGATEEXECUTE, ASSOCSTR_DROPTARGET })
+    {
+        length = (DWORD) std::size (text);
+        hr     = assoc->GetString (ASSOCF_NONE, kind, L"print", text, &length);
+
+        if (SUCCEEDED (hr))
+        {
+            return true;
+        }
+    }
+
+    hr = E_FAIL;
+
+Error:
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellMenus::AddRecentApplications
+//
+//  The programs in the type's recently used list that the handler list
+//  doesn't have, as File Explorer adds them: each registered under
+//  Applications with an open command, and not marked NoOpenWith.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32ShellMenus::AddRecentApplications (const std::wstring & path, std::vector<IShellItemVerbs::Handler> & handlers)
+{
+    std::wstring  extension = std::filesystem::path (path).extension().wstring();
+    std::wstring  listKey   = L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\FileExts\\" + extension + L"\\OpenWithList";
+    wchar_t       order[64] = {};
+    DWORD         size      = sizeof (order);
+
+
+
+    if (extension.empty() || RegGetValueW (HKEY_CURRENT_USER, listKey.c_str(), L"MRUList", RRF_RT_REG_SZ, nullptr, order, &size) != ERROR_SUCCESS)
+    {
+        return;
+    }
+
+    for (const wchar_t * letter = order; *letter != L'\0'; letter++)
+    {
+        wchar_t                   exe[MAX_PATH]     = {};
+        wchar_t                   friendly[256]     = {};
+        wchar_t                   program[MAX_PATH] = {};
+        wchar_t                   value[2]          = { *letter, L'\0' };
+        DWORD                     length            = sizeof (exe);
+        std::wstring              appKey;
+        HKEY                      command           = nullptr;
+        HRESULT                   queried           = S_OK;
+        IShellItemVerbs::Handler  entry;
+
+        if (RegGetValueW (HKEY_CURRENT_USER, listKey.c_str(), value, RRF_RT_REG_SZ, nullptr, exe, &length) != ERROR_SUCCESS || wcschr (exe, L'!') != nullptr || IsThisProgram (exe))
+        {
+            continue;
+        }
+
+        appKey = std::wstring (L"Applications\\") + exe;
+
+        if (RegGetValueW (HKEY_CLASSES_ROOT, appKey.c_str(), L"NoOpenWith", RRF_RT_ANY, nullptr, nullptr, nullptr) == ERROR_SUCCESS)
+        {
+            continue;
+        }
+
+        if (RegOpenKeyExW (HKEY_CLASSES_ROOT, (appKey + L"\\shell\\open\\command").c_str(), 0, KEY_READ, &command) != ERROR_SUCCESS)
+        {
+            continue;
+        }
+
+        RegCloseKey (command);
+
+        length  = (DWORD) std::size (friendly);
+        queried = AssocQueryStringW (ASSOCF_OPEN_BYEXENAME, ASSOCSTR_FRIENDLYAPPNAME, exe, nullptr, friendly, &length);
+
+        if (FAILED (queried))
+        {
+            continue;
+        }
+
+        length  = (DWORD) std::size (program);
+        queried = AssocQueryStringW (ASSOCF_OPEN_BYEXENAME, ASSOCSTR_EXECUTABLE, exe, nullptr, program, &length);
+
+        if (FAILED (queried))
+        {
+            program[0] = L'\0';
+        }
+
+        if (std::any_of (handlers.begin(), handlers.end(), [&] (const IShellItemVerbs::Handler & each)
+        {
+            return _wcsicmp (each.name.c_str(), friendly) == 0 || _wcsicmp (std::filesystem::path (each.iconFile).filename().c_str(), exe) == 0;
+        }))
+        {
+            continue;
+        }
+
+        entry.name        = friendly;
+        entry.iconFile    = program;
+        entry.application = exe;
+
+        handlers.push_back (std::move (entry));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellMenus::IsThisProgram
+//
+//  Whether a program, by its path or file name, is the one running.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Win32ShellMenus::IsThisProgram (const std::wstring & program)
+{
+    wchar_t  self[MAX_PATH] = {};
+
+
+
+    if (GetModuleFileNameW (nullptr, self, (DWORD) std::size (self)) == 0)
+    {
+        return false;
+    }
+
+    return _wcsicmp (std::filesystem::path (program).filename().c_str(), std::filesystem::path (self).filename().c_str()) == 0;
 }

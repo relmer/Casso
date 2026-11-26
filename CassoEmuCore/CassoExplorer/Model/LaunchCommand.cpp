@@ -118,7 +118,7 @@ std::wstring LaunchCommand::MakeCassoExplorerArguments (HWND owner, const std::w
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring LaunchCommand::MakeCassoArguments (const std::wstring & diskPath, const std::wstring & titlePrefix)
+std::wstring LaunchCommand::MakeCassoArguments (const std::wstring & diskPath, const std::wstring & titlePrefix, const std::wstring & machineId)
 {
     std::wstring  quoted    = QuoteArgument (diskPath);
     std::wstring  arguments;
@@ -130,7 +130,12 @@ std::wstring LaunchCommand::MakeCassoArguments (const std::wstring & diskPath, c
         quoted = L"\"" + quoted + L"\"";
     }
 
-    arguments = L"--disk1 " + quoted;
+    arguments = L"--launch " + quoted;
+
+    if (!machineId.empty())
+    {
+        arguments += L" --machine " + QuoteArgument (machineId);
+    }
 
     if (!titlePrefix.empty())
     {

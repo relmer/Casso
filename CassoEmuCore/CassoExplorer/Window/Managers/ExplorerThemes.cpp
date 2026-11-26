@@ -1,12 +1,16 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerThemes.h"
+#include "CassoExplorer/CassoExplorerCommands.h"
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 #include "CassoExplorer/Window/Panes/ExplorerToolbars.h"
 #include "CassoExplorer/Window/Managers/ExplorerTips.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
+#include "CassoExplorer/Window/Panes/ExplorerListPane.h"
+#include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
+#include "Seams/IShellIcons.h"
 #include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 
@@ -16,6 +20,7 @@ static constexpr const char *  s_kpszThemeRows[] =
 {
     CassoExplorerPrefs::kThemeSkeuomorphic,
     CassoExplorerPrefs::kThemeRetroTerminal,
+    CassoExplorerPrefs::kThemePhosphor,
     CassoExplorerPrefs::kThemeDarkModern,
     CassoExplorerPrefs::kThemeDark,
     CassoExplorerPrefs::kThemeLight,
@@ -157,12 +162,28 @@ void ExplorerThemes::Apply()
 
     m_context.tabManager.ApplyTheme (*m_context.theme);
 
-    if (m_context.window.GetHwnd() != nullptr)
+    //  An icon with a version for each surface, as a partition's, is drawn
+    //  for the theme's.
     {
         uint32_t  background = m_context.theme->Background();
         int       luminance  = (int) (((background >> 16) & 0xFF) * 299 + ((background >> 8) & 0xFF) * 587 + (background & 0xFF) * 114) / 1000;
 
-        DxuiDwm::ApplyImmersiveDarkMode (m_context.window.GetHwnd(), luminance < 128);
+        m_context.shellIcons.SetDarkSurface (luminance < 128);
+        m_context.listPane.SetDarkSurface (luminance < 128);
+
+        //  The tree's nodes have icons from when they were listed, so a
+        //  change of surface lists them again.
+        if (m_isDark != (luminance < 128) && m_context.treePane.GetControl() != nullptr)
+        {
+            m_context.treePane.RefreshTree();
+        }
+
+        m_isDark = luminance < 128;
+
+        if (m_context.window.GetHwnd() != nullptr)
+        {
+            DxuiDwm::ApplyImmersiveDarkMode (m_context.window.GetHwnd(), luminance < 128);
+        }
     }
 
     m_context.window.Invalidate();
@@ -205,6 +226,86 @@ void ExplorerThemes::Preview (int index)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerThemes::GetCommandTheme
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char * ExplorerThemes::GetCommandTheme (int id)
+{
+    switch (id)
+    {
+        case CassoExplorerCommands::kThemeLight:         return CassoExplorerPrefs::kThemeLight;
+        case CassoExplorerCommands::kThemeDark:          return CassoExplorerPrefs::kThemeDark;
+        case CassoExplorerCommands::kThemeSystem:        return CassoExplorerPrefs::kThemeFollowSystem;
+        case CassoExplorerCommands::kThemeSkeuomorphic:  return CassoExplorerPrefs::kThemeSkeuomorphic;
+        case CassoExplorerCommands::kThemeDarkModern:    return CassoExplorerPrefs::kThemeDarkModern;
+        case CassoExplorerCommands::kThemeRetroTerminal: return CassoExplorerPrefs::kThemeRetroTerminal;
+        case CassoExplorerCommands::kThemePhosphor:      return CassoExplorerPrefs::kThemePhosphor;
+        default:                                         return nullptr;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerThemes::IsCommandChecked
+//
+//  Follow system is checked for any theme that isn't light, dark or one
+//  of Casso's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerThemes::IsCommandChecked (int id) const
+{
+    const char *         theme   = GetCommandTheme (id);
+    const std::string &  current = m_context.prefs.theme;
+
+
+
+    if (theme == nullptr)
+    {
+        return false;
+    }
+
+    if (id == CassoExplorerCommands::kThemeSystem)
+    {
+        return current != CassoExplorerPrefs::kThemeLight && current != CassoExplorerPrefs::kThemeDark && !IsCassoThemeName (current);
+    }
+
+    return current == theme;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerThemes::SelectForCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerThemes::SelectForCommand (int id)
+{
+    const char *  theme = GetCommandTheme (id);
+
+
+
+    if (theme != nullptr)
+    {
+        Select (theme);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerThemes::Select
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -232,5 +333,6 @@ bool ExplorerThemes::IsCassoThemeName (const std::string & name)
 {
     return name == CassoExplorerPrefs::kThemeSkeuomorphic
         || name == CassoExplorerPrefs::kThemeDarkModern
-        || name == CassoExplorerPrefs::kThemeRetroTerminal;
+        || name == CassoExplorerPrefs::kThemeRetroTerminal
+        || name == CassoExplorerPrefs::kThemePhosphor;
 }

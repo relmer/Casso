@@ -7,7 +7,7 @@
 #include "EmuTests/FixtureProvider.h"
 #include "EmuTests/FixtureRomSource.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "UiTests/InMemoryFileSystem.h"
 
@@ -702,7 +702,7 @@ namespace DebugModeTests
 
 
 
-            Assert::AreEqual (S_OK, NibblizationLayer::NibblizeDsk (sectors, nibblized));
+            Assert::AreEqual (S_OK, Nibblizer::NibblizeDsk (sectors, nibblized));
             Assert::AreEqual (S_OK, WozLoader::Serialize (nibblized, woz));
 
             for (bool writeDisks : { false, true })

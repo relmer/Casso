@@ -4,6 +4,7 @@
 
 #include "Ui/DiskInspector/Components/IInspectorComponent.h"
 #include "Ui/DiskInspector/Components/IInspectorComponentHost.h"
+#include "Ui/DiskInspector/Components/InspectorCommandInterfaces.h"
 #include "Ui/DiskInspector/Components/InspectorCommands.h"
 #include "Ui/DiskInspector/Components/InspectorSession.h"
 #include "Config/DiskInspectorPrefs.h"
@@ -39,6 +40,7 @@ class InspectorToolbar;
 class PlatterCorners;
 class StatusBand;
 class StripControls;
+class InspectorCommandSet;
 class InspectorDialogs;
 class InspectorTooltips;
 class SelectionPart;
@@ -67,7 +69,7 @@ class EditBar;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DiskInspectorWindow : public DxuiWindow, private IInspectorComponentHost
+class DiskInspectorWindow : public DxuiWindow, private IInspectorComponentHost, private IInspectorFrame, private IInspectorParts
 {
 public:
     //  Wide enough for the track tabs and the disk tabs on one row, with
@@ -89,6 +91,7 @@ public:
     //  Before something discards the pending edits (FR-108): true when there
     //  are none, or the user confirms that they are discarded.
     bool     ConfirmDiscardEdits (const std::wstring & action, std::function<void()> afterSave) override;
+    bool     HasUnsavedEdits     () const { return !m_session.edits.IsEmpty(); }
 
     //  The window's state to save, and the saved state applied to a new
     //  window before ShowDrive (FR-080). The host sets `isOpen`, and
@@ -159,56 +162,74 @@ private:
     bool                       OfferReply            (const InspectorReply & reply) override;
     void                       SetWindowZoom         (double zoom) override { SetZoom (zoom); }
 
-    void          BuildCommands  ();
-    static bool   RunCommand     (const InspectorCommands::Command & command);
+    //  IInspectorFrame and IInspectorParts, through which the commands call
+    //  the window and its parts.
+    void                CloseWindow        () override { OnWindowClose(); }
+    double              GetWindowZoom      () const override { return m_zoom; }
+    void                RestoreDefaultSize () override;
+    void                HideTooltip        () override { m_tooltip.HideImmediate(); }
+    InspectorDialogs  & GetDialogs         () override { return *m_dialogs; }
+    EditingPart       & GetEditing         () override { return *m_editing; }
+    SelectionPart     & GetSelection       () override { return *m_selection; }
+    FilesView         & GetFiles           () override { return *m_files; }
+    FindPart          & GetFind            () override { return *m_findPart; }
+    InspectorToolbar  & GetToolbar         () override { return *m_toolbar; }
+    PlatterCorners    & GetCorners         () override { return *m_corners; }
+    TrackColumn       & GetTrackColumn     () override { return *m_trackColumn; }
+    ComparisonPart    & GetComparison      () override { return *m_comparisonPart; }
+    HostLink          & GetHostLink        () override { return *m_hostLink; }
+
     void          UpdateTitle    ();
 
 
 
     RECT          GetWalkthroughArea (WalkthroughArea area) const;
     void          UpdateControls     ();
+    void          SyncEditFocus      ();
+    bool          IsViewFocused      () const;
     void          OnSelection        () override;
     void          ShowTrackTab       (int tab) override;
     void          ShowTabContent     ();
     void          SetZoom            (double zoom);
     void          LayoutContent      (const RECT & boundsPx, const DxuiDpiScaler & scaler);
-    static bool   IsZoomKey          (WPARAM vk);
-    int           StepRecording      (int quarterTrack, int step) const;
     void          ShowDiskTab        (int tab) override;
     static bool   IsInside           (const RECT & rect, POINT pointPx);
 
-    InspectorSession                   m_session;
-    std::unique_ptr<FilesView>         m_files;
-    std::unique_ptr<EditingPart>       m_editing;
-    std::unique_ptr<ComparisonPart>    m_comparisonPart;
-    std::unique_ptr<FindPart>          m_findPart;
-    std::unique_ptr<HostLink>          m_hostLink;
-    std::unique_ptr<InspectorMenus>    m_menus;
-    std::unique_ptr<InspectorToolbar>  m_toolbar;
-    std::unique_ptr<StatusBand>        m_statusBand;
-    std::unique_ptr<PlatterCorners>    m_corners;
-    std::unique_ptr<TrackColumn>       m_trackColumn;
-    std::unique_ptr<StripControls>     m_stripControls;
-    std::unique_ptr<InspectorDialogs>  m_dialogs;
-    std::unique_ptr<ViewTables>        m_tables;
-    std::unique_ptr<SelectionPart>     m_selection;
-    std::unique_ptr<ScreenNotes>       m_notes;
-    std::unique_ptr<WalkthroughPart>   m_walkthrough;
-    std::unique_ptr<InspectorTooltips> m_tooltips;
-    vector<IInspectorComponent *>      m_components;
-    InspectorCommands                  m_commands;
-    std::wstring                       m_title;
-    size_t                             m_titleMark        = std::wstring::npos;
-    DxuiTooltip                        m_tooltip;
-    DxuiTooltip                        m_zoomNote;
-    bool                               m_isSplitting      = false;
-    double                             m_splitFraction    = 0.5;
-    RECT                               m_splitterPx       = {};
+    InspectorSession                      m_session;
+    std::unique_ptr<FilesView>            m_files;
+    std::unique_ptr<EditingPart>          m_editing;
+    std::unique_ptr<ComparisonPart>       m_comparisonPart;
+    std::unique_ptr<FindPart>             m_findPart;
+    std::unique_ptr<HostLink>             m_hostLink;
+    std::unique_ptr<InspectorMenus>       m_menus;
+    std::unique_ptr<InspectorToolbar>     m_toolbar;
+    std::unique_ptr<StatusBand>           m_statusBand;
+    std::unique_ptr<PlatterCorners>       m_corners;
+    std::unique_ptr<TrackColumn>          m_trackColumn;
+    std::unique_ptr<StripControls>        m_stripControls;
+    std::unique_ptr<InspectorDialogs>     m_dialogs;
+    std::unique_ptr<ViewTables>           m_tables;
+    std::unique_ptr<SelectionPart>        m_selection;
+    std::unique_ptr<ScreenNotes>          m_notes;
+    std::unique_ptr<WalkthroughPart>      m_walkthrough;
+    std::unique_ptr<InspectorTooltips>    m_tooltips;
+    std::unique_ptr<InspectorCommandSet>  m_commandSet;
+    vector<IInspectorComponent *>         m_components;
+    InspectorCommands                     m_commands;
+    std::wstring                          m_title;
+    size_t                                m_titleMark      = std::wstring::npos;
+    bool                                  m_isTitleCpm     = false;
+    DxuiTooltip                           m_tooltip;
+    DxuiTooltip                           m_zoomNote;
+    bool                                  m_isSplitting    = false;
+    double                                m_splitFraction  = 0.5;
+    RECT                                  m_splitterPx     = {};
 
     DxuiButton            * m_copySector        = nullptr;
     int                     m_flownQuarterTrack = -1;
     int                     m_flownSector       = -1;
     bool                    m_isFocusShown      = false;
+    bool                    m_wasEditing        = false;
     bool                    m_isFileGone        = false;
     bool                    m_isRepairWanted    = false;
 

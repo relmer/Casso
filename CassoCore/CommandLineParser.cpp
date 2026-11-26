@@ -80,6 +80,7 @@ static constexpr CommandLineParser::DiskCommandName  s_kDiskCommands[] =
     { "dupes",            CommandLineOptions::DiskOptions::Command::Dupes           },
     { "search",           CommandLineOptions::DiskOptions::Command::Search          },
     { "inspect",          CommandLineOptions::DiskOptions::Command::Inspect         },
+    { "get-stamp",        CommandLineOptions::DiskOptions::Command::GetStamp        },
     { "repair",           CommandLineOptions::DiskOptions::Command::Repair          },
     { "set-thumbnail",    CommandLineOptions::DiskOptions::Command::SetThumbnail    },
     { "get-thumbnail",    CommandLineOptions::DiskOptions::Command::GetThumbnail    },
@@ -282,6 +283,7 @@ static constexpr const char *  s_kpszDiskOptions[] =
     "yes",
     "no-free-unowned",
     "list",
+    "json",
 
     //  Here so `/on-change` is matched as one word rather than shredded into
     //  the single-character flags -o -n -c -h ...
@@ -333,6 +335,7 @@ static constexpr CommandLineParser::ImageTargetFlag  s_kImageTargetFlags[] =
 //  untouched.
 static constexpr const char *  s_kpszEmulatorOptions[] =
 {
+    "launch",
     "machine",
     "disk1",
     "disk2",
@@ -372,6 +375,7 @@ static constexpr const char *  s_kpszEmulatorOptions[] =
 //  repeated would truncate the capture it was opened for.
 static constexpr CommandLineParser::EmulatorRelaunchRule  s_kEmulatorRelaunchRules[] =
 {
+    { "launch",         CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
     { "machine",        CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
     { "disk1",          CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
     { "disk2",          CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
@@ -404,6 +408,9 @@ static constexpr CommandLineParser::EmulatorFlag  s_kEmulatorFlags[] =
     { "--machine", " <name>",  "Which machine to boot, such as Apple2e." },
     { "--disk1",   " <image>", "Insert this image into drive 1." },
     { "--disk2",   " <image>", "Insert this image into drive 2." },
+    { "--launch",  " <image>", "Boot this image in a stock machine, set up with the cards and "
+                               "drives the image needs. Changes made while it runs, to the "
+                               "machine or to Casso's settings, aren't saved." },
     { "--hd",      " <slot>[.<unit>]=<image>",
                                "Attach this image to the hard disk or UniDisk 3.5 card "
                                "in the slot, for this run. The unit is a SCSI ID or a "
@@ -1079,6 +1086,7 @@ int CommandLineParser::GetDiskOperandCount (CommandLineOptions::DiskOptions::Com
         case CommandLineOptions::DiskOptions::Command::Test:
         case CommandLineOptions::DiskOptions::Command::Dupes:
         case CommandLineOptions::DiskOptions::Command::Inspect:
+        case CommandLineOptions::DiskOptions::Command::GetStamp:
         case CommandLineOptions::DiskOptions::Command::RemoveThumbnail:
             count = 1;
             break;
@@ -1436,6 +1444,12 @@ void CommandLineParser::ParseDiskOptions (
         if (arg == "--list")
         {
             options.disk.listOnly = true;
+            continue;
+        }
+
+        if (arg == "--json")
+        {
+            options.disk.isJson = true;
             continue;
         }
 
@@ -4971,6 +4985,7 @@ CommandLineOptions::EmulatorOptions CommandLineParser::ParseEmulator (int argc, 
         else if (arg == "--hd"        && hasValue) { ApplyBlockAttachment (argv[++i], false, parsed); }
         else if (arg == "--smartport" && hasValue) { ApplyBlockAttachment (argv[++i], true,  parsed); }
         else if (arg == "--explore" && hasValue) { parsed.explore = argv[++i]; }
+        else if (arg == "--launch"  && hasValue) { parsed.launch  = argv[++i]; }
         else if (arg == "--trace")
         {
             parsed.traceEntries = CommandLineOptions::EmulatorOptions::kTraceDefaultEntries;
@@ -5034,6 +5049,15 @@ CommandLineOptions::EmulatorOptions CommandLineParser::ParseEmulator (int argc, 
         {
             RefuseEmulatorArgument (raw, arg, parsed);
         }
+    }
+
+    //  The placement picks the drive for --launch's image.
+    if (!parsed.launch.empty() && parsed.verdict == CommandLineOptions::EmulatorOptions::Verdict::Clean
+        && (!parsed.disk1.empty() || !parsed.disk2.empty() || !parsed.hdAttachments.empty() || !parsed.smartPortAttachments.empty()))
+    {
+        parsed.verdict        = CommandLineOptions::EmulatorOptions::Verdict::Refused;
+        parsed.refusalMessage = "Error: --launch chooses the drive, so it can't be combined with "
+                                "--disk1, --disk2, --hd or --smartport.";
     }
 
     return parsed;
@@ -5128,7 +5152,7 @@ void CommandLineParser::RefuseEmulatorArgument (const std::string               
           || canonical == "--disk2"   || canonical == "--title"
           || canonical == "--tape"    || canonical == "--seed"
           || canonical == "--cleanup-old" || canonical == "--hd"
-          || canonical == "--smartport")
+          || canonical == "--smartport" || canonical == "--launch")
     {
         parsed.refusalMessage = "Error: missing value for " + raw;
     }

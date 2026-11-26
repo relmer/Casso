@@ -104,7 +104,7 @@ std::wstring PreviewSaveChoices::GetViewText (const PreviewContent & preview)
     switch (preview.kind)
     {
         case PreviewContent::Kind::Document:
-            for (const Paragraph & paragraph : preview.paragraphs)
+            for (const Paragraph & paragraph : FlattenRecordTables (preview.paragraphs))
             {
                 for (const Run & run : paragraph.runs)
                 {

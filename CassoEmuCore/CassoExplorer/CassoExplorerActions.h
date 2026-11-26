@@ -7,13 +7,17 @@
 #include "CassoExplorer/Actions/ActionsAppleDrive.h"
 #include "CassoExplorer/Actions/ActionsArchive.h"
 #include "CassoExplorer/Actions/ActionsCopy.h"
+#include "CassoExplorer/Actions/ActionsDriveImage.h"
 #include "CassoExplorer/Actions/ActionsGoTo.h"
+#include "CassoExplorer/Actions/ActionsLinkDisk.h"
 #include "CassoExplorer/Actions/ActionsPartition.h"
 #include "CassoExplorer/Actions/ActionsTape.h"
+#include "CassoExplorer/Actions/IImageWriteTarget.h"
 #include "Devices/Disk/IDiskFileIo.h"
 
 struct AppleSingleFile;
 class CassoExplorerBrowser;
+enum class DiskImageFormat;
 
 
 
@@ -38,7 +42,7 @@ class CassoExplorerBrowser;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class CassoExplorerActions : public ActionsTypes
+class CassoExplorerActions : public ActionsTypes, private IImageWriteTarget
 {
 public:
 
@@ -70,6 +74,7 @@ public:
     //  the test of an image or an archive.
     Outcome  MakeArchive            (const std::vector<std::wstring> & hostPaths, std::wstring & outPath) { return m_archiver.MakeArchive (hostPaths, outPath); }
     Outcome  MakeShrinkItDisk       (const std::wstring & imagePath, std::wstring & outPath)              { return m_archiver.MakeShrinkItDisk (imagePath, outPath); }
+    Outcome  ConvertImage           (const std::wstring & imagePath, DiskImageFormat format, std::wstring & outPath) { return m_archiver.ConvertImage (imagePath, format, outPath); }
     Outcome  TestImage              (const std::wstring & imagePath, std::wstring & outReport)            { return m_archiver.Test (imagePath, outReport); }
     Outcome  MakeTapeRecording      (const std::wstring & target)                                         { return m_tapes.MakeRecording (target); }
     Outcome  MakeDiskRecording      (const std::wstring & imagePath, const std::wstring & target, std::string & outCommand, double & outSeconds) { return m_tapes.MakeDiskRecording (imagePath, target, outCommand, outSeconds); }
@@ -85,6 +90,15 @@ public:
     //  The A2Pico card actions, for A2retroNET drives.
     ActionsA2retroNet & GetA2retroNet () { return m_a2retroNet; }
 
+    //  The CassoLink boot disks and the cassette bootstrap.
+    ActionsLinkDisk   & GetLinkDisks  () { return m_linkDisks; }
+
+    //  Whole disks on a linked Apple's drive, and raw sectors and blocks.
+    ActionsDriveImage & GetDriveImages() { return m_driveImages; }
+
+    //  The linked Apple drive the list is on: its files, its file system and its link.
+    ActionsAppleDrive & GetAppleDrive () { return m_appleDrive; }
+
     //  One partition of a card image: the one selected or open, its copy as
     //  an image file beside the card image, and an image file written over it
     //  after the question DescribeReplace returns.
@@ -98,14 +112,6 @@ public:
     Outcome  ReplacePartition         (const std::wstring & partitionPath, const std::wstring & imagePath)                             { return m_partitions.Replace (partitionPath, imagePath); }
     Outcome  DescribePartitionReplace (const std::wstring & partitionPath, const std::wstring & imagePath, std::wstring & outQuestion) { return m_partitions.DescribeReplace (partitionPath, imagePath, outQuestion); }
 
-    //  The list's Apple drive: its link, drive and directory. False when the
-    //  list is not on one.
-    bool     TryGetAppleDrive (std::string & outLink, int & outDrive, std::string & outDirectory) const { return m_appleDrive.TryGetAppleDrive (outLink, outDrive, outDirectory); }
-
-    //  Files from an image onto the list's Apple drive, as one image's files
-    //  copy onto another: the bytes as stored, the type mapped between file
-    //  systems. A folder is not copied.
-    Outcome  CopyEntriesToAppleDrive (const std::string & sourceImage, VolumeKind sourceKind, const std::vector<std::string> & catalogPaths) { return m_appleDrive.CopyEntriesToAppleDrive (sourceImage, sourceKind, catalogPaths); }
     Outcome  PutFiles                (const std::vector<std::wstring> & hostPaths, const AddressFn & askAddress = {}) { return m_copier.PutFiles (hostPaths, askAddress); }
 
     //  Host files and folders into a directory of an image, by Put's rules. A
@@ -156,12 +162,6 @@ public:
     //  lists is a directory, and goes with everything under it.
     Outcome  DeleteEntries  (const std::string & image, const std::vector<std::string> & catalogPaths);
 
-    //  Entries on the open linked drive, for the second half of a move.
-    Outcome  DeleteDriveEntries (const std::vector<FileEntry> & entries) { return m_appleDrive.DeleteOnAppleDrive (entries); }
-
-    //  The selected entries of the drive on display, to delete later.
-    bool     TryPlanDriveDeletion (ActionsAppleDrive::DriveDeletion & outPlan) const { return m_appleDrive.TryPlanDeletion ({}, outPlan); }
-    Outcome  RunDriveDeletion     (const ActionsAppleDrive::DriveDeletion & plan)    { return m_appleDrive.RunDeletion (plan); }
     Outcome  BootSelected         ();
     Outcome  RenameSelected       (const std::wstring & newName);
 
@@ -197,6 +197,16 @@ public:
     bool  CanInspect () const;
     bool  CanCompare () const;
 
+    //  The image picked by Select for compare, for a later Compare to.
+    void                  SetComparePick    (const std::wstring & imagePath) { m_comparePick = imagePath; }
+    void                  ClearComparePick  ()                               { m_comparePick.clear(); }
+    const std::wstring  & GetComparePick    () const                         { return m_comparePick; }
+    bool                  CanCompareToPick  (const std::wstring & imagePath) const;
+
+    //  Separators with nothing on one side of them, or beside another one,
+    //  taken out of a verb list.
+    static void  RemoveExtraSeparators (std::vector<Verb> & inOutVerbs);
+
     //  A new directory in the ProDOS location the list shows. The name is the
     //  volume's to accept, so an illegal one comes back as a refusal.
     Outcome  CreateFolder (const std::wstring & name);
@@ -224,77 +234,15 @@ public:
 
     //  The image a format would act on, or empty. The raw sector and block
     //  verbs act on the same image.
-    std::wstring  GetFormatTarget() const;
+    std::wstring  GetFormatTarget() const override;
 
     //  The blocks the format target has, for a raw block read or write.
-    int           GetTargetBlockCount() const;
-
-    //  Raw access through the runner's sector and block verbs. Sectors are
-    //  numbered as DOS 3.3 numbers them.
-    Outcome  ReadSectors  (int track, int sector, int count, const std::wstring & hostPath, DiskOperations::Numbering numbering = DiskOperations::Numbering::Logical) { return m_appleDrive.ReadSectors (track, sector, count, hostPath, numbering); }
-    Outcome  WriteSectors (int track, int sector, const std::wstring & hostPath, DiskOperations::Numbering numbering = DiskOperations::Numbering::Logical) { return m_appleDrive.WriteSectors (track, sector, hostPath, numbering); }
-    Outcome  ReadBlocks   (int block, int count, const std::wstring & hostPath) { return m_appleDrive.ReadBlocks (block, count, hostPath); }
-    Outcome  WriteBlocks  (int block, const std::wstring & hostPath) { return m_appleDrive.WriteBlocks (block, hostPath); }
-
-    //  The open drive's disk, or the given link's drive, so a second read
-    //  goes to the drive the first one did, wherever the window is by then.
-    Outcome  ReadDiskToImage  (const std::wstring & imagePath, bool blankUnreadable, UnreadableFn onUnreadable) { return m_appleDrive.ReadDiskToImage (imagePath, blankUnreadable, onUnreadable); }
-    Outcome  ReadDiskToImage  (const std::string & link, int drive, const std::wstring & imagePath, bool blankUnreadable, bool forceVerify, UnreadableFn onUnreadable, std::function<void ()> onRead = nullptr) { return m_appleDrive.ReadDiskToImage (link, drive, imagePath, blankUnreadable, forceVerify, onUnreadable, std::move (onRead)); }
-    Outcome  CaptureDisk      (const std::string & link, int drive, const std::wstring & imagePath, std::function<void (const std::wstring &)> report) { return m_appleDrive.CaptureDisk (link, drive, imagePath, std::move (report)); }
-    Outcome  WriteImageToDisk (const std::wstring & imagePath) { return m_appleDrive.WriteImageToDisk (imagePath); }
-
-    //  The same for any drive of any link, as a drop onto a drive's node
-    //  writes to a drive that may not be open.
-    Outcome  WriteImageToAppleDrive (const std::string & link, int drive, const std::wstring & imagePath, bool forceVerify = false) { return m_appleDrive.WriteImageToAppleDrive (link, drive, imagePath, forceVerify); }
-
-    //  A drive's whole disk read into an image in hostFolder, with its volume
-    //  in the file name, as a drag of the drive's node onto a folder does. The name is
-    //  made free of any file already there.
-    Outcome  CreateImageFromAppleDrive (const std::string & link, int drive, const std::wstring & hostFolder) { return m_appleDrive.CreateImageFromAppleDrive (link, drive, hostFolder); }
-
-    HRESULT  CheckLinkDisk (const std::string & link, int drive, LinkDiskFn then) { return m_appleDrive.CheckLinkDisk (link, drive, then); }
-
-    //  The link's boot disk written to the open Apple drive over the link,
-    //  through an image in tempFolder: its boot sector loads the shim at the
-    //  link's speed.
-    Outcome  SaveLinkToDisk   (const std::string & link, int drive, const std::wstring & tempFolder) { return m_appleDrive.SaveLinkToDisk (link, drive, tempFolder); }
-
-    //  The open Apple drive formatted as DOS 3.3 or ProDOS, bootable or not,
-    //  by writing it a new disk built in tempFolder from the request.
-    Outcome  FormatAppleDrive (const DiskOperations::NewDiskRequest & request, const std::wstring & tempFolder) { return m_appleDrive.FormatAppleDrive (request, tempFolder); }
-    Outcome  FormatAppleDrive (const std::string & link, int drive, const DiskOperations::NewDiskRequest & request, const std::wstring & tempFolder) { return m_appleDrive.FormatAppleDrive (link, drive, request, tempFolder); }
-
-    //  A linked drive's Apple Pascal disk krunched by the program on the Apple.
-    bool     IsDrivePascal    (const std::string & link, int drive) const                                                 { return m_appleDrive.IsDrivePascal (link, drive); }
-    Outcome  KrunchAppleDrive (const std::string & link, int drive, std::shared_ptr<LinkOperation> * outOperation = nullptr) { return m_appleDrive.KrunchAppleDrive (link, drive, outOperation); }
-
-    //  The same boot disk as an image file on the PC, for an emulator or to
-    //  write to a disk some other way. A Wi-Fi modem link's disk dials this
-    //  PC before its first Ready.
-    Outcome  SaveLinkDiskImage  (const std::wstring & imagePath, const CassoLinkSettings & settings) { return m_appleDrive.SaveLinkDiskImage (imagePath, settings); }
-    Outcome  SaveLinkProDosDisk (const std::wstring & usersDisk, const std::wstring & imagePath, const CassoLinkSettings & settings) { return m_appleDrive.SaveLinkProDosDisk (usersDisk, imagePath, settings); }
-    Outcome  SaveLinkSosDisk    (const std::wstring & usersDisk, const std::wstring & imagePath, const CassoLinkSettings & settings) { return m_appleDrive.SaveLinkSosDisk (usersDisk, imagePath, settings); }
-
-    //  The cassette bootstrap for a link as a WAV file on the PC, to send into
-    //  a ][+ or //e's cassette input from another device, or to insert in
-    //  Casso's own tape deck. outCommand is the monitor command that reads it.
-    Outcome  SaveCassetteBootstrap (const std::wstring & wavPath, const CassoLinkSettings & settings, std::string & outCommand) { return m_appleDrive.SaveCassetteBootstrap (wavPath, settings, outCommand); }
-
-    //  The open Apple drive as the menus and confirmations name it: its slot,
-    //  its drive and its volume, as "Slot 6, Drive 1 (DOS 3.3 volume 254)".
-    std::wstring  DescribeAppleDrive () const { return m_appleDrive.DescribeAppleDrive(); }
-
-    //  Stops the open Apple drive's link's running operation.
-    void  CancelLinkOperation () { m_appleDrive.CancelLinkOperation(); }
+    int           GetTargetBlockCount (const std::wstring & target = {}) const;
 
     //  An image that detection doesn't recognize, whose file system is chosen.
     bool  CanChooseFilesystem   (const std::wstring & image) const;
     void  ChooseImageFilesystem (const std::wstring & image, VolumeKind kind);
 
-    //  The same for the open Apple drive's disk.
-    void  ChooseDriveFilesystem    (VolumeKind kind) { m_appleDrive.ChooseDriveFilesystem (kind); }
-    void  ChooseDriveFilesystem    (const std::string & link, int drive, VolumeKind kind) { m_appleDrive.ChooseDriveFilesystem (link, drive, kind); }
-    bool  CanChooseDriveFilesystem (const std::string & link, int drive) const { return m_appleDrive.CanChooseDriveFilesystem (link, drive); }
 
     static Encoding  GetEncoding (const FileEntry & entry, VolumeKind kind);
 
@@ -302,7 +250,6 @@ public:
     void  FindCopyOptionRows (std::vector<CopyOptionRows::Row> & outRows);
 
     static PutPlan       PlanPut         (const std::wstring & hostName, const std::vector<Byte> & bytes, VolumeKind kind);
-    void                 GetAppleSingle  (const std::string & image, const FileEntry & entry, const std::wstring & hostPath, Outcome & inOutOutcome) { m_appleDrive.GetAppleSingle (image, entry, hostPath, inOutOutcome); }
     static std::wstring  DescribePlan    (const PutPlan & plan, VolumeKind kind);
     static PutPlan       PlanForced      (const std::wstring & hostName, const std::vector<Byte> & bytes, VolumeKind kind, Conversion conversion);
     static PutPlan       PlanAppleSingle (const std::wstring & hostName, const AppleSingleFile & file, VolumeKind kind);
@@ -340,6 +287,8 @@ public:
     static constexpr uint64_t  kNotFoundOffset   = UINT64_MAX;
     static constexpr size_t    kSearchChunkBytes = 1024 * 1024;
 
+    static void  Append (Outcome & inOutOutcome, const DiskOperations::Result & result);
+
 private:
     //  What reading an image found, reused until its size or time changes.
     //  The toolbar's commands are checked on every paint, and reading a WOZ
@@ -355,18 +304,18 @@ private:
 
     static constexpr size_t  kMaxImageFacts = 256;
 
+    void                      AddImageVerbs (bool onDisk, std::vector<Verb> & inOutVerbs) const;
     std::vector<std::string>  GetEntryNames (const std::string & image, const std::string & directory) const;
     Outcome                   ConvertOne    (const FileEntry & entry, BasicConversion::Kind kind, const std::vector<std::string> & made, std::string & outNewName);
     ImageFacts              & GetImageFacts (const std::wstring & image) const;
 
-    void  FinishWrite (const std::wstring & imagePath);
-
-    static void  Append (Outcome & inOutOutcome, const DiskOperations::Result & result);
+    void  FinishWrite (const std::wstring & imagePath) override;
 
     CassoExplorerBrowser                        & m_browser;
     IFileSystem                                 & m_fs;
     WrittenFn                                     m_onWritten;
     mutable std::map<std::wstring, ImageFacts>    m_imageFacts;
+    std::wstring                                  m_comparePick;
 
     //  The actions' parts, each with the state it uses.
     friend class       ActionsA2retroNet;
@@ -377,11 +326,13 @@ private:
     friend class       ActionsPartition;
     friend class       ActionsTape;
     ActionsAppleDrive  m_appleDrive      { *this };
+    ActionsDriveImage  m_driveImages     { m_browser, *this, m_appleDrive };
     ActionsCopy        m_copier          { *this };
     ActionsArchive     m_archiver        { *this };
     ActionsGoTo        m_goTo            { *this };
     ActionsPartition   m_partitions      { *this };
     ActionsTape        m_tapes           { *this };
     ActionsA2retroNet  m_a2retroNet      { *this };
+    ActionsLinkDisk    m_linkDisks       { m_browser };
 };
 

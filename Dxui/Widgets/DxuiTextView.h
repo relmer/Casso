@@ -5,6 +5,7 @@
 #include "Theme/IDxuiTheme.h"
 #include "DxuiScrollbar.h"
 #include "DxuiTextLayout.h"
+#include "DxuiTextPictures.h"
 #include "DxuiTextPosition.h"
 #include "DxuiTextRow.h"
 #include "DxuiTextSearch.h"
@@ -15,6 +16,7 @@
 #include "DxuiTextViewport.h"
 #include "IDxuiFindTarget.h"
 #include "IDxuiTextInputHost.h"
+#include "IDxuiTextPictureHost.h"
 #include "IDxuiTextScroller.h"
 
 struct DxuiIconImage;
@@ -63,6 +65,7 @@ struct DxuiIconImage;
 class DxuiTextView : public IDxuiControl,
                      public IDxuiFindTarget,
                      private IDxuiTextInputHost,
+                     private IDxuiTextPictureHost,
                      private IDxuiTextScroller
 {
 public:
@@ -228,6 +231,7 @@ public:
     //  The drawn line a row starts on, which differs from the row once a row
     //  above it has wrapped. -1 for a row not laid out.
     int   GetFirstLineOfRow (int row) const { return m_layout.GetFirstLineOfRow (row); }
+    int   GetLineRow        (int line) const { return m_layout.GetLines()[(size_t) line].row; }
 
     //  The left of a cell and the middle of its row's first line, in the
     //  coordinates the view paints in; false when that line is not drawn.
@@ -245,6 +249,10 @@ public:
     float  GetPxPerDip    () const { return m_scaler.ToPxf (1.0f); }
 
     Position  HitTest (POINT point) const { return DxuiTextViewHitTest (m_layout, GetViewport()).HitTest (point); }
+
+    //  The rows' pictures: their hit test, outline, ping, zoom and pan.
+    DxuiTextPictures        & GetPictures ()       { return m_pictures; }
+    const DxuiTextPictures  & GetPictures () const { return m_pictures; }
 
     //  The link under a point: its row, its index in the row's spans, and the
     //  part of it drawn on the line the point is on. False off every link.
@@ -343,7 +351,12 @@ public:
     void  ScrollToPosition (Position pos) override;
 
     bool  IsInteracting      () const { return m_input.IsDragging() || m_vertScroll.IsDragging() || m_horzScroll.IsDragging(); }
-    bool  IsScrollbarVisible () const { return m_layout.GetLineCount() > GetLineCap(); }
+    bool  IsScrollbarVisible () const { return !m_vertBarHidden && m_layout.GetLineCount() > GetLineCap(); }
+
+    //  Whether every row of more than one cell fits the text's width with each
+    //  cell at its natural width, so no cell wraps: false for a table that
+    //  doesn't fit. True before the text is measured.
+    bool  DoColumnsFit       () const { return m_layout.DoColumnsFit (GetTextWidthPx (IsScrollbarVisible())); }
 
     //  Whether a point is on the scrollbar, and the hover that widens it.
     bool  IsOverScrollbar   (POINT pt) const override { return (IsScrollbarVisible() && !m_vertBarHidden && m_vertScroll.HitTest (pt.x, pt.y)) || (IsHorzScrollbarVisible() && m_horzScroll.HitTest (pt.x, pt.y)); }
@@ -410,6 +423,17 @@ private:
     void              ShowInputMenu      (POINT point) override                                    { if (m_onContextMenu) { m_onContextMenu (point); } }
     void              ClickInputLink     (int row, int span) override                              { if (m_onLink) { m_onLink (row, span); } }
 
+    //  IDxuiTextPictureHost: the view, for its pictures.
+    int                      GetPictureLineCount () const override         { return m_layout.GetLineCount(); }
+    int                      GetPictureLineRow   (int line) const override { return GetLineRow (line); }
+    int                      GetPictureLineTopPx (int line) const override { return (int) m_boundsDip.top + m_scaler.ToPx (s_kPadDip) + GetLineOffsetPx (line); }
+    int                      GetPictureLineAtPx  (int y) const override    { return DxuiTextViewHitTest (m_layout, GetViewport()).GetLineAt (y); }
+    int                      GetPictureRowCount  () const override         { return (int) m_layout.GetRows().size(); }
+    const DxuiTextPicture  * GetRowPicture       (int row) const override;
+    float                    GetPictureLeftPx    () const override         { return (float) GetTextLeft(); }
+    float                    GetPictureWidthPx   () const override         { return GetTextWidthPx (IsScrollbarVisible()); }
+    const DxuiDpiScaler    & GetPictureScaler    () const override         { return m_scaler; }
+
     DxuiTextLayout          m_layout;
     DxuiDpiScaler           m_scaler;
     DxuiScrollbar           m_vertScroll;
@@ -433,7 +457,8 @@ private:
     bool                            m_atEnd           = true;
     DxuiTextViewSelection           m_selection       { m_layout };
     DxuiTextViewFind                m_find            { m_layout, m_selection, *this };
-    DxuiTextViewInput               m_input           { *this, m_layout, m_selection, *this, m_vertScroll, m_horzScroll };
+    DxuiTextPictures                m_pictures        { *this };
+    DxuiTextViewInput               m_input           { *this, m_layout, m_selection, *this, m_vertScroll, m_horzScroll, m_pictures };
     HWND                            m_hwnd            = nullptr;
     const wchar_t    * m_iconFace      = L"Segoe MDL2 Assets";
     ContextMenuFn      m_onContextMenu;

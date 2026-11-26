@@ -38,6 +38,10 @@ public:
     void  SetTheme     (const IDxuiTheme * theme) { m_theme = theme; }
     void  SetOnPick    (PickFn fn)              { m_onPick = std::move (fn); }
 
+    //  With a remove handler, the highlighted row has an X at its right, and
+    //  a click on it passes the row's text here instead of picking it.
+    void  SetOnRemove  (PickFn fn)              { m_onRemove = std::move (fn); }
+
     //  Shows `items` under `anchorClientPx`, a rect in the owner's client
     //  pixels, as wide as it; replaces the items if already open. No items
     //  closes the list.
@@ -57,20 +61,23 @@ public:
     static constexpr int  kPadLeftDip     = 12;
 
 private:
-    void  Render      (IDxuiPainter & painter, IDxuiTextRenderer & text);
-    void  OnMove      (POINT localPx);
-    void  OnClick     (POINT localPx);
-    void  OnWheel     (int delta);
-    int   HitTestRow  (POINT localPx) const;
-    void  Scroll      (int rows);
+    void  Render       (IDxuiPainter & painter, IDxuiTextRenderer & text);
+    void  OnMove       (POINT localPx);
+    void  OnClick      (POINT localPx);
+    void  OnWheel      (int delta);
+    int   HitTestRow   (POINT localPx) const;
+    bool  IsOverRemove (POINT localPx) const;
+    void  Scroll       (int rows);
 
     DxuiHwndSource             * m_popupHost = nullptr;
     DxuiPopupHost              * m_popup     = nullptr;
     const IDxuiTheme           * m_theme     = nullptr;
     PickFn                       m_onPick;
+    PickFn                       m_onRemove;
     std::vector<std::wstring>    m_items;
     DxuiDpiScaler                m_scaler;
     int                          m_highlight = -1;
     int                          m_topRow    = 0;
     int                          m_widthPx   = 0;
+    bool                         m_overX     = false;
 };

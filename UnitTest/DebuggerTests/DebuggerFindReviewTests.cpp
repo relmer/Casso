@@ -122,7 +122,7 @@ namespace DebuggerFindReviewTests
         {
             DxuiKeyEvent  ev = { DxuiKeyEventKind::Down, vk, false, false, ctrl, false };
 
-            return OnKey (ev) || RouteMappedKey (ev);
+            return OnKey (ev) || GetKeyRouter().RouteMappedKey (ev);
         }
 
         void  Type (const std::wstring & text)
@@ -132,7 +132,7 @@ namespace DebuggerFindReviewTests
                 DxuiKeyEvent  down  = { DxuiKeyEventKind::Down, (WPARAM) (ch == L' ' ? VK_SPACE : towupper (ch)), false, false, false, false };
                 DxuiKeyEvent  typed = { DxuiKeyEventKind::Char, (WPARAM) ch, false, false, false, false };
 
-                (void) (OnKey (down) || RouteMappedKey (down));
+                (void) (OnKey (down) || GetKeyRouter().RouteMappedKey (down));
                 (void) OnKey (typed);
             }
         }

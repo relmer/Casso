@@ -6,7 +6,7 @@
 #include "Devices/RamDevice.h"
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "ProgramRig.h"
 
@@ -80,7 +80,7 @@ public:
     //  those in `deleted` removed, so the free space is in pieces.
     static std::vector<Byte>  BuildDisk (std::span<const int> sizes, std::span<const int> deleted)
     {
-        std::vector<Byte>  image (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  image (NibbleFormat::kImageByteSize, 0);
         std::vector<Byte>  next;
 
         PascalVolume::WriteBlank ("KRUNCH", 0, image);

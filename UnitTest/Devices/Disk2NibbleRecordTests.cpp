@@ -4,7 +4,7 @@
 #include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Machines/Apple2/Common/Disk2NibbleRecord.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -51,7 +51,7 @@ namespace Disk2NibbleRecordTests
 
         Rig()
         {
-            std::vector<Byte>  blank (NibblizationLayer::kImageByteSize, 0);
+            std::vector<Byte>  blank (NibbleFormat::kImageByteSize, 0);
             HRESULT            hr = S_OK;
 
 

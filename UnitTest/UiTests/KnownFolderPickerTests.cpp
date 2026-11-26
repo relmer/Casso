@@ -144,10 +144,12 @@ public:
 
     TEST_METHOD (Launch_CassoArgumentsAlwaysQuoteThePath)
     {
-        Assert::AreEqual (std::wstring (L"--disk1 \"C:\\disks\\game.dsk\""),
+        Assert::AreEqual (std::wstring (L"--launch \"C:\\disks\\game.dsk\""),
                           LaunchCommand::MakeCassoArguments (L"C:\\disks\\game.dsk", L""));
-        Assert::AreEqual (std::wstring (L"--disk1 \"C:\\my disks\\game.dsk\" --title tag"),
+        Assert::AreEqual (std::wstring (L"--launch \"C:\\my disks\\game.dsk\" --title tag"),
                           LaunchCommand::MakeCassoArguments (L"C:\\my disks\\game.dsk", L"tag"));
+        Assert::AreEqual (std::wstring (L"--launch \"C:\\disks\\game.dsk\" --machine Apple2c --title tag"),
+                          LaunchCommand::MakeCassoArguments (L"C:\\disks\\game.dsk", L"tag", L"Apple2c"));
         Assert::AreEqual (std::wstring (L"\"a \\\"b\\\\\""), LaunchCommand::QuoteArgument (L"a \"b\\"));
     }
 

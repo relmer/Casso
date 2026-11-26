@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Shell/Components/ShellDisks.h"
+#include "Devices/Disk/DiskImage.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
 #include "Shell/Components/ShellDrivePickers.h"
 #include "Shell/Components/ShellAudio.h"
 #include "Shell/DiskManager.h"
@@ -36,7 +38,6 @@
 #include "Machines/Apple2/Common/LanguageCard.h"
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Apple2c/Apple2cRomBank.h"
-#include "Machines/MachineDefinition.h"
 #include "Machines/MachineDefinitions.h"
 #include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "Shell/FramePacing.h"
@@ -69,7 +70,11 @@
 #include "Config/Win32FileSystem.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DamagedMountReport.h"
-#include "Shell/DiskManager.h"
+#include "Devices/Disk/Store/DiskStoreMessages.h"
+#include "Devices/Disk/Store/DiskSalvager.h"
+#include "Devices/Disk/Store/ExternalChangeActions.h"
+#include "Machines/MachineDefinition.h"
+#include "Devices/Disk/IImageWatcher.h"
 
 
 
@@ -443,14 +448,14 @@ void ShellDisks::HandleMountCompletion (const MountCompletion & completion)
         return;
     }
 
-    message = DiskImageStore::FormatMountFailureMessage (completion.path, completion.diagnosis);
+    message = DiskStoreMessages::FormatMountFailureMessage (completion.path, completion.diagnosis);
 
     //  A tool that asked is told why instead; the dialog would sit behind the
     //  window the user is looking at.
     if (replyTo != nullptr)
     {
         SendIntentReply (replyTo, IntentReplyTracker::MakeInsertReply (completion.result,
-                                                               TextEncoding::WideToNarrow (message)));
+                                                                       TextEncoding::WideToNarrow (message)));
         return;
     }
 
@@ -805,7 +810,7 @@ void ShellDisks::RunSalvageFlow (int drive)
 
 
 
-    hr =m_shell.m_machine.GetDiskStore().AssessSalvage (6, drive, assessment);
+    hr =m_shell.m_machine.GetDiskStore().GetSalvager().AssessSalvage (6, drive, assessment);
     if (FAILED (hr))
     {
         return;
@@ -832,7 +837,7 @@ void ShellDisks::RunSalvageFlow (int drive)
         return;
     }
 
-    hr = m_shell.m_machine.GetDiskStore().SalvageToFile (6, drive, assessment.suggestedPath, report);
+    hr = m_shell.m_machine.GetDiskStore().GetSalvager().SalvageToFile (6, drive, assessment.suggestedPath, report);
 
     if (FAILED (hr))
     {
@@ -932,7 +937,7 @@ void ShellDisks::ReportDamagedMount (int drive)
             fs::path (m_shell.m_machine.GetDiskStore().GetSourcePath (6, drive)).wstring()),
         false, std::wstring() });
 
-    hr = m_shell.m_machine.GetDiskStore().AssessSalvage (6, drive, assessment);
+    hr = m_shell.m_machine.GetDiskStore().GetSalvager().AssessSalvage (6, drive, assessment);
 
     if (SUCCEEDED (hr) && assessment.isOffered)
     {
@@ -1456,7 +1461,7 @@ void ShellDisks::ExpireChangeBannerIfDue()
 
     bounds = m_changeBanner.GetBounds();
 
-    if (DxuiInputState::GetCursorPos (&cursor) && ScreenToClient (m_shell.m_hwnd, &cursor))
+    if (GetCursorPos (&cursor) && ScreenToClient (m_shell.m_hwnd, &cursor))
     {
         hovered = (cursor.x >= bounds.left && cursor.x < bounds.right
                 && cursor.y >= bounds.top  && cursor.y < bounds.bottom);
@@ -1789,7 +1794,7 @@ HRESULT ShellDisks::ToggleImageWriteProtect (int drive)
 
 void ShellDisks::ResolvePendingChange (int slot, int drive, int action, const std::string & savePath)
 {
-    m_shell.m_machine.GetDiskStore().ResolvePendingChange (slot, drive, (ChangeAction) action, savePath);
+    m_shell.m_machine.GetDiskStore().GetChangeActions().ResolvePendingChange (slot, drive, (ChangeAction) action, savePath);
 }
 
 

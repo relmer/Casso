@@ -6,6 +6,7 @@ class StateReader;
 class StateWriter;
 
 #include "Devices/BlockDevice/BlockDeviceMedia.h"
+#include "Devices/BlockDevice/ICassoBlockUnit.h"
 #include "Devices/BlockDevice/IBlockDeviceEventSink.h"
 
 
@@ -40,7 +41,7 @@ class StateWriter;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class ProFileDrive : public IBlockDeviceEventSource
+class ProFileDrive : public IBlockDeviceEventSource, public ICassoBlockUnit
 {
 public:
     static constexpr Byte    kStateCommand    = 0x01;
@@ -73,7 +74,7 @@ public:
     bool  IsPresent      () const { return true; }
     void  Reset          ();
 
-    BlockDeviceMedia        & GetMedia ()       { return m_media; }
+    BlockDeviceMedia        & GetMedia ()       override { return m_media; }
     const BlockDeviceMedia  & GetMedia () const { return m_media; }
 
     void      SetClock             (const uint64_t * clock) { m_clock = clock; }
@@ -85,6 +86,7 @@ public:
     // specifications: 60 s and 180 ms for the 5 MB drive, 120 s and 85 ms for
     // the 10 MB drive, at 3,600 RPM.
     void      SetRealTiming        (bool isOn, uint32_t cpuClockHz, uint64_t powerOnCycle);
+    void      RecordFastAccess     (BlockDeviceOp op, uint32_t block, Byte result, uint64_t now) override;
     bool      IsRealTiming         () const { return m_realTiming; }
 
     //  The handshake, the transfer under way, the cycle the drive is ready

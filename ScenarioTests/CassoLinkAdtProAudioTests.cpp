@@ -1,7 +1,9 @@
 #include "Pch.h"
 
+#include "Devices/Disk/DiskImage.h"
 #include "EhmTestHelper.h"
 #include "FixtureProvider.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
 #include "TestMachine.h"
 #include "TextScreenScraper.h"
 #include "CassoLink/EmulatedCassetteAudio.h"
@@ -12,7 +14,6 @@
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -149,7 +150,7 @@ public:
 
 
 
-            AssertSucceeded (NibblizationLayer::Denibblize (*machine.GetDiskStore().GetImage (kDiskSlot, 1), DiskFormat::Dsk, image));
+            AssertSucceeded (Denibblizer::Denibblize (*machine.GetDiskStore().GetImage (kDiskSlot, 1), DiskFormat::Dsk, image));
             return image;
         }
     };

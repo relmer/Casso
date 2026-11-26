@@ -134,7 +134,7 @@ std::optional<DebuggerOptions> DebuggerOptionsSheet::Ask (HWND owner, const IDxu
 
     //  As large as the tallest and widest page, within the work area of the
     //  monitor it opens on; a page scrolls only when that is too small.
-    sheet.FitToMaxSize();
+    sheet.GetSizer().ResizeToMaxSize (DxuiWindow::MaxSizeMode::Fit);
     sheet.SetTheme (theme);
     sheet.ShowModalDialog (IDOK);
 

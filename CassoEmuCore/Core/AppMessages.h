@@ -64,4 +64,6 @@ enum class AppMessage : UINT
     ExplorerPicturesReady    = WM_APP + 0x4B,   // a disk image was booted and its picture made, posted to each Explorer window
     ExplorerVolumeFacts      = WM_APP + 0x4C,   // an image's file system and volume name were read, posted to the Explorer window
     ExplorerCardWrite        = WM_APP + 0x4D,   // sent before a write to a storage card: wParam bool * for OK, lParam the question
+    ExplorerAssocChanged     = WM_APP + 0x4E,   // the shell's notice that a file association changed, sent to the Explorer window
+    ExplorerFileSystemCheck  = WM_APP + 0x4F,   // an image's file system was checked, posted to the Explorer window
 };

@@ -4,6 +4,7 @@
 #include "HResultAssert.h"
 #include "Config/UserConfigStore.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/IImageWatcher.h"
 #include "Machines/Apple2/Common/Disk2AudioSource.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "Shell/CpuManager.h"

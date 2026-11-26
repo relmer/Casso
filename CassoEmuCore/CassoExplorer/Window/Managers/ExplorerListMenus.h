@@ -51,6 +51,10 @@ public:
     std::vector<DxuiPopupMenuItem>  GetSearchOptionChoices ();
     std::vector<DxuiPopupMenuItem>  GetViewChoices         (bool withKeys);
 
+    //  A separator only between two rows, and never two in a row.
+    static void  AddSeparator          (std::vector<DxuiPopupMenuItem> & items);
+    static void  RemoveExtraSeparators (std::vector<DxuiPopupMenuItem> & items);
+
 private:
     std::wstring    GetBackgroundShellId (const Location & shown) const;
     void            AddBackgroundRows    (std::vector<DxuiPopupMenuItem> & items, const Location & shown);
@@ -64,6 +68,8 @@ private:
     void  AddOpenWithMenu (std::vector<DxuiPopupMenuItem> & items);
     void  AddCopyAsMenu   (std::vector<DxuiPopupMenuItem> & items);
     void  AddConvertMenu  (std::vector<DxuiPopupMenuItem> & items);
+    void  AddCardRows     (std::vector<DxuiPopupMenuItem> & items, const Location & card);
+    void  InsertSubmenu   (std::vector<DxuiPopupMenuItem> & items, size_t at, const wchar_t * label, const wchar_t * svg, std::shared_ptr<const DxuiIconImage> image, std::vector<DxuiPopupMenuItem> choices);
 
     ExplorerListPane  & m_pane;
     ExplorerContext   & m_context;

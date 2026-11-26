@@ -5,7 +5,8 @@
 ;
 ; Read 13-sector track (CMDRD13): the drive, the track and the sectors to
 ; read, a bit each, sector 0 in bit 0 of the first byte and sector 12 in
-; bit 4 of the second. Each address field that passes, D5 AA B5 or RDOS's
+; bit 4 of the second, then the whole disk's percentage at the track's start
+; and at its end, for the bar. Each address field that passes, D5 AA B5 or RDOS's
 ; D4 AA B7, is read, and for a sector requested the data field after it:
 ; its 410 nibbles and checksum nibble are stored as the latch has them, as
 ; decoding takes longer than the gap to the next sector, and the host
@@ -17,8 +18,8 @@
 ; never wrote, the sector with its top bit set alone. Then Status, whose
 ; count is the packets sent.
 ;
-; Write nibble track (CMDWNIBS): the drive, the track and the stream's
-; length, low byte first. An Acknowledge requests the stream, and the host's
+; Write nibble track (CMDWNIBS): the drive, the track, the stream's length,
+; low byte first, and the two percentages Read 13-sector track has. An Acknowledge requests the stream, and the host's
 ; Nibble data packet (CMDNIBDATA) has it and its CRC-16/XMODEM, low byte
 ; first; a NAK requests it again, 8 times at most, then ERRLINK. In the
 ; stream, as the program's player takes it, each byte with its top bit set is
@@ -339,13 +340,16 @@ snhdr:  lda nonehdr,x
 sechdr:  .byte $C1, <(FIELDLEN+3), >(FIELDLEN+3), CMDSEC13, $C1 ^ <(FIELDLEN+3) ^ >(FIELDLEN+3) ^ CMDSEC13
 nonehdr: .byte $C1, 1, 0, CMDSEC13, $C1 ^ 1 ^ CMDSEC13
 
-; nprep: an operation's fields cleared, and the drive and track from the
-; request. The carry is set when the drive isn't 1 or 2.
+; nprep: an operation's fields cleared, and the drive, the track and the
+; bar's percentages from the request. The carry is set when the drive isn't
+; 1 or 2.
 nprep:  lda #0
         sta p_err
         sta p_misses
         sta p_index
+        lda p_PKTBUF+4
         sta p_plo
+        lda p_PKTBUF+5
         sta p_phi
         lda p_PKTBUF
         sta p_drive

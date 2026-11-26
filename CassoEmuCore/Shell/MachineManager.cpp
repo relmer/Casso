@@ -13,6 +13,7 @@
 #include "Shell/TapeManager.h"
 #include "Shell/Components/ShellAudio.h"
 #include "Shell/Components/ShellDisks.h"
+#include "Shell/Components/ShellDeskScene.h"
 #include "Shell/Components/ShellPrinter.h"
 #include "../AssetBootstrap.h"
 #include "Config/DiskSettings.h"
@@ -55,6 +56,7 @@
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/Store/DiskFlusher.h"
 
 
 
@@ -220,6 +222,12 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     bool                   isRebuild         = AutoStatePolicy::IsRebuild (m_shell.m_machine.GetCurrentMachineName(), machineName);
 
 
+
+    // A rebuild of the running machine can add or remove drives.
+    if (machineName == m_shell.GetCurrentMachineName())
+    {
+        m_shell.m_scene->ResetViewOnReplan();
+    }
 
     // Find and load the new machine config. ROM/disk-audio asset
     // bootstrap happens on the UI thread in ShowMachinePicker before
@@ -432,7 +440,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     // Auto-flush every dirty disk before tearing down the previous
     // machine so user writes survive the machine switch.
     {
-        HRESULT  hrFlush = m_shell.m_machine.GetDiskStore().FlushAll();
+        HRESULT  hrFlush = m_shell.m_machine.GetDiskStore().GetFlusher().FlushAll();
         IGNORE_RETURN_VALUE (hrFlush, S_OK);
     }
 

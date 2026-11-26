@@ -17,7 +17,6 @@
 #include "Devices/Disk/FilePath.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
@@ -183,6 +182,18 @@ public:
 
         Assert::IsTrue (PascalVolume::IsFound (image));
         Assert::IsTrue (VolumeImage::DetectFilesystem (image) == VolumeKind::Pascal);
+    }
+
+
+
+    //  A volume that spans more than this disk, as Wizardry IV's 2048 blocks
+    //  over several disk sides, is a Pascal volume.
+    TEST_METHOD (DetectsAVolumeLargerThanTheDisk)
+    {
+        std::vector<Byte>  image = BuildSample();
+
+        PutWord (image, 2, 14, 2048);
+        Assert::IsTrue (PascalVolume::IsFound (image));
     }
 
 

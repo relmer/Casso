@@ -9,6 +9,15 @@
 
 
 
+//  How a document's record tables are laid out, narrowest first: as cards;
+//  as each record's fields, a label and its value each, two, three or four
+//  to a line; or as a table, a row a record.
+enum class TableForm { Cards, TwoFields, ThreeFields, FourFields, Table };
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PreviewText
@@ -38,10 +47,14 @@ public:
 
     //  The text view's rows for a preview; given colors, an assembler's source
     //  and a disassembly have their syntax colored.
-    static std::vector<DxuiTextView::Row>  BuildTextRows      (const PreviewContent & preview, bool lineAddresses, const SourceSyntax::Colors & colors = {});
+    //  `form` specifies the layout of a document's record tables;
+    //  outRowParagraph, when given, has the paragraph of each row.
+    static std::vector<DxuiTextView::Row>  BuildTextRows      (const PreviewContent & preview, bool lineAddresses, const SourceSyntax::Colors & colors = {},
+                                                              TableForm form = TableForm::Cards, std::vector<int> * outRowParagraph = nullptr, int legendColumns = 0);
     static std::vector<DxuiTextView::Row>  BuildDetailRows    (const std::vector<std::pair<std::wstring, std::wstring>> & details);
     static std::vector<DxuiTextView::Row>  BuildWarningRows   (const std::wstring & warning);
-    static std::vector<DxuiTextView::Row>  BuildDocumentRows  (const std::vector<Paragraph> & paragraphs, const SourceSyntax::Colors & colors = {});
+    static std::vector<DxuiTextView::Row>  BuildDocumentRows  (const std::vector<Paragraph> & paragraphs, const SourceSyntax::Colors & colors = {},
+                                                              TableForm form = TableForm::Cards, std::vector<int> * outRowParagraph = nullptr, int legendColumns = 0);
 
     //  A document run's color: green for Good, red for Bad and the muted
     //  text color for Muted, from the source colors, or zero for the text
@@ -99,4 +112,8 @@ public:
                                                               bool                          applesoft);
     static std::vector<SourceSyntax::Run>  GetBasicRuns      (const std::wstring & statements);
     static size_t                          MatchBasicKeyword (const std::wstring & text, size_t at);
+    static void                            AddRunText        (DxuiTextView::Row & ioRow, const Run & run, uint32_t argb, const std::wstring & text);
+    static void                            AddTableRows      (const RecordTable & table, const SourceSyntax::Colors & colors, TableForm form, std::vector<DxuiTextView::Row> & ioRows);
+    static void                            AddLegendRows     (const std::vector<Run> & entries, const SourceSyntax::Colors & colors, int columns, std::vector<DxuiTextView::Row> & ioRows);
+    static void                            AddFieldRows      (const RecordTable & table, const SourceSyntax::Colors & colors, int perLine, std::vector<DxuiTextView::Row> & ioRows);
 };

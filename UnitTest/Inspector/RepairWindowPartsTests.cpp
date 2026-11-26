@@ -52,7 +52,7 @@ public:
 
 
 
-    static void Open (Map & map, const vector<Byte> & image, UINT dpi)
+    static void Open (Map & map, const vector<Byte> & image, UINT dpi, const RECT & areaDip = kAreaDip)
     {
         Images::Analyze (image, false, map.session.analysis);
 
@@ -61,7 +61,7 @@ public:
         map.session.diskTab         = kTabFileMap;
         map.session.repairPlan      = DiskRepair::Plan (map.session.analysis, {});
         map.scaler.SetDpi (dpi);
-        map.area = { map.scaler.ToPx (kAreaDip.left), map.scaler.ToPx (kAreaDip.top), map.scaler.ToPx (kAreaDip.right), map.scaler.ToPx (kAreaDip.bottom) };
+        map.area = { map.scaler.ToPx (areaDip.left), map.scaler.ToPx (areaDip.top), map.scaler.ToPx (areaDip.right), map.scaler.ToPx (areaDip.bottom) };
 
         map.files.Create();
         map.files.RefreshFileList();
@@ -100,6 +100,30 @@ public:
 
 
     using Images = FileMapTestImages;
+
+
+
+    //  In a view too narrow for the verdict between the file picker and Copy
+    //  map, the verdict is hidden rather than drawn over the picker; the
+    //  status band's verdict chip remains.
+    TEST_METHOD (InANarrowView_TheVerdictIsHidden_NotDrawnOverThePicker)
+    {
+        static constexpr RECT  kNarrowDip = { 0, 0, 560, 600 };
+
+        for (UINT dpi : { 96u, 144u })
+        {
+            Map  map;
+
+            Open (map, RepairFixtures::MakeDos33Bitmap().damaged, dpi, kNarrowDip);
+
+            Assert::IsFalse (map.files.GetVerdictLink().IsVisible(), std::format (L"no verdict over the picker at {} dpi", dpi).c_str());
+            Assert::IsTrue  (map.files.GetFilePicker().GetBounds().right <= map.files.GetCopyButton().GetBounds().left, L"the picker, then Copy map");
+
+            map.files.Layout ({ map.scaler.ToPx (kAreaDip.left), map.scaler.ToPx (kAreaDip.top), map.scaler.ToPx (kAreaDip.right), map.scaler.ToPx (kAreaDip.bottom) }, map.scaler);
+            Assert::IsTrue  (map.files.GetVerdictLink().IsVisible(), L"the verdict again once the view is wide enough");
+        }
+    }
+
 
 
 
@@ -192,7 +216,7 @@ public:
 
 
 
-    TEST_METHOD (TheIssuesTabHasOneRepairButtonUnderTheListAndCenteredIcons_At100And150Percent)
+    TEST_METHOD (TheIssuesTabHasARepairInfobarOverTheListAndCenteredIcons_At100And150Percent)
     {
         for (UINT dpi : { 96u, 144u })
         {
@@ -202,6 +226,7 @@ public:
             RepairPlan                         plan;
             std::set<std::wstring>             chosen  = { L"none" };
             RECT                               button  = {};
+            RECT                               banner  = {};
             RECT                               icon    = {};
             RECT                               cell    = {};
 
@@ -217,11 +242,13 @@ public:
 
             Assert::AreEqual (InspectorTables::GetFindingColumns().size(), static_cast<size_t> (6), L"no Repair column");
 
-            button = issues.GetRepairButton().GetBounds();
-            Assert::IsTrue (issues.GetRepairButton().IsVisible(), std::format (L"Repair disk image... at {} dpi", dpi).c_str());
-            Assert::IsTrue (button.bottom <= scaler.ToPx (400) && button.top >= scaler.ToPx (400) - scaler.ToPx (IssuesView::kButtonBandDip), L"under the list");
-            Assert::IsTrue (std::abs ((button.left + button.right) / 2 - scaler.ToPx (900) / 2) <= 1, L"centered");
-            Assert::AreEqual (static_cast<long> (scaler.ToPx (IssuesView::kButtonWideDip)), button.right - button.left, L"a normal button's size");
+            banner = issues.GetBanner().GetBounds();
+            Assert::IsTrue   (issues.GetBanner().IsVisible(), std::format (L"the infobar at {} dpi", dpi).c_str());
+            Assert::AreEqual ((size_t) 1, issues.GetBanner().GetActionCount(), L"Repair...");
+            Assert::IsTrue   (issues.GetBanner().GetText().starts_with (L"Track "), issues.GetBanner().GetText().c_str());
+            Assert::IsTrue   (banner.top == 0 && banner.bottom <= issues.GetList().GetBounds().top, L"over the list");
+
+            button = issues.GetBanner().GetAction (0)->GetBounds();
 
             icon = issues.GetSeverityRect (0);
             Assert::IsTrue (icon.right > icon.left, L"the first row has its icon");
@@ -229,8 +256,56 @@ public:
             Assert::IsTrue (std::abs ((icon.left + icon.right) / 2 - (cell.left + cell.right) / 2) <= 1, std::format (L"the icon centered in its column at {} dpi", dpi).c_str());
 
             Click (issues, button);
-            Assert::IsTrue (chosen.empty(), L"Repair disk image... checks every change");
+            Assert::IsTrue (chosen.empty(), L"Repair... checks every change");
         }
+    }
+
+
+
+    TEST_METHOD (TheIssuesColumns_FitTheirContentOnOneLineAndScrollSideways)
+    {
+        auto                  session = std::make_unique<InspectorSession>();
+        IssuesView            issues  { session->context };
+        DxuiDpiScaler         scaler;
+        MockDxuiTextRenderer  text;
+        RECT                  finding = {};
+        int                   fitPx   = 0;
+
+
+
+        Images::Analyze (RepairFixtures::MakeDos33Bitmap().damaged, false, session->analysis);
+        session->context.hasDisk = true;
+        issues.Refresh();
+        issues.GetList().MeasureColumnsPx (text);
+        issues.Layout ({ 0, 0, 300, 400 }, scaler);
+
+        Assert::AreEqual (std::wstring(), issues.GetList().GetColumnAt (0).title, L"the severity column has no heading");
+        Assert::AreEqual ((int) IssuesView::kSeverityColumnDip, issues.GetList().GetColumnEffectiveWidthPx (0), L"the severity column is as wide as its icon");
+        fitPx = issues.GetList().MeasureColumnContentPx (text, IssuesView::kFindingColumn);
+        Assert::IsTrue   (issues.GetList().GetCellRectPx (0, IssuesView::kFindingColumn, finding));
+        Assert::IsTrue   (finding.right - finding.left >= fitPx, L"the finding is as wide as its text");
+        Assert::AreEqual ((long) issues.GetList().GetRowHeightDip(), finding.bottom - finding.top, L"a finding is on one line");
+        Assert::IsTrue   (issues.GetList().GetMaxLeftPx() > 0, L"the columns wider than the view scroll sideways");
+        Assert::AreEqual (std::wstring (L"Severity"), InspectorTables::GetFindingColumns()[0], L"Copy keeps the heading");
+    }
+
+
+
+    TEST_METHOD (TheIssuesInfobar_HasTheReasonWhenRepairIsNotAvailable)
+    {
+        DiskAnalysis  analysis;
+        RepairPlan    plan;
+        std::wstring  text;
+
+
+
+        Images::Analyze (RepairFixtures::MakeDos33Bitmap().damaged, false, analysis);
+        plan.canRepair = false;
+        plan.reason    = L"The image is read-only.";
+
+        text = IssuesView::FormatBanner (analysis, plan);
+
+        Assert::AreEqual (std::wstring (L"Track 18, sector $2 is used by HELLO but marked free. Repair isn't available. The image is read-only."), text);
     }
 
 
@@ -316,7 +391,7 @@ public:
         Assert::AreEqual (static_cast<size_t> (2), dialog.GetFullPlan().changes.size());
 
         //  Each change has the problem it sets right, and its repair under it.
-        Assert::AreEqual (std::wstring (L"Track 18, sector $E is used by HELLO but marked free"), dialog.GetFullPlan().changes[0].problem);
+        Assert::AreEqual (std::wstring (L"Track 18, sector $2 is used by HELLO but marked free"), dialog.GetFullPlan().changes[0].problem);
         Assert::AreEqual (std::wstring (L"Repair: Mark 1 sector of HELLO as used in the bitmap"), RepairDialog::FormatRepair (dialog.GetFullPlan().changes[0]));
         Assert::IsFalse  (dialog.GetFullPlan().changes[1].problem.empty());
         Assert::IsTrue   (dialog.GetChosen() == DiskRepair::GetKeys (dialog.GetFullPlan()), L"none chosen checks every change");
@@ -466,19 +541,22 @@ public:
     {
         for (UINT dpi : { 96u, 144u })
         {
-            auto              session = std::make_unique<InspectorSession>();
-            auto              issues  = std::make_unique<IssuesView> (session->context);
-            DxuiDpiScaler     scaler;
-            DxuiMouseEvent    ev;
-            RECT              before  = {};
-            RECT              after   = {};
-            POINT             divider = {};
+            auto                  session = std::make_unique<InspectorSession>();
+            auto                  issues  = std::make_unique<IssuesView> (session->context);
+            DxuiDpiScaler         scaler;
+            MockDxuiTextRenderer  text;
+            DxuiMouseEvent        ev;
+            RECT                  before  = {};
+            RECT                  after   = {};
+            POINT                 divider = {};
 
             Images::Analyze (RepairFixtures::MakeDos33Bitmap().damaged, false, session->analysis);
             session->context.hasDisk = true;
             scaler.SetDpi (dpi);
 
             issues->Refresh();
+            issues->Layout ({ 0, 0, scaler.ToPx (900), scaler.ToPx (400) }, scaler);
+            issues->GetList().MeasureColumnsPx (text);
             issues->Layout ({ 0, 0, scaler.ToPx (900), scaler.ToPx (400) }, scaler);
 
             //  The divider at the Category column's right edge, in the header.

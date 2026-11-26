@@ -5,6 +5,7 @@
 #include "Shell/AutoStatePolicy.h"
 #include "Shell/MachineStateFile.h"
 #include "HResultAssert.h"
+#include "Devices/Disk/Store/DiskFileCommit.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -100,7 +101,7 @@ public:
         open = CreateFileW (path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
         Assert::IsTrue (open != INVALID_HANDLE_VALUE, L"the state file is held open");
 
-        hr = DiskImageStore::WriteFileAtomically (path.string(), newer);
+        hr = DiskFileCommit::WriteFileAtomically (path.string(), newer);
 
         CloseHandle (open);
 
@@ -127,7 +128,7 @@ private:
         hr = MachineStateFile::Build (machine, bytes, error);
         AssertSucceeded (hr, L"Build");
 
-        hr = DiskImageStore::WriteFileAtomically (path.string(), bytes);
+        hr = DiskFileCommit::WriteFileAtomically (path.string(), bytes);
         AssertSucceeded (hr, L"the automatic state is written");
 
         return bytes;

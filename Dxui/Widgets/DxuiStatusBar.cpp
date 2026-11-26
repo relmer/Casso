@@ -65,6 +65,24 @@ void DxuiStatusBar::SetText (size_t index, std::wstring text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiStatusBar::SetOverlay
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiStatusBar::SetOverlay (size_t index, std::function<void (IDxuiPainter &, const RECT &)> overlay)
+{
+    if (index < m_fields.size())
+    {
+        m_fields[index].overlay = std::move (overlay);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiStatusBar::SetMeter
 //
 //  The fill is clamped to the meter; a negative fraction hides it.
@@ -311,6 +329,8 @@ void DxuiStatusBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
                           (float) (m_boundsDip.right - m_boundsDip.left), lineW, theme.Divider());
     }
 
+    m_elided.assign (m_fields.size(), false);
+
     for (i = 0; i < m_fields.size() && i < m_fieldRects.size(); i++)
     {
         const RECT &  r      = m_fieldRects[i];
@@ -383,7 +403,8 @@ void DxuiStatusBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
             continue;
         }
 
-        shown = DxuiTextElide::ToWidth (text, m_fields[i].text, fontPx, DxuiTheme::GetUiFace(), boxW, DxuiElide::Tail);
+        shown       = DxuiTextElide::ToWidth (text, m_fields[i].text, fontPx, DxuiTheme::GetUiFace(), boxW, DxuiElide::Tail);
+        m_elided[i] = shown != m_fields[i].text;
 
         if (m_fields[i].fill >= 0.0f)
         {
@@ -399,6 +420,11 @@ void DxuiStatusBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
                               DxuiTheme::GetUiFace(), DxuiTextHAlign::Left, DxuiTextVAlign::CenterOnCapHeight,
                               DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
+
+        if (m_fields[i].overlay)
+        {
+            m_fields[i].overlay (painter, r);
+        }
     }
 }
 

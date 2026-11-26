@@ -8,6 +8,7 @@
 
 class CassoExplorerWindow;
 struct DxuiTheme;
+struct InspectorRawTransfer;
 
 
 
@@ -19,7 +20,8 @@ struct DxuiTheme;
 //
 //  A window to open. With no tabs it opens on Home, and on `openPath` when
 //  there is one; with tabs, on those, `activeTab` active, and `openPath` in
-//  a tab after them. It goes where `screenRect` is when that is set, a
+//  a tab after them. `selectPath` opens its parent folder in a tab with it
+//  selected, as File Explorer's /select does, a folder or disk image too. It goes where `screenRect` is when that is set, a
 //  torn-off tab's window; else where `placement` is when that is valid,
 //  stepped down and right with `cascade`; else at the default size. `owner`
 //  is the emulator window it serves, if any. With `isOwned` the window stays
@@ -32,6 +34,7 @@ struct CassoExplorerWindowRequest
     std::vector<BrowserModel::Tab>  tabs;
     size_t                          activeTab     = 0;
     std::wstring                    openPath;
+    std::wstring                    selectPath;
     CassoExplorerPrefs::Placement   placement;
     bool                            cascade       = false;
     RECT                            screenRect    = {};
@@ -104,6 +107,10 @@ public:
     //  A file selected in its folder's tab of the first open window, such as
     //  a repaired copy the inspector wrote.
     virtual void  SelectInFolder    (const std::wstring & path) { (void) path; }
+
+    //  An inspector window's save of its image's sectors or blocks to a file,
+    //  or overwrite of them from one, with the dialogs over `owner`.
+    virtual void  TransferRaw       (HWND owner, const std::wstring & path, const InspectorRawTransfer & transfer) { (void) owner; (void) path; (void) transfer; }
 
     //  Called by a window when a disk image has been booted, or couldn't be
     //  for a machine's missing ROMs: those ROMs are offered once in a run,

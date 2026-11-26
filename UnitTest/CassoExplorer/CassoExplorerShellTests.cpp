@@ -206,6 +206,27 @@ public:
     }
 
 
+    //  /select opens the item's folder with it selected, as File Explorer's
+    //  does, even for a disk image, which a path alone opens.
+    TEST_METHOD (Launch_SelectPath_IsSelectedNotOpened)
+    {
+        CassoExplorerLaunchOptions               options;
+        std::vector<CassoExplorerWindowRequest>  requests;
+        CassoExplorerWindowRequest               request;
+
+        options.newWindow  = true;
+        options.selectPath = L"C:\\Disks\\wizardry.po";
+
+        requests = CassoExplorerShell::PlanFirstLaunch (options, {}, CassoExplorerPrefs());
+        request  = CassoExplorerShell::PlanForwardedLaunch (options, CassoExplorerPrefs::Placement());
+
+        Assert::AreEqual (options.selectPath, requests[0].selectPath);
+        Assert::IsTrue   (requests[0].openPath.empty(), L"The image isn't opened");
+        Assert::AreEqual (options.selectPath, request.selectPath);
+        Assert::IsTrue   (request.openPath.empty());
+    }
+
+
     TEST_METHOD (ForwardedLaunch_StepsFromTheWindowInFront)
     {
         CassoExplorerLaunchOptions     options;

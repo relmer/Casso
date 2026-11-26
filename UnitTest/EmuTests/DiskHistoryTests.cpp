@@ -94,7 +94,7 @@ public:
 
         Assert::IsTrue (controller.GetSpan().IsInHistory(), L"the machine is behind live");
 
-        hr = machine.GetDiskStore().FlushAllUnlessHeld();
+        hr = machine.GetDiskStore().GetFlusher().FlushAllUnlessHeld();
         AssertSucceeded (hr, L"FlushAllUnlessHeld behind live");
 
         Assert::AreEqual<size_t> (liveCount, log.count, L"nothing reached the file behind live");
@@ -138,7 +138,7 @@ public:
 
         Assert::IsFalse (controller.GetSpan().IsInHistory(), L"the machine is live again");
 
-        hr = machine.GetDiskStore().FlushAllUnlessHeld();
+        hr = machine.GetDiskStore().GetFlusher().FlushAllUnlessHeld();
         AssertSucceeded (hr, L"FlushAllUnlessHeld at live");
 
         Assert::AreEqual<size_t> (1, log.count, L"the flush at live wrote the file");
@@ -354,7 +354,7 @@ public:
 
         Assert::IsFalse (atStart == atEnd, L"the guest wrote to the disk");
 
-        hr = machine.GetDiskStore().FlushAll();
+        hr = machine.GetDiskStore().GetFlusher().FlushAll();
         AssertSucceeded (hr, L"FlushAll at the end");
 
         Assert::AreEqual<size_t> (1, log.count, L"the commit at the end wrote once");
@@ -363,7 +363,7 @@ public:
         hr = controller.GetSeeker().SeekToPosition (start, result);
         AssertSucceeded (hr, L"SeekToPosition to the start");
 
-        hr = machine.GetDiskStore().FlushAll();
+        hr = machine.GetDiskStore().GetFlusher().FlushAll();
         AssertSucceeded (hr, L"FlushAll at the start");
 
         Assert::AreEqual<size_t> (2, log.count, L"the file was ahead of the machine, so the commit wrote again");
@@ -511,7 +511,7 @@ public:
 
         controller.Stop();
 
-        hr = machine.GetDiskStore().FlushAllForShutdown();
+        hr = machine.GetDiskStore().GetFlusher().FlushAllForShutdown();
         AssertSucceeded (hr, L"FlushAllForShutdown");
 
         Assert::AreEqual<size_t> (1, log.count, L"the last flush wrote the disk");
@@ -560,7 +560,7 @@ public:
 
         controller.Stop();
 
-        hr = machine.GetDiskStore().FlushAll();
+        hr = machine.GetDiskStore().GetFlusher().FlushAll();
         AssertSucceeded (hr, L"FlushAll, as the switch saves the disks");
 
         Assert::AreEqual<size_t> (1, log.count, L"the switch wrote the disk");
@@ -581,7 +581,7 @@ public:
 
         Assert::IsTrue (machine.GetDiskStore().GetImage (6, 0)->IsDirty(), L"the guest wrote to the remounted disk");
 
-        hr = machine.GetDiskStore().FlushAllUnlessHeld();
+        hr = machine.GetDiskStore().GetFlusher().FlushAllUnlessHeld();
         AssertSucceeded (hr, L"FlushAllUnlessHeld on the new machine");
 
         Assert::AreEqual<size_t> (2, log.count, L"the automatic flush wrote the disk");
@@ -691,16 +691,16 @@ public:
 
         //  Saved first, so taking up the file is a reload rather than a
         //  conflict with the guest's writes.
-        hr = store.FlushAll();
+        hr = store.GetFlusher().FlushAll();
         AssertSucceeded (hr, L"FlushAll");
 
         isRewritten = true;
 
-        store.NoteExternalChange ("history.nib", ExternalChangeIntent::ReloadInPlace);
+        store.GetChangeMonitor().NoteExternalChange ("history.nib", ExternalChangeIntent::ReloadInPlace);
 
         now += MountedImageState::kQuietPeriodMs;
 
-        store.ApplyPendingReload();
+        store.GetChangeMonitor().ApplyPendingReload();
 
         Assert::AreNotEqual<uint64_t> (outgoing, store.GetMediaId (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive), L"the changed file was taken up");
 
@@ -759,7 +759,7 @@ public:
         machine.GetRefs().diskController->GetSignals().SetIdleCallback ([&store, &hasIdled] ()
         {
             hasIdled = true;
-            store.ApplyPendingReload();
+            store.GetChangeMonitor().ApplyPendingReload();
         });
 
         machine.GetRunner().RunCycles (s_kDiskWarmupCycles);
@@ -778,12 +778,12 @@ public:
 
         //  Saved first, so taking up the file is a reload rather than a
         //  conflict with the guest's writes.
-        hr = store.FlushAll();
+        hr = store.GetFlusher().FlushAll();
         AssertSucceeded (hr, L"FlushAll");
 
         isRewritten = true;
 
-        store.NoteExternalChange ("history.nib", ExternalChangeIntent::ReloadInPlace);
+        store.GetChangeMonitor().NoteExternalChange ("history.nib", ExternalChangeIntent::ReloadInPlace);
 
         now += MountedImageState::kQuietPeriodMs;
 

@@ -15,7 +15,8 @@
 //  "Decode settings" (FR-019): the tracks the settings cover, the five marks
 //  with ?? for any byte, "Match standard marks too", and the three checks.
 //  OK adds the range to the settings; "Reset to standard" puts the standard
-//  settings back. A form that cannot be read says why and stays open.
+//  settings back. A form that cannot be read says why and stays open. A
+//  range made from the disk's format stamp shows a note in the same place.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

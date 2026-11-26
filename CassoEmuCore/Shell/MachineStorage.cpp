@@ -15,7 +15,11 @@
 #include "Devices/Floppy35/SmartPortHost.h"
 #include "Devices/Floppy35/Sony35Drive.h"
 #include "Devices/Floppy35/UniDisk35Drive.h"
+#include "Devices/RomDevice.h"
+#include "Machines/Apple2/Apple2c/Apple2cRomBank.h"
+#include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
+#include "Machines/Apple2/Common/ThirteenSectorCodec.h"
 #include "Seams/Win32DiskFileIo.h"
 #include "Shell/DiskManager.h"
 #include "Shell/MachineParts.h"
@@ -357,6 +361,11 @@ void MachineStorage::ConnectDiskToController (int slot, int drive)
     }
 
     controller->SetExternalDisk (drive, m_diskStore.GetImage (slot, drive));
+
+    if (drive == 0)
+    {
+        MatchDisk2Rom();
+    }
 }
 
 
@@ -378,7 +387,7 @@ void MachineStorage::BindDiskDrives()
 
 
 
-    for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+    for (drive = 0; drive < DiskBayTable::kDriveCount; drive++)
     {
         ConnectDiskToController (kDiskControllerSlot, drive);
     }
@@ -485,4 +494,65 @@ HRESULT MachineStorage::MountReplayMedia (const std::vector<ReplayBlockMedia> & 
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineStorage::SetDisk2Roms
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineStorage::SetDisk2Roms (std::vector<Byte> rom16, std::vector<Byte> rom13, RomDevice * device)
+{
+    m_disk2Rom16     = std::move (rom16);
+    m_disk2Rom13     = std::move (rom13);
+    m_disk2RomDevice = device;
+    m_isDisk2Rom13   = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineStorage::MatchDisk2Rom
+//
+//  A real card has one ROM or the other. Swapping it with the disk lets a
+//  13-sector disk boot with PR#6 or a power cycle on any machine with the
+//  card, and a 16-sector disk boot after it. On a //c the built-in drive's
+//  boot page at $C600 in the main ROM bank is swapped the same way.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineStorage::MatchDisk2Rom()
+{
+    DiskImage  *  image  = m_diskStore.GetImage (kDiskControllerSlot, 0);
+    bool          want13 = image != nullptr && ThirteenSectorCodec::IsThirteenSector (*image);
+
+
+
+    if (m_disk2Rom16.empty() || m_disk2Rom13.size() != m_disk2Rom16.size() || want13 == m_isDisk2Rom13)
+    {
+        return;
+    }
+
+    if (m_disk2RomDevice != nullptr)
+    {
+        m_disk2RomDevice->Patch (want13 ? m_disk2Rom13 : m_disk2Rom16);
+    }
+    else if (m_parts.apple2cRomBank != nullptr)
+    {
+        m_parts.apple2cRomBank->PatchMainBankPage (0xC600, want13 ? m_disk2Rom13 : m_disk2Rom16);
+    }
+    else if (m_parts.mmu != nullptr)
+    {
+        m_parts.mmu->PatchSlotRom (6, want13 ? m_disk2Rom13 : m_disk2Rom16);
+    }
+
+    m_isDisk2Rom13 = want13;
 }

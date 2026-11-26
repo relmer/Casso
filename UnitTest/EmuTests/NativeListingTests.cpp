@@ -118,9 +118,9 @@ public:
 
         Assert::AreEqual ((size_t) 4, lines.size());
         Assert::AreEqual (std::string ("Recs  Bytes  Ext Acc"), lines[0]);
-        Assert::AreEqual (std::string ("  64     8k    1 R/W A:ASM.COM"), lines[1], L"In name order");
-        Assert::AreEqual (std::string ("  56     7k    1 R/O (A:PIP.COM)"), lines[2], L"A system file is in parentheses");
-        Assert::AreEqual (std::string ("Bytes Remaining On A: 3k"), lines[3]);
+        Assert::AreEqual (std::string ("  64     8k    1 R/W ASM.COM"), lines[1], L"In name order");
+        Assert::AreEqual (std::string ("  56     7k    1 R/O (PIP.COM)"), lines[2], L"A system file is in parentheses");
+        Assert::AreEqual (std::string ("3k free"), lines[3]);
     }
 
     TEST_METHOD (CpmNameOrderIsThePaddedDirectoryOrder)
@@ -132,8 +132,8 @@ public:
 
         NativeListing::FormatCpm (listing, lines);
 
-        Assert::IsTrue (lines[1].ends_with ("A:A.TXT"), L"A space sorts before a digit");
-        Assert::IsTrue (lines[2].ends_with ("A:A2.COM"));
+        Assert::IsTrue (lines[1].ends_with ("A.TXT"), L"A space sorts before a digit");
+        Assert::IsTrue (lines[2].ends_with ("A2.COM"));
     }
 
     TEST_METHOD (CpmOtherUsersFollowUnderTheirOwnHeadings)
@@ -147,15 +147,15 @@ public:
         NativeListing::FormatCpm (listing, lines);
 
         Assert::AreEqual ((size_t) 11, lines.size());
-        Assert::AreEqual (std::string ("  56     7k    1 R/W A:PIP.COM"), lines[1]);
-        Assert::AreEqual (std::string ("Bytes Remaining On A: 3k"), lines[2]);
+        Assert::AreEqual (std::string ("  56     7k    1 R/W PIP.COM"), lines[1]);
+        Assert::AreEqual (std::string ("3k free"), lines[2]);
         Assert::IsTrue   (lines[3].empty());
         Assert::AreEqual (std::string ("USER 2"), lines[4]);
         Assert::AreEqual (std::string ("Recs  Bytes  Ext Acc"), lines[5]);
-        Assert::AreEqual (std::string ("   8     1k    1 R/W A:OTHER"), lines[6]);
+        Assert::AreEqual (std::string ("   8     1k    1 R/W 2:OTHER"), lines[6]);
         Assert::IsTrue   (lines[7].empty());
         Assert::AreEqual (std::string ("USER 31"), lines[8]);
-        Assert::AreEqual (std::string ("  96    12k    1 R/W A:cp/am.sys"), lines[10]);
+        Assert::AreEqual (std::string ("  96    12k    1 R/W 31:cp/am.sys"), lines[10]);
     }
 
     TEST_METHOD (CpmWithNothingInUserZero)
@@ -169,6 +169,6 @@ public:
 
         Assert::AreEqual ((size_t) 2, lines.size());
         Assert::AreEqual (std::string ("File Not Found"), lines[0]);
-        Assert::AreEqual (std::string ("Bytes Remaining On A: 126k"), lines[1]);
+        Assert::AreEqual (std::string ("126k free"), lines[1]);
     }
 };

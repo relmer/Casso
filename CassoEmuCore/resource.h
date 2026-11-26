@@ -50,7 +50,7 @@
 #define IDM_DISK_WP2                40029
 
 // Build a salvaged copy of a damaged image. Offered only for a disk that is
-// both damaged and ordinarily formatted -- see DiskImageStore::AssessSalvage.
+// both damaged and ordinarily formatted -- see DiskSalvager::AssessSalvage.
 #define IDM_DISK_SALVAGE1           40070
 #define IDM_DISK_SALVAGE2           40071
 
@@ -218,6 +218,9 @@
 #define IDM_STORAGE_ATTACH_APPLE35  40501
 #define IDM_STORAGE_ATTACH_FLOPPY   40502
 
+// The cassette recorder's place with the desk scene: the desk or the drive dock.
+#define IDM_VIEW_RECORDER_ON_DESK   40503
+
 // The //c Plus's second 5.25-inch drive on its disk port, slot 6 drive 2.
 // Taken from a separate block above every open branch's ids.
 #define IDM_DISK_INSERT3            40600
@@ -255,6 +258,9 @@
 #define IDI_APPLESOFT_FILE                 109
 #define IDI_APPLE_MACHINE                  110
 #define IDI_APPLE_MACHINE_OFFLINE          111
+// A partition's icon in the trees and lists, for dark and light surfaces.
+#define IDI_PARTITION_DARK                 112
+#define IDI_PARTITION_LIGHT                113
 #define IDR_CASSO_EXPLORER_CASSOWARY_PNG   603
 
 // Embedded default machine configs (RCDATA) — extracted to disk on
@@ -334,3 +340,12 @@
 #define IDR_SOUND_PAPER_TEAR_3              511
 #define IDR_SOUND_PAPER_TEAR_4              512
 #define IDR_SOUND_PAPER_TEAR_5              513
+
+// Embedded drive sounds (extracted to %LOCALAPPDATA%\Casso\Drive Sounds\ by
+// EnsureDriveSounds). The Sony 3.5-inch set is MAME's, CC0. See
+// Assets/Drive Sounds/Sony 3.5/ATTRIBUTION.txt.
+#define IDR_SOUND_SONY35_SPIN_START         520
+#define IDR_SOUND_SONY35_SPIN_LOOP          521
+#define IDR_SOUND_SONY35_SPIN_END           522
+#define IDR_SOUND_SONY35_STEP               523
+#define IDR_SOUND_SONY35_SEEK               524

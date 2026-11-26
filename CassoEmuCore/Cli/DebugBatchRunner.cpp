@@ -183,7 +183,7 @@ void DebugBatchRunner::Execute (const CommandLineOptions::DebugOptions & options
 
     if (options.writeDisks)
     {
-        hr = m_host->GetDiskStore().FlushAll();
+        hr = m_host->GetDiskStore().GetFlusher().FlushAll();
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 

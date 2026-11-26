@@ -202,7 +202,7 @@ bool DxuiHexView::TryGetByteTipAt (POINT clientDip, RECT & outCellDip, std::wstr
 
 
 
-    if (m_source == nullptr || IsDragging() || !m_pending.empty() || IsOverScrollbar (clientDip))
+    if (m_source == nullptr || IsDragging() || m_sourceEdit.HasPendingDigits() || IsOverScrollbar (clientDip))
     {
         return false;
     }
@@ -578,19 +578,8 @@ bool DxuiHexView::OnMouse (const DxuiMouseEvent & ev)
         }
 
         m_selection.OnPress (ev, hit);
-
-        //  A second press on the same byte within the double-click time
-        //  begins an edit of its value.
-        if (m_pressOffset == hit.offset && GetTickCount64() - m_pressMs <= GetDoubleClickTime())
-        {
-            (void) BeginEdit();
-            m_pressOffset = UINT64_MAX;
-        }
-        else
-        {
-            m_pressOffset = hit.offset;
-            m_pressMs     = GetTickCount64();
-        }
+        m_hostEdit.ResetNibble();
+        m_sourceEdit.NotePress (hit.offset, GetTickCount64(), GetDoubleClickTime());
 
         return true;
 
@@ -624,20 +613,33 @@ bool DxuiHexView::OnMouse (const DxuiMouseEvent & ev)
 //  DxuiHexView::OnKey  (IDxuiControl override)
 //
 //  Copy and select all are standard commands, so the keystroke and the menu
-//  row run the same code; the other keys move the caret or the column.
+//  row run the same code; the other keys move the caret or the column. A
+//  window passes typed characters here as Char events, for the source edit
+//  first and then the host edit. A key that doesn't type a character, such
+//  as an arrow, starts the next byte at its high nibble again; the key-down
+//  of a typed digit doesn't change the nibble.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiHexView::OnKey (const DxuiKeyEvent & ev)
 {
+    bool  isTyping = ev.kind == DxuiKeyEventKind::Down && !ev.ctrl && !ev.alt && MapVirtualKeyW ((UINT) ev.vk, MAPVK_VK_TO_CHAR) != 0;
+
+
+
     if (ev.kind == DxuiKeyEventKind::Char)
     {
-        return TypeEditChar ((wchar_t) ev.vk);
+        return m_sourceEdit.TypeChar ((wchar_t) ev.vk) || (!ev.ctrl && !ev.alt && ev.vk >= 0x20 && OnChar ((wchar_t) ev.vk));
     }
 
     if ((ev.kind != DxuiKeyEventKind::Down) || (m_layout.GetRowCount() == 0))
     {
         return false;
+    }
+
+    if (!isTyping)
+    {
+        m_hostEdit.ResetNibble();
     }
 
     if (ev.vk == 'A' || ev.vk == 'C' || ev.vk == 'X' || ev.vk == 'V')
@@ -649,19 +651,12 @@ bool DxuiHexView::OnKey (const DxuiKeyEvent & ev)
     //  the view's, so a dialog can still take it.
     if (ev.vk == VK_ESCAPE)
     {
-        if (m_pending.empty() && !m_isEditing)
-        {
-            return false;
-        }
-
-        m_pending.clear();
-        m_isEditing = false;
-        return true;
+        return m_sourceEdit.CancelEdit();
     }
 
     if (ev.vk == VK_RETURN && !ev.ctrl && !ev.alt && !ev.shift)
     {
-        return m_isEditing ? CommitEdit() : BeginEdit();
+        return m_sourceEdit.IsEditing() ? m_sourceEdit.CommitEdit() : m_sourceEdit.BeginEdit();
     }
 
     return m_selection.OnKey (ev);
@@ -673,248 +668,33 @@ bool DxuiHexView::OnKey (const DxuiKeyEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiHexView::TypeEditChar
+//  DxuiHexView::OnChar  (IDxuiControl override)
 //
-//  A character goes to the column the caret is in. Line mode shows no values
-//  to type into, so it takes nothing.
+//  In the host edit's mode, a typed byte moves the caret to the next byte,
+//  scrolled into view.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiHexView::TypeEditChar (wchar_t ch)
+bool DxuiHexView::OnChar (wchar_t ch)
 {
-    if (!m_editable || m_source == nullptr || IsLineMode() || GetRowCount() == 0)
+    uint64_t                     caret  = GetCaret();
+    DxuiHexHostEdit::TypeResult  result = DxuiHexHostEdit::TypeResult::NotTaken;
+
+
+
+    if (m_source == nullptr || caret >= m_source->GetByteCount())
     {
         return false;
     }
 
-    return (GetActiveColumn() == Column::Text) ? TypeCharacter (ch) : TypeHexDigit (ch);
-}
+    result = m_hostEdit.Type (caret, GetActiveColumn() != Column::Text, ch);
 
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiHexView::TypeHexDigit
-//
-//  The digits are the value as the column shows it, most significant first;
-//  the bytes go to the source low byte first, as the value is read. Decimal
-//  formats are not typed into, since a hex digit would not mean what the
-//  column shows.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiHexView::TypeHexDigit (wchar_t ch)
-{
-    int                   digit  = GetDigitValue (ch);
-    size_t                group  = (size_t) (m_showValues ? m_grouping : 1);
-    uint64_t              value  = 0;
-    std::vector<uint8_t>  bytes;
-
-
-
-    if (digit < 0 || m_format != ValueFormat::Hex)
+    if (result == DxuiHexHostEdit::TypeResult::Byte && caret + 1 < m_source->GetByteCount())
     {
-        return false;
+        GoToOffset (caret + 1);
     }
 
-    if (m_pending.empty() && !m_isEditing)
-    {
-        m_editStart = m_layout.SnapToValue (GetCaret(), false);
-    }
-
-    m_isEditing = true;
-    m_pending.push_back (DxuiHexPainter::GetHexDigit (digit));
-
-    if (m_pending.size() < group * 2)
-    {
-        return true;
-    }
-
-    for (wchar_t each : m_pending)
-    {
-        value = (value << 4) | (uint64_t) GetDigitValue (each);
-    }
-
-    for (size_t index = 0; index < group; index++)
-    {
-        bytes.push_back ((uint8_t) ((value >> (index * 8)) & 0xFF));
-    }
-
-    m_pending.clear();
-    m_isEditing = false;
-    WriteAndAdvance (m_editStart, bytes);
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiHexView::BeginEdit
-//
-//  An edit of the value under the caret, with no digits yet. The hex values
-//  are the only ones edited this way.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiHexView::BeginEdit()
-{
-    if (!m_editable || m_source == nullptr || IsLineMode() || GetRowCount() == 0 ||
-        GetActiveColumn() == Column::Text || m_format != ValueFormat::Hex)
-    {
-        return false;
-    }
-
-    m_pending.clear();
-    m_editStart = m_layout.SnapToValue (GetCaret(), false);
-    m_isEditing = true;
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiHexView::CommitEdit
-//
-//  The digits typed so far are the value, as a short number typed into a
-//  register is; with none typed the value is left as it was.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiHexView::CommitEdit()
-{
-    size_t                group = (size_t) (m_showValues ? m_grouping : 1);
-    uint64_t              value = 0;
-    std::vector<uint8_t>  bytes;
-
-
-
-    m_isEditing = false;
-
-    if (m_pending.empty())
-    {
-        return true;
-    }
-
-    for (wchar_t each : m_pending)
-    {
-        value = (value << 4) | (uint64_t) GetDigitValue (each);
-    }
-
-    for (size_t index = 0; index < group; index++)
-    {
-        bytes.push_back ((uint8_t) ((value >> (index * 8)) & 0xFF));
-    }
-
-    m_pending.clear();
-    WriteAndAdvance (m_editStart, bytes);
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiHexView::TypeCharacter
-//
-//  A printable character becomes its byte in the view's encoding: Apple text
-//  sets the high bit, which is how the screen shows a normal character.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiHexView::TypeCharacter (wchar_t ch)
-{
-    static constexpr wchar_t  kFirstPrintable = 0x20;
-    static constexpr wchar_t  kLastPrintable  = 0x7E;
-    static constexpr uint8_t  kAppleHighBit   = 0x80;
-    uint8_t                   byte            = 0;
-
-
-
-    if (ch < kFirstPrintable || ch > kLastPrintable)
-    {
-        return false;
-    }
-
-    byte = (uint8_t) ch;
-
-    if (m_encoding == TextEncoding::AppleHighBit)
-    {
-        byte |= kAppleHighBit;
-    }
-
-    WriteAndAdvance (GetCaret(), std::span<const uint8_t> (&byte, 1));
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiHexView::WriteAndAdvance
-//
-//  A write the source takes moves the caret past it; one it refuses leaves the
-//  caret on the cell and tells the host.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiHexView::WriteAndAdvance (uint64_t offset, std::span<const uint8_t> bytes)
-{
-    if (m_source->WriteBytes (offset, bytes))
-    {
-        m_selection.MoveCaretTo (offset + bytes.size(), false);
-        return;
-    }
-
-    if (m_onWriteRefused)
-    {
-        m_onWriteRefused (offset);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiHexView::GetDigitValue
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiHexView::GetDigitValue (wchar_t ch)
-{
-    int  value = -1;
-
-
-
-    if (ch >= L'0' && ch <= L'9')
-    {
-        value = ch - L'0';
-    }
-    else if (ch >= L'A' && ch <= L'F')
-    {
-        value = ch - L'A' + 10;
-    }
-    else if (ch >= L'a' && ch <= L'f')
-    {
-        value = ch - L'a' + 10;
-    }
-
-    return value;
+    return result != DxuiHexHostEdit::TypeResult::NotTaken;
 }
 
 
@@ -1014,11 +794,20 @@ void DxuiHexView::OnFocusEntered (bool forward)
 //
 //  DxuiHexView::Layout  (IDxuiControl override)
 //
+//  A view in the host edit's mode has its bytes inside the room for its edit
+//  frame.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiHexView::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    SetBounds (boundsDip);
+    LONG  frame = m_hostEdit.IsEditable() ? (std::max) (1, scaler.ToPx (DxuiHexHostEdit::kEditFrameDip)) : 0;
+
+
+
+    m_frameDip = boundsDip;
+
+    SetBounds ({ boundsDip.left + frame, boundsDip.top + frame, (std::max) (boundsDip.left + frame, boundsDip.right - frame), (std::max) (boundsDip.top + frame, boundsDip.bottom - frame) });
     m_scaler.SetDpi (scaler.GetDpi());
 
     m_layout.RecomputeRowWidth();
@@ -1050,6 +839,8 @@ void DxuiHexView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
     //  The background goes through the painter, whose layer is beneath the
     //  text renderer's, so the scrollbar the painter draws is not covered.
     painter.FillRect (x, y, width, height, theme.TextViewBackground());
+
+    PaintEditFrame (painter, theme);
 
     m_painter.EnsureCellSize (text, theme);
 
@@ -1112,4 +903,39 @@ void DxuiHexView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
     {
         m_scroll.m_horzScroll.Paint (painter, theme.ForegroundMuted());
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexView::PaintEditFrame
+//
+//  In the accent color while the view has the focus, and in the border
+//  color otherwise.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexView::PaintEditFrame (IDxuiPainter & painter, const IDxuiTheme & theme) const
+{
+    float     left   = (float) m_frameDip.left;
+    float     top    = (float) m_frameDip.top;
+    float     width  = (float) (m_frameDip.right - m_frameDip.left);
+    float     height = (float) (m_frameDip.bottom - m_frameDip.top);
+    float     edge   = (float) (m_boundsDip.left - m_frameDip.left);
+    uint32_t  color  = m_hasFocus ? theme.Accent() : theme.Border();
+
+
+
+    if (!m_hostEdit.IsEditable() || !m_hostEdit.IsEditing() || edge <= 0 || width <= 2 * edge || height <= 2 * edge)
+    {
+        return;
+    }
+
+    painter.FillRect (left, top, width, edge, color);
+    painter.FillRect (left, top + height - edge, width, edge, color);
+    painter.FillRect (left, top + edge, edge, height - 2 * edge, color);
+    painter.FillRect (left + width - edge, top + edge, edge, height - 2 * edge, color);
 }

@@ -2,7 +2,7 @@
 #include "../EhmTestHelper.h"
 #include "Devices/Disk/Win32ImageWatcher.h"
 #include "Devices/Disk/DiskImageStore.h"
-#include "HResultAssert.h"
+#include "Devices/Disk/Store/DiskFileCommit.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -71,7 +71,7 @@ public:
     {
         std::vector<Byte>  bytes (256, fill);
 
-        AssertSucceeded (DiskImageStore::WriteFileAtomically (target.string(), bytes));
+        AssertSucceeded (DiskFileCommit::WriteFileAtomically (target.string(), bytes));
     }
 
 

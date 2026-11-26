@@ -69,6 +69,8 @@
 #include "../AssetBootstrap.h"
 #include "Machines/Apple2/Common/CharacterRomData.h"
 #include "Machines/MachineDefinition.h"
+#include "Devices/Disk/Store/DiskFlusher.h"
+#include "Devices/Disk/Store/ExternalChangeMonitor.h"
 
 
 
@@ -437,7 +439,10 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
         }
     }
 
-    // Slot devices and slot ROMs
+    // Slot devices and slot ROMs. The last machine's Disk II ROMs go with its
+    // devices.
+    m_host.SetDisk2Roms ({}, {}, nullptr);
+
     for (const auto & slot : config.slots)
     {
         // A slot the user disabled in Settings > Hardware installs neither its
@@ -570,6 +575,11 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
             else
             {
                 m_host.GetMemoryBus().AddDevice (device.get());
+            }
+
+            if (slot.slot == 6 && slot.device == kpszDiskIiDevice)
+            {
+                WireDisk2Roms (*static_cast<RomDevice *> (device.get()), slot);
             }
 
             m_host.GetOwnedDevices().push_back (std::move (device));
@@ -1266,6 +1276,20 @@ void MachineBuilder::WireBankedRom()
         m_host.SetApple2cRomBank (std::make_unique<Apple2cRomBank> (*lc, *mmu));
         m_host.GetApple2cRomBank()->SetBankImages (std::move (bank0), std::move (bank1));
         sw->SetRomBankSwitch (m_host.GetApple2cRomBank());
+
+        //  The built-in drive's boot page, and the 13-sector ROM that a
+        //  13-sector disk swaps in over it.
+        if (!m_host.GetConfig().builtInDisk2Rom13Path.empty())
+        {
+            std::vector<Byte>  rom16 = m_host.GetApple2cRomBank()->GetMainBankPage (0xC600);
+            std::vector<Byte>  rom13;
+            HRESULT            hr13  = ReadRomFileBytes (m_host.GetConfig().builtInDisk2Rom13Path, rom13);
+
+            if (SUCCEEDED (hr13) && rom13.size() == rom16.size())
+            {
+                m_host.SetDisk2Roms (std::move (rom16), std::move (rom13), nullptr);
+            }
+        }
     }
 }
 
@@ -1794,6 +1818,7 @@ HRESULT MachineBuilder::CreateCpu (const MachineConfig & config)
     for (ProFileCard * proFileCard : m_host.GetRefs().proFileCards)
     {
         proFileCard->GetDrive().SetClock (m_host.GetCpu()->GetBusCyclePtr());
+        proFileCard->GetCassoFirmware().SetClock (m_host.GetCpu()->GetBusCyclePtr());
     }
 
     for (Apple35ControllerCard * apple35Card : m_host.GetRefs().apple35Cards)
@@ -1830,13 +1855,13 @@ HRESULT MachineBuilder::CreateCpu (const MachineConfig & config)
         // replay runs, and the flush-error reporter surfaces failures.
         m_host.GetRefs().diskController->GetSignals().SetMotorOffFlushCallback ([this] ()
         {
-            m_host.GetDiskStore().FlushAllUnlessHeld();
+            m_host.GetDiskStore().GetFlusher().FlushAllUnlessHeld();
 
             // The disk has just stopped, so this is the quietest moment there
             // is to swap what is under it. One line and no decisions: which
             // bay, whether anything settled and what to do about it are all
             // the store's.
-            m_host.GetDiskStore().ApplyPendingReload();
+            m_host.GetDiskStore().GetChangeMonitor().ApplyPendingReload();
         });
 
         // The spindown hook above is not enough on its own, and the gap is the
@@ -1853,7 +1878,7 @@ HRESULT MachineBuilder::CreateCpu (const MachineConfig & config)
         {
             m_host.GetRefs().diskController->GetSignals().SetIdleCallback ([this] ()
             {
-                m_host.GetDiskStore().ApplyPendingReload();
+                m_host.GetDiskStore().GetChangeMonitor().ApplyPendingReload();
             });
         }
 
@@ -2338,4 +2363,38 @@ void MachineBuilder::AttachSerialEndpoint (const SlotConfig & slot, SuperSerialC
     {
         card.SetAttachmentProblem (MachineConnectors::DescribeAttachmentFailure (device, path));
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WireDisk2Roms
+//
+//  The slot 6 Disk II card's ROM and the other of the 16-sector and 13-sector
+//  ROMs from the same folder, so the host can swap them with the disk.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineBuilder::WireDisk2Roms (RomDevice & device, const SlotConfig & slot)
+{
+    std::filesystem::path  path    = slot.resolvedRomPath;
+    bool                   is13    = _stricmp (path.filename().string().c_str(), MachineHost::s_kDisk2Rom13) == 0;
+    std::filesystem::path  other   = path.parent_path() / (is13 ? MachineHost::s_kDisk2Rom16 : MachineHost::s_kDisk2Rom13);
+    std::vector<Byte>      current (device.GetData(), device.GetData() + device.GetSize());
+    std::vector<Byte>      sibling;
+    HRESULT                hr      = S_OK;
+
+
+
+    hr = ReadRomFileBytes (other.string(), sibling);
+
+    if (FAILED (hr) || sibling.size() != current.size())
+    {
+        sibling.clear();
+    }
+
+    m_host.SetDisk2Roms (is13 ? sibling : current, is13 ? current : sibling, m_host.GetMmu() == nullptr ? &device : nullptr);
 }

@@ -1,10 +1,11 @@
 #include "Pch.h"
 #include "FixtureProvider.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "TestMachine.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Shell/MachineStateFile.h"
 #include "HResultAssert.h"
+#include "Devices/Disk/Store/DiskFileCommit.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -161,7 +162,7 @@ private:
         hr = MachineStateFile::Build (machine, bytes, error);
         AssertSucceeded (hr, L"Build");
 
-        hr = DiskImageStore::WriteFileAtomically (path.string(), bytes);
+        hr = DiskFileCommit::WriteFileAtomically (path.string(), bytes);
         AssertSucceeded (hr, L"write the fixture");
     }
 
@@ -175,7 +176,7 @@ private:
         constexpr Word     kBootEntry  = 0x0801;
         constexpr size_t   kSectorSize = 256;
         constexpr size_t   kPatternMod = 251;
-        std::vector<Byte>  disk (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  disk (NibbleFormat::kImageByteSize, 0);
         size_t             i           = 0;
 
 

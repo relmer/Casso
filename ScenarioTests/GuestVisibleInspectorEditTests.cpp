@@ -15,6 +15,8 @@
 #include "Seams/IntentReplyTracker.h"
 #include "Seams/Win32IntentChannel.h"
 #include "Shell/InspectorRequestQueue.h"
+#include "Devices/Disk/Store/DiskFlusher.h"
+#include "Devices/Disk/Store/ExternalChangeMonitor.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -103,7 +105,7 @@ public:
 
             savedMotion = GetMotion (drive);
             m_machine.GetDiskStore().SetFlushSink ([this] (const std::string &, const std::vector<Byte> & bytes) { saved = bytes; return S_OK; });
-            result.hr   = m_machine.GetDiskStore().Flush (kSlot, drive);
+            result.hr   = m_machine.GetDiskStore().GetFlusher().Flush (kSlot, drive);
             result.path = kImagePath;
 
             return result;
@@ -291,7 +293,7 @@ public:
 
         void StateIntent (const std::string & imagePath, ExternalChangeIntent intent) override
         {
-            m_machine.GetDiskStore().NoteExternalChange (imagePath, intent, true);
+            m_machine.GetDiskStore().GetChangeMonitor().NoteExternalChange (imagePath, intent, true);
         }
 
     private:
@@ -366,7 +368,7 @@ public:
         {
             isSaveFailing  = false;
             nowMs         += MountedImageState::kQuietPeriodMs;
-            machine.GetDiskStore().ApplyPendingReload();
+            machine.GetDiskStore().GetChangeMonitor().ApplyPendingReload();
 
             return decisions > 0 && IntentReplyTracker::TryMakeReloadReply (action, isPreserved, preservedPath, outReply);
         }

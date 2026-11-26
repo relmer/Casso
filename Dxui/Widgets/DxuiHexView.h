@@ -6,6 +6,9 @@
 #include "Widgets/HexView/DxuiHexSelection.h"
 #include "Widgets/HexView/DxuiHexScroll.h"
 #include "Widgets/HexView/DxuiHexRegions.h"
+#include "Widgets/HexView/DxuiHexHostEdit.h"
+#include "Widgets/HexView/DxuiHexSourceEdit.h"
+#include "Widgets/HexView/IDxuiHexEditHost.h"
 #include "Widgets/DxuiScrollbar.h"
 
 
@@ -124,7 +127,7 @@ public:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DxuiHexView : public IDxuiControl, public DxuiHexViewTypes
+class DxuiHexView : public IDxuiControl, public DxuiHexViewTypes, private IDxuiHexEditHost
 {
 public:
 
@@ -235,6 +238,10 @@ public:
     //  place of the caret's and the selection's fills, and the byte's text
     //  over it is in the color that reads on it.
     void  SetMatchFill     (ByteFillFn fn)    { m_painter.m_matchFill = std::move (fn); }
+
+    //  A byte the host draws its way, ahead of the match, caret, selection
+    //  and byte fills.
+    void  SetByteStyle     (ByteStyleFn fn)   { m_painter.m_byteStyle = std::move (fn); }
     void  SetOnContextMenu (ContextMenuFn fn) { m_onContextMenu = std::move (fn); }
 
     //  Outlines around the source's regions, off unless the host turns them
@@ -289,23 +296,14 @@ public:
     //  Puts the caret on a byte and scrolls to it.
     void  GoToOffset (uint64_t offset);
 
-    //  Typing edits the bytes when the view is editable. In the hex column,
-    //  digits collect for the value under the caret (the hex format only) and
-    //  the value is written, low byte first, as soon as it has all its digits;
-    //  in the text column each character is written as it is typed, in the
-    //  view's text encoding. The caret moves on after a write the source
-    //  takes. Escape or any caret move drops digits not yet written.
-    //
-    //  An edit of a value is under way from its first digit, from Enter and
-    //  from a double-click on it, until its last digit is typed, Enter writes
-    //  the digits typed or Escape drops them; a box is drawn over the value
-    //  while it is.
-    void                  SetEditable       (bool editable)     { m_editable = editable; m_pending.clear(); m_isEditing = false; }
-    bool                  IsEditing         () const            { return m_isEditing; }
-    uint64_t              GetEditStart      () const            { return m_editStart; }
-    bool                  IsEditable        () const            { return m_editable; }
-    const std::wstring &  GetPendingDigits  () const            { return m_pending; }
-    void                  SetOnWriteRefused (WriteRefusedFn fn) { m_onWriteRefused = std::move (fn); }
+    //  The two ways a view is edited: values typed into its byte source,
+    //  or each keystroke given to the host with the edit look drawn.
+    DxuiHexSourceEdit        & GetSourceEdit ()       { return m_sourceEdit; }
+    const DxuiHexSourceEdit  & GetSourceEdit () const { return m_sourceEdit; }
+    DxuiHexHostEdit          & GetHostEdit   ()       { return m_hostEdit; }
+    const DxuiHexHostEdit    & GetHostEdit   () const { return m_hostEdit; }
+
+    bool  HasFocus () const { return m_hasFocus; }
 
     //  Copies the selection to the clipboard in the active column's format.
     //  With nothing selected, the clipboard is not changed.
@@ -351,6 +349,7 @@ public:
     std::vector<DxuiPopupMenuItem>  GetScrollbarMenu  (POINT pt) { return m_scroll.GetScrollbarMenu (pt); }
     bool                            ShowScrollbarMenu (HWND hwnd, POINT pt) override { return DxuiScrollbar::ShowMenu (hwnd, pt, GetScrollbarMenu (pt)); }
     bool                            OnKey             (const DxuiKeyEvent   & ev) override;
+    bool                            OnChar            (wchar_t ch) override;
     void                            Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Custom; }
@@ -386,14 +385,19 @@ private:
     //  starting a new one otherwise, then brings it into view.
     uint64_t  GetLastOffset () const;
 
-    //  Typing. Each returns whether it took the character.
-    bool        TypeEditChar    (wchar_t ch);
-    bool        TypeHexDigit    (wchar_t ch);
-    bool        BeginEdit       ();
-    bool        CommitEdit      ();
-    bool        TypeCharacter   (wchar_t ch);
-    void        WriteAndAdvance (uint64_t offset, std::span<const uint8_t> bytes);
-    static int  GetDigitValue   (wchar_t ch);
+    //  The host edit's frame.
+    void  PaintEditFrame (IDxuiPainter & painter, const IDxuiTheme & theme) const;
+
+    //  IDxuiHexEditHost: the view, for its source edit.
+    const IDxuiHexSource  * GetEditSource     () const override                 { return m_source; }
+    bool                    CanEditValues     () const override                 { return m_source != nullptr && !IsLineMode() && GetRowCount() > 0; }
+    Column                  GetEditColumn     () const override                 { return GetActiveColumn(); }
+    ValueFormat             GetEditFormat     () const override                 { return m_format; }
+    size_t                  GetEditGroupBytes () const override                 { return (size_t) (m_showValues ? m_grouping : 1); }
+    TextEncoding            GetEditEncoding   () const override                 { return m_encoding; }
+    uint64_t                GetEditCaret      () const override                 { return GetCaret(); }
+    uint64_t                SnapEditToValue   (uint64_t offset) const override  { return m_layout.SnapToValue (offset, false); }
+    void                    MoveEditCaretTo   (uint64_t offset) override        { m_selection.MoveCaretTo (offset, false); }
 
     static constexpr int  s_kSelectionMarginDip = 2;
 
@@ -418,15 +422,9 @@ private:
     ContextMenuFn                  m_onContextMenu;
     BuildMenuFn                    m_onBuildMenu;
     SettingsFn                     m_onSettings;
-    std::function<void ()>  m_onSelectionChanged;
-    bool            m_editable       = false;
-    bool            m_hasFocus       = false;
-    std::wstring    m_pending;
-    uint64_t        m_editStart      = 0;
-    bool            m_isEditing      = false;
-    uint64_t        m_pressMs        = 0;
-    uint64_t        m_pressOffset    = UINT64_MAX;
-    WriteRefusedFn  m_onWriteRefused;
+    std::function<void ()>         m_onSelectionChanged;
+    RECT                           m_frameDip       = {};
+    bool                           m_hasFocus       = false;
 
     //  The view's parts, each with the state it uses.
     friend class      DxuiHexLayout;
@@ -439,5 +437,7 @@ private:
     DxuiHexSelection  m_selection      { *this };
     DxuiHexScroll     m_scroll         { *this };
     DxuiHexRegions    m_regions        { *this };
+    DxuiHexSourceEdit m_sourceEdit     { *this };
+    DxuiHexHostEdit   m_hostEdit;
 };
 

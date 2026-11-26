@@ -723,18 +723,18 @@ void DebuggerWindow::ApplyKeyScheme (DebuggerKeyScheme scheme)
 
 
     m_keyScheme = scheme;
-    SetKeyMap (&map);
+    GetKeyRouter().SetKeyMap (&map);
 
     m_floating->ApplyKeyMap (&map);
 
     if (m_barHost.GetFloatWindow() != nullptr)
     {
-        m_barHost.GetFloatWindow()->SetKeyMap (&map);
+        m_barHost.GetFloatWindow()->GetKeyRouter().SetKeyMap (&map);
     }
 
     if (m_timelineHost.GetFloatWindow() != nullptr)
     {
-        m_timelineHost.GetFloatWindow()->SetKeyMap (&map);
+        m_timelineHost.GetFloatWindow()->GetKeyRouter().SetKeyMap (&map);
     }
 
     m_runControls.ApplyKeyScheme (scheme);
@@ -1725,7 +1725,7 @@ void DebuggerWindow::ConfigureCommandBarHost()
         std::unique_ptr<DxuiTooltip>  tip = std::make_unique<DxuiTooltip>();
 
         window.SetTheme  (m_look.GetTheme());
-        window.SetKeyMap (&DebuggerKeySchemes::GetMap (m_keyScheme));
+        window.GetKeyRouter().SetKeyMap (&DebuggerKeySchemes::GetMap (m_keyScheme));
 
         tip->SetPopupHost (window.GetPopupHost());
         tip->SetTheme     (*m_look.GetTheme());

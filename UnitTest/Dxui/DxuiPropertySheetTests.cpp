@@ -531,65 +531,6 @@ public:
 
         Assert::AreEqual ((int) (target.bottom - sheet.GetPageViewportPx().bottom), sheet.GetPageScrollPos());
     }
-
-
-    //  Each dimension is held within its limits, and a maximum below the
-    //  minimum gives way to it.
-    TEST_METHOD (ClampSize_HoldsEachDimensionWithinItsLimits)
-    {
-        SIZE  low     = DxuiWindow::ClampSize (SIZE { 10, 10 },     SIZE { 100, 200 }, SIZE { 400, 500 });
-        SIZE  high    = DxuiWindow::ClampSize (SIZE { 900, 900 },   SIZE { 100, 200 }, SIZE { 400, 500 });
-        SIZE  inside  = DxuiWindow::ClampSize (SIZE { 300, 300 },   SIZE { 100, 200 }, SIZE { 400, 500 });
-        SIZE  crossed = DxuiWindow::ClampSize (SIZE { 900, 900 },   SIZE { 100, 200 }, SIZE { 50,  60 });
-
-        Assert::AreEqual (100L, low.cx);
-        Assert::AreEqual (200L, low.cy);
-        Assert::AreEqual (400L, high.cx);
-        Assert::AreEqual (500L, high.cy);
-        Assert::AreEqual (300L, inside.cx);
-        Assert::AreEqual (300L, inside.cy);
-        Assert::AreEqual (100L, crossed.cx);
-        Assert::AreEqual (200L, crossed.cy);
-    }
-
-
-    //  A window opened smaller than its content grows to it, and one taller
-    //  than the work area is cut to it and moved up to stay inside.
-    TEST_METHOD (FitRectToMaxSize_GrowsToTheContentWithinTheWorkArea)
-    {
-        RECT  work   = { 0, 0, 2000, 1400 };
-        RECT  grown  = DxuiWindow::FitRectToMaxSize (RECT { 100, 100, 820, 980 },  SIZE { 760, 1100 }, work);
-        RECT  capped = DxuiWindow::FitRectToMaxSize (RECT { 100, 300, 820, 1180 }, SIZE { 760, 1600 }, work);
-
-        Assert::AreEqual (100L,  grown.left);
-        Assert::AreEqual (100L,  grown.top);
-        Assert::AreEqual (860L,  grown.right);
-        Assert::AreEqual (1200L, grown.bottom);
-        Assert::AreEqual (100L,  capped.left);
-        Assert::AreEqual (0L,    capped.top);
-        Assert::AreEqual (860L,  capped.right);
-        Assert::AreEqual (1400L, capped.bottom);
-    }
-
-
-    //  Content taller than the window grows it, kept inside the work area,
-    //  and never narrows a window wider than the content; content that fits
-    //  leaves the window alone.
-    TEST_METHOD (TryGetGrownRect_GrowsOnlyWhereTheContentExceedsTheWindow)
-    {
-        RECT  work    = { 0, 0, 2000, 1400 };
-        RECT  grown   = {};
-        RECT  kept    = {};
-        bool  isGrown = DxuiWindow::TryGetGrownRect (RECT { 100, 300, 1000, 1180 }, SIZE { 760, 1300 }, work, grown);
-        bool  isKept  = DxuiWindow::TryGetGrownRect (RECT { 100, 100, 1000, 1180 }, SIZE { 760, 900 },  work, kept);
-
-        Assert::IsTrue   (isGrown);
-        Assert::AreEqual (100L,  grown.left);
-        Assert::AreEqual (100L,  grown.top);
-        Assert::AreEqual (1000L, grown.right);
-        Assert::AreEqual (1400L, grown.bottom);
-        Assert::IsFalse  (isKept);
-    }
 };
 
 

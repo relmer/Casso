@@ -185,6 +185,7 @@ public:
         { L"IDM_VIEW_AUTOHIDE_DRIVES",      IDM_VIEW_AUTOHIDE_DRIVES      },
         { L"IDM_VIEW_FLOPPIES_ON_DESK",     IDM_VIEW_FLOPPIES_ON_DESK     },
         { L"IDM_VIEW_HARD_DISKS_ON_DESK",   IDM_VIEW_HARD_DISKS_ON_DESK   },
+        { L"IDM_VIEW_RECORDER_ON_DESK",     IDM_VIEW_RECORDER_ON_DESK     },
         { L"IDM_VIEW_FLOPPY_PAIR_BESIDE",   IDM_VIEW_FLOPPY_PAIR_BESIDE   },
         { L"IDM_VIEW_CONTROLLER_SETTINGS",  IDM_VIEW_CONTROLLER_SETTINGS  },
         { L"IDM_DEBUG_SAVE_TRACE",          IDM_DEBUG_SAVE_TRACE          },
@@ -558,5 +559,12 @@ public:
         Assert::AreEqual (std::wstring (L"Show f&loppy drives on the desk"),       EmulatorCommands::GetDrivePlaceLabel (false, false));
         Assert::AreEqual (std::wstring (L"Show &hard disks in the drive dock"),    EmulatorCommands::GetDrivePlaceLabel (true,  true));
         Assert::AreEqual (std::wstring (L"Show &hard disks on the desk"),          EmulatorCommands::GetDrivePlaceLabel (true,  false));
+    }
+
+
+    TEST_METHOD (Floppy_Pair_Row_Gives_Where_The_Pair_Goes)
+    {
+        Assert::AreEqual (std::wstring (L"Show floppy drives below the &monitor"),  EmulatorCommands::GetFloppyPairPlaceLabel (true));
+        Assert::AreEqual (std::wstring (L"Show floppy drives beside the &monitor"), EmulatorCommands::GetFloppyPairPlaceLabel (false));
     }
 };

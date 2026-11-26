@@ -1,12 +1,14 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Browser/BrowserCells.h"
+#include "CassoExplorer/Browser/BrowserHostInterfaces.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Model/SearchExpression.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/ImageClassifier.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 
 
@@ -18,8 +20,9 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-BrowserCells::BrowserCells (CassoExplorerBrowser & browser)
-    : m_browser (browser)
+BrowserCells::BrowserCells (const BrowserParts & parts, IBrowserCellsHost & host)
+    : m_parts (parts),
+      m_host  (host)
 {
 }
 
@@ -89,32 +92,32 @@ DxuiTreeNode BrowserCells::ToTreeNode (const TreeNode & node, IShellIcons * icon
 
 void BrowserCells::UpdateStatus()
 {
-    m_browser.m_status = BrowserStatus();
-    m_browser.m_status.selection = FormatSelection (0, m_browser.m_rows.size());
+    m_parts.list.status = BrowserStatus();
+    m_parts.list.status.selection = FormatSelection (0, m_parts.list.rows.size());
 
-    if (!m_browser.m_selectedRows.empty())
+    if (!m_parts.list.selectedRows.empty())
     {
         uint64_t  bytes   = 0;
         bool      anyFile = false;
 
-        for (int selected : m_browser.m_selectedRows)
+        for (int selected : m_parts.list.selectedRows)
         {
             //  A cloud item on Home has no size here.
-            if (!m_browser.m_rows[(size_t) selected].isDirectory && !(m_browser.IsHomeLocation() && m_browser.m_rows[(size_t) selected].hostPath.empty()))
+            if (!m_parts.list.rows[(size_t) selected].isDirectory && !(m_host.IsHomeLocation() && m_parts.list.rows[(size_t) selected].hostPath.empty()))
             {
-                bytes  += m_browser.m_rows[(size_t) selected].sizeBytes;
+                bytes  += m_parts.list.rows[(size_t) selected].sizeBytes;
                 anyFile = true;
             }
         }
 
-        m_browser.m_status.selected = FormatSelected (m_browser.m_selectedRows.size(), bytes, anyFile);
+        m_parts.list.status.selected = FormatSelected (m_parts.list.selectedRows.size(), bytes, anyFile);
     }
 
-    if (m_browser.m_selectedRows.size() == 1)
+    if (m_parts.list.selectedRows.size() == 1)
     {
-        const CatalogRow &  row    = m_browser.m_rows[m_browser.m_selectedRows[0]];
-        std::wstring      & detail = m_browser.m_status.detail;
-        bool                sized  = !row.isDirectory && !(m_browser.IsHomeLocation() && row.hostPath.empty()) && !(row.isStockDisk && !row.stockDownloaded);
+        const CatalogRow &  row    = m_parts.list.rows[m_parts.list.selectedRows[0]];
+        std::wstring      & detail = m_parts.list.status.detail;
+        bool                sized  = !row.isDirectory && !(m_host.IsHomeLocation() && row.hostPath.empty()) && !(row.isStockDisk && !row.stockDownloaded);
 
         //  The type, size and address that the row has, with a comma between
         //  each two. A stock disk has no type.
@@ -133,20 +136,20 @@ void BrowserCells::UpdateStatus()
 
     //  As Explorer words a drive's: what is free of the whole. For the image
     //  or linked drive open, or for one image selected in a folder.
-    if (m_browser.m_isImage || (m_browser.m_isAppleDrive && m_browser.m_listing.totalUnits > 0))
+    if (m_parts.list.isImage || (m_parts.list.isAppleDrive && m_parts.list.listing.totalUnits > 0))
     {
-        DescribeVolumeSpace (m_browser.GetLocation().path, m_browser.m_listing, m_browser.m_kind, m_browser.m_status);
+        DescribeVolumeSpace (GetLocation().path, m_parts.list.listing, m_parts.list.kind, m_parts.list.status);
     }
-    else if (m_browser.m_selectedRows.size() == 1)
+    else if (m_parts.list.selectedRows.size() == 1)
     {
         Location       image;
         VolumeListing  listing;
         VolumeKind     kind = VolumeKind::Unknown;
 
-        if (m_browser.TryGetRowLocation (m_browser.m_selectedRows[0], image) && image.kind == Location::Kind::DiskImage &&
-            m_browser.m_operations.List (TextEncoding::WideToNarrow (image.path), std::string(), listing, kind).Succeeded())
+        if (BrowserRowPaths::TryGetRowLocation (m_host.GetRowListing(), m_parts.list.selectedRows[0], image) && image.kind == Location::Kind::DiskImage &&
+            m_parts.operations.List (TextEncoding::WideToNarrow (image.path), std::string(), listing, kind).Succeeded())
         {
-            DescribeVolumeSpace (image.path, listing, kind, m_browser.m_status);
+            DescribeVolumeSpace (image.path, listing, kind, m_parts.list.status);
         }
     }
 }
@@ -564,146 +567,6 @@ uint32_t BrowserCells::GetNameArgb (const CatalogRow & row, const FolderOptions 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BrowserCells::ShortenPaths
-//
-//  Each full path in a message cut to its last part, the file or folder's own
-//  name: the address bar and the tree already show where it is, and a whole
-//  path makes a message too long to read. A path runs from its drive to the
-//  colon, quote or line end that follows; a sentence's period after it is not
-//  part of it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring BrowserCells::ShortenPaths (const std::wstring & message)
-{
-    std::wstring  out;
-    size_t        i = 0;
-
-
-
-    while (i < message.size())
-    {
-        bool  isPath = i + 2 < message.size() && iswalpha (message[i]) && message[i + 1] == L':' && message[i + 2] == L'\\'
-                       && (i == 0 || !iswalnum (message[i - 1]));
-
-        if (!isPath)
-        {
-            out += message[i++];
-            continue;
-        }
-
-        size_t        end  = message.find_first_of (L":\r\n\"'", i + 2);
-        std::wstring  path  = message.substr (i, (end == std::wstring::npos) ? std::wstring::npos : end - i);
-        std::wstring  tail;
-        size_t        slash = 0;
-
-        while (!path.empty() && (path.back() == L' ' || path.back() == L'.' || path.back() == L','))
-        {
-            tail.insert (tail.begin(), path.back());
-            path.pop_back();
-        }
-
-        //  A file's extension ends in a letter, so a period only moved to the
-        //  tail when it closed the sentence -- unless the name itself ended
-        //  there, which the tail cannot tell apart and leaves as it was.
-        while (!path.empty() && path.back() == L'\\')
-        {
-            path.pop_back();
-        }
-
-        slash = path.find_last_of (L'\\');
-        out  += ((slash == std::wstring::npos) ? path : path.substr (slash + 1)) + tail;
-        i     = (end == std::wstring::npos) ? message.size() : end;
-    }
-
-    return out;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BrowserCells::FormatLinkError
-//
-//  A disk whose sectors read but whose data is no volume detection recognizes
-//  gets the same sentence as an image with no file system; any other failure
-//  with no message is a drive that could not be read.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring BrowserCells::FormatLinkError (HRESULT result, const std::string & message)
-{
-    if (!message.empty())
-    {
-        return TextEncoding::NarrowToWide (message);
-    }
-
-    if (result == HRESULT_FROM_WIN32 (ERROR_UNRECOGNIZED_VOLUME))
-    {
-        return std::wstring (L"The disk in this drive ") + TreeModel::kNoFilesystemText;
-    }
-
-    return L"This drive could not be read.";
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BrowserCells::FormatImageError
-//
-//  The command line's refusal, "path: reason", as a sentence about the file
-//  by its own name, since its path is in the address bar and the tree. An
-//  image with no file system gets one plain sentence, and the rest is in the
-//  preview's details.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring BrowserCells::FormatImageError (const std::wstring & imagePath, const std::string & message)
-{
-    std::wstring  text   = TextEncoding::NarrowToWide (message);
-    std::wstring  prefix = imagePath + L": ";
-    size_t        slash  = imagePath.find_last_of (L"\\/");
-    std::wstring  leaf   = imagePath.substr ((slash == std::wstring::npos) ? 0 : slash + 1);
-
-
-
-    if (message.find (DiskImageSession::kNoFilesystemText) != std::string::npos)
-    {
-        return leaf + L" " + TreeModel::kNoFilesystemText;
-    }
-
-    while (!text.empty() && (text.back() == L'\n' || text.back() == L'\r' || text.back() == L' '))
-    {
-        text.pop_back();
-    }
-
-    if (text.compare (0, prefix.size(), prefix) == 0)
-    {
-        text = leaf + L" " + text.substr (prefix.size());
-    }
-
-    //  The general part leads and the detail follows on a line of its own.
-    text = TreeModel::BreakAfterFirstSentence (text);
-
-    if (!text.empty() && text.back() != L'.')
-    {
-        text += L'.';
-    }
-
-    return ShortenPaths (text);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  BrowserCells::FormatSize
 //
 //  A size as Explorer's status bar and its free space show one: Windows' own
@@ -963,12 +826,12 @@ std::wstring BrowserCells::GetLocationLabel (const Location & location)
 
 std::wstring BrowserCells::GetTabLabel (size_t index) const
 {
-    if (index >= m_browser.m_model.GetTabCount())
+    if (index >= m_parts.model.GetTabCount())
     {
         return std::wstring();
     }
 
-    return GetLocationLabel (m_browser.m_model.GetTab (index).location);
+    return GetLocationLabel (m_parts.model.GetTab (index).location);
 }
 
 
@@ -998,7 +861,13 @@ std::shared_ptr<const DxuiIconImage> BrowserCells::GetRowIcon (const CatalogRow 
     //  where the icons are drawn as thumbnails.
     if (row.isDiskImage && !row.isDirectory && at.kind == Location::Kind::HostFolder)
     {
-        return icons.GetForDiskImage (CassoExplorerBrowser::JoinPath (at.path, row.name));
+        return icons.GetForDiskImage (BrowserRowPaths::JoinPath (at.path, row.name));
+    }
+
+    //  A partition of an image has the partition's icon.
+    if (row.isPartition)
+    {
+        return icons.GetForKind (IShellIcons::Kind::Partition);
     }
 
     //  A disk image has Casso's floppy wherever else it is listed, one inside
@@ -1030,7 +899,7 @@ std::shared_ptr<const DxuiIconImage> BrowserCells::GetRowIcon (const CatalogRow 
 
     if (at.kind == Location::Kind::HostFolder)
     {
-        return icons.GetForPath (CassoExplorerBrowser::JoinPath (at.path, row.name), row.isDirectory);
+        return icons.GetForPath (BrowserRowPaths::JoinPath (at.path, row.name), row.isDirectory);
     }
 
     //  A root's rows are its known folders and drives, with their own icons.
@@ -1090,6 +959,7 @@ std::shared_ptr<const DxuiIconImage> BrowserCells::GetLocationIcon (const Locati
         case Location::Kind::HostFolder:    return icons.GetForPath (at.path, true);
         case Location::Kind::ShellFolder:   return icons.GetForPath (at.path, true);
         case Location::Kind::DiskImage:     return icons.GetForKind (IShellIcons::Kind::DiskImage);
+        case Location::Kind::Partition:     return icons.GetForKind (IShellIcons::Kind::Partition);
         case Location::Kind::DiskDirectory: return icons.GetForKind (IShellIcons::Kind::Folder);
         case Location::Kind::RecycleBin:    return icons.GetForKind (IShellIcons::Kind::RecycleBin);
         case Location::Kind::Root:
@@ -1211,6 +1081,7 @@ std::shared_ptr<const DxuiIconImage> BrowserCells::GetNodeIcon (const TreeNode &
         //  Every remaining node is a drive or a host folder; a disk image node
         //  has Casso's floppy.
         case TreeNode::Kind::DiskImage:     return icons.GetForKind (IShellIcons::Kind::DiskImage);
+        case TreeNode::Kind::Partition:     return icons.GetForKind (IShellIcons::Kind::Partition);
         default:                            return icons.GetForTreePath (node.location.path, true);
     }
 }

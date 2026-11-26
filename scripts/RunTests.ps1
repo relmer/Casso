@@ -315,6 +315,10 @@ if ($Scenario) {
 
 $vstestArgs = @($testAssembly)
 
+# A test whose name starts with OnDemand_ runs only from a filter that
+# contains OnDemand. Every other run excludes it.
+$onDemandOff = 'FullyQualifiedName!~OnDemand_'
+
 if ($Filter) {
     # A bare word is the common case and the awkward one to type, so promote it
     # to a name-substring match; anything already containing filter grammar is
@@ -322,6 +326,10 @@ if ($Filter) {
     $expression = $Filter
     if ($Filter -notmatch '[~=!&|()]') {
         $expression = "FullyQualifiedName~$Filter"
+    }
+
+    if ($expression -notmatch 'OnDemand') {
+        $expression = "($expression)&$onDemandOff"
     }
 
     $vstestArgs += "/TestCaseFilter:$expression"
@@ -333,6 +341,9 @@ if ($Filter) {
     Write-Host "FILTERED RUN -- this is NOT the full suite." -ForegroundColor Yellow
     Write-Host "  filter: $expression" -ForegroundColor DarkGray
     Write-Host ''
+}
+else {
+    $vstestArgs += "/TestCaseFilter:$onDemandOff"
 }
 
 # A TEST RUN MUST LEAVE THE WORKING TREE EXACTLY AS IT FOUND IT.
@@ -417,7 +428,7 @@ if ($Sanitize) {
     }
 }
 elseif ($runSerial) {
-    & $vstestPath @vstestArgs
+    & $vstestPath @vstestArgs | Tee-Object -Variable vstestOutput
     $testExit = $LASTEXITCODE
 }
 else {
@@ -461,6 +472,18 @@ if ($insideGit) {
 }
 
 Restore-CassoHostLoad -Priority $priorityWas
+
+#  List the failed tests again after the totals. RunTestShards.ps1 does the
+#  same for a sharded run.
+if ($runSerial -and $vstestOutput) {
+    $failedNames = @($vstestOutput | Select-String '^\s*Failed\s+(\S+)' | ForEach-Object { $_.Matches[0].Groups[1].Value } | Sort-Object -Unique)
+
+    if ($failedNames.Count -gt 0) {
+        Write-Host ''
+        Write-Host 'Failed tests:' -ForegroundColor Red
+        $failedNames | ForEach-Object { Write-Host "  $_" -ForegroundColor Red }
+    }
+}
 
 if ($testExit -ne 0) {
     exit $testExit

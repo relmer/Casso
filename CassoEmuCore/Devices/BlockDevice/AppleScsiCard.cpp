@@ -35,6 +35,7 @@ static constexpr int   s_kRamShift    = 4;
 AppleScsiCard::AppleScsiCard (int slot, MemoryBus & bus) :
     m_slot      (slot),
     m_memoryBus (bus),
+    m_casso     (slot, bus),
     m_ncr       (m_bus),
     m_slotPage  (slot, *this),
     m_ram       (kRamSize, 0)
@@ -104,7 +105,11 @@ Byte AppleScsiCard::Read (Word address)
 
 
 
-    if (offset <= s_kNcrLast)
+    if (m_casso.IsEnabled())
+    {
+        value = m_casso.Read (offset);
+    }
+    else if (offset <= s_kNcrLast)
     {
         value = m_ncr.ReadRegister (offset);
     }
@@ -181,7 +186,11 @@ void AppleScsiCard::Write (Word address, Byte value)
 
 
 
-    if (offset <= s_kNcrLast)
+    if (m_casso.IsEnabled())
+    {
+        m_casso.Write (offset, value);
+    }
+    else if (offset <= s_kNcrLast)
     {
         m_ncr.WriteRegister (offset, value);
     }
@@ -263,7 +272,8 @@ void AppleScsiCard::PowerCycle (Prng & prng)
 //  OnSlotPageAccess
 //
 //  An access to $Cn00-$CnFF selects the card's $C800 window and reads the
-//  ROM's first page.
+//  ROM's first page. With Casso's firmware it reads that firmware's page,
+//  and the window isn't selected.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -271,6 +281,11 @@ Byte AppleScsiCard::OnSlotPageAccess (Word address, bool isWrite, Byte value)
 {
     (void) isWrite;
     (void) value;
+
+    if (m_casso.IsEnabled())
+    {
+        return m_casso.ReadSlotPage (address);
+    }
 
     m_selected = true;
 
@@ -385,6 +400,37 @@ void AppleScsiCard::SetBlockDeviceEventSink (IBlockDeviceEventSink * sink)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  UseCassoFirmware
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AppleScsiCard::UseCassoFirmware()
+{
+    return m_casso.Enable ([this] (int drive) -> ICassoBlockUnit *
+    {
+        int  found = 0;
+
+
+
+        for (auto & target : m_targets)
+        {
+            if (target->GetMedia().IsAttached() && found++ == drive)
+            {
+                return target.get();
+            }
+        }
+
+        return nullptr;
+    },
+    { "SCSI HD", 0x03, 0x00 });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetFirmware
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -485,6 +531,7 @@ void AppleScsiCard::ResetCard()
     m_bankLatch = 0;
     m_selected  = false;
     m_ncr.Reset();
+    m_casso.Reset();
 }
 
 

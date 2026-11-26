@@ -968,9 +968,9 @@ void MemoryWindowGroup::Apply (const DebuggerViewSnapshot & snapshot)
         //  Bytes are edited while the machine is stopped, as Visual Studio's
         //  memory window allows: a running machine would overwrite the edit,
         //  or be changed under the code using it.
-        if (each->GetView()->IsEditable() != snapshot.isPaused)
+        if (each->GetView()->GetSourceEdit().IsEditable() != snapshot.isPaused)
         {
-            each->GetView()->SetEditable (snapshot.isPaused);
+            each->GetView()->GetSourceEdit().SetEditable (snapshot.isPaused);
         }
 
         each->GetModel().Apply (window);

@@ -139,6 +139,47 @@ public:
     }
 
 
+    //  A command line that runs one of scripts\EmuTargets's scripts, found
+    //  from this source file's place in the tree, with its arguments.
+    static std::wstring  MakeTargetCommand (const wchar_t * script, const std::wstring & arguments)
+    {
+        std::filesystem::path  folder = std::filesystem::path (__FILE__).parent_path().parent_path() / L"scripts" / L"EmuTargets";
+
+
+
+        return std::format (L"pwsh.exe -NoProfile -File \"{}\" {}", (folder / script).wstring(), arguments);
+    }
+
+
+    //  The first line a command writes, with no line end; empty if the
+    //  command can't be run.
+    static std::string  ReadCommandLine (const wchar_t * command)
+    {
+        FILE         * pipe  = _wpopen (command, L"rt");
+        char           buffer[256] = {};
+        std::string    line;
+
+
+
+        if (pipe != nullptr)
+        {
+            if (fgets (buffer, (int) sizeof (buffer), pipe) != nullptr)
+            {
+                line = buffer;
+            }
+
+            _pclose (pipe);
+        }
+
+        while (!line.empty() && (line.back() == '\n' || line.back() == '\r' || line.back() == ' '))
+        {
+            line.pop_back();
+        }
+
+        return line;
+    }
+
+
     static void  WriteHostFile (const std::filesystem::path & path, std::span<const Byte> bytes)
     {
         std::ofstream  out (path, std::ios::binary);
@@ -167,7 +208,7 @@ public:
     static std::shared_ptr<LinkOperation>  Finish (Sink & sink, std::shared_ptr<LinkOperation> operation, DWORD timeoutMs)
     {
         Microsoft::VisualStudio::CppUnitTestFramework::Assert::IsTrue (sink.WaitForDone (operation, timeoutMs), L"the operation finishes");
-        Microsoft::VisualStudio::CppUnitTestFramework::Assert::IsTrue (SUCCEEDED (operation->result), std::format (L"{:08X} {}", (uint32_t) operation->result, TextEncoding::NarrowToWide (operation->message)).c_str());
+        Microsoft::VisualStudio::CppUnitTestFramework::Assert::IsTrue (SUCCEEDED (operation->result), std::format (L"{:08X} {} at {}%", (uint32_t) operation->result, TextEncoding::NarrowToWide (operation->message), operation->progress.load()).c_str());
 
         return operation;
     }

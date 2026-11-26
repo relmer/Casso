@@ -5,7 +5,7 @@
 #include "Debugger/DebugSession.h"
 #include "Debugger/Project/DebugProjectStore.h"
 #include "Devices/Disk/DiskImageStore.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "EmuTests/FixtureRomSource.h"
 #include "InMemoryPipeTransport.h"
 #include "Shell/EmulatorShell.h"
@@ -325,7 +325,7 @@ namespace ProjectShellTests
         TEST_METHOD (ABootFromAnotherDiskLeavesTheBinarysProject)
         {
             ProjectRig            rig (TestMachine::Slots::DiskOnly);
-            std::vector<Byte>     blank (NibblizationLayer::kImageByteSize, 0);
+            std::vector<Byte>     blank (NibbleFormat::kImageByteSize, 0);
             DiskImageStore      & disks = rig.shell->GetMachine().GetDiskStore();
             Reply                 reply;
             const ProjectData   * data  = nullptr;
@@ -369,7 +369,7 @@ namespace ProjectShellTests
         TEST_METHOD (TheDiskMountedAfterABuildsPowerCycleIsTheBootDisk)
         {
             ProjectRig            rig (TestMachine::Slots::DiskOnly);
-            std::vector<Byte>     blank (NibblizationLayer::kImageByteSize, 0);
+            std::vector<Byte>     blank (NibbleFormat::kImageByteSize, 0);
             DiskImageStore      & disks = rig.shell->GetMachine().GetDiskStore();
             Reply                 reply;
             const ProjectData   * data  = nullptr;

@@ -90,7 +90,7 @@ namespace DebuggerTests
         using DebuggerWindow::OnCreate;
         using DebuggerWindow::Layout;
         using DebuggerWindow::OnKey;
-        using DebuggerWindow::RouteMappedKey;
+        using DebuggerWindow::GetKeyRouter;
         using DebuggerWindow::ApplyKeyScheme;
         using DebuggerWindow::TakeSnapshot;
         using DebuggerWindow::GetMemoryGroup;
@@ -354,7 +354,7 @@ namespace DebuggerTests
             for (const DxuiKeyEvent & key : { overDown, space, enter })
             {
                 window.GetMemoryGroup().GetBox()->SetText (L"");
-                (void) (window.OnKey (key) || window.RouteMappedKey (key));
+                (void) (window.OnKey (key) || window.GetKeyRouter().RouteMappedKey (key));
             }
 
             Assert::AreEqual ((size_t) 0, host.lines.size(), host.lines.empty() ? L"" : TextEncoding::NarrowToWide (host.lines[0]).c_str());
@@ -568,7 +568,7 @@ namespace DebuggerTests
 
 
             window.Build();
-            (void) (window.OnKey (find) || window.RouteMappedKey (find));
+            (void) (window.OnKey (find) || window.GetKeyRouter().RouteMappedKey (find));
             window.Relayout();
 
             Assert::IsTrue (window.GetFindWidgets().IsOpen(), L"Ctrl+F opens the find bar");

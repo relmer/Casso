@@ -291,8 +291,8 @@ public:
     {
         std::string  help  = DiskHelpPage::BuildHelpText();
         size_t       count = 0;
-        const DiskCommandRunner::ContainerName *  names =
-            DiskCommandRunner::GetAdvertisedContainers (count);
+        const BlankDiskSpecResolver::ContainerName *  names =
+            BlankDiskSpecResolver::GetAdvertisedContainers (count);
         size_t       at    = help.find ("Valid types are: ");
 
 
@@ -322,7 +322,7 @@ public:
         //  A sweep of the parser's own table rather than a list retyped here:
         //  a command added to the grammar and left out of the help is a capability
         //  the user cannot find, and only this direction notices.
-        Assert::AreEqual (size_t (38), commands.size(), L"twenty-two commands and sixteen aliases");
+        Assert::AreEqual (size_t (39), commands.size(), L"twenty-three commands and sixteen aliases");
 
         for (const auto & command : commands)
         {
@@ -487,7 +487,8 @@ public:
     //  PARSES, that it names the command whose block it sits in, and that every
     //  option it types is documented right there rather than three screens
     //  away. The facts the prose used to carry are asserted where they belong,
-    //  against the runner, in DiskCommandRunnerTests.
+    //  against the runner, in DiskCreateCommandTests and the other disk
+    //  command test classes.
     //
     ////////////////////////////////////////////////////////////////////////////
 
@@ -874,8 +875,9 @@ public:
     //  default, leaving the flag nothing to do but cancel a `--text` earlier on
     //  the same line.
     //
-    //  WHAT THE COLUMNS ARE is asserted against the LISTING, in
-    //  DiskCommandRunnerTests, where a rendered ProDOS row is compared whole.
+    //  WHAT THE COLUMNS ARE is asserted against the LISTING of a real ProDOS
+    //  disk, in the scenario suite's DiskCommandRealDiskTests, where a rendered
+    //  row is compared whole.
     //  This test used to also require the help to contain the words "eof= and
     //  aux=", which pinned a sentence rather than a behavior and kept a
     //  paragraph on the page that a reader gets from running the command.

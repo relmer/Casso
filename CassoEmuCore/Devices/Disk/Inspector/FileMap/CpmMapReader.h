@@ -60,4 +60,5 @@ private:
     static std::wstring  DescribeInvalid (const Byte * entry);
     static Entry         ReadEntry       (const Byte * entry, int index);
     static void          CheckEntries    (FileMapWriter & writer, const vector<Entry> & entries);
+    static std::wstring  FormatPath      (int user, const std::wstring & name);
 };

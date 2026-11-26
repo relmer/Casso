@@ -54,7 +54,7 @@ public:
 
         store->SetFlushHold (true);
 
-        AssertSucceeded (store->FlushAllUnlessHeld(), L"FlushAllUnlessHeld");
+        AssertSucceeded (store->GetFlusher().FlushAllUnlessHeld(), L"FlushAllUnlessHeld");
         store->SoftReset();
 
         Assert::AreEqual<size_t> (0, files.writes, L"the motor stopping and a reset wrote nothing");
@@ -62,7 +62,7 @@ public:
 
         store->SetFlushHold (false);
 
-        AssertSucceeded (store->FlushAllUnlessHeld(), L"FlushAllUnlessHeld after the hold");
+        AssertSucceeded (store->GetFlusher().FlushAllUnlessHeld(), L"FlushAllUnlessHeld after the hold");
 
         Assert::AreEqual<size_t> (1, files.writes, L"without the hold the automatic flush writes");
     }
@@ -80,11 +80,11 @@ public:
         PrepareDirtyDisk (*store, files);
         store->SetFlushHold (true);
 
-        AssertSucceeded (store->FlushAll(), L"FlushAll, as a machine switch does");
+        AssertSucceeded (store->GetFlusher().FlushAll(), L"FlushAll, as a machine switch does");
         Assert::AreEqual<size_t> (1, files.writes, L"a machine switch saves");
 
         Dirty (*store);
-        AssertSucceeded (store->FlushAllForShutdown(), L"FlushAllForShutdown");
+        AssertSucceeded (store->GetFlusher().FlushAllForShutdown(), L"FlushAllForShutdown");
         Assert::AreEqual<size_t> (2, files.writes, L"exit saves");
 
         Dirty (*store);
@@ -109,8 +109,8 @@ public:
 
         store->SetReplaying (true);
 
-        AssertSucceeded (store->FlushAll(), L"FlushAll");
-        AssertSucceeded (store->FlushAllForShutdown(), L"FlushAllForShutdown");
+        AssertSucceeded (store->GetFlusher().FlushAll(), L"FlushAll");
+        AssertSucceeded (store->GetFlusher().FlushAllForShutdown(), L"FlushAllForShutdown");
         store->SoftReset();
 
         Assert::AreEqual<size_t> (0, files.writes, L"no flush reaches a file during a replay");

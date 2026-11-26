@@ -1,7 +1,11 @@
 #include "Pch.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/FluxBitView.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "FluxTestImages.h"
@@ -29,12 +33,12 @@ TEST_CLASS (FluxSectorAccessTests)
 {
 public:
 
-    static constexpr int     kTracks      = NibblizationLayer::kTrackCount;
-    static constexpr size_t  kSectorBytes = NibblizationLayer::kSectorByteSize;
+    static constexpr int     kTracks      = NibbleFormat::kTrackCount;
+    static constexpr size_t  kSectorBytes = NibbleFormat::kSectorByteSize;
 
     static vector<Byte> MakeSectors()
     {
-        vector<Byte>  sectors (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>  sectors (NibbleFormat::kImageByteSize, 0);
         size_t        i = 0;
 
         for (i = 0; i < sectors.size(); i++)
@@ -57,7 +61,7 @@ public:
         int                        t  = 0;
         HRESULT                    hr = S_OK;
 
-        hr = NibblizationLayer::NibblizeDsk (sectors, bitImage);
+        hr = Nibblizer::NibblizeDsk (sectors, bitImage);
         Assert::IsTrue (SUCCEEDED (hr));
 
         for (t = 0; t < kTracks; t++)
@@ -97,7 +101,7 @@ public:
     {
         vector<Byte>      out;
         DenibblizeReport  report;
-        HRESULT           hr = NibblizationLayer::Denibblize (disk, DiskFormat::Dsk, out, report);
+        HRESULT           hr = Denibblizer::Denibblize (disk, DiskFormat::Dsk, out, report);
 
         Assert::IsTrue (SUCCEEDED (hr), L"every flux track must decode completely");
         return out;
@@ -168,7 +172,7 @@ public:
 
         vector<WozSyntheticTrack>  tracks;
 
-        hr = NibblizationLayer::NibblizeDsk (sectors, bitImage);
+        hr = Nibblizer::NibblizeDsk (sectors, bitImage);
         Assert::IsTrue (SUCCEEDED (hr));
 
         for (t = 0; t < kTracks; t++)
@@ -220,7 +224,7 @@ public:
         // One sector on track 5.
         memset (&edited[(5 * 16 + 9) * kSectorBytes], 0xA5, kSectorBytes);
 
-        hr = NibblizationLayer::RenibblizeTracks (edited, DiskFormat::Dsk, changed, disk);
+        hr = Nibblizer::RenibblizeTracks (edited, DiskFormat::Dsk, changed, disk);
         Assert::IsTrue (SUCCEEDED (hr));
 
         Assert::IsTrue   (disk.GetTrackKind (5) == TrackKind::Flux, L"a sector write must keep the track flux");
@@ -263,9 +267,9 @@ public:
         LoadWoz (MakeFluxWoz (sectors, 1.0, false, 20000), disk);
         before = disk.GetFluxTrack (3).GetBytes();
 
-        memset (&edited[(3 * 16 + NibblizationLayer::GetDosFileIndexForPhysicalSector (14)) * kSectorBytes], 0x5A, kSectorBytes);
+        memset (&edited[(3 * 16 + SectorInterleave::GetDosFileIndexForPhysicalSector (14)) * kSectorBytes], 0x5A, kSectorBytes);
 
-        hr = NibblizationLayer::RenibblizeTracks (edited, DiskFormat::Dsk, changed, disk);
+        hr = Nibblizer::RenibblizeTracks (edited, DiskFormat::Dsk, changed, disk);
 
         Assert::AreEqual (static_cast<long> (HRESULT_FROM_WIN32 (ERROR_SECTOR_NOT_FOUND)), static_cast<long> (hr));
         Assert::IsTrue (disk.GetFluxTrack (3).GetBytes() == before);

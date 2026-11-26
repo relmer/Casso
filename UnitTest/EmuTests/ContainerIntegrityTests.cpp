@@ -1,10 +1,13 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
+#include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Devices/Disk/MountDiagnosis.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
+#include "Machines/Apple2/Common/TrackBitReader.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "HResultAssert.h"
 
@@ -57,9 +60,9 @@ TEST_CLASS (ContainerIntegrityTests)
 {
 public:
 
-    static constexpr int  kSectorSize    = NibblizationLayer::kSectorByteSize;
-    static constexpr int  kSectorsPerTrk = NibblizationLayer::kSectorsPerTrack;
-    static constexpr int  kTracks        = NibblizationLayer::kTrackCount;
+    static constexpr int  kSectorSize    = NibbleFormat::kSectorByteSize;
+    static constexpr int  kSectorsPerTrk = NibbleFormat::kSectorsPerTrack;
+    static constexpr int  kTracks        = NibbleFormat::kTrackCount;
 
     //  What a container is called, and how big its tracks are when that is a
     //  choice. Kept beside the test rather than derived, because the point is
@@ -277,7 +280,7 @@ public:
         Assert::IsFalse (blank.empty());
 
         AssertSucceeded (VolumeImage::Load (blank, c.path, sectors, report));
-        Assert::AreEqual ((size_t) NibblizationLayer::kImageByteSize, sectors.size(),
+        Assert::AreEqual ((size_t) NibbleFormat::kImageByteSize, sectors.size(),
             L"every container decodes to one volume's worth of sectors");
 
         //  First write.
@@ -407,7 +410,7 @@ public:
         //  If this ever stops being true the gap rule could be simplified; the
         //  number is asserted so that would be noticed rather than assumed.
         DiskImage     img;
-        vector<Byte>  sectors (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>  sectors (NibbleFormat::kImageByteSize, 0);
         vector<Byte>  derived;
         size_t        bitPos  = 0;
         size_t        bits    = 0;
@@ -421,13 +424,13 @@ public:
             sectors[i] = Alternating (i);
         }
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, img));
+        AssertSucceeded (Nibblizer::NibblizeDsk (sectors, img));
 
         bits = img.GetTrackBitCount (9);
 
         while (bitPos < bits)
         {
-            nib = NibblizationLayer::ReadNibbleAt (img, 9, bitPos);
+            nib = TrackBitReader::ReadNibbleAt (img, 9, bitPos);
 
             if (nib == 0)
             {
@@ -474,7 +477,7 @@ public:
         for (PatternFn pattern : patterns)
         {
             DiskImage     img;
-            vector<Byte>  sectors (NibblizationLayer::kImageByteSize, 0);
+            vector<Byte>  sectors (NibbleFormat::kImageByteSize, 0);
             vector<Byte>  derived;
             size_t        bitPos = 0;
             size_t        bits   = 0;
@@ -487,13 +490,13 @@ public:
                 sectors[i] = pattern (i);
             }
 
-            AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, img));
+            AssertSucceeded (Nibblizer::NibblizeDsk (sectors, img));
 
             bits = img.GetTrackBitCount (5);
 
             while (bitPos < bits)
             {
-                nib = NibblizationLayer::ReadNibbleAt (img, 5, bitPos);
+                nib = TrackBitReader::ReadNibbleAt (img, 5, bitPos);
 
                 if (nib == 0)
                 {
@@ -507,7 +510,7 @@ public:
 
             for (i = 0; i < derived.size(); i++)
             {
-                if (derived[i] == NibblizationLayer::kProlog0)
+                if (derived[i] == NibbleFormat::kProlog0)
                 {
                     marks++;
                 }

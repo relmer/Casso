@@ -81,6 +81,7 @@ public:
     float  GetCharsPx          (int row, int cell, int from, int to) const;
     int    GetNearestChar      (int row, int cell, int from, int to, float x) const;
     float  GetPartPx           (int row, int cell, int cellFrom, int index) const;
+    bool   DoColumnsFit        (float widthPx) const;
 
     //  The lines: laid out at a width, found by row and position, and
     //  measured from a top line.
@@ -99,21 +100,44 @@ public:
 
 private:
     void  BuildColumns           ();
+
+    //  A row's column group's widths: made when absent, or null when absent.
+    template <typename T>
+    static std::vector<T> & GetGroupColumns (std::vector<std::vector<T>> & groups, const Row & row)
+    {
+        size_t  group = (size_t) (std::max) (0, row.columnGroup);
+
+        if (groups.size() <= group)
+        {
+            groups.resize (group + 1);
+        }
+
+        return groups[group];
+    }
+
+    template <typename T>
+    static const std::vector<T> * FindGroupColumns (const std::vector<std::vector<T>> & groups, const Row & row)
+    {
+        size_t  group = (size_t) (std::max) (0, row.columnGroup);
+
+        return (group < groups.size()) ? &groups[group] : nullptr;
+    }
+
     void  BuildLines             (int columns, float pxPerDip);
     void  BuildProportionalLines (float widthPx, float pxPerDip);
     void  AddPictureLines        (int row, float widthPx, float pxPerDip);
 
-    std::vector<Row>    m_rows;
-    std::vector<Line>   m_lines;
-    std::vector<int>    m_columnCells;
-    std::map<int, int>  m_columnCaps;
-    std::map<int, int>  m_columnGaps;
-    int                 m_cellWidthPx   = 0;
-    int                 m_cellHeightPx  = 0;
-    bool                m_proportional  = false;
-    bool                m_noWrap        = false;
-    int                 m_widestColumns = 0;
-    int                 m_firstClipped  = -1;
+    std::vector<Row>               m_rows;
+    std::vector<Line>              m_lines;
+    std::vector<std::vector<int>>  m_columnCells;   // by column group
+    std::map<int, int>             m_columnCaps;
+    std::map<int, int>             m_columnGaps;
+    int                            m_cellWidthPx   = 0;
+    int                            m_cellHeightPx  = 0;
+    bool                           m_proportional  = false;
+    bool                           m_noWrap        = false;
+    int                            m_widestColumns = 0;
+    int                            m_firstClipped  = -1;
 
     //  The face's advance, which is rarely a whole number of pixels. Columns
     //  are placed by it rather than by the rounded cell width, so a line split
@@ -124,5 +148,5 @@ private:
     //  before each, and each column's widest cell, in pixels. Empty until a
     //  paint measures them.
     std::vector<std::vector<std::vector<float>>>  m_charX;
-    std::vector<float>                            m_columnPx;
+    std::vector<std::vector<float>>               m_columnPx;   // by column group
 };

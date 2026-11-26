@@ -4,7 +4,6 @@
 #include "FakeDiskFileIo.h"
 #include "Seams/Win32IntentChannel.h"
 #include "Devices/Disk/DiskCommandRunner.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "HResultAssert.h"
 

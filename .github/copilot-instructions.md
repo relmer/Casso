@@ -22,6 +22,10 @@ New code goes in the **core libraries** (`CassoCore` / `CassoEmuCore`), NOT an e
 
 See the Constitution's Principle VI (Thin Executable, Testable Core) and Principle II (Testing Discipline).
 
+### Class Design
+
+A `.cpp` file stays under about 2,000 lines. Split a class that outgrows it into component classes that call each other through small scoped interfaces, not friends, and delete the old methods rather than forwarding them. The principles, examples and steps for a split are in `docs/class-design.md`; read it before designing a new class or splitting one.
+
 ## C++ Specific Guidelines
 
 ### Precompiled Headers
@@ -175,7 +179,7 @@ See the Constitution's Principle VI (Thin Executable, Testable Core) and Princip
   dialog and window titles and column headings capitalize the first word and
   proper nouns only: "Create new disk", "Map arrows to joystick", "Casso
   printer", NEVER "Create New Disk". Proper nouns keep their capitals (Casso,
-  Cassque, Apple II, ImageWriter, Disk II, Mockingboard, Windows, Visual
+  Apple II, ImageWriter, Disk II, Mockingboard, Windows, Visual
   Studio), as do key names (Open Apple, Caps Lock, Esc), a numbered drive
   ("Drive 1") and Apple's product names ("Language Card"). A feature copied
   from Visual Studio takes its layout, not its title case. Names Casso writes

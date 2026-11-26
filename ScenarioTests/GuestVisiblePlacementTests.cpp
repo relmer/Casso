@@ -1,13 +1,17 @@
 #include "Pch.h"
+#include "Devices/Disk/DiskImage.h"
 #include "EhmTestHelper.h"
 #include "FakeDiskFileIo.h"
 #include "FixtureProvider.h"
 #include "GuestSession.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "TestMachine.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "HResultAssert.h"
@@ -144,7 +148,7 @@ public:
 
     static std::string GetMasterHeading (const std::vector<Byte> & image)
     {
-        constexpr size_t  kVtocOffset = (size_t) (Dos33Skeleton::kVtocTrack * NibblizationLayer::kSectorsPerTrack) * NibblizationLayer::kSectorByteSize;
+        constexpr size_t  kVtocOffset = (size_t) (Dos33Skeleton::kVtocTrack * NibbleFormat::kSectorsPerTrack) * NibbleFormat::kSectorByteSize;
 
         return std::format ("DISK VOLUME {:03}", image[kVtocOffset + Dos33Skeleton::kVtocOffVolumeNumber]);
     }
@@ -215,8 +219,8 @@ public:
         SectorDecodeReport  report;
         std::vector<Byte>   sectors;
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (bytes, image));
-        AssertSucceeded (NibblizationLayer::Denibblize (image, DiskFormat::Dsk, sectors, report));
+        AssertSucceeded (Nibblizer::NibblizeDsk (bytes, image));
+        AssertSucceeded (Denibblizer::Denibblize (image, DiskFormat::Dsk, sectors, report));
 
         return sectors;
     }

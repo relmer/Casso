@@ -37,6 +37,12 @@ public:
     //  has no such line.
     virtual bool     TryGetPeerReady  (bool & outReady) { outReady = false; return false; }
 
+    //  The line errors seen since the last call, as text such as "overrun,
+    //  framing error", empty with none, and the bytes received and not read
+    //  and those not yet sent dropped, so the link starts again from a known
+    //  state. A stream with no such errors only drops what it has received.
+    virtual HRESULT  ResetLine        (std::string & outErrors) { outErrors.clear(); return S_OK; }
+
     //  The time on the link, in milliseconds, which every timeout on it is
     //  measured against: GetTickCount64 for a real port or socket, and the
     //  pair's virtual time for an in-process pair a test runs on it.

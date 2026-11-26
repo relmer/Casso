@@ -20,7 +20,7 @@ class MachineHost;
 //
 //  Caller responsibilities:
 //    - The machine must already be powered on with the ROM idling at the
-//      keyboard polling loop. Call host.RunCycles (...) for cold-boot
+//      keyboard polling loop. Call host.GetRunner().RunCycles (...) for cold-boot
 //      first, then InjectString.
 //    - All injected characters use 7-bit ASCII; PressKey sets bit 7
 //      (the strobe) internally.

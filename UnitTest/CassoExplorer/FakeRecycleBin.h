@@ -61,12 +61,13 @@ public:
     HRESULT  Open                (HWND, const std::wstring &) override                                  { return E_NOTIMPL; }
     HRESULT  ShowInFolder        (const std::wstring &) override                                        { return E_NOTIMPL; }
     HRESULT  GetOpenWithHandlers (const std::wstring &, std::vector<Handler> &) override                 { return E_NOTIMPL; }
-    HRESULT  OpenWith            (HWND, const std::wstring &, size_t) override                          { return E_NOTIMPL; }
+    HRESULT  OpenWith            (HWND, const std::wstring &, const Handler &) override                 { return E_NOTIMPL; }
     HRESULT  ChooseOtherApp      (HWND, const std::wstring &) override                                  { return E_NOTIMPL; }
     HRESULT  ShowShellMenu       (HWND, const std::vector<std::wstring> &, POINT, const std::function<void()> &) override { return E_NOTIMPL; }
     HRESULT  ShowBackgroundMenu  (HWND, const std::wstring &, POINT) override                                     { return E_NOTIMPL; }
     HRESULT  RunItemVerb         (HWND, const std::vector<std::wstring> &, const char *) override       { return E_NOTIMPL; }
     HRESULT  Recycle             (HWND, const std::vector<std::wstring> &) override                     { return E_NOTIMPL; }
+    HRESULT  RecycleCopies       (HWND, const std::vector<std::wstring> &) override                     { return E_NOTIMPL; }
     HRESULT  RestoreRecycled     (HWND, const std::vector<std::wstring> &) override                     { return E_NOTIMPL; }
     HRESULT  ListRecycled        (std::vector<RecycledItem> & outItems) override                        { outItems = items; return S_OK; }
     HRESULT  RunRecycledVerb     (HWND, const std::vector<std::wstring> &, RecycledVerb) override       { return E_NOTIMPL; }
@@ -76,6 +77,8 @@ public:
     HRESULT  PlaceOnClipboard    (HWND, const std::vector<std::wstring> &, bool) override               { return E_NOTIMPL; }
     bool     ClipboardHasFiles   () const override                                                      { return false; }
     HRESULT  PasteInto           (HWND, const std::wstring &, PasteResult &) override                   { return E_NOTIMPL; }
+    HRESULT  DropInto            (HWND, IDataObject *, const std::wstring &, bool, PasteResult &) override { return E_NOTIMPL; }
+    bool     HasNamedStreams     (const std::wstring &) const override                                { return true; }
     HRESULT  MoveItemsTo         (HWND, const std::vector<std::wstring> &, const std::vector<std::wstring> &) override { return E_NOTIMPL; }
     HRESULT  CreateFolder        (HWND, const std::wstring &, const std::wstring &) override            { return E_NOTIMPL; }
     HRESULT  Share               (HWND, const std::vector<std::wstring> &) override                     { return E_NOTIMPL; }

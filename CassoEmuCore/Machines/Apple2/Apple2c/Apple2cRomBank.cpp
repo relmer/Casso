@@ -145,6 +145,33 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetMainBankPage
+//
+//  A 256-byte page of bank 0 at `address` ($C100-$FFFF). The patch is applied
+//  at once when bank 0 is visible, and otherwise at the next switch to it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<Byte> Apple2cRomBank::GetMainBankPage (Word address) const
+{
+    size_t  offset = static_cast<size_t> (address - kBankImageStart);
+
+
+
+    if (address < kCxxxStart || m_bank[0].size() < offset + kPageSize)
+    {
+        return {};
+    }
+
+    return vector<Byte> (m_bank[0].begin() + offset, m_bank[0].begin() + offset + kPageSize);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SaveState
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -193,4 +220,33 @@ HRESULT Apple2cRomBank::LoadState (StateReader & reader)
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PatchMainBankPage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2cRomBank::PatchMainBankPage (Word address, const vector<Byte> & data)
+{
+    size_t  offset = static_cast<size_t> (address - kBankImageStart);
+
+
+
+    if (address < kCxxxStart || data.size() != kPageSize || m_bank[0].size() < offset + kPageSize)
+    {
+        return;
+    }
+
+    std::copy (data.begin(), data.end(), m_bank[0].begin() + offset);
+
+    if (m_current == 0)
+    {
+        ApplyBank (0);
+    }
 }

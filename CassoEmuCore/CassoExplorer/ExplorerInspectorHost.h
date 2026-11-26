@@ -2,11 +2,13 @@
 
 #include "Pch.h"
 
+#include "Devices/Disk/Archives/WrappedImageFileIo.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageSession.h"
 #include "Shell/InspectorRequestQueue.h"
 #include "Ui/DiskInspector/IDiskInspectorHost.h"
 
+class FilesystemChoices;
 class IDiskFileIo;
 class IIntentChannel;
 
@@ -36,6 +38,9 @@ class IIntentChannel;
 //  The bytes of the first successful read are the comparison source "As
 //  first opened" (FR-117), whatever the window saves or reads afterward.
 //
+//  An image in a gzip file or a ZIP is read and saved through a
+//  WrappedImageFileIo, so a save rebuilds and commits the host file.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class ExplorerInspectorHost : public IDiskInspectorHost,
@@ -56,6 +61,18 @@ public:
     std::wstring  TakeHostNote          ()                            override;
     void          OnRepairedCopyWritten (const std::wstring & path) override { if (m_onRepaired) { m_onRepaired (path); } }
     bool          CanOpenRepairedCopy   () const override                     { return static_cast<bool> (m_onRepaired); }
+
+    //  The choice is Casso Explorer's for the image, so Explorer reads the
+    //  image the same way.
+    bool          CanChooseFilesystem   () const override { return m_choices != nullptr; }
+    bool          IsReadAsCpm           () const override;
+    void          SetReadAsCpm          (bool isCpm) override;
+    void          SetFilesystemChoices  (FilesystemChoices * choices) { m_choices = choices; }
+
+    //  Casso Explorer runs the transfer on the window's image.
+    bool          CanTransferRaw        () const override                                { return static_cast<bool> (m_onTransferRaw); }
+    void          TransferRaw           (const InspectorRawTransfer & transfer) override { if (m_onTransferRaw) { m_onTransferRaw (transfer); } }
+    void          SetOnTransferRaw      (std::function<void (const InspectorRawTransfer &)> onTransferRaw) { m_onTransferRaw = std::move (onTransferRaw); }
 
     void                  SetOnClosed   (std::function<void ()> onClosed) { m_onClosed = std::move (onClosed); }
     void                  SetOnRepaired (std::function<void (const std::wstring &)> onRepaired) { m_onRepaired = std::move (onRepaired); }
@@ -86,12 +103,14 @@ private:
 
     std::shared_ptr<const vector<Byte>>  GetAsInsertedBytes (int drive) override { (void) drive; return m_firstBytes; }
 
-    void  Load ();
+    void           Load      ();
+    IDiskFileIo &  GetFileIo () { return m_wrapped != nullptr ? *m_wrapped : m_fileIo; }
 
     std::wstring                   m_path;
     std::string                    m_utf8Path;
     IDiskFileIo                  & m_fileIo;
     IIntentChannel               * m_intents   = nullptr;
+    FilesystemChoices            * m_choices   = nullptr;
     uint64_t                       m_mediaId   = 0;
     InspectorRequestQueue          m_queue;
     std::unique_ptr<DiskImage>     m_image;
@@ -105,4 +124,9 @@ private:
     bool                                 m_isRead     = false;
     std::function<void ()>         m_onClosed;
     std::function<void (const std::wstring &)>  m_onRepaired;
+    std::function<void (const InspectorRawTransfer &)>  m_onTransferRaw;
+
+    //  An image in a gzip file or a ZIP is read and saved through this. It's
+    //  empty for any other file.
+    std::unique_ptr<WrappedImageFileIo>  m_wrapped;
 };

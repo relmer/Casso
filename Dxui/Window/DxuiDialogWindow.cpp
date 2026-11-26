@@ -143,6 +143,18 @@ void DxuiDialogWindow::Layout (const RECT & boundsPx, const DxuiDpiScaler & scal
         DxuiButtonRow::LayoutRightGroup (boundsPx, scaler, rWidths, rRects);
         DxuiButtonRow::LayoutLeftGroup  (boundsPx, scaler, lWidths, lRects);
 
+        // Shift the right-aligned group so its two outer margins match.
+        if (m_centerButtons && !rRects.empty())
+        {
+            LONG  shift = (rRects.front().left - boundsPx.left - (boundsPx.right - rRects.back().right)) / 2;
+
+            for (RECT & rc : rRects)
+            {
+                rc.left  -= shift;
+                rc.right -= shift;
+            }
+        }
+
         for (i = 0; i < right.size(); ++i)
         {
             right[i]->button->Layout (rRects[i]);

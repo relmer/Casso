@@ -3,6 +3,7 @@
 #include "EmuTests/FakeDiskFileIo.h"
 #include "EmuTests/FakeIntentChannel.h"
 #include "EhmTestHelper.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "TestHelpers.h"
 #include "TestCpu65C02.h"
 #include "Assembler.h"
@@ -10,9 +11,9 @@
 #include "Cli/ImageArtifactSink.h"
 #include "Machines/Apple2/Common/AssembledFilePlacement.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
+#include "Machines/Apple2/Common/Dos33StartupProgram.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Devices/Disk/FilePath.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
@@ -69,7 +70,7 @@ namespace AssemblerToDiskTests
 
         static vector<Byte> MakeDos33Image()
         {
-            vector<Byte>  buffer (NibblizationLayer::kImageByteSize, 0);
+            vector<Byte>  buffer (NibbleFormat::kImageByteSize, 0);
 
             AssertSucceeded (Dos33Skeleton::Write (buffer, kBlankVolumeNum));
 
@@ -80,7 +81,7 @@ namespace AssemblerToDiskTests
 
         static vector<Byte> MakeProDosImage()
         {
-            vector<Byte>  buffer (NibblizationLayer::kImageByteSize, 0);
+            vector<Byte>  buffer (NibbleFormat::kImageByteSize, 0);
 
             AssertSucceeded (ProDosSkeleton::Write (buffer, kProDosVolumeName));
 
@@ -625,16 +626,16 @@ namespace AssemblerToDiskTests
 
             listing.entries = { binary, applesoft, integer };
 
-            Assert::IsFalse (Dos33Volume::IsRunnableAsGreeting (listing, "PROG"),
+            Assert::IsFalse (Dos33StartupProgram::IsRunnableAsGreeting (listing, "PROG"),
                              L"a booting DOS 3.3 RUNs its greeting, and RUN cannot start a binary");
-            Assert::IsTrue (Dos33Volume::IsRunnableAsGreeting (listing, "HELLO"),
+            Assert::IsTrue (Dos33StartupProgram::IsRunnableAsGreeting (listing, "HELLO"),
                             L"Applesoft is what RUN understands");
-            Assert::IsTrue (Dos33Volume::IsRunnableAsGreeting (listing, "INTHELLO"),
+            Assert::IsTrue (Dos33StartupProgram::IsRunnableAsGreeting (listing, "INTHELLO"),
                             L"and Integer BASIC likewise");
 
             //  A name not on the volume answers true, because the refusal for
             //  that belongs to whichever layer looked it up.
-            Assert::IsTrue (Dos33Volume::IsRunnableAsGreeting (listing, "ABSENT"),
+            Assert::IsTrue (Dos33StartupProgram::IsRunnableAsGreeting (listing, "ABSENT"),
                             L"one refusal per problem");
         }
 

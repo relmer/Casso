@@ -225,7 +225,7 @@ void UniDisk35Drive::Connect (SmartPortBus * bus, size_t position)
 
 void UniDisk35Drive::CatchUp (uint64_t nowNs, CatchUpKind kind)
 {
-    uint64_t  target  = nowNs / kNsPerCycle;
+    uint64_t  target  = (nowNs + kNsPerCycle - 1) / kNsPerCycle;
     uint64_t  current = m_cpu.GetCycles();
 
 
@@ -237,14 +237,11 @@ void UniDisk35Drive::CatchUp (uint64_t nowNs, CatchUpKind kind)
 
     if (m_resetHeld)
     {
-        if (target > current)
-        {
-            m_cpu.SkipTo (target);
-        }
-
+        m_cpu.SkipTo (std::max (target, current));
         return;
     }
 
+    //  The target rounds up, so the CPU's time is at least the host's.
     if (target > current)
     {
         if (target - current > kMaxCatchUp)
@@ -255,7 +252,14 @@ void UniDisk35Drive::CatchUp (uint64_t nowNs, CatchUpKind kind)
         m_cpu.RunUntil (target, kind);
     }
 
-    m_iwm.AdvanceTo (std::min (nowNs, (m_cpu.GetCycles() + 1) * kNsPerCycle));
+    //  The IWM's shift register moves between the CPU's accesses too, so
+    //  its bits up to the host's time are on the bus before the host reads
+    //  them, including when the CPU was already past that time. A bit put
+    //  on the bus after the host read its cell is dropped as stale. The
+    //  CPU's last access is before the host's time, so the IWM's clock
+    //  never runs ahead of the host's writes. A CPU in its idle loop short
+    //  of the host's time takes the IWM only to the CPU's time.
+    m_iwm.AdvanceTo (std::min (nowNs, GetNowNs()));
 }
 
 

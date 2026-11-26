@@ -18,8 +18,8 @@ class ImageClassCache;
 //  CassoImagesListing
 //
 //  The Casso node's list: every disk and tape image in the folders under
-//  the node, without their subfolders, one row each with its folder and the
-//  time Casso last loaded it. A folder that is missing or can't be read is
+//  the node and all of their subfolders, one row each with its folder and
+//  the time Casso last loaded it. Hidden and system folders are skipped. A folder that is missing or can't be read is
 //  skipped, and a file reached through two of the folders is listed once.
 //
 ////////////////////////////////////////////////////////////////////////////////

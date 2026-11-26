@@ -28,6 +28,10 @@ public:
     void  Reset     () override;
 
     const Byte * GetData () const { return m_data.data (); }
+    size_t       GetSize () const { return m_data.size(); }
+
+    //  Copies `data` over the ROM's bytes in place, for a ROM of the same size.
+    void         Patch   (const vector<Byte> & data);
 
     // The debugger's ROM patch: replaces one byte of the image, so the CPU
     // reads the new value. False for an address outside the image.

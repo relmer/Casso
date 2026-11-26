@@ -207,6 +207,9 @@ bool SettingsPanelState::RequiresReset() const
                               || before.portRealTiming != after.portRealTiming));
     }
 
+    // Drives plugged into or unplugged from the disk port's chain.
+    changed = changed || ReadDiskPortChain (m_original.machinePorts) != ReadDiskPortChain (m_current.machinePorts);
+
     return changed;
 }
 
@@ -756,11 +759,26 @@ void SettingsPanelState::EditDiskPortChain (const std::function<void (std::vecto
 
 std::vector<std::string> SettingsPanelState::GetDiskPortChain() const
 {
+    return ReadDiskPortChain (m_current.machinePorts);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadDiskPortChain
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> SettingsPanelState::ReadDiskPortChain (const std::vector<SettingsMachinePort> & ports)
+{
     std::vector<std::string>  devices;
 
 
 
-    for (const SettingsMachinePort & port : m_current.machinePorts)
+    for (const SettingsMachinePort & port : ports)
     {
         for (const auto & [key, value] : port.otherKeys)
         {
@@ -777,6 +795,88 @@ std::vector<std::string> SettingsPanelState::GetDiskPortChain() const
     }
 
     return devices;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetChangedDiskPort
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<SettingsMachinePort> SettingsPanelState::GetChangedDiskPort() const
+{
+    std::optional<SettingsMachinePort>  changed;
+    bool                                isChained = ReadDiskPortChain (m_original.machinePorts) != ReadDiskPortChain (m_current.machinePorts);
+
+
+
+    for (const SettingsMachinePort & port : m_current.machinePorts)
+    {
+        bool  isDiskPort = port.name == kpszDiskPortName;
+
+        if (isDiskPort && (isChained || port.device != SettingsJson::GetPortDevice (m_original.machinePorts, kpszDiskPortName)))
+        {
+            changed = port;
+        }
+    }
+
+    return changed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetDiskPortDrives
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> SettingsPanelState::GetDiskPortDrives() const
+{
+    std::vector<std::string>  drives = GetDiskPortChain();
+
+
+
+    if (drives.empty() && SecondDriveAttached())
+    {
+        drives.push_back (kpszDiskIicDevice);
+    }
+
+    return drives;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDiskPortDrives
+//
+//  A lone 5.25-inch drive is recorded as the port's device, as the second
+//  drive switch records it, so the two agree. Any other set is the chain.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::SetDiskPortDrives (std::vector<std::string> drives)
+{
+    bool  isLoneFloppy = drives.size() == 1 && drives[0] == kpszDiskIicDevice;
+
+
+
+    EditDiskPortChain ([] (std::vector<JsonValue> & chain) { chain.clear(); });
+    SetExternalDriveConnected (isLoneFloppy);
+
+    for (size_t i = 0; !isLoneFloppy && i < drives.size(); i++)
+    {
+        AddDiskPortDrive (drives[i]);
+    }
 }
 
 
@@ -878,6 +978,35 @@ HRESULT SettingsPanelState::SetPortRealTiming (size_t index, size_t port, bool i
     entry->portRealTiming.resize (entry->ports.size(), false);
     entry->portImages.resize     (entry->ports.size());
     entry->portRealTiming[port] = isOn;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetCassoFirmware
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SettingsPanelState::SetCassoFirmware (size_t index, bool isOn)
+{
+    HRESULT                hr            = S_OK;
+    size_t                 hardwareCount = m_current.hardware.size();
+    const BlockCardSpec  * card          = nullptr;
+
+
+
+    CBR (index < hardwareCount);
+
+    card = BlockDeviceCatalog::FindCard (m_current.hardware[index].type);
+    CBR (card != nullptr && card->hasCassoFirmware);
+
+    m_current.hardware[index].cassoFirmware = isOn;
 
 Error:
     return hr;
@@ -1023,6 +1152,8 @@ void SettingsPanelState::RefreshMergedJson (const JsonValue & mergedJson)
             changed[i] = staged[i] != SettingsJson::GetPortDevice (m_original.machinePorts, kpszSerialPortNames[i]);
         }
 
+        std::optional<SettingsMachinePort>  stagedDiskPort = GetChangedDiskPort();
+
         m_current.machinePorts  = ports;
         m_original.machinePorts = ports;
 
@@ -1031,6 +1162,16 @@ void SettingsPanelState::RefreshMergedJson (const JsonValue & mergedJson)
             if (changed[i])
             {
                 SetSerialPortDevice ((int) i + 1, staged[i]);
+            }
+        }
+
+        // The Disk port page edits the disk port, so its staged drives are
+        // put back too.
+        for (SettingsMachinePort & port : m_current.machinePorts)
+        {
+            if (stagedDiskPort.has_value() && port.name == kpszDiskPortName)
+            {
+                port = *stagedDiskPort;
             }
         }
     }

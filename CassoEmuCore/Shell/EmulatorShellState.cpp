@@ -16,6 +16,7 @@
 #include "Ui/Dialogs/DialogDefinition.h"
 #include "Machines/Apple2/Common/AppleSpeaker.h"
 #include "resource.h"
+#include "Devices/Disk/Store/DiskFileCommit.h"
 
 
 
@@ -138,7 +139,7 @@ void EmulatorShell::SaveMachineState (const std::filesystem::path & path)
     hr = MachineStateFile::Build (m_machine, thumbnail, bytes, error);
     CHR (hr);
 
-    hr = DiskImageStore::WriteFileAtomically (path.string(), bytes);
+    hr = DiskFileCommit::WriteFileAtomically (path.string(), bytes);
     CHRF (hr, error = MachineStateFile::MakeError ("file not written", "The state file could not be written in full."));
 
     m_chrome->PostNotice (L"Machine state saved to " + path.wstring() + L".");
@@ -406,7 +407,7 @@ void EmulatorShell::SaveAutoState (bool isExiting)
     hr = MachineStateFile::Build (m_machine, thumbnail, bytes, error);
     CHR (hr);
 
-    hr = DiskImageStore::WriteFileAtomically (path.string(), bytes);
+    hr = DiskFileCommit::WriteFileAtomically (path.string(), bytes);
     CHRF (hr, error = MachineStateFile::MakeError ("file not written", "The automatic state file could not be written in full."));
 
 Error:

@@ -25,7 +25,7 @@ SIZE SettingsSheetSize::GetInitialSizeDip (const GlobalUserPrefs & prefs, const 
 
 
 
-    return DxuiWindow::ClampSize (sizeDip, minDip, sizeDip);
+    return DxuiWindowSizeMath::ClampSize (sizeDip, minDip, sizeDip);
 }
 
 

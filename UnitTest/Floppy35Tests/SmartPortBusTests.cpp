@@ -248,6 +248,33 @@ public:
     }
 
 
+    //  A catch-up to a time between two of the drive's cycles runs the drive
+    //  to that time or past it, so the bits it sends up to the host's time
+    //  are on the bus before the host reads them.
+    TEST_METHOD (UniDisk_CatchUp_RunsToTheHostsTime)
+    {
+        constexpr uint64_t  kNsPerCycle = 500;
+        constexpr uint64_t  kNowNs      = 1'000'250;
+        constexpr size_t    kResetLow   = 0x1FFC;
+        constexpr size_t    kResetHigh  = 0x1FFD;
+        constexpr Byte      kNop        = 0xEA;
+
+        UniDisk35Drive     drive;
+        std::vector<Byte>  rom (UniDisk35Drive::kRomSize, kNop);
+
+
+
+        rom[kResetLow]  = 0x00;
+        rom[kResetHigh] = 0xE0;
+
+        Assert::AreEqual (S_OK, drive.SetFirmware (rom));
+
+        drive.CatchUp (kNowNs, CatchUpKind::Access);
+
+        Assert::IsTrue (drive.GetCpu().GetCycles() * kNsPerCycle >= kNowNs, L"the drive's time is at least the host's");
+    }
+
+
     TEST_METHOD (UniDisk_RejectsAWrongSizeRom)
     {
         UniDisk35Drive  drive;

@@ -1,9 +1,11 @@
 #include "Pch.h"
 
 #include "../EhmTestHelper.h"
+#include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/Inspector/DiskAnalyzer.h"
 #include "Devices/Disk/Inspector/DiskComparer.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Ui/DiskInspector/PlatterView.h"
 #include "Ui/DiskInspector/TrackStripView.h"
@@ -65,14 +67,14 @@ public:
     //  tracks, with the sectors of a DOS 3.3 disk.
     static void LoadFluxTrack (DiskImage & outImage, size_t & outSize)
     {
-        vector<Byte>               sectors (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>               sectors (NibbleFormat::kImageByteSize, 0);
         vector<Byte>               woz;
         DiskImage                  bits;
         vector<WozSyntheticTrack>  tracks;
 
 
 
-        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, bits));
+        AssertSucceeded (Nibblizer::NibblizeDsk (sectors, bits));
 
         for (int qt = 0; qt < kTrackQuarterTracks; qt++)
         {

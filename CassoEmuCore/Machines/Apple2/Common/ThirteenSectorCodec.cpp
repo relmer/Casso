@@ -1,10 +1,13 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/ThirteenSectorCodec.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Devices/Disk/DiskFieldFormat.h"
 #include "Devices/Disk/Inspector/LatchFramer.h"
 #include "Devices/Disk/Inspector/TrackCopy.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Devices/Disk/Stamp/FormatStamp.h"
+#include "Devices/Disk/Stamp/StampedTrackMarks.h"
+#include "Machines/Apple2/Common/TrackMarks.h"
 
 
 
@@ -14,19 +17,55 @@
 //
 //  ThirteenSectorCodec::MakeMarks
 //
-//  The standard marks, plus the address prologue of RDOS 3.2.
+//  The standard marks, plus the address prologue of RDOS 3.2, plus the
+//  prologues of the 1981 Ultima's program disk. Each of its tracks has the
+//  standard D5 AA B5 and D5 AA AD with extra bits set in the first and
+//  third nibbles: D5, D7, DD or DF, then B5, B7, F5 or F7 for an address
+//  and AD, BD, ED or FD for data.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 FieldMarks ThirteenSectorCodec::MakeMarks()
 {
-    FieldMarks  marks = FieldMarks::MakeStandard();
+    static constexpr Byte  kFirsts[]        = { 0xD5, 0xD7, 0xDD, 0xDF };
+    static constexpr Byte  kAddressThirds[] = { 0xB5, 0xB7, 0xF5, 0xF7 };
+    static constexpr Byte  kDataThirds[]    = { 0xAD, 0xBD, 0xED, 0xFD };
+    FieldMarks             marks            = FieldMarks::MakeStandard();
 
 
 
     marks.address13.push_back (DiskMarkPattern::MakeExact (0xD4, 0xAA, 0xB7));
 
+    for (Byte first : kFirsts)
+    {
+        for (size_t i = 0; i < std::size (kAddressThirds); i++)
+        {
+            AddMark (marks.address13, DiskMarkPattern::MakeExact (first, 0xAA, kAddressThirds[i]));
+            AddMark (marks.data,      DiskMarkPattern::MakeExact (first, 0xAA, kDataThirds[i]));
+        }
+    }
+
     return marks;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThirteenSectorCodec::AddMark
+//
+//  The pattern at the end of the list, unless the list has it already.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ThirteenSectorCodec::AddMark (vector<DiskMarkPattern> & ioMarks, const DiskMarkPattern & mark)
+{
+    if (std::ranges::find (ioMarks, mark) == ioMarks.end())
+    {
+        ioMarks.push_back (mark);
+    }
 }
 
 
@@ -41,7 +80,7 @@ FieldMarks ThirteenSectorCodec::MakeMarks()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ThirteenSectorCodec::LocateTrack (const DiskImage & image, int track, vector<LocatedField> & outFields)
+void ThirteenSectorCodec::LocateTrack (const DiskImage & image, int track, const FieldMarks & marks, vector<LocatedField> & outFields)
 {
     int                               slot = image.ResolveWholeTrack (track);
     std::shared_ptr<const TrackCopy>  copy;
@@ -59,7 +98,7 @@ void ThirteenSectorCodec::LocateTrack (const DiskImage & image, int track, vecto
     copy = TrackCopy::MakeFromImage (image, slot);
 
     LatchFramer::Frame (*copy, framed);
-    FieldLocator::Locate (framed, MakeMarks(), outFields);
+    FieldLocator::Locate (framed, marks, outFields);
 }
 
 
@@ -128,6 +167,8 @@ bool ThirteenSectorCodec::IsThirteenSector (const DiskImage & image)
 
 
     vector<LocatedField>  fields;
+    FieldMarks            marks    = MakeMarks();
+    FormatStamp           stamp;
     int                   thirteen = 0;
     int                   sixteen  = 0;
 
@@ -140,7 +181,7 @@ bool ThirteenSectorCodec::IsThirteenSector (const DiskImage & image)
             break;
         }
 
-        LocateTrack (image, track, fields);
+        LocateTrack (image, track, marks, fields);
 
         for (const LocatedField & f : fields)
         {
@@ -149,6 +190,17 @@ bool ThirteenSectorCodec::IsThirteenSector (const DiskImage & image)
                 thirteen += (f.kind == DiskFieldKind::Thirteen) ? 1 : 0;
                 sixteen  += (f.kind == DiskFieldKind::Sixteen)  ? 1 : 0;
             }
+        }
+    }
+
+    //  With no address field the standard marks match, the format stamp's
+    //  encodings settle it.
+    if (thirteen + sixteen == 0 && StampedTrackMarks::TryLoadStamp (image.GetWozMetadata(), stamp))
+    {
+        for (const StampTrack & entry : stamp.tracks)
+        {
+            thirteen += (entry.encoding == StampEncoding::Thirteen) ? 1 : 0;
+            sixteen  += (entry.encoding == StampEncoding::Sixteen)  ? 1 : 0;
         }
     }
 
@@ -172,61 +224,32 @@ bool ThirteenSectorCodec::IsThirteenSector (const DiskImage & image)
 void ThirteenSectorCodec::Denibblize (const DiskImage & image, vector<Byte> & outSectors, SectorDecodeReport & outReport)
 {
     vector<LocatedField>  fields;
-    int                   track = 0;
+    FormatStamp           stamp;
+    bool                  hasStamp = StampedTrackMarks::TryLoadStamp (image.GetWozMetadata(), stamp);
+    FieldMarks            standard = MakeMarks();
 
 
 
     outSectors.assign (kImageByteSize, 0);
     outReport.Reset (kTrackCount);
 
-    for (track = 0; track < kTrackCount; track++)
+    for (int track = 0; track < kTrackCount; track++)
     {
         TrackDecodeOutcome  outcome    = TrackDecodeOutcome::Unformatted;
         Word                coverage   = 0;
         bool                duplicated = false;
         int                 addresses  = 0;
+        TrackMarks          marks;
 
-        LocateTrack (image, track, fields);
+        LocateTrack (image, track, standard, fields);
+        TakeSectors (fields, track, 0, coverage, duplicated, addresses, outSectors);
 
-        for (const LocatedField & f : fields)
+        //  The stamped marks only add sectors missing from the standard
+        //  marks' read, so a stale or wrong stamp cannot change a sector it has.
+        if (coverage != kAllSectors && hasStamp && StampedTrackMarks::TryGetTrackMarks (stamp, track, marks))
         {
-            Word    bit       = 0;
-            size_t  base      = 0;
-            bool    unwritten = false;
-
-            if (f.role != FieldRole::Address || f.kind != DiskFieldKind::Thirteen)
-            {
-                continue;
-            }
-
-            addresses++;
-
-            unwritten = IsUnwrittenSector (f);
-
-            if (!unwritten && !IsGoodSector (fields, f))
-            {
-                continue;
-            }
-
-            bit = (Word) (1u << f.sector);
-
-            if ((coverage & bit) != 0)
-            {
-                duplicated = true;
-                continue;
-            }
-
-            coverage = (Word) (coverage | bit);
-            base     = ((size_t) track * kSectorsPerTrack + f.sector) * kSectorByteSize;
-
-            if (unwritten)
-            {
-                continue;
-            }
-
-            std::copy (fields[(size_t) f.pairedField].data.bytes.begin(),
-                       fields[(size_t) f.pairedField].data.bytes.end(),
-                       outSectors.begin() + (ptrdiff_t) base);
+            LocateTrack (image, track, MakeStampedMarks (marks), fields);
+            TakeSectors (fields, track, coverage, coverage, duplicated, addresses, outSectors);
         }
 
         if (addresses > 0)
@@ -238,6 +261,119 @@ void ThirteenSectorCodec::Denibblize (const DiskImage & image, vector<Byte> & ou
 
         outReport.SetOutcome (track, outcome, coverage, duplicated);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThirteenSectorCodec::TakeSectors
+//
+//  Each good or unwritten 13-sector address field's sector into the sector
+//  image, skipping the sectors in `skip`. A sector found twice is a
+//  duplicate, and its first copy is used.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ThirteenSectorCodec::TakeSectors (
+    const vector<LocatedField>  &  fields,
+    int                            track,
+    Word                           skip,
+    Word                        &  ioCoverage,
+    bool                        &  ioDuplicated,
+    int                         &  ioAddresses,
+    vector<Byte>                &  outSectors)
+{
+    Word  taken = 0;
+
+
+
+    for (const LocatedField & f : fields)
+    {
+        Word    bit       = 0;
+        size_t  base      = 0;
+        bool    unwritten = false;
+
+        if (f.role != FieldRole::Address || f.kind != DiskFieldKind::Thirteen)
+        {
+            continue;
+        }
+
+        ioAddresses++;
+
+        unwritten = IsUnwrittenSector (f);
+
+        if (!unwritten && !IsGoodSector (fields, f))
+        {
+            continue;
+        }
+
+        bit = (Word) (1u << f.sector);
+
+        if ((skip & bit) != 0)
+        {
+            continue;
+        }
+
+        if ((taken & bit) != 0)
+        {
+            ioDuplicated = true;
+            continue;
+        }
+
+        taken = (Word) (taken | bit);
+        base  = ((size_t) track * kSectorsPerTrack + f.sector) * kSectorByteSize;
+
+        if (unwritten)
+        {
+            continue;
+        }
+
+        std::copy (fields[(size_t) f.pairedField].data.bytes.begin(),
+                   fields[(size_t) f.pairedField].data.bytes.end(),
+                   outSectors.begin() + (ptrdiff_t) base);
+    }
+
+    ioCoverage = (Word) (ioCoverage | taken);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThirteenSectorCodec::MakeStampedMarks
+//
+//  A format stamp's marks for one track as the field locator matches them:
+//  its 13-sector address prologs, its data prologs, and the standard
+//  epilogs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+FieldMarks ThirteenSectorCodec::MakeStampedMarks (const TrackMarks & marks)
+{
+    FieldMarks  stamped  = FieldMarks::MakeStandard();
+
+
+
+    stamped.address16.clear();
+    stamped.address13.clear();
+    stamped.data.clear();
+
+    for (const TrackMarks::Prolog & prolog : marks.address13)
+    {
+        stamped.address13.push_back (DiskMarkPattern::MakeExact (prolog[0], prolog[1], prolog[2]));
+    }
+
+    for (const TrackMarks::Prolog & prolog : marks.data)
+    {
+        stamped.data.push_back (DiskMarkPattern::MakeExact (prolog[0], prolog[1], prolog[2]));
+    }
+
+    return stamped;
 }
 
 
@@ -407,7 +543,7 @@ HRESULT ThirteenSectorCodec::Nibblize (const vector<Byte> & sectors, Byte volume
     {
         size_t  bitOffset = 0;
 
-        out.ResizeTrack (track, NibblizationLayer::kTrackBitCapacity);
+        out.ResizeTrack (track, NibbleFormat::kTrackBitCapacity);
 
         bits = &out.GetTrackBitsForWrite (track);
 

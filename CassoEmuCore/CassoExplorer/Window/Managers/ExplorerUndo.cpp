@@ -5,6 +5,7 @@
 #include "CassoExplorer/Window/IExplorerWindow.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerVerbs.h"
 #include "CassoExplorer/Window/Managers/ExplorerTransferPrompts.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Window/Managers/ExplorerManifestSync.h"
@@ -58,6 +59,44 @@ void ExplorerUndo::Push (ExplorerUndoStep step)
         }
 
         m_undo.erase (m_undo.begin());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerUndo::ReplacePathIn
+//
+//  A moved file goes back under the replacement's extension, since the
+//  file there now is the replacement.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerUndo::ReplacePathIn (std::vector<ExplorerUndoStep> & ioSteps, const std::wstring & from, const std::wstring & to)
+{
+    std::wstring  extension = std::filesystem::path (to).extension().wstring();
+
+
+
+    for (ExplorerUndoStep & step : ioSteps)
+    {
+        for (size_t i = 0; i < step.paths.size(); i++)
+        {
+            if (_wcsicmp (step.paths[i].c_str(), from.c_str()) != 0)
+            {
+                continue;
+            }
+
+            step.paths[i] = to;
+
+            if (step.kind == ExplorerUndoStep::Kind::HostMove && i < step.sources.size() && !step.sources[i].empty())
+            {
+                step.sources[i] = std::filesystem::path (step.sources[i]).replace_extension (extension).wstring();
+            }
+        }
     }
 }
 
@@ -211,13 +250,14 @@ HRESULT ExplorerUndo::UndoHostRename (const ExplorerUndoStep & step)
 //
 //  ExplorerUndo::UndoHostCreate
 //
-//  A new folder, a new item or a copy goes to the Recycle Bin.
+//  A new folder, a new item or a copy goes to the Recycle Bin with no prompt,
+//  as File Explorer's undo of a copy removes it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ExplorerUndo::UndoHostCreate (const ExplorerUndoStep & step)
 {
-    return m_context.shellVerbs.Recycle (m_context.window.GetHwnd(), step.paths);
+    return m_context.shellVerbs.RecycleCopies (m_context.window.GetHwnd(), step.paths);
 }
 
 
@@ -272,7 +312,7 @@ bool ExplorerUndo::UndoInImage (const ExplorerUndoStep & step)
 
     if (m_context.browser.GetLocation() != step.location)
     {
-        m_context.browser.NavigateToLocation (step.location);
+        m_context.browser.GetNavigator().NavigateToLocation (step.location);
         m_context.listPane.FillList();
     }
 
@@ -285,15 +325,15 @@ bool ExplorerUndo::UndoInImage (const ExplorerUndoStep & step)
     switch (step.kind)
     {
         case ExplorerUndoStep::Kind::ImageRename:
-            m_context.commandManager.ReportOutcome (m_context.actions.RenameSelected (step.oldName), L"Undo rename");
+            m_context.verbs.ReportOutcome (m_context.actions.RenameSelected (step.oldName), L"Undo rename");
             break;
 
         case ExplorerUndoStep::Kind::ImageNewFolder:
-            m_context.commandManager.ReportOutcome (m_context.actions.DeleteSelected(), L"Undo new folder");
+            m_context.verbs.ReportOutcome (m_context.actions.DeleteSelected(), L"Undo new folder");
             break;
 
         case ExplorerUndoStep::Kind::ImagePut:
-            m_context.commandManager.ReportOutcome (m_context.actions.DeleteEntries (TextEncoding::WideToNarrow (step.location.path), step.entries), L"Undo copy");
+            m_context.verbs.ReportOutcome (m_context.actions.DeleteEntries (TextEncoding::WideToNarrow (step.location.path), step.entries), L"Undo copy");
             break;
 
         default:
@@ -303,7 +343,7 @@ bool ExplorerUndo::UndoInImage (const ExplorerUndoStep & step)
             }
 
             restored = m_context.actions.PutFiles (saved, m_context.prompts.MakeAddressPrompt());
-            m_context.commandManager.ReportOutcome (restored, L"Undo delete");
+            m_context.verbs.ReportOutcome (restored, L"Undo delete");
             finished = restored.IsWhole();
 
             if (finished)

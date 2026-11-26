@@ -11,28 +11,44 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WalkthroughPart::WalkthroughPart
+//
+////////////////////////////////////////////////////////////////////////////////
+
+WalkthroughPart::WalkthroughPart (const InspectorSession & session) :
+    m_session (session)
+{
+    m_next.SetVariant (DxuiButton::Variant::Primary);
+
+    m_close.SetOnClick ([this] () { m_walkthrough.Close(); });
+    m_back.SetOnClick  ([this] () { m_walkthrough.Back();  });
+    m_next.SetOnClick  ([this] () { m_walkthrough.Next();  });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WalkthroughPart::OnWalkthroughMouse
 //
-//  While the walkthrough is open, a press on its buttons steps or closes it,
-//  and every other event goes nowhere.
+//  While the walkthrough is open, mouse events go to its buttons and to no
+//  other control.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool WalkthroughPart::OnWalkthroughMouse (const DxuiMouseEvent & ev)
 {
-    bool  isPress   = ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left;
     bool  isHandled = m_walkthrough.IsOpen();
 
 
 
-    if (isHandled && isPress)
+    if (isHandled)
     {
-        switch (m_walkthrough.HitTest (ev.positionDip))
+        for (DxuiButton * button : { &m_close, &m_back, &m_next })
         {
-            case WalkthroughButton::Back:  m_walkthrough.Back();  break;
-            case WalkthroughButton::Next:  m_walkthrough.Next();  break;
-            case WalkthroughButton::Close: m_walkthrough.Close(); break;
-            case WalkthroughButton::None:                         break;
+            button->OnMouse (ev);
         }
     }
 
@@ -112,13 +128,29 @@ RECT WalkthroughPart::GetWalkthroughArea (WalkthroughArea area) const
 //
 //  WalkthroughPart::Paint
 //
+//  The card, then the layer flushed so the buttons cover it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void WalkthroughPart::Paint (IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & boundsPx)
+void WalkthroughPart::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & boundsPx)
 {
     if (m_walkthrough.IsOpen())
     {
         m_walkthrough.SetHasDrives (m_session.host->GetDriveCount() > 0);
         m_walkthrough.Paint (text, theme, m_session.scaler, boundsPx, GetWalkthroughArea (m_walkthrough.GetArea()));
+
+        m_next.SetLabel   (m_walkthrough.IsLastStep() ? L"Done" : L"Next");
+        m_back.SetEnabled (m_walkthrough.GetStep() > 0);
+
+        m_close.Layout (m_walkthrough.GetButtonRect (WalkthroughButton::Close), m_session.scaler);
+        m_back.Layout  (m_walkthrough.GetButtonRect (WalkthroughButton::Back),  m_session.scaler);
+        m_next.Layout  (m_walkthrough.GetButtonRect (WalkthroughButton::Next),  m_session.scaler);
+
+        painter.FlushLayer();
+
+        for (DxuiButton * button : { &m_close, &m_back, &m_next })
+        {
+            button->Paint (painter, text, theme);
+        }
     }
 }

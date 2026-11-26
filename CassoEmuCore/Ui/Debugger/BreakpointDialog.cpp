@@ -1044,7 +1044,7 @@ void BreakpointDialog::Resize()
 
     if (IsCreated())
     {
-        FitToMaxSize();
+        GetSizer().ResizeToMaxSize (MaxSizeMode::Fit);
     }
 
     Invalidate();
@@ -1760,7 +1760,7 @@ std::optional<BreakpointDialog::Result> BreakpointDialog::RunModal (HWND owner, 
     }
 
     dialog->SetTheme (theme);
-    dialog->FitToMaxSize();
+    dialog->GetSizer().ResizeToMaxSize (DxuiWindow::MaxSizeMode::Fit);
     dialog->ShowModalDialog (IDOK);
 
     return dialog->m_result;

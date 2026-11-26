@@ -474,6 +474,55 @@ void BrowserModel::InvalidateAllCatalogs()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BrowserModel::MoveTabsOffCard
+//
+//  Every tab but the active one that is on a storage card, or on one of its
+//  partitions, goes to `to`, as when the card is initialized or taken out.
+//  The active tab is navigated by the caller, which lists it again. Returns
+//  how many tabs were moved.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t BrowserModel::MoveTabsOffCard (const std::wstring & cardPath, const Location & to)
+{
+    size_t  moved = 0;
+
+
+
+    for (size_t index = 0; index < m_tabs.size(); index++)
+    {
+        Tab                & tab    = m_tabs[index];
+        const std::wstring & path   = tab.location.path;
+        bool                 isCard = !cardPath.empty() && path.size() >= cardPath.size() &&
+                                      _wcsnicmp (path.c_str(), cardPath.c_str(), cardPath.size()) == 0 &&
+                                      (path.size() == cardPath.size() || path[cardPath.size()] == L'|');
+
+        if (index == m_active || !isCard)
+        {
+            continue;
+        }
+
+        tab.back.push_back (tab.location);
+        tab.forward.clear();
+        tab.selection.clear();
+        tab.previewScroll   = 0;
+        tab.previewExpanded = false;
+        tab.listTopRow      = 0;
+        tab.location        = to;
+        tab.hasCatalog      = false;
+        tab.catalog         = VolumeListing();
+        moved++;
+    }
+
+    return moved;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BrowserModel::GetLocations
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -521,6 +570,7 @@ std::vector<BrowserModel::AddressSegment> BrowserModel::GetAddressSegments (cons
 
         case Location::Kind::DiskImage:
         case Location::Kind::DiskDirectory:
+        case Location::Kind::Partition:
             //  A card is one segment, which its partitions follow.
             if (PhysicalCards::ParsePath (TextEncoding::WideToUtf8 (location.path), drive, partition) == PhysicalCards::PathKind::Card)
             {
@@ -533,8 +583,25 @@ std::vector<BrowserModel::AddressSegment> BrowserModel::GetAddressSegments (cons
 
             if (slash != std::wstring::npos && PartitionAccess::TryParseStepName (TextEncoding::WideToNarrow (location.path.substr (slash + 1)), partition))
             {
+                std::wstring  label = root.getPartitionLabel ? root.getPartitionLabel (location.path) : std::wstring();
+
+                //  A partition in the tree has its node's label, and the
+                //  volume in it follows.
                 segments = GetAddressSegments (Location::MakeDiskImage (location.path.substr (0, slash)), root);
-                segments.push_back (AddressSegment { std::format (L"Partition {}", partition), Location::MakeDiskImage (location.path) });
+
+                if (label.empty())
+                {
+                    segments.push_back (AddressSegment { std::format (L"Partition {}", partition), Location::MakeDiskImage (location.path) });
+                    break;
+                }
+
+                segments.push_back (AddressSegment { label, Location::MakePartition (location.path) });
+
+                if (location.kind != Location::Kind::Partition)
+                {
+                    segments.push_back (AddressSegment { root.getVolumeLabel ? root.getVolumeLabel (location.path) : label, Location::MakeDiskImage (location.path) });
+                }
+
                 break;
             }
 
@@ -931,7 +998,7 @@ bool BrowserModel::ParseAddress (IFileSystem & fs, const std::wstring & text, Lo
         end    = path.find (L'\\', end + 1);
         prefix = path.substr (0, end);
 
-        if (TreeModel::IsSupportedImage (prefix) && fs.Exists (prefix))
+        if (HostFolderReader::IsSupportedImage (prefix) && fs.Exists (prefix))
         {
             found = true;
 
@@ -1045,7 +1112,7 @@ void BrowserModel::GetFolderChildren (IFileSystem & fs, const Location & locatio
         {
             outChildren.push_back (AddressSegment { entry.name, Location::MakeHostFolder (folder + L"\\" + entry.name) });
         }
-        else if (SUCCEEDED (hr) && TreeModel::IsSupportedImage (entry.name))
+        else if (SUCCEEDED (hr) && HostFolderReader::IsSupportedImage (entry.name))
         {
             images.push_back (AddressSegment { entry.name, Location::MakeDiskImage (folder + L"\\" + entry.name) });
         }

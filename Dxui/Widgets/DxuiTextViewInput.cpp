@@ -3,6 +3,7 @@
 #include "DxuiTextViewInput.h"
 #include "DxuiScrollbar.h"
 #include "DxuiTextLayout.h"
+#include "DxuiTextPictures.h"
 #include "DxuiTextViewSelection.h"
 #include "IDxuiTextInputHost.h"
 #include "IDxuiTextScroller.h"
@@ -20,7 +21,8 @@
 //  Shift, and a drag moves the caret, scrolling past either edge. A second
 //  press at the same place within the double-click time selects the word.
 //  A release on the link the press began on, with nothing selected, is a
-//  click on the link.
+//  click on the link. Ctrl with the wheel over a zoomable picture zooms it,
+//  so the wheel alone scrolls past a map, and a left press on one pans it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,19 +35,38 @@ bool DxuiTextViewInput::OnMouse (const DxuiMouseEvent & ev)
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Wheel:
-        handled = OnWheel (ev);
+        handled = (ev.ctrl && !ev.wheelHorizontal && m_pictures.Zoom (ev.positionDip, ev.wheelDelta)) || OnWheel (ev);
         break;
 
     case DxuiMouseEventKind::Down:
-        handled = OnPress (ev);
+        handled = (ev.button == DxuiMouseButton::Left && m_host.GetInputBarAt (ev.positionDip) == nullptr && m_pictures.TryStartPan (ev.positionDip))
+               || OnPress (ev);
         break;
 
     case DxuiMouseEventKind::Move:
-        handled = OnDragMove (ev.positionDip);
+        if (m_pictures.IsPanning())
+        {
+            m_pictures.Pan (ev.positionDip);
+            handled = true;
+        }
+        else
+        {
+            handled = OnDragMove (ev.positionDip);
+        }
+
         break;
 
     case DxuiMouseEventKind::Up:
-        handled = OnRelease (ev.positionDip);
+        if (m_pictures.IsPanning())
+        {
+            m_pictures.EndPan();
+            handled = true;
+        }
+        else
+        {
+            handled = OnRelease (ev.positionDip);
+        }
+
         break;
 
     default:

@@ -36,6 +36,7 @@ public:
     Position  HitTest      (POINT point) const;
     bool      TryGetCharAt (POINT point, int & outLine, int & outFlat, int & outColumn) const;
     bool      TryGetLinkAt (POINT point, int & outRow, int & outSpan, RECT & outRect) const;
+    int       GetLineAt    (int pointY) const;
 
 private:
     int  GetLineOffsetPx (int lineIndex) const;

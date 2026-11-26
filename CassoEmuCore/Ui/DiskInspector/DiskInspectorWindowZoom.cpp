@@ -107,7 +107,7 @@ void DiskInspectorWindow::SetZoom (double zoom)
 
     if (GetHwnd() != nullptr && GetWindowRect (GetHwnd(), &window))
     {
-        SetMinSizeDip ({ static_cast<LONG> (std::min (std::lround (kMinWidthDip  * std::max (1.0, m_zoom)), std::lround ((window.right - window.left) / scale))),
+        GetSizer().SetMinSizeDip ({ static_cast<LONG> (std::min (std::lround (kMinWidthDip  * std::max (1.0, m_zoom)), std::lround ((window.right - window.left) / scale))),
                          static_cast<LONG> (std::min (std::lround (kMinHeightDip * std::max (1.0, m_zoom)), std::lround ((window.bottom - window.top) / scale))) });
     }
 
@@ -129,7 +129,6 @@ void DiskInspectorWindow::SetZoom (double zoom)
 
 bool DiskInspectorWindow::FitsZoom (double zoom)
 {
-    static constexpr int  kHeaderLines = 3;
 
 
 
@@ -152,7 +151,7 @@ bool DiskInspectorWindow::FitsZoom (double zoom)
     room = m_session.views.sectors->GetBounds();
 
     return room.right - room.left >= SectorsView::GetFullWidthPx (zoomed) &&
-           room.bottom - room.top >= zoomed.ToPx (kHeaderLines * SectorsView::kHeaderDip + 16 * SectorsView::kRowDip);
+           room.bottom - room.top >= zoomed.ToPx (SectorsView::kHeaderLines * SectorsView::kHeaderDip + 16 * SectorsView::kRowDip);
 }
 
 

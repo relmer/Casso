@@ -55,6 +55,12 @@ public:
     //  reason for a failure.
     HRESULT  Commit (const BlockBuffer & edited, std::string & outRefusal);
 
+    //  "Partition 2: GAMES", or "Partition 2" for a volume with no name.
+    std::string  GetLabel () const;
+
+    //  "could not be written", followed by the reason for `hr` when one is known.
+    static std::string  DescribeWriteFailure (HRESULT hr);
+
 private:
     IDiskFileIo                    * m_fileIo = nullptr;
     std::string                      m_path;

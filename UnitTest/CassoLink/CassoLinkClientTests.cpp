@@ -189,6 +189,16 @@ public:
 
 
 
+    static bool  IsEmpty (const std::vector<bool> & events, std::mutex & lock)
+    {
+        std::lock_guard<std::mutex>  guard (lock);
+
+        return events.empty();
+    }
+
+
+
+
     //  A wait for Ready that lasts the notice time is reported, and then its
     //  end; a Ready within the notice time isn't.
     TEST_METHOD (ALongWaitForReady_IsReportedToTheWaitObserver)
@@ -206,7 +216,20 @@ public:
 
         auto  sending = std::async (std::launch::async, [&] () { return client.host->SendLabel ("SLOW"); });
 
-        client.clientEnd->AdvanceWhenBlocked (400);
+        //  The host may block in another read before it waits for Ready, so
+        //  the time moves in steps until the wait is reported, well short of
+        //  the operation's timeout. Each step waits for the host's thread to run:
+        //  its read is marked blocked until that thread runs, and a step taken
+        //  before then moves the time past the notice time.
+        for (int step = 0; step < 100 && IsEmpty (events, lock); step++)
+        {
+            client.clientEnd->AdvanceWhenBlocked (50);
+
+            std::unique_lock  guard (lock);
+
+            changed.wait_for (guard, std::chrono::milliseconds (200), [&events] () { return !events.empty(); });
+        }
+
         client.SendReady (LinkProgram::kProgramVersion);
 
         Assert::AreEqual (S_OK, sending.get());
@@ -467,6 +490,28 @@ public:
         client.romId    = { 0, 0, 0, 0, 0 };
         Assert::AreEqual (std::wstring (L"Apple ///"),          client.GetModelName());
         Assert::IsTrue (client.HasLowercase(), L"the Apple ///'s console has small letters");
+    }
+
+
+
+
+    TEST_METHOD (SlotCards_ComeFromEachSlotsFirmwareBytes)
+    {
+        CassoLinkClient            client;
+        const std::array<Byte, 4>  diskII     = { 0x20, 0x00, 0x03, 0x3C };
+        const std::array<Byte, 4>  smartPort  = { 0x20, 0x00, 0x03, 0x00 };
+        const std::array<Byte, 4>  pascalCard = { 0x00, 0x00, 0x38, 0x18 };
+
+        Assert::IsTrue (client.GetSlotCards().empty(), L"an earlier program's Ready has no slot bytes");
+
+        client.hasSlotIds = true;
+        client.slotIds.fill (0xFF);
+
+        std::copy (diskII.begin(),     diskII.end(),     client.slotIds.begin() + 5 * 4);
+        std::copy (smartPort.begin(),  smartPort.end(),  client.slotIds.begin() + 4 * 4);
+        std::copy (pascalCard.begin(), pascalCard.end(), client.slotIds.begin() + 1 * 4);
+
+        Assert::AreEqual (std::string ("2: Pascal firmware card, 5: SmartPort, 6: Disk II"), client.GetSlotCards());
     }
 
 

@@ -104,6 +104,30 @@ public:
     }
 
 
+    TEST_METHOD (Scan_ListsEachVariantAfterItsMachine)
+    {
+        DirMap dirs =
+        {
+            { "C:/app/Machines", { "C:/app/Machines/Apple2c", "C:/app/Machines/Apple2cPlus", "C:/app/Machines/Apple2e", "C:/app/Machines/Apple2eEnhanced" } },
+        };
+        FileMap files =
+        {
+            { "C:/app/Machines/Apple2c/Apple2c.json",                 "{\"name\":\"c\",\"releaseYear\":1984}"  },
+            { "C:/app/Machines/Apple2cPlus/Apple2cPlus.json",         "{\"name\":\"c+\",\"releaseYear\":1988}" },
+            { "C:/app/Machines/Apple2e/Apple2e.json",                 "{\"name\":\"e\",\"releaseYear\":1983}"  },
+            { "C:/app/Machines/Apple2eEnhanced/Apple2eEnhanced.json", "{\"name\":\"e+\",\"releaseYear\":1985}" },
+        };
+
+        auto results = MachineScanner::Scan ({ "C:/app" }, MakeLister (dirs), MakeReader (files), AcceptsAll);
+
+        Assert::AreEqual (size_t (4), results.size());
+        Assert::AreEqual (wstring (L"Apple2e"),         results[0].fileName);
+        Assert::AreEqual (wstring (L"Apple2eEnhanced"), results[1].fileName);
+        Assert::AreEqual (wstring (L"Apple2c"),         results[2].fileName);
+        Assert::AreEqual (wstring (L"Apple2cPlus"),     results[3].fileName);
+    }
+
+
     ////////////////////////////////////////////////////////////////////////////
     //
     //  SelectCanonical_*

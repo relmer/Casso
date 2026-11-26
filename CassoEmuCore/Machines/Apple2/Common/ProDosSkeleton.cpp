@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Devices/Disk/ChainWalkGuard.h"
 
 
@@ -20,14 +21,14 @@ size_t ProDosSkeleton::GetBlockByteOffset (int block, size_t offsetInBlock)
 {
     int     track  = block / kBlocksPerTrack;
     int     sub    = block % kBlocksPerTrack;
-    int     half   = (offsetInBlock >= (size_t) NibblizationLayer::kSectorByteSize) ? 1 : 0;
+    int     half   = (offsetInBlock >= (size_t) NibbleFormat::kSectorByteSize) ? 1 : 0;
     int     sector = kBlockHalfSector[sub][half];
 
 
 
-    return ((size_t) track * NibblizationLayer::kSectorsPerTrack + (size_t) sector)
-         * (size_t) NibblizationLayer::kSectorByteSize
-         + (offsetInBlock % (size_t) NibblizationLayer::kSectorByteSize);
+    return ((size_t) track * NibbleFormat::kSectorsPerTrack + (size_t) sector)
+         * (size_t) NibbleFormat::kSectorByteSize
+         + (offsetInBlock % (size_t) NibbleFormat::kSectorByteSize);
 }
 
 
@@ -45,7 +46,7 @@ size_t ProDosSkeleton::GetBlockByteOffset (int block, size_t offsetInBlock)
 
 bool ProDosSkeleton::IsBlockOrder (size_t bufferBytes)
 {
-    return bufferBytes != (size_t) NibblizationLayer::kImageByteSize;
+    return bufferBytes != (size_t) NibbleFormat::kImageByteSize;
 }
 
 
@@ -197,15 +198,64 @@ void ProDosSkeleton::WriteWord (vector<Byte> & buffer, int block, size_t offsetI
 
 int ProDosSkeleton::GetReservedBlockCount (size_t bufferBytes)
 {
+    return GetReservedBlocks (GetBlockCount (bufferBytes));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosSkeleton::GetReservedBlocks
+//
+//  The reserved blocks of a volume of this many blocks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ProDosSkeleton::GetReservedBlocks (int volumeBlocks)
+{
     constexpr int  kBlocksPerBitmapBlock = kBlockByteSize * 8;
 
 
 
-    int  blocks = GetBlockCount (bufferBytes);
+    return kBitmapBlock + (volumeBlocks + kBlocksPerBitmapBlock - 1) / kBlocksPerBitmapBlock;
+}
 
 
 
-    return kBitmapBlock + (blocks + kBlocksPerBitmapBlock - 1) / kBlocksPerBitmapBlock;
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosSkeleton::GetVolumeBlockCount
+//
+//  The total blocks in the volume directory header, as ProDOS uses them. A
+//  volume can be smaller than the buffer it is in, such as a 140K image
+//  written into a 32 MB partition, and the blocks past it aren't part of the
+//  volume or its bitmap. For a header with no usable count, the count is the
+//  buffer's blocks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ProDosSkeleton::GetVolumeBlockCount (const BlockImage & volume)
+{
+    size_t  bufferBytes = volume.size();
+    int     blocks      = GetBlockCount (bufferBytes);
+    size_t  at          = 0;
+    int     total       = 0;
+
+
+
+    if (!IsBlockOrder (bufferBytes) || blocks <= kBitmapBlock)
+    {
+        return blocks;
+    }
+
+    at    = GetBlockByteOffset (bufferBytes, kDirKeyBlock, kOffFirstEntry + kHdrOffTotalBlocks);
+    total = volume[at] | (volume[at + 1] << 8);
+
+    return (total > kBitmapBlock && total < blocks) ? total : blocks;
 }
 
 
@@ -366,7 +416,7 @@ HRESULT ProDosSkeleton::InstallBoot (vector<Byte> & buffer, const vector<Byte> &
     //  The volume is a 140K disk in DOS order or a larger one in block order,
     //  and the master a 140K disk in DOS order.
     CBRA (sizeValid);
-    CBRAEx (usersBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+    CBRAEx (usersBytes == (size_t) NibbleFormat::kImageByteSize, E_INVALIDARG);
 
     for (block = 0; block < 2; block++)
     {
@@ -390,6 +440,72 @@ HRESULT ProDosSkeleton::InstallBoot (vector<Byte> & buffer, const vector<Byte> &
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosSkeleton::InstallNoSystemLoader
+//
+//  The Disk II boot ROM and a block device's boot code both load block 0 at
+//  $800 and jump to $801. Byte 0 is the sector count the Disk II ROM reads.
+//  The code clears the screen through the monitor, prints the message in the
+//  middle of it, and loops in place.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProDosSkeleton::InstallNoSystemLoader (vector<Byte> & buffer)
+{
+    static constexpr Byte  s_kCode[] =
+    {
+        0x01,                   // $800  one sector, for the Disk II ROM
+        0x20, 0x2F, 0xFB,       // $801  JSR INIT     text mode, full window
+        0x20, 0x84, 0xFE,       // $804  JSR SETNORM  normal video
+        0x20, 0x58, 0xFC,       // $807  JSR HOME
+        0xA9, 0x0B,             // $80A  LDA #11
+        0x85, 0x25,             // $80C  STA CV
+        0x20, 0x22, 0xFC,       // $80E  JSR VTAB
+        0xA9, 0x05,             // $811  LDA #5
+        0x85, 0x24,             // $813  STA CH
+        0xA0, 0x00,             // $815  LDY #0
+        0xB9, 0x25, 0x08,       // $817  LDA $0825,Y
+        0xF0, 0x06,             // $81A  BEQ $0822
+        0x20, 0xED, 0xFD,       // $81C  JSR COUT
+        0xC8,                   // $81F  INY
+        0xD0, 0xF5,             // $820  BNE $0817
+        0x4C, 0x22, 0x08,       // $822  JMP $0822
+    };
+    static constexpr char  s_kpszMessage[] = "*** UNABLE TO LOAD PRODOS ***";
+    size_t                 bufferBytes = buffer.size();
+    size_t                 i           = 0;
+    size_t                 at          = 0;
+    bool                   isEmpty     = IsValidVolumeSize (bufferBytes);
+
+
+
+    for (i = 0; i < (size_t) kBlockByteSize && isEmpty; i++)
+    {
+        isEmpty = buffer[GetBlockByteOffset (bufferBytes, 0, i)] == 0;
+    }
+
+    if (!isEmpty)
+    {
+        return;
+    }
+
+    for (i = 0; i < std::size (s_kCode); i++)
+    {
+        buffer[GetBlockByteOffset (bufferBytes, 0, at++)] = s_kCode[i];
+    }
+
+    //  High ASCII, ended by a zero byte the block already has.
+    for (i = 0; s_kpszMessage[i] != '\0'; i++)
+    {
+        buffer[GetBlockByteOffset (bufferBytes, 0, at++)] = (Byte) (s_kpszMessage[i] | 0x80);
+    }
 }
 
 
@@ -919,8 +1035,8 @@ void ProDosReader::NoteBlockRead (ISectorReadObserver * observer, size_t bufferB
 {
     if (observer != nullptr)
     {
-        observer->OnSectorRead (ProDosSkeleton::GetBlockByteOffset (bufferBytes, block, 0) / NibblizationLayer::kSectorByteSize);
-        observer->OnSectorRead (ProDosSkeleton::GetBlockByteOffset (bufferBytes, block, NibblizationLayer::kSectorByteSize) / NibblizationLayer::kSectorByteSize);
+        observer->OnSectorRead (ProDosSkeleton::GetBlockByteOffset (bufferBytes, block, 0) / NibbleFormat::kSectorByteSize);
+        observer->OnSectorRead (ProDosSkeleton::GetBlockByteOffset (bufferBytes, block, NibbleFormat::kSectorByteSize) / NibbleFormat::kSectorByteSize);
     }
 }
 

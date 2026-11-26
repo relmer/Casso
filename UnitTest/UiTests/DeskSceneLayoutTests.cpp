@@ -198,6 +198,35 @@ public:
         Assert::AreEqual (0, memcmp (&a, &b, sizeof (a)));
     }
 
+    TEST_METHOD (A_Drive_On_A_Disk_IIc_Sits_Back_For_Its_Door)
+    {
+        DeskSceneMetrics      metrics  = MakeMetrics();
+        RECT                  vp       = { 0, 0, 1120, 768 };
+        DeskSceneComposition  comp;
+        float                 lo[3]    = {};
+        float                 hi[3]    = {};
+        float                 front[3] = {};
+
+
+
+        AddExtraModel (metrics, DeskDriveModel::Disk2c,       DeskDriveSpot::RightStack, 0);
+        AddExtraModel (metrics, DeskDriveModel::Disk2c,       DeskDriveSpot::RightStack, 1);
+        AddExtraModel (metrics, DeskDriveModel::Apple35Drive, DeskDriveSpot::RightStack, 2);
+        metrics.extras[0].doorClearMm = 10.0f;
+        metrics.extras[1].doorClearMm = 10.0f;
+
+        AssertSucceeded (DeskSceneLayout::Compute (vp, 96, 0, metrics, comp));
+
+        for (int i = 0; i < 3; i++)
+        {
+            GetWorldBox (comp.extraWorld[i], metrics.extras[i].min, metrics.extras[i].max, lo, hi);
+            front[i] = hi[2];
+        }
+
+        Assert::IsTrue (std::abs (front[0] - front[1] - 10.0f) < 0.01f, L"a Disk //c on a Disk //c sits back by the door's clearance");
+        Assert::IsTrue (std::abs (front[1] - front[2] - 10.0f) < 0.01f, L"so does a drive on the upper one");
+    }
+
     TEST_METHOD (Sliding_Frames_The_Monitor_Alone_At_Every_Progress)
     {
         DeskSceneMetrics      metrics   = MakeMetrics();

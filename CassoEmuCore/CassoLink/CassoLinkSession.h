@@ -82,6 +82,9 @@ public:
     //  Stops the running operation; queued ones remain.
     void       Cancel ();
 
+    //  A key for the Full Send's pause, pressed on the PC, as kKeyRawDrive1.
+    void       PressFullSendKey (Byte key) { if (m_host != nullptr) { m_host->PressKey (key); } }
+
     LinkState  GetState    () const { return m_connector.m_state; }
 
     //  Whether ADTPro's own client is on the line instead of Casso's. The
@@ -90,16 +93,29 @@ public:
     bool  IsServingAdtPro () const { return m_connector.m_adtPro; }
     Byte  GetDriveMap     () const { return m_connector.m_driveMap; }
 
+    //  Whether the CassoLink ProDOS disk's driver has used the virtual
+    //  drives since the line opened.
+    bool  IsServingVirtualDrives () const { return m_servingVirtual; }
+    void  OnVirtualServed        (const std::wstring & model);
+
     //  Whether a Full Send is running. Any other operation queued meanwhile
     //  fails at once, with kFullSendBusy, and has isBlocked set.
     bool  IsFullSendRunning () const;
 
     static constexpr const char *  kFullSendBusy = "Full Send is using the drives. Try again when you're finished.";
 
+    //  A read of a drive whose disk has 13-sector address fields, as DOS 3.2
+    //  and earlier wrote, and no 16-sector one.
+    static constexpr HRESULT       kThirteenSectorDisk = HRESULT_FROM_WIN32 (ERROR_UNRECOGNIZED_MEDIA);
+
     //  The Apple's model, as its program reported it on connecting; empty
     //  before then.
     std::wstring  GetModelName () const { std::lock_guard<std::mutex>  lock (m_connector.m_lock); return m_connector.m_modelName; }
     std::wstring  GetPort      () const { std::lock_guard<std::mutex>  lock (m_connector.m_lock); return m_connector.m_port; }
+
+    //  The Apple's Ready as it was last connected: its ROM's identification,
+    //  its program's version and CRC, and the drives it found.
+    CassoLinkClient  GetClient () const { std::lock_guard<std::mutex>  lock (m_connector.m_lock); return m_connector.m_client; }
 
     //  Why the line last failed to open, such as a TCP port another program
     //  listens on; empty once it opens.
@@ -124,7 +140,8 @@ public:
 
     //  Every track's standard sectors into an image file, in the format of
     //  its extension, replaced atomically and only when the read succeeds.
-    std::shared_ptr<LinkOperation>  ReadDisk      (int drive, const std::string & imagePath, bool blankUnreadable, bool forceVerify = false);
+    std::shared_ptr<LinkOperation>  ReadDisk      (int drive, const std::string & imagePath, bool blankUnreadable, bool forceVerify = false,
+                                                   std::optional<FullSendProtectionChoices> automatic = std::nullopt);
 
     //  A raw capture of the drive's disk into a WOZ 2 image, by the capture
     //  module; the message lists the tracks whose reads differ.
@@ -133,11 +150,12 @@ public:
     //  Verified transfers for whole disks, unless an operation asks for them itself.
     void  SetVerifySettings (bool reads, bool writes, bool autoReads) { m_verifyReads = reads; m_verifyWrites = writes; m_autoVerify = autoReads; }
 
-    //  An image file onto the disk: every track formatted, written and read
-    //  back. The caller has the user's confirmation first. An image whose
-    //  tracks do not all decode to standard sectors fails before any track
-    //  is written.
+    //  An image onto the disk, from a file or from memory: every track
+    //  formatted, written and read back. The caller has the user's
+    //  confirmation first. An image whose tracks do not all decode to
+    //  standard sectors fails before any track is written.
     std::shared_ptr<LinkOperation>  WriteDisk     (int drive, const std::string & imagePath, const std::string & formatted = std::string(), bool forceVerify = false);
+    std::shared_ptr<LinkOperation>  WriteDisk     (int drive, std::shared_ptr<ILinkImageSource> source, const std::string & formatted = std::string(), bool forceVerify = false);
 
     //  Disks into a folder, alternating between the drives, until Q on
     //  the Apple, Cancel or a failure ends it. The extension has its period;
@@ -237,11 +255,12 @@ private:
     std::array<std::unique_ptr<DriveSource>, 2>    m_sources;
     std::array<std::unique_ptr<LinkedDisk>, 2>     m_disks;
     std::array<std::optional<VolumeListing>, 2>    m_listings;
-    std::array<std::atomic<VolumeKind>, 2>         m_chosenKinds = {};
-    std::atomic<bool>                              m_stopping    { false };   // Stop closed the line
-    std::atomic<bool>                              m_canceled    { false };   // Cancel was called for the running operation
+    std::array<std::atomic<VolumeKind>, 2>         m_chosenKinds    = {};
+    std::atomic<bool>                              m_stopping       { false };   // Stop closed the line
+    std::atomic<bool>                              m_servingVirtual { false };   // a reply to a virtual drive request was sent
+    std::atomic<bool>                              m_canceled       { false };   // Cancel was called for the running operation
     std::shared_ptr<LinkOperation>                 m_running;
-    const ListenGate                             * m_gate        = nullptr;
+    const ListenGate                             * m_gate           = nullptr;
 
     //  The session's parts, each with the state it uses.
     friend class CassoLinkConnector;

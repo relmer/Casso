@@ -40,6 +40,8 @@ public:
     //  The size the icons are drawn at, in pixels.
     void  SetSizePx (int sizePx) override;
 
+    void  SetDarkSurface (bool isDark) override { m_isDarkSurface = isDark; }
+
     //  The window's DPI, nonzero once set: an icon with no image at the size
     //  asked for is then drawn at its own pixel size, centered, as Explorer
     //  draws it.
@@ -165,8 +167,9 @@ private:
     static float                                 GetRoundedCoverage (int x, int y, int side, float radius);
     static HRESULT                               DrawLetterCoverage (wchar_t letter, int side, std::vector<uint8_t> & outCoverage);
 
-    int                                                                      m_sizePx = kDefaultSizePx;
-    UINT                                                                     m_dpi    = 0;
+    int                                                                      m_sizePx        = kDefaultSizePx;
+    UINT                                                                     m_dpi           = 0;
+    bool                                                                     m_isDarkSurface = true;
     std::unordered_map<std::wstring, std::shared_ptr<const DxuiIconImage>>  m_cache;
     std::unordered_map<std::wstring, uint64_t>                              m_failedAt;   // GetTickCount64 of a per-path icon that failed to load
     std::unordered_map<std::wstring, std::wstring>                          m_typeNames;

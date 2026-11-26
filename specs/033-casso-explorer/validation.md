@@ -809,6 +809,14 @@ Archon, the owner's original disk, captured from drive 1 of the owner's //c over
 | Sectors | Every sector of tracks 0 to 4 and 7 to 34 matches the reference's but six: track 1's sector 3 and one sector each of tracks 23, 27 and 29 differ with good checksums, as the owner's copy differs from the reference's; two sectors of track 30 have a bad nibble, and track 31's sector 12 is missing. Tracks 4.75 to 6.5 have no flux on the owner's disk |
 | Boot | In Casso's //c, the image boots to Archon's board and its options screen |
 
+Captured again 2026-11-21 from drive 2 with this build (Release), synchronized:
+
+| Measure | Result |
+|---|---|
+| Time | 7 minutes 19 seconds: 144 reads, 120 seconds reading the disk and 294 seconds sending over the line, 1,427,456 bytes sent for 2,027,520 stored. SC-055's 5 minutes isn't met |
+| Positions | 12 of the 102 positions between whole tracks; 39 streams, 4 weak tracks and no unstable one |
+| Boot | In Casso, the image boots to Archon's options screen |
+
 ## 17. SOS disks in MAME's Apple ///, 2026-11-12 (T626 to T628, SC-060)
 
 MAME 0.289's `apple3` with the Apple /// ROM from the apple2.org.za
@@ -944,6 +952,123 @@ Four changes to KEGS, made only in that instance, let it run the link:
 - KEGS drops each $00 byte from a socket, which suits a terminal and breaks
   a binary link: a page of the program arrived 15 bytes short. A raw
   outgoing connection now passes them.
+
+### Every target through scripts/EmuTargets, 2026-11-19
+
+The targets are started by `scripts/EmuTargets/Mame.ps1` (MAME on Windows)
+and `scripts/EmuTargets/Wsl.ps1` (the WSL instance), and the tests start
+them the same way. `Wsl.ps1 -Setup` built KEGS, GSplus, MAME 0.285 and
+AppleWin in the instance from `scripts/EmuTargets/wsl/`, with the KEGS
+patches applied by `kegs-patch.py`; KEGS and GSplus take a ROM 03 image
+dumped from MAME's apple2gs by `DumpIIgsRom.lua`.
+
+| Target | Interface | Test | Result |
+|---|---|---|---|
+| MAME 0.289 `apple2gs` | Modem port | `CassoLinkIIgsTests`, `mame` | Passed, the whole-disk write skipped |
+| MAME 0.289 `apple2gs` | Super Serial Card in slot 7 | `CassoLinkIIgsTests`, `mame-ssc` | Passed, the whole-disk write skipped |
+| KEGS 1.38 | Modem port | `CassoLinkIIgsTests`, `kegs` | Passed, write included |
+| GSplus 1.38.0 | Modem port | `CassoLinkIIgsTests`, `gsplus` | Passed, write included |
+| MAME 0.285 `apple2ee` | LANceGS in slot 3, UDP | `CassoLinkEthernetTests`, `lancegs` | Passed, write included |
+| AppleWin `sa2` | Uthernet in slot 3, UDP | `CassoLinkEthernetTests`, `uthernet` | Passed, write included |
+
+Each test runs Story 14's operations: connect, read drive 2 to an image,
+browse, copy a file each way, rename, make a folder, delete, and write an
+image to drive 2 and read it back. The LANceGS's MAC address is the shim's
+02:43:41:53:53:01, set in MAME's `apple2ee.cfg`; the universal disk salts it
+for each Apple, as `TheUniversalDisk_TakesADhcpAddress_SaltsItsMac_AndAnnounces`
+tests.
+
+GSplus is KEGS 1.38 with an SDL3 front end, and its stock build has the same
+two faults as KEGS, so it takes the same patches.
+
+Found along the way:
+
+- A Super Serial Card with a dial command waits for a modem's reply line
+  before its Ready. MAME's card connects straight to Casso, so no reply
+  comes; the test boots the universal disk with no dial command, MAME's
+  socket listens, and a TCP connection is made to it.
+- A serial, TCP or UDP connection prompted five times in the first seconds
+  of an attempt and then waited for a Ready, so an Apple that booted the
+  universal disk later linked only on the next attempt, 25 seconds on. The
+  connection now prompts each second until a Ready arrives or the attempt
+  ends. `AnAppleThatBootsLate_IsPromptedUntilTheAttemptEnds` tests it, and
+  the Super Serial Card and network tests start the connection with the
+  emulator.
+- MAME doesn't start the Super Serial Card without its ROM, 341-0065-A, in
+  `roms\a2ssc`; `Mame.ps1` copies it from Casso's data folder.
+- GSplus running offscreen doesn't end on SIGTERM, so `run.sh stop` kills
+  what remains after a second.
+
+## Block devices in other emulators (T574, SC-054), 2026-11-20
+
+`CassoLinkBlockEmulatorTests` reads each volume an emulator mounted through
+the link, compares it with the image mounted, and puts a file on the 800K
+volume through the link, which the Apple then lists and reads back.
+
+| Target | Volumes | Result |
+|---|---|---|
+| MAME 0.289 `apple2cp`, the //c Plus, through `Mame.ps1 -Target IIcPlus` | 800K in the internal 3.5-inch drive | Passed in 19 minutes: the volume read through the link is the image mounted, and COPIED is listed and read back |
+| MAME's //c with ROM 4 and a UniDisk 3.5 | | Not possible: `apple2c4` and `apple2c0` have only 5.25-inch drives in MAME 0.289, and their ROM sets aren't installed |
+| AppleWin `sa2` with a hard disk card in slot 7, through `Wsl.ps1 -Target HardDisk` | 32 MB and 800K | Passed in 51 minutes over the Uthernet: both volumes read through the link are the images mounted, and COPIED is listed and read back |
+
+The //c Plus link runs at 9,600 baud, since MAME's null modem is set to it
+and its rate can't be changed from the command line, so the 800K volume takes
+about 18 minutes. The universal disk boots from the external 5.25-inch drive
+with the 800K volume in the internal drive, since a ProDOS volume with no
+PRODOS file is passed over.
+
+The AppleWin link runs over its original Uthernet (CS8900A), since the Linux
+build's Super Serial Card has no TCP serial. The Linux build has the hard disk
+card in slot 7 only, which the Apple boots first, so the 32 MB volume's boot
+block is a jump to the Disk II in slot 6. AppleWin's hard disk card copies a
+block into memory itself, with no 6502 loop, so its reads are far cheaper than
+a real card's.
+
+### Speed, and ADTPro 2.1 on the same setup
+
+The first AppleWin run read 12 blocks a second over Ethernet, no faster than
+serial: the Apple spent about 80 ms of 6502 time on each block. Program 106
+puts a block to the card in one pass, finds its CRC two bytes a round and its
+EOR four bytes a round, and copies a frame to the CS8900A a page at a time.
+`BlockReads_AreProfiled`, run with CASSO_PROFILE_BLOCKS set, writes the cycles
+a block by routine on an emulated //c.
+
+ADTPro 2.1's Ethernet client ran on the same AppleWin setup through
+`Wsl.ps1 -Target Adtpro`, with 2 blocks at once and sound off, its server in
+the WSL instance. Speeds count the volume's bytes only.
+
+| Volume | CassoLink, program 105 | CassoLink, program 106 | CassoLink, program 107, Block runs | CassoLink, program 107, final | ADTPro 2.1 |
+|---|---|---|---|---|---|
+| 800K, free blocks random (CASSO_BLOCK_RANDOM) | | 91 kbps, 72 s | 91 kbps, 72 s | 167 kbps, 39.1 s | 50 kbps, 130 s |
+| 32 MB, free blocks random | | | | 167 kbps, 26.7 minutes | |
+| 800K, mostly empty | 49 kbps | 91 kbps, 72 s | 231 kbps, 28.4 s | 231 kbps, 28.4 s | 105 kbps, 62 s |
+| 32 MB, mostly empty | | 91 kbps, 49.2 minutes | 233 kbps, 19.2 minutes | 231 kbps, 19.3 minutes | 108 kbps, 41.4 minutes |
+
+The final program 107 sends Ethernet blocks with no CRC: each frame has
+Ethernet's CRC32, and a TCP or UDP checksum covers the PC's end, so the
+block's CRC-16 costs 15% of the speed and checks only the copy inside the
+Apple. A block with no runs is read into the datagram and sent from there,
+with no copy. After a block with runs, the next block is read into the block
+buffer, where the run search reads it. Serial reads are checked by the CRC.
+
+Program 107 sends a block with runs of a byte as Block runs, written whole
+into the datagram, or into the W5100's transmit memory, in one pass that finds
+the runs and the CRC. A block with no two bytes alike at 32 places 16 bytes
+apart is sent as Block data, so data that doesn't repeat is read as fast as
+before. On Casso's Uthernet II, an empty 800K UniDisk volume costs 68,880
+cycles a block against 93,586 for random data, most of both the UniDisk's
+firmware. The 6551 and cassette builds send Block data.
+
+ADTPro sends each byte as its difference from the last and drops runs of a
+byte, so it is faster on empty space and slower on data that doesn't repeat.
+Each copy it sent was compared with the image and is the same.
+
+The Uthernet II build puts a block to the W5100's transmit memory in one
+pass. AppleWin's Uthernet II has no TCP listen, so it can't run the program,
+whose socket listens for the PC. `CassoLinkUthernetBlockTests` reads an 800K
+UniDisk volume through Casso's Uthernet II on an enhanced //e instead: the
+volume read is the image, at 93,704 cycles a block, of which the UniDisk's
+firmware takes about 56,600.
 
 ## A2Pico cards (Story 41, SC-070)
 
@@ -1095,8 +1220,17 @@ Fixed during the walk:
 
 ### 7f. CassoLink additions
 
-Not walked: the owner's //c is on COM3 for another session's captures, and the
-emulator targets are that session's.
+Walked on the emulator targets by the Story 23 to 29 tasks; the results are in the
+sections below. The step on the owner's //c left is under T580.
+
+| Step | Result |
+|---|---|
+| 1. Block devices | AppleWin's hard disk and MAME's //c with a UniDisk 3.5: Block devices in other emulators (T574) and Block devices in MAME (T709) |
+| 2. Raw capture | Each protected WOZ captured in an emulated //c and booted: `CassoLinkCaptureTests` (T579). Archon on the owner's //c took 18 minutes 47 seconds, over SC-055's 5 minutes: section 16 (T580, open) |
+| 3. Virtual drives | SAVE to each drive on an emulated //c: `CassoLinkVirtualDriveTests` (T585). Passed on the owner's //c 2026-11-22 (SC-056): CAT of each drive, and TEST1 and TEST2 saved from BASIC.SYSTEM to drives 1 and 2 and found in their .po images |
+| 4. Cassette disks | A 140K disk each way on an emulated ][+ and //e, and ADTPro's audio client: `CassoLinkCassetteTests` and `CassoLinkAdtProAudioTests` (T592) |
+| 5. Tape recordings | Each format loaded and run in an emulated ][+ and read back: `TapeRecordingTests` (T597) |
+| 6. Interfaces and the Apple /// | Story 28's emulator targets (T602) and section 18 (T606) |
 
 ### 7g. File systems and layouts
 
@@ -1234,3 +1368,68 @@ whether or not a disk is in it, since the drive isn't checked before then. The
 Apple's line read "Bad 0" while the window counted 1 disk with bad sectors.
 
 The walk on the owner's //c remains for both tasks.
+
+
+## A CFFA card on screen (T677, T772, 2026-11-20)
+
+Walked on the 2 GB CF card in a USB reader, in a copy of Casso Explorer started
+with `CASSO_PROFILE_DIR` set to a profile with no links, so no serial port was
+opened. Input was posted to the window and checked by capture. Nothing was
+written to the card.
+
+| Step | Result |
+|---|---|
+| Casso Explorer started with the card in the reader | This PC lists "Storage card (H:, SCM CF USB3.0 CF SD, 1.9 GB)" and hides H:, after the fix below |
+| The card opened | Casso Explorer's Administrator access prompt, then Windows' UAC prompt for Casso Storage Card Broker |
+| The card | four 32 MB CFFA partitions: NEWDISK, CARD2, CARD3 and CARD4 |
+| Partition 1 | the volume, 31.9 MB free, with the folder WALK |
+| WALK | the folder DEEP and the 21-byte text file HELLO |
+| Inspect disk image on partition 1 | "Block inspector - Partition 1: NEWDISK on SCM CF USB3.0 CF SD (1.9 GB)": block 0 is the ProDOS boot loader, with the volume bitmap, volume directory and WALK listed; 65,536 blocks, 25 used |
+
+A card already in the reader when Casso Explorer started wasn't listed: since
+the cards stopped being read every two seconds, they were read only when a
+drive letter changed or Windows reported a device change. They are now read
+once at the start.
+
+The card's node in the tree had no expander after the card was opened: a tree
+node read with nothing under it stayed that way when it was refreshed with
+children to read. Now the node opens to the four partitions.
+
+## A 13-sector disk on the owner's //c (T611, 2026-11-22)
+
+CiderPress II's `3.2.1-master.d13` was written to a blank floppy in the //c's
+drive 2 over CassoLink on COM3, and the disk booted DOS 3.2.1 through Apple's 13-sector boot utility (BOOT13), since the //c's ROM boots only 16-sector disks. Create image
+from read it back as `DOS 3.2.1 Master.d13` in 0:45, with no sectors that
+couldn't be read. The two files are byte-identical, 116,480 bytes each.
+
+The program's bar stayed empty through the 13-sector read and write: those
+requests didn't send the bar's percentages. They do now.
+
+## Images opened from File Explorer in a temporary machine (T1414, 2026-11-25)
+
+The developer build registered itself at startup and replaced its earlier
+`--disk1` registration with `--launch "%1"`, the block types and `.d13`, and
+the six `Casso.OpenOn` rows. Each image was opened from a copy, with the
+window started minimized and not activated. Opening a type went through
+`ShellExecuteEx` with the default verb, as a double-click does; an Open in
+Casso on row ran the row's registered command. A launch was checked by its
+process and its window title.
+
+| Opened | Result |
+|---|---|
+| .dsk .do .po .woz .nib .nb2, default verb | "Apple //e Enhanced (temporary)" |
+| .d13 .2mg .2img .hdv .dc .dc42 .image, default verb | Windows' "Pick an app" prompt, the first time each type is opened |
+| 140K .dsk, each Open on row | every model, "(temporary)" |
+| 800K .image, each Open on row | every model but the Apple ][, "(temporary)"; the Apple ][ refusal message |
+| 32 MB .hdv, each Open on row | the ][, ][+, //e and //e Enhanced, "(temporary)"; a refusal message on the //c and //c Plus |
+
+`CassoData\Machines` and `UserPrefs.json` were byte-identical before and
+after the launches (SC-079).
+
+Windows displays its app prompt the first time a type is opened after a
+program registers it, and the user's answer is stored where a program can't
+write it. The six types an earlier build registered had been opened before,
+so only the new seven prompted.
+
+Not checked here: the guest screen after each boot, Casso Explorer's Open on
+rows on screen, and the package's submenu, which can only be checked in an installed package.

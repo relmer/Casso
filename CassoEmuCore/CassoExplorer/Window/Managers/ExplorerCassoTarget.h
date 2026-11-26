@@ -27,7 +27,7 @@ public:
     explicit ExplorerCassoTarget (ExplorerContext & context);
 
     void            InsertIntoDrive             (const std::wstring & imagePath, int drive);
-    void            OpenInNewCasso              (const std::wstring & imagePath);
+    void            OpenInNewCasso              (const std::wstring & imagePath, const std::wstring & machineId = {});
     HWND            FindCassoTarget             () const;
     int             GetDefaultMachineDriveCount ();
     void            AskCassoToDescribe          ();

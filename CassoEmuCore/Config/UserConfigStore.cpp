@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Config/UserConfigStore.h"
+#include "Core/MachineConfig.h"
 
 
 #include "Controllers/ControllerTokens.h"
@@ -2203,6 +2204,21 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  UserConfigStore::SetRunningMachine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UserConfigStore::SetRunningMachine (const MachineConfig & config)
+{
+    m_isTemporary = config.isTemporary;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  UserConfigStore::SaveCombinedJson
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2219,6 +2235,9 @@ HRESULT UserConfigStore::SaveCombinedJson (
     bool                 canAccount = !m_loadUnresolved;
 
 
+
+    // A temporary machine's session writes nothing (MachineConfig::isTemporary).
+    BAIL_OUT_IF (m_isTemporary, S_OK);
 
     // A store whose load failed over a file it could not move aside holds
     // nothing it can honestly write. The file is intact and the caller has
@@ -2418,6 +2437,9 @@ HRESULT UserConfigStore::MigrateLegacyFiles (
     opts.fPretty = true;
     hr = JsonWriter::Write (JsonValue (std::move (rootEntries)), opts, combinedText);
     CHR (hr);
+
+    // A temporary machine's session leaves the legacy files to a later run.
+    BAIL_OUT_IF (m_isTemporary, S_OK);
 
     hr = fs.WriteAllText (GetUserPrefsFilePath(), combinedText);
     CHR (hr);

@@ -113,12 +113,12 @@ public:
         box->SetRect   (RECT { 10, 10, 110, 30 });
         other->SetRect (RECT { 10, 50, 110, 70 });
 
-        Assert::IsTrue (DxuiWindow::FindTextBoxAt (root, POINT { 20, 20 }) == box,   L"a box inside a group");
-        Assert::IsTrue (DxuiWindow::FindTextBoxAt (root, POINT { 20, 60 }) == other, L"a box beside it");
-        Assert::IsNull (DxuiWindow::FindTextBoxAt (root, POINT { 200, 20 }),         L"no box");
+        Assert::IsTrue (DxuiMouseRouter::FindTextBoxAt (root, POINT { 20, 20 }) == box,   L"a box inside a group");
+        Assert::IsTrue (DxuiMouseRouter::FindTextBoxAt (root, POINT { 20, 60 }) == other, L"a box beside it");
+        Assert::IsNull (DxuiMouseRouter::FindTextBoxAt (root, POINT { 200, 20 }),         L"no box");
 
         other->SetVisible (false);
-        Assert::IsNull (DxuiWindow::FindTextBoxAt (root, POINT { 20, 60 }), L"a hidden box is passed over");
+        Assert::IsNull (DxuiMouseRouter::FindTextBoxAt (root, POINT { 20, 60 }), L"a hidden box is passed over");
     }
 
 
@@ -132,7 +132,7 @@ public:
 
 
         DxuiInputState::SetKeyReader ([] (int vk) { return (vk == VK_CONTROL) ? (SHORT) 0x8000 : SHORT (0); });
-        ev = DxuiWindow::MakeKeyEvent (DxuiKeyEventKind::Down, 'A');
+        ev = DxuiInputState::MakeKeyEvent (DxuiKeyEventKind::Down, 'A');
         DxuiInputState::SetKeyReader ([] (int) { return SHORT (0); });
 
         box.SetText      (L"$0300");

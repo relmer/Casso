@@ -15,6 +15,7 @@
 #include "CassoExplorer/Model/CassoExplorerSession.h"
 #include "Config/Win32FileSystem.h"
 #include "DiskCheck/GivenNames.h"
+#include "DiskCheck/ImageRecordStore.h"
 #include "Devices/Disk/Win32ImageWatcher.h"
 #include "Seams/Win32ByteStreamFactory.h"
 #include "Seams/Win32DiskFileIo.h"
@@ -171,11 +172,7 @@ public:
 
 
 
-    bool                 ConfirmCardWrite       (const PhysicalDrive & drive);
     bool                 ConfirmElevation       (const PhysicalDrive & drive);
-    static void CALLBACK EndCardConfirmation    (HWND, UINT, UINT_PTR id, DWORD);
-
-    static inline PhysicalCards * s_confirmedCards = nullptr;
 
     //  EHM hooks for a process with no dialog host of its own.
     static void  NotifyUser      (const wchar_t * message);
@@ -200,6 +197,7 @@ public:
     void                   RepairDiskImage     (HWND hwnd, const std::wstring & path, const DxuiTheme & theme) override;
     void                   SetInspectorTheme   (const DxuiTheme & theme) override;
     void                   SelectInFolder      (const std::wstring & path) override;
+    void                   TransferRaw         (HWND owner, const std::wstring & path, const InspectorRawTransfer & transfer) override;
     void                   OfferBootRoms       (HWND hwnd, const DxuiTheme * theme) override;
 
     static constexpr const wchar_t *  kAppName       = L"Casso Explorer";
@@ -223,7 +221,12 @@ private:
     static void                              CloseDialogs         ();
     static BOOL CALLBACK                     CloseDialog          (HWND hwnd, LPARAM param);
     bool                                     HasOpenWindows       () const;
+    bool                                     ConfirmInspectors    ();
     std::vector<CassoExplorerSessionWindow>  GetOpenSession       () const;
+
+    //  The text a block inspector's title has for `path`: a card's
+    //  partition, a partition of an image file, or empty for a file.
+    std::wstring  DescribeInspectedPath (const std::wstring & path);
 
     //  The open windows, then `closed`, written as the session.
     void  SaveSessionWith (const std::vector<CassoExplorerSessionWindow> & closed);
@@ -240,6 +243,7 @@ private:
     CassoLinkConnections                      m_links;
     ThumbnailStore                            m_thumbnails     { ThumbnailStore::GetDefaultFolder() };
     GivenNames                                m_givenNames     { ThumbnailStore::GetDefaultFolder() };
+    ImageRecordStore                          m_records        { ImageRecordStore::GetDefaultFolder() };
     std::unique_ptr<ExplorerBootWorker>       m_bootWorker;
     std::vector<Byte>                         m_bootedSound;     // each as a WAV file, computed once
     std::vector<Byte>                         m_notBootedSound;
@@ -256,6 +260,8 @@ private:
     std::vector<Unbooted>                     m_unbooted;
     std::atomic<bool>                         m_romsWanted     { false };
     bool                                      m_romsOffered    = false;
+    std::atomic<bool>                         m_rom13Wanted    { false };   // a 13-sector image waits for the 13-sector Disk II ROM
+    bool                                      m_rom13Offered   = false;
     DiskImagePictures                         m_pictures       { m_thumbnails, [this] (const std::wstring & path) { QueueBoot (path); } };
     Win32ImageWatcher                         m_cacheWatcher;
     Win32ProcessProbe                         m_processProbe;

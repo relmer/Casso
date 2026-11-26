@@ -17,6 +17,9 @@
 #include "ColorPickerOverlay.h"
 #include "GeneralPage.h"
 #include "HardwarePage.h"
+#include "SlotsPage.h"
+#include "DiskPortPage.h"
+#include "DiskPage.h"
 #include "ThemePage.h"
 #include "DisplayPage.h"
 #include "NetworkPage.h"
@@ -221,6 +224,8 @@ private:
     // selector + CPU speed + hardware spec + device tree, GH #84).
     GeneralPage      * m_generalPage     = nullptr;
     HardwarePage     * m_hardwarePage    = nullptr;
+    SlotsPage        * m_slotsPage       = nullptr;
+    DiskPortPage     * m_diskPortPage    = nullptr;
     DiskPage         * m_diskPage        = nullptr;
     ThemePage        * m_themePage       = nullptr;
     DisplayPage      * m_displayPage     = nullptr;
@@ -247,16 +252,23 @@ private:
     int            m_networkPageIndex  = -1;
     bool           m_networkTabVisible = true;
 
+    // The same pair for the Slots tab, which a machine without slots lacks.
+    int            m_slotsPageIndex    = -1;
+    bool           m_slotsTabVisible   = true;
+
+    // The same pair for the Disk port tab, which only a //c or //c Plus has.
+    int            m_diskPortPageIndex  = -1;
+    bool           m_diskPortTabVisible = true;
+
     // Refresh the Disk and Network tabs' presence from the staged hardware
     // config.
     void  UpdateDiskTabVisibility    ();
+    void  UpdateSlotsTabVisibility   ();
     void  UpdateNetworkTabVisibility ();
 
-    // The Serial card tab, present while the staged hardware has the Super
-    // Serial Card turned on. Turning the card on while its firmware is
-    // missing selects the tab, whose banner offers the download.
-    int            m_serialPageIndex  = -1;
-    bool           m_serialTabVisible = true;
+    // Whether the staged hardware had the Super Serial Card turned on at the
+    // last tick, so turning it on offers its firmware download.
+    bool           m_serialCardOn     = true;
 
     // A cross-tab change's notice, for a message box on the next tick.
     std::wstring   m_pendingNotice;

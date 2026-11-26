@@ -3,15 +3,14 @@
 #include "DxuiWindow.h"
 
 #include "Core/DxuiEvents.h"
+#include "Core/DxuiIconImage.h"
 #include "Core/DxuiWindowFrame.h"
 #include "Widgets/DxuiInfoTip.h"
 #include "Widgets/DxuiPopupMenu.h"
 #include "Widgets/DxuiContextMenu.h"
 #include "Widgets/DxuiTextInput.h"
-#include "Window/DxuiDialogMode.h"
 
 
-static constexpr UINT_PTR  s_kDialogTimerId   = 1;      // dialog caret-blink / poll timer id
 static constexpr UINT_PTR  s_kMenuTimerId     = 2;      // advances a dialog's context menu
 static constexpr UINT      s_kMenuTickMs      = 16;
 
@@ -41,7 +40,7 @@ HRESULT DxuiWindow::Create (const CreateParams & params)
     BAIL_OUT_IF (m_source != nullptr, S_OK);
     CBRAEx (params.hInstance, E_INVALIDARG);
 
-    m_minSizeDip = params.minSizeDip;
+    m_sizer.SetMinSizeDip (params.minSizeDip);
     m_ownerHwnd  = params.ownerHwnd;
 
     hostParams.title                  = params.title;
@@ -108,7 +107,7 @@ HRESULT DxuiWindow::CreateHeadless (const CreateParams & params)
 
     BAIL_OUT_IF (m_source != nullptr, S_OK);
 
-    m_minSizeDip = params.minSizeDip;
+    m_sizer.SetMinSizeDip (params.minSizeDip);
     m_ownerHwnd  = params.ownerHwnd;
 
     m_source = std::make_unique<DxuiHwndSource> (boundsDip, kResizeBorderDip, nullptr);
@@ -372,6 +371,12 @@ void DxuiWindow::SetComposedOpacity (float opacity)
 //
 //  Invalidate
 //
+//  Each paint waits for the next vertical blank to present, so a mouse event
+//  whose controls invalidate three times would wait three frames. During a
+//  paint batch, such as a mouse event, the window is only marked, and it is
+//  painted once, when the batch ends. Windows sends WM_PAINT only once no input is queued, so a hover
+//  drawn on a move would trail the pointer while it moves.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiWindow::Invalidate()
@@ -383,7 +388,110 @@ void DxuiWindow::Invalidate()
     if (hwnd != nullptr)
     {
         InvalidateRect (hwnd, nullptr, FALSE);
-        UpdateWindow   (hwnd);
+
+        if (m_batchDepth == 0)
+        {
+            UpdateWindow (hwnd);
+        }
+        else
+        {
+            m_paintAfterBatch = true;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BeginPaintBatch
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::BeginPaintBatch()
+{
+    m_batchDepth++;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EndPaintBatch
+//
+//  The window is painted once if it was invalidated in the batch.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::EndPaintBatch()
+{
+    m_batchDepth--;
+
+    if (m_batchDepth == 0 && m_paintAfterBatch)
+    {
+        m_paintAfterBatch = false;
+
+        if (GetHwnd() != nullptr)
+        {
+            UpdateWindow (GetHwnd());
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetAppIcon
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::SetAppIcon (HICON icon)
+{
+    DxuiIconImage  image;
+    HRESULT        hr    = S_OK;
+
+
+
+    if (icon == nullptr || GetHwnd() == nullptr)
+    {
+        return;
+    }
+
+    SendMessageW (GetHwnd(), WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM> (icon));
+    SendMessageW (GetHwnd(), WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM> (icon));
+
+    hr = DxuiIconImage::FromHicon (icon, kCaptionIconPx, image);
+
+    if (SUCCEEDED (hr))
+    {
+        m_source->SetCaptionIcon (std::move (image.bgraPremul), image.width, image.height);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetTitleChips
+//
+//  Chips drawn after the title in the caption, such as "Read as CP/M".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::SetTitleChips (const std::vector<DxuiTitleChip> & chips)
+{
+    if (m_source != nullptr)
+    {
+        m_source->SetTitleChips (chips);
     }
 }
 
@@ -487,11 +595,7 @@ DxuiMessageResult DxuiWindow::OnLButtonDown (WPARAM wParam, LPARAM lParam)
         SetFocus   (hwnd);
     }
 
-    return DispatchMouse (DxuiMouseEventKind::Down,
-                          DxuiMouseButton::Left,
-                          (int) (short) LOWORD (lParam),
-                          (int) (short) HIWORD (lParam),
-                          0.0f);
+    return m_mouse.OnButton (DxuiMouseEventKind::Down, DxuiMouseButton::Left, lParam);
 }
 
 
@@ -510,11 +614,7 @@ DxuiMessageResult DxuiWindow::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
     ReleaseCapture();
 
-    return DispatchMouse (DxuiMouseEventKind::Up,
-                          DxuiMouseButton::Left,
-                          (int) (short) LOWORD (lParam),
-                          (int) (short) HIWORD (lParam),
-                          0.0f);
+    return m_mouse.OnButton (DxuiMouseEventKind::Up, DxuiMouseButton::Left, lParam);
 }
 
 
@@ -540,11 +640,7 @@ DxuiMessageResult DxuiWindow::OnRButtonDown (WPARAM wParam, LPARAM lParam)
         SetFocus (hwnd);
     }
 
-    return DispatchMouse (DxuiMouseEventKind::Down,
-                          DxuiMouseButton::Right,
-                          (int) (short) LOWORD (lParam),
-                          (int) (short) HIWORD (lParam),
-                          0.0f);
+    return m_mouse.OnButton (DxuiMouseEventKind::Down, DxuiMouseButton::Right, lParam);
 }
 
 
@@ -559,7 +655,7 @@ DxuiMessageResult DxuiWindow::OnRButtonDown (WPARAM wParam, LPARAM lParam)
 
 bool DxuiWindow::TryShowTextBoxMenu (POINT clientPx)
 {
-    DxuiTextInput  * box = FindTextBoxAt (*this, clientPx);
+    DxuiTextInput  * box = DxuiMouseRouter::FindTextBoxAt (*this, clientPx);
 
 
 
@@ -580,41 +676,6 @@ bool DxuiWindow::TryShowTextBoxMenu (POINT clientPx)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FindTextBoxAt
-//
-//  The front-most visible text box under a point, among the controls under
-//  `node`.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiTextInput * DxuiWindow::FindTextBoxAt (const IDxuiControl & node, POINT clientPx)
-{
-    DxuiTextInput  * found = nullptr;
-
-
-
-    for (size_t i = node.GetChildCount(); i > 0 && found == nullptr; i--)
-    {
-        IDxuiControl  * child = node.GetChild (i - 1);
-
-        if (child == nullptr || !child->IsVisible())
-        {
-            continue;
-        }
-
-        found = dynamic_cast<DxuiTextInput *> (child);
-        found = (found != nullptr && found->HitTest (clientPx.x, clientPx.y)) ? found : FindTextBoxAt (*child, clientPx);
-    }
-
-    return found;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  OnRButtonUp
 //
 //  The release too, for a context menu that opens as the button comes up, as
@@ -626,11 +687,7 @@ DxuiMessageResult DxuiWindow::OnRButtonUp (WPARAM wParam, LPARAM lParam)
 {
     UNREFERENCED_PARAMETER (wParam);
 
-    return DispatchMouse (DxuiMouseEventKind::Up,
-                          DxuiMouseButton::Right,
-                          (int) (short) LOWORD (lParam),
-                          (int) (short) HIWORD (lParam),
-                          0.0f);
+    return m_mouse.OnButton (DxuiMouseEventKind::Up, DxuiMouseButton::Right, lParam);
 }
 
 
@@ -652,11 +709,7 @@ DxuiMessageResult DxuiWindow::OnXButtonUp (WPARAM wParam, LPARAM lParam)
 
 
 
-    return DispatchMouse (DxuiMouseEventKind::Up,
-                          button,
-                          (int) (short) LOWORD (lParam),
-                          (int) (short) HIWORD (lParam),
-                          0.0f);
+    return m_mouse.OnButton (DxuiMouseEventKind::Up, button, lParam);
 }
 
 
@@ -671,21 +724,7 @@ DxuiMessageResult DxuiWindow::OnXButtonUp (WPARAM wParam, LPARAM lParam)
 
 DxuiMessageResult DxuiWindow::OnMouseMove (WPARAM wParam, LPARAM lParam)
 {
-    // WM_MOUSEMOVE carries the held-button state in wParam (MK_LBUTTON).
-    // Forward it so controls can distinguish a drag (button held) from a
-    // hover: a scrollbar-thumb / selection drag relies on Move events still
-    // reporting Left, otherwise the control reads the first drag-move as a
-    // button release and aborts the drag.
-    DxuiMouseButton  button = (wParam & MK_LBUTTON) ? DxuiMouseButton::Left
-                                                    : DxuiMouseButton::None;
-
-
-
-    return DispatchMouse (DxuiMouseEventKind::Move,
-                          button,
-                          (int) (short) LOWORD (lParam),
-                          (int) (short) HIWORD (lParam),
-                          0.0f);
+    return m_mouse.OnMove (wParam, lParam);
 }
 
 
@@ -704,32 +743,8 @@ DxuiMessageResult DxuiWindow::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
 DxuiMessageResult DxuiWindow::OnMouseLeave()
 {
-    SendMouseLeave();
+    m_mouse.SendMouseLeave();
     return DxuiMessageResult::NotHandled;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SendMouseLeave
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiWindow::SendMouseLeave()
-{
-    bool  isDragging = DxuiInputState::IsKeyDown (VK_LBUTTON);
-
-
-
-    if (isDragging)
-    {
-        return;
-    }
-
-    (void) DispatchMouse (DxuiMouseEventKind::Leave, DxuiMouseButton::None, kNowherePx, kNowherePx, 0.0f);
 }
 
 
@@ -740,38 +755,11 @@ void DxuiWindow::SendMouseLeave()
 //
 //  OnMouseWheel
 //
-//  WM_MOUSEWHEEL packs the point in SCREEN coordinates; convert to the
-//  client space the panel tree hit-tests in before dispatching.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiMessageResult DxuiWindow::OnMouseWheel (WPARAM wParam, LPARAM lParam, bool horizontal)
 {
-    HWND               hwnd   = GetHwnd();
-    POINT              point  = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
-    float              notch  = (float) GET_WHEEL_DELTA_WPARAM (wParam) / (float) WHEEL_DELTA;
-    DxuiMessageResult  result = DxuiMessageResult::NotHandled;
-
-
-
-    if (hwnd != nullptr)
-    {
-        ScreenToClient (hwnd, &point);
-    }
-
-    //  The message's flags are the keys as they were when the wheel turned.
-    m_wheelCtrl = (GET_KEYSTATE_WPARAM (wParam) & MK_CONTROL) != 0;
-
-    result = DispatchMouse (DxuiMouseEventKind::Wheel,
-                            DxuiMouseButton::None,
-                            point.x,
-                            point.y,
-                            notch,
-                            horizontal);
-
-    m_wheelCtrl = false;
-
-    return result;
+    return m_mouse.OnWheel (wParam, lParam, horizontal);
 }
 
 
@@ -786,40 +774,9 @@ DxuiMessageResult DxuiWindow::OnMouseWheel (WPARAM wParam, LPARAM lParam, bool h
 
 DxuiMessageResult DxuiWindow::OnKeyDown (WPARAM vk, LPARAM lParam)
 {
-    DxuiMessageResult  result = DxuiMessageResult::NotHandled;
-
-
-
     UNREFERENCED_PARAMETER (lParam);
 
-    // A modal overlay swallows every key (routing the ones it wants to its own
-    // handler) so dialog navigation can't leak to the page behind it. The
-    // overlay's own return is discarded on purpose: handled or not, the key
-    // stops here. A filter that keeps a key, such as Escape canceling a drag
-    // under way, comes before all of it.
-    if (m_inputFilters.RunKey (vk))
-    {
-        result = DxuiMessageResult::Handled;
-    }
-    else if (HasModalOverlay())
-    {
-        (void) OnOverlayKey (vk);
-        result = DxuiMessageResult::Handled;
-    }
-    else if (GetPopupHost() != nullptr && GetPopupHost()->GetContextMenu().IsVisible())
-    {
-        //  An open context menu is where the keyboard is, as a Windows menu's
-        //  is: arrows, Enter, Escape and mnemonics act on it, not the page.
-        (void) GetPopupHost()->GetContextMenu().OnKey (vk);
-        result = DxuiMessageResult::Handled;
-    }
-    else
-    {
-        result = m_dialog.IsActive() ? m_dialog.DispatchKey (vk)
-                                     : DispatchKey (DxuiKeyEventKind::Down, vk);
-    }
-
-    return result;
+    return m_keys.OnKeyDown (vk);
 }
 
 
@@ -830,58 +787,13 @@ DxuiMessageResult DxuiWindow::OnKeyDown (WPARAM vk, LPARAM lParam)
 //
 //  OnChar
 //
-//  Routes a typed character, in three tiers by what currently owns text entry.
-//
-//  A MODAL OVERLAY takes precedence over everything and always reports
-//  handled, because it is modal: a character reaching anything behind it --
-//  the color picker's hex field being the case in point -- would type into a
-//  control the user cannot see.
-//
-//  A DIALOG routes to the focused control only, with no fan-out. There is no
-//  sensible recipient for a character when nothing has focus, so an unfocused
-//  dialog reports NotHandled and lets default processing run rather than
-//  swallowing the keystroke.
-//
-//  Everything else goes through the normal key dispatch, which is the path a
-//  plain window's content uses.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiMessageResult DxuiWindow::OnChar (WPARAM ch, LPARAM lParam)
 {
-    DxuiMessageResult  result    = DxuiMessageResult::NotHandled;
-    IDxuiControl *     focused   = nullptr;
-    bool               isHandled = false;
-
-
-
     UNREFERENCED_PARAMETER (lParam);
 
-    // A modal overlay owns text entry (e.g. the color picker's hex field).
-    if (HasModalOverlay())
-    {
-        (void) OnOverlayChar ((wchar_t) ch);
-        result = DxuiMessageResult::Handled;
-    }
-    else if (m_dialog.IsActive())
-    {
-        // Dialog text entry goes to the focused control only -- there is no
-        // fanout, so an unfocused dialog reports NotHandled.
-        focused = m_focus.GetFocusedControl();
-
-        if (focused != nullptr)
-        {
-            isHandled = focused->OnChar ((wchar_t) ch);
-        }
-
-        result = isHandled ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
-    }
-    else
-    {
-        result = DispatchKey (DxuiKeyEventKind::Char, ch);
-    }
-
-    return result;
+    return m_keys.OnChar ((wchar_t) ch);
 }
 
 
@@ -1037,267 +949,11 @@ DxuiMessageResult DxuiWindow::OnSetCursor (WORD hitTest)
 //
 //  OnGetMinMax
 //
-//  Clamps the OS minimum track size to the configured minimum client
-//  size scaled to the current DPI, and the maximum to what the subclass
-//  reports, never below the minimum. The maximum is a client size, so the
-//  frame around a resizable window's client is added to it.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiMessageResult DxuiWindow::OnGetMinMax (MINMAXINFO * info)
 {
-    DxuiMessageResult  result = DxuiMessageResult::NotHandled;
-    UINT               dpi    = GetDpi();
-    SIZE               maxPx  = {};
-
-
-
-    if (info == nullptr)
-    {
-        return result;
-    }
-
-    if (m_minSizeDip.cx > 0 || m_minSizeDip.cy > 0)
-    {
-        info->ptMinTrackSize.x = MulDiv (m_minSizeDip.cx, (int) dpi, USER_DEFAULT_SCREEN_DPI);
-        info->ptMinTrackSize.y = MulDiv (m_minSizeDip.cy, (int) dpi, USER_DEFAULT_SCREEN_DPI);
-        result = DxuiMessageResult::Handled;
-    }
-
-    if (TryGetMaxTrackSizePx (maxPx))
-    {
-        maxPx = AddFrameSizePx (maxPx);
-
-        info->ptMaxTrackSize.x = std::max (maxPx.cx, info->ptMinTrackSize.x);
-        info->ptMaxTrackSize.y = std::max (maxPx.cy, info->ptMinTrackSize.y);
-        result = DxuiMessageResult::Handled;
-    }
-
-    return result;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ClampSize
-//
-//  Each dimension held within [minSize, maxSize]. A maximum below the
-//  minimum gives way to it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-SIZE DxuiWindow::ClampSize (const SIZE & size, const SIZE & minSize, const SIZE & maxSize)
-{
-    return SIZE { std::clamp (size.cx, minSize.cx, std::max (maxSize.cx, minSize.cx)),
-                  std::clamp (size.cy, minSize.cy, std::max (maxSize.cy, minSize.cy)) };
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  FitRectToMaxSize
-//
-//  The window at its maximum, cut to the work area, keeping its top left
-//  corner unless that would carry it past the work area's right or bottom
-//  edge. It grows as well as shrinks: a size remembered from before the
-//  content grew, or a design size the content has since outgrown, would
-//  otherwise open with a scroll bar on a screen with room to spare.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-RECT DxuiWindow::FitRectToMaxSize (const RECT & windowPx, const SIZE & maxPx, const RECT & workPx)
-{
-    LONG  widthPx  = std::min (maxPx.cx, workPx.right  - workPx.left);
-    LONG  heightPx = std::min (maxPx.cy, workPx.bottom - workPx.top);
-    LONG  left     = std::max (workPx.left, std::min (windowPx.left, workPx.right  - widthPx));
-    LONG  top      = std::max (workPx.top,  std::min (windowPx.top,  workPx.bottom - heightPx));
-
-
-
-    return RECT { left, top, left + widthPx, top + heightPx };
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TryGetGrownRect
-//
-//  FitRectToMaxSize with the window's own size as the floor, so a dimension
-//  the content does not exceed keeps its size.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiWindow::TryGetGrownRect (const RECT & windowPx, const SIZE & maxPx, const RECT & workPx, RECT & outPx)
-{
-    SIZE  sizePx  = { windowPx.right - windowPx.left, windowPx.bottom - windowPx.top };
-    SIZE  grownPx = { std::max (sizePx.cx, maxPx.cx), std::max (sizePx.cy, maxPx.cy) };
-
-
-
-    outPx = FitRectToMaxSize (windowPx, grownPx, workPx);
-
-    return outPx.right - outPx.left > sizePx.cx || outPx.bottom - outPx.top > sizePx.cy;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  FitToMaxSize
-//
-//  Sizes the window to TryGetMaxClientSizePx within its monitor's work area,
-//  and places it there by its creation-time placement. Called before the
-//  window is first shown, once its content has been laid out.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiWindow::FitToMaxSize()
-{
-    ResizeToMaxSize (false);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GrowToMaxSize
-//
-//  Grows the window toward TryGetMaxClientSizePx within its monitor's work
-//  area, and leaves it alone when the content fits.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiWindow::GrowToMaxSize()
-{
-    ResizeToMaxSize (true);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ResizeToMaxSize
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiWindow::ResizeToMaxSize (bool growOnly)
-{
-    HRESULT      hr      = S_OK;
-    HWND         hwnd    = GetHwnd();
-    HMONITOR     monitor = nullptr;
-    MONITORINFO  info    = { sizeof (info) };
-    RECT         rect    = {};
-    RECT         fitted  = {};
-    SIZE         maxPx   = {};
-    SIZE         sizePx  = {};
-    POINT        topLeft = {};
-    bool         hasMax  = false;
-    bool         isSame  = false;
-    bool         grows   = false;
-    BOOL         done    = FALSE;
-
-
-
-    CBRA (hwnd != nullptr);
-
-    hasMax = TryGetMaxClientSizePx (maxPx);
-    BAIL_OUT_IF (!hasMax, S_OK);
-
-    //  Windows computes a borderless window's resize borders only at a frame
-    //  change, and a hidden window has had none since its creation: its
-    //  client fills the window and the frame measures zero. A frame change is
-    //  forced first.
-    done = SetWindowPos (hwnd, nullptr, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
-    CWRA (done);
-
-    maxPx = AddFrameSizePx (maxPx);
-
-    done = GetWindowRect (hwnd, &rect);
-    CWRA (done);
-
-    monitor = DxuiDisplay::Get().MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
-    done    = DxuiDisplay::Get().GetMonitorInfoW (monitor, &info);
-    CWRA (done);
-
-    if (growOnly)
-    {
-        grows = TryGetGrownRect (rect, maxPx, info.rcWork, fitted);
-        BAIL_OUT_IF (!grows, S_OK);
-    }
-    else
-    {
-        fitted = FitRectToMaxSize (rect, maxPx, info.rcWork);
-
-        // The fit runs while the window is still hidden, once its content can
-        // be measured, so it is placed here at the size it really opens at:
-        // the creation-time placement measured a size that was only a guess.
-        sizePx = { fitted.right - fitted.left, fitted.bottom - fitted.top };
-
-        if (m_source->TryGetPlacementForSize (sizePx, topLeft))
-        {
-            fitted = RECT { topLeft.x, topLeft.y, topLeft.x + sizePx.cx, topLeft.y + sizePx.cy };
-        }
-    }
-
-    isSame = EqualRect (&fitted, &rect) != FALSE;
-    BAIL_OUT_IF (isSame, S_OK);
-
-    done = SetWindowPos (hwnd, nullptr, fitted.left, fitted.top,
-                         fitted.right - fitted.left, fitted.bottom - fitted.top,
-                         SWP_NOZORDER | SWP_NOACTIVATE);
-    CWRA (done);
-
-Error:
-    return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  AddFrameSizePx
-//
-//  A client size as the window size around it: a resizable window has
-//  invisible resize borders outside its client, and a window size without
-//  them makes the client that much smaller. Before the window has a client
-//  to measure, the client size is returned as given.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-SIZE DxuiWindow::AddFrameSizePx (const SIZE & clientPx) const
-{
-    HWND  hwnd   = GetHwnd();
-    RECT  window = {};
-    RECT  client = {};
-    SIZE  sizePx = clientPx;
-
-
-
-    if (hwnd != nullptr && GetWindowRect (hwnd, &window) && GetClientRect (hwnd, &client) &&
-        client.right > 0 && client.bottom > 0)
-    {
-        sizePx.cx += (window.right - window.left) - client.right;
-        sizePx.cy += (window.bottom - window.top) - client.bottom;
-    }
-
-    return sizePx;
+    return (info != nullptr && m_sizer.GetMinMax (*info)) ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
 }
 
 
@@ -1320,10 +976,8 @@ DxuiMessageResult DxuiWindow::OnTimer (UINT_PTR timerId)
 
 
 
-    if (m_dialog.IsActive() && timerId == s_kDialogTimerId)
+    if (m_dialogRunner.OnTimer (timerId))
     {
-        OnDialogTick();
-        Invalidate();
         result = DxuiMessageResult::Handled;
     }
 
@@ -1354,22 +1008,18 @@ DxuiMessageResult DxuiWindow::OnTimer (UINT_PTR timerId)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnEnterSizeMove / OnSize / OnMove
+//  OnEnterSizeMove
 //
 //  A window is placed by more than a drag: the snap layouts, Win+arrow, a
-//  monitor going away, an arrangement restored by the shell. All of those
-//  arrive as WM_SIZE / WM_MOVE and never enter the OS drag loop, so a hook
-//  on the end of that loop alone never hears them.
-//
-//  Reporting every change is what this used to do, and it was wrong the
-//  other way: inside the drag loop the geometry changes once per pixel.
-//  So the loop is tracked, and a change outside it is a placement.
+//  monitor going away, an arrangement restored by the shell. Those arrive as
+//  WM_SIZE and WM_MOVE outside the OS drag loop, and each is a placement;
+//  inside the loop only its end is.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiWindow::OnEnterSizeMove()
 {
-    m_inSizeMove = true;
+    m_sizer.BeginSizeMove();
 }
 
 
@@ -1387,13 +1037,7 @@ DxuiMessageResult DxuiWindow::OnSize (UINT widthPx, UINT heightPx)
     UNREFERENCED_PARAMETER (widthPx);
     UNREFERENCED_PARAMETER (heightPx);
 
-
-
-    if (!m_inSizeMove)
-    {
-        OnWindowPlaced();
-    }
-
+    m_sizer.NoteGeometry();
     return DxuiMessageResult::NotHandled;
 }
 
@@ -1412,13 +1056,7 @@ DxuiMessageResult DxuiWindow::OnMove (int x, int y)
     UNREFERENCED_PARAMETER (x);
     UNREFERENCED_PARAMETER (y);
 
-
-
-    if (!m_inSizeMove)
-    {
-        OnWindowPlaced();
-    }
-
+    m_sizer.NoteGeometry();
     return DxuiMessageResult::NotHandled;
 }
 
@@ -1434,83 +1072,7 @@ DxuiMessageResult DxuiWindow::OnMove (int x, int y)
 
 void DxuiWindow::OnExitSizeMove()
 {
-    m_inSizeMove = false;
-    OnWindowPlaced();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetDialogTimer
-//
-//  The timer behind a dialog's tick. Re-arming a timer under the same id
-//  replaces it, so a dialog already showing moves to a new cadence at once.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiWindow::SetDialogTimer (UINT ms)
-{
-    HRESULT  hr = S_OK;
-
-
-
-    if (m_source != nullptr)
-    {
-        hr = m_source->SetTimer (s_kDialogTimerId, ms);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TrySendDialogOverlayKey
-//
-//  A modal overlay takes every key; false with none up.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiWindow::TrySendDialogOverlayKey (WPARAM vk)
-{
-    bool  hasOverlay = HasModalOverlay();
-
-
-
-    if (hasOverlay)
-    {
-        (void) OnOverlayKey (vk);
-    }
-
-    return hasOverlay;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  KillDialogTimer
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiWindow::KillDialogTimer()
-{
-    HRESULT  hr = S_OK;
-
-
-
-    if (m_source != nullptr)
-    {
-        hr = m_source->KillTimer (s_kDialogTimerId);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
+    m_sizer.EndSizeMove();
 }
 
 
@@ -1620,9 +1182,9 @@ DxuiMessageResult DxuiWindow::OnClose()
 {
     if (m_dialog.IsActive())
     {
-        if (!m_dialog.TryTriggerButton (IDCANCEL))
+        if (!m_dialog.TryClickButton (IDCANCEL))
         {
-            m_dialog.End (IDCANCEL);
+            EndDialog (IDCANCEL);
         }
     }
     else
@@ -1646,200 +1208,6 @@ DxuiMessageResult DxuiWindow::OnClose()
 void DxuiWindow::OnDestroy()
 {
     OnWindowDestroy();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DispatchMouse
-//
-//  Builds a client-pixel DxuiMouseEvent (plus live modifier state) and
-//  routes it through this panel's OnMouse, mapping the bool result onto
-//  the host client Handled / NotHandled contract.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiMessageResult DxuiWindow::DispatchMouse (DxuiMouseEventKind kind,
-                                             DxuiMouseButton    button,
-                                             int                x,
-                                             int                y,
-                                             float              wheelDelta,
-                                             bool               wheelHorizontal)
-{
-    DxuiMouseEvent     ev;
-    DxuiMessageResult  result = DxuiMessageResult::NotHandled;
-
-
-
-    ev.kind            = kind;
-    ev.button          = button;
-    ev.positionDip     = { x, y };
-    ev.wheelDelta      = wheelDelta;
-    ev.wheelHorizontal = wheelHorizontal;
-    ev.shift       = DxuiInputState::IsKeyDown (VK_SHIFT);
-    ev.ctrl        = m_wheelCtrl || DxuiInputState::IsKeyDown (VK_CONTROL);
-    ev.alt         = DxuiInputState::IsKeyDown (VK_MENU);
-
-    // A modal overlay captures all mouse input so the page beneath it stays
-    // inert (clicks outside the overlay dialog are simply ignored).
-    if (HasModalOverlay())
-    {
-        result = DxuiMessageResult::Handled;
-        (void) OnOverlayMouse (ev);
-    }
-    else
-    {
-        // In a dialog a press focuses the control under it before the control
-        // sees the press, so a drop-down or slider already has focus when it
-        // handles the click, and Tab continues from it.
-        //  A press anywhere but on a pinned info tip's "i" closes the tip.
-        if (kind == DxuiMouseEventKind::Down)
-        {
-            DxuiInfoTip::CloseOpenOutside (ev.positionDip);
-        }
-
-        if (kind == DxuiMouseEventKind::Down && m_dialog.IsActive() && m_focus.FocusAtPoint (POINT { x, y }))
-        {
-            Invalidate();
-        }
-
-        //  A move with no button down changes the controls under the pointer,
-        //  and the pointer's exit from the window empties them. During a drag
-        //  they aren't updated, so the control dragged from stays on the path.
-        if (kind == DxuiMouseEventKind::Move && button == DxuiMouseButton::None)
-        {
-            UpdatePointerPath (POINT { x, y }, false);
-        }
-        else if (kind == DxuiMouseEventKind::Leave)
-        {
-            UpdatePointerPath (POINT { x, y }, true);
-        }
-
-        //  A right-press on a scrollbar opens the bar's own menu, as Windows'
-        //  bars do, before the control or the window has the press.
-        if (kind == DxuiMouseEventKind::Down && button == DxuiMouseButton::Right && DxuiPointerTracker::ShowScrollbarMenuIn (*this, GetHwnd(), POINT { x, y }))
-        {
-            result = DxuiMessageResult::Handled;
-        }
-        else if ((kind == DxuiMouseEventKind::Down && button == DxuiMouseButton::Right && TryShowTextBoxMenu (ev.positionDip)) || m_inputFilters.RunMouse (ev) || OnMouse (ev))
-        {
-            // Repaint immediately when a control consumes the event so drags
-            // (slider thumbs, scrubbing) and hover states track the cursor every
-            // frame instead of only on the ~half-second dialog tick.
-            // InvalidateRect coalesces, so at most one paint lands per frame
-            // regardless of mouse-move rate.
-            result = DxuiMessageResult::Handled;
-            Invalidate();
-        }
-
-        //  A context menu open in a dialog is ticked from here; otherwise only
-        //  an application window ticks one.
-        if (m_dialog.IsActive() && m_source != nullptr && m_source->GetContextMenu().IsVisible())
-        {
-            HRESULT  hr = m_source->SetTimer (s_kMenuTimerId, s_kMenuTickMs);
-
-            IGNORE_RETURN_VALUE (hr, S_OK);
-        }
-    }
-
-    return result;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DispatchKey
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiMessageResult DxuiWindow::DispatchKey (DxuiKeyEventKind kind, WPARAM code)
-{
-    DxuiKeyEvent  ev = MakeKeyEvent (kind, code);
-
-
-
-    return (OnKey (ev) || RouteMappedKey (ev)) ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MakeKeyEvent
-//
-//  A key event for the key, with the Shift, Ctrl and Alt keys as they are
-//  now.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiKeyEvent DxuiWindow::MakeKeyEvent (DxuiKeyEventKind kind, WPARAM vk)
-{
-    return DxuiInputState::MakeKeyEvent (kind, vk);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  RouteMappedKey
-//
-//  Key-downs only: a map binds presses, and a release of a mapped key must
-//  not run its command a second time.
-//
-//  The first key of a two-key chord is kept until the next key-down. A
-//  second key that completes no chord is consumed with it, as Visual Studio
-//  consumes one, so it does not reach a control as a key of its own.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiWindow::RouteMappedKey (const DxuiKeyEvent & ev)
-{
-    int            commandId = 0;
-    bool           isHandled = false;
-    DxuiKeyMatch   match     = DxuiKeyMatch::None;
-    DxuiKeyStroke  stroke    = { ev.vk, ev.ctrl, ev.alt, ev.shift };
-
-
-
-    if (m_keyMap == nullptr || ev.kind != DxuiKeyEventKind::Down)
-    {
-        return false;
-    }
-
-    match = m_keyMap->Match (stroke, m_keyPrefix, commandId);
-
-    switch (match)
-    {
-    case DxuiKeyMatch::Command:
-        m_keyPrefix.reset();
-        isHandled = OnMappedCommand (commandId);
-        break;
-
-    case DxuiKeyMatch::Prefix:
-        m_keyPrefix = stroke;
-        isHandled   = true;
-        break;
-
-    case DxuiKeyMatch::Modifier:
-        break;
-
-    default:
-        isHandled = m_keyPrefix.has_value();
-        m_keyPrefix.reset();
-        break;
-    }
-
-    return isHandled;
 }
 
 
@@ -1879,4 +1247,139 @@ void DxuiWindow::RefreshFocusOrder (IDxuiControl * fallback)
     {
         m_focus.SetFocused (fallback);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RouteOverlayMouse
+//
+//  A modal overlay has all mouse input, so the page beneath it stays inert.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiWindow::RouteOverlayMouse (const DxuiMouseEvent & ev)
+{
+    if (!HasModalOverlay())
+    {
+        return false;
+    }
+
+    (void) OnOverlayMouse (ev);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FocusPressedControl
+//
+//  In a dialog a press focuses the control under it before the control sees
+//  the press.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::FocusPressedControl (POINT clientPx)
+{
+    if (m_dialog.IsActive() && m_focus.FocusAtPoint (clientPx))
+    {
+        Invalidate();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TickDialogMenu
+//
+//  A context menu open in a dialog is ticked by the window's menu timer;
+//  otherwise only an application window ticks one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::TickDialogMenu()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (m_dialog.IsActive() && m_source != nullptr && m_source->GetContextMenu().IsVisible())
+    {
+        hr = m_source->SetTimer (s_kMenuTimerId, s_kMenuTickMs);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RouteOverlayKey
+//
+//  The overlay's own result is discarded: handled or not, the key stops at
+//  the overlay.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiWindow::RouteOverlayKey (WPARAM vk)
+{
+    if (!HasModalOverlay())
+    {
+        return false;
+    }
+
+    (void) OnOverlayKey (vk);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RouteOverlayChar
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiWindow::RouteOverlayChar (wchar_t ch)
+{
+    if (!HasModalOverlay())
+    {
+        return false;
+    }
+
+    (void) OnOverlayChar (ch);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetOpenContextMenu
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiPopupMenu * DxuiWindow::GetOpenContextMenu()
+{
+    if (m_source == nullptr || !m_source->GetContextMenu().IsVisible())
+    {
+        return nullptr;
+    }
+
+    return &m_source->GetContextMenu();
 }

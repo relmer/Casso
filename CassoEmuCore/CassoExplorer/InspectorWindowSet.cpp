@@ -144,9 +144,10 @@ bool InspectorWindowSet::CanInspect (const std::wstring & path)
 
     std::transform (extension.begin(), extension.end(), extension.begin(), [] (wchar_t c) { return static_cast<wchar_t> (towlower (c)); });
 
+    //  A gzip file's image has the format of the name without ".gz".
     if (WrappedImageFileIo::IsWrapped (TextEncoding::WideToUtf8 (path)))
     {
-        return IsWrappedBlockImage (path);
+        return HasTrackFormat (extension == L".gz" ? fs::path (path).replace_extension().wstring() : path) || IsWrappedBlockImage (path);
     }
 
     return HasTrackFormat (path) || std::any_of (s_kBlockExtensions.begin(), s_kBlockExtensions.end(), [&extension] (const wchar_t * known) { return extension == known; });
@@ -247,6 +248,16 @@ HRESULT InspectorWindowSet::Open (HINSTANCE hInstance, HWND anchor, const std::w
     entry->host   = std::make_unique<ExplorerInspectorHost> (path, *m_seams.fileIo);
     isBlock       = m_seams.isBlockImage (path);
     entry->window = isBlock ? m_seams.makeBlockWindow (path) : m_seams.makeWindow();
+
+    entry->host->SetFilesystemChoices (m_seams.filesystemChoices);
+
+    if (m_seams.explorer != nullptr)
+    {
+        entry->host->SetOnTransferRaw ([this, raw = entry.get()] (const InspectorRawTransfer & transfer)
+        {
+            m_seams.explorer->TransferRaw (raw->window->GetHwnd(), raw->host->GetPath(), transfer);
+        });
+    }
 
     hr = entry->window->Create (hInstance, anchor, m_theme, entry->host.get());
     CHR (hr);
@@ -409,7 +420,9 @@ void InspectorWindowSet::SetTheme (const DxuiTheme & theme)
 //
 //  InspectorWindowSet::CloseAll
 //
-//  When Explorer exits (FR-075). The state saved is the last window's.
+//  When Explorer exits (FR-075). The state saved is the last window's. Each
+//  window is hidden and its work stopped first, so none stays on screen
+//  while its worker finishes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -421,11 +434,42 @@ void InspectorWindowSet::CloseAll()
         {
             entry->window->GetPrefs (m_prefs);
             entry->isClosed = true;
+            entry->window->Close();
         }
     }
 
     Release();
     StopTimer();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorWindowSet::ConfirmExit
+//
+//  Each open window prompts in turn, minimized or not, and a Cancel in any
+//  one of them stops the exit before any window closes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool InspectorWindowSet::ConfirmExit()
+{
+    bool  isConfirmed = true;
+
+
+
+    for (const std::unique_ptr<Entry> & entry : m_entries)
+    {
+        if (isConfirmed && !entry->isClosed)
+        {
+            isConfirmed = entry->window->ConfirmExit();
+        }
+    }
+
+    return isConfirmed;
 }
 
 

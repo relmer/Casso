@@ -1061,4 +1061,104 @@ public:
         Assert::IsTrue (view.IsHorzScrollbarVisible());
         Assert::IsTrue (view.IsScrollbarVisible());
     }
+
+
+    //  A zoomable picture with a ping, 100 pixels square, on the second line.
+    static void  SetMapRows (DxuiTextView & view)
+    {
+        DxuiTextView::Row  row     = MakeRow ({ L"" });
+        auto               picture = std::make_shared<DxuiTextView::Picture>();
+
+        picture->bgra.assign (100 * 100, 0xFF336699);
+        picture->width  = 100;
+        picture->height = 100;
+        picture->pingX  = 50;
+        picture->pingY  = 50;
+        picture->zoom   = true;
+        row.picture     = picture;
+
+        LayOut (view, 400, 400);
+        view.SetRows ({ MakeRow ({ L"above" }), row });
+    }
+
+
+    static void  Wheel (DxuiTextView & view, int x, int y, float notches, bool ctrl = false)
+    {
+        DxuiMouseEvent  ev;
+
+        ev.kind        = DxuiMouseEventKind::Wheel;
+        ev.positionDip = POINT { x, y };
+        ev.wheelDelta  = notches;
+        ev.ctrl        = ctrl;
+
+        view.OnMouse (ev);
+    }
+
+
+    //  The view routes Ctrl with the wheel and a drag over a map picture to
+    //  its pictures: Ctrl with the wheel zooms, the wheel alone doesn't, a
+    //  drag pans instead of selecting, and the map's ping animates.
+    TEST_METHOD (WheelAndDragOverAMap_GoToThePictures)
+    {
+        DxuiTextView  view;
+
+        SetMapRows (view);
+        Wheel (view, 6 + 50, 6 + 16 + 50, 4.0f);
+
+        Assert::AreEqual (1.0f, view.GetPictures().GetMapZoom(), L"the wheel alone doesn't zoom the map");
+
+        Wheel (view, 6 + 50, 6 + 16 + 50, 4.0f, true);
+
+        Assert::IsTrue   (view.GetPictures().GetMapZoom() > 1.0f);
+        Assert::AreEqual (0, view.GetTopLine(), L"Ctrl with the wheel zooms the map rather than scroll the text");
+
+        Mouse (view, DxuiMouseEventKind::Down, 6 + 50, 6 + 16 + 50);
+        Mouse (view, DxuiMouseEventKind::Move, 6 + 40, 6 + 16 + 50);
+
+        Assert::IsTrue  (view.GetPictures().IsPanning());
+        Assert::IsFalse (view.HasSelection(), L"a drag on the map doesn't select text");
+
+        Mouse (view, DxuiMouseEventKind::Up, 6 + 40, 6 + 16 + 50);
+
+        Assert::IsFalse (view.GetPictures().IsPanning());
+        Assert::IsTrue  (view.GetPictures().IsPinging());
+    }
+
+
+    //  A press and a drag on the text go to the selection.
+    TEST_METHOD (Drag_GoesToTheSelection)
+    {
+        DxuiTextView  view;
+
+        LayOut (view, 400, 400);
+        view.SetRows ({ MakeRow ({ L"A", L"one" }), MakeRow ({ L"B", L"two" }) });
+
+        Mouse (view, DxuiMouseEventKind::Down, 6 + 3 * 8, 6 + 4);
+        Mouse (view, DxuiMouseEventKind::Move, 6 + 5 * 8, 6 + 16 + 4);
+        Mouse (view, DxuiMouseEventKind::Up,   6 + 5 * 8, 6 + 16 + 4);
+
+        Assert::AreEqual (std::wstring (L"one\r\nB\ttw"), view.GetSelectionText());
+        Assert::IsFalse  (view.IsInteracting());
+    }
+
+
+    //  Proportional text is laid out once a paint has measured its
+    //  characters.
+    TEST_METHOD (Proportional_LaysOutOnceAPaintMeasures)
+    {
+        DxuiTextView          view;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+
+        LayOut (view, 400, 400);
+        view.SetProportional (true);
+        view.SetRows ({ MakeRow ({ L"Format", L"WOZ 2" }), MakeRow ({ L"", L"second line" }) });
+
+        Assert::AreEqual (0, view.GetLineCount(), L"Nothing is laid out until a paint measures the characters");
+
+        view.Paint (painter, text, theme);
+
+        Assert::AreEqual (2, view.GetLineCount());
+    }
 };

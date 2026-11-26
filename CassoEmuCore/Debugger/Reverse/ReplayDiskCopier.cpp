@@ -39,9 +39,9 @@ HRESULT ReplayDiskCopier::Copy (
         m_blankSectorImage = std::make_shared<const std::vector<Byte>> (DiskImage::kDos33ImageSize, (Byte) 0);
     }
 
-    for (slot = 0; slot < DiskImageStore::kSlotCount; slot++)
+    for (slot = 0; slot < DiskBayTable::kSlotCount; slot++)
     {
-        for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+        for (drive = 0; drive < DiskBayTable::kDriveCount; drive++)
         {
             image = store.IsMounted (slot, drive) ? store.GetImage (slot, drive) : nullptr;
 

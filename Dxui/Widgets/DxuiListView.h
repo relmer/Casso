@@ -151,6 +151,10 @@ public:
     //  measure only the rows on screen, or only grow, are not reported either.
     void  AutoFitColumnToContent     (size_t idx) { m_columnSizing.AutoFitColumnToContent (idx); }
 
+    //  A fit of the column measures each value only up to `stop`, then adds
+    //  `extraDip`, so a long value shows its start and is cut short after.
+    void  SetColumnFitStop           (size_t idx, const std::wstring & stop, int extraDip) { m_columnSizing.SetColumnFitStop (idx, stop, extraDip); }
+
     //  Every shown column fitted to its content, as FitColumnToContent does
     //  one.
     void  FitAllColumnsToContent    () { m_columnSizing.FitAllColumnsToContent(); }
@@ -601,6 +605,15 @@ public:
     // selection visible regardless, like a real list view.
     void  SetAlwaysShowSelection   (bool enabled)                { m_alwaysShowSelection = enabled; }
 
+    // A host that marks the selected row itself, as the Slots page's outline
+    // does, turns off the row's selection fill and focus cue. The hover
+    // and press fills are drawn.
+    void  SetSelectionPainted      (bool enabled)                { m_selectionPainted = enabled; }
+
+    // Rounds the corners of a row's hover, press and selection box by this
+    // many DIPs. At zero, the default, they are square, as Explorer's are.
+    void  SetRowCornerDip          (float dip)                   { m_rowCornerDip = dip; }
+
     // Selected rows in the accent selection color a text control uses, as a
     // preview of a file's contents does, rather than the neutral fill a file
     // list uses.
@@ -927,6 +940,8 @@ private:
     int                        m_hovered             = -1;
     int                        m_dropRow             = -1;
     bool                       m_alwaysShowSelection = false;
+    bool                       m_selectionPainted    = true;
+    float                      m_rowCornerDip        = 0.0f;
     bool                       m_textSelectionColors = false;
     bool                       m_showHeader          = false;
     View                       m_view                = View::Details;

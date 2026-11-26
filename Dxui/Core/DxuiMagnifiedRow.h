@@ -54,11 +54,14 @@ public:
     //  them.
     enum class Gaps { Fixed, Grow };
 
+    //  With growsWidth false, each item's place and width are those at rest,
+    //  and only its scale grows.
     struct Options
     {
-        float   reach  = 0.0f;
-        Anchor  anchor = Anchor::Center;
-        Gaps    gaps   = Gaps::Fixed;
+        float   reach      = 0.0f;
+        Anchor  anchor     = Anchor::Center;
+        Gaps    gaps       = Gaps::Fixed;
+        bool    growsWidth = true;
     };
 
     static constexpr int64_t  kFadeMs = 140;

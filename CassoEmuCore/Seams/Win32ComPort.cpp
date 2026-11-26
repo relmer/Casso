@@ -50,6 +50,13 @@ HRESULT Win32ComPort::Open (const std::wstring & port, const ComSettings & setti
     result = SetCommState (m_handle, &dcb);
     CWR (result);
 
+    //  The driver's default queue fills in a few hundred milliseconds on a
+    //  fast link, and it overflows when a read is that late, as on a machine
+    //  short of memory. This one fills in seconds. A driver that ignores the
+    //  request uses its default.
+    result = SetupComm (m_handle, s_kInQueueBytes, s_kOutQueueBytes);
+    IGNORE_RETURN_VALUE (result, TRUE);
+
     hr = SetReadTimeout (0);
     CHR (hr);
 
@@ -206,7 +213,54 @@ size_t Win32ComPort::GetReadableCount()
 
     result = ClearCommError (m_handle, &errors, &status);
 
+    //  ClearCommError clears the errors as it reports them, so they're added
+    //  to m_lineErrors for ResetLine.
+    m_lineErrors |= result ? errors : 0;
+
     return result ? (size_t) status.cbInQue : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ComPort::ResetLine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ComPort::ResetLine (std::string & outErrors)
+{
+    HRESULT  hr     = S_OK;
+    BOOL     result = FALSE;
+    bool     closed = IsClosed();
+
+
+
+    outErrors.clear();
+
+    CBREx (!closed, HRESULT_FROM_WIN32 (ERROR_BROKEN_PIPE));
+
+    //  Takes the errors reported since the last read.
+    GetReadableCount();
+
+    for (const auto & [flag, text] : { std::pair<DWORD, const char *> { CE_OVERRUN, "overrun" }, { CE_RXOVER, "receive buffer overflow" },
+                                       { CE_FRAME, "framing error" }, { CE_RXPARITY, "parity error" }, { CE_BREAK, "break" } })
+    {
+        if ((m_lineErrors & flag) != 0)
+        {
+            outErrors += (outErrors.empty() ? "" : ", ") + std::string (text);
+        }
+    }
+
+    m_lineErrors = 0;
+
+    result = PurgeComm (m_handle, PURGE_RXABORT | PURGE_RXCLEAR | PURGE_TXABORT | PURGE_TXCLEAR);
+    CWR (result);
+
+Error:
+    return hr;
 }
 
 

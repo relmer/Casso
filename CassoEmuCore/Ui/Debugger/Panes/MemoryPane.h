@@ -141,8 +141,8 @@ public:
     //  that byte's address goes to the console instead.
     bool  Undo         () { return UndoOrRedo (false); }
     bool  Redo         () { return UndoOrRedo (true); }
-    bool  CanUndo      () const { return m_view->IsEditable() && m_model.CanUndo(); }
-    bool  CanRedo      () const { return m_view->IsEditable() && m_model.CanRedo(); }
+    bool  CanUndo      () const { return m_view->GetSourceEdit().IsEditable() && m_model.CanUndo(); }
+    bool  CanRedo      () const { return m_view->GetSourceEdit().IsEditable() && m_model.CanRedo(); }
     void  ClearHistory () { m_model.ClearHistory(); }
 
     std::string  GetHistoryText () const                       { return m_model.GetHistoryText(); }

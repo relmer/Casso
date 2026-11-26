@@ -950,7 +950,7 @@ void FloatingPanes::ApplyKeyMap (const DxuiKeyMap * map)
 {
     for (const auto & entry : m_windows)
     {
-        entry.second->SetKeyMap (map);
+        entry.second->GetKeyRouter().SetKeyMap (map);
     }
 }
 
@@ -1221,7 +1221,7 @@ void FloatingPanes::Float (const std::wstring & key)
     }
 
     window->SetTheme  (theme);
-    window->SetKeyMap (m_host.GetFloatKeyMap());
+    window->GetKeyRouter().SetKeyMap (m_host.GetFloatKeyMap());
 
     tabs = DxuiPaneLayout::MakeSingle (panes.front());
 

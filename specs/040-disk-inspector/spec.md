@@ -4364,7 +4364,7 @@ release (Delivery). The first release MUST NOT depend on them.
     target, copies the target's metadata to it, flushes it, and then replaces
     the target atomically, removing the temporary on any failure. Casso's
     image saves, `WriteFileAtomically`, the CLI's `DiskImageSession` and Casso
-    Explorer's commits (Cassque) go through it. FR-116 relies on it for every
+    Explorer's commits go through it. FR-116 relies on it for every
     save of the shared sector writer's callers and of inspector edits, and for
     "Save edited copy...", on its rename without replacing when the copy is a
     new file and on its replacing commit when the user confirms replacing an

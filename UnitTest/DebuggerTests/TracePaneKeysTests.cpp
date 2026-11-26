@@ -87,7 +87,7 @@ namespace DebuggerTests
         using DebuggerWindow::OnCreate;
         using DebuggerWindow::Layout;
         using DebuggerWindow::OnKey;
-        using DebuggerWindow::RouteMappedKey;
+        using DebuggerWindow::GetKeyRouter;
         using DebuggerWindow::FocusControl;
         using DebuggerWindow::TakeSnapshot;
 
@@ -95,7 +95,7 @@ namespace DebuggerTests
         {
             DxuiKeyEvent  ev = { DxuiKeyEventKind::Down, vk, false, false, false, false };
 
-            return OnKey (ev) || RouteMappedKey (ev);
+            return OnKey (ev) || GetKeyRouter().RouteMappedKey (ev);
         }
 
         std::vector<DxuiLabel *>  GetTraceLabels()

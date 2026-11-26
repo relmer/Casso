@@ -173,6 +173,10 @@
     <ClCompile Include="AutoStateSafetyTests.cpp" />
     <ClCompile Include="BasicCorpusFixtureTests.cpp" />
     <ClCompile Include="BlockCountTests.cpp" />
+    <ClCompile Include="DiskFileCommitScenarioTests.cpp" />
+    <ClCompile Include="DiskCommandRealDiskTests.cpp" />
+    <ClCompile Include="RealDiskFixtures.cpp" />
+    <ClCompile Include="ProDosVolumeRealDiskTests.cpp" />
     <ClCompile Include="ImageClassifierScenarioTests.cpp" />
     <ClCompile Include="BlockModeTests.cpp" />
     <ClCompile Include="InspectorPerformanceTests.cpp" />
@@ -183,6 +187,7 @@
     <ClCompile Include="SosTests.cpp" />
     <ClCompile Include="CatalogReproductionTest.cpp" />
     <ClCompile Include="FileMapStockDiskTests.cpp" />
+    <ClCompile Include="FormatStampRealDiskTests.cpp" />
     <ClCompile Include="FileSystemVerdictTests.cpp" />
     <ClCompile Include="FullSendFileSystemCheckTests.cpp" />
     <ClCompile Include="GuestVisibleBasicTests.cpp" />
@@ -203,6 +208,9 @@
     <ClCompile Include="CassoLinkBlockTests.cpp" />
     <ClCompile Include="CassoLinkAppleIIITests.cpp" />
     <ClCompile Include="CassoLinkIIgsTests.cpp" />
+    <ClCompile Include="CassoLinkEthernetTests.cpp" />
+    <ClCompile Include="CassoLinkBlockEmulatorTests.cpp" />
+    <ClCompile Include="CassoLinkUthernetBlockTests.cpp" />
     <ClCompile Include="CassoLinkSosDiskTests.cpp" />
     <ClCompile Include="CassoLinkSccTests.cpp" />
     <ClCompile Include="CassoLinkAdtProAudioTests.cpp" />
@@ -240,6 +248,7 @@
     <ClCompile Include="MachineStateCompatibilityTests.cpp" />
     <ClCompile Include="RealPascalCpmDiskTests.cpp" />
     <ClCompile Include="CassoLinkDosProbeTests.cpp" />
+    <ClCompile Include="CassoLinkDriveLinksTests.cpp" />
     <ClCompile Include="CassoLinkNetworkTests.cpp" />
     <ClCompile Include="CassoLinkSuperSerialTests.cpp" />
     <ClCompile Include="TcpStreamTests.cpp" />
@@ -254,12 +263,15 @@
     <ClCompile Include="..\UnitTest\ModuleSetup.cpp" />
     <ClCompile Include="..\UnitTest\TestSystemState.cpp" />
     <ClCompile Include="..\UnitTest\EhmTestHelper.cpp" />
+    <ClCompile Include="..\UnitTest\Dxui\MockDxuiTextRenderer.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\FixtureProvider.cpp" />
+    <ClCompile Include="..\UnitTest\EmuTests\DiskRunnerFixtures.cpp" />
+    <ClCompile Include="..\UnitTest\EmuTests\ProDosVolumeFixtures.cpp" />
+    <ClCompile Include="..\UnitTest\NetworkTests\FakeHostNetwork.cpp" />
+    <ClCompile Include="..\UnitTest\NetworkTests\FakeHostSocket.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\FileMapTestImages.cpp" />
     <ClCompile Include="..\UnitTest\Inspector\RepairFixtures.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\GuestSession.cpp" />
-    <ClCompile Include="..\UnitTest\NetworkTests\FakeHostNetwork.cpp" />
-    <ClCompile Include="..\UnitTest\NetworkTests\FakeHostSocket.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\EmbeddedMachineJson.cpp" />
     <ClCompile Include="ExeManifestTests.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\TestMachine.cpp" />
@@ -271,8 +283,10 @@
     <ClCompile Include="UthernetLoopbackTests.cpp" />
     <ClCompile Include="UthernetSoftwareTests.cpp" />
     <ClCompile Include="..\UnitTest\NetworkTests\W5100Driver.cpp" />
+    <ClCompile Include="BlankProDosBootTests.cpp" />
     <ClCompile Include="BlockDeviceBootTests.cpp" />
     <ClCompile Include="Floppy35BootTests.cpp" />
+    <ClCompile Include="LaunchBootTests.cpp" />
     <ClCompile Include="PickerTimingTests.cpp" />
     <ClCompile Include="Apple2cPlusTests.cpp" />
     <ClCompile Include="DeskModelAssetTests.cpp" />
@@ -281,6 +295,7 @@
   <ItemGroup>
     <ClInclude Include="EmulatorLink.h" />
     <ClInclude Include="PacedRun.h" />
+    <ClInclude Include="RealDiskFixtures.h" />
     <ClInclude Include="Pch.h" />
   </ItemGroup>
   <ItemGroup>

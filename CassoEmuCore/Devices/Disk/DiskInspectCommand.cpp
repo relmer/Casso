@@ -157,22 +157,22 @@ vector<DiskInspectCommand::BlockFinding> DiskInspectCommand::GetBlockFindings (c
 
     for (const auto & [role, units] : damage)
     {
-        findings.push_back ({ BlockMap::GetRoleName (role), units, true });
+        findings.push_back ({ BlockMap::GetRoleName (role), units, true, BlockMap::FormatRoleFinding (role, units.size()) });
     }
 
     for (const BlockCount & count : map.counts)
     {
-        findings.push_back ({ count.finding, { count.keyBlock } });
+        findings.push_back ({ count.finding, { count.keyBlock }, false, count.finding });
     }
 
     if (map.hasBrokenChains)
     {
-        findings.push_back ({ L"A file's blocks can't be followed to its end", {} });
+        findings.push_back ({ L"A file's blocks can't be followed to its end", {}, false, L"A file's blocks can't be followed to its end" });
     }
 
     if (!map.isCatalogComplete)
     {
-        findings.push_back ({ L"Some of the volume's directories can't be read", {} });
+        findings.push_back ({ L"Some of the volume's directories can't be read", {}, false, L"Some of the volume's directories can't be read" });
     }
 
     return findings;

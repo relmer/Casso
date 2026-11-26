@@ -75,7 +75,7 @@
 ; Ready is sent again after each second with no reply.
 ;
 ; The disk routines are Casso's own, from Apple's published description of
-; the Disk II and the 6-and-2 encoding Casso's NibblizationLayer writes: the
+; the Disk II and the 6-and-2 encoding Casso's DiskFieldFormat writes: the
 ; arm is stepped by its phases, sectors are found by their address fields,
 ; and data fields are read and written in 6-and-2. Writes go through one
 ; cycle-counted loop, the player, which writes a prepared stream of nibbles
@@ -319,6 +319,7 @@ OPCAPT   = 6                    ; a raw capture: the bar has the quarter track
 
 QUIETDRIVE = $80                ; the drive's bit for a check the PC reports itself
 STATWP     = $40                ; Status's drive bit for a write-protected disk
+STAT13     = $20                ; and for a 13-sector address field seen
 
 ; Errors.
 ERRNONE    = $00
@@ -1386,7 +1387,11 @@ notedisk: ldx drive
         lda misses
         cmp #8
         bcc ndok
+        lda saw13               ; 2 for a 13-sector disk, 1 for none
+        beq ndnone
         lda #1
+ndnone: clc
+        adc #1
         sta nodisk,x
         rts
 ndok:   lda err
@@ -1394,7 +1399,8 @@ ndok:   lda err
         sta nodisk,x
 nddone: rts
 
-nodisk: .byte 0, 0
+nodisk: .byte 0, 0              ; 1 empty or unrecognized, 2 a 13-sector disk
+saw13:  .byte 0                 ; nonzero once a 13-sector address field passed
 quiet:  .byte 0                 ; nonzero for a check the PC reports itself
 wpbit:  .byte 0                 ; STATWP when begin found the disk write-protected
 
@@ -1772,6 +1778,7 @@ bgarmed:
         sta idles
         sta misses
         sta wpbit
+        sta saw13
         lda PKTBUF
         and #QUIETDRIVE
         sta quiet
@@ -1819,7 +1826,7 @@ bgwp:   sta wpbit
 
 ; sendready: Ready with this program's version, the shim's and the drives:
 ; bit 0 for drive 1, bit 1 for drive 2. Then the ROM's identification bytes,
-; and the program's CRC as selfcrc computed it.
+; the program's CRC as selfcrc computed it, and each slot's firmware bytes.
 sendready: ldx #0
 srloop: lda readypkt,x
         jsr putb
@@ -1828,11 +1835,12 @@ srloop: lda readypkt,x
         bne srloop
         rts
 
-readypkt: .byte $C1, $0B, $00, CMDREADY, $C1 ^ $0B ^ $00 ^ CMDREADY
+readypkt: .byte $C1, $27, $00, CMDREADY, $C1 ^ $27 ^ $00 ^ CMDREADY
           .byte <PROGVER, >PROGVER, READYVER
 readymap: .byte $03                ; probe sets it
 readyrom: .byte 0, 0, 0, 0, 0       ; $FBB3, $FBC0, $FBBF, $FB1E, and 1 on a IIgs
 readycrc: .byte 0, 0                ; selfcrc sets it, low byte first
+readyslot: .ds 28                  ; $Cn01, $Cn03, $Cn05 and $Cn07 of slots 1 to 7
 readychk: .byte 0
 readyend:
 
@@ -1867,13 +1875,37 @@ ridcaps: lda $FBC0
         bcs ridsum
         lda #1
         sta readyrom+4
-ridsum: lda #<PROGVER ^ >PROGVER ^ READYVER
+ridsum: jsr readslots
+        lda #<PROGVER ^ >PROGVER ^ READYVER
         eor readymap
-        ldx #6                  ; readyrom's 5 bytes and readycrc's 2
+        ldx #34                 ; readyrom's 5 bytes, readycrc's 2 and readyslot's 28
 ridnext: eor readyrom,x
         dex
         bpl ridnext
         sta readychk
+        rts
+
+; readslots: the bytes of each slot's firmware that identify a card, as a
+; Disk II's $20, $00, $03, $3C, into readyslot. Reading a slot's page selects
+; its $C800 ROM, so $CFFF deselects them after.
+readslots: ldx #0
+        lda #1
+        sta ptr
+        lda #$C1
+        sta ptr+1
+rsslot: ldy #0
+rsbyte: lda (ptr),y
+        sta readyslot,x
+        inx
+        iny
+        iny
+        cpy #8
+        bne rsbyte
+        inc ptr+1
+        lda ptr+1
+        cmp #$C8
+        bne rsslot
+        lda $CFFF
         rts
 
 ; probe: drive 2 into readymap. A drive at the port reads nibbles from a
@@ -1950,7 +1982,10 @@ ssloop: lda stathdr,x
         sta peor
         lda op
         jsr putpe
-        lda drive
+        lda saw13
+        beq ss16
+        lda #STAT13
+ss16:   ora drive
         ora wpbit
         jsr putpe
         lda track
@@ -3361,6 +3396,230 @@ fltorig: .byte 0
 putb    = putraw
         endif
 
+; rlebeg and rleend: where a module writes a packet whole, for the network and
+; W5100 builds. rlebeg returns the address in A (low) and Y (high), and in X
+; 0 when the packet is written at the address and up, or 1 when every byte is
+; written to the one address, the W5100's data port. There is room for
+; RLEROOM bytes. The carry is set where there's no such place: a build with
+; faults, whose bytes go through putb, the 6551 and the cassette builds, and a
+; W5100 whose transmit memory wraps too soon. rleend sends the packet:
+; rletot is its length, and for the W5100 rlehdr is its envelope's length,
+; command and check, written over the four bytes after its start.
+RLEROOM  = 800
+rletot:  .word 0
+rlehdr:  .byte 0, 0, 0, 0
+        ifndef FAULTS
+        ifdef NETWORK
+rlebeg: lda txn+1               ; a datagram with room for RLEROOM more
+        bne rbflush
+        lda txn
+        cmp #<(LINKMAX-RLEROOM)
+        bcc rbroom
+rbflush: jsr flush
+rbroom: lda prst+1
+        ldy prst+2
+        ldx #0
+        clc
+        rts
+rleend: lda prst+1
+        clc
+        adc rletot
+        sta prst+1
+        lda prst+2
+        adc rletot+1
+        sta prst+2
+        lda txn
+        clc
+        adc rletot
+        sta txn
+        lda txn+1
+        adc rletot+1
+        sta txn+1
+        rts
+RLEPLACE = 1
+        endif
+        ifdef W5100
+        ifndef NETWORK
+rlebeg: lda txn                 ; the bytes put before it, sent first
+        beq rbempty
+        jsr flush
+rbempty: lda txwr+1             ; the slow way where the packet would wrap the ring
+        and #$0F
+        cmp #>($1000-RLEROOM)
+        bcs rbnone
+        ora #TXMEM
+        ldy txwr
+        jsr wzptr
+        txa                     ; X is slotx: the data port's address
+        clc
+        adc #<WZDATA
+        ldy #>WZDATA
+        ldx #1
+        clc
+        rts
+rbnone: sec
+        rts
+rleend: lda txwr                ; the envelope's length, command and check, from its second byte
+        clc
+        adc #1
+        tay
+        lda txwr+1
+        adc #0
+        and #$0F
+        ora #TXMEM
+        jsr wzptr
+        lda rlehdr
+        sta WZDATA,x
+        lda rlehdr+1
+        sta WZDATA,x
+        lda rlehdr+2
+        sta WZDATA,x
+        lda rlehdr+3
+        sta WZDATA,x
+        lda txwr
+        clc
+        adc rletot
+        sta txwr
+        lda txwr+1
+        adc rletot+1
+        sta txwr+1
+        lda #1
+        sta txn
+        jmp flush
+RLEPLACE = 1
+        endif
+        endif
+        endif
+        ifndef RLEPLACE
+rlebeg: sec
+        rts
+rleend: rts
+        endif
+
+; rawbeg: an empty datagram with room for a whole Block plain packet, so a
+; module reads a block into it in place and sends it with rleend. Its address
+; is returned in A (low) and Y (high). The carry is set with no such room to
+; offer: in every build but the network one, and in a build with faults.
+        ifndef FAULTS
+        ifdef NETWORK
+rawbeg: lda txn
+        ora txn+1
+        beq rwroom
+        jsr flush
+rwroom: lda prst+1
+        ldy prst+2
+        clc
+        rts
+RAWPLACE = 1
+        endif
+        endif
+        ifndef RAWPLACE
+rawbeg: sec
+        rts
+        endif
+
+; putblk: the 512 bytes at the page in A and the next put, as putb puts each.
+; The network and W5100 builds copy them into the datagram or the chip's
+; transmit memory in one pass; a build with faults puts each through putb,
+; so a fault can land in a block. X and Y are saved and restored.
+pkpage:  .byte 0
+pkx:     .byte 0
+pky:     .byte 0
+        ifndef FAULTS
+        ifdef NETWORK
+putblk: stx pkx
+        sty pky
+        sta pksrc+2
+        lda txn+1               ; room for 512 more in the datagram
+        cmp #>(LINKMAX-512)
+        bcc pkroom
+        jsr flush
+pkroom: lda prst+1
+        sta pkdst+1
+        lda prst+2
+        sta pkdst+2
+        ldx #2
+        ldy #0
+pksrc:  lda $FF00,y
+pkdst:  sta $FFFF,y
+        iny
+        bne pksrc
+        inc pksrc+2
+        inc pkdst+2
+        dex
+        bne pksrc
+        lda prst+2
+        clc
+        adc #2
+        sta prst+2
+        lda txn+1
+        clc
+        adc #2
+        sta txn+1
+        ldx pkx
+        ldy pky
+        rts
+PUTBLK   = 1
+        endif
+        ifdef W5100
+        ifndef NETWORK
+putblk: stx pkx
+        sty pky
+        sta pksrc+2
+        sta pkpage
+        lda txwr+1              ; the slow way where the block would wrap the ring
+        and #$0F
+        cmp #$0E
+        bcs pkslow
+        ora #TXMEM
+        ldy txwr
+        jsr wzptr
+        lda pksrc+2
+        sta pksrc1+2
+        inc pksrc1+2
+        ldy #0
+pksrc:  lda $FF00,y
+        sta WZDATA,x
+        iny
+        bne pksrc
+pksrc1: lda $FF00,y
+        sta WZDATA,x
+        iny
+        bne pksrc1
+        lda txwr+1
+        clc
+        adc #2
+        sta txwr+1
+        lda #1                  ; sent with the bytes put before it
+        sta txn
+        jsr flush
+        ldx pkx
+        ldy pky
+        rts
+PUTBLK   = 1
+        endif
+        endif
+        endif
+        ifndef PUTBLK
+putblk: stx pkx
+        sty pky
+        sta pkpage
+        endif
+pkslow: lda pkpage
+        sta pkslld+2
+        ldx #2
+        ldy #0
+pkslld: lda $FF00,y
+        jsr putb
+        iny
+        bne pkslld
+        inc pkslld+2
+        dex
+        bne pkslld
+        ldx pkx
+        ldy pky
+        rts
+
 
 ; ---------------------------------------------------------------------------
 ; Tables
@@ -3634,8 +3893,12 @@ ra2:    lda Q6L,x
 ra3:    lda Q6L,x
         bpl ra3
         cmp #$96
+        beq ra3ok
+        cmp #$B5                ; a 13-sector disk's address field
         bne ra1c
-        ldy #0
+        sta saw13
+        beq ra1
+ra3ok:  ldy #0
 ra4:    lda Q6L,x
         bpl ra4
         sec
@@ -3871,7 +4134,7 @@ wpdone: clc
         rts
 
 ; encode: SECBUF as 6-and-2: WRAUX's 86 two-bit groups, then WRPRI's 256
-; six-bit values, as NibblizationLayer lays them out; the last two groups
+; six-bit values, as DiskFieldFormat lays them out; the last two groups
 ; have no third byte. encodeto puts them on page A and the page after it.
 encode: lda #>WRAUX
 encodeto: sta enauxst+2
@@ -4355,8 +4618,6 @@ ROWER = $06A8                   ; row 13: the last error, when there is one
 ROWHIST = $0728                 ; row 14: the history's title, its lines below
 LOGROWS = 8                     ; the history's lines, rows 15 to 22
 BARCELLS = 35                   ; one a track
-BARTEXT = 14                    ; the column of the track and sector over the bar
-BARTEXTW = 31                   ; and in 80 columns, where a track has two cells
 ROWKEYS = $07D0                 ; row 23: the keys
 KEYSCOL = 4                     ; centered on the standard screen
 FSKEYSCOL = 3                   ; and in a Full Send
@@ -4986,9 +5247,16 @@ stdrive1: sta pcsum+1
         ldx pcsum+1
         lda nodisk-1,x
         beq sdidle
+        cmp #2
+        beq sd13
         lda #<onodisk
         sta ptr
         lda #>onodisk
+        sta ptr+1
+        bne sdidle
+sd13:   lda #<o13sec
+        sta ptr
+        lda #>o13sec
         sta ptr+1
 sdidle: lda pcsum+1
         cmp drive
@@ -5065,13 +5333,21 @@ dbput:  jsr putch
         bne dbcell
         lda barover
         beq dbtext
-dbover: lda bartop
+dbover: ldx barx
+        jsr barlen              ; the text centered over the bar
+        sta barlength
+        cmp barlast,x
+        sta barlast,x
+        bcs dbkeep              ; a shorter text leaves the old one's ends,
+        jmp dbcells             ; so the cells are drawn again first
+dbkeep: lda bartop
         sta barcells
-        ldy #BARTEXT
-        bit wide
-        bpl dbcol
-        ldy #BARTEXTW
-dbcol:  ldx barx
+        lda barwidth
+        sec
+        sbc barlength
+        lsr a
+        tay
+        ldx barx
         lda barfail,x
         beq dbtrack
         lda #<ofailed
@@ -5132,10 +5408,30 @@ dbpct2: jsr putdec
         lda #'%'
         jmp putch
 
+; barlen: the length in A of the text drawbar puts over drive X + 1's bar:
+; FAILED, a capture's T07 or T07.25, a verify's T07, or T07 S05.
+barlen: lda barfail,x
+        bne bl6
+        lda op
+        cmp #OPCAPT
+        bne blread
+        lda sector
+        bne bl6
+bl3:    lda #3
+        rts
+blread: lda vflag
+        bne bl3
+        lda #7
+        rts
+bl6:    lda #6
+        rts
+
 barrowlo: .byte <ROWB1, <ROWB2
 barrowhi: .byte >ROWB1, >ROWB2
 barpct:  .byte 0, 0             ; each drive's percentage
 barover: .byte 0
+barlength: .byte 0              ; the length of the text over the bar
+barlast: .byte 0, 0             ; each drive's text length when last drawn
 barx:    .byte 0
 bartop:  .byte 0
 barcells: .byte 0               ; putch inverts left of this column
@@ -5165,6 +5461,8 @@ optext: .word oidle, oread, owrite, oformat
 oidle:   .text "Idle"
          .byte 0
 onodisk: .text "Empty or no recognized sectors"
+         .byte 0
+o13sec:  .text "13-sector disk"
          .byte 0
 oread:   .text "Reading"
          .byte 0

@@ -7,7 +7,7 @@
 #include "CassoLink/CassoLinkSearch.h"
 #include "CassoLink/CassoLinkSession.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -73,7 +73,7 @@ public:
 
         Rig()
         {
-            std::vector<Byte>  disk (NibblizationLayer::kImageByteSize, 0);
+            std::vector<Byte>  disk (NibbleFormat::kImageByteSize, 0);
 
             AssertSucceeded (Dos33Skeleton::Write (disk, 254));
 
@@ -104,6 +104,21 @@ public:
         Assert::IsTrue   (rig.factory.comOpened == std::vector<std::wstring> { L"COM2", L"COM2", L"COM3" }, L"the busy port fails to open; the silent one is opened at both speeds; the search stops at COM3");
         Assert::IsFalse  (rig.factory.comOverlapped.load(), L"each port closed before the next");
         Assert::IsTrue   (rig.factory.ArePortsClosed());
+    }
+
+
+
+
+    TEST_METHOD (Find_StopsAtAnAppleThatSendsAVirtualDriveRequest)
+    {
+        Rig           rig;
+        std::wstring  port;
+
+        rig.factory.comPorts = { { L"COM1", Port::Silent }, { L"COM2", Port::Booted } };
+
+        AssertSucceeded (CassoLinkSearch::Find (rig.factory, ComSettings(), kSpeeds, kReplyMs, port));
+
+        Assert::AreEqual (std::wstring (L"COM2"), port, L"a booted ProDOS disk sends block requests, not Ready");
     }
 
 
