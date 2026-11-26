@@ -245,7 +245,11 @@ public:
             bits.insert (bits.end(), zeros, 0);
         }
 
+        //  The stream starts at its longest sync run, so the bits compared
+        //  are the stream's.
         RawWriteStream::FromBits (bits, stream);
+        bits.clear();
+        stream.ToBits (bits);
 
         AssertSucceeded (LinkProgram::BuildThirteenSectorModule (module));
 
@@ -254,13 +258,13 @@ public:
 
         for (int position : { 20, 22 })
         {
-            AssertSucceeded (rig.host->WriteRawTrack (1, (Byte) position, stream, status));
+            AssertSucceeded (rig.host->WriteRawTrack (1, (Byte) position, stream, CassoLinkHost::GetTrackPercents ((Byte) (position / 4)), status));
             Assert::AreEqual ((Byte) 0, status.error);
             Assert::IsTrue (IsWithin (bits, GetTrackBits (rig, position)), std::format (L"Position {}'s bits", position).c_str());
         }
 
         //  The last track's write ends with the Apple's bar at 100%.
-        AssertSucceeded (rig.host->WriteRawTrack (1, 136, stream, status));
+        AssertSucceeded (rig.host->WriteRawTrack (1, 136, stream, CassoLinkHost::GetTrackPercents (34), status));
         rig.machine.RunCycles (100'000);
 
         {
@@ -313,6 +317,24 @@ public:
         }
 
         AssertSucceeded (RawWriteStream::GetImageTracks (file, tracks, tooLong));
+
+        //  CASSO_RAW_WRITE_TURN sets every track to that many bits of sync
+        //  bytes, for a drive slower than the emulated disk's tracks allow.
+        if (GetEnvironmentVariableW (L"CASSO_RAW_WRITE_TURN", path, MAX_PATH) != 0)
+        {
+            DiskImage  * disk = rig.machine.GetDiskStore().GetImage (ProgramRig::kSlot, 0);
+            size_t       bits = (size_t) _wtoi (path);
+
+            for (int slot = 0; slot < disk->GetTrackCount(); slot++)
+            {
+                disk->ResizeTrack (slot, bits);
+
+                for (size_t at = 0; at < bits; at++)
+                {
+                    disk->WriteBit (slot, at, (uint8_t) (at % 10 < 8 ? 1 : 0));
+                }
+            }
+        }
         AssertSucceeded (rig.host->TimeDrive (1, 0, CassoLinkDiskTransfer::kTimedRevolutions, revolution, status));
         AssertSucceeded (LinkProgram::BuildThirteenSectorModule (module));
         AssertSucceeded (rig.host->EnsureModule (module));
@@ -329,7 +351,7 @@ public:
             bool                  same     = false;
             bool                  fits     = track.stream.FitToTurn (turn);
 
-            AssertSucceeded (rig.host->WriteRawTrack (1, (Byte) track.position, track.stream, status));
+            AssertSucceeded (rig.host->WriteRawTrack (1, (Byte) track.position, track.stream, CassoLinkHost::GetStepPercents ((size_t) (&track - tracks.data()), tracks.size()), status));
             Assert::AreEqual ((Byte) 0, status.error);
 
             track.stream.ToBits (bits);

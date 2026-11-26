@@ -18,23 +18,69 @@
 void RawWriteStream::FromBits (std::span<const uint8_t> bits, RawWriteStream & outStream)
 {
     std::vector<size_t>   starts;
+    std::vector<uint8_t>  framed;
     std::vector<uint8_t>  rotated;
+    size_t                first     = FindByteStart (bits);
     size_t                runAt     = 0;
     size_t                runLength = 0;
 
 
 
-    Split (bits, outStream, starts);
+    framed.assign (bits.begin() + (ptrdiff_t) first, bits.end());
+    framed.insert (framed.end(), bits.begin(), bits.begin() + (ptrdiff_t) first);
 
-    if (!outStream.FindSyncRun (runAt, runLength) || runLength < s_kMinSyncRun)
+    Split (framed, outStream, starts);
+
+    //  The write starts at the longest sync run, however short, so the end of
+    //  the write overlaps sync bytes rather than data.
+    if (!outStream.FindSyncRun (runAt, runLength))
     {
         return;
     }
 
-    rotated.assign (bits.begin() + (ptrdiff_t) starts[runAt], bits.end());
-    rotated.insert (rotated.end(), bits.begin(), bits.begin() + (ptrdiff_t) starts[runAt]);
+    rotated.assign (framed.begin() + (ptrdiff_t) starts[runAt], framed.end());
+    rotated.insert (rotated.end(), framed.begin(), framed.begin() + (ptrdiff_t) starts[runAt]);
 
     Split (rotated, outStream, starts);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RawWriteStream::FindByteStart
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t RawWriteStream::FindByteStart (std::span<const uint8_t> bits)
+{
+    size_t  count = bits.size();
+    size_t  shift = 0;
+
+
+
+    //  A byte starts at a one bit when none is being shifted in, and ends
+    //  with its eighth bit; the first turn settles the framing.
+    for (size_t at = 0; at < 2 * count; at++)
+    {
+        uint8_t  bit = bits[at % count];
+
+        if (shift == 0 && bit == 0)
+        {
+            continue;
+        }
+
+        if (shift == 0 && at >= count)
+        {
+            return at - count;
+        }
+
+        shift = (shift + 1) % kBitsPerByte;
+    }
+
+    return 0;
 }
 
 
@@ -233,9 +279,9 @@ bool RawWriteStream::FitToTurn (size_t cells)
 
 
 
-    FindSyncRun (bestAt, bestRun);
-
-    if (bestRun < s_kMinSyncRun)
+    //  The seam goes in a run too short to trim too, and a track shorter
+    //  than the turn is lengthened there.
+    if (!FindSyncRun (bestAt, bestRun))
     {
         return false;
     }

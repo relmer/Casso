@@ -100,7 +100,11 @@ private:
 
     //  `bits` split into bytes of eight bits each and the zero bits after,
     //  with outStarts each byte's first bit.
-    static void  Split (std::span<const uint8_t> bits, RawWriteStream & outStream, std::vector<size_t> & outStarts);
+    static void    Split         (std::span<const uint8_t> bits, RawWriteStream & outStream, std::vector<size_t> & outStarts);
+
+    //  The first bit of a byte as a drive frames the track, reading around it
+    //  once first, since the track's first bit can be inside a byte.
+    static size_t  FindByteStart (std::span<const uint8_t> bits);
 
     //  The longest run of sync bytes, which may wrap past the end: its first
     //  byte and length. False for none.
