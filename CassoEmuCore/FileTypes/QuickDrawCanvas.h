@@ -55,6 +55,7 @@ public:
     void  SetOrigin    (Point origin)                       { m_origin   = origin; }
     void  SetClip      (const Region & clip)                { m_clip = clip; m_hasClip = true; }
     void  SetPenMask   (const PenMask & mask)               { m_penMask = mask; }
+    void  SetArcRot    (int arcRot)                         { m_arcRot  = arcRot; }
 
     void  DrawLine     (Point from, Point to);
     void  DrawRect     (Verb verb, const Rect & rect);
@@ -66,6 +67,10 @@ public:
     void  DrawPixels   (std::span<const Byte> pixels, int rowBytes, bool mode640, const Rect & bounds, const Rect & source, const Rect & dest, int mode, const Region * mask = nullptr);
 
     void  WriteBgra    (std::vector<uint32_t> & outBgra) const;
+    void  PlotPixel    (int h, int v, Byte source, int mode) { Plot (h, v, source, mode); }
+
+    //  A text or pen color's pixel value at a column of the port.
+    Byte  GetColorValue (int color, int h) const;
 
     int   GetWidth     () const                             { return m_width; }
     int   GetHeight    () const                             { return m_height; }
@@ -103,5 +108,6 @@ private:
     Point              m_origin   = {};
     Region             m_clip;
     bool               m_hasClip  = false;
+    int                m_arcRot   = 0;
     PenMask            m_penMask  = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
 };

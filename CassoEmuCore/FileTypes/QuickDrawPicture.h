@@ -4,6 +4,7 @@
 
 #include "FileTypes/FileFormatTable.h"
 #include "FileTypes/QuickDrawCanvas.h"
+#include "FileTypes/QuickDrawText.h"
 
 
 
@@ -19,8 +20,8 @@
 //  low byte first. A point is v then h, and a rectangle top, left, bottom,
 //  right, each a signed word. The picture is drawn by running its opcodes
 //  into a bitmap the size of its frame, in the standard palette for its
-//  SCB's mode. Text isn't drawn, since its fonts aren't in the file; each
-//  opcode that isn't drawn is listed in the notes.
+//  SCB's mode. Text is drawn in the fonts in the decode options; text in a font
+//  that isn't there is listed in the notes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,38 +42,42 @@ private:
     using Canvas = QuickDrawCanvas;
 
     //  The state of a picture's playback: where its opcodes are read from,
-    //  the line pen, the last figure of each kind for the "same" opcodes,
-    //  and the opcodes found that aren't drawn.
+    //  the line pen, the text pen and settings, the last figure of each kind
+    //  for the "same" opcodes, and the fonts of text that weren't
+    //  available.
     struct Playback
     {
-        std::span<const Byte>       bytes;
-        size_t                      at        = 0;
-        bool                        truncated = false;
-        Canvas::Point               pen;
-        Canvas::Rect                lastRect;
-        Canvas::Rect                lastRRect;
-        Canvas::Rect                lastOval;
-        Canvas::Rect                lastArc;
-        std::vector<Canvas::Point>  lastPoly;
-        Canvas::Region              lastRegion;
-        std::set<Word>              skipped;
-        std::vector<std::wstring>   notes;
+        std::span<const Byte>            bytes;
+        size_t                           at           = 0;
+        bool                             truncated    = false;
+        Canvas::Point                    pen;
+        Canvas::Rect                     lastRect;
+        Canvas::Rect                     lastRRect;
+        Canvas::Rect                     lastOval;
+        Canvas::Rect                     lastArc;
+        std::vector<Canvas::Point>       lastPoly;
+        Canvas::Region                   lastRegion;
+        Canvas::Point                    textPen;
+        QuickDrawTextStyle               text;
+        const IQuickDrawFonts          * fonts        = nullptr;
+        std::set<std::pair<Word, int>>   missingFonts;
+        std::vector<std::wstring>        notes;
     };
 
     static bool                        Run           (Playback & pb, Canvas & canvas);
     static bool                        RunState      (Playback & pb, Canvas & canvas, Word opcode);
     static bool                        RunLine       (Playback & pb, Canvas & canvas, Word opcode);
-    static bool                        RunText       (Playback & pb, Word opcode);
+    static bool                        RunText       (Playback & pb, Canvas & canvas, Word opcode);
     static bool                        RunFigure     (Playback & pb, Canvas & canvas, Word opcode);
     static bool                        RunBits       (Playback & pb, Canvas & canvas, Word opcode);
     static bool                        CanRead       (Playback & pb, size_t count);
     static int                         ReadWord      (Playback & pb);
     static int                         ReadSigned    (Playback & pb);
+    static double                      ReadFixed     (Playback & pb);
     static Canvas::Point               ReadPoint     (Playback & pb);
     static Canvas::Rect                ReadRect      (Playback & pb);
     static Canvas::Region              ReadRegion    (Playback & pb);
     static std::vector<Canvas::Point>  ReadPoly      (Playback & pb);
     static void                        ReadPattern   (Playback & pb, Canvas::Pattern & outPattern);
     static void                        Skip          (Playback & pb, size_t count);
-    static const wchar_t *             GetOpcodeName (Word opcode);
 };

@@ -106,34 +106,66 @@ bool QuickDrawCanvas::IsInPenMask (int h, int v) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  QuickDrawCanvas::GetColorValue
+//
+//  A color's pixel value at a column: the color in 320 mode, and in 640
+//  mode one of its two pixels, as a solid pattern of it draws them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte QuickDrawCanvas::GetColorValue (int color, int h) const
+{
+    int  col = ((h % 2) + 2) % 2;
+
+
+
+    if (!m_mode640)
+    {
+        return (Byte) (color & 0x0F);
+    }
+
+    return (Byte) ((col == 0) ? ((color >> 2) & 0x03) : (color & 0x03));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  QuickDrawCanvas::GetPatternAt
 //
-//  A pattern is eight rows of four bytes: eight pixels a row in 320 mode
-//  and sixteen in 640 mode, the leftmost in the high bits.
+//  A pattern is eight rows of eight pixels, the leftmost in the high bits:
+//  four bytes a row in 320 mode and two in 640 mode. In 640 mode with bit 15
+//  of the port's arc rotation set, as IIgs Technical Note 6 sets it out,
+//  the rows are four bytes and sixteen pixels.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 Byte QuickDrawCanvas::GetPatternAt (const Pattern & pattern, int h, int v) const
 {
-    constexpr int  kRowBytes = 4;
-    constexpr int  kRows     = 8;
+    constexpr int  kRowBytes320 = 4;
+    constexpr int  kRows        = 8;
+    constexpr int  kWide640     = 0x8000;
 
 
 
-    int   row   = ((v % kRows) + kRows) % kRows;
-    int   width = m_mode640 ? kRowBytes * 4 : kRowBytes * 2;
-    int   col   = ((h % width) + width) % width;
-    Byte  value = 0;
+    int   row      = ((v % kRows) + kRows) % kRows;
+    bool  wide     = m_mode640 && (m_arcRot & kWide640) != 0;
+    int   rowBytes = (!m_mode640 || wide) ? kRowBytes320 : kRowBytes320 / 2;
+    int   width    = m_mode640 ? rowBytes * 4 : rowBytes * 2;
+    int   col      = ((h % width) + width) % width;
+    Byte  value    = 0;
 
 
 
     if (m_mode640)
     {
-        value = (Byte) ((pattern[(size_t) (row * kRowBytes + col / 4)] >> (6 - (col % 4) * 2)) & 0x03);
+        value = (Byte) ((pattern[(size_t) (row * rowBytes + col / 4)] >> (6 - (col % 4) * 2)) & 0x03);
     }
     else
     {
-        value = (Byte) ((pattern[(size_t) (row * kRowBytes + col / 2)] >> ((col % 2) ? 0 : 4)) & 0x0F);
+        value = (Byte) ((pattern[(size_t) (row * rowBytes + col / 2)] >> ((col % 2) ? 0 : 4)) & 0x0F);
     }
 
     return value;

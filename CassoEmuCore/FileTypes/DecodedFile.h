@@ -97,6 +97,12 @@ enum class DisassemblyCpu { None, Mos6502, Mos6502Undocumented, Wdc65C02, Wdc658
 
 
 
+class IQuickDrawFonts;
+
+
+
+
+
 //  Disk images, each as its sectors in DOS order.
 using DiskSectorsList = std::span<const std::vector<Byte>>;
 
@@ -116,19 +122,20 @@ using DiskSectorsList = std::span<const std::vector<Byte>>;
 
 struct DecodeOptions
 {
-    size_t                 recordLength     = 0;
-    Charset                charset          = Charset::Default;
-    bool                   formulas         = false;                    // a spreadsheet's formulas as typed, not their values
-    bool                   hiResMono        = false;                    // a hi-res picture's dots in black and white
-    DoubleHiResForm        doubleHiRes      = DoubleHiResForm::Auto;
-    bool                   basicColor       = false;                    // a BASIC listing as RTF, its keywords, strings and remarks colored
-    bool                   basicRawControls = false;                    // an Applesoft listing's control characters as the bytes, not ^D
-    DisassemblyCpu         disassembly      = DisassemblyCpu::None;     // a code file copied as a disassembly for this processor
-    bool                   longRegisters    = true;                     // 65816 code starts with 16-bit registers
-    bool                   followFlags      = true;                     // 65816 register widths follow REP and SEP
-    bool                   hexDump          = false;                    // a file copied as a hex dump of its bytes
-    std::span<const Byte>  diskSectors;                                 // the disk the file is on, in DOS order, for a file that refers to others
-    DiskSectorsList        otherDisks;                                  // other disks of the same game, from the image's folder
+    size_t                  recordLength     = 0;
+    Charset                 charset          = Charset::Default;
+    bool                    formulas         = false;                  // a spreadsheet's formulas as typed, not their values
+    bool                    hiResMono        = false;                  // a hi-res picture's dots in black and white
+    DoubleHiResForm         doubleHiRes      = DoubleHiResForm::Auto;
+    bool                    basicColor       = false;                  // a BASIC listing as RTF, its keywords, strings and remarks colored
+    bool                    basicRawControls = false;                  // an Applesoft listing's control characters as the bytes, not ^D
+    DisassemblyCpu          disassembly      = DisassemblyCpu::None;   // a code file copied as a disassembly for this processor
+    bool                    longRegisters    = true;                   // 65816 code starts with 16-bit registers
+    bool                    followFlags      = true;                   // 65816 register widths follow REP and SEP
+    bool                    hexDump          = false;                  // a file copied as a hex dump of its bytes
+    std::span<const Byte>   diskSectors;                               // the disk the file is on, in DOS order, for a file that refers to others
+    DiskSectorsList         otherDisks;                                // other disks of the same game, from the image's folder
+    const IQuickDrawFonts * quickDrawFonts   = nullptr;                // the fonts a QuickDraw II picture's text is drawn in
 };
 
 

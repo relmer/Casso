@@ -420,7 +420,7 @@ public:
 
         file = DecodePicture (bytes);
 
-        Assert::IsTrue (HasNote (file, L"LongText ($0028)"));
+        Assert::IsTrue (HasNote (file, L"Text in Shaston 8 isn't drawn"), L"No fonts are given");
         Assert::AreEqual (s_kBlack, GetPixel (file, 1, 1), L"The rect after the text is drawn");
     }
 

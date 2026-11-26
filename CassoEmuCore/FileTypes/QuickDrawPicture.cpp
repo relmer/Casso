@@ -2,6 +2,8 @@
 
 #include "FileTypes/QuickDrawPicture.h"
 #include "FileTypes/PackBytes.h"
+#include "FileTypes/IQuickDrawFonts.h"
+#include "FileTypes/QuickDrawFont.h"
 
 
 
@@ -82,12 +84,12 @@ HRESULT QuickDrawPicture::Decode (std::span<const Byte> bytes, const FileFacts &
     int                      height   = 0;
     bool                     isLong   = false;
     bool                     isSized  = false;
+    const wchar_t          * name     = nullptr;
 
 
-
-    UNREFERENCED_PARAMETER (options);
 
     pb.bytes = bytes;
+    pb.fonts = options.quickDrawFonts;
 
     if (facts.HasProDosType (kTypePnt, kAuxPacked))
     {
@@ -111,9 +113,11 @@ HRESULT QuickDrawPicture::Decode (std::span<const Byte> bytes, const FileFacts &
 
     Run (pb, *canvas);
 
-    for (Word opcode : pb.skipped)
+    for (const auto & [family, size] : pb.missingFonts)
     {
-        pb.notes.insert (pb.notes.begin(), std::format (L"{} (${:04X}) isn't drawn.", GetOpcodeName (opcode), opcode));
+        name = QuickDrawText::GetFamilyName (family);
+        pb.notes.insert (pb.notes.begin(), std::format (L"Text in {} {} isn't drawn, since the font isn't available.",
+                                                        (name != nullptr) ? std::wstring (name) : std::format (L"font family ${:04X}", family), size));
     }
 
     if (pb.truncated)
@@ -168,7 +172,7 @@ bool QuickDrawPicture::Run (Playback & pb, Canvas & canvas)
 
         handled = RunState (pb, canvas, opcode)
                || RunLine  (pb, canvas, opcode)
-               || RunText  (pb, opcode)
+               || RunText  (pb, canvas, opcode)
                || RunFigure (pb, canvas, opcode)
                || RunBits  (pb, canvas, opcode);
 
@@ -190,8 +194,11 @@ bool QuickDrawPicture::Run (Playback & pb, Canvas & canvas)
 //
 //  QuickDrawPicture::RunState
 //
-//  The opcodes that set the port's state. The text settings are read and
-//  passed over, since text isn't drawn.
+//  The opcodes that set the port's state. The font is a Font Manager font
+//  ID: the family number, a style byte and the size. The extras are fixed
+//  point, 16 bits of fraction. Font flag bits 1 and 2, which System
+//  Software 5.0 added for pen width and color, aren't documented and have
+//  no effect here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -227,20 +234,26 @@ bool QuickDrawPicture::RunState (Playback & pb, Canvas & canvas, Word opcode)
             break;
 
         case 0x0003:
-        case 0x0006:
-        case 0x0012:
-            Skip (pb, sizeof (uint32_t));
+            pb.text.family = (Word) ReadWord (pb);
+            Skip (pb, 1);
+
+            if (CanRead (pb, 1))
+            {
+                pb.text.size = pb.bytes[pb.at];
+            }
+
+            Skip (pb, 1);
             break;
 
-        case 0x0004:
-        case 0x0005:
-        case 0x000D:
-        case 0x000E:
-        case 0x000F:
-        case 0x0014:
-        case 0x0015:
-            Skip (pb, sizeof (Word));
-            break;
+        case 0x0004:  pb.text.face      = (Word) ReadWord (pb);  break;
+        case 0x0005:  pb.text.mode      = ReadWord  (pb);        break;
+        case 0x0006:  pb.text.spExtra   = ReadFixed (pb);        break;
+        case 0x000D:  pb.text.size      = ReadWord  (pb);        break;
+        case 0x000E:  pb.text.foreColor = ReadWord  (pb);        break;
+        case 0x000F:  pb.text.backColor = ReadWord  (pb);        break;
+        case 0x0012:  pb.text.chExtra   = ReadFixed (pb);        break;
+        case 0x0014:  canvas.SetArcRot (ReadWord (pb));          break;
+        case 0x0015:  pb.text.fontFlags = (Word) ReadWord (pb);  break;
 
         case 0x0013:
             if (CanRead (pb, mask.size()))
@@ -325,29 +338,47 @@ bool QuickDrawPicture::RunLine (Playback & pb, Canvas & canvas, Word opcode)
 //
 //  QuickDrawPicture::RunText
 //
-//  Each text opcode's operands are passed over, and the opcode is listed
-//  in the notes.
+//  The text pen is set by LongText and RealLongText and moved by the offset
+//  opcodes, and drawing text doesn't move it. The text is drawn at the pen
+//  in the font of the port's family and size; text in a font that isn't
+//  available is left out, and its font listed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool QuickDrawPicture::RunText (Playback & pb, Word opcode)
+bool QuickDrawPicture::RunText (Playback & pb, Canvas & canvas, Word opcode)
 {
-    size_t  lead  = 0;
-    size_t  count = 0;
+    size_t                 count = 0;
+    const QuickDrawFont  * font  = nullptr;
 
 
 
     switch (opcode)
     {
-        case 0x0028:  lead = sizeof (uint32_t);    break;
-        case 0x0029:  lead = 1;                    break;
-        case 0x002A:  lead = 1;                    break;
-        case 0x002B:  lead = sizeof (Word);        break;
-        case 0x002C:  lead = sizeof (uint32_t);    break;
-        default:      return false;
-    }
+        case 0x0028:
+        case 0x002C:
+            pb.textPen = ReadPoint (pb);
+            break;
 
-    Skip (pb, lead);
+        case 0x0029:
+            pb.textPen.h += CanRead (pb, 1) ? pb.bytes[pb.at] : 0;
+            Skip (pb, 1);
+            break;
+
+        case 0x002A:
+            pb.textPen.v += CanRead (pb, 1) ? pb.bytes[pb.at] : 0;
+            Skip (pb, 1);
+            break;
+
+        case 0x002B:
+            pb.textPen.v += CanRead (pb, 1) ? pb.bytes[pb.at] : 0;
+            Skip (pb, 1);
+            pb.textPen.h += CanRead (pb, 1) ? pb.bytes[pb.at] : 0;
+            Skip (pb, 1);
+            break;
+
+        default:
+            return false;
+    }
 
     if (opcode == 0x002C)
     {
@@ -358,8 +389,24 @@ bool QuickDrawPicture::RunText (Playback & pb, Word opcode)
         count = pb.bytes[pb.at++];
     }
 
+    if (!CanRead (pb, count))
+    {
+        Skip (pb, count);
+        return true;
+    }
+
+    font = (pb.fonts != nullptr) ? pb.fonts->Find (pb.text.family, pb.text.size) : nullptr;
+
+    if (font != nullptr)
+    {
+        QuickDrawText::Draw (canvas, *font, pb.text, pb.textPen, pb.bytes.subspan (pb.at, count));
+    }
+    else
+    {
+        pb.missingFonts.insert ({ pb.text.family, pb.text.size });
+    }
+
     Skip (pb, count);
-    pb.skipped.insert (opcode);
 
     return true;
 }
@@ -598,6 +645,32 @@ int QuickDrawPicture::ReadSigned (Playback & pb)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  QuickDrawPicture::ReadFixed
+//
+//  A fixed point number: a long, low word first, with 16 bits of fraction.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double QuickDrawPicture::ReadFixed (Playback & pb)
+{
+    constexpr double  kOne = 65536.0;
+
+
+
+    int  low  = ReadWord (pb);
+    int  high = ReadSigned (pb);
+
+
+
+    return high + low / kOne;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  QuickDrawPicture::ReadPoint
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -765,21 +838,3 @@ QuickDrawCanvas::Region QuickDrawPicture::ReadRegion (Playback & pb)
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-//
-//  QuickDrawPicture::GetOpcodeName
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const wchar_t * QuickDrawPicture::GetOpcodeName (Word opcode)
-{
-    switch (opcode)
-    {
-        case 0x0028:  return L"LongText";
-        case 0x0029:  return L"DHText";
-        case 0x002A:  return L"DVText";
-        case 0x002B:  return L"DHDVText";
-        case 0x002C:  return L"RealLongText";
-        default:      return L"Opcode";
-    }
-}
