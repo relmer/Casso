@@ -426,6 +426,22 @@ public:
 
 
 
+    //  A file whose extents skip a number is reported as incomplete.
+    TEST_METHOD (AFileWithAMissingExtentIsReportedIncomplete)
+    {
+        std::vector<Byte>  image = BuildBlank();
+        VolumeListing      listing;
+
+        PutEntry (image, 0, 0, "BIG     TXT", 0, 128, { 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17 });
+        PutEntry (image, 1, 0, "BIG     TXT", 2, 8,   { 18 });
+
+        AssertSucceeded (CpmVolume (image).Enumerate (listing));
+        Assert::AreEqual ((size_t) 1, listing.damage.size());
+        Assert::AreEqual (std::string ("BIG.TXT is incomplete: part of its data is missing from the directory"), listing.damage[0]);
+    }
+
+
+
     //  Valid entries that conflict with each other count against the disk:
     //  as many conflicting as consistent is not CP/M.
     TEST_METHOD (ConflictingEntriesCountAgainstTheDisk)

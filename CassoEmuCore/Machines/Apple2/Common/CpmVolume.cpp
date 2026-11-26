@@ -1036,6 +1036,19 @@ HRESULT CpmVolume::Enumerate (VolumeListing & outListing) const
         outListing.damage.back() += IsReadOnly() ? ", so the disk is treated as read-only to prevent further damage" : "";
     }
 
+    //  A file's extents are numbered from 0; a gap is part of the file lost.
+    for (const RawFile & file : files)
+    {
+        for (size_t i = 0; i < file.extents.size(); i++)
+        {
+            if (file.extents[i].extent != (int) i)
+            {
+                outListing.damage.push_back (std::format ("{} is incomplete: part of its data is missing from the directory", file.name));
+                break;
+            }
+        }
+    }
+
     hr = BuildIntegrityReport (report);
     CHR (hr);
 
