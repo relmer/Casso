@@ -213,6 +213,47 @@ bool ThirteenSectorCodec::IsThirteenSector (const DiskImage & image)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ThirteenSectorCodec::IsThirteenSectorBoot
+//
+//  The boot ROM reads only track 0, so the other tracks don't matter here.
+//  VisiCalc 2.08 has 13-sector address fields on its catalog track and a
+//  16-sector boot track, and it starts only with the 16-sector ROM.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ThirteenSectorCodec::IsThirteenSectorBoot (const DiskImage & image)
+{
+    vector<LocatedField>  fields;
+    int                   thirteen = 0;
+    int                   sixteen  = 0;
+
+
+
+    LocateTrack (image, 0, MakeMarks(), fields);
+
+    for (const LocatedField & f : fields)
+    {
+        if (f.role == FieldRole::Address && f.isAddressChecksumGood)
+        {
+            thirteen += (f.kind == DiskFieldKind::Thirteen) ? 1 : 0;
+            sixteen  += (f.kind == DiskFieldKind::Sixteen)  ? 1 : 0;
+        }
+    }
+
+    if (thirteen + sixteen == 0)
+    {
+        return IsThirteenSector (image);
+    }
+
+    return thirteen > 0 && sixteen == 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ThirteenSectorCodec::Denibblize
 //
 //  A track with no 13-sector address field is Unformatted. One with all

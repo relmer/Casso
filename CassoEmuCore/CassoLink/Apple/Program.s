@@ -29,6 +29,8 @@
 ;                   and the field's volume
 ;   Cancel          during an operation: it stops, and Ready follows
 ;   Label           the user's operation, as text: drawn, and Ready again
+;   Drive note      a drive, then text: drawn on the drive's row in place of
+;                   IDLE or EMPTY until another note, and Ready again
 ;   Log             the PC's hour and minute, then text: a history line,
 ;                   drawn at the top of the history, and Ready again
 ;   Load program    back to the shim, which sends Ready for the program
@@ -637,7 +639,10 @@ notwtrack: cmp #CMDLABEL
 notlabel: cmp #CMDLOG
         bne notlog
         jmp dolog
-notlog: cmp #CMDTIME
+notlog: cmp #CMDNOTE
+        bne notnote
+        jmp donote
+notnote: cmp #CMDTIME
         bne nottime
         jmp dotime
 nottime: cmp #CMDMEASURE
@@ -1400,6 +1405,13 @@ ndok:   lda err
 nddone: rts
 
 nodisk: .byte 0, 0              ; 1 empty or unrecognized, 2 a 13-sector disk
+
+; notes: each drive's note from the host, 0-terminated, and where each starts.
+NOTELEN = 36                    ; a drive's note's characters, after D1: in 40 columns
+notes:  .ds (NOTELEN + 1) * 2
+noteoff: .byte 0, NOTELEN + 1
+notelo: .byte <notes, <(notes + NOTELEN + 1)
+notehi: .byte >notes, >(notes + NOTELEN + 1)
 saw13:  .byte 0                 ; nonzero once a 13-sector address field passed
 quiet:  .byte 0                 ; nonzero for a check the PC reports itself
 wpbit:  .byte 0                 ; STATWP when begin found the disk write-protected
@@ -5258,7 +5270,17 @@ sd13:   lda #<o13sec
         sta ptr
         lda #>o13sec
         sta ptr+1
-sdidle: lda pcsum+1
+sdidle: ldx pcsum+1             ; a note in place of IDLE or EMPTY; Y is
+        lda noteoff-1,x         ; the row's column
+        tax
+        lda notes,x
+        beq sdop
+        ldx pcsum+1
+        lda notelo-1,x
+        sta ptr
+        lda notehi-1,x
+        sta ptr+1
+sdop:   lda pcsum+1
         cmp drive
         bne sdput
         lda op
@@ -5732,6 +5754,31 @@ lbtext: cpy lenlo
         jsr putch
         jmp lbtext
 lbdone: jmp main
+
+; donote: the host's note for a drive, drawn on its row in place of IDLE or
+; EMPTY OR NO RECOGNIZED SECTORS until another note replaces it: the drive,
+; then at most NOTELEN characters. An empty text clears the note. Then Ready
+; again.
+donote: ldx PKTBUF
+        dex
+        cpx #2
+        bcs ntdone
+        lda noteoff,x
+        tax                     ; X: the note's first character in notes
+        ldy #1                  ; Y: the text's first character in the packet
+ntcopy: cpy lenlo
+        bcs ntend
+        cpy #NOTELEN+1
+        bcs ntend
+        lda PKTBUF,y
+        sta notes,x
+        inx
+        iny
+        bne ntcopy              ; always
+ntend:  lda #0
+        sta notes,x
+        jsr showstatus
+ntdone: jmp main
 
 ; clrlabel: the label row cleared. Y is 0.
 clrlabel: ldx #<ROWLB

@@ -199,4 +199,37 @@ public:
         Assert::IsFalse (report.HasDataLoss());
         Assert::IsTrue  (read == flat);
     }
+
+
+    TEST_METHOD (IsThirteenSectorBoot_ThirteenSectorDisk_IsTrue)
+    {
+        DiskImage  image;
+
+        AssertSucceeded (ThirteenSectorCodec::Nibblize (MakePatternedSectors(), kVolumeNumber, image));
+
+        Assert::IsTrue (ThirteenSectorCodec::IsThirteenSectorBoot (image));
+    }
+
+
+    //  VisiCalc 2.08: 13-sector fields on the catalog track, and a 16-sector
+    //  boot track, which only the 16-sector ROM starts.
+    TEST_METHOD (IsThirteenSectorBoot_SixteenSectorBootTrack_IsFalse)
+    {
+        DiskImage     image;
+        DiskImage     sixteen;
+        int           slot    = 0;
+        int           from    = 0;
+
+        AssertSucceeded (ThirteenSectorCodec::Nibblize (MakePatternedSectors(), kVolumeNumber, image));
+        sixteen.LoadFromBytes (DiskFormat::Dsk, vector<Byte> (143360, 0), "boot.dsk");
+
+        slot = image.ResolveWholeTrack (0);
+        from = sixteen.ResolveWholeTrack (0);
+
+        image.GetTrackBitsForWrite (slot) = sixteen.GetTrackBits (from);
+        image.SetTrackBitCount (slot, sixteen.GetTrackBitCount (from));
+
+        Assert::IsTrue  (ThirteenSectorCodec::IsThirteenSector (image));
+        Assert::IsFalse (ThirteenSectorCodec::IsThirteenSectorBoot (image));
+    }
 };

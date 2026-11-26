@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoLink/CassoLinkHost.h"
+#include "CassoLink/Session/RawWriteStream.h"
 #include "Seams/IByteStream.h"
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/LinkProgram.h"
@@ -338,12 +339,9 @@ std::array<Byte, 2> CassoLinkHost::GetTrackPercents (Byte track)
 
 HRESULT CassoLinkHost::WriteNibbleTrack (Byte drive, Byte track, std::span<const Byte> stream, CassoLinkStatus & outStatus)
 {
-    HRESULT            hr      = S_OK;
-    CassoLinkPacket    packet;
-    std::vector<Byte>  payload (stream.begin(), stream.end());
+    HRESULT              hr       = S_OK;
     std::array<Byte, 2>  percents = GetTrackPercents (track);
     std::vector<Byte>    request  = { drive, track, (Byte) (stream.size() & 0xFF), (Byte) (stream.size() >> 8), percents[0], percents[1] };
-    Word                 crc      = CassoLinkCodec::ComputeCrc (stream);
     bool                 valid    = !stream.empty() && stream.size() <= CassoLinkCodec::kMaxNibbleStream;
 
 
@@ -351,13 +349,76 @@ HRESULT CassoLinkHost::WriteNibbleTrack (Byte drive, Byte track, std::span<const
     outStatus = {};
     CBRAEx (valid, E_INVALIDARG);
 
+    hr = SendStreamRequest (CassoLinkCodec::kWriteNibbleTrack, request, stream, std::format ("track {}'s nibbles", track), outStatus);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::WriteRawTrack
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::WriteRawTrack (Byte drive, Byte position, const RawWriteStream & stream, CassoLinkStatus & outStatus)
+{
+    HRESULT              hr       = S_OK;
+    std::vector<Byte>    moduleStream;
+    size_t               count    = 0;
+    std::array<Byte, 2>  percents = GetTrackPercents ((Byte) (position / 4));
+    std::vector<Byte>    request;
+    bool                 valid    = position < CassoLinkCodec::kQuarterTracks && stream.BuildModuleStream (moduleStream, count);
+
+
+
+    outStatus = {};
+    CBRAEx (valid, E_INVALIDARG);
+
+    request = { drive, position, (Byte) (count & 0xFF), (Byte) (count >> 8), percents[0], percents[1] };
+
+    hr = SendStreamRequest (CassoLinkCodec::kWriteRawTrack, request, moduleStream, std::format ("track {}'s bits", position / 4.0), outStatus);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::SendStreamRequest
+//
+//  The Apple requests the stream with an Acknowledge, and requests it again
+//  with a NAK when it arrived damaged.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::SendStreamRequest (Byte command, std::span<const Byte> request, std::span<const Byte> stream, const std::string & item, CassoLinkStatus & outStatus)
+{
+    HRESULT            hr      = S_OK;
+    CassoLinkPacket    packet;
+    std::vector<Byte>  payload (stream.begin(), stream.end());
+    Word               crc     = CassoLinkCodec::ComputeCrc (stream);
+    bool               valid   = false;
+
+
+
     payload.push_back ((Byte) (crc & 0xFF));
     payload.push_back ((Byte) (crc >> 8));
 
     hr = AwaitReady();
     CHR (hr);
 
-    hr = SendPacket (CassoLinkCodec::kWriteNibbleTrack, request);
+    hr = SendPacket (command, request);
     CHR (hr);
 
     for (;;)
@@ -375,7 +436,7 @@ HRESULT CassoLinkHost::WriteNibbleTrack (Byte drive, Byte track, std::span<const
         valid = packet.command == CassoLinkCodec::kAcknowledge && packet.payload.size() == 3;
         CBREx (valid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-        ReportNak (packet, std::format ("track {}'s nibbles", track));
+        ReportNak (packet, item);
 
         hr = SendPacket (CassoLinkCodec::kNibbleData, payload);
         CHR (hr);

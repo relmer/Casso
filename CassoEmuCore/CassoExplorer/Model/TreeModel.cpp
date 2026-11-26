@@ -1120,7 +1120,9 @@ void TreeModel::AppendLinkRoots (std::vector<TreeNode> & outNodes, bool copy) co
 
         node.id        = MakeLinkId (link.name);
         node.kind      = TreeNode::Kind::CassoLinkConnection;
-        node.label     = link.model.empty() ? link.name : std::format (L"{} ({})", link.name, link.model);
+        std::wstring  shown = link.label.empty() ? link.name : link.label;
+
+        node.label     = link.model.empty() ? shown : std::format (L"{} ({})", shown, link.model);
         node.location  = Location::MakeRoot (node.id);
         node.id        = copy ? kLinkCopyTag + node.id : node.id;
         node.offline   = !link.replying;

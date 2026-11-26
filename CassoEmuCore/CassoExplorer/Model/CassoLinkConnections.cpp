@@ -962,6 +962,7 @@ std::vector<LinkTreeEntry> CassoLinkConnections::BuildTreeEntries() const
         auto           found = std::find_if (m_started.begin(), m_started.end(), [&settings] (const std::unique_ptr<Link> & link) { return link->settings.name == settings.name; });
 
         entry.name   = TextEncoding::NarrowToWide (settings.name);
+        entry.label  = CassoLinkConnectionText::DescribeName (settings, std::wstring());
         entry.folder = (settings.transport == LinkTransport::AdtProServer) ? settings.folder : std::wstring();
 
         if (found == m_started.end())
@@ -979,6 +980,7 @@ std::vector<LinkTreeEntry> CassoLinkConnections::BuildTreeEntries() const
             std::string  failure = (*found)->session->GetOpenFailure();
 
             entry.replying = state == LinkState::Ready || state == LinkState::Busy;
+            entry.label    = CassoLinkConnectionText::DescribeName (settings, entry.replying ? (*found)->session->GetPort() : std::wstring());
             entry.transferring = (*found)->sink->IsTransferring ((*found)->session->IsServingAdtPro());
             entry.fullSending  = (*found)->sink->IsFullSending();
             entry.model    = entry.replying ? (*found)->session->GetModelName() : std::wstring();
@@ -1339,6 +1341,36 @@ bool CassoLinkConnections::IsWritingDisk (const std::string & name, int drive) c
 
         return job.link == name && job.operation->kind == LinkOperationKind::WriteDisk && job.operation->drive == drive
             && (state == LinkOperationState::Queued || state == LinkOperationState::Running);
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::IsDriveBusy
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkConnections::IsDriveBusy (const std::string & name, int drive) const
+{
+    std::lock_guard<std::mutex>  lock (m_lock);
+    auto                         found = std::find_if (m_started.begin(), m_started.end(), [&name] (const std::unique_ptr<Link> & link) { return link->settings.name == name; });
+
+
+
+    if (found != m_started.end() && (*found)->session != nullptr && (*found)->session->IsFullSendRunning())
+    {
+        return true;
+    }
+
+    return std::any_of (m_jobs.begin(), m_jobs.end(), [&] (const Job & job)
+    {
+        LinkOperationState  state = job.operation->state;
+
+        return job.link == name && job.operation->drive == drive && (state == LinkOperationState::Queued || state == LinkOperationState::Running);
     });
 }
 

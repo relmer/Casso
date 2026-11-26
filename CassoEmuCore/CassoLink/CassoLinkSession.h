@@ -212,6 +212,11 @@ public:
     //  so the drive after it is drawn; with no name in it, the end is cut.
     static std::string  FitToApple        (const LinkOperation & operation, const std::string & text, size_t limit);
 
+    //  The note for a floppy drive's row after an operation: Read: or Wrote:
+    //  and the image's name for a whole disk read, captured or written, an
+    //  empty note for a disk changed another way, or none when the note stays.
+    static std::optional<std::string>  GetDriveNote (const LinkOperation & operation, bool succeeded);
+
     //  A drive as the label has it: D2, and the disk's volume, as
     //  D2 (/GAMES) or D2 (VOL 254), once its catalog is read; the label has 38 characters.
     static std::string  DescribeDrive     (int drive, const std::optional<VolumeListing> & listing);

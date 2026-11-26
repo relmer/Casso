@@ -1040,6 +1040,43 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkHost::SendDriveNote
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::SendDriveNote (Byte drive, const std::string & text)
+{
+    HRESULT            hr   = S_OK;
+    std::vector<Byte>  note = { drive };
+
+
+
+    for (char ch : text)
+    {
+        if (note.size() == 1 + CassoLinkCodec::kNoteLength)
+        {
+            break;
+        }
+
+        note.push_back (ToAppleChar (ch, false));
+    }
+
+    hr = AwaitReady();
+    CHR (hr);
+
+    hr = SendPacket (CassoLinkCodec::kDriveNote, note);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkHost::SendLog
 //
 ////////////////////////////////////////////////////////////////////////////////

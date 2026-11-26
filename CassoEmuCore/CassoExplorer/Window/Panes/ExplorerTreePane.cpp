@@ -11,6 +11,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Model/TreeModel.h"
 #include "CassoExplorer/Picker/PickerRequest.h"
+#include "CassoExplorer/Window/Managers/CassoLinkDriveManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerDragDrop.h"
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
@@ -1111,6 +1112,7 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
         else
         {
             AddCassoSubmenu (items, image);
+    m_context.linkDrives.AddWriteToFloppyMenu (items, items.size(), image);
         }
 
         if (inspect)

@@ -314,6 +314,7 @@
     <ClCompile Include="CassoLink\Session\CassoLinkResume.cpp" />
     <ClCompile Include="CassoLink\Session\LinkImageSource.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkThirteenSector.cpp" />
+    <ClCompile Include="CassoLink\Session\RawWriteStream.cpp" />
     <ClCompile Include="DiskCheck\ImageRecordStore.cpp" />
     <ClCompile Include="DiskCheck\ThumbnailStore.cpp" />
     <ClCompile Include="DiskCheck\GivenNames.cpp" />
@@ -550,6 +551,7 @@
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerLayout.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\CassoLinkDriveManager.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\CassoLinkDriveManagerBlocks.cpp" />
+    <ClCompile Include="CassoExplorer\Window\Managers\CassoLinkDriveManagerMenu.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\CassoLinkManager.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\FullSendWindowManager.cpp" />
     <ClCompile Include="CassoExplorer\Window\Panes\ExplorerListPane.cpp" />
@@ -2239,6 +2241,7 @@
     <ClInclude Include="CassoLink\Session\CassoLinkResume.h" />
     <ClInclude Include="CassoLink\Session\LinkImageSource.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkThirteenSector.h" />
+    <ClInclude Include="CassoLink\Session\RawWriteStream.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkFullSend.h" />
     <ClInclude Include="DiskCheck\ImageRecordStore.h" />
     <ClInclude Include="DiskCheck\ThumbnailStore.h" />

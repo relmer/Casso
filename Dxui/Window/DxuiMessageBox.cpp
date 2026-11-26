@@ -717,7 +717,43 @@ static std::wstring StripRunMarks (const std::wstring & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiMessageBox
+//  GetFrontWindow
+//
+//  The frontmost visible, enabled window of this process, which a message
+//  box is owned by so that it opens above every window of the app, such as a
+//  dialog open over the window that asked for it. Tool windows, as menus and
+//  tips are, are passed over. `fallback` when there is none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static HWND GetFrontWindow (HWND fallback)
+{
+    DWORD  process = GetCurrentProcessId();
+
+
+
+    for (HWND window = GetTopWindow (nullptr); window != nullptr; window = GetWindow (window, GW_HWNDNEXT))
+    {
+        DWORD  owner = 0;
+
+        GetWindowThreadProcessId (window, &owner);
+
+        if (owner == process && IsWindowVisible (window) && IsWindowEnabled (window) && (GetWindowLongW (window, GWL_EXSTYLE) & WS_EX_TOOLWINDOW) == 0)
+        {
+            return window;
+        }
+    }
+
+    return fallback;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShowMessageBox
 //
 //  A themed replacement for the Win32 MessageBox, matching its signature.
 //
@@ -740,8 +776,8 @@ static std::wstring StripRunMarks (const std::wstring & text)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, const wchar_t * caption, UINT uType,
-                    const std::vector<const wchar_t *> & buttonLabels, int dangerButton, const wchar_t * checkLabel, bool * ioChecked)
+static int ShowMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, const wchar_t * caption, UINT uType,
+                           const std::vector<const wchar_t *> & buttonLabels, int dangerButton, const wchar_t * checkLabel, bool * ioChecked)
 {
     using                     ButtonSpec = DxuiMessageBoxWindow::ButtonSpec;
     DxuiMessageSeverity       severity   = DxuiMessageSeverity::None;
@@ -1041,4 +1077,42 @@ int DxuiLayOutTextRuns (const std::vector<std::vector<DxuiTextRun>> & lines,
     }
 
     return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiMessageBox
+//
+//  The box is owned by the app's frontmost window, and the window that asked
+//  for it, when that is another, is disabled while it is open, as its owner
+//  would be.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, const wchar_t * caption, UINT uType,
+                    const std::vector<const wchar_t *> & buttonLabels, int dangerButton, const wchar_t * checkLabel, bool * ioChecked)
+{
+    HWND  front    = GetFrontWindow (owner);
+    bool  disabled = owner != nullptr && front != owner && IsWindowEnabled (owner);
+    int   choice   = 0;
+
+
+
+    if (disabled)
+    {
+        EnableWindow (owner, FALSE);
+    }
+
+    choice = ShowMessageBox (front, theme, text, caption, uType, buttonLabels, dangerButton, checkLabel, ioChecked);
+
+    if (disabled)
+    {
+        EnableWindow (owner, TRUE);
+    }
+
+    return choice;
 }

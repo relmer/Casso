@@ -202,6 +202,18 @@ public:
     static constexpr Byte    kNibbleData       = 0xF4;
     static constexpr size_t  kMaxNibbleStream  = 0x3500;
 
+    //  The 13-sector module's Write raw track: the drive, the quarter-track
+    //  position and the count of bytes, low byte first; then the stream as
+    //  Write nibble track's (RawWriteStream::BuildModuleStream).
+    static constexpr Byte    kWriteRawTrack    = 0xFA;
+
+    //  A drive's note: the drive, then the text, at most kNoteLength
+    //  characters, drawn on the drive's row in place of its idle text until
+    //  another note replaces it. An empty text clears it. The program's
+    //  NOTELEN is the same.
+    static constexpr Byte    kDriveNote        = 0xFB;
+    static constexpr size_t  kNoteLength       = 36;
+
     //  The 13-sector module's Read 13-sector track: the drive, the track and
     //  the sectors requested, a bit each, low byte first. The reply is a
     //  13-sector data packet for each sector found, in physical order: the
@@ -314,6 +326,8 @@ public:
         { kBlockPlain,    "CMDBLKPLAIN" },
         { kWriteNibbleTrack, "CMDWNIBS"  },
         { kNibbleData,    "CMDNIBDATA"  },
+        { kWriteRawTrack, "CMDWRAW"     },
+        { kDriveNote,     "CMDNOTE"     },
         { kReadThirteenTrack, "CMDRD13" },
         { kThirteenData,  "CMDSEC13"    },
         { kVirtualBlock,  "CMDVBLOCK"   },

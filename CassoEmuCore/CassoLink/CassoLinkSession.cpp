@@ -801,6 +801,7 @@ void CassoLinkSession::Run (std::stop_token stop)
     HRESULT                         logged  = S_OK;
     bool                            lost    = false;
     bool                            summary = false;
+    std::optional<std::string>      note;
     const char                    * status  = nullptr;
     bool                            server  = m_settings.transport == LinkTransport::AdtProServer;
     std::shared_ptr<LinkOperation>  operation;
@@ -949,6 +950,14 @@ void CassoLinkSession::Run (std::stop_token stop)
                                                                   : std::format ("{} {}", status, DescribeOperation (*operation, std::nullopt, SUCCEEDED (hr) || operation->kind == LinkOperationKind::FullSend)),
                                                           m_host->GetLogLength()));
             IGNORE_RETURN_VALUE (logged, S_OK);
+
+            note = GetDriveNote (*operation, SUCCEEDED (hr));
+
+            if (note.has_value())
+            {
+                logged = m_host->SendDriveNote ((Byte) operation->drive, *note);
+                IGNORE_RETURN_VALUE (logged, S_OK);
+            }
         }
 
         if (lost)
@@ -1211,6 +1220,53 @@ std::string CassoLinkSession::FitToApple (const LinkOperation & operation, const
     }
 
     return fitted;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkSession::GetDriveNote
+//
+//  A whole disk written with a failure is no longer the image, and a read
+//  that failed doesn't change the disk, so its note stays.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<std::string> CassoLinkSession::GetDriveNote (const LinkOperation & operation, bool succeeded)
+{
+    std::string  name = std::filesystem::path (operation.imagePath).stem().string();
+
+
+
+    if (operation.drive < 1 || operation.drive > kDriveCount)
+    {
+        return std::nullopt;
+    }
+
+    switch (operation.kind)
+    {
+        case LinkOperationKind::ReadDisk:
+        case LinkOperationKind::CaptureDisk:
+            return succeeded ? std::optional<std::string> (FitToApple (operation, "Read: " + name, CassoLinkCodec::kNoteLength)) : std::nullopt;
+
+        case LinkOperationKind::WriteDisk:
+            return succeeded ? FitToApple (operation, "Wrote: " + name, CassoLinkCodec::kNoteLength) : std::string();
+
+        case LinkOperationKind::WriteFile:
+        case LinkOperationKind::Delete:
+        case LinkOperationKind::Rename:
+        case LinkOperationKind::SetAttributes:
+        case LinkOperationKind::MakeDirectory:
+        case LinkOperationKind::RemoveDirectory:
+        case LinkOperationKind::Krunch:
+            return succeeded ? std::optional<std::string> (std::string()) : std::nullopt;
+
+        default:
+            return std::nullopt;
+    }
 }
 
 

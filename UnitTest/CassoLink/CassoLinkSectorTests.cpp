@@ -628,6 +628,43 @@ public:
 
 
 
+    //  A drive's note replaces its row's text for a disk with no recognized
+    //  sectors, as a copy-protected one just written has, and an empty note
+    //  puts the text back.
+    TEST_METHOD (ADriveNote_ReplacesTheDrivesRowText_UntilCleared)
+    {
+        Rig                       rig;
+        const Byte                sectors[] = { 0 };
+        std::vector<std::string>  rows;
+
+        rig.Connect();
+        rig.machine.GetDiskStore().Eject (6, 1);
+        rig.Read (2, 0, sectors, CassoLinkHost::kErrorNotFound);
+
+        Assert::AreEqual (S_OK, rig.Run ([&] () { return rig.host->SendDriveNote (2, "Wrote: Prince of Persia side A"); }));
+
+        for (int frame = 0; frame < 60; frame++)
+        {
+            rig.machine.RunCycles (kFrame);
+        }
+
+        rows = TextScreenScraper::Scrape (rig.machine);
+        Assert::IsTrue (rows[10].starts_with ("D2: Wrote: Prince of Persia side A"), TextEncoding::NarrowToWide (rows[10]).c_str());
+
+        Assert::AreEqual (S_OK, rig.Run ([&] () { return rig.host->SendDriveNote (2, std::string()); }));
+
+        for (int frame = 0; frame < 60; frame++)
+        {
+            rig.machine.RunCycles (kFrame);
+        }
+
+        rows = TextScreenScraper::Scrape (rig.machine);
+        Assert::IsTrue (rows[10].starts_with ("D2: Empty or no recognized sectors"), TextEncoding::NarrowToWide (rows[10]).c_str());
+    }
+
+
+
+
     //  A 13-sector disk has address fields the 16-sector read passes over, so
     //  its drive's row has the disk's format rather than no recognized sectors.
     TEST_METHOD (AReadOfA13SectorDisk_ShowsA13SectorDisk)
