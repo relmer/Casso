@@ -158,4 +158,11 @@ public:
         Assert::IsTrue (SUCCEEDED (hr));
         Assert::IsTrue (preview.bgra.empty(), L"Any other picture is on the chosen monitor already");
     }
+
+    TEST_METHOD (GetScanlines_AScreenHas192AndAnotherPictureOnePerRow)
+    {
+        Assert::AreEqual (192, PicturePreview::GetScanlines (PicturePreview::kHeight));
+        Assert::AreEqual (178, PicturePreview::GetScanlines (178));
+        Assert::AreEqual (200, PicturePreview::GetScanlines (200));
+    }
 };

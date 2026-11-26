@@ -427,6 +427,7 @@ void PreviewPictureView::UpdateCrtPicture (bool force)
                                      (found != m_context.prefs.crtOverrides.end()) ? found->second : CrtOverrides());
     params             = MakeCrtParams (resolved, (float) width, (float) height);
     params.persistence = 0.0f;
+    params.sourceLines = (float) PicturePreview::GetScanlines (preview.height);
 
     hr = m_crtPicture.Render (m_context.window.GetPopupHost()->GetDevice(), m_context.window.GetPopupHost()->GetContext(), preview.bgra, preview.width, preview.height,
                               width, height, params, drawn, margin);

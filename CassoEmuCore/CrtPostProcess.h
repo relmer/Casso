@@ -47,8 +47,8 @@ struct CrtParams
     float    pixelScaleY        = 1.0f;
 
     // Where the picture's top and bottom edges land in the target's
-    // vertical UV, which is what lets the scanline pass lay its 192
-    // cycles across the PICTURE. The full 0..1 default treats the
+    // vertical UV, which is what lets the scanline pass lay its
+    // sourceLines cycles across the PICTURE. The full 0..1 default treats the
     // whole target as the picture, which is true of the desk scene
     // and was assumed of everything else.
     float    pictureV0          = 0.0f;
@@ -71,10 +71,14 @@ struct CrtParams
     float    pictureX           = 0.0f;
     float    pictureY           = 0.0f;
 
+    // How many scanlines the scanline pass draws across the picture: a
+    // //e's 192 for the screen, and one per row for a picture of another
+    // height, so the lines fall on its rows instead of beating against them.
+    float    sourceLines        = 192.0f;
+
     // D3D11 requires a constant buffer size that is a multiple of 16
-    // bytes; the 17 fields above pack to 68, so pad to 80. No shader
+    // bytes; the 18 fields above pack to 72, so pad to 80. No shader
     // declares these.
-    float    _pad0              = 0.0f;
     float    _pad1              = 0.0f;
     float    _pad2              = 0.0f;
 };
