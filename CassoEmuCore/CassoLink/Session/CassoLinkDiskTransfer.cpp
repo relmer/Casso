@@ -1257,6 +1257,12 @@ HRESULT CassoLinkDiskTransfer::WriteRawDisk (LinkOperation & operation, const st
     m_session.m_disks[index]->Clear();
     m_session.m_listings[index].reset();
 
+    //  A raw image has no catalog, so the drive's title is the file's name.
+    if (operation.status != nullptr && (operation.drive == 1 || operation.drive == 2))
+    {
+        operation.status->SetTitle (operation.drive, std::filesystem::path (operation.imagePath).stem().string(), std::string());
+    }
+
     for (size_t i = 0; i < tracks.size(); i++)
     {
         RawWriteTrack  & track = tracks[i];
@@ -1272,7 +1278,7 @@ HRESULT CassoLinkDiskTransfer::WriteRawDisk (LinkOperation & operation, const st
 
         m_session.Report (operation, (int) (i * 100 / tracks.size()));
 
-        hr = m_session.m_host->WriteRawTrack ((Byte) operation.drive, (Byte) track.position, track.stream, status);
+        hr = m_session.m_host->WriteRawTrack ((Byte) operation.drive, (Byte) track.position, track.stream, CassoLinkHost::GetStepPercents (i, tracks.size()), status);
         CHR (hr);
 
         hr = CassoLinkSession::FromStatusError (status.error);

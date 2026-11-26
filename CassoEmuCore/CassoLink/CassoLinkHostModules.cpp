@@ -330,6 +330,26 @@ std::array<Byte, 2> CassoLinkHost::GetTrackPercents (Byte track)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkHost::GetStepPercents
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::array<Byte, 2> CassoLinkHost::GetStepPercents (size_t index, size_t count)
+{
+    if (count == 0)
+    {
+        return { 100, 100 };
+    }
+
+    return { (Byte) (index * 100 / count), (Byte) ((index + 1) * 100 / count) };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkHost::WriteNibbleTrack
 //
 //  The Apple requests the stream with an Acknowledge, and requests it again
@@ -366,12 +386,11 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoLinkHost::WriteRawTrack (Byte drive, Byte position, const RawWriteStream & stream, CassoLinkStatus & outStatus)
+HRESULT CassoLinkHost::WriteRawTrack (Byte drive, Byte position, const RawWriteStream & stream, std::array<Byte, 2> percents, CassoLinkStatus & outStatus)
 {
     HRESULT              hr       = S_OK;
     std::vector<Byte>    moduleStream;
     size_t               count    = 0;
-    std::array<Byte, 2>  percents = GetTrackPercents ((Byte) (position / 4));
     std::vector<Byte>    request;
     bool                 valid    = position < CassoLinkCodec::kQuarterTracks && stream.BuildModuleStream (moduleStream, count);
 
