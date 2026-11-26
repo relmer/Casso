@@ -156,6 +156,41 @@ public:
 
 
 
+    //  A CP/M loader stops at the monitor after its message that no Z-80
+    //  card was found. The disk booted; Casso doesn't emulate the card.
+    TEST_METHOD (Judge_ACpmLoaderWithNoZ80Card_Booted)
+    {
+        BootProbe::Limits  limits;
+        std::string        reason;
+        BootProbe::Trace   cpm    = MakeTrace (100, 1, 11, 22, 40);
+        BootProbe::Trace   crash  = MakeTrace (100, 1, 11, 22, 40);
+
+
+
+        cpm.rows   = { "NO Z-80 CARD FOUND", "*" };
+        crash.rows = { "", "*" };
+
+        Assert::IsTrue (BootProbe::Judge (cpm, limits, reason) == BootVerdict::Booted);
+        Assert::IsTrue (BootProbe::Judge (crash, limits, reason) == BootVerdict::DidNotBoot);
+    }
+
+
+    //  The //c ROM's "Check Disk Drive." screen is a disk with no boot code.
+    TEST_METHOD (Judge_TheCheckDiskDriveScreen_IsNotBootable)
+    {
+        BootProbe::Limits  limits;
+        std::string        reason;
+        BootProbe::Trace   blank  = MakeTrace (100, 1, 11, 22, 40);
+
+
+
+        blank.rows = { "", "Check Disk Drive." };
+
+        Assert::IsTrue (BootProbe::Judge (blank, limits, reason) == BootVerdict::NotBootable);
+    }
+
+
+
 
     //  With DOS loaded, a lone prompt can be a quiet greeting program, but
     //  two prompts and nothing else, as Zork I's image ends, is a failed load.

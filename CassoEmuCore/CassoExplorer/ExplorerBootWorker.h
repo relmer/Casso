@@ -100,6 +100,7 @@ public:
     //  makes, in place of the report's frame (SaveSummary). False, with the
     //  frame as it was, for a disk with no save.
     static bool         DrawSave (const std::vector<Byte> & bytes, const std::string & path, const BootCheck::MachineFn & build, BootReport & ioReport);
+    static bool         IsCpmDataDisk (const std::vector<Byte> & bytes, const std::string & path);
 
     //  A file-system verdict as the manifest's fscheck column has it.
     static std::string  GetCheckName (FileSystemVerdict verdict);

@@ -343,6 +343,20 @@ BootVerdict BootProbe::Judge (const Trace & trace, const Limits & limits, std::s
         verdict   = BootVerdict::NotBootable;
         outReason = "The disk is a data disk with no DOS to boot.";
     }
+    else if (HasRow (trace.rows, "Check Disk Drive") || HasRow (trace.rows, "CHECK DISK DRIVE"))
+    {
+        //  The //c ROM prints this when the disk in its drive has no boot
+        //  code it can load: a blank or a data disk.
+        verdict   = BootVerdict::NotBootable;
+        outReason = "The disk has no boot code on it.";
+    }
+    else if (trace.isTextMode && last.starts_with ("*") && (HasRow (trace.rows, "Z-80") || HasRow (trace.rows, "Z80")))
+    {
+        //  A CP/M disk's loader looks for its Z-80 card and stops at the
+        //  monitor without one. Casso doesn't emulate the card.
+        verdict   = BootVerdict::Booted;
+        outReason = "The disk booted far enough to look for a Z-80 card, which Casso doesn't emulate.";
+    }
     else if (trace.isTextMode && last.starts_with ("*"))
     {
         verdict   = BootVerdict::DidNotBoot;
