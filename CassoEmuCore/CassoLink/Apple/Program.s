@@ -1415,6 +1415,7 @@ noteoff: .byte 0, NOTELEN + 1
 notelo: .byte <notes, <(notes + NOTELEN + 1)
 notehi: .byte >notes, >(notes + NOTELEN + 1)
 saw13:  .byte 0                 ; nonzero once a 13-sector address field passed
+saw16:  .byte 0                 ; nonzero once a 16-sector address field passed
 quiet:  .byte 0                 ; nonzero for a check the PC reports itself
 wpbit:  .byte 0                 ; STATWP when begin found the disk write-protected
 
@@ -1793,6 +1794,7 @@ bgarmed:
         sta misses
         sta wpbit
         sta saw13
+        sta saw16
         lda PKTBUF
         and #QUIETDRIVE
         sta quiet
@@ -1996,9 +1998,13 @@ ssloop: lda stathdr,x
         sta peor
         lda op
         jsr putpe
+        lda saw16               ; a 16-sector field passed: not a 13-sector disk
+        bne ss16z
         lda saw13
         beq ss16
         lda #STAT13
+        bne ss16
+ss16z:  lda #0
 ss16:   ora drive
         ora wpbit
         jsr putpe
@@ -3912,7 +3918,8 @@ ra3:    lda Q6L,x
         bne ra1c
         sta saw13
         beq ra1
-ra3ok:  ldy #0
+ra3ok:  sta saw16
+        ldy #0
 ra4:    lda Q6L,x
         bpl ra4
         sec
