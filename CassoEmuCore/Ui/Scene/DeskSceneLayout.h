@@ -495,6 +495,10 @@ public:
                                            float                        outCorners[4][3],
                                            int                          offsetXPx = 0);
 
+    // Whether a drive's name and caption rows, `gapPx` under an anchor at
+    // `anchorYPx`, each `rowPx` tall, run past the bottom of the viewport.
+    static bool     DoLabelRowsLeaveViewport (const RECT & viewportPx, LONG anchorYPx, int gapPx, LONG rowPx) { return anchorYPx + gapPx + 2 * rowPx > viewportPx.bottom; }
+
     // The eye point of a view-projection matrix: the one point it sends to
     // clip x = y = w = 0. False for a matrix with none.
     static bool     TryGetEyePoint        (const float viewProj[16], float outEye[3]);

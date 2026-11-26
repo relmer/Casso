@@ -87,6 +87,9 @@ public:
     bool  HandleKey           (const DxuiKeyEvent & ev) { return m_tree->OnKey (ev); }
     void  HandleFocusChanged  (bool focused) { m_tree->OnFocusChanged (focused); }
 
+    //  Explorer's row of Cut, Copy, Paste, Rename and Delete for a folder on the disk; a drive has Copy and Paste.
+    void  AddTreeIconRow      (std::vector<DxuiPopupMenuItem> & items, const std::wstring & folder, const std::wstring & id, bool drive);
+
 private:
     //  A press on a drive's, a folder's or an image's node, which drags it
     //  once the pointer moves far enough.
@@ -104,7 +107,6 @@ private:
     void  UpdateReadNode       (const std::wstring & id);
     void  ShowLabelTipAt       (POINT point);
     void  ShowTreeContextMenu  (int x, int y, const std::wstring & id);
-    void  AddTreeIconRow       (std::vector<DxuiPopupMenuItem> & items, const std::wstring & folder, const std::wstring & id, bool drive);
     void  AddPartitionRows     (std::vector<DxuiPopupMenuItem> & items, const std::wstring & partition);
     void  AddOpenRow           (std::vector<DxuiPopupMenuItem> & items, const Location & location);
     void  AddCassoSubmenu      (std::vector<DxuiPopupMenuItem> & items, const std::wstring & image);

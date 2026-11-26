@@ -37,6 +37,9 @@ public:
     //  rename fails.
     std::function<HRESULT (const std::wstring &, const std::wstring &)>  onRename;
 
+    //  The paths each Recycle call was given.
+    std::vector<std::wstring>     recycled;
+
     HRESULT  ListShellFolder      (const std::wstring &, std::vector<ShellFolderItem> & outItems) override  { outItems = shellItems; return S_OK; }
     HRESULT  ListNavigationRoots  (std::vector<ShellFolderItem> & outRoots) override                   { outRoots = navRoots; return S_OK; }
     HRESULT  ListPinnedFolders    (std::vector<ShellFolderItem> & outFolders) override                 { outFolders = pinned; return S_OK; }
@@ -65,7 +68,7 @@ public:
     HRESULT  ShowShellMenu       (HWND, const std::vector<std::wstring> &, POINT, const std::function<void()> &) override { return E_NOTIMPL; }
     HRESULT  ShowBackgroundMenu  (HWND, const std::wstring &, POINT) override                                     { return E_NOTIMPL; }
     HRESULT  RunItemVerb         (HWND, const std::vector<std::wstring> &, const char *) override       { return E_NOTIMPL; }
-    HRESULT  Recycle             (HWND, const std::vector<std::wstring> &) override                     { return E_NOTIMPL; }
+    HRESULT  Recycle             (HWND, const std::vector<std::wstring> & paths) override               { recycled.insert (recycled.end(), paths.begin(), paths.end()); return E_NOTIMPL; }
     HRESULT  RecycleCopies       (HWND, const std::vector<std::wstring> &) override                     { return E_NOTIMPL; }
     HRESULT  RestoreRecycled     (HWND, const std::vector<std::wstring> &) override                     { return E_NOTIMPL; }
     HRESULT  ListRecycled        (std::vector<RecycledItem> & outItems) override                        { outItems = items; return S_OK; }
