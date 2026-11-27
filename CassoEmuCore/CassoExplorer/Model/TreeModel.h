@@ -4,7 +4,6 @@
 
 #include "CassoExplorer/Model/HostFolderReader.h"
 #include "CassoExplorer/Model/Location.h"
-#include "CassoExplorer/Model/TreeHostNodes.h"
 #include "CassoExplorer/Model/TreeImageNodes.h"
 #include "Config/IFileSystem.h"
 #include "Seams/IShellItemVerbs.h"
@@ -207,8 +206,8 @@ public:
     //  How the tree reads a host folder on a network path, the same way:
     //  false while it is being read, so an unreachable share never stops the
     //  window. Without one, every host folder is read at once.
-    using HostFetch = TreeHostNodes::HostFetch;
-    void  SetHostFetch       (HostFetch fetch)         { m_hosts.SetHostFetch (std::move (fetch)); }
+    using HostFetch = std::function<bool (const std::wstring & path, std::vector<FileSystemEntry> & outEntries, HRESULT & outResult)>;
+    void  SetHostFetch       (HostFetch fetch)         { m_hostFetch = std::move (fetch); }
     void  RefreshShellRoots  ();
     bool  IsPinnedFolder     (const std::wstring & path) const;
 
@@ -394,6 +393,11 @@ private:
     //  the shell.
     TreeNode         MakeShellNode      (const IShellItemVerbs::ShellFolderItem & item) const;
     bool             IsHiddenDrive      (const std::wstring & path) const;
+    HRESULT          ListHostFolder     (bool underCasso, const std::wstring & path, std::vector<TreeNode> & outNodes);
+    bool             HasTreeChildren    (const std::wstring & path);
+
+    //  The node id for an item ListHostFolder lists, or empty for a plain file.
+    static std::wstring  GetHostItemId (bool underCasso, const HostFolderItem & item);
 
     static bool  TryParseImageOrDirectoryId (const std::wstring & id, bool & outUnderCasso,
                                              std::wstring & outPath, std::string & outInner);
@@ -408,10 +412,10 @@ private:
     HostFolderReader                               & m_hostFolders;
     std::map<std::wstring, std::vector<TreeNode>>    m_children;
     TreeImageNodes                                   m_images;
-    TreeHostNodes                                    m_hosts;
     int                                              m_fetchCount     = 0;
     IShellItemVerbs                                * m_shellVerbs     = nullptr;
     ShellFetch                                       m_shellFetch;
+    HostFetch                                        m_hostFetch;
     std::vector<IShellItemVerbs::ShellFolderItem>    m_navRoots;
     std::vector<IShellItemVerbs::ShellFolderItem>    m_pinned;
     bool                                             m_hasPresetRoots = false;
