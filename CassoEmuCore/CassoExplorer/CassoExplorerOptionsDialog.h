@@ -31,12 +31,12 @@ public:
 
     void  Init    (DxuiLabel & previewNote, DxuiCheckbox & autoPreview, DxuiCheckbox & enterExpands, DxuiCheckbox & registration, DxuiCheckbox & rawCopyMenu,
                    DxuiCheckbox & autoThumbnails);
-
-    //  A developer build's button below the boxes, which registers its shell
-    //  extension.
-    void  SetDevButton (DxuiButton & button) { m_devRegister = &button; Adopt (button); }
     void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
+
+    //  A debug build's button below the boxes, which registers its shell
+    //  extension.
+    void  SetDevButton (DxuiButton & button) { m_devRegister = &button; Adopt (button); }
 
     static constexpr int  kNoteHeightDip = 40;
     static constexpr int  kNoteIndentDip = 22;   // under the checkbox's label
