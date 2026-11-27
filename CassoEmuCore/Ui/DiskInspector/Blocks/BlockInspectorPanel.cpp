@@ -10,6 +10,7 @@
 #include "Ui/DiskInspector/Blocks/BlockMapGrid.h"
 #include "Ui/DiskInspector/Blocks/BlockMapView.h"
 #include "Ui/DiskInspector/Components/InspectorCommands.h"
+#include "Ui/DiskInspector/DiskInspectorPalette.h"
 #include "Ui/DiskInspector/FloatingGroup.h"
 #include "Ui/DiskInspector/InspectorMarquee.h"
 #include "Ui/DiskInspector/OverlayChip.h"
@@ -58,6 +59,11 @@ void BlockInspectorPanel::Init (BlockInspectorModel * model, BlockInspectorWorke
     m_text  = text;
     m_theme = theme;
 
+    if (const DxuiTheme * dxuiTheme = dynamic_cast<const DxuiTheme *> (theme))
+    {
+        m_hexPane.SetDifferenceArgb (DiskInspectorPalette::Resolve (*dxuiTheme).colors.difference);
+    }
+
     m_jobs.SetWorker   (worker);
     m_jobs.SetOnQueued ([this] ()
     {
@@ -102,7 +108,38 @@ void BlockInspectorPanel::Init (BlockInspectorModel * model, BlockInspectorWorke
         }
     });
 
-    m_hexPane.GetHexView().SetOwnerWindow (hwnd);
+    m_hexPane.GetHexView().SetOwnerWindow  (hwnd);
+    m_hexPane.GetHexViewB().SetOwnerWindow (hwnd);
+
+    //  While comparing, A's hex menu can take the other image's block.
+    m_hexPane.GetHexView().SetOnContextMenu ([this, hwnd] (POINT atDip)
+    {
+        DxuiHwndSource *                host = DxuiHwndSource::FromHwnd (hwnd);
+        std::vector<DxuiPopupMenuItem>  items;
+        std::shared_ptr<DxuiCommand>    copy = std::make_shared<DxuiCommand>();
+
+
+
+        if (host == nullptr)
+        {
+            return;
+        }
+
+        m_hexPane.GetHexView().BuildContextMenu (items);
+
+        if (m_model->IsComparing())
+        {
+            copy->label     = L"Copy block from \"" + BlockHeaderText::GetOtherName (*m_model) + L"\"";
+            copy->isEnabled = [this] () { return !IsBusy() && m_model->IsDifferent (m_model->GetBlock()); };
+            copy->dispatch  = [this] () { if (!IsBusy() && m_model->UseOtherBlock (m_model->GetBlock())) { Refresh(); } };
+
+            items.push_back (DxuiPopupMenuItem::ForSeparator());
+            items.push_back (DxuiPopupMenuItem::ForCommand (copy));
+        }
+
+        DxuiContextMenu::Show (*host, atDip.x, atDip.y, std::move (items));
+    });
+
     Refresh();
 }
 

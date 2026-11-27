@@ -148,6 +148,9 @@ public:
     BlockMapView  & GetMap     () const override { return *m_map; }
     BlockHexView  * GetHexView () const override { return &m_hexPane.GetHexView(); }
 
+    //  The other image's block while comparing.
+    BlockHexView  * GetHexViewB () const { return &m_hexPane.GetHexViewB(); }
+
     void     Layout            (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
     void     Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool     OnMouse           (const DxuiMouseEvent & ev) override;

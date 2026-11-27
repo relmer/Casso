@@ -573,6 +573,51 @@ public:
     }
 
 
+    TEST_METHOD (Panel_WhileComparingTheOtherBlockIsInASecondViewUnderTheFirst)
+    {
+        FakeDiskFileIo                   io;
+        BlockInspectorModel              model;
+        BlockInspectorPanel              panel;
+        DxuiDarkTheme                    theme;
+        DxuiDpiScaler                    scaler;
+        MockDxuiPainter                  painter;
+        MockDxuiTextRenderer             text;
+        std::unique_ptr<BlockImageFile>  other;
+        std::wstring                     error;
+        vector<Byte>                     bytes;
+
+
+
+        OpenModel (io, model);
+
+        bytes = io.files["vol.po"];
+        bytes[300 * kBlockBytes + 4] ^= 0xFF;
+        io.files["other.po"]  = bytes;
+        io.stamps["other.po"] = { bytes.size(), kTime };
+
+        AssertSucceeded (BlockImageFile::Open (io, "other.po", other, error));
+        AssertSucceeded (model.CompareWith (std::move (other)));
+
+        panel.Init   (&model, nullptr, &theme, nullptr, &text);
+        panel.Layout (RECT { 0, 0, 1180, 700 }, scaler);
+        panel.SelectBlock (300);
+
+        //  The hex views measure their cells on the first paint.
+        panel.Paint  (painter, text, theme);
+        panel.Paint  (painter, text, theme);
+
+        Assert::IsTrue (panel.GetHexViewB()->IsVisible(), L"the other image's block has a view");
+        Assert::IsTrue (panel.GetHexViewB()->GetBounds().top >= panel.GetHexView()->GetBounds().bottom, L"under this image's");
+        Assert::IsTrue (HasText (text, L"vol.po"),   L"this image's block is labeled with its name");
+        Assert::IsTrue (HasText (text, L"other.po"), L"and the other image's with its name");
+
+        model.EndComparison();
+        panel.Refresh();
+
+        Assert::IsFalse (panel.GetHexViewB()->IsVisible(), L"the second view goes when comparing ends");
+    }
+
+
     TEST_METHOD (Panel_ABlockIsDrawnOnlyAfterTheWorkerLoadsIt)
     {
         FakeDiskFileIo        io;
