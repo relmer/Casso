@@ -169,6 +169,38 @@ public:
     }
 
 
+    //  A track longer than the turn with weak-bit stretches, as Karateka's
+    //  track 2.5, is fitted by shortening its longest runs of zero bits, each
+    //  left long enough to read as weak; its bytes stay as they are.
+    TEST_METHOD (FitToTurn_ShortensWeakStretches_PastTheTurn)
+    {
+        Bits               bits;
+        RawWriteStream     stream;
+        std::vector<Byte>  values;
+
+
+
+        MakePackedTrack (bits);
+
+        for (size_t at : { 1000, 2000, 4000 })
+        {
+            bits.insert (bits.begin() + (ptrdiff_t) (at * 8), 100, 0);
+        }
+
+        RawWriteStream::FromBits (bits, stream);
+        values = stream.values;
+
+        Assert::IsTrue (stream.FitToTurn (bits.size() - 150));
+        Assert::IsTrue (stream.GetCellCount() <= bits.size() - 150 + 80);
+        Assert::IsTrue (std::search (stream.values.begin(), stream.values.end(), values.begin(), values.end()) != stream.values.end());
+
+        for (Byte zeros : stream.zeros)
+        {
+            Assert::IsTrue (zeros <= 2 || zeros >= 16);
+        }
+    }
+
+
     //  A packed track longer than the turn can't be fitted, since only sync
     //  bytes are dropped.
     TEST_METHOD (FitToTurn_WithNoSyncGap_FailsPastTheTurn)
@@ -182,6 +214,59 @@ public:
         RawWriteStream::FromBits (bits, stream);
 
         Assert::IsFalse (stream.FitToTurn (bits.size() - 100));
+    }
+
+
+    //  Writes a D5 AA sector of 16 bytes at `at`, its bytes after the prolog
+    //  from `seed`.
+    static void PutSector (std::vector<Byte> & ioValues, size_t at, uint32_t seed)
+    {
+        ioValues[at]     = 0xD5;
+        ioValues[at + 1] = 0xAA;
+
+        for (size_t i = 2; i < 16; i++)
+        {
+            seed               = seed * 1103515245 + 12345;
+            ioValues[at + i]   = (Byte) (0x96 | (seed >> 16));
+        }
+    }
+
+
+    //  A quarter position that is the track beside it read from another
+    //  starting point, with noise between its sectors, is an off-center read.
+    //  A half track with a sector the tracks beside don't have, as Karateka's
+    //  track 2.5, isn't, even though the rest of it is its neighbors bleeding
+    //  through.
+    TEST_METHOD (IsOffCenterRead_IsTheTrackBesideButNotAHalfTracksSector)
+    {
+        RawWriteStream  whole;
+        RawWriteStream  offCenter;
+        RawWriteStream  halfTrack;
+
+
+
+        whole.values.assign (6000, 0xAB);
+
+        for (size_t sector = 0; sector < 10; sector++)
+        {
+            PutSector (whole.values, 100 + sector * 500, (uint32_t) sector);
+        }
+
+        offCenter.values.assign (whole.values.begin() + 1234, whole.values.end());
+        offCenter.values.insert (offCenter.values.end(), whole.values.begin(), whole.values.begin() + 1234);
+
+        for (size_t at = 0; at < offCenter.values.size(); at += 200)
+        {
+            offCenter.values[at] = 0xFF;
+        }
+
+        halfTrack.values = whole.values;
+        PutSector (halfTrack.values, 2300, 99);
+
+        Assert::IsTrue  (RawWriteStream::IsOffCenterRead (offCenter, nullptr, &whole));
+        Assert::IsTrue  (RawWriteStream::IsOffCenterRead (offCenter, &whole, nullptr));
+        Assert::IsFalse (RawWriteStream::IsOffCenterRead (halfTrack, &whole, &whole));
+        Assert::IsFalse (RawWriteStream::IsOffCenterRead (offCenter, nullptr, nullptr));
     }
 
 

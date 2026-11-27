@@ -68,15 +68,26 @@ public:
 
     //  A raw image's tracks to write, in order of position: each whole track
     //  with data, and each half or quarter position whose data differs from
-    //  the whole tracks on either side. ERROR_INVALID_DATA for a file that
+    //  the whole tracks on either side and isn't them read off center
+    //  (IsOffCenterRead). ERROR_INVALID_DATA for a file that
     //  doesn't load, with outTooLong the first position of a track longer
     //  than the module's buffers, or -1.
     static HRESULT  GetImageTracks (std::span<const Byte> fileBytes, std::vector<RawWriteTrack> & outTracks, int & outTooLong);
 
+    //  Whether a quarter-track position's stream is only the whole tracks on
+    //  either side read off center, as a capture stores it: each D5 AA in it
+    //  begins s_kSectorBytes bytes found in one of them. A half track with a
+    //  sector of its own, as copy protection reads, isn't. Writing an
+    //  off-center read would overwrite the track beside it. Either neighbor
+    //  can be null.
+    static bool     IsOffCenterRead (const RawWriteStream & quarter, const RawWriteStream * below, const RawWriteStream * above);
+
     //  The stream rotated to start at its seam (FindSeam), the middle of a
     //  sync run, with sync bytes added there, or dropped from the run, so
     //  that it is a little longer than `cells`, one turn of the drive: the
-    //  end of the write then overlaps its start at the seam. A track with no
+    //  end of the write then overlaps its start at the seam. When that isn't
+    //  enough, the longest runs of zero bits, which are weak-bit stretches,
+    //  are shortened, to no fewer than s_kWeakZeros. A track with no
     //  sync run gets at least s_kSeamSyncs sync bytes at its seam, so the
     //  overlap falls on them. False when the excess can't be dropped.
     bool    FitToTurn (size_t cells);
@@ -100,6 +111,8 @@ private:
     static constexpr Byte    s_kPrologFirst   = 0xD5;
     static constexpr Byte    s_kPrologSecond  = 0xAA;
     static constexpr size_t  s_kGroupBytes    = 200;      // the stretch a group of prologs is counted over
+    static constexpr size_t  s_kWeakZeros     = 16;       // the fewest zero bits FitToTurn leaves in a weak-bit run it shortens
+    static constexpr size_t  s_kSectorBytes   = 16;       // the bytes from a D5 AA that IsOffCenterRead looks for in the tracks beside
 
     //  The sync bytes a track with no sync run is given at its seam, enough to
     //  take the most the end of the write can overlap its start.

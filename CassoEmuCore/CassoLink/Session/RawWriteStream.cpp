@@ -380,12 +380,36 @@ bool RawWriteStream::FitToTurn (size_t cells)
 
     //  With no sync run the seam is at a prolog, and the overlap must fall on
     //  added sync bytes rather than on the sector before it.
-    while (total < low || (!sync && added < s_kSeamSyncs))
+    while (!sync && added < s_kSeamSyncs)
     {
         values.insert (values.begin(), s_kSyncValue);
         zeros.insert  (zeros.begin(),  (Byte) kSyncZeros);
         total += kBitsPerByte + kSyncZeros;
         added++;
+    }
+
+    //  A weak-bit stretch is a long run of zero bits, which reads as noise at
+    //  any length, so the longest runs give up bits next.
+    while (total > high)
+    {
+        auto    longest = std::max_element (zeros.begin(), zeros.end());
+        size_t  spare   = (longest != zeros.end() && *longest > s_kWeakZeros) ? *longest - s_kWeakZeros : 0;
+        size_t  cut     = std::min (spare, total - low);
+
+        if (cut == 0)
+        {
+            break;
+        }
+
+        *longest = (Byte) (*longest - cut);
+        total   -= cut;
+    }
+
+    while (total < low)
+    {
+        values.insert (values.begin(), s_kSyncValue);
+        zeros.insert  (zeros.begin(),  (Byte) kSyncZeros);
+        total += kBitsPerByte + kSyncZeros;
     }
 
     return total <= high;
@@ -558,6 +582,28 @@ HRESULT RawWriteStream::GetImageTracks (std::span<const Byte> fileBytes, std::ve
             FromBits (bits, entry.stream);
             outTracks.push_back (std::move (entry));
         }
+
+        //  A quarter position that is only its neighbors read off center isn't
+        //  written, since its write would overwrite the whole track beside it.
+        std::erase_if (outTracks, [&outTracks] (const RawWriteTrack & track)
+        {
+            const RawWriteStream  * below = nullptr;
+            const RawWriteStream  * above = nullptr;
+            int                     whole = track.position - track.position % DiskImage::kQuarterTracksPerWholeTrack;
+
+            if (track.position == whole)
+            {
+                return false;
+            }
+
+            for (const RawWriteTrack & other : outTracks)
+            {
+                below = other.position == whole                                         ? &other.stream : below;
+                above = other.position == whole + DiskImage::kQuarterTracksPerWholeTrack ? &other.stream : above;
+            }
+
+            return IsOffCenterRead (track.stream, below, above);
+        });
     }
 
     for (const RawWriteTrack & track : outTracks)
@@ -571,4 +617,65 @@ HRESULT RawWriteStream::GetImageTracks (std::span<const Byte> fileBytes, std::ve
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RawWriteStream::IsOffCenterRead
+//
+//  Sectors, not all of the stream, are compared: a slip in framing after a
+//  weak-bit stretch changes the bytes for a while, but a sector starts at its
+//  prolog. Each stream is looked at around twice, so a sector that wraps past
+//  its end is found too.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool RawWriteStream::IsOffCenterRead (const RawWriteStream & quarter, const RawWriteStream * below, const RawWriteStream * above)
+{
+    std::vector<Byte>  turns[2];
+    std::vector<Byte>  own   = quarter.values;
+    size_t             count = quarter.values.size();
+
+
+
+    for (size_t i = 0; i < 2; i++)
+    {
+        const RawWriteStream  * side = i == 0 ? below : above;
+
+        if (side != nullptr)
+        {
+            turns[i] = side->values;
+            turns[i].insert (turns[i].end(), side->values.begin(), side->values.end());
+        }
+    }
+
+    own.insert (own.end(), quarter.values.begin(), quarter.values.end());
+
+    for (size_t at = 0; at < count && count >= s_kSectorBytes; at++)
+    {
+        auto  first = own.begin() + (ptrdiff_t) at;
+        auto  last  = first + (ptrdiff_t) s_kSectorBytes;
+        bool  found = false;
+
+        if (own[at] != s_kPrologFirst || own[at + 1] != s_kPrologSecond)
+        {
+            continue;
+        }
+
+        for (const std::vector<Byte> & turn : turns)
+        {
+            found = found || std::search (turn.begin(), turn.end(), first, last) != turn.end();
+        }
+
+        if (!found)
+        {
+            return false;
+        }
+    }
+
+    return true;
 }
