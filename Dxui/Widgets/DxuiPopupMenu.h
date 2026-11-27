@@ -416,6 +416,8 @@ private:
     void             OpenChild            (int index, bool highlightFirst);
     RECT             GetPlacedRectInOwner () const;
     void             CloseChild           ();
+    void             LeaveChildRow        (int index);
+    void             KeepChildOpen        ();
     void             Commit               (int index);
     DxuiPopupMenu  * GetRoot              ();
 
@@ -456,6 +458,7 @@ private:
     bool                 m_popupPointerSeen = false;   // the hosted popup has had its first pointer move
     POINT                m_popupPointerAt   = {};
     uint64_t             m_pendingAtMs      = 0;
+    uint64_t             m_childCloseAtMs   = 0;       // 0 when no close of the open child is pending
     uint64_t             m_closedAtMs       = 0;
     bool                 m_hasClosed        = false;
     DxuiDpiScaler        m_scaler;
