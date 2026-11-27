@@ -107,8 +107,8 @@ public:
     }
 
 
-    //  An image with no picture yet, booted for one, has a waiting line in
-    //  place of its result line, and its result line once it has a picture.
+    //  An image with no picture yet, booted for one, has waiting text where
+    //  its picture goes, and its picture and result line once it has one.
     TEST_METHOD (Preview_AnImageBeingBooted_SaysTheThumbnailIsComing)
     {
         Rig               rig;
@@ -128,13 +128,16 @@ public:
         Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"a.dsk"));
         rig.parts->preview.FillPreview();
 
-        Assert::AreEqual (std::wstring (L"Getting thumbnail..."), rig.parts->preview.GetThumbnail().GetResultLine());
+        Assert::IsTrue   (rig.parts->preview.GetThumbnail().IsScreenShown(), L"the picture's place is laid out while it is made");
+        Assert::AreEqual (std::wstring (L"Getting thumbnail..."), rig.parts->preview.GetThumbnail().GetScreenText());
+        Assert::AreEqual (std::wstring(), rig.parts->preview.GetThumbnail().GetResultLine());
 
         pictures.hasPicture = true;
         pictures.isBooting  = false;
         rig.parts->preview.HandlePicturesReady();
 
         Assert::AreEqual (pictures.resultLine, rig.parts->preview.GetThumbnail().GetResultLine());
+        Assert::AreEqual (std::wstring(), rig.parts->preview.GetThumbnail().GetScreenText());
     }
 
 

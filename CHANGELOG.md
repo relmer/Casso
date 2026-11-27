@@ -40,7 +40,7 @@ Entries before versioning was introduced use dates only.
 - Refresh (F5) in Casso Explorer reads the folder's disk images again, in
   place of the results stored from an earlier read.
 - While a disk image is booted for its thumbnail, Casso Explorer's preview has
-  a "Getting thumbnail..." line.
+  "Getting thumbnail..." where the thumbnail goes.
 - Replaced Casso's disk image picker with one based on Casso Explorer. Each
   drive's picker lists only the images that drive can use, most recently used
   first, and stays open until you insert a disk or close it.

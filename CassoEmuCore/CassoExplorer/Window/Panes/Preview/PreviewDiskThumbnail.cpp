@@ -431,6 +431,11 @@ void ThumbnailScreen::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
                                   (float) (bounds.right - bounds.left), (float) (bounds.bottom - bounds.top));
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
+    else if (!m_waiting.empty())
+    {
+        text.DrawString (m_waiting.c_str(), (float) bounds.left, (float) bounds.top, (float) (bounds.right - bounds.left), (float) (bounds.bottom - bounds.top),
+                         theme.ForegroundMuted(), m_textPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    }
 }
 
 
@@ -658,13 +663,13 @@ void PreviewDiskThumbnail::RefreshScreen()
         found = m_context.app.pictures->Find (m_path, picture, result);
     }
 
-    //  A boot for the picture takes several seconds, so a waiting line
-    //  replaces the result line until it is done.
+    //  A boot for the picture takes several seconds, so waiting text is in
+    //  the picture's place until it is done.
     m_isBooting = !found && !m_path.empty() && m_context.app.pictures != nullptr && m_context.app.pictures->IsBooting (m_path);
-    result      = m_isBooting ? std::wstring (s_kpszBooting) : result;
 
     m_picture = found ? picture : nullptr;
     m_screen->SetPicture (m_picture);
+    m_screen->SetWaitingText (m_isBooting ? s_kpszBooting : L"");
     m_bootLine->SetText (result);
 }
 
@@ -1262,7 +1267,7 @@ int PreviewDiskThumbnail::Layout (const RECT & area, int scrollPx, int bottomPx,
         }
     }
 
-    if (HasBootLine())
+    if (hasScreen)
     {
         m_header->PlaceChild (*m_bootLine, RECT { area.left + gap, chipsTop, area.right - gap, chipsTop + 2 * rows });
         chipsTop += 2 * rows + gap;
@@ -1276,7 +1281,7 @@ int PreviewDiskThumbnail::Layout (const RECT & area, int scrollPx, int bottomPx,
     m_blockMap->SetVisible (m_state == State::Ready && IsBlocks());
     m_inspect->SetVisible  (m_state == State::Ready);
     m_screen->SetVisible  (hasScreen);
-    m_bootLine->SetVisible  (HasBootLine());
+    m_bootLine->SetVisible  (hasScreen);
     m_verdict->SetVisible (HasVerdict());
 
     //  Laid out whole to measure it, then in the part not scrolled away.
