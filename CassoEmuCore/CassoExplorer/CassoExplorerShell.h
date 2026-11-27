@@ -123,6 +123,10 @@ public:
     //  it goes to has its own; empty for an empty path or one with no full form.
     static std::wstring  GetFullPath (const std::wstring & path);
 
+    //  A host file given to open, such as a document through Open with, is
+    //  selected in its folder instead. A disk image opens at its root.
+    static void  SelectOpenedFile (const std::wstring & fullPath, bool isFile, CassoExplorerLaunchOptions & options);
+
     //  `text` to `hwnd` in a WM_COPYDATA with `id`, as UTF-16, waiting a few
     //  seconds at most for a window that has stopped answering.
     static void  ForwardToWindow (HWND hwnd, ULONG_PTR id, const std::wstring & text);

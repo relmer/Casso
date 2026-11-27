@@ -3,6 +3,7 @@
 
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "CassoExplorer/Model/HostFolderNames.h"
+#include "CassoExplorer/Model/HostFolderReader.h"
 #include "DiskCheck/BootSounds.h"
 #include "AssetBootstrap.h"
 #include "BuildInfo.h"
@@ -574,6 +575,25 @@ std::wstring CassoExplorerShell::GetFullPath (const std::wstring & path)
     full.resize (length < full.size() ? length : 0);
 
     return full;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::SelectOpenedFile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerShell::SelectOpenedFile (const std::wstring & fullPath, bool isFile, CassoExplorerLaunchOptions & options)
+{
+    if (isFile && !HostFolderReader::IsSupportedImage (fullPath))
+    {
+        options.selectPath = fullPath;
+        options.openPath.clear();
+    }
 }
 
 

@@ -54,6 +54,34 @@ public:
     }
 
 
+    TEST_METHOD (OpenedFile_IsSelectedButADiskImageOrAPathInsideOneOpens)
+    {
+        CassoExplorerLaunchOptions  options;
+        CassoExplorerLaunchOptions  received;
+
+        options.openPath = L"C:\\Disks\\notes.txt";
+        CassoExplorerShell::SelectOpenedFile (options.openPath, true, options);
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\notes.txt"), options.selectPath, L"A document is selected in its folder");
+        Assert::IsTrue   (options.openPath.empty());
+
+        options          = CassoExplorerLaunchOptions();
+        options.openPath = L"C:\\Disks\\Pics.2mg";
+        CassoExplorerShell::SelectOpenedFile (options.openPath, true, options);
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\Pics.2mg"), options.openPath, L"A disk image opens at its root");
+        Assert::IsTrue   (options.selectPath.empty());
+
+        //  A folder inside an image is no host file, and goes to the running
+        //  app as the path to open.
+        options          = CassoExplorerLaunchOptions();
+        options.openPath = L"C:\\Disks\\Ultimate Desktop Pics.2mg\\PixelJoint\\Misc";
+        CassoExplorerShell::SelectOpenedFile (options.openPath, false, options);
+        Assert::IsTrue   (options.selectPath.empty());
+
+        Assert::AreEqual (S_OK, CassoExplorerShell::ParseArguments (Split (CassoExplorerShell::MakeForwardedArguments (options)), received));
+        Assert::AreEqual (options.openPath, received.openPath);
+    }
+
+
     TEST_METHOD (ForwardedArguments_ParseBack)
     {
         // A second launch sends its command line to the running app, which

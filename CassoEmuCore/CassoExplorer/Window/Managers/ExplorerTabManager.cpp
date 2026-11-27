@@ -383,8 +383,11 @@ void ExplorerTabManager::OpenPathInNewTab (const std::wstring & path)
                : HostFolderReader::IsSupportedImage (full)  ? FILE_ATTRIBUTE_NORMAL
                :                                       FILE_ATTRIBUTE_DIRECTORY;
 
+    //  A directory inside a disk image is not on the host, so the path is
+    //  parsed as a typed address.
     if (attributes == INVALID_FILE_ATTRIBUTES)
     {
+        (void) m_context.browser.GetNavigator().OpenAddressInNewTab (full);
         return;
     }
 
