@@ -996,21 +996,23 @@ in conversation.
   starts from defaults and has no ROMs until `scripts/FetchRoms.ps1` runs in
   it. `CASSO_PROFILE_DIR` sets the folder for any build. The rules are in
   [docs/testing.md](../docs/testing.md).
-- **Every agent launch of Casso passes `--title <label>`, without exception.**
-  Several sessions run at once, each in its own worktree, and every caption
-  otherwise reads `Casso - Apple //e`: the user cannot tell which window
-  belongs to which session, and you are the only thing that knows. The label
-  goes in front of the caption the emulator composes for itself.
+- **Every agent launch of Casso or Casso Explorer passes `--title <label>`,
+  without exception.** Several sessions run at once, each in a separate
+  worktree, and every caption otherwise reads `Casso - Apple //e` or
+  `Casso Explorer`, so the windows of different sessions look identical. The label goes
+  in front of the caption the program composes for itself.
 
-  The label is the **worktree directory name**, which is what you always know
-  and what the user can map back to a session:
-  `Split-Path -Leaf (git rev-parse --show-toplevel)`. In the primary checkout
-  that name is just `Casso` and says nothing, so pass the branch name there
-  instead. Undocumented, absent from `--help`, and present in every
-  configuration; it takes a value, so a bare `--title` refuses startup.
+  The label is the **session's current title**, minus any leading text in
+  brackets: for a session titled `[desktop] 033 main - write raw tracks`, pass
+  `033 main - write raw tracks`. The user renames sessions as the work
+  changes, so look the title up again before every launch and relaunch,
+  including one after a rebuild; a title from earlier in the session or from
+  a summary may be stale. A label the user types in chat takes precedence.
+  Undocumented, absent from `--help`, and present in every configuration; it
+  takes a value, so a bare `--title` fails at startup.
 
   ```powershell
-  $label = Split-Path -Leaf (git rev-parse --show-toplevel)
+  $label = '<session title>' -replace '^\s*\[[^\]]*\]\s*', ''
   # -WindowStyle Minimized belongs to the background rule above, not to this one
   Start-Process .\x64\Debug\Casso.exe -WindowStyle Minimized -ArgumentList '--title', $label
   ```
