@@ -14,7 +14,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiFramebufferView::SetFramebuffer (const uint32_t * bgra, int width, int height)
+void DxuiFramebufferView::SetFramebuffer (const uint32_t * bgra, int width, int height, float pixelAspect)
 {
     size_t  count = 0;
 
@@ -29,8 +29,9 @@ void DxuiFramebufferView::SetFramebuffer (const uint32_t * bgra, int width, int 
     count = (size_t) width * (size_t) height;
 
     m_pixels.assign (bgra, bgra + count);
-    m_width  = width;
-    m_height = height;
+    m_width       = width;
+    m_height      = height;
+    m_pixelAspect = (pixelAspect > 0.0f) ? pixelAspect : 1.0f;
 
     m_display.clear();
     m_displayW   = 0;
@@ -128,7 +129,8 @@ RECT DxuiFramebufferView::GetDestinationRect() const
 //
 //  DxuiFramebufferView::GetScaledSize
 //
-//  The picture's drawn size: the fitted size, times the zoom.
+//  The picture's drawn size: the fitted size, times the zoom. The height is
+//  measured with each pixel its aspect's multiple of its width.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -136,6 +138,7 @@ void DxuiFramebufferView::GetScaledSize (int & outWidth, int & outHeight) const
 {
     int     boundsW = m_boundsDip.right - m_boundsDip.left;
     int     boundsH = m_boundsDip.bottom - m_boundsDip.top;
+    double  shownH  = (double) m_height * (double) m_pixelAspect;
     double  scaleX  = 0.0;
     double  scaleY  = 0.0;
     int     whole   = 0;
@@ -151,7 +154,7 @@ void DxuiFramebufferView::GetScaledSize (int & outWidth, int & outHeight) const
     }
 
     scaleX = (double) boundsW / (double) m_width;
-    scaleY = (double) boundsH / (double) m_height;
+    scaleY = (double) boundsH / shownH;
 
     if (m_keepAspect)
     {
@@ -162,13 +165,13 @@ void DxuiFramebufferView::GetScaledSize (int & outWidth, int & outHeight) const
 
     if (m_integer && whole >= 1)
     {
-        outWidth  = m_width  * whole;
-        outHeight = m_height * whole;
+        outWidth  = m_width * whole;
+        outHeight = (int) (shownH * whole);
     }
     else
     {
-        outWidth  = (int) (m_width  * scaleX);
-        outHeight = (int) (m_height * scaleY);
+        outWidth  = (int) (m_width * scaleX);
+        outHeight = (int) (shownH * scaleY);
     }
 
     outWidth  = (int) ((float) outWidth  * m_zoom);

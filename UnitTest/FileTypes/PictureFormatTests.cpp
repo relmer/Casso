@@ -112,6 +112,35 @@ public:
 
 
 
+TEST_CLASS (SuperHiResRenderTests)
+{
+public:
+
+    TEST_METHOD (Render_PixelAspectFollowsTheMode)
+    {
+        SuperHiRes::Screen  screen;
+        DecodedFile         file;
+
+
+
+        screen.lines = 2;
+        screen.pixels.assign (2 * screen.bytesPerLine, 0);
+        screen.scbs.assign (2, 0);
+        screen.palettes.resize (16);
+
+        SuperHiRes::Render (screen, file);
+        Assert::AreEqual (320,                          file.width);
+        Assert::AreEqual (SuperHiRes::kPixelAspect320,  file.pixelAspect);
+
+        screen.scbs[1] = 0x80;
+        SuperHiRes::Render (screen, file);
+        Assert::AreEqual (640,                          file.width);
+        Assert::AreEqual (SuperHiRes::kPixelAspect640,  file.pixelAspect, L"a line in 640 mode");
+    }
+};
+
+
+
 TEST_CLASS (Lz4fhTests)
 {
 public:

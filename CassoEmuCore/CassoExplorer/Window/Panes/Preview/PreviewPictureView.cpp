@@ -155,7 +155,7 @@ void PreviewPictureView::Fill (const PreviewContent & preview, bool picture, boo
 {
     if (picture)
     {
-        m_picture->SetFramebuffer (preview.bgra.data(), preview.width, preview.height);
+        m_picture->SetFramebuffer (preview.bgra.data(), preview.width, preview.height, preview.pixelAspect);
         UpdateCrtPicture (true);
     }
     else if (!keepShellPicture)

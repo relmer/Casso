@@ -4,6 +4,7 @@
 #include "FileTypes/PackBytes.h"
 #include "FileTypes/IQuickDrawFonts.h"
 #include "FileTypes/QuickDrawFont.h"
+#include "FileTypes/SuperHiRes.h"
 
 
 
@@ -135,6 +136,7 @@ HRESULT QuickDrawPicture::Decode (std::span<const Byte> bytes, const FileFacts &
     outFile.kind         = DecodedFile::Kind::Picture;
     outFile.width        = width;
     outFile.height       = height;
+    outFile.pixelAspect  = ((scb & kScb640) != 0) ? SuperHiRes::kPixelAspect640 : SuperHiRes::kPixelAspect320;
     outFile.notes        = std::move (pb.notes);
     canvas->WriteBgra (outFile.bgra);
 

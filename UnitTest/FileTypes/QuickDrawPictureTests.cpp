@@ -2,6 +2,7 @@
 #include "../EhmTestHelper.h"
 #include "FileTypes/FileFormatTable.h"
 #include "FileTypes/QuickDrawPicture.h"
+#include "FileTypes/SuperHiRes.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -187,6 +188,12 @@ public:
         Assert::AreEqual (7,  file.height);
         Assert::AreEqual (s_kWhite, GetPixel (file, 11, 6));
         Assert::IsTrue (file.notes.empty());
+    }
+
+    TEST_METHOD (Decode_PixelAspectFollowsTheMode)
+    {
+        Assert::AreEqual (SuperHiRes::kPixelAspect320, DecodePicture (MakePicture (0x00, 12, 7)).pixelAspect);
+        Assert::AreEqual (SuperHiRes::kPixelAspect640, DecodePicture (MakePicture (0x80, 12, 7)).pixelAspect);
     }
 
     TEST_METHOD (Decode_PaintRect_FillsTheRectInThePenPattern)

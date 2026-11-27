@@ -55,6 +55,12 @@ public:
     static constexpr size_t  kScbOffset    = 0x7D00;
     static constexpr size_t  kPaletteStart = 0x7E00;
 
+    //  A pixel's height over its width on the monitor. A 320-mode screen
+    //  fills a 4:3 monitor. The 640-mode value is measured from Clip Art
+    //  Disk 1's pictures, whose square objects come out square at 1.9.
+    static constexpr float   kPixelAspect320 = 1.2f;
+    static constexpr float   kPixelAspect640 = 1.9f;
+
 private:
     static constexpr Byte    kTypePnt      = 0xC0;
     static constexpr Byte    kTypePic      = 0xC1;

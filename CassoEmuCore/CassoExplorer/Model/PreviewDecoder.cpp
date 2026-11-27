@@ -1009,10 +1009,11 @@ void PreviewDecoder::FromDecoded (const DecodedFile & decoded, PreviewContent & 
             break;
 
         case DecodedFile::Kind::Picture:
-            outContent.kind   = PreviewContent::Kind::Picture;
-            outContent.bgra   = decoded.bgra;
-            outContent.width  = decoded.width;
-            outContent.height = decoded.height;
+            outContent.kind        = PreviewContent::Kind::Picture;
+            outContent.bgra        = decoded.bgra;
+            outContent.width       = decoded.width;
+            outContent.height      = decoded.height;
+            outContent.pixelAspect = decoded.pixelAspect;
             break;
 
         default:

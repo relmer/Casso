@@ -349,6 +349,7 @@ struct DecodedFile
     std::vector<uint32_t>      bgra;
     int                        width        = 0;
     int                        height       = 0;
+    float                      pixelAspect  = 1.0f;   // a picture's pixel height over its width on the machine's monitor
     std::vector<std::wstring>  notes;
     std::vector<std::wstring>  fontNotes;   // a picture's text in fonts that aren't available, a note a font
     Charset                    charset      = Charset::Default;
