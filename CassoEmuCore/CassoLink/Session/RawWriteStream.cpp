@@ -526,6 +526,41 @@ void RawWriteStream::ToBits (std::vector<uint8_t> & outBits) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RawWriteStream::ToWrittenBits
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void RawWriteStream::ToWrittenBits (std::vector<uint8_t> & outBits) const
+{
+    std::vector<Byte>  stream;
+    size_t             count = 0;
+
+
+
+    outBits.clear();
+
+    if (!BuildModuleStream (stream, count))
+    {
+        return;
+    }
+
+    for (size_t i = 0; i < count; i++)
+    {
+        for (size_t bit = 0; bit < kBitsPerByte; bit++)
+        {
+            outBits.push_back ((uint8_t) ((stream[i] >> (kBitsPerByte - 1 - bit)) & 1));
+        }
+
+        outBits.insert (outBits.end(), stream[kMaxBytes + i], 0);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RawWriteStream::BuildModuleStream
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -542,14 +577,19 @@ bool RawWriteStream::BuildModuleStream (std::vector<Byte> & outStream, size_t & 
 
     for (size_t i = 0; i < values.size(); i++)
     {
-        size_t  count = zeros[i];
+        size_t  count  = zeros[i];
+        Byte    filler = count >= s_kWeakZeros ? s_kWeakFlux : (Byte) 0;
 
         moduleValues.push_back (values[i]);
         moduleZeros.push_back  ((Byte) (count % kBitsPerByte));
 
+        //  A weak-bit stretch keeps one flux change each eight cells: a real
+        //  drive's read amplifier, given none for that long, takes time to
+        //  settle again and loses the data between weak stretches. Seven
+        //  cells with no change still read as noise.
         for (size_t eight = 0; eight < count / kBitsPerByte; eight++)
         {
-            moduleValues.push_back (0);
+            moduleValues.push_back (filler);
             moduleZeros.push_back  (0);
         }
     }

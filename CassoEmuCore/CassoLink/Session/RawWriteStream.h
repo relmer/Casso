@@ -102,11 +102,16 @@ public:
     //  The bits the stream writes, one to a byte, for a check of FromBits.
     void    ToBits (std::vector<uint8_t> & outBits) const;
 
+    //  The bits the module writes, as BuildModuleStream has them: a weak-bit
+    //  run has its s_kWeakFlux bytes. Empty when the stream doesn't fit.
+    void    ToWrittenBits (std::vector<uint8_t> & outBits) const;
+
     //  The stream as the raw write module takes it: kMaxBytes values, then
     //  kMaxBytes counts of zeros, each 0 to kModuleZeros. A byte with more
     //  zeros is written as the byte with the remainder of eight, then a $00
-    //  byte with no zeros for each eight. False when that is more than
-    //  kMaxBytes bytes.
+    //  byte with no zeros for each eight, or for a weak-bit run of
+    //  s_kWeakZeros or more, an s_kWeakFlux byte. False when that is more
+    //  than kMaxBytes bytes.
     bool    BuildModuleStream (std::vector<Byte> & outStream, size_t & outCount) const;
 
 private:
@@ -117,7 +122,8 @@ private:
     static constexpr Byte    s_kPrologFirst   = 0xD5;
     static constexpr Byte    s_kPrologSecond  = 0xAA;
     static constexpr size_t  s_kGroupBytes    = 200;      // the stretch a group of prologs is counted over
-    static constexpr size_t  s_kWeakZeros     = 16;       // the fewest zero bits FitToTurn leaves in a weak-bit run it shortens
+    static constexpr size_t  s_kWeakZeros     = 16;       // the fewest zero bits FitToTurn leaves in a weak-bit run it shortens, and the shortest run written as weak
+    static constexpr Byte    s_kWeakFlux      = 0x80;     // a weak-bit run's filler byte: one flux change, then seven cells with none
     static constexpr size_t  s_kSectorBytes   = 16;       // the bytes from a D5 AA that IsOffCenterRead looks for in the tracks beside
     static constexpr size_t  s_kChunkBytes    = 12;       // the chunk GetSharedPart looks for in the tracks beside
     static constexpr double  s_kBleedShare    = 0.75;     // the part of a whole track found in the half track beside that makes it that half track's edge

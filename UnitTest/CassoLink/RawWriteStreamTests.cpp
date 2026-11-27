@@ -396,6 +396,42 @@ public:
     }
 
 
+    //  A weak-bit run is written with one flux change each eight cells, so a
+    //  real drive's read amplifier keeps its level; a shorter run of zeros
+    //  is written as zeros. Every cell is still written.
+    TEST_METHOD (BuildModuleStream_WritesWeakRunsWithAFluxChangeEachByte)
+    {
+        RawWriteStream        stream;
+        std::vector<Byte>     module;
+        std::vector<uint8_t>  plain;
+        std::vector<uint8_t>  written;
+        size_t                count = 0;
+
+
+
+        stream.values = { 0xD5, 0xAA, 0x96, 0xEB };
+        stream.zeros  = { 0, 12, 40, 0 };
+
+        Assert::IsTrue (stream.BuildModuleStream (module, count));
+
+        //  0xAA with 4, then a $00 for its other 8; 0x96 with 0, then five 0x80.
+        Assert::AreEqual ((size_t) 10, count);
+        Assert::AreEqual ((Byte) 0x00, module[2]);
+        Assert::AreEqual ((Byte) 0x96, module[3]);
+
+        for (size_t i = 4; i < 9; i++)
+        {
+            Assert::AreEqual ((Byte) 0x80, module[i]);
+        }
+
+        stream.ToBits (plain);
+        stream.ToWrittenBits (written);
+
+        Assert::AreEqual (plain.size(), written.size());
+        Assert::AreEqual ((ptrdiff_t) 5, std::count (written.begin(), written.end(), (uint8_t) 1) - std::count (plain.begin(), plain.end(), (uint8_t) 1));
+    }
+
+
     //  A track whose bits don't end on a byte is padded with zero bits.
     TEST_METHOD (FromBits_PadsThePartLastByte)
     {

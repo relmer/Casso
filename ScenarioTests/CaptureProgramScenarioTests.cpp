@@ -220,7 +220,8 @@ public:
 
     //  Bits written raw over the link at a whole and a half track: nibbles,
     //  9- and 10-bit sync bytes and a run of zero bits longer than a byte's
-    //  seven come back from the emulated drive bit for bit.
+    //  seven come back from the emulated drive bit for bit as the module
+    //  writes them, a weak-bit run with its flux changes.
     TEST_METHOD (ARawTrack_IsWrittenBitForBit_OverTheLink)
     {
         static constexpr size_t  kBytes = 5000;
@@ -255,7 +256,7 @@ public:
         //  are the stream's.
         RawWriteStream::FromBits (bits, stream);
         bits.clear();
-        stream.ToBits (bits);
+        stream.ToWrittenBits (bits);
 
         AssertSucceeded (LinkProgram::BuildThirteenSectorModule (module));
 
@@ -372,7 +373,7 @@ public:
                 syncs++;
             }
 
-            track.stream.ToBits (bits);
+            track.stream.ToWrittenBits (bits);
             bits.erase (bits.begin(), bits.begin() + (ptrdiff_t) padding);
             written.push_back (std::move (bits));
         }
