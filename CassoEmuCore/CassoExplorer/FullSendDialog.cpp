@@ -687,6 +687,7 @@ std::wstring FullSendPanel::DescribeDrive (const FullSendDriveStatus & drive)
         case FullSendDiskState::Duplicate: state = L"Duplicate";                             break;
         case FullSendDiskState::Empty:     state = L"Unformatted, or no disk";               break;
         case FullSendDiskState::Blank:     state = L"Blank";                                 break;
+        case FullSendDiskState::Failed:    state = L"Failed";                                break;
         default:                           state = L"No disk read yet";                      break;
     }
 
@@ -720,6 +721,11 @@ std::wstring FullSendPanel::DescribeTimes (const FullSendDriveStatus & drive)
     if (done)
     {
         return std::format (L"Took {}", FormatSeconds (drive.elapsed));
+    }
+
+    if (drive.state == FullSendDiskState::Failed)
+    {
+        return std::format (L"Failed after {}", FormatSeconds (drive.elapsed));
     }
 
     if (!busy)

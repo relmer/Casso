@@ -1490,6 +1490,12 @@ HRESULT CassoLinkDiskTransfer::WriteWholeDisk (LinkOperation & operation)
     EndWriteStatus (operation, sectors.size());
 
 Error:
+    //  A write that failed after it began stops its time on the jobs window.
+    if (FAILED (hr) && operation.status != nullptr && (operation.drive == 1 || operation.drive == 2))
+    {
+        operation.status->FailDisk (operation.drive);
+    }
+
     return hr;
 }
 

@@ -555,6 +555,32 @@ void FullSendStatus::ClearDisk (int drive, FullSendDiskState state)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullSendStatus::FailDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendStatus::FailDisk (int drive)
+{
+    std::lock_guard        lock   (m_lock);
+    FullSendDriveStatus  & status = GetDrive (drive);
+
+
+
+    if (status.state == FullSendDiskState::Sending || status.state == FullSendDiskState::Capturing)
+    {
+        status.elapsed     = m_seconds() - status.started;
+        status.secondsLeft = -1.0;
+        status.state       = FullSendDiskState::Failed;
+        m_snapshot.revision++;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullSendStatus::AddBlank
 //
 ////////////////////////////////////////////////////////////////////////////////

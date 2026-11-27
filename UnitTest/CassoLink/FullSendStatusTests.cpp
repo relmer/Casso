@@ -187,6 +187,33 @@ public:
 
 
 
+    //  A write that fails stops its time where it failed, and its track marks
+    //  stay.
+    TEST_METHOD (AFailedWrite_StopsItsTime_AndKeepsItsTracks)
+    {
+        Rig               rig;
+        FullSendSnapshot  snapshot;
+
+
+
+        rig.now = 1000.0;
+        rig.status.Begin();
+        rig.status.BeginDisk (2, false, std::span<const int>());
+        rig.status.MarkTrack (2, 0, FullSendTrackMark::Read);
+        rig.now += 9.0;
+
+        rig.status.FailDisk (2);
+        rig.now += 60.0;
+
+        snapshot = rig.status.GetSnapshot();
+
+        Assert::IsTrue   (snapshot.drives[1].state == FullSendDiskState::Failed);
+        Assert::AreEqual (9.0, snapshot.drives[1].elapsed, 0.001);
+        Assert::IsTrue   (snapshot.drives[1].tracks[0] == FullSendTrackMark::Read);
+    }
+
+
+
     TEST_METHOD (ARawCapture_HasItsPassReadsAndPositions_AndTheCapturesTimeLeft)
     {
         Rig               rig;
