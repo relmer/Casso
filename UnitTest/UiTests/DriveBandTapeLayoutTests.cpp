@@ -61,6 +61,7 @@ public:
 
 
 
+        shell->SetRecorderAttachedForTest (true);
         shell->LayoutDriveRowForTest (kClientW, kClientH, kDpi, 2);
 
         d1   = shell->GetDriveRectForTest (0);
@@ -103,6 +104,7 @@ public:
 
         Assert::IsTrue (tape.left == 0 && tape.top == 0, L"a detached recorder gets no anchor");
 
+        alone->SetRecorderAttachedForTest (true);
         alone->LayoutDriveRowForTest (kClientW, kClientH, kDpi, 2);
         Assert::IsTrue (shell->GetDriveRectForTest (0).left > alone->GetDriveRectForTest (0).left,
                         L"and the drives center on their own, further right than beside a recorder");

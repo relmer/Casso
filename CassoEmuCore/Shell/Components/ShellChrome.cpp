@@ -1159,7 +1159,9 @@ bool ShellChrome::UpdateDockHover (POINT cursor, bool isOverDock, int64_t nowMs)
 //
 //  How much room under the sliding devices has to be inside the frame for
 //  their labels: the disk name strip and its gap, and the recorder's counter
-//  row under its tape name when the recorder is attached.
+//  row under its tape name when the recorder is attached. When the drive bar
+//  has drives or the recorder, both label rows and a gap go between the
+//  drives and the bar.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1172,6 +1174,11 @@ int ShellChrome::GetDeskSlideClearPx() const
     if (m_shell.m_scene->GetScene().HasRecorder() && m_shell.m_tapeDeck->IsRecorderOnDesk())
     {
         clearPx += m_shell.m_scaler.ToPx (s_kSceneDriveLabelStripDp);
+    }
+
+    if (m_driveBarSlideHeightPx > 0)
+    {
+        clearPx += m_shell.m_scaler.ToPx (s_kSceneDriveLabelStripDp + s_kSceneDriveLabelGapDp) + m_driveBarSlideHeightPx;
     }
 
     return clearPx;

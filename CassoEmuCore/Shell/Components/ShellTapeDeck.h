@@ -126,9 +126,9 @@ private:
 
     // Whether the cassette recorder is connected, where the machine has a
     // cassette port. Per machine, saved in $cassoUiPrefs.tapeRecorderConnected,
-    // and connected by default so new users find it. Disconnecting hides it
-    // everywhere and ejects its tape.
-    bool                                    m_tapeRecorderConnected = true;
+    // and disconnected by default. Disconnecting hides it everywhere and
+    // ejects its tape.
+    bool                                    m_tapeRecorderConnected = false;
 
     std::array<bool, 6>                     m_recorderKeyLatched    = {};
     int64_t                                 m_recorderReleaseAtMs   = 0;

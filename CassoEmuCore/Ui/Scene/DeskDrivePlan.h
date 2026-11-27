@@ -32,8 +32,9 @@ enum class DeskDriveClass
     HardDisk,
 };
 
-//  Where a class goes, from the drives' right-click menu. Auto puts a class
-//  of more than two drives on the drive bar and a smaller one on the desk.
+//  Where a class goes, from the drives' right-click menu. Auto puts the hard
+//  disks on the drive bar, and puts the floppies there when there are more
+//  than two of them and on the desk otherwise.
 enum class DeskClassPlace
 {
     Auto,

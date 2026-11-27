@@ -556,7 +556,7 @@ HRESULT SettingsJson::ExtractUiPrefs (
     outPrefs.tapeAutoStop       = TryGetBoolOpt   (*uiObj, "tapeAutoStop",        true);
     outPrefs.tapeIdleStop       = TryGetBoolOpt   (*uiObj, "tapeIdleStop",        true);
     outPrefs.tapeEightBit       = TryGetBoolOpt   (*uiObj, "tapeEightBit",        false);
-    outPrefs.tapeRecorderConnected = TryGetBoolOpt (*uiObj, "tapeRecorderConnected", true);
+    outPrefs.tapeRecorderConnected = TryGetBoolOpt (*uiObj, "tapeRecorderConnected", false);
     outPrefs.tapeVolume         = (float) GetNumberOpt (*uiObj, "tapeVolume",   SettingsUiPrefs::kDefaultTapeVolume);
 
     outPrefs.externalDriveConnected = TryGetBoolOpt (*uiObj, "externalDriveConnected", false);

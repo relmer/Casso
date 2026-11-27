@@ -134,7 +134,7 @@ std::vector<DeskDrivePlacement> DeskDrivePlan::Place (const std::vector<DeskDriv
     }
 
     floppyOnDesk = !floppy.empty() && IsOnDesk (floppies,  floppy.size());
-    hardOnDesk   = !hard.empty()   && IsOnDesk (hardDisks, hard.size());
+    hardOnDesk   = !hard.empty()   && hardDisks == DeskClassPlace::Desk;
     wideHardDisk = hardOnDesk && hard.size() == 1 && GetCaseWidthMm (hard[0].model) >= monitorWidthMm - kUnderMonitorSlackMm;
 
     if (wideHardDisk)
