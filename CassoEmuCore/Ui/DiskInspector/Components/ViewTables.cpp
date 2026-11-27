@@ -252,6 +252,10 @@ void ViewTables::SelectFromRow (const TableRow & row)
         {
             m_session.model.SelectNibbles (row.quarterTrack, track->fields[row.field].firstNibble, track->fields[row.field].nibbleCount);
         }
+        else if (row.sector >= 0 && m_session.comparison.IsComparing())
+        {
+            SelectSectorB (row.quarterTrack, row.sector);
+        }
 
         //  A selection from an error finding is drawn in the error color
         //  until another selection replaces it.
@@ -262,5 +266,36 @@ void ViewTables::SelectFromRow (const TableRow & row)
 
         m_host.OnSelection();
         m_session.model.StartFlight (InspectorMarquee::GetClockMs());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ViewTables::SelectSectorB
+//
+//  A sector only the other image has, which A's views follow.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ViewTables::SelectSectorB (int quarterTrack, int sector)
+{
+    const TrackAnalysis *  trackB = nullptr;
+
+
+
+    m_session.modelB.SelectQuarterTrack (quarterTrack);
+    trackB = m_session.modelB.GetTrack();
+
+    for (size_t i = 0; trackB != nullptr && i < trackB->sectors.size(); i++)
+    {
+        if (trackB->sectors[i].sector == sector)
+        {
+            m_session.modelB.SelectSector (quarterTrack, static_cast<int> (i));
+            break;
+        }
     }
 }

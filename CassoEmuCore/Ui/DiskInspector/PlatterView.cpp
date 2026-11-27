@@ -1032,17 +1032,36 @@ bool PlatterView::GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch> &
 
 bool PlatterView::BuildTip (POINT pointPx, InspectorTip & outTip) const
 {
+    return BuildTipFor (pointPx, m_context, outTip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::BuildTipFor
+//
+//  The tip at the pointer from `context`'s disk, which is this view's or,
+//  while comparing, the other image's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PlatterView::BuildTipFor (POINT pointPx, const InspectorViewContext & context, InspectorTip & outTip) const
+{
     PlatterPlacement  view   = MakeView();
-    PlatterHit        hit    = HitTest (pointPx);
-    bool              hasTip = m_context.hasDisk && !m_isPanning && hit.isOnDisk && m_context.analysis != nullptr;
+    PlatterHit        hit    = PlatterGeometry::HitTest (view, pointPx);
+    bool              hasTip = context.hasDisk && !m_isPanning && hit.isOnDisk && context.analysis != nullptr;
     double            radius = std::hypot (pointPx.x + 0.5 - view.centerXPx, pointPx.y + 0.5 - view.centerYPx);
 
 
 
     if (hasTip)
     {
-        outTip = InspectorTip::BuildPlatterTip (m_context, hit.quarterTrack, hit.turn, 1.0 / (s_kTwoPi * std::max (radius, 1.0)),
-                                                IsShowingValues (view, hit.quarterTrack));
+        hit.quarterTrack = (context.analysis->copy != nullptr) ? PlatterCells::GetCenterRing (context.analysis->copy->playedSlot, hit.quarterTrack) : hit.quarterTrack;
+        outTip           = InspectorTip::BuildPlatterTip (context, hit.quarterTrack, hit.turn, 1.0 / (s_kTwoPi * std::max (radius, 1.0)),
+                                                          IsShowingValues (view, hit.quarterTrack));
     }
 
     return hasTip;

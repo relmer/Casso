@@ -44,11 +44,6 @@ static constexpr uint8_t  s_kMarkMatches  = 5;
 static constexpr uint8_t  s_kMarkMissing  = 6;   // B has no sector paired with A's
 static constexpr uint8_t  s_kMarkPad      = 7;   // past a sector's last byte, to the end of its row
 
-//  While comparing, a byte that matches the other image's is drawn this much
-//  of the way from the panel's color to the text's; one that differs is
-//  drawn at full strength, as the Nibbles tab's nibbles are.
-static constexpr float    s_kMatchInkShare = 0.35f;
-
 
 
 
@@ -1286,6 +1281,7 @@ void SectorsView::ScrollToSelectedIfMoved()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SectorsView::PickStyle
@@ -1314,11 +1310,7 @@ bool SectorsView::PickStyle (const BlockHexSource & source, uint64_t offset, uin
     switch (mark)
     {
         case s_kMarkDiffers:
-            outStyle.ink = m_panelTheme.Foreground();
-            break;
-
-        case s_kMarkMatches:
-            outStyle.ink = DxuiColor::Mix (s_kPanelArgb, m_panelTheme.Foreground(), s_kMatchInkShare);
+            outStyle.underline = colors.difference | 0xFF000000u;
             break;
 
         case s_kMarkMissing:
@@ -1340,12 +1332,12 @@ bool SectorsView::PickStyle (const BlockHexSource & source, uint64_t offset, uin
             break;
     }
 
-    if (mark != s_kMarkDiffers && mark != s_kMarkMatches && mark != s_kMarkMissing && mark != s_kMarkPad && offset < source.GetBytes().size() && source.GetBytes()[offset] == 0)
+    if (mark != s_kMarkMissing && mark != s_kMarkPad && offset < source.GetBytes().size() && source.GetBytes()[offset] == 0)
     {
         outStyle.ink = m_panelTheme.ForegroundMuted();
     }
 
-    return outStyle.fill != 0 || outStyle.ink != 0;
+    return outStyle.fill != 0 || outStyle.ink != 0 || outStyle.underline != 0;
 }
 
 
@@ -1595,6 +1587,7 @@ bool SectorsView::OnMouse (const DxuiMouseEvent & ev)
 
     return isHandled;
 }
+
 
 
 

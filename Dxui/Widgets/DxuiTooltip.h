@@ -146,8 +146,10 @@ public:
 
     //  A grid under the text, one row of cells per row: each column as wide
     //  as its widest cell, the first column's cells at the left and the rest
-    //  centered. An empty grid draws nothing. Drawn in a popup only.
-    void  SetTable        (const std::vector<std::vector<std::wstring>> & rows);
+    //  centered. An empty grid draws nothing. Drawn in a popup only. A headed
+    //  grid has every cell at the left, a rule under its first row and a rule
+    //  between columns. With text of only spaces, the grid is at the top.
+    void  SetTable        (const std::vector<std::vector<std::wstring>> & rows, bool isHeaded = false);
     void  SetDpi          (UINT dpi) { m_scaler.SetDpi (dpi); }
     UINT  GetDpi          () const   { return m_scaler.GetDpi(); }
     void  SetViewportSize (int widthPx, int heightPx) { m_viewportWPx = widthPx; m_viewportHPx = heightPx; }
@@ -253,6 +255,10 @@ private:
     void     MeasureBox        (RECT & outAnchorScreen, SIZE & outSizeDip);
     float    GetSwatchColumnPx () const;
     void     MeasureTable      (float fontPx, float & outWidthPx, float & outHeightPx);
+    float    GetColumnGapPx    () const;
+    float    GetHeaderGapPx    () const;
+    bool     IsTextBlank       () const;
+    void     PaintTableRules   (IDxuiPainter & painter) const;
     int64_t  GetHideAtMs       (int64_t nowMs) const;
 
     //
@@ -288,6 +294,8 @@ private:
     std::vector<std::vector<std::wstring>>    m_table;
     std::vector<float>                        m_tableColumnsPx;
     float                                     m_tableTopPx        = 0.0f;
+    float                                     m_tableWPx          = 0.0f;
+    bool                                      m_isTableHeaded     = false;
     uint32_t                                  m_bgArgb            = 0xFF2D2D2D;
     uint32_t                                  m_borderArgb        = 0xFF606060;
     uint32_t                                  m_textArgb          = 0xFFE8EEF4;

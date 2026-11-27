@@ -5,7 +5,9 @@
 class FilesView;
 class IInspectorComponent;
 class InspectorSession;
+class InspectorTip;
 class PlatterCorners;
+struct SideNames;
 
 
 
@@ -39,7 +41,10 @@ public:
 
 private:
     std::wstring  GetButtonTip     (POINT pointPx, RECT & outAnchorPx) const;
-    void          BuildComparedTip (POINT pointPx, std::wstring & inOutTip, vector<DxuiTooltipSwatch> & inOutSwatches, vector<vector<std::wstring>> & outTable) const;
+    void          BuildComparedTip (POINT pointPx, bool isPlatter, std::wstring & inOutTip, vector<DxuiTooltipSwatch> & inOutSwatches, vector<vector<std::wstring>> & outTable) const;
+
+    static void   MergeTips        (const InspectorTip (& tips)[2], const SideNames & names, std::wstring & outTip, vector<DxuiTooltipSwatch> & outSwatches,
+                                    vector<vector<std::wstring>> & outTable);
 
     static bool   IsInside     (const RECT & rect, POINT pointPx) { return PtInRect (&rect, pointPx) != FALSE; }
 

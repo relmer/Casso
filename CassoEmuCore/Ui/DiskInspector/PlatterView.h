@@ -39,6 +39,7 @@ public:
     bool  OnMouse            (const DxuiMouseEvent & ev) override;
     bool  GetTooltip         (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const override;
     bool  GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch> & outSwatches) const override;
+    bool  BuildTipFor        (POINT pointPx, const InspectorViewContext & context, InspectorTip & outTip) const;
 
     PlatterRenderer  & GetRenderer     ()       { return m_renderer; }
     PlatterHit         HitTest         (POINT pointPx) const;

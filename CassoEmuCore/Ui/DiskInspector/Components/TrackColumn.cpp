@@ -211,19 +211,48 @@ void TrackColumn::Choose (int index)
 
 void TrackColumn::OnAnalysisChanged()
 {
-    std::array<int, InspectorTables::kCategoryCount>  counts = InspectorTables::CountCategories (m_session.analysis);
+    CountIssues();
+}
 
 
 
-    m_hasIssues = m_session.context.hasDisk && (std::any_of (counts.begin(), counts.end(), [] (int count) { return count > 0; }) ||
-                                                (m_session.comparison.IsComparing() && !m_session.comparison.GetB().findings.empty()));
-    m_issues    = m_session.context.hasDisk ? static_cast<int> (m_session.analysis.findings.size()) : 0;
-    m_severity  = DxuiSeverity::Info;
 
-    for (const Finding & finding : m_session.analysis.findings)
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackColumn::CountIssues
+//
+//  The findings of this image and, while comparing, of the other image, and
+//  the most severe one's severity. B's analysis changes apart from A's, so
+//  each update counts them again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TrackColumn::CountIssues()
+{
+    vector<const DiskAnalysis *>  images = { &m_session.analysis };
+
+
+
+    if (m_session.comparison.IsComparing())
     {
-        m_severity = (std::max) (m_severity, static_cast<DxuiSeverity> (FindingFormatter::GetSeverity (finding)));
+        images.push_back (&m_session.comparison.GetB());
     }
+
+    m_issues   = 0;
+    m_severity = DxuiSeverity::Info;
+
+    for (const DiskAnalysis * analysis : m_session.context.hasDisk ? images : vector<const DiskAnalysis *>())
+    {
+        m_issues += static_cast<int> (analysis->findings.size());
+
+        for (const Finding & finding : analysis->findings)
+        {
+            m_severity = (std::max) (m_severity, static_cast<DxuiSeverity> (FindingFormatter::GetSeverity (finding)));
+        }
+    }
+
+    m_hasIssues = m_issues > 0;
 }
 
 
@@ -260,11 +289,16 @@ void TrackColumn::OnDiskStarted (const DiskChange & change)
 
 void TrackColumn::Update()
 {
-    vector<View>  shown     = GetShownViews();
-    bool          isChanged = shown.size() != m_shown.size();
+    vector<View>  shown;
+    bool          isChanged = false;
     size_t        i         = 0;
 
 
+
+    CountIssues();
+
+    shown     = GetShownViews();
+    isChanged = shown.size() != m_shown.size();
 
     for (i = 0; !isChanged && i < shown.size(); i++)
     {

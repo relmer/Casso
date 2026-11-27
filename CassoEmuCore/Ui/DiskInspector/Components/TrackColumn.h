@@ -59,6 +59,7 @@ public:
 
 private:
     int   GetSelectedIndex () const;
+    void  CountIssues      ();
     void  Choose           (int index);
 
     InspectorSession         & m_session;

@@ -46,10 +46,11 @@ struct DxuiHexViewTypes
     //  the view does.
     struct ByteStyle
     {
-        uint32_t  fill    = 0;
-        uint32_t  ink     = 0;
-        bool      isBold  = false;
-        uint32_t  outline = 0;
+        uint32_t  fill      = 0;
+        uint32_t  ink       = 0;
+        bool      isBold    = false;
+        uint32_t  outline   = 0;
+        uint32_t  underline = 0;    // a band along the bottom of the byte's cell
     };
 
     using ByteStyleFn = std::function<bool (uint64_t offset, uint8_t mark, bool isSelected, Column column, ByteStyle & outStyle)>;

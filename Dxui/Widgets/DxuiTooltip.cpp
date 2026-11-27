@@ -44,6 +44,14 @@ static constexpr float     s_kMaxSwatchTextWidthDip = 2000.0f;
 static constexpr float     s_kTableGapDip     = 8.0f;
 static constexpr float     s_kTableTopLines   = 1.0f;
 
+//  A headed table's header row is set off from the rows under it by a rule
+//  centered in this gap.
+static constexpr float     s_kTableRuleGapDip = 6.0f;
+static constexpr float     s_kTableRuleDip    = 1.0f;
+
+//  A headed table's columns are set farther apart, with a rule between them.
+static constexpr float     s_kHeadedTableGapDip = 17.0f;
+
 
 
 
@@ -978,9 +986,19 @@ void DxuiTooltip::MeasureBox (RECT & outAnchorScreen, SIZE & outSizeDip)
 
         MeasureTable (fontPx, tableWPx, tableHPx);
 
-        m_tableTopPx = padYPx + std::ceil (textHPx) + m_lineHeightPx * s_kTableTopLines;
-        textWPx      = std::max (textWPx, tableWPx);
-        textHPx      = std::ceil (textHPx) + m_lineHeightPx * s_kTableTopLines + tableHPx;
+        //  With no text, the table is at the top.
+        if (IsTextBlank())
+        {
+            m_tableTopPx = padYPx;
+            textWPx      = tableWPx;
+            textHPx      = tableHPx;
+        }
+        else
+        {
+            m_tableTopPx = padYPx + std::ceil (textHPx) + m_lineHeightPx * s_kTableTopLines;
+            textWPx      = std::max (textWPx, tableWPx);
+            textHPx      = std::ceil (textHPx) + m_lineHeightPx * s_kTableTopLines + tableHPx;
+        }
     }
 
     boxWPx = std::ceil (textWPx) + padXPx * 2.0f + GetSwatchColumnPx();
@@ -1033,7 +1051,7 @@ void DxuiTooltip::MeasureBox (RECT & outAnchorScreen, SIZE & outSizeDip)
 void DxuiTooltip::MeasureTable (float fontPx, float & outWidthPx, float & outHeightPx)
 {
     HRESULT  hr    = S_OK;
-    float    gapPx = m_scaler.ToPxf (s_kTableGapDip);
+    float    gapPx = GetColumnGapPx();
     float    cellW = 0.0f;
     float    cellH = 0.0f;
 
@@ -1047,7 +1065,8 @@ void DxuiTooltip::MeasureTable (float fontPx, float & outWidthPx, float & outHei
 
         for (size_t c = 0; c < row.size(); c++)
         {
-            hr    = m_activePopup->MeasureTextWrapped (row[c].c_str(), fontPx, GetFace(), m_scaler.ToPxf (s_kMaxSwatchTextWidthDip), cellW, cellH);
+            hr    = (m_isTableHeaded && &row == &m_table.front()) ? m_activePopup->MeasureTextWeighted (row[c].c_str(), fontPx, GetFace(), DxuiFontWeight::SemiBold, cellW, cellH) :
+                                                                    m_activePopup->MeasureTextWrapped (row[c].c_str(), fontPx, GetFace(), m_scaler.ToPxf (s_kMaxSwatchTextWidthDip), cellW, cellH);
             cellW = SUCCEEDED (hr) ? cellW : static_cast<float> (row[c].size()) * fontPx * s_kEstCharWidthEm;
 
             m_tableColumnsPx[c] = std::max (m_tableColumnsPx[c], std::ceil (cellW));
@@ -1062,7 +1081,58 @@ void DxuiTooltip::MeasureTable (float fontPx, float & outWidthPx, float & outHei
     }
 
     outWidthPx  += gapPx * static_cast<float> (std::max<size_t> (m_tableColumnsPx.size(), 1) - 1);
-    outHeightPx  = m_lineHeightPx * static_cast<float> (m_table.size());
+    outHeightPx  = m_lineHeightPx * static_cast<float> (m_table.size()) + GetHeaderGapPx();
+    m_tableWPx   = outWidthPx;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetColumnGapPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiTooltip::GetColumnGapPx() const
+{
+    return m_scaler.ToPxf (m_isTableHeaded ? s_kHeadedTableGapDip : s_kTableGapDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetHeaderGapPx
+//
+//  The room between a headed table's header row and the rows under it, or
+//  0 for a table with no header.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiTooltip::GetHeaderGapPx() const
+{
+    return (m_isTableHeaded && m_table.size() > 1) ? m_scaler.ToPxf (s_kTableRuleGapDip) : 0.0f;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsTextBlank
+//
+//  Whether the text above a table is only spaces and line breaks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTooltip::IsTextBlank() const
+{
+    return m_text.find_first_not_of (L" \n") == std::wstring::npos;
 }
 
 
@@ -1158,10 +1228,11 @@ void DxuiTooltip::SetLineColors (const std::vector<uint32_t> & argbs)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTooltip::SetTable (const std::vector<std::vector<std::wstring>> & rows)
+void DxuiTooltip::SetTable (const std::vector<std::vector<std::wstring>> & rows, bool isHeaded)
 {
-    m_isSwatchChanged = m_isSwatchChanged || rows != m_table;
+    m_isSwatchChanged = m_isSwatchChanged || rows != m_table || isHeaded != m_isTableHeaded;
     m_table           = rows;
+    m_isTableHeaded   = isHeaded;
 }
 
 
@@ -1402,7 +1473,7 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
         painter.OutlineRect (padX, top, swatch, swatch, borderPx, m_borderArgb);
     }
 
-    if (isWrapped)
+    if (isWrapped && !(IsTextBlank() && !m_table.empty()))
     {
         hr = text.DrawString (m_text.c_str(),
                               padX + GetSwatchColumnPx(),
@@ -1418,16 +1489,22 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
     for (size_t r = 0; r < m_table.size(); r++)
     {
         float  x = padX + GetSwatchColumnPx();
+        float  y = m_tableTopPx + static_cast<float> (r) * m_lineHeightPx + ((r > 0) ? GetHeaderGapPx() : 0.0f);
 
         for (size_t c = 0; c < m_table[r].size() && c < m_tableColumnsPx.size(); c++)
         {
-            hr = text.DrawString (m_table[r][c].c_str(), x, m_tableTopPx + static_cast<float> (r) * m_lineHeightPx, m_tableColumnsPx[c], m_lineHeightPx,
-                                  m_textArgb, fontPx, GetFace(), (c == 0) ? DxuiTextHAlign::Left : DxuiTextHAlign::Center, DxuiTextVAlign::Top,
-                                  DxuiFontWeight::Normal, false);
+            hr = text.DrawString (m_table[r][c].c_str(), x, y, m_tableColumnsPx[c], m_lineHeightPx,
+                                  m_textArgb, fontPx, GetFace(), (c == 0 || m_isTableHeaded) ? DxuiTextHAlign::Left : DxuiTextHAlign::Center, DxuiTextVAlign::Top,
+                                  (m_isTableHeaded && r == 0) ? DxuiFontWeight::SemiBold : DxuiFontWeight::Normal, false);
             IGNORE_RETURN_VALUE (hr, S_OK);
 
-            x += m_tableColumnsPx[c] + m_scaler.ToPxf (s_kTableGapDip);
+            x += m_tableColumnsPx[c] + GetColumnGapPx();
         }
+    }
+
+    if (m_isTableHeaded && !m_table.empty())
+    {
+        PaintTableRules (painter);
     }
 
     //  With swatches or line colors, each line is drawn alone and unwrapped,
@@ -1453,5 +1530,43 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         start = end + 1;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintTableRules
+//
+//  A headed table's rule under its header row, and a rule centered in each
+//  gap between columns, from the table's top to its bottom.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::PaintTableRules (IDxuiPainter & painter) const
+{
+    float  left   = m_scaler.ToPxf (s_kPadXDip) + GetSwatchColumnPx();
+    float  gapPx  = GetColumnGapPx();
+    float  rulePx = std::max (1.0f, std::round (m_scaler.ToPxf (s_kTableRuleDip)));
+    float  height = m_lineHeightPx * static_cast<float> (m_table.size()) + GetHeaderGapPx();
+    float  x      = left;
+
+
+
+    if (m_table.size() > 1)
+    {
+        painter.FillRect (left, std::round (m_tableTopPx + m_lineHeightPx + (GetHeaderGapPx() - rulePx) / 2.0f), m_tableWPx, rulePx, m_borderArgb);
+    }
+
+    for (size_t c = 0; c + 1 < m_tableColumnsPx.size(); c++)
+    {
+        x += m_tableColumnsPx[c];
+
+        painter.FillRect (std::round (x + (gapPx - rulePx) / 2.0f), m_tableTopPx, rulePx, height, m_borderArgb);
+
+        x += gapPx;
     }
 }

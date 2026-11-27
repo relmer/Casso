@@ -37,6 +37,8 @@ public:
     void                     SelectFromRow  (const TableRow & row);
 
 private:
+    void  SelectSectorB (int quarterTrack, int sector);
+
     InspectorSession         & m_session;
     IInspectorComponentHost  & m_host;
     bool                       m_isTracksCompared   = false;

@@ -652,15 +652,18 @@ bool DxuiHexPainter::GetByteStyle (const IDxuiTheme & theme, uint64_t offset, ui
 //
 //  DxuiHexPainter::FillStyled
 //
-//  A styled byte's fill, inside its outline when it has one. The outline is
-//  a twelfth of the cell's height, and at least a pixel.
+//  A styled byte's fill, inside its outline when it has one, then its
+//  underline band. The outline is a twelfth of the cell's height and the
+//  band a sixth, each at least a pixel.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiHexPainter::FillStyled (IDxuiTextRenderer & text, const RECT & rect, const DxuiHexViewTypes::ByteStyle & style)
 {
     constexpr LONG  kEdgeShare = 12;
+    constexpr LONG  kBandShare = 6;
     LONG            edge       = std::max<LONG> (1, (rect.bottom - rect.top) / kEdgeShare);
+    LONG            band       = std::max<LONG> (1, (rect.bottom - rect.top) / kBandShare);
 
 
 
@@ -668,12 +671,15 @@ void DxuiHexPainter::FillStyled (IDxuiTextRenderer & text, const RECT & rect, co
     {
         FillCell (text, rect, style.outline);
         FillCell (text, RECT { rect.left + edge, rect.top + edge, rect.right - edge, rect.bottom - edge }, style.fill);
-        return;
     }
-
-    if (style.fill != 0)
+    else if (style.fill != 0)
     {
         FillCell (text, rect, style.fill);
+    }
+
+    if (style.underline != 0)
+    {
+        FillCell (text, RECT { rect.left, rect.bottom - band, rect.right, rect.bottom }, style.underline);
     }
 }
 

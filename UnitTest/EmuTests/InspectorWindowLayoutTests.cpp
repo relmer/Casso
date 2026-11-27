@@ -29,7 +29,6 @@ public:
 
         in.bounds    = { 0, 0, 1280, 800 };
         in.toolbarPx = 40;
-        in.sectorsPx = 500;
 
         return in;
     }
@@ -59,17 +58,18 @@ public:
     }
 
 
-    TEST_METHOD (PlatterColumn_LeavesTheSectorBytesTheirWidth)
+    TEST_METHOD (PlatterColumn_LeavesTheTrackColumnItsLeastWidth)
     {
         InspectorWindowLayout::Inputs  in = MakeInputs();
         InspectorWindowLayout::Frames  f;
 
 
 
-        in.splitFraction = InspectorWindowLayout::kMaxSplit;
+        in.splitFraction = 1.0;
         f                = InspectorWindowLayout::Plan (in, MakeScaler());
 
-        Assert::IsTrue (f.trackColumn.right - f.trackColumn.left >= in.sectorsPx);
+        Assert::IsTrue (f.trackColumn.right - f.trackColumn.left >= 400);
+        Assert::IsTrue (f.platterColumn.right - f.platterColumn.left > f.platter.right - f.platter.left);
     }
 
 
@@ -80,7 +80,7 @@ public:
 
 
 
-        in.splitFraction = InspectorWindowLayout::kMinSplit;
+        in.splitFraction = 0.0;
         in.minColumnPx   = 480;
         f                = InspectorWindowLayout::Plan (in, MakeScaler());
 

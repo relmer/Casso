@@ -924,7 +924,6 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
     in.toolbarPx     = m_toolbar->GetHeightPx (scaler);
     in.isComparing   = m_session.comparison.IsComparing();
     in.minColumnPx   = m_corners->GetMinWidthPx (scaler);
-    in.sectorsPx     = SectorsView::GetFullWidthPx (scaler);
     in.cornerBandPx  = m_corners->GetBottomBandPx (scaler);
     in.noticePx      = m_comparisonPart->GetNoticeHeightPx (width - 2 * margin, scaler);
     f                = InspectorWindowLayout::Plan (in, scaler);
@@ -1141,8 +1140,12 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
     }
     else if (ev.kind == DxuiMouseEventKind::Move && m_isSplitting && width > 0)
     {
-        m_splitFraction = std::clamp (static_cast<double> (p.x - m_boundsDip.left) / width, InspectorWindowLayout::kMinSplit, InspectorWindowLayout::kMaxSplit);
+        m_splitFraction = std::clamp (static_cast<double> (p.x - m_boundsDip.left) / width, 0.0, 1.0);
         Layout (m_boundsDip, m_session.hostScaler);
+
+        //  Past a column's least width, the splitter stops; the fraction is
+        //  where it stopped, so a drag back moves it at once.
+        m_splitFraction = static_cast<double> (m_splitterPx.left - m_boundsDip.left) / width;
         isHandled = true;
     }
     else if (ev.kind == DxuiMouseEventKind::Up && m_isSplitting)

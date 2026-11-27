@@ -64,6 +64,7 @@ void InspectorTooltips::Update (POINT pointPx)
     vector<vector<std::wstring>>          table;
     bool                                  isInstant = false;
     bool                                  isOnStrip = false;
+    bool                                  isOnDisc  = false;
     const std::array<InspectorView *, 13> views     = { m_session.views.platter, m_session.views.strip, m_session.views.stripB, m_session.views.sectorRow, m_session.views.sectors, m_session.views.nibbles, m_session.views.flux, m_session.views.header, m_session.views.image, m_session.views.tracks, m_session.views.issues, m_session.views.diffs, m_session.views.findResults };
 
 
@@ -77,13 +78,15 @@ void InspectorTooltips::Update (POINT pointPx)
             view->GetTooltipLineColors (pointPx, lineColors);
             isInstant = view == m_session.views.platter || view == m_session.views.strip || view == m_session.views.stripB;
             isOnStrip = view == m_session.views.strip || view == m_session.views.stripB;
+            isOnDisc  = view == m_session.views.platter;
         }
     }
 
-    //  While comparing, a strip's tip has both images' nibbles at the cursor.
-    if (isOnStrip && m_session.comparison.IsComparing())
+    //  While comparing, a strip's or the platter's tip has both images' cells
+    //  at the cursor.
+    if ((isOnStrip || isOnDisc) && m_session.comparison.IsComparing())
     {
-        BuildComparedTip (pointPx, tip, swatches, table);
+        BuildComparedTip (pointPx, isOnDisc, tip, swatches, table);
     }
 
     //  The File map grid's tip appears at once, as the platter's does.
@@ -110,7 +113,7 @@ void InspectorTooltips::Update (POINT pointPx)
     {
         m_tooltip.SetSwatches   (swatches);
         m_tooltip.SetLineColors (lineColors);
-        m_tooltip.SetTable      (table);
+        m_tooltip.SetTable      (table, true);
 
         //  A strip's tip sits to the right of the pointer, so the cursor
         //  line under it stays in sight.
@@ -130,30 +133,62 @@ void InspectorTooltips::Update (POINT pointPx)
 //
 //  InspectorTooltips::BuildComparedTip
 //
-//  The lines both strips' tips start with, then a column for each image
-//  headed by its file name with the rest of its lines. The swatches of the
-//  shared lines are kept. If either strip has no tip, the tip is not changed.
+//  Both images' tips at the point, over a strip or the platter, merged. If
+//  either image has no tip there, the tip is not changed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void InspectorTooltips::BuildComparedTip (POINT pointPx, std::wstring & inOutTip, vector<DxuiTooltipSwatch> & inOutSwatches, vector<vector<std::wstring>> & outTable) const
+void InspectorTooltips::BuildComparedTip (POINT pointPx, bool isPlatter, std::wstring & inOutTip, vector<DxuiTooltipSwatch> & inOutSwatches, vector<vector<std::wstring>> & outTable) const
 {
-    InspectorTip                  tips[2];
-    vector<std::wstring>          lines[2];
-    const DiskComparison        * comparison = m_session.comparison.HasResult() ? &m_session.comparison.GetResult() : nullptr;
-    SideNames                     names      = (comparison != nullptr) ? comparison->names : SideNames();
-    size_t                        shared     = 0;
-    size_t                        rows       = 0;
-    std::wstring                  text;
-    vector<DxuiTooltipSwatch>     kept;
+    InspectorTip              tips[2];
+    const DiskComparison    * comparison = m_session.comparison.HasResult() ? &m_session.comparison.GetResult() : nullptr;
+    bool                      hasTips    = false;
 
 
 
-    if (m_session.views.strip == nullptr || m_session.views.stripB == nullptr ||
-        !m_session.views.strip->BuildTipAtX (pointPx.x, tips[0]) || !m_session.views.stripB->BuildTipAtX (pointPx.x, tips[1]))
+    if (isPlatter)
     {
-        return;
+        hasTips = m_session.views.platter != nullptr &&
+                  m_session.views.platter->BuildTipFor (pointPx, m_session.context, tips[0]) && m_session.views.platter->BuildTipFor (pointPx, m_session.contextB, tips[1]);
     }
+    else
+    {
+        hasTips = m_session.views.strip != nullptr && m_session.views.stripB != nullptr &&
+                  m_session.views.strip->BuildTipAtX (pointPx.x, tips[0]) && m_session.views.stripB->BuildTipAtX (pointPx.x, tips[1]);
+    }
+
+    if (hasTips)
+    {
+        MergeTips (tips, (comparison != nullptr) ? comparison->names : SideNames(), inOutTip, inOutSwatches, outTable);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorTooltips::MergeTips
+//
+//  The lines both images' tips have, once, in A's order, then a table
+//  headed by each image's file name with the lines only that image's tip
+//  has. The lines both have use A's swatches. With no line only
+//  one image has, there is no table.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorTooltips::MergeTips (const InspectorTip (& tips)[2], const SideNames & names, std::wstring & outTip, vector<DxuiTooltipSwatch> & outSwatches, vector<vector<std::wstring>> & outTable)
+{
+    vector<std::wstring>  lines[2];
+    vector<int>           sharedAt;
+    vector<bool>          isTakenB;
+    vector<std::wstring>  only[2];
+    std::wstring          text;
+    int                   shared = 0;
+    size_t                rows   = 0;
+
+
 
     for (int side = 0; side < 2; side++)
     {
@@ -166,26 +201,48 @@ void InspectorTooltips::BuildComparedTip (POINT pointPx, std::wstring & inOutTip
         }
     }
 
-    while (shared < lines[0].size() && shared < lines[1].size() && lines[0][shared] == lines[1][shared])
-    {
-        shared++;
-    }
+    sharedAt.assign (lines[0].size(), -1);
+    isTakenB.assign (lines[1].size(), false);
+    outSwatches.clear();
+    outTable.clear();
 
-    for (size_t i = 0; i < shared; i++)
+    for (size_t i = 0; i < lines[0].size(); i++)
     {
-        text += (i > 0 ? L"\n" : L"") + lines[0][i];
-    }
+        auto  match = std::find (lines[1].begin(), lines[1].end(), lines[0][i]);
 
-    for (const DxuiTooltipSwatch & swatch : inOutSwatches)
-    {
-        if (swatch.line >= 0 && static_cast<size_t> (swatch.line) < shared)
+        while (match != lines[1].end() && isTakenB[static_cast<size_t> (match - lines[1].begin())])
         {
-            kept.push_back (swatch);
+            match = std::find (match + 1, lines[1].end(), lines[0][i]);
+        }
+
+        if (match == lines[1].end())
+        {
+            only[0].push_back (lines[0][i]);
+            continue;
+        }
+
+        isTakenB[static_cast<size_t> (match - lines[1].begin())] = true;
+        sharedAt[i]  = shared++;
+        text        += (text.empty() ? L"" : L"\n") + lines[0][i];
+    }
+
+    for (size_t i = 0; i < lines[1].size(); i++)
+    {
+        if (!isTakenB[i])
+        {
+            only[1].push_back (lines[1][i]);
         }
     }
 
-    rows = std::max (lines[0].size(), lines[1].size()) - shared;
-    outTable.clear();
+    for (const DxuiTooltipSwatch & swatch : tips[0].GetSwatches())
+    {
+        if (swatch.line >= 0 && static_cast<size_t> (swatch.line) < sharedAt.size() && sharedAt[static_cast<size_t> (swatch.line)] >= 0)
+        {
+            outSwatches.push_back ({ sharedAt[static_cast<size_t> (swatch.line)], swatch.argb });
+        }
+    }
+
+    rows = std::max (only[0].size(), only[1].size());
 
     if (rows > 0)
     {
@@ -194,15 +251,11 @@ void InspectorTooltips::BuildComparedTip (POINT pointPx, std::wstring & inOutTip
 
     for (size_t i = 0; i < rows; i++)
     {
-        size_t  at = shared + i;
-
-        outTable.push_back ({ at < lines[0].size() ? lines[0][at] : std::wstring(), at < lines[1].size() ? lines[1][at] : std::wstring() });
+        outTable.push_back ({ i < only[0].size() ? only[0][i] : std::wstring(), i < only[1].size() ? only[1][i] : std::wstring() });
     }
 
-    inOutTip      = text.empty() ? std::wstring (L" ") : text;
-    inOutSwatches = std::move (kept);
+    outTip = text.empty() ? std::wstring (L" ") : text;
 }
-
 
 
 

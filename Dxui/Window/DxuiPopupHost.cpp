@@ -2800,6 +2800,36 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiPopupHost::MeasureTextWeighted
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiPopupHost::MeasureTextWeighted (const wchar_t  * text,
+                                            float            fontSizeDip,
+                                            const wchar_t  * fontFamily,
+                                            DxuiFontWeight   weight,
+                                            float          & outWidthDip,
+                                            float          & outHeightDip)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    hr = m_textRenderer.MeasureStringWeighted (text, fontSizeDip, fontFamily, weight, outWidthDip, outHeightDip);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetRevealNowMs
 //
 ////////////////////////////////////////////////////////////////////////////////

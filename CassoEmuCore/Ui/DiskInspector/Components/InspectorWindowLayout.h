@@ -20,9 +20,7 @@
 class InspectorWindowLayout
 {
 public:
-    static constexpr double  kMinSplit  = 0.3;
-    static constexpr double  kMaxSplit  = 0.7;
-    static constexpr int     kMarginDip = 8;
+    static constexpr int  kMarginDip = 8;
 
     struct Inputs
     {
@@ -31,7 +29,6 @@ public:
         int     toolbarPx      = 0;
         bool    isComparing    = false;
         int     minColumnPx    = 0;    // the platter's control row
-        int     sectorsPx      = 0;    // a sector's bytes at their full width
         int     cornerBandPx   = 0;    // the band under the platter for its corner groups
         int     noticePx       = 0;    // the comparison's infobar under its bar
     };
@@ -55,10 +52,8 @@ public:
     };
 
     //  Wherever the splitter is, the platter column is at least as wide as
-    //  its control row, up to the splitter's largest share of the window.
-    //  The column is no wider than the platter and its control row, and the
-    //  track column has room for a sector's bytes at their full width, so
-    //  their font follows the zoom.
+    //  its control row, and the track column is at least its least width.
+    //  The platter is centered in a column wider than it is tall.
     static Frames  Plan (const Inputs & in, const DxuiDpiScaler & scaler);
 
 private:
@@ -66,5 +61,5 @@ private:
     static constexpr int  s_kStripDip            = 64;
     static constexpr int  s_kSplitterDip         = 6;
     static constexpr int  s_kBarDip              = 36;
-    static constexpr int  s_kMinPlatterColumnDip = 420;
+    static constexpr int  s_kMinTrackColumnDip   = 400;
 };

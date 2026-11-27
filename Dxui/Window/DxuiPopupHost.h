@@ -311,6 +311,14 @@ public:
                                  float          & outWidthDip,
                                  float          & outHeightDip);
 
+    //  The extents of one line of text at a font weight.
+    HRESULT  MeasureTextWeighted (const wchar_t  * text,
+                                  float            fontSizeDip,
+                                  const wchar_t  * fontFamily,
+                                  DxuiFontWeight   weight,
+                                  float          & outWidthDip,
+                                  float          & outHeightDip);
+
     //  Word-wrapped variant: extents for the text flowed inside maxWidthDip.
     HRESULT  MeasureTextWrapped (const wchar_t  * text,
                                  float            fontSizeDip,

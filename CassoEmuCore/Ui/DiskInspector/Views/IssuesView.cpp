@@ -3,6 +3,7 @@
 #include "Ui/DiskInspector/Views/IssuesView.h"
 #include "Devices/Disk/Inspector/FindingFormatter.h"
 #include "Devices/Disk/Inspector/Repair/FileSystemCheck.h"
+#include "Ui/DiskInspector/OrphanFields.h"
 
 
 
@@ -102,7 +103,8 @@ void IssuesView::Refresh()
         //  image's, and its severity is drawn as an icon in place of text.
         for (size_t i = 0; i < rows.size(); i++)
         {
-            others[i].field = -1;
+            others[i].sector = (others[i].sector < 0) ? GetOtherSector (others[i]) : others[i].sector;
+            others[i].field  = -1;
             rows[i].cells.insert (rows[i].cells.end(), others[i].cells.begin(), others[i].cells.end());
             rows[i].cells[others[i].cells.size()] = std::wstring();
         }
@@ -121,6 +123,44 @@ void IssuesView::Refresh()
         m_otherRows.clear();
         SetRows ({});
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IssuesView::GetOtherSector
+//
+//  For an other image's finding that has no sector number, the sector it
+//  refers to: the first of the sectors missing from its track, or the
+//  sector its data field with no address field most likely is. -1 for any
+//  other finding.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int IssuesView::GetOtherSector (const TableRow & row) const
+{
+    const Finding *        finding = (row.finding >= 0 && static_cast<size_t> (row.finding) < m_otherAnalysis->findings.size()) ? &m_otherAnalysis->findings[static_cast<size_t> (row.finding)] : nullptr;
+    const TrackAnalysis *  track   = nullptr;
+    int                    slot    = (row.quarterTrack >= 0 && static_cast<size_t> (row.quarterTrack) < m_otherAnalysis->entries.size()) ? m_otherAnalysis->entries[static_cast<size_t> (row.quarterTrack)].slot : -1;
+    int                    sector  = -1;
+
+
+
+    track = (slot >= 0 && static_cast<size_t> (slot) < m_otherAnalysis->tracks.size()) ? m_otherAnalysis->tracks[static_cast<size_t> (slot)].get() : nullptr;
+
+    if (finding != nullptr && finding->kind == FindingKind::SectorsMissing && !finding->sectors.empty())
+    {
+        sector = finding->sectors.front();
+    }
+    else if (finding != nullptr && finding->kind == FindingKind::DataWithoutAddress && track != nullptr && row.field >= 0 && static_cast<size_t> (row.field) < track->fields.size())
+    {
+        sector = OrphanFields::GuessSector (*track, row.field);
+    }
+
+    return sector;
 }
 
 

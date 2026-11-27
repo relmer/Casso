@@ -87,6 +87,7 @@ protected:
 private:
     void  OnSort         (int column);
     void  ShowColumns    ();
+    int   GetOtherSector (const TableRow & row) const;
     bool  IsComparing    () const { return m_otherAnalysis != nullptr; }
     RECT  GetBadgeRect   (int row, size_t column) const;
     RECT  GetToggleRect  (int category) const;

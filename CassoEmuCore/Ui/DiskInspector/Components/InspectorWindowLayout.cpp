@@ -33,27 +33,18 @@ InspectorWindowLayout::Frames InspectorWindowLayout::Plan (const Inputs & in, co
     int           column    = splitX - b.left - 2 * margin;
     int           areaH     = std::max (0, bandTop - top - 2 * margin);
     int           side      = IntRange::Limit (column, areaH, 0);
-    int           minColumn = std::max (scaler.ToPx (s_kMinPlatterColumnDip), in.minColumnPx);
-    int           fitted    = 0;
+    int           minColumn = in.minColumnPx;
+    int           maxColumn = std::max (minColumn, width - 4 * margin - scaler.ToPx (s_kSplitterDip) - scaler.ToPx (s_kMinTrackColumnDip));
     int           y         = 0;
     Frames        f;
 
 
 
-    if (column < minColumn)
+    if (column < minColumn || column > maxColumn)
     {
-        column = IntRange::Limit (minColumn, static_cast<int> (width * kMaxSplit) - 2 * margin, 0);
+        column = std::clamp (column, minColumn, maxColumn);
         splitX = b.left + 2 * margin + column;
         side   = IntRange::Limit (column, areaH, 0);
-    }
-
-    fitted = std::max (minColumn, std::min (areaH, width - 4 * margin - scaler.ToPx (s_kSplitterDip) - in.sectorsPx));
-
-    if (column > fitted)
-    {
-        column = fitted;
-        splitX = b.left + 2 * margin + column;
-        side   = std::min (column, areaH);
     }
 
     f.toolbar       = { b.left, b.top, b.right, b.top + in.toolbarPx };
