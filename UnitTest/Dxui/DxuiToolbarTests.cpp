@@ -384,6 +384,28 @@ public:
     }
 
 
+    TEST_METHOD (GetTooltipAt_CheckedToggle_UsesCheckedTip)
+    {
+        Fixture  f;
+        RECT     anchor = {};
+        POINT    pDelta = {};
+
+
+
+        f.delta->tip        = L"Turn it on";
+        f.delta->checkedTip = L"Turn it off";
+        f.Build();
+        f.LayoutAt (f.FullWidth());
+
+        pDelta = f.Center (3, 5);
+
+        Assert::AreEqual (L"Turn it on",  f.bar.GetTooltipAt (pDelta.x, pDelta.y, anchor));
+
+        f.deltaChecked = true;
+        Assert::AreEqual (L"Turn it off", f.bar.GetTooltipAt (pDelta.x, pDelta.y, anchor));
+    }
+
+
     TEST_METHOD (GetTooltipAt_TipInEveryForm_NullInGap)
     {
         Fixture  f;

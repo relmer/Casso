@@ -612,7 +612,7 @@ private:
         { kFind,              DxuiToolbar::Kind::Command, 1, nullptr,             L"Search",        L"",                                                       false, true },
         { kPictureMonochrome, DxuiToolbar::Kind::Toggle,  0, s_kpszMdl2Contrast,  L"Monochrome",    L"Draw the picture as its bits, on a monochrome monitor" },
         { kPictureColor,      DxuiToolbar::Kind::Toggle,  0, s_kpszMdl2Palette,   L"Color",         L"Draw the picture in color, on the color monitor"      },
-        { kPictureCrt,        DxuiToolbar::Kind::Toggle,  0, s_kpszMdl2Monitor,   L"CRT",           L"Draw the picture through the CRT effect, or as its pixels" },
+        { kPictureCrt,        DxuiToolbar::Kind::Toggle,  0, s_kpszMdl2Monitor,   L"CRT",           L"Apply CRT effects" },
         { kEditWozMetadata,   DxuiToolbar::Kind::Command, 0, s_kpszMdl2Edit,      L"Edit metadata", L"Edit the image's title, publisher and other metadata" },
         { kCharsetAppleText,  DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Apple text",    L"Read the text as Apple II text"                        },
         { kCharsetMacOsRoman, DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Mac OS Roman",  L"Read the text as Mac OS Roman, the Apple IIgs set"     },

@@ -73,6 +73,9 @@ struct DxuiCommand
     std::wstring                   shortLabel;
     const wchar_t                * glyph        = nullptr;
     std::wstring                   tip;
+
+    //  A toggle's tooltip while it's checked, when it differs from `tip`.
+    std::wstring                   checkedTip;
     std::wstring                   accelerator;
     std::function<void()>          dispatch;
     std::function<bool()>          isChecked;

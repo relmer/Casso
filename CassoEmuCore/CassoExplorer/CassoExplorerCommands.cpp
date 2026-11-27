@@ -90,6 +90,14 @@ CassoExplorerCommands::CassoExplorerCommands (Handlers handlers)
     ApplyToolbarRows (kArchiveRows);
     ApplyToolbarRows (kAppleDriveRows);
     ApplyToolbarRows (kPreviewToolbarRows);
+
+    for (std::shared_ptr<DxuiCommand> & command : m_commands)
+    {
+        if (command->id == kPictureCrt)
+        {
+            command->checkedTip = L"Don't apply CRT effects";
+        }
+    }
 }
 
 
