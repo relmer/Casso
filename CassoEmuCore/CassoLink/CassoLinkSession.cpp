@@ -1212,7 +1212,10 @@ std::string CassoLinkSession::DescribeOperation (const LinkOperation & operation
                                                                                           : operation.fullSendSummary; break;
         case LinkOperationKind::Krunch:          text = std::format ("{} {}", finished ? "Krunched" : "Krunching", drive);                 break;
         case LinkOperationKind::CaptureDisk:     text = std::format ("{} {} to PC", finished ? "Captured" : "Capturing", drive);            break;
-        case LinkOperationKind::ListBlockDevices: text = std::format ("{} the block devices", finished ? "Listed" : "Listing");         break;
+        case LinkOperationKind::ListBlockDevices: text = !finished                       ? std::string ("Listing the block devices")
+                                                       : operation.devicesFound == 0 ? std::string ("Found no block devices")
+                                                       : operation.devicesFound == 1 ? std::string ("Found 1 block device")
+                                                                                     : std::format ("Found {} block devices", operation.devicesFound); break;
         default:                                 text = "Working";                                                                          break;
     }
 

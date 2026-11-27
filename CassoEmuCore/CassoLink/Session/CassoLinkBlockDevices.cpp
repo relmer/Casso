@@ -63,14 +63,13 @@ HRESULT CassoLinkBlockDevices::List (LinkOperation & operation)
 
 
 
-    UNREFERENCED_PARAMETER (operation);
-
     hr = EnsureModule();
     CHR (hr);
 
     hr = m_session.m_host->ListBlockDevices (devices);
     CHR (hr);
 
+    operation.devicesFound = devices.size();
     m_units.clear();
 
     for (const CassoLinkBlockDevice & device : devices)

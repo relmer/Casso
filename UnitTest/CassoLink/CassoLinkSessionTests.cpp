@@ -1754,6 +1754,25 @@ public:
 
 
 
+    //  The history line of a list of block devices has what it found, as a
+    //  //c with no SmartPort device finds none.
+    TEST_METHOD (DescribeOperation_ListBlockDevices_HasTheDevicesFound)
+    {
+        LinkOperation  operation;
+
+        operation.kind = LinkOperationKind::ListBlockDevices;
+        Assert::AreEqual (std::string ("Listing the block devices"), CassoLinkSession::DescribeOperation (operation));
+        Assert::AreEqual (std::string ("Found no block devices"),    CassoLinkSession::DescribeOperation (operation, std::nullopt, true));
+
+        operation.devicesFound = 1;
+        Assert::AreEqual (std::string ("Found 1 block device"),      CassoLinkSession::DescribeOperation (operation, std::nullopt, true));
+
+        operation.devicesFound = 3;
+        Assert::AreEqual (std::string ("Found 3 block devices"),     CassoLinkSession::DescribeOperation (operation, std::nullopt, true));
+    }
+
+
+
     //  A history line longer than the Apple's line has the image's name cut
     //  short, so the drive is drawn; a line with no name in it is cut at
     //  the end; a line that fits is as it is.
