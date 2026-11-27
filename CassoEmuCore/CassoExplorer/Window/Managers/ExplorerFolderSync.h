@@ -73,7 +73,7 @@ public:
 
     //  The tabs' host folders, for thumbnails of whole folders. A list just
     //  filled has its folder swept again. With the Casso node in the active
-    //  tab after any input in the window, the known folders start at once.
+    //  tab after any input in the window, the node's folders start at once.
     void            UpdateThumbnailFolders      (bool listed);
     void            ChangeKnownFolder           (const std::wstring & folder, bool add);
 
@@ -81,8 +81,10 @@ public:
     void  HandleSettleTimer   ();
 
 private:
-    bool          UpdateStorageCards     ();
-    void          LeaveDriveWithoutMedia (DWORD media);
+    bool                       UpdateStorageCards     ();
+    void                       LeaveDriveWithoutMedia (DWORD media);
+    std::vector<std::wstring>  GetCassoFolders        ();
+    std::vector<std::wstring>  GetCassoImages         ();
 
     ExplorerContext               & m_context;
     std::unique_ptr<FolderWatch>    m_folderWatch;

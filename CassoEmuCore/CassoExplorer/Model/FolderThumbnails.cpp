@@ -61,11 +61,11 @@ void FolderThumbnails::Start()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FolderThumbnails::SetWindowFolders
+//  FolderThumbnails::SetWindowTabs
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void FolderThumbnails::SetWindowFolders (HWND window, const std::wstring & active, const std::vector<std::wstring> & others)
+void FolderThumbnails::SetWindowTabs (HWND window, const ThumbnailTabs & tabs)
 {
     std::vector<std::wstring>  opened;
     bool                       wasOpen  = false;
@@ -74,24 +74,23 @@ void FolderThumbnails::SetWindowFolders (HWND window, const std::wstring & activ
 
     {
         std::lock_guard  lock (m_lock);
-        WindowFolders  & folders = m_windows[window];
+        ThumbnailTabs  & before = m_windows[window];
 
-        opened = others;
-        opened.insert (opened.begin(), active);
+        opened = tabs.others;
+        opened.insert (opened.begin(), tabs.active);
 
         for (const std::wstring & folder : opened)
         {
-            wasOpen = IsSameFolder (folders.active, folder)
-                    || std::any_of (folders.others.begin(), folders.others.end(), [&folder] (const std::wstring & other) { return IsSameFolder (other, folder); });
+            wasOpen = IsSameFolder (before.active, folder)
+                    || std::any_of (before.others.begin(), before.others.end(), [&folder] (const std::wstring & other) { return IsSameFolder (other, folder); });
 
             if (!folder.empty() && !wasOpen)
             {
-                AddFolderLocked (folder);
+                AddFolderLocked (folder, false);
             }
         }
 
-        folders.active = active;
-        folders.others = others;
+        before = tabs;
     }
 
     m_wake.notify_all();
@@ -136,7 +135,7 @@ void FolderThumbnails::SweepFolder (const std::wstring & folder)
     {
         std::lock_guard  lock (m_lock);
 
-        AddFolderLocked (folder);
+        AddFolderLocked (folder, false);
     }
 
     m_wake.notify_all();
@@ -150,12 +149,19 @@ void FolderThumbnails::SweepFolder (const std::wstring & folder)
 //
 //  FolderThumbnails::SetKnownFolders
 //
+//  The same folders again aren't swept again.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void FolderThumbnails::SetKnownFolders (const std::vector<std::wstring> & folders)
 {
     {
         std::lock_guard  lock (m_lock);
+
+        if (IsSameList (folders, m_known))
+        {
+            return;
+        }
 
         m_known      = folders;
         m_isKnownDue = !folders.empty();
@@ -170,9 +176,54 @@ void FolderThumbnails::SetKnownFolders (const std::vector<std::wstring> & folder
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FolderThumbnails::SetCassoImages
+//
+//  The same images again aren't swept again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FolderThumbnails::SetCassoImages (const std::vector<std::wstring> & paths)
+{
+    std::wstring  folder;
+
+
+
+    {
+        std::lock_guard  lock (m_lock);
+
+        if (IsSameList (paths, m_cassoImages))
+        {
+            return;
+        }
+
+        m_cassoImages = paths;
+        m_cassoFolders.clear();
+
+        for (const std::wstring & path : paths)
+        {
+            folder = std::filesystem::path (path).parent_path().wstring();
+
+            if (std::none_of (m_cassoFolders.begin(), m_cassoFolders.end(), [&folder] (const std::wstring & each) { return IsSameFolder (each, folder); }))
+            {
+                m_cassoFolders.push_back (folder);
+            }
+        }
+
+        m_isKnownDue = !paths.empty() || !m_known.empty();
+    }
+
+    m_wake.notify_all();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FolderThumbnails::StartKnownFolders
 //
-//  The known folders list is in view, so the known folders aren't put off.
+//  The Casso node is in use, so its folders aren't put off.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -222,20 +273,20 @@ void FolderThumbnails::ApplySetting()
     {
         std::lock_guard  lock (m_lock);
 
-        for (const auto & [window, folders] : m_windows)
+        for (const auto & [window, tabs] : m_windows)
         {
-            if (!folders.active.empty())
+            if (!tabs.active.empty())
             {
-                AddFolderLocked (folders.active);
+                AddFolderLocked (tabs.active, false);
             }
 
-            for (const std::wstring & folder : folders.others)
+            for (const std::wstring & folder : tabs.others)
             {
-                AddFolderLocked (folder);
+                AddFolderLocked (folder, false);
             }
         }
 
-        m_isKnownDue = !m_known.empty();
+        m_isKnownDue = !m_known.empty() || !m_cassoImages.empty();
     }
 
     m_wake.notify_all();
@@ -254,18 +305,26 @@ void FolderThumbnails::ApplySetting()
 int FolderThumbnails::GetRank (const std::wstring & folder) const
 {
     std::lock_guard  lock (m_lock);
-    int              rank = kOtherRank;
+    int              rank     = kOtherRank;
+    bool             isKnown  = IsCassoLocked (folder);
+    bool             isActive = false;
+    bool             isOpen   = false;
 
 
 
-    for (const auto & [window, folders] : m_windows)
+    for (const auto & [window, tabs] : m_windows)
     {
-        if (IsSameFolder (folders.active, folder))
+        isActive = IsSameFolder (tabs.active, folder) || (isKnown && tabs.casso == ThumbnailTabs::CassoNode::Active);
+
+        if (isActive)
         {
             return kActiveRank;
         }
 
-        if (std::any_of (folders.others.begin(), folders.others.end(), [&folder] (const std::wstring & other) { return IsSameFolder (other, folder); }))
+        isOpen = std::any_of (tabs.others.begin(), tabs.others.end(), [&folder] (const std::wstring & other) { return IsSameFolder (other, folder); })
+              || (isKnown && tabs.casso == ThumbnailTabs::CassoNode::Other);
+
+        if (isOpen)
         {
             rank = kTabRank;
         }
@@ -287,7 +346,7 @@ int FolderThumbnails::GetRank (const std::wstring & folder) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool FolderThumbnails::TryTakeFolder (ULONGLONG nowMs, std::wstring & outFolder)
+bool FolderThumbnails::TryTakeFolder (ULONGLONG nowMs, FolderRequest & outRequest)
 {
     bool              isEnabled = m_seams.isEnabled && m_seams.isEnabled();
     std::lock_guard   lock (m_lock);
@@ -302,9 +361,14 @@ bool FolderThumbnails::TryTakeFolder (ULONGLONG nowMs, std::wstring & outFolder)
 
     if (m_folders.empty() && IsKnownDueLocked (nowMs))
     {
+        if (!m_cassoImages.empty())
+        {
+            m_folders.push_back ({ std::wstring(), false, m_cassoImages });
+        }
+
         for (const std::wstring & folder : m_known)
         {
-            AddFolderLocked (folder);
+            AddFolderLocked (folder, true);
         }
 
         m_isKnownDue = false;
@@ -315,7 +379,7 @@ bool FolderThumbnails::TryTakeFolder (ULONGLONG nowMs, std::wstring & outFolder)
         return false;
     }
 
-    outFolder = std::move (m_folders.front());
+    outRequest = std::move (m_folders.front());
     m_folders.pop_front();
 
     return true;
@@ -334,7 +398,7 @@ bool FolderThumbnails::TryTakeFolder (ULONGLONG nowMs, std::wstring & outFolder)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void FolderThumbnails::Sweep (const std::wstring & folder)
+void FolderThumbnails::Sweep (const FolderRequest & request)
 {
     std::vector<ImageFile>  images;
     std::stop_token         stop     = m_thread.get_stop_token();
@@ -347,7 +411,7 @@ void FolderThumbnails::Sweep (const std::wstring & folder)
         return;
     }
 
-    images = m_seams.list (folder);
+    images = m_seams.list (request);
 
     for (const ImageFile & image : images)
     {
@@ -375,23 +439,61 @@ void FolderThumbnails::Sweep (const std::wstring & folder)
 //
 //  FolderThumbnails::ListFiles
 //
-//  A folder that can't be read lists nothing.
+//  A folder that can't be read lists nothing. Hidden and system folders are
+//  skipped, as the Casso node's list skips them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<FolderThumbnails::ImageFile> FolderThumbnails::ListFiles (const std::wstring & folder)
+std::vector<FolderThumbnails::ImageFile> FolderThumbnails::ListFiles (const FolderRequest & request)
 {
-    std::vector<ImageFile>                 files;
-    std::error_code                        failed;
-    std::filesystem::directory_iterator    each (folder, std::filesystem::directory_options::skip_permission_denied, failed);
-    std::filesystem::directory_iterator    end;
-    ImageFile                              file;
-    bool                                   isFile = false;
+    static constexpr DWORD                         kSkipped   = FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM;
+    std::vector<ImageFile>                         files;
+    std::error_code                                failed;
+    std::filesystem::recursive_directory_iterator  each (request.folder, std::filesystem::directory_options::skip_permission_denied, failed);
+    std::filesystem::recursive_directory_iterator  end;
+    ImageFile                                      file;
+    DWORD                                          attributes = 0;
+    bool                                           isFolder   = false;
+    bool                                           isFile     = false;
 
 
+
+    for (const std::wstring & path : request.files)
+    {
+        file.path  = path;
+        file.bytes = std::filesystem::file_size (path, failed);
+        file.time  = (int64_t) std::filesystem::last_write_time (path, failed).time_since_epoch().count();
+
+        if (!failed)
+        {
+            files.push_back (file);
+        }
+
+        failed.clear();
+    }
+
+    if (!request.files.empty())
+    {
+        return files;
+    }
 
     for (; !failed && each != end; each.increment (failed))
     {
+        isFolder = each->is_directory (failed);
+
+        if (isFolder)
+        {
+            attributes = GetFileAttributesW (each->path().c_str());
+
+            if (!request.withSubfolders || (attributes != INVALID_FILE_ATTRIBUTES && (attributes & kSkipped) != 0))
+            {
+                each.disable_recursion_pending();
+            }
+
+            failed.clear();
+            continue;
+        }
+
         isFile = each->is_regular_file (failed);
 
         if (failed || !isFile)
@@ -421,16 +523,44 @@ std::vector<FolderThumbnails::ImageFile> FolderThumbnails::ListFiles (const std:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FolderThumbnails::IsInFolder
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FolderThumbnails::IsInFolder (const std::wstring & path, const std::wstring & folder)
+{
+    std::wstring_view  inner = TrimFolder (path);
+    std::wstring_view  outer = TrimFolder (folder);
+    bool               isAt  = false;
+
+
+
+    if (outer.empty() || inner.size() < outer.size() || _wcsnicmp (inner.data(), outer.data(), outer.size()) != 0)
+    {
+        return false;
+    }
+
+    isAt = inner.size() == outer.size();
+
+    return isAt || inner[outer.size()] == L'\\' || inner[outer.size()] == L'/';
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FolderThumbnails::Run
 //
-//  The wait ends at least every kPollMs, for the known folders' start.
+//  The wait ends at least every kPollMs, for the Casso node's folders' start.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void FolderThumbnails::Run (std::stop_token stop)
 {
     static constexpr DWORD  kPollMs = 1000;
-    std::wstring            folder;
+    FolderRequest           request;
 
 
 
@@ -444,9 +574,9 @@ void FolderThumbnails::Run (std::stop_token stop)
             m_wake.wait_for (lock, stop, std::chrono::milliseconds (kPollMs), [this]() { return !m_folders.empty(); });
         }
 
-        while (!stop.stop_requested() && TryTakeFolder (GetTickCount64(), folder))
+        while (!stop.stop_requested() && TryTakeFolder (GetTickCount64(), request))
         {
-            Sweep (folder);
+            Sweep (request);
         }
     }
 }
@@ -459,20 +589,24 @@ void FolderThumbnails::Run (std::stop_token stop)
 //
 //  FolderThumbnails::AddFolderLocked
 //
-//  A folder already waiting isn't added again.
+//  A folder already waiting isn't added again. Once it is to be swept with
+//  its subfolders, it stays that way.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void FolderThumbnails::AddFolderLocked (const std::wstring & folder)
+void FolderThumbnails::AddFolderLocked (const std::wstring & folder, bool withSubfolders)
 {
-    bool  isWaiting = std::any_of (m_folders.begin(), m_folders.end(), [&folder] (const std::wstring & each) { return IsSameFolder (each, folder); });
+    auto  waiting = std::find_if (m_folders.begin(), m_folders.end(), [&folder] (const FolderRequest & each) { return IsSameFolder (each.folder, folder); });
 
 
 
-    if (!isWaiting)
+    if (waiting == m_folders.end())
     {
-        m_folders.push_back (folder);
+        m_folders.push_back ({ folder, withSubfolders, {} });
+        return;
     }
+
+    waiting->withSubfolders = waiting->withSubfolders || withSubfolders;
 }
 
 
@@ -496,6 +630,42 @@ bool FolderThumbnails::IsKnownDueLocked (ULONGLONG nowMs) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FolderThumbnails::IsCassoLocked
+//
+//  Whether the folder has one of the Casso node's images or is under one of
+//  its folders.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FolderThumbnails::IsCassoLocked (const std::wstring & folder) const
+{
+    return std::any_of (m_known.begin(), m_known.end(), [&folder] (const std::wstring & known) { return IsInFolder (folder, known); })
+        || std::any_of (m_cassoFolders.begin(), m_cassoFolders.end(), [&folder] (const std::wstring & each) { return IsSameFolder (each, folder); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FolderThumbnails::IsSameList
+//
+//  The same paths in the same order, case and trailing separators aside.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FolderThumbnails::IsSameList (const std::vector<std::wstring> & a, const std::vector<std::wstring> & b)
+{
+    return std::equal (a.begin(), a.end(), b.begin(), b.end(), IsSameFolder);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FolderThumbnails::IsSameFolder
 //
 //  Case aside, and a trailing separator aside.
@@ -504,20 +674,32 @@ bool FolderThumbnails::IsKnownDueLocked (ULONGLONG nowMs) const
 
 bool FolderThumbnails::IsSameFolder (const std::wstring & a, const std::wstring & b)
 {
-    std::wstring_view  left  = a;
-    std::wstring_view  right = b;
+    std::wstring_view  left  = TrimFolder (a);
+    std::wstring_view  right = TrimFolder (b);
 
 
-
-    while (left.size() > 1 && (left.back() == L'\\' || left.back() == L'/'))
-    {
-        left.remove_suffix (1);
-    }
-
-    while (right.size() > 1 && (right.back() == L'\\' || right.back() == L'/'))
-    {
-        right.remove_suffix (1);
-    }
 
     return !left.empty() && left.size() == right.size() && _wcsnicmp (left.data(), right.data(), left.size()) == 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FolderThumbnails::TrimFolder
+//
+//  The folder without trailing separators.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring_view FolderThumbnails::TrimFolder (std::wstring_view folder)
+{
+    while (folder.size() > 1 && (folder.back() == L'\\' || folder.back() == L'/'))
+    {
+        folder.remove_suffix (1);
+    }
+
+    return folder;
 }

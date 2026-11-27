@@ -14,8 +14,10 @@
 //
 //  IFolderThumbnails over a thread that lists each folder to sweep and
 //  queues each floppy image in it with no thumbnail. The folders open in a
-//  window's tabs are swept first. The known folders wait kSettleMs from the start,
-//  so a launch isn't slowed by boots, unless StartKnownFolders is called.
+//  window's tabs are swept first, without their subfolders. The Casso
+//  node's folders are swept with their subfolders, kSettleMs after the
+//  start so a launch isn't slowed by boots, or at once after
+//  StartKnownFolders.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,14 +31,22 @@ public:
         int64_t       time  = 0;
     };
 
+    //  A folder to list, or with files, those files alone.
+    struct FolderRequest
+    {
+        std::wstring               folder;
+        bool                       withSubfolders = false;
+        std::vector<std::wstring>  files;
+    };
+
     struct Seams
     {
-        std::function<std::vector<ImageFile> (const std::wstring & folder)>  list;          // the files in a folder, not in its subfolders
-        std::function<bool (const std::wstring & path)>                      hasThumbnail;
-        std::function<bool (const ImageFile & image)>                        markQueued;    // false for an image queued before at its size and time
-        std::function<void (const std::wstring & path)>                      queue;
-        std::function<void()>                                                removeQueued;  // the images waiting for a sweep
-        std::function<bool()>                                                isEnabled;
+        std::function<std::vector<ImageFile> (const FolderRequest & request)>  list;
+        std::function<bool (const std::wstring & path)>                        hasThumbnail;
+        std::function<bool (const ImageFile & image)>                          markQueued;    // false for an image queued before at its size and time
+        std::function<void (const std::wstring & path)>                        queue;
+        std::function<void()>                                                  removeQueued;  // the images waiting for a sweep
+        std::function<bool()>                                                  isEnabled;
     };
 
     static constexpr int        kActiveRank = 0;
@@ -53,50 +63,58 @@ public:
     //  Starts the thread that sweeps the folders.
     void  Start ();
 
-    void  SetWindowFolders  (HWND window, const std::wstring & active, const std::vector<std::wstring> & others) override;
+    void  SetWindowTabs     (HWND window, const ThumbnailTabs & tabs) override;
     void  RemoveWindow      (HWND window) override;
     void  SweepFolder       (const std::wstring & folder) override;
     void  SetKnownFolders   (const std::vector<std::wstring> & folders) override;
+    void  SetCassoImages    (const std::vector<std::wstring> & paths) override;
     void  StartKnownFolders () override;
     void  ApplySetting      () override;
 
-    //  kActiveRank for an active tab's folder, kTabRank for another tab's,
-    //  kOtherRank for any other folder. Called on the boot worker's thread.
+    //  kActiveRank for a folder open in an active tab, or with one of the
+    //  Casso node's images or under one of its folders, with the node in an
+    //  active tab; kTabRank for the same in another tab; kOtherRank for any
+    //  other folder. Called on the boot worker's thread.
     int   GetRank (const std::wstring & folder) const;
 
-    //  The next folder to sweep, removed: a folder open in a tab, then a
-    //  known folder once nowMs is kSettleMs past the start. False for none,
-    //  or with the setting off. The thread's, and a test's.
-    bool  TryTakeFolder (ULONGLONG nowMs, std::wstring & outFolder);
+    //  The next folder to sweep, removed: a folder open in a tab, then the
+    //  Casso node's folders once nowMs is kSettleMs past the start. False
+    //  for none, or with the setting off. The thread's, and a test's.
+    bool  TryTakeFolder (ULONGLONG nowMs, FolderRequest & outRequest);
 
     //  Each floppy image in the folder with no thumbnail, passed to the
     //  queue function. The thread's, and a test's.
-    void  Sweep (const std::wstring & folder);
+    void  Sweep (const FolderRequest & request);
 
-    //  The files in a host folder, not in its subfolders, as Seams::list.
-    static std::vector<ImageFile>  ListFiles (const std::wstring & folder);
+    //  The files in a host folder, and with withSubfolders, in each of its
+    //  subfolders that isn't hidden or a system folder; or the request's
+    //  files alone. As Seams::list.
+    static std::vector<ImageFile>  ListFiles (const FolderRequest & request);
+
+    //  Whether the path is the folder or inside it, case aside.
+    static bool  IsInFolder (const std::wstring & path, const std::wstring & folder);
 
 private:
-    struct WindowFolders
-    {
-        std::wstring               active;
-        std::vector<std::wstring>  others;
-    };
-
     void  Run              (std::stop_token stop);
-    void  AddFolderLocked  (const std::wstring & folder);
+    void  AddFolderLocked  (const std::wstring & folder, bool withSubfolders);
     bool  IsKnownDueLocked (ULONGLONG nowMs) const;
+    bool  IsCassoLocked    (const std::wstring & folder) const;
 
-    static bool  IsSameFolder (const std::wstring & a, const std::wstring & b);
+    static bool  IsSameList (const std::vector<std::wstring> & a, const std::vector<std::wstring> & b);
 
-    Seams                          m_seams;
-    ULONGLONG                      m_settleAtMs    = 0;
-    mutable std::mutex             m_lock;
-    std::condition_variable_any    m_wake;
-    std::map<HWND, WindowFolders>  m_windows;
-    std::deque<std::wstring>       m_folders;               // the folders to sweep
-    std::vector<std::wstring>      m_known;
-    bool                           m_isKnownDue    = false;  // the known folders are to be swept
-    bool                           m_hasKnownStart = false;  // StartKnownFolders was called
-    std::jthread                   m_thread;
+    static bool               IsSameFolder (const std::wstring & a, const std::wstring & b);
+    static std::wstring_view  TrimFolder   (std::wstring_view folder);
+
+    Seams                            m_seams;
+    ULONGLONG                        m_settleAtMs    = 0;
+    mutable std::mutex               m_lock;
+    std::condition_variable_any      m_wake;
+    std::map<HWND, ThumbnailTabs>    m_windows;
+    std::deque<FolderRequest>        m_folders;               // the folders to sweep
+    std::vector<std::wstring>        m_known;
+    std::vector<std::wstring>        m_cassoImages;
+    std::vector<std::wstring>        m_cassoFolders;          // the folders m_cassoImages are in
+    bool                             m_isKnownDue    = false;  // the Casso node's folders are to be swept
+    bool                             m_hasKnownStart = false;  // StartKnownFolders was called
+    std::jthread                     m_thread;
 };

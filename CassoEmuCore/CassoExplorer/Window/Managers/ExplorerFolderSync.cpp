@@ -170,13 +170,14 @@ void ExplorerFolderSync::ReloadKnownFolders()
 
     folders = KnownFolderStore::ListRootFolders (*m_context.app.fs, m_context.app.baseDir, entries);
 
-    if (m_context.app.folderThumbnails != nullptr)
-    {
-        m_context.app.folderThumbnails->SetKnownFolders (folders);
-    }
-
     m_context.browser.GetTreeModel().SetKnownFolders (folders);
     m_context.browser.GetTreeModel().Invalidate (TreeModel::kCassoRootId);
+
+    if (m_context.app.folderThumbnails != nullptr)
+    {
+        m_context.app.folderThumbnails->SetKnownFolders (GetCassoFolders());
+    }
+
     m_context.treePane.ReloadChildren (TreeModel::kCassoRootId);
     UpdateWatchedFolders();
     m_context.window.Invalidate();
@@ -526,10 +527,10 @@ void ExplorerFolderSync::UpdateThumbnailFolders (bool listed)
 {
     IFolderThumbnails          * thumbnails = m_context.app.folderThumbnails;
     const BrowserModel         & model      = m_context.browser.GetBrowserModel();
-    std::wstring                 active;
-    std::vector<std::wstring>    others;
+    Location                     casso      = Location::MakeRoot (TreeModel::kCassoRootId);
+    ThumbnailTabs                tabs;
     size_t                       index      = 0;
-    bool                         isCasso    = false;
+    bool                         isActive   = false;
 
 
 
@@ -544,34 +545,110 @@ void ExplorerFolderSync::UpdateThumbnailFolders (bool listed)
 
 
 
+        isActive = index == model.GetActiveIndex();
+
+        if (location == casso)
+        {
+            tabs.casso = isActive ? ThumbnailTabs::CassoNode::Active
+                                  : (tabs.casso == ThumbnailTabs::CassoNode::None ? ThumbnailTabs::CassoNode::Other : tabs.casso);
+        }
+
         if (location.kind != Location::Kind::HostFolder)
         {
             continue;
         }
 
-        if (index == model.GetActiveIndex())
+        if (isActive)
         {
-            active = location.path;
+            tabs.active = location.path;
         }
         else
         {
-            others.push_back (location.path);
+            tabs.others.push_back (location.path);
         }
     }
 
-    thumbnails->SetWindowFolders (m_context.window.GetHwnd(), active, others);
+    thumbnails->SetWindowTabs (m_context.window.GetHwnd(), tabs);
 
-    if (listed && !active.empty())
+    if (listed && !tabs.active.empty())
     {
-        thumbnails->SweepFolder (active);
+        thumbnails->SweepFolder (tabs.active);
     }
 
-    isCasso = model.GetActiveTab().location == Location::MakeRoot (TreeModel::kCassoRootId);
+    if (listed && model.GetActiveTab().location == casso)
+    {
+        thumbnails->SetKnownFolders (GetCassoFolders());
+        thumbnails->SetCassoImages  (GetCassoImages());
+    }
 
-    if (isCasso && m_context.input.HasHadInput())
+    if (tabs.casso == ThumbnailTabs::CassoNode::Active && m_context.input.HasHadInput())
     {
         thumbnails->StartKnownFolders();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::GetCassoImages
+//
+//  The images the Casso node's list has, when the list is at the node.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> ExplorerFolderSync::GetCassoImages()
+{
+    std::vector<std::wstring>  paths;
+
+
+
+    for (const CatalogRow & row : m_context.browser.GetRows())
+    {
+        if (!row.hostPath.empty())
+        {
+            paths.push_back (row.hostPath);
+        }
+    }
+
+    return paths;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::GetCassoFolders
+//
+//  The host folders the Casso node lists images from.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> ExplorerFolderSync::GetCassoFolders()
+{
+    HRESULT                    hr = S_OK;
+    std::vector<TreeNode>      nodes;
+    std::vector<std::wstring>  folders;
+
+
+
+    hr = m_context.browser.GetTreeModel().GetChildren (TreeModel::kCassoRootId, nodes);
+    CHR (hr);
+
+    for (const TreeNode & node : nodes)
+    {
+        if (!node.missing && node.location.kind == Location::Kind::HostFolder && !node.location.path.empty())
+        {
+            folders.push_back (node.location.path);
+        }
+    }
+
+Error:
+    return folders;
 }
 
 
