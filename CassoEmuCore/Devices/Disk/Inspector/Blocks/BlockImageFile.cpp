@@ -87,6 +87,30 @@ uint32_t BlockImageFile::ReadLittleLong (std::span<const Byte> bytes, size_t at)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BlockImageFile::GetTwoImgDataBytes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t BlockImageFile::GetTwoImgDataBytes (std::span<const Byte> header)
+{
+    uint64_t  length = ReadLittleLong (header, kTwoImgDataLength);
+
+
+
+    if (length == 0 && ReadLittleLong (header, kTwoImgFormat) == kTwoImgProDos)
+    {
+        length = (uint64_t) ReadLittleLong (header, kTwoImgBlocks) * kBlockBytes;
+    }
+
+    return length;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BlockImageFile::ReadBigLong
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -219,7 +243,7 @@ bool BlockImageFile::IsBlockImage (IDiskFileIo & fileIo, const std::string & pat
     else if (IsTwoImgHeader (header))
     {
         isBlock = ReadLittleLong (header, kTwoImgFormat) == kTwoImgProDos
-               && ReadLittleLong (header, kTwoImgDataLength) > kFloppyBytes;
+               && GetTwoImgDataBytes (header) > kFloppyBytes;
     }
     else
     {
@@ -316,7 +340,7 @@ HRESULT BlockImageFile::Open (
         file->m_kind          = BlockContainerKind::TwoImg;
         file->m_header.assign (header.begin(), header.begin() + kTwoImgHeader);
         file->m_payloadOffset = ReadLittleLong (header, kTwoImgDataOffset);
-        length                = ReadLittleLong (header, kTwoImgDataLength);
+        length                = GetTwoImgDataBytes (header);
 
         isFit = file->m_payloadOffset + length <= stamp.sizeBytes;
         CBRF (isFit, outError = L"The 2IMG header's data runs past the end of the file.");
