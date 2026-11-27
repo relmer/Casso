@@ -290,13 +290,11 @@ public:
     //  The image in CASSO_RAW_WRITE_IMAGE, a WOZ, NIB or NB2 file, written
     //  raw over the link track by track, after the drive is timed, as a write
     //  from Casso Explorer is: each track the emulated drive has after is the
-    //  image's track's bits, fitted to the drive's turn, from the end of the
-    //  write back to the part its end overlaps. With
+    //  image's track's bits, fitted to the drive's turn, whole from the first
+    //  byte after the sync bytes the end of the write overlaps. With
     //  CASSO_RAW_WRITE_OUT set, the drive's disk is saved there as a WOZ.
     TEST_METHOD (OnDemand_ARawImage_IsWrittenTrackForTrack_OverTheLink)
     {
-        static constexpr size_t  kOverlapBits = 400;
-
         ProgramRig                          rig (MakeDisk());
         std::vector<Byte>                   module;
         std::vector<Byte>                   file;
@@ -307,6 +305,8 @@ public:
         int                                 failed         = 0;
         size_t                              turn           = 0;
         double                              revolution     = 0.0;
+        std::vector<std::vector<uint8_t>>   written;
+        std::vector<bool>                   fits;
 
 
 
@@ -353,31 +353,47 @@ public:
         for (RawWriteTrack & track : tracks)
         {
             std::vector<uint8_t>  bits;
-            std::vector<uint8_t>  onDisk;
-            size_t                compared = 0;
-            bool                  same     = false;
-            bool                  fits     = track.stream.FitToTurn (turn);
+            size_t                padding = 0;
+            size_t                syncs   = 0;
+
+            fits.push_back (track.stream.FitToTurn (turn));
 
             AssertSucceeded (rig.host->WriteRawTrack (1, (Byte) track.position, track.stream, CassoLinkHost::GetStepPercents ((size_t) (&track - tracks.data()), tracks.size()), status));
             Assert::AreEqual ((Byte) 0, status.error);
 
+            //  The sync bytes the stream starts with are what the end of the
+            //  write overlaps; every bit after them is on the disk.
+            while (syncs < track.stream.values.size()
+                   && track.stream.values[syncs] == 0xFF
+                   && track.stream.zeros[syncs] >= 1
+                   && track.stream.zeros[syncs] <= RawWriteStream::kSyncZeros)
+            {
+                padding += RawWriteStream::kBitsPerByte + track.stream.zeros[syncs];
+                syncs++;
+            }
+
             track.stream.ToBits (bits);
-            onDisk   = GetTrackBits (rig, track.position);
-            compared = std::min (bits.size(), onDisk.size()) - kOverlapBits;
-            bits.erase (bits.begin(), bits.end() - (ptrdiff_t) compared);
+            bits.erase (bits.begin(), bits.begin() + (ptrdiff_t) padding);
+            written.push_back (std::move (bits));
+        }
 
-            same = IsWithin (bits, onDisk);
+        //  Checked once every track is written, so a half track's write that
+        //  replaced the whole track beside it is found.
+        for (size_t i = 0; i < tracks.size(); i++)
+        {
+            std::vector<uint8_t>  onDisk = GetTrackBits (rig, tracks[i].position);
+            bool                  same   = IsWithin (written[i], onDisk);
 
-            failed += (same && fits) ? 0 : 1;
-            Logger::WriteMessage (std::format ("Position {}: {} bits{}, {} on the disk, {}\n", track.position, track.stream.GetCellCount(), fits ? "" : " (doesn't fit)", onDisk.size(), same ? "the same" : "DIFFERENT").c_str());
+            failed += (same && fits[i]) ? 0 : 1;
+            Logger::WriteMessage (std::format ("Position {}: {} bits{}, {} on the disk, {}\n", tracks[i].position, tracks[i].stream.GetCellCount(), fits[i] ? "" : " (doesn't fit)", onDisk.size(), same ? "the same" : "DIFFERENT").c_str());
         }
 
         if (GetEnvironmentVariableW (L"CASSO_RAW_WRITE_OUT", path, MAX_PATH) != 0)
         {
-            std::vector<Byte>  written;
+            std::vector<Byte>  saved;
 
-            AssertSucceeded (WozLoader::Serialize (*rig.machine.GetDiskStore().GetImage (ProgramRig::kSlot, 0), written));
-            std::ofstream (path, std::ios::binary).write (reinterpret_cast<const char *> (written.data()), (std::streamsize) written.size());
+            AssertSucceeded (WozLoader::Serialize (*rig.machine.GetDiskStore().GetImage (ProgramRig::kSlot, 0), saved));
+            std::ofstream (path, std::ios::binary).write (reinterpret_cast<const char *> (saved.data()), (std::streamsize) saved.size());
         }
 
         Assert::AreEqual (0, failed);

@@ -330,16 +330,19 @@ size_t RawWriteStream::GetCellCount() const
 
 bool RawWriteStream::FitToTurn (size_t cells)
 {
+    constexpr size_t  kSyncCells = kBitsPerByte + kSyncZeros;
+
+
+
     size_t  count     = values.size();
     size_t  bestAt    = 0;
     size_t  bestRun   = 0;
     size_t  middle    = 0;
     size_t  headSyncs = 0;
     size_t  tailSyncs = 0;
+    size_t  headCells = 0;
     size_t  total     = 0;
-    size_t  added     = 0;
-    size_t  low       = cells + s_kOverlapCells;
-    size_t  high      = cells + 2 * s_kOverlapCells;
+    size_t  low       = cells + s_kOverlapCells - s_kLeadInCells - s_kLeadOutCells;
     bool    sync      = false;
 
 
@@ -360,16 +363,26 @@ bool RawWriteStream::FitToTurn (size_t cells)
     tailSyncs = sync ? bestRun / 2 : 0;
     total     = GetCellCount();
 
-    while (total > high && headSyncs > s_kMinSyncRun / 2)
+    for (size_t i = 0; i < headSyncs; i++)
     {
-        total -= kBitsPerByte + zeros.front();
-
-        values.erase (values.begin());
-        zeros.erase  (zeros.begin());
-        headSyncs--;
+        headCells += kBitsPerByte + zeros[i];
     }
 
-    while (total > high && tailSyncs > s_kMinSyncRun / 2)
+    //  The overlap must fall on sync bytes rather than on the first byte after
+    //  them. With no sync run the seam is at a prolog, and a short run has too
+    //  few sync bytes ahead of the seam, so sync bytes are added.
+    while (headSyncs < s_kSeamSyncs || total < low)
+    {
+        values.insert (values.begin(), s_kSyncValue);
+        zeros.insert  (zeros.begin(),  (Byte) kSyncZeros);
+        total     += kSyncCells;
+        headCells += kSyncCells;
+        headSyncs++;
+    }
+
+    //  The end of the write overlaps the stream by the cells past the turn,
+    //  short of the last s_kResyncSyncs sync bytes ahead of the seam.
+    while (total > GetLongestFit (cells, headCells) && tailSyncs > s_kTailSyncs)
     {
         total -= kBitsPerByte + zeros.back();
 
@@ -378,23 +391,13 @@ bool RawWriteStream::FitToTurn (size_t cells)
         tailSyncs--;
     }
 
-    //  With no sync run the seam is at a prolog, and the overlap must fall on
-    //  added sync bytes rather than on the sector before it.
-    while (!sync && added < s_kSeamSyncs)
-    {
-        values.insert (values.begin(), s_kSyncValue);
-        zeros.insert  (zeros.begin(),  (Byte) kSyncZeros);
-        total += kBitsPerByte + kSyncZeros;
-        added++;
-    }
-
     //  A weak-bit stretch is a long run of zero bits, which reads as noise at
     //  any length, so the longest runs give up bits next.
-    while (total > high)
+    while (total > GetLongestFit (cells, headCells))
     {
         auto    longest = std::max_element (zeros.begin(), zeros.end());
         size_t  spare   = (longest != zeros.end() && *longest > s_kWeakZeros) ? *longest - s_kWeakZeros : 0;
-        size_t  cut     = std::min (spare, total - low);
+        size_t  cut     = std::min (spare, total - GetLongestFit (cells, headCells));
 
         if (cut == 0)
         {
@@ -405,14 +408,91 @@ bool RawWriteStream::FitToTurn (size_t cells)
         total   -= cut;
     }
 
-    while (total < low)
+    //  Then the longest runs of sync bytes between sectors, one sync byte at
+    //  a time, to no fewer than s_kGapSyncs.
+    while (total > GetLongestFit (cells, headCells))
     {
-        values.insert (values.begin(), s_kSyncValue);
-        zeros.insert  (zeros.begin(),  (Byte) kSyncZeros);
-        total += kBitsPerByte + kSyncZeros;
+        bool  dropped = DropGapSync (headSyncs, values.size() - tailSyncs, total);
+
+        if (!dropped)
+        {
+            break;
+        }
     }
 
-    return total <= high;
+    return total <= GetLongestFit (cells, headCells);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RawWriteStream::DropGapSync
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool RawWriteStream::DropGapSync (size_t first, size_t end, size_t & ioTotal)
+{
+    size_t  bestAt  = 0;
+    size_t  bestRun = 0;
+    size_t  at      = first;
+
+
+
+    while (at < end)
+    {
+        size_t  run = 0;
+
+        while (at + run < end && IsSyncByte (at + run))
+        {
+            run++;
+        }
+
+        if (run > bestRun)
+        {
+            bestAt  = at;
+            bestRun = run;
+        }
+
+        at += std::max<size_t> (run, 1);
+    }
+
+    if (bestRun <= s_kGapSyncs)
+    {
+        return false;
+    }
+
+    ioTotal -= kBitsPerByte + zeros[bestAt];
+
+    values.erase (values.begin() + (ptrdiff_t) bestAt);
+    zeros.erase  (zeros.begin()  + (ptrdiff_t) bestAt);
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RawWriteStream::GetLongestFit
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t RawWriteStream::GetLongestFit (size_t cells, size_t headCells)
+{
+    constexpr size_t  kResyncCells = s_kResyncSyncs * (kBitsPerByte + kSyncZeros);
+
+
+
+    size_t  overlap = (headCells > kResyncCells) ? headCells - kResyncCells : 0;
+
+
+
+    return cells + overlap - s_kLeadOutCells;
 }
 
 

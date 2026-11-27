@@ -83,13 +83,14 @@ public:
     static bool     IsOffCenterRead (const RawWriteStream & quarter, const RawWriteStream * below, const RawWriteStream * above);
 
     //  The stream rotated to start at its seam (FindSeam), the middle of a
-    //  sync run, with sync bytes added there, or dropped from the run, so
-    //  that it is a little longer than `cells`, one turn of the drive: the
-    //  end of the write then overlaps its start at the seam. When that isn't
-    //  enough, the longest runs of zero bits, which are weak-bit stretches,
-    //  are shortened, to no fewer than s_kWeakZeros. A track with no
-    //  sync run gets at least s_kSeamSyncs sync bytes at its seam, so the
-    //  overlap falls on them. False when the excess can't be dropped.
+    //  sync run, with at least s_kSeamSyncs sync bytes ahead of the seam, so
+    //  that the write, with the cells the module writes around it, is longer
+    //  than `cells`, one turn of the drive: its end then overlaps its start,
+    //  on those sync bytes only. For a stream too long for that, sync bytes
+    //  are dropped from the run at its end, then bits from its longest runs
+    //  of zero bits, which are weak-bit stretches, to no fewer than
+    //  s_kWeakZeros, then sync bytes from runs between sectors. False when
+    //  the excess can't be dropped.
     bool    FitToTurn (size_t cells);
 
     //  The bits the stream writes, one to a byte, for a check of FromBits.
@@ -106,7 +107,6 @@ private:
     static constexpr size_t  s_kMinRevolution = 5600;
     static constexpr size_t  s_kMatchBytes    = 64;
     static constexpr Byte    s_kSyncValue     = 0xFF;
-    static constexpr size_t  s_kMinSyncRun    = 16;
     static constexpr size_t  s_kOverlapCells  = 40;
     static constexpr Byte    s_kPrologFirst   = 0xD5;
     static constexpr Byte    s_kPrologSecond  = 0xAA;
@@ -114,9 +114,34 @@ private:
     static constexpr size_t  s_kWeakZeros     = 16;       // the fewest zero bits FitToTurn leaves in a weak-bit run it shortens
     static constexpr size_t  s_kSectorBytes   = 16;       // the bytes from a D5 AA that IsOffCenterRead looks for in the tracks beside
 
-    //  The sync bytes a track with no sync run is given at its seam, enough to
-    //  take the most the end of the write can overlap its start.
-    static constexpr size_t  s_kSeamSyncs     = (2 * s_kOverlapCells + kBitsPerByte + kSyncZeros - 1) / (kBitsPerByte + kSyncZeros);
+    //  The cells the module writes around the stream: ahead of it, the
+    //  self-sync byte write mode starts with (rplay in ThirteenSector.s);
+    //  after it, the program's two self-sync bytes and the zero bits the drive
+    //  writes until write mode is turned off (pdone in Program.s).
+    static constexpr size_t  s_kLeadInCells   = kBitsPerByte + kSyncZeros;
+    static constexpr size_t  s_kLeadOutCells  = 38;
+
+    //  The fewest sync bytes ahead of the seam: enough to take the most the
+    //  end of the write can overlap the stream, and s_kResyncSyncs more for a
+    //  drive to frame bytes again after the zero bits it ends with.
+    static constexpr size_t  s_kResyncSyncs   = 4;
+    static constexpr size_t  s_kSeamSyncs     = (2 * s_kOverlapCells - s_kLeadInCells + kBitsPerByte + kSyncZeros - 1) / (kBitsPerByte + kSyncZeros) + s_kResyncSyncs;
+
+    //  The fewest sync bytes at the end of the stream after FitToTurn, ahead
+    //  of the self-sync bytes the module writes after it.
+    static constexpr size_t  s_kTailSyncs     = 4;
+
+    //  The fewest sync bytes in a run between sectors after FitToTurn.
+    static constexpr size_t  s_kGapSyncs      = 6;
+
+    //  The most cells a stream can have, for a turn of `cells`, when its sync
+    //  bytes ahead of the seam are `headCells`.
+    static size_t  GetLongestFit (size_t cells, size_t headCells);
+
+    //  Drops one sync byte from the longest run of more than s_kGapSyncs in
+    //  the bytes from `first` up to `end`, and its cells from ioTotal. False
+    //  when no run is that long.
+    bool  DropGapSync (size_t first, size_t end, size_t & ioTotal);
 
     //  `bits` split into bytes of eight bits each and the zero bits after,
     //  with outStarts each byte's first bit.
