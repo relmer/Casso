@@ -109,6 +109,17 @@ public:
         rig.app.cards = &cards;
         rig.Open();
 
+        //  Until the media check's first pass ends, every drive counts as
+        //  having media. A drive found empty then changes the media mask and
+        //  lists the cards, so the polls start after that pass.
+        for (int wait = 0; wait < 500 && !rig.parts->folderSync.HasCheckedMedia(); wait++)
+        {
+            Sleep (10);
+        }
+
+        Assert::IsTrue (rig.parts->folderSync.HasCheckedMedia(), L"the media check's first pass ends");
+
+        rig.parts->folderSync.PollDrives();
         host.volumeQueries = 0;
 
         for (int tick = 0; tick < 5; tick++)
