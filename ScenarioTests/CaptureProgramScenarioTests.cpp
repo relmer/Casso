@@ -300,6 +300,8 @@ public:
         std::vector<Byte>                   module;
         std::vector<Byte>                   file;
         std::vector<RawWriteTrack>          tracks;
+        std::vector<int>                    skipped;
+        RawWriteFit                         fit;
         CassoLinkStatus                     status;
         wchar_t                             path[MAX_PATH] = {};
         int                                 tooLong        = -1;
@@ -323,7 +325,7 @@ public:
             file.assign (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
         }
 
-        AssertSucceeded (RawWriteStream::GetImageTracks (file, tracks, tooLong));
+        AssertSucceeded (RawWriteStream::GetImageTracks (file, tracks, skipped, tooLong));
 
         //  CASSO_RAW_WRITE_TURN sets every track to that many bits of sync
         //  bytes, for a drive slower than the emulated disk's tracks allow.
@@ -357,7 +359,8 @@ public:
             size_t                padding = 0;
             size_t                syncs   = 0;
 
-            fits.push_back (track.stream.FitToTurn (turn));
+            fits.push_back (track.stream.FitToTurn (turn, fit));
+            Logger::WriteMessage ((RawWriteStream::DescribeTrack (track, fit) + "\n").c_str());
 
             AssertSucceeded (rig.host->WriteRawTrack (1, (Byte) track.position, track.stream, CassoLinkHost::GetStepPercents ((size_t) (&track - tracks.data()), tracks.size()), status));
             Assert::AreEqual ((Byte) 0, status.error);
@@ -1154,22 +1157,24 @@ public:
 
 
     //  A raw capture through a session, as Casso Explorer runs one: the
-    //  drive's time is the capture's, and its title the saved file's name.
+    //  drive's time is the capture's, its title the saved file's name, and
+    //  with the reads option on, the reads go beside the WOZ.
     TEST_METHOD (OnDemand_ARawCapture_IsTimedAndTitled_ThroughASession)
     {
         static constexpr DWORD  kTimeoutMs = 3'600'000;
         static constexpr char   kImage[]   = "C:\\Captures\\Slot 6 Drive 1.woz";
 
-        ProgramRig                         rig (MakeDisk());
-        RigStreams                         streams;
-        InMemoryCassoLinkFolder            folder;
-        FakeDiskFileIo                     fileIo;
-        EmulatorLink::Sink                 sink;
-        std::unique_ptr<CassoLinkSession>  session;
-        CassoLinkSettings                  settings;
-        FullSendSnapshot                   snapshot;
-        ULONGLONG                          started  = GetTickCount64();
-        double                             took     = 0.0;
+        ProgramRig                               rig (MakeDisk());
+        RigStreams                               streams;
+        InMemoryCassoLinkFolder                  folder;
+        FakeDiskFileIo                           fileIo;
+        EmulatorLink::Sink                       sink;
+        std::unique_ptr<CassoLinkSession>        session;
+        CassoLinkSettings                        settings;
+        FullSendSnapshot                         snapshot;
+        std::vector<CassoLinkCapture::Position>  positions;
+        ULONGLONG                                started  = GetTickCount64();
+        double                                   took     = 0.0;
 
 
 
@@ -1183,6 +1188,7 @@ public:
         settings.name      = "Rig";
         settings.transport = LinkTransport::Serial;
         settings.port      = "COM9";
+        sink.savingReads   = true;
 
         session = std::make_unique<CassoLinkSession> (streams, folder, fileIo, sink);
         AssertSucceeded (session->Start (settings));
@@ -1197,6 +1203,10 @@ public:
         Assert::IsTrue (snapshot.drives[0].state == FullSendDiskState::Sent);
         Assert::IsTrue (snapshot.drives[0].elapsed > 0.0 && snapshot.drives[0].elapsed <= took);
         Assert::AreEqual (std::string ("Slot 6 Drive 1"), snapshot.drives[0].title);
+
+        Assert::IsTrue (fileIo.files.contains (std::string (kImage) + ".reads"), L"the reads are saved beside the WOZ");
+        AssertSucceeded (CassoLinkCapture::ParseReads (fileIo.files.at (std::string (kImage) + ".reads"), positions));
+        Assert::IsFalse (positions.empty());
 
         session.reset();
     }

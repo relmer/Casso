@@ -604,9 +604,13 @@ public:
         Assert::IsTrue  (menu.HasOpenChild());
         Assert::IsFalse (menu.WantsTick());
 
-        // Leaving the row closes the child, and the pointer passing back
-        // across it arms rather than reopens.
+        // Leaving the row closes the child once the same delay runs out,
+        // and the pointer passing back across it arms rather than reopens.
         menu.OnMouseMove (r.left + 5, r.top + 5);
+        Assert::IsTrue  (menu.HasOpenChild());
+
+        now += delay;
+        menu.Tick ((int64_t) now);
         Assert::IsFalse (menu.HasOpenChild());
 
         menu.OnMouseMove (r.left + 5, r.top + RowPx (menu) + 5);
@@ -618,6 +622,48 @@ public:
         now += delay * 2;
         menu.Tick ((int64_t) now);
         Assert::IsFalse (menu.HasOpenChild());
+        Assert::IsFalse (menu.WantsTick());
+    }
+
+
+    //
+    //  A pointer headed for an open child can cross another row on the way.
+    //  A move into the child before the delay ends cancels the close and moves
+    //  the highlight back to the row it opened from.
+    //
+    TEST_METHOD (LeavingSubmenuRow_TowardTheChild_KeepsTheChildOpen)
+    {
+        Fixture               f;
+        DxuiPopupMenu         menu;
+        MockDxuiTextRenderer  text;
+        RECT                  r     = {};
+        RECT                  c     = {};
+        uint64_t              now   = 1000;
+        const int             delay = 400;
+
+
+        menu.SetClock ([&] () { return now; });
+        menu.SetSubmenuDelayMs (delay);
+        menu.ShowAt (0, 0, f.NestedList(), text, MakeHost (800, 600));
+        r = menu.GetRect();
+
+        menu.OnMouseMove (r.left + 5, r.top + RowPx (menu) + 5);
+        now += delay;
+        menu.Tick ((int64_t) now);
+        Assert::IsTrue (menu.HasOpenChild());
+
+        menu.OnMouseMove (r.left + 5, r.top + 5);
+        Assert::AreEqual (0, menu.GetHighlight());
+
+        now += delay - 1;
+        menu.Tick ((int64_t) now);
+        c = menu.GetChild()->GetRect();
+        menu.OnMouseMove (c.left + 5, c.top + 5);
+        Assert::AreEqual (1, menu.GetHighlight());
+
+        now += delay * 2;
+        menu.Tick ((int64_t) now);
+        Assert::IsTrue  (menu.HasOpenChild());
         Assert::IsFalse (menu.WantsTick());
     }
 

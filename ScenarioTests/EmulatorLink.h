@@ -29,6 +29,12 @@ public:
         std::condition_variable                       changed;
         std::vector<std::shared_ptr<LinkOperation>>   done;
         std::vector<LinkState>                        states;
+        bool                                          savingReads = false;
+
+        bool  HasFullSendReadsOn () override
+        {
+            return savingReads;
+        }
 
         void  OnStateChanged (LinkState state) override
         {

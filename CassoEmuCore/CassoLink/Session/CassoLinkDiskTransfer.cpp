@@ -11,6 +11,7 @@
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/CassoLinkSession.h"
 #include "CassoLink/FullSend/FullSendDisk.h"
+#include "CassoLink/FullSend/FullSendFolder.h"
 #include "CassoLink/FullSend/FullSendManifest.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImage.h"
@@ -49,7 +50,8 @@ CassoLinkDiskTransfer::CassoLinkDiskTransfer (CassoLinkSession & session)
 //
 //  The WOZ is written only once every position has been read. The message
 //  lists the tracks with bytes that differ between reads, as a protection's
-//  weak bits do, and those whose reads differ in length.
+//  weak bits do, and those whose reads differ in length. With the reads
+//  option on, as for a Full Send, the reads go beside the WOZ.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,6 +60,7 @@ HRESULT CassoLinkDiskTransfer::CaptureWholeDisk (LinkOperation & operation)
     HRESULT                   hr       = S_OK;
     std::vector<Byte>         module;
     CassoLinkCapture::Result  result;
+    std::vector<Byte>         reads;
     CommitPlan::Progress      progress;
     bool                      hasData  = false;
     std::string               date     = std::format ("{:%Y-%m-%dT%H:%M:%SZ}", std::chrono::floor<std::chrono::seconds> (std::chrono::system_clock::now()));
@@ -122,6 +125,14 @@ HRESULT CassoLinkDiskTransfer::CaptureWholeDisk (LinkOperation & operation)
 
     hr = DurableCommit::Commit (m_session.m_fileIo, operation.imagePath, result.woz, m_commitTag++, CommitMode::Replace, progress);
     CHR (hr);
+
+    if (m_session.m_sink.HasFullSendReadsOn())
+    {
+        CassoLinkCapture::SerializeReads (result.positions, reads);
+
+        hr = DurableCommit::Commit (m_session.m_fileIo, operation.imagePath + FullSendFolder::kReadsSuffix, reads, m_commitTag++, CommitMode::Replace, progress);
+        CHR (hr);
+    }
 
     m_session.m_sink.OnImageWritten (operation.imagePath, TextEncoding::WideToNarrow (m_session.GetModelName()));
 
@@ -1231,6 +1242,8 @@ HRESULT CassoLinkDiskTransfer::WriteRawDisk (LinkOperation & operation, const st
     size_t                              index    = (size_t) operation.drive - 1;
     std::vector<Byte>                   module;
     std::vector<RawWriteTrack>          tracks;
+    std::vector<int>                    skipped;
+    RawWriteFit                         fit;
     CassoLinkStatus                     status;
     int                                 tooLong  = -1;
     int                                 turn     = 0;
@@ -1241,7 +1254,7 @@ HRESULT CassoLinkDiskTransfer::WriteRawDisk (LinkOperation & operation, const st
 
 
 
-    hr = RawWriteStream::GetImageTracks (fileBytes, tracks, tooLong);
+    hr = RawWriteStream::GetImageTracks (fileBytes, tracks, skipped, tooLong);
 
     if (FAILED (hr) && tooLong >= 0)
     {
@@ -1267,15 +1280,22 @@ HRESULT CassoLinkDiskTransfer::WriteRawDisk (LinkOperation & operation, const st
     m_session.m_disks[index]->Clear();
     m_session.m_listings[index].reset();
 
+    if (!skipped.empty())
+    {
+        m_session.m_sink.OnActivity (RawWriteStream::DescribeSkipped (skipped));
+    }
+
     for (size_t i = 0; i < tracks.size(); i++)
     {
         RawWriteTrack  & track = tracks[i];
 
-        if (!track.stream.FitToTurn ((size_t) turn))
+        if (!track.stream.FitToTurn ((size_t) turn, fit))
         {
             wrapped += std::format ("{}{}", wraps == 0 ? "" : ", ", track.position / 4.0);
             wraps++;
         }
+
+        m_session.m_sink.OnActivity (RawWriteStream::DescribeTrack (track, fit));
 
         canceled = m_session.m_canceled.load();
         CBREx (!canceled, HRESULT_FROM_WIN32 (ERROR_CANCELLED));

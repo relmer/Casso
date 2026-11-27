@@ -405,6 +405,122 @@ public:
     }
 
 
+    //  A track as Karateka's track 27 is: sync bytes, then one long field of
+    //  pages that each end in a B7 followed by one zero bit, read twelve
+    //  times as a //c's IWM marks bytes: one with no zero bits after it at
+    //  8 cycles one time in ten, the B7 four times in five, and the sync
+    //  bytes nearly always. The B7s are written with a zero bit after them,
+    //  and few other bytes are.
+    TEST_METHOD (ALoudTracksMarkedBytes_AreWrittenWithAZeroBit)
+    {
+        static constexpr size_t  kSyncs     = 40;
+        static constexpr size_t  kPages     = 11;
+        static constexpr size_t  kPageBytes = 512;
+        static constexpr size_t  kReadBytes = 12000;
+        static constexpr int     kReads     = 12;
+        static constexpr int     kStray     = 10;
+
+        std::vector<Byte>                        revolution;
+        std::vector<int>                         share8;
+        std::vector<int>                         share12;
+        std::vector<CassoLinkCapture::Position>  positions (1);
+        CassoLinkCapture::Result                 result;
+        DiskImage                                image;
+        std::vector<std::pair<Byte, size_t>>     framed;
+        uint32_t                                 seed    = 4321;
+        size_t                                   ends    = 0;
+        int                                      stray   = 0;
+
+
+
+        auto  next = [&seed] () { seed = seed * 1103515245u + 12345u; return (int) ((seed >> 16) % 100); };
+
+        auto  add = [&revolution, &share8, &share12] (Byte value, int at8, int at12)
+        {
+            revolution.push_back (value);
+            share8.push_back (at8);
+            share12.push_back (at12);
+        };
+
+        for (size_t each = 0; each < kSyncs; each++)
+        {
+            add (0xFF, 98, 56);
+        }
+
+        add (0xAF, 10, 0);
+        add (0xB5, 10, 0);
+        add (0xB6, 10, 0);
+
+        for (size_t page = 0; page < kPages; page++)
+        {
+            for (size_t each = 0; each < kPageBytes; each++)
+            {
+                seed = seed * 1103515245u + 12345u;
+                add (s_kDiskBytes[(seed >> 16) % (std::size (s_kDiskBytes) - 1)], 10, 0);
+            }
+
+            add (0xB7, 80, 10);
+        }
+
+        for (int each = 0; each < kReads; each++)
+        {
+            Byte               delay = CassoLinkCapture::kWholeDelays[each % CassoLinkCapture::kWholeReads];
+            std::vector<Byte>  read;
+
+            for (size_t at = 0; at < kReadBytes; at++)
+            {
+                size_t  in     = at % revolution.size();
+                bool    marked = next() < (delay == 0 ? share8[in] : share12[in]);
+
+                read.push_back (marked ? (Byte) (revolution[in] & 0x7F) : revolution[in]);
+            }
+
+            positions[0].reads.push_back (read);
+            positions[0].delays.push_back (delay);
+        }
+
+        AssertSucceeded (CassoLinkCapture::BuildWoz (positions, 0, "2026-11-27T00:00:00Z", 1, result));
+        AssertSucceeded (WozLoader::Load (result.woz, image));
+
+        int     slot  = image.ResolveQuarterTrack (0);
+        size_t  count = image.GetTrackBitCount (slot);
+        size_t  at    = 0;
+
+        while (at < count && image.ReadBit (slot, at) == 0)
+        {
+            at++;
+        }
+
+        while (at + 8 <= count)
+        {
+            Byte    value = 0;
+            size_t  zeros = 0;
+
+            for (int bit = 0; bit < 8; bit++)
+            {
+                value = (Byte) ((value << 1) | image.ReadBit (slot, at++));
+            }
+
+            while (at < count && image.ReadBit (slot, at) == 0)
+            {
+                zeros++;
+                at++;
+            }
+
+            framed.push_back ({ value, zeros });
+        }
+
+        for (const auto & [value, zeros] : framed)
+        {
+            ends  += (value == 0xB7 && zeros > 0) ? 1 : 0;
+            stray += (value != 0xB7 && value != 0xFF && zeros > 0) ? 1 : 0;
+        }
+
+        Assert::IsTrue (ends >= kPages - 1, std::format (L"B7s written with a zero bit after them: {} of {}", ends, kPages).c_str());
+        Assert::IsTrue (stray <= kStray, std::format (L"Other bytes written with zero bits after them: {}", stray).c_str());
+    }
+
+
     //  A track whose address fields end in AF, as Ultima IV's track 0 does,
     //  with the bytes after it read otherwise on one of three reads, as a
     //  drive that reads a weak stretch steadily does: the bytes after the

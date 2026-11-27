@@ -147,6 +147,7 @@ public:
     {
         Bits            bits;
         RawWriteStream  stream;
+        RawWriteFit     fit;
         size_t          syncs = 0;
 
 
@@ -154,7 +155,7 @@ public:
         MakePackedTrack (bits);
         RawWriteStream::FromBits (bits, stream);
 
-        Assert::IsTrue (stream.FitToTurn (bits.size() + 100));
+        Assert::IsTrue (stream.FitToTurn (bits.size() + 100, fit));
 
         while (stream.values[syncs] == 0xFF)
         {
@@ -162,6 +163,7 @@ public:
             syncs++;
         }
 
+        Assert::AreEqual (syncs, fit.addedSyncs);
         Assert::IsTrue   (syncs * (RawWriteStream::kBitsPerByte + RawWriteStream::kSyncZeros) >= 80);
         Assert::AreEqual (kPackedTrack + syncs, stream.values.size());
         Assert::AreEqual ((Byte) 0xD5, stream.values[syncs]);
@@ -176,6 +178,7 @@ public:
     {
         Bits               bits;
         RawWriteStream     stream;
+        RawWriteFit        fit;
         std::vector<Byte>  values;
 
 
@@ -190,7 +193,9 @@ public:
         RawWriteStream::FromBits (bits, stream);
         values = stream.values;
 
-        Assert::IsTrue (stream.FitToTurn (bits.size() - 150));
+        Assert::IsTrue (stream.FitToTurn (bits.size() - 150, fit));
+        Assert::IsTrue (fit.weakCells > 0);
+        Assert::AreEqual ((size_t) 0, fit.gapSyncs);
         Assert::IsTrue (stream.GetCellCount() <= bits.size() - 150 + 80);
         Assert::IsTrue (std::search (stream.values.begin(), stream.values.end(), values.begin(), values.end()) != stream.values.end());
 
@@ -212,6 +217,7 @@ public:
 
         Bits               bits;
         RawWriteStream     stream;
+        RawWriteFit        fit;
         std::vector<Byte>  sector (kSectorBytes);
         std::vector<Byte>  before;
         std::vector<Byte>  after;
@@ -243,8 +249,10 @@ public:
 
         RawWriteStream::FromBits (bits, stream);
 
-        Assert::IsTrue (stream.FitToTurn (bits.size() - 300));
+        Assert::IsTrue (stream.FitToTurn (bits.size() - 300, fit));
         Assert::IsTrue (stream.GetCellCount() < bits.size() - 300 + 80);
+        Assert::IsTrue (fit.gapSyncs > 0);
+        Assert::AreEqual ((size_t) 0, fit.weakCells);
 
         for (size_t i = 0; i < stream.values.size(); i++)
         {
@@ -277,13 +285,16 @@ public:
     {
         Bits            bits;
         RawWriteStream  stream;
+        RawWriteFit     fit;
 
 
 
         MakePackedTrack (bits);
         RawWriteStream::FromBits (bits, stream);
 
-        Assert::IsFalse (stream.FitToTurn (bits.size() - 100));
+        Assert::IsFalse (stream.FitToTurn (bits.size() - 100, fit));
+        Assert::IsFalse (fit.fits);
+        Assert::IsTrue  (fit.written > fit.longest);
     }
 
 
@@ -347,6 +358,7 @@ public:
     TEST_METHOD (DropOffCenterReads_ErasesAHalfTracksEdgeBeforeIt)
     {
         std::vector<RawWriteTrack>  tracks (4);
+        std::vector<int>            skipped;
         std::vector<Byte>           two (6000, 0xAB);
         std::vector<Byte>           half (6000, 0xAD);
 
@@ -381,18 +393,61 @@ public:
         std::erase_if (tracks[3].stream.values, [] (Byte value) { return value == 0xD5; });
         tracks[3].stream.zeros.resize (tracks[3].stream.values.size());
 
-        RawWriteStream::DropOffCenterReads (tracks);
+        RawWriteStream::DropOffCenterReads (tracks, skipped);
 
         Assert::AreEqual ((size_t) 3, tracks.size());
         Assert::AreEqual (8,  tracks[0].position);
         Assert::AreEqual (12, tracks[1].position);
         Assert::AreEqual (10, tracks[2].position);
+        Assert::IsTrue   (tracks[1].isErase);
+        Assert::IsFalse  (tracks[0].isErase || tracks[2].isErase);
+        Assert::IsTrue   (skipped == std::vector<int> { 9 });
         Assert::IsTrue (std::none_of (tracks[1].stream.values.begin(), tracks[1].stream.values.end(), [] (Byte value) { return value == 0xD5; }));
         Assert::AreNotEqual ((Byte) 0xFF, tracks[1].stream.values.back());
 
         //  The sync bytes come in runs as an ordinary track's gaps do, not thousands in a row.
         Assert::IsTrue (std::search_n (tracks[1].stream.values.begin(), tracks[1].stream.values.end(), 16, (Byte) 0xFF) == tracks[1].stream.values.end());
         Assert::IsTrue (std::count (tracks[1].stream.values.begin(), tracks[1].stream.values.end(), (Byte) 0xFF) * 10 > (ptrdiff_t) tracks[1].stream.values.size() * 9);
+    }
+
+
+    //  The activity log's line for a track: its bits against the turn, what
+    //  was added and dropped to fit, and the excess of one that wraps; and
+    //  the positions not written, on one line.
+    TEST_METHOD (DescribeTrack_HasTheFitAndWhatWasDropped)
+    {
+        RawWriteTrack  track;
+        RawWriteFit    fit;
+
+
+
+        track.position = 10;
+        fit.written    = 51040;
+        fit.longest    = 51190;
+        fit.turn       = 51250;
+        fit.addedSyncs = 6;
+        fit.weakCells  = 120;
+        fit.gapSyncs   = 4;
+        fit.fits       = true;
+
+        Assert::AreEqual (std::string ("Raw write of track 2.5: 51040 bits, 51190 fit a turn of 51250. Added 6 sync bytes at the seam. Dropped 120 bits from weak-bit runs and 4 sync bytes between sectors."),
+                          RawWriteStream::DescribeTrack (track, fit));
+
+        track.position = 12;
+        track.isErase  = true;
+        fit            = RawWriteFit();
+        fit.written    = 51300;
+        fit.longest    = 51190;
+        fit.turn       = 51250;
+
+        Assert::AreEqual (std::string ("Raw write of track 3: an erase of sync bytes, 51300 bits, 51190 fit a turn of 51250. Too long by 110 bits, so it wraps."),
+                          RawWriteStream::DescribeTrack (track, fit));
+
+        Assert::AreEqual (std::string ("Tracks 2.25, 2.75 are not written in a raw write: they are off-center reads of the tracks beside them."),
+                          RawWriteStream::DescribeSkipped ({ 9, 11 }));
+        Assert::AreEqual (std::string ("Track 2.25 is not written in a raw write: it is an off-center read of the tracks beside it."),
+                          RawWriteStream::DescribeSkipped ({ 9 }));
+        Assert::AreEqual (std::string(), RawWriteStream::DescribeSkipped ({}));
     }
 
 

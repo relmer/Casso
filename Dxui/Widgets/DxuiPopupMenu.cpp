@@ -1195,6 +1195,7 @@ void DxuiPopupMenu::ArmChild (int index)
 {
     if (index == m_childRow && HasOpenChild())
     {
+        m_childCloseAtMs = 0;
         return;
     }
 
@@ -1241,7 +1242,7 @@ void DxuiPopupMenu::DisarmChild()
 
 bool DxuiPopupMenu::WantsTick() const
 {
-    if (m_pendingChild >= 0)
+    if (m_pendingChild >= 0 || m_childCloseAtMs != 0)
     {
         return true;
     }
@@ -1283,6 +1284,20 @@ void DxuiPopupMenu::Tick (int64_t nowMs)
     if (m_activePopup != nullptr)
     {
         m_activePopup->AdvanceReveal (nowMs);
+    }
+
+    //  A switch to another submenu that is due at the same moment replaces the
+    //  open child itself, and closing first would cancel that switch.
+    if (m_childCloseAtMs != 0 && m_clock() >= m_childCloseAtMs)
+    {
+        if (m_pendingChild >= 0)
+        {
+            m_childCloseAtMs = 0;
+        }
+        else
+        {
+            CloseChild();
+        }
     }
 
     if (m_pendingChild < 0)
@@ -1348,6 +1363,8 @@ void DxuiPopupMenu::OpenChild (int index, bool highlightFirst)
 
     if (index == m_childRow && HasOpenChild())
     {
+        m_childCloseAtMs = 0;
+
         if (highlightFirst)
         {
             m_child->SetHover (m_child->FindFirstSelectable());
@@ -1446,7 +1463,66 @@ void DxuiPopupMenu::CloseChild()
     }
 
     DisarmChild();
-    m_childRow = -1;
+    m_childRow       = -1;
+    m_childCloseAtMs = 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPopupMenu::LeaveChildRow
+//
+//  The highlight moved off the row of the open child onto row `index`. The
+//  child closes after the submenu delay, not at once, so a pointer headed for
+//  the child can cut across neighboring rows on the way. A move into the child
+//  before then cancels the close (KeepChildOpen).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupMenu::LeaveChildRow (int index)
+{
+    if (!HasOpenChild() || index == m_childRow || m_submenuDelayMs <= 0)
+    {
+        if (index != m_childRow)
+        {
+            CloseChild();
+        }
+
+        return;
+    }
+
+    if (m_childCloseAtMs == 0)
+    {
+        m_childCloseAtMs = m_clock() + (uint64_t) m_submenuDelayMs;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPopupMenu::KeepChildOpen
+//
+//  The pointer is over the open child. Cancel a pending close or switch, and
+//  move the highlight back to the row the child opened from.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupMenu::KeepChildOpen()
+{
+    if (!HasOpenChild())
+    {
+        return;
+    }
+
+    m_childCloseAtMs = 0;
+    DisarmChild();
+    SetHover (m_childRow);
 }
 
 
@@ -1571,6 +1647,7 @@ void DxuiPopupMenu::OnMouseMove (int x, int y)
 
     if (HasOpenChild() && m_child->HitTest (x, y))
     {
+        KeepChildOpen();
         m_child->OnMouseMove (x, y);
         return;
     }
@@ -1601,7 +1678,7 @@ void DxuiPopupMenu::OnMouseMove (int x, int y)
         }
         else
         {
-            CloseChild();
+            LeaveChildRow (idx);
         }
     }
 }
@@ -1883,6 +1960,11 @@ void DxuiPopupMenu::OnPopupMove (POINT localPx)
 
     m_popupPointerSeen = true;
 
+    if (m_parent != nullptr)
+    {
+        m_parent->KeepChildOpen();
+    }
+
     if (firstMove)
     {
         m_popupPointerAt = localPx;
@@ -1913,13 +1995,20 @@ void DxuiPopupMenu::OnPopupMove (POINT localPx)
     {
         SetHover (row);
 
-        if (m_rows[(size_t) row].kind == DxuiPopupMenuItem::Kind::Submenu && !holdingRow)
+        if (m_rows[(size_t) row].kind != DxuiPopupMenuItem::Kind::Submenu || holdingRow)
         {
-            OpenChild (row, false);
+            LeaveChildRow (row);
+        }
+        else if (HasOpenChild() && row != m_childRow)
+        {
+            // Switching to another submenu waits out the same delay, so
+            // crossing a submenu row on the way to the open child is harmless.
+            LeaveChildRow (row);
+            ArmChild (row);
         }
         else
         {
-            CloseChild();
+            OpenChild (row, false);
         }
     }
 }
