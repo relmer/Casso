@@ -22,7 +22,6 @@ uint32_t FullSendPanel::GetColor (FullSendTrackMark mark, const IDxuiTheme & the
         case FullSendTrackMark::Verified:   return 0xFF2EA043;
         case FullSendTrackMark::Unreliable: return 0xFFD29922;
         case FullSendTrackMark::Unreadable: return 0xFFDA3633;
-        case FullSendTrackMark::NotInImage: return theme.ForegroundMuted();
         default:                            return theme.BackgroundElevated();
     }
 }
@@ -1114,6 +1113,11 @@ void FullSendPanel::PaintCells (IDxuiPainter & painter, const IDxuiTheme & theme
 
         painter.FillRect (span.left, cellTop, span.width, height, GetCellColor (drive, track, theme));
 
+        if (drive.positions.empty() && drive.tracks[(size_t) track] == FullSendTrackMark::NotInImage)
+        {
+            PaintNoData (painter, theme, span.left, cellTop, span.width, height);
+        }
+
         for (int quarter = 1; quarter < 4 && (size_t) (track * 4 + quarter) < drive.positions.size(); quarter++)
         {
             if (TryGetQuarterColor (drive.positions[(size_t) (track * 4 + quarter)], quarter, shade))
@@ -1122,6 +1126,29 @@ void FullSendPanel::PaintCells (IDxuiPainter & painter, const IDxuiTheme & theme
             }
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendPanel::PaintNoData
+//
+//  A track with no data in the image: the cell's lower-right half is blue,
+//  below the diagonal from its bottom-left to its top-right corner.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendPanel::PaintNoData (IDxuiPainter & painter, const IDxuiTheme & theme, float left, float top, float width, float height)
+{
+    float  right  = left + width;
+    float  bottom = top + height;
+
+
+
+    painter.FillConvexQuad (right, top, right, bottom, left, bottom, left, bottom, GetColor (FullSendTrackMark::Read, theme));
 }
 
 
@@ -1207,6 +1234,7 @@ float FullSendPanel::PaintLegend (IDxuiPainter & painter, IDxuiTextRenderer & te
     {
         uint32_t         color;
         const wchar_t  * label;
+        bool             noData = false;
     };
 
     const Entry  readEntries[] =
@@ -1222,7 +1250,7 @@ float FullSendPanel::PaintLegend (IDxuiPainter & painter, IDxuiTextRenderer & te
     {
         { GetColor (FullSendTrackMark::Read, theme),          L"Written" },
         { GetColor (FullSendTrackMark::Verified, theme),      L"Verified" },
-        { GetColor (FullSendTrackMark::NotInImage, theme),    L"No data in the image" },
+        { GetColor (FullSendTrackMark::NotInImage, theme),    L"No data in the image", true },
     };
 
     HRESULT                 hr      = S_OK;
@@ -1246,6 +1274,12 @@ float FullSendPanel::PaintLegend (IDxuiPainter & painter, IDxuiTextRenderer & te
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         painter.FillRect (x, top + (lineH - swatch) * 0.5f, swatch, swatch, entry.color);
+
+        if (entry.noData)
+        {
+            PaintNoData (painter, theme, x, top + (lineH - swatch) * 0.5f, swatch, swatch);
+        }
+
         DrawLine (text, entry.label, x + swatch * 1.6f, top, width + swatch, theme.ForegroundMuted());
 
         x += swatch * 1.6f + width + gap;
