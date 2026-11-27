@@ -951,8 +951,8 @@ void SectorsView::ShowBytes (const TrackAnalysis & track)
         bool                     isOddA  = isBad || index < 0;
         bool                     isOddB  = paired.empty() || isLoose;
         bool                     isSel   = static_cast<int> (slot) == m_selectedSlot;
-        uint32_t                 argb    = isOddA ? failed : isSel ? selected : edge;
-        uint32_t                 argbB   = isOddB ? failed : isSel ? selected : edge;
+        uint32_t                 argb    = !isSel ? edge : isOddA ? failed : selected;
+        uint32_t                 argbB   = !isSel ? edge : isOddB ? failed : selected;
         std::wstring             label   = (index >= 0) ? std::format (L"Sector ${:02X}{}", track.sectors[index].sector, isBad ? L", checksum failed" : L"") :
                                            (sectorB < 0) ? std::wstring (L"Data field with no address field") :
                                            (field >= 0)  ? std::format (L"Sector ${:02X}: data field with no address field", m_context.trackB->sectors[sectorB].sector)
