@@ -37,6 +37,7 @@ public:
 
     static constexpr int  kNoteHeightDip = 40;
     static constexpr int  kNoteIndentDip = 22;   // under the checkbox's label
+    static constexpr int  kGroupGapDip   = 30;   // between the preview, File Explorer and thumbnail options
 
 private:
     DxuiLabel     * m_previewNote  = nullptr;

@@ -126,19 +126,21 @@ void CassoExplorerGeneralPage::Init (DxuiLabel & previewNote, DxuiCheckbox & aut
 
 void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    int  previewEnd   = boundsDip.top + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
-    int  noteTop      = previewEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip);
+    int  fieldH       = scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
+    int  groupGap     = scaler.ToPx (kGroupGapDip);
+    int  previewEnd   = boundsDip.top + fieldH;
+    int  noteTop      = previewEnd;
     int  noteBottom   = noteTop + scaler.ToPx (kNoteHeightDip);
-    int  enterTop     = noteBottom + scaler.ToPx (ExplorerMetrics::kStackGapDip * 2);
-    int  enterEnd     = enterTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
-    int  registerTop  = enterEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 4);
-    int  registerEnd  = registerTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
-    int  rawCopyTop   = registerEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 2);
-    int  rawCopyEnd   = rawCopyTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
-    int  thumbsTop    = rawCopyEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 4);
-    int  thumbsEnd    = thumbsTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
-    int  foldersTop   = thumbsEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 2);
-    int  foldersEnd   = foldersTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
+    int  enterTop     = noteBottom;
+    int  enterEnd     = enterTop + fieldH;
+    int  registerTop  = enterEnd + groupGap;
+    int  registerEnd  = registerTop + fieldH;
+    int  rawCopyTop   = registerEnd;
+    int  rawCopyEnd   = rawCopyTop + fieldH;
+    int  thumbsTop    = rawCopyEnd + groupGap;
+    int  thumbsEnd    = thumbsTop + fieldH;
+    int  foldersTop   = thumbsEnd;
+    int  foldersEnd   = foldersTop + fieldH;
 
 
 
@@ -645,7 +647,7 @@ void CassoExplorerOptionsDialog::OnBuildPages()
     m_namingNote.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
 
     //  Writes the user's file types only when OK is pressed with it changed.
-    m_register.SetLabel   (L"Open disk images in Casso (.dsk, .do, .po, .woz, .nib, .nb2)");
+    m_register.SetLabel   (L"Boot disk images in Casso when you double-click them in File Explorer (.dsk, .do, .po, .woz, .nib, .nb2)");
     m_register.SetChecked (m_choices.registered);
     m_register.SetEnabled (!m_choices.packaged);
 
