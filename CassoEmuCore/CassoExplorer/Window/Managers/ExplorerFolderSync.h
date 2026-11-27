@@ -46,6 +46,7 @@ public:
     void            StartWatch                  ();
     void            StartPolling                ();
     bool            IsWatching                  () const { return m_folderWatch != nullptr; }
+    bool            HasCheckedMedia             () const { return m_mediaWatch.HasLooked(); }
     void            UpdateWatchedFolders        ();
     void            RefreshChangedFolders       ();
     bool            IsShownFolderIn             (const std::vector<std::wstring> & folders) const;

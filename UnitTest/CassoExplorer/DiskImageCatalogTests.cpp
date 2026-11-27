@@ -100,7 +100,16 @@ public:
         std::vector<Byte>  bytes;
         HRESULT            hr = S_OK;
 
-        AssertSucceeded (fixtures.OpenFixture ("CiderPress/turducken/MultiPart.hdv", bytes));
+        //  CiderPress II's test files aren't committed, so the test is
+        //  skipped until scripts/FetchCiderPressTestFiles.ps1 runs.
+        hr = fixtures.OpenFixture ("CiderPress/turducken/MultiPart.hdv", bytes);
+
+        if (FAILED (hr))
+        {
+            Logger::WriteMessage (L"Skipped: run scripts/FetchCiderPressTestFiles.ps1 for MultiPart.hdv");
+            return;
+        }
+
         bytes.resize (kCutBytes);
         rig.Seed ("C:\\Disks\\cut.hdv", bytes);
 
