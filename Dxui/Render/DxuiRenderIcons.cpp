@@ -196,9 +196,12 @@ Error:
 //  address and draws it into the destination DIP rect with linear
 //  interpolation, or nearest-neighbor for a sharp frame. A frame drawn at
 //  anything but its size or a whole multiple of it is first resampled to
-//  the drawn size, each pixel averaged over at least two source pixels:
+//  the drawn size, each pixel the mean of the source area it covers. Below
+//  twice the source's size, each pixel averages at least two source pixels:
 //  sampled, a dithered picture's one-pixel stripes beat against the
-//  screen's pixels, in color bands that move with every size. The bitmap is
+//  screen's pixels, in color bands that move with every size. At twice the
+//  size and up, a source pixel covers two screen pixels or more, so the
+//  stripes can't beat, and blending would only blur the edges. The bitmap is
 //  created lazily and recreated when the uploaded size changes; otherwise
 //  CopyFromMemory rewrites the pixels in place each call. The cache is
 //  emptied once it has s_kMaxFramebufferBitmaps buffers.
@@ -215,18 +218,20 @@ HRESULT DxuiRenderIcons::DrawFramebuffer (
     float            destHeightDip,
     bool             sharp)
 {
-    HRESULT              hr      = S_OK;
-    D2D1_RECT_F          dest    = {};
-    FramebufferBitmap  * cached  = nullptr;
-    float                dpiX    = 96.0f;
-    float                dpiY    = 96.0f;
-    int                  drawnW  = 0;
-    int                  drawnH  = 0;
-    bool                 blendX  = false;
-    bool                 blendY  = false;
-    const uint32_t     * pixels  = srcBgraPixels;
-    int                  width   = srcWidthPx;
-    int                  height  = srcHeightPx;
+    HRESULT              hr        = S_OK;
+    D2D1_RECT_F          dest      = {};
+    FramebufferBitmap  * cached    = nullptr;
+    float                dpiX      = 96.0f;
+    float                dpiY      = 96.0f;
+    int                  drawnW    = 0;
+    int                  drawnH    = 0;
+    bool                 resampleX = false;
+    bool                 resampleY = false;
+    bool                 blendX    = false;
+    bool                 blendY    = false;
+    const uint32_t     * pixels    = srcBgraPixels;
+    int                  width     = srcWidthPx;
+    int                  height    = srcHeightPx;
 
 
 
@@ -241,10 +246,12 @@ HRESULT DxuiRenderIcons::DrawFramebuffer (
     drawnW = std::max (1, (int) std::lround (destWidthDip  * dpiX / 96.0f));
     drawnH = std::max (1, (int) std::lround (destHeightDip * dpiY / 96.0f));
 
-    blendX = !IsWholeMultiple (drawnW, srcWidthPx);
-    blendY = !IsWholeMultiple (drawnH, srcHeightPx);
+    resampleX = !IsWholeMultiple (drawnW, srcWidthPx);
+    resampleY = !IsWholeMultiple (drawnH, srcHeightPx);
+    blendX    = resampleX && drawnW < 2 * srcWidthPx;
+    blendY    = resampleY && drawnH < 2 * srcHeightPx;
 
-    if (blendX || blendY)
+    if (resampleX || resampleY)
     {
         Resample (srcBgraPixels, srcWidthPx, srcHeightPx, drawnW, drawnH, blendX, blendY, m_resampled);
         pixels = m_resampled.data();

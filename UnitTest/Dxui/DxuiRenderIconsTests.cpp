@@ -86,6 +86,23 @@ public:
     }
 
 
+    TEST_METHOD (Resample_WithoutBlend_KeepsEnlargedPixelsSharp)
+    {
+        std::vector<uint32_t>  stripes = MakeStripes (2, 1);
+        std::vector<uint32_t>  out;
+
+
+
+        DxuiRenderIcons::Resample (stripes.data(), 2, 1, 7, 1, false, false, out);
+
+        Assert::AreEqual (0xFFFF0000u, out[0]);
+        Assert::AreEqual (0xFFFF0000u, out[2]);
+        Assert::AreEqual (0xFF800080u, out[3], L"only the pixel on the edge mixes");
+        Assert::AreEqual (0xFF0000FFu, out[4]);
+        Assert::AreEqual (0xFF0000FFu, out[6]);
+    }
+
+
     TEST_METHOD (IsWholeMultiple_AllowsAPixelOfRounding)
     {
         Assert::IsTrue  (DxuiRenderIcons::IsWholeMultiple (640, 640));
