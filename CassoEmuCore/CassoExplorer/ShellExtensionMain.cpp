@@ -28,7 +28,7 @@ STDAPI DllGetClassObject (_In_ REFCLSID clsid, _In_ REFIID riid, _Outptr_ LPVOID
     CBREx (ppv != nullptr, E_POINTER);
 
     *ppv = nullptr;
-    CBREx (clsid == RawCopyDropHandler::kClsid || clsid == OpenOnCommand::kClsid, CLASS_E_CLASSNOTAVAILABLE);
+    CBREx (clsid == RawCopyDropHandler::kClsid || clsid == RawCopyDropHandler::kDevClsid || clsid == OpenOnCommand::kClsid, CLASS_E_CLASSNOTAVAILABLE);
 
     hr = clsid == OpenOnCommand::kClsid ? OpenOnCommand::CreateClassFactory (riid, ppv) : RawCopyDropHandler::CreateClassFactory (riid, ppv);
     CHR (hr);

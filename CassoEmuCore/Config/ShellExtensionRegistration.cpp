@@ -16,34 +16,128 @@
 //
 //  ShellExtensionRegistration::Register
 //
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ShellExtensionRegistration::Register (IUserClasses & classes, const std::wstring & dllPath)
+{
+    return RegisterClass (classes, dllPath, RawCopyDropHandler::kClsid, kHandlerName, L"Casso Explorer raw copy");
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellExtensionRegistration::RegisterDeveloper
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ShellExtensionRegistration::RegisterDeveloper (IUserClasses & classes, const std::wstring & dllPath)
+{
+    return RegisterClass (classes, dllPath, RawCopyDropHandler::kDevClsid, kDevHandlerName, L"Casso Explorer raw copy (developer build)");
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellExtensionRegistration::RegisterClass
+//
 //  The class first, then each folder type's handler entry, so File Explorer
 //  never finds an entry for a class that isn't there yet.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ShellExtensionRegistration::Register (IUserClasses & classes, const std::wstring & dllPath)
+HRESULT ShellExtensionRegistration::RegisterClass (IUserClasses & classes, const std::wstring & dllPath, REFCLSID clsid, const wchar_t * handlerName, const wchar_t * description)
 {
     HRESULT  hr = S_OK;
 
 
 
-    hr = classes.SetValue (GetClassKey(), L"", L"Casso Explorer raw copy");
+    hr = classes.SetValue (GetClassKey (clsid), L"", description);
     CHR (hr);
 
-    hr = classes.SetValue (GetClassKey() + L"\\InprocServer32", L"", dllPath);
+    hr = classes.SetValue (GetClassKey (clsid) + L"\\InprocServer32", L"", dllPath);
     CHR (hr);
 
-    hr = classes.SetValue (GetClassKey() + L"\\InprocServer32", L"ThreadingModel", L"Apartment");
+    hr = classes.SetValue (GetClassKey (clsid) + L"\\InprocServer32", L"ThreadingModel", L"Apartment");
     CHR (hr);
 
     for (const wchar_t * targetType : kTargetTypes)
     {
-        hr = classes.SetValue (GetHandlerKey (targetType), L"", GetClsidText());
+        hr = classes.SetValue (GetHandlerKey (targetType, handlerName), L"", GetClsidText (clsid));
         CHR (hr);
     }
 
 Error:
     classes.NotifyChanged();
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellExtensionRegistration::RegisterDeveloperCopy
+//
+//  Each copy has a new name, so a copy File Explorer has loaded is never
+//  overwritten. A copy that can't be deleted is loaded in File Explorer;
+//  a later registration deletes it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ShellExtensionRegistration::RegisterDeveloperCopy (std::wstring & outCopy)
+{
+    HRESULT           hr               = S_OK;
+    Win32UserClasses  classes;
+    wchar_t           module[MAX_PATH] = {};
+    DWORD             length           = GetModuleFileNameW (nullptr, module, MAX_PATH);
+    PWSTR             localAppData     = nullptr;
+    std::error_code   error;
+    fs::path          folder;
+    fs::path          copy;
+    SYSTEMTIME        now              = {};
+
+
+
+    outCopy.clear();
+    CBREx (length > 0 && length < MAX_PATH, HRESULT_FROM_WIN32 (ERROR_INSUFFICIENT_BUFFER));
+
+    hr = SHGetKnownFolderPath (FOLDERID_LocalAppData, 0, nullptr, &localAppData);
+    CHR (hr);
+
+    GetLocalTime (&now);
+    folder = fs::path (localAppData) / kDevCopyFolder;
+    copy   = folder / std::format (L"CassoShellExtension-{:04}{:02}{:02}-{:02}{:02}{:02}.dll", now.wYear, now.wMonth, now.wDay, now.wHour, now.wMinute, now.wSecond);
+
+    fs::create_directories (folder, error);
+    CBREx (!error, HRESULT_FROM_WIN32 (error.value()));
+
+    fs::copy_file (LaunchCommand::GetSiblingPath (fs::path (module).parent_path().wstring(), kDllName), copy, fs::copy_options::overwrite_existing, error);
+    CBREx (!error, HRESULT_FROM_WIN32 (error.value()));
+
+    hr = RegisterDeveloper (classes, copy.wstring());
+    CHR (hr);
+
+    for (const fs::directory_entry & entry : fs::directory_iterator (folder, error))
+    {
+        if (entry.path() != copy)
+        {
+            std::error_code  ignored;
+
+            fs::remove (entry.path(), ignored);
+        }
+    }
+
+    outCopy = copy.wstring();
+
+Error:
+    CoTaskMemFree (localAppData);
     return hr;
 }
 
@@ -181,9 +275,9 @@ bool ShellExtensionRegistration::IsRegistered (const IUserClasses & classes, con
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring ShellExtensionRegistration::GetClassKey()
+std::wstring ShellExtensionRegistration::GetClassKey (REFCLSID clsid)
 {
-    return L"CLSID\\" + GetClsidText();
+    return L"CLSID\\" + GetClsidText (clsid);
 }
 
 
@@ -196,16 +290,16 @@ std::wstring ShellExtensionRegistration::GetClassKey()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring ShellExtensionRegistration::GetClsidText()
+std::wstring ShellExtensionRegistration::GetClsidText (REFCLSID clsid)
 {
-    wchar_t  clsid[64] = {};
-    int      written   = StringFromGUID2 (RawCopyDropHandler::kClsid, clsid, ARRAYSIZE (clsid));
+    wchar_t  text[64] = {};
+    int      written  = StringFromGUID2 (clsid, text, ARRAYSIZE (text));
 
 
 
     IGNORE_RETURN_VALUE (written, 39);
 
-    return clsid;
+    return text;
 }
 
 
@@ -218,7 +312,7 @@ std::wstring ShellExtensionRegistration::GetClsidText()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring ShellExtensionRegistration::GetHandlerKey (const wchar_t * targetType)
+std::wstring ShellExtensionRegistration::GetHandlerKey (const wchar_t * targetType, const wchar_t * handlerName)
 {
-    return std::wstring (targetType) + L"\\shellex\\DragDropHandlers\\" + kHandlerName;
+    return std::wstring (targetType) + L"\\shellex\\DragDropHandlers\\" + handlerName;
 }

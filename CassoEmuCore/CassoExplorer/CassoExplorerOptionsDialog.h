@@ -31,6 +31,10 @@ public:
 
     void  Init    (DxuiLabel & previewNote, DxuiCheckbox & autoPreview, DxuiCheckbox & enterExpands, DxuiCheckbox & registration, DxuiCheckbox & rawCopyMenu,
                    DxuiCheckbox & autoThumbnails);
+
+    //  A developer build's button below the boxes, which registers its shell
+    //  extension.
+    void  SetDevButton (DxuiButton & button) { m_devRegister = &button; Adopt (button); }
     void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
@@ -44,6 +48,7 @@ private:
     DxuiCheckbox  * m_register     = nullptr;
     DxuiCheckbox  * m_rawCopyMenu  = nullptr;
     DxuiCheckbox  * m_thumbnails   = nullptr;
+    DxuiButton    * m_devRegister  = nullptr;
 };
 
 
@@ -298,6 +303,10 @@ public:
 
         //  The folder picker over the dialog; ioFolder changes when one is picked.
         std::function<void (HWND owner, std::wstring & ioFolder)>  pickFolder;
+
+        //  Registers a developer build's shell extension; empty in a release,
+        //  and then General has no button for it.
+        std::function<void (HWND owner)>  registerShellExtension;
     };
 
     //  The host file name forms, in the order the setting stores them.
@@ -353,6 +362,7 @@ private:
     DxuiCheckbox                                   m_autoThumbnails;
     DxuiCheckbox                                   m_register;
     DxuiCheckbox                                   m_rawCopyMenu;
+    DxuiButton                                     m_devRegister;
     DxuiLabel                                      m_fullSendNote;
     DxuiLabel                                      m_fullSendFolderLabel;
     DxuiLabel                                      m_fullSendFolder;
