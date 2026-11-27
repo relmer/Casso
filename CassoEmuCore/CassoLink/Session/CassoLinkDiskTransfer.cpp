@@ -11,6 +11,7 @@
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/CassoLinkSession.h"
 #include "CassoLink/FullSend/FullSendDisk.h"
+#include "CassoLink/FullSend/FullSendFolder.h"
 #include "CassoLink/FullSend/FullSendManifest.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImage.h"
@@ -49,7 +50,8 @@ CassoLinkDiskTransfer::CassoLinkDiskTransfer (CassoLinkSession & session)
 //
 //  The WOZ is written only once every position has been read. The message
 //  lists the tracks with bytes that differ between reads, as a protection's
-//  weak bits do, and those whose reads differ in length.
+//  weak bits do, and those whose reads differ in length. With the reads
+//  option on, as for a Full Send, the reads go beside the WOZ.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,6 +60,7 @@ HRESULT CassoLinkDiskTransfer::CaptureWholeDisk (LinkOperation & operation)
     HRESULT                   hr       = S_OK;
     std::vector<Byte>         module;
     CassoLinkCapture::Result  result;
+    std::vector<Byte>         reads;
     CommitPlan::Progress      progress;
     bool                      hasData  = false;
     std::string               date     = std::format ("{:%Y-%m-%dT%H:%M:%SZ}", std::chrono::floor<std::chrono::seconds> (std::chrono::system_clock::now()));
@@ -122,6 +125,14 @@ HRESULT CassoLinkDiskTransfer::CaptureWholeDisk (LinkOperation & operation)
 
     hr = DurableCommit::Commit (m_session.m_fileIo, operation.imagePath, result.woz, m_commitTag++, CommitMode::Replace, progress);
     CHR (hr);
+
+    if (m_session.m_sink.HasFullSendReadsOn())
+    {
+        CassoLinkCapture::SerializeReads (result.positions, reads);
+
+        hr = DurableCommit::Commit (m_session.m_fileIo, operation.imagePath + FullSendFolder::kReadsSuffix, reads, m_commitTag++, CommitMode::Replace, progress);
+        CHR (hr);
+    }
 
     m_session.m_sink.OnImageWritten (operation.imagePath, TextEncoding::WideToNarrow (m_session.GetModelName()));
 
