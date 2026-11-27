@@ -73,4 +73,5 @@ private:
     int                m_commandBarFocus  = 0;
     int                m_pickerButton     = 0;         // the picker bar's focused button, left to right
     float              m_iconWheelNotches = 0.0f;   // a touchpad's part notches of Ctrl with the wheel, until they make one
+    float              m_zoomWheelNotches = 0.0f;   // the same over the preview, which zooms it
 };
