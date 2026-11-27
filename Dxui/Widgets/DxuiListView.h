@@ -365,6 +365,7 @@ public:
     int   HitTestColumnResize (int xPx, int yPx, int tolerancePx) const { return m_header.HitTestColumnResize (xPx, yPx, tolerancePx); }
     int   HitTestHeaderColumn (int xPx, int yPx) const { return m_header.HitTestHeaderColumn (xPx, yPx); }
     int   HitTestRow          (int xPx, int yPx) const;
+    bool  IsOverBarStrip      (int xPx, int yPx) const;
 
     //  The full text of the cell under a point, list-relative as HitTestRow's,
     //  when the last paint cut it short.

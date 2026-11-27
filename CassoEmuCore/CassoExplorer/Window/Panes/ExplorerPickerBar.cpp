@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "CassoExplorer/Picker/FileMaskSet.h"
 #include "CassoExplorer/Picker/PickerRequest.h"
 #include "CassoExplorer/Window/ExplorerContext.h"
 #include "CassoExplorer/Window/IExplorerWindow.h"
@@ -369,6 +370,8 @@ void ExplorerPickerBar::Update()
             m_copiedFrom = selected;
             m_name->SetText (std::filesystem::path (selected).filename().wstring());
         }
+
+        SelectFilterForName();
     }
 
     m_confirm->SetEnabled (m_context.pickerMode.CanConfirm());
@@ -434,8 +437,59 @@ void ExplorerPickerBar::SetNameText (const std::wstring & text)
 {
     if (m_name != nullptr)
     {
-        m_name->SetText (text);
+        //  Setting the same text would move the caret while the user types.
+        if (m_name->GetText() != text)
+        {
+            m_name->SetText (text);
+        }
+
         Update();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPickerBar::SelectFilterForName
+//
+//  Selects the image type that matches the extension in the name box, when
+//  the selected type does not, so a clicked, typed or pasted name and the
+//  type list agree.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPickerBar::SelectFilterForName()
+{
+    const PickerRequest *  request = m_context.app.picker;
+    std::wstring           name;
+    size_t                 active  = 0;
+
+
+
+    if (m_filter == nullptr || request == nullptr || !request->IsSave())
+    {
+        return;
+    }
+
+    name   = m_name->GetText();
+    active = m_context.pickerMode.GetActiveFilter();
+
+    if (std::filesystem::path (name).extension().empty()
+        || (active < request->filters.size() && FileMaskSet (request->filters[active].pattern).Matches (name)))
+    {
+        return;
+    }
+
+    for (size_t index = 0; index < request->filters.size(); index++)
+    {
+        if (FileMaskSet (request->filters[index].pattern).Matches (name))
+        {
+            m_context.pickerMode.SetActiveFilter (index);
+            return;
+        }
     }
 }
 
