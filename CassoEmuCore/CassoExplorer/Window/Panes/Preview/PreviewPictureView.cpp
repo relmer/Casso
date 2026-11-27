@@ -71,6 +71,7 @@ void PreviewPictureView::Configure()
 {
     m_picture->SetZoom    (1.0f);
     m_picture->SetScaling (false, true);
+    m_picture->SetSharp   (true);
 }
 
 

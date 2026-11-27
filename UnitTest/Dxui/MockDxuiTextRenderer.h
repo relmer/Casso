@@ -164,7 +164,8 @@ public:
                               float            destXDip,
                               float            destYDip,
                               float            destWidthDip,
-                              float            destHeightDip) override;
+                              float            destHeightDip,
+                              bool             sharp = false) override;
 
     int  GetLastFramebufferWidth  () const { return m_lastFramebufferW; }
     int  GetLastFramebufferHeight () const { return m_lastFramebufferH; }

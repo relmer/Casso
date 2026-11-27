@@ -464,7 +464,7 @@ void DxuiFramebufferView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
     {
         hr = text.DrawFramebuffer (m_pixels.data(), m_width, m_height,
                                    (float) dest.left, (float) dest.top,
-                                   (float) (dest.right - dest.left), (float) (dest.bottom - dest.top));
+                                   (float) (dest.right - dest.left), (float) (dest.bottom - dest.top), m_sharp);
     }
 
     IGNORE_RETURN_VALUE (hr, S_OK);

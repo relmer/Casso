@@ -31,6 +31,10 @@ public:
     void  Clear          ();
     void  SetScaling     (bool integer, bool keepAspect) { m_integer = integer; m_keepAspect = keepAspect; }
 
+    //  Whether the pixels are scaled with nearest-neighbor, each a sharp
+    //  square, rather than blended.
+    void  SetSharp       (bool sharp) { m_sharp = sharp; }
+
     //  A multiple of the fitted size. Past 1 the picture is larger than its
     //  bounds and is cut off at their edges, still centered.
     void   SetZoom (float zoom) { m_zoom = (zoom > 0.0f) ? zoom : 1.0f; ClampPan(); }
@@ -102,5 +106,6 @@ private:
     int                    m_height     = 0;
     bool                   m_integer    = true;
     bool                   m_keepAspect = true;
+    bool                   m_sharp      = false;
     float                  m_zoom       = 1.0f;
 };

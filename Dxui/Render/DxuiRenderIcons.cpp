@@ -194,7 +194,7 @@ Error:
 //
 //  Uploads a BGRA8 CPU pixel buffer into the cached ID2D1Bitmap for its
 //  address and draws it into the destination DIP rect with linear
-//  interpolation. The bitmap is created lazily and recreated when the
+//  interpolation, or nearest-neighbor for a sharp frame. The bitmap is created lazily and recreated when the
 //  source dimensions change; otherwise CopyFromMemory rewrites the pixels
 //  in place each call. The cache is emptied once it has
 //  s_kMaxFramebufferBitmaps buffers. Used by the Settings → Theme preview to show
@@ -209,7 +209,8 @@ HRESULT DxuiRenderIcons::DrawFramebuffer (
     float            destXDip,
     float            destYDip,
     float            destWidthDip,
-    float            destHeightDip)
+    float            destHeightDip,
+    bool             sharp)
 {
     HRESULT              hr     = S_OK;
     D2D1_RECT_F          dest   = {};
@@ -265,7 +266,7 @@ HRESULT DxuiRenderIcons::DrawFramebuffer (
 
     m_renderer.m_d2dContext->DrawBitmap (cached->bitmap.Get(),
                               &dest, m_renderer.m_globalAlpha,
-                              D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
+                              sharp ? D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR : D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
                               nullptr);
 
 Error:

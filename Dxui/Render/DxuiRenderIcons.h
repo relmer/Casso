@@ -27,7 +27,7 @@ public:
 
     HRESULT  FillVectorIcon  (const DxuiVectorIcon & icon, float xDip, float yDip, float sizeDip, uint32_t foreground, uint32_t accent);
     HRESULT  DrawSvgIcon     (const std::string & svg, float xDip, float yDip, float sizeDip);
-    HRESULT  DrawFramebuffer (const uint32_t * srcBgraPixels, int srcWidthPx, int srcHeightPx, float destXDip, float destYDip, float destWidthDip, float destHeightDip);
+    HRESULT  DrawFramebuffer (const uint32_t * srcBgraPixels, int srcWidthPx, int srcHeightPx, float destXDip, float destYDip, float destWidthDip, float destHeightDip, bool sharp);
     HRESULT  DrawIconBitmap  (const uint32_t * srcBgraPremul, int srcWidthPx, int srcHeightPx, float destXDip, float destYDip, float destWidthDip, float destHeightDip);
 
     void  ReleaseBitmaps () { m_framebufferBitmaps.clear(); m_iconBitmaps.clear(); }
