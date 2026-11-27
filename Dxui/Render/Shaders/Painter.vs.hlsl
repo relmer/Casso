@@ -16,6 +16,8 @@ struct VSIn
     float   kind  : TEXCOORD2;
     float4  edges : TEXCOORD3;
     float3  band  : TEXCOORD4;
+    float2  disk  : TEXCOORD5;
+    float4  ring  : TEXCOORD6;
 };
 
 struct VSOut
@@ -27,6 +29,8 @@ struct VSOut
     nointerpolation float   kind  : TEXCOORD2;
     float4                  edges : TEXCOORD3;
     nointerpolation float3  band  : TEXCOORD4;
+    nointerpolation float2  disk  : TEXCOORD5;
+    nointerpolation float4  ring  : TEXCOORD6;
 };
 
 VSOut main (VSIn input)
@@ -39,5 +43,7 @@ VSOut main (VSIn input)
     output.kind  = input.kind;
     output.edges = input.edges;
     output.band  = input.band;
+    output.disk  = input.disk;
+    output.ring  = input.ring;
     return output;
 }

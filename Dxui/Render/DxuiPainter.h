@@ -133,7 +133,6 @@ private:
 
 
     static constexpr float   kShapeFringePx         = 1.0f;
-    static constexpr float   kSectorGridPx          = 64.0f;    // FillRingSector's center grid; kSectorGrid in Painter.ps.hlsl
 
 
     // Which signed-distance function the pixel shader evaluates for a quad.
@@ -159,7 +158,9 @@ private:
     // parameters, and its kind. A convex quad instead carries the vertex's
     // signed distance to each of its four edges, which interpolates exactly
     // because distance to a line is affine in position. The shape fields are
-    // zero for a solid quad.
+    // zero for a solid quad. A ring stretch has its disk's center on the
+    // target and its radii, eye distance and tilt in the disk and ring
+    // fields instead, the same in every vertex and not interpolated.
     struct Vertex
     {
         float  x      = 0.0f;
@@ -182,6 +183,12 @@ private:
         float  band0  = 0.0f;
         float  band1  = 0.0f;
         float  band2  = 0.0f;
+        float  diskX  = 0.0f;
+        float  diskY  = 0.0f;
+        float  ring0  = 0.0f;
+        float  ring1  = 0.0f;
+        float  ring2  = 0.0f;
+        float  ring3  = 0.0f;
     };
 
 

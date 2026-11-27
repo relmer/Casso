@@ -27,6 +27,8 @@ struct PSIn
     nointerpolation float   kind  : TEXCOORD2;
     float4                  edges : TEXCOORD3;
     nointerpolation float3  band  : TEXCOORD4;
+    nointerpolation float2  disk  : TEXCOORD5;
+    nointerpolation float4  ring  : TEXCOORD6;
 };
 
 static const int kKindSolid       = 0;
@@ -40,7 +42,6 @@ static const int kKindRingSector     = 7;
 static const int kKindRingStroke     = 23;
 
 static const float kHardEdge   = 1.0e6f;
-static const float kSectorGrid = 64.0f;
 
 static const float kTinyLength = 1.0e-6f;
 
@@ -151,12 +152,20 @@ float2 ToDisk (float2 p, float eye, float tilt)
 
 // The larger of the distances in pixels past the two ends of a stretch,
 // each hard as flags bits 0 and 1 have it.
+//
+// Where two stretches abut, one's start and the other's end are the same
+// line, so a pixel there must come out on the same side of it in both. Far
+// from the center each product is many times the pixel's distance from the
+// line, and the driver may fuse a multiply and an add, keeping one product
+// unrounded; shader model 4 has no way to forbid it. Both ends come from one
+// vector multiply-add, so each is computed the same way.
 float DistancePastEnds (float2 d, float4 ends, int flags)
 {
-    float  start  = -(ends.x * d.y + ends.y * d.x);
-    float  end    =   ends.z * d.y + ends.w * d.x;
-    float  startD = ToScreenDistance (start);
-    float  endD   = ToScreenDistance (end);
+    float2  past   = ends.xz * d.y + ends.yw * d.x;
+    float   start  = -past.x;
+    float   end    =  past.y;
+    float   startD = ToScreenDistance (start);
+    float   endD   = ToScreenDistance (end);
 
     if ((flags & 1) != 0)
     {
@@ -254,13 +263,11 @@ float4 main (PSIn input) : SV_TARGET
     }
     else if (kind >= kKindRingSector)
     {
-        //  The center is on a 1/64 pixel grid, so it comes back exactly
-        //  from the pixel's position less its interpolated offset, and the
-        //  pixel's offset from it is the same in every stretch.
-        float2  center = round ((input.pos.xy - input.local) * kSectorGrid) / kSectorGrid;
-
-        distance = (kind >= kKindRingStroke) ? DistanceToRingStroke (input.pos.xy - center, input.edges, input.shape, kind - kKindRingStroke)
-                                             : DistanceToRingSector (input.pos.xy - center, input.edges, input.shape, kind - kKindRingSector);
+        //  The disk's center is the same in every stretch, not interpolated,
+        //  so a pixel's offset from it is too, and stretches that abut on a
+        //  hard edge cover each pixel there once.
+        distance = (kind >= kKindRingStroke) ? DistanceToRingStroke (input.pos.xy - input.disk, input.ring, input.shape, kind - kKindRingStroke)
+                                             : DistanceToRingSector (input.pos.xy - input.disk, input.ring, input.shape, kind - kKindRingSector);
     }
     else if (kind == kKindTaperedCapsule)
     {

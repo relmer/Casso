@@ -177,6 +177,8 @@ HRESULT DxuiPainter::CreateShaders()
         { "TEXCOORD", 2, DXGI_FORMAT_R32_FLOAT,          0, 48, D3D11_INPUT_PER_VERTEX_DATA, 0 },
         { "TEXCOORD", 3, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 52, D3D11_INPUT_PER_VERTEX_DATA, 0 },
         { "TEXCOORD", 4, DXGI_FORMAT_R32G32B32_FLOAT,    0, 68, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "TEXCOORD", 5, DXGI_FORMAT_R32G32_FLOAT,       0, 80, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "TEXCOORD", 6, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 88, D3D11_INPUT_PER_VERTEX_DATA, 0 },
     };
 
 
@@ -427,6 +429,12 @@ DxuiPainter::Vertex DxuiPainter::LerpVertex (const Vertex & a, const Vertex & b,
     v.band0  = a.band0;
     v.band1  = a.band1;
     v.band2  = a.band2;
+    v.diskX  = a.diskX;
+    v.diskY  = a.diskY;
+    v.ring0  = a.ring0;
+    v.ring1  = a.ring1;
+    v.ring2  = a.ring2;
+    v.ring3  = a.ring3;
 
     return v;
 }
@@ -1382,13 +1390,17 @@ void DxuiPainter::StrokeRingSector (
 //
 //  PushSectorQuad
 //
-//  One quad over the stretch's box on screen. Each corner has its offset
-//  from the disk's center, affine in screen position, and the pixel shader
-//  takes each pixel back onto the disk to test its radius and its side of
-//  each end. The box is around the trapezoid that contains the stretch: the
+//  One quad over the stretch's box on screen. Every corner has the disk's
+//  center on the target and the stretch's radii, eye distance and tilt, none
+//  of them interpolated, and the pixel shader takes each pixel back onto the
+//  disk to test its radius and its side of each end. An offset from the
+//  center interpolated across the quad is off by a fraction of a pixel once
+//  the center is far off the target, and by a different fraction in each
+//  stretch, so a pixel on the end two stretches share can be uncovered by
+//  both. The box is around the trapezoid that contains the stretch: the
 //  inner chord, the two ends, and the tangent to the outer arc at its
-//  middle. The map onto the screen maps straight lines to straight lines, so the box
-//  contains the stretch on screen too.
+//  middle. The map onto the screen maps straight lines to straight lines, so
+//  the box contains the stretch on screen too.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1427,10 +1439,6 @@ void DxuiPainter::PushSectorQuad (
         return;
     }
 
-    //  On the pixel shader's 1/64 pixel grid, with the origin.
-    cxPx = std::round ((cxPx + m_originXPx) * kSectorGridPx) / kSectorGridPx - m_originXPx;
-    cyPx = std::round ((cyPx + m_originYPx) * kSectorGridPx) / kSectorGridPx - m_originYPx;
-
     for (double angle : { angle0, angle1 })
     {
         for (double r : { (double) r0, reach })
@@ -1455,23 +1463,20 @@ void DxuiPainter::PushSectorQuad (
     tl.shape1 = (float) std::cos (angle0);
     tl.shape2 = (float) std::sin (angle1);
     tl.shape3 = (float) std::cos (angle1);
-    tl.edge0  = edge0;
-    tl.edge1  = edge1;
-    tl.edge2  = eyePx;
-    tl.edge3  = tilt;
+    tl.ring0  = edge0;
+    tl.ring1  = edge1;
+    tl.ring2  = eyePx;
+    tl.ring3  = tilt;
     tl.band0  = m_band[0] + m_originXPx + m_originYPx;
     tl.band1  = m_band[1];
     tl.band2  = m_band[2];
     tl.kind   = (float) kind;
+    tl.diskX  = (float) ((double) cxPx + m_originXPx);
+    tl.diskY  = (float) ((double) cyPx + m_originYPx);
 
     tr = tl;
     bl = tl;
     br = tl;
-
-    tl.localX = (float) left;   tl.localY = (float) top;
-    tr.localX = (float) right;  tr.localY = (float) top;
-    bl.localX = (float) left;   bl.localY = (float) bottom;
-    br.localX = (float) right;  br.localY = (float) bottom;
 
     PushQuad ((float) (cxPx + left), (float) (cyPx + top), (float) (right - left), (float) (bottom - top), tl, tr, bl, br);
 }
