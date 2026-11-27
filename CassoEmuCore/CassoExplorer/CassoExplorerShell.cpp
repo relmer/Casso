@@ -154,6 +154,7 @@ void CassoExplorerShell::StartBootWorker()
     m_bootWorker->SetManifestIo (&m_fileIo);
     m_bootWorker->SetOnCount ([this]() { m_pictures.NotifyReady (IDiskPictures::kQueueChanged); });
     m_pictures.SetQueuedCount ([this]() { return m_bootWorker != nullptr ? m_bootWorker->GetPending() : 0; });
+    m_pictures.SetPendingCheck ([this] (const std::wstring & path) { return m_bootWorker != nullptr && m_bootWorker->IsPending (path); });
     m_bootWorker->SetGivenNames (&m_givenNames);
     m_bootWorker->SetDone ([this] (const ExplorerBootWorker::Result & result)
     {

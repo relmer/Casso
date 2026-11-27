@@ -40,6 +40,7 @@ static constexpr float     s_kChipTextDip = 12.0f;
 static constexpr float     s_kHotRingDip  = 2.0f;
 static constexpr float     s_kHotBoxDip   = 6.0f;      // the corner of the box around a hot block map
 static constexpr LPCWSTR   s_kpszWaiting  = L"Analyzing";
+static constexpr LPCWSTR   s_kpszBooting  = L"Getting thumbnail...";
 static constexpr LPCWSTR   s_kpszNote35   = L"Casso does not analyze 3.5\" disks";
 
 
@@ -657,6 +658,11 @@ void PreviewDiskThumbnail::RefreshScreen()
         found = m_context.app.pictures->Find (m_path, picture, result);
     }
 
+    //  A boot for the picture takes several seconds, so a waiting line
+    //  replaces the result line until it is done.
+    m_isBooting = !found && !m_path.empty() && m_context.app.pictures != nullptr && m_context.app.pictures->IsBooting (m_path);
+    result      = m_isBooting ? std::wstring (s_kpszBooting) : result;
+
     m_picture = found ? picture : nullptr;
     m_screen->SetPicture (m_picture);
     m_bootLine->SetText (result);
@@ -1256,7 +1262,7 @@ int PreviewDiskThumbnail::Layout (const RECT & area, int scrollPx, int bottomPx,
         }
     }
 
-    if (hasScreen)
+    if (HasBootLine())
     {
         m_header->PlaceChild (*m_bootLine, RECT { area.left + gap, chipsTop, area.right - gap, chipsTop + 2 * rows });
         chipsTop += 2 * rows + gap;
@@ -1270,7 +1276,7 @@ int PreviewDiskThumbnail::Layout (const RECT & area, int scrollPx, int bottomPx,
     m_blockMap->SetVisible (m_state == State::Ready && IsBlocks());
     m_inspect->SetVisible  (m_state == State::Ready);
     m_screen->SetVisible  (hasScreen);
-    m_bootLine->SetVisible  (hasScreen);
+    m_bootLine->SetVisible  (HasBootLine());
     m_verdict->SetVisible (HasVerdict());
 
     //  Laid out whole to measure it, then in the part not scrolled away.

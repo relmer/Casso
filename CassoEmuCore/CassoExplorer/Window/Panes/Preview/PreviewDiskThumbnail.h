@@ -331,6 +331,7 @@ private:
     //  drawn while the analysis runs and the pane isn't laid out again when
     //  the analysis finishes.
     bool  HasScreen          () const { return m_picture != nullptr && (m_state == State::Ready || m_state == State::Analyzing); }
+    bool  HasBootLine        () const { return HasScreen() || m_isBooting; }
     void  GetFit             (int widthPx, int & outScreenPx, int & outPlatterPx) const;
     bool  HasVerdict         () const { return m_state == State::Ready && m_isVerdictShown; }
     int   GetVerdictHeightPx (int widthPx) const;
@@ -362,4 +363,5 @@ private:
     std::wstring                            m_path;
     State                                   m_state          = State::Analyzing;
     bool                                    m_isStale        = false;   // the last image is shown until the next one is read
+    bool                                    m_isBooting      = false;   // the image is being booted for its picture
 };

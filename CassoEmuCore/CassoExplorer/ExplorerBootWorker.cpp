@@ -246,6 +246,29 @@ size_t ExplorerBootWorker::GetPending() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerBootWorker::IsPending
+//
+//  The image is cleared before its result is reported, so a window that
+//  reads it on the result's message finds it done.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerBootWorker::IsPending (const std::wstring & path) const
+{
+    std::lock_guard  lock (m_lock);
+    bool             isWaiting = std::any_of (m_queue.begin(), m_queue.end(), [&path] (const Item & item) { return _wcsicmp (item.path.c_str(), path.c_str()) == 0; });
+
+
+
+    return isWaiting || _wcsicmp (m_current.c_str(), path.c_str()) == 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerBootWorker::WaitUntilIdle
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -715,6 +738,7 @@ void ExplorerBootWorker::Run()
 
             item      = m_queue.front();
             m_working = true;
+            m_current = item.path;
 
             m_queue.pop_front();
         }
@@ -726,6 +750,7 @@ void ExplorerBootWorker::Run()
             std::lock_guard  lock (m_lock);
 
             done = m_done;
+            m_current.clear();
         }
 
         if (done)

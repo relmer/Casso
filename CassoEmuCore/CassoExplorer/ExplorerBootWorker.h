@@ -78,6 +78,9 @@ public:
 
     size_t  GetPending    () const;
 
+    //  Whether the image is waiting or being booted.
+    bool    IsPending     (const std::wstring & path) const;
+
     //  Returns once nothing is waiting or being booted.
     void    WaitUntilIdle ();
 
@@ -141,6 +144,7 @@ private:
     std::condition_variable    m_wake;
     std::condition_variable    m_idle;
     std::deque<Item>           m_queue;
+    std::wstring               m_current;   // the image being booted
     bool                       m_working   = false;
     bool                       m_reporting = false;
     bool                       m_stop      = false;

@@ -45,6 +45,9 @@ public:
     //  booted included.
     virtual size_t  GetQueued () = 0;
 
+    //  Whether the image is waiting or being booted for its picture.
+    virtual bool    IsBooting (const std::wstring & path) = 0;
+
     //  Whether the image has a thumbnail, and its removal: the one the user
     //  set, after which the thumbnail made by booting is drawn, or with none
     //  set, the one made by booting.
