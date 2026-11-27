@@ -121,7 +121,9 @@ private:
     static constexpr size_t  s_kSectorBytes   = 16;       // the bytes from a D5 AA that IsOffCenterRead looks for in the tracks beside
     static constexpr size_t  s_kChunkBytes    = 12;       // the chunk GetSharedPart looks for in the tracks beside
     static constexpr double  s_kBleedShare    = 0.75;     // the part of a whole track found in the half track beside that makes it that half track's edge
-    static constexpr Byte    s_kEraseEnd      = 0x96;     // the byte that ends an erase's sync run
+    static constexpr Byte    s_kEraseEnd      = 0x96;     // the byte that ends each of an erase's sync runs
+    static constexpr size_t  s_kEraseRun      = 16;       // an erase's sync run and the byte that ends it
+    static constexpr size_t  s_kErasePercent  = 97;       // an erase's length, as a percentage of the track it replaces
 
     //  The sync bytes a track with no sync run is given at its seam, enough to
     //  take the most the end of the write can overlap its start.

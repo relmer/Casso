@@ -675,18 +675,22 @@ void RawWriteStream::DropOffCenterReads (std::vector<RawWriteTrack> & ioTracks)
 
             erase.position = erased;
 
+            //  Sync bytes in runs as an ordinary track's gaps are: thousands of
+            //  $FF in a row arrived damaged on every try over a real //c's
+            //  serial port at 115,200 baud. It is a little shorter than the
+            //  track, so FitToTurn lengthens it at its seam to the turn.
             for (const RawWriteTrack & source : ioTracks)
             {
-                if (source.position == erased)
+                size_t  count = source.position == erased ? source.stream.GetCellCount() * s_kErasePercent / 100 / (kBitsPerByte + kSyncZeros) : 0;
+
+                for (size_t i = 0; i < count; i++)
                 {
-                    erase.stream.values.assign (source.stream.GetCellCount() / (kBitsPerByte + kSyncZeros), s_kSyncValue);
+                    bool  end = i % s_kEraseRun == s_kEraseRun - 1 || i == count - 1;
+
+                    erase.stream.values.push_back (end ? s_kEraseEnd : s_kSyncValue);
+                    erase.stream.zeros.push_back  (end ? (Byte) 0 : (Byte) kSyncZeros);
                 }
             }
-
-            //  A last byte that isn't a sync byte ends the run, so it has a seam.
-            erase.stream.zeros.assign (erase.stream.values.size(), (Byte) kSyncZeros);
-            erase.stream.values.push_back (s_kEraseEnd);
-            erase.stream.zeros.push_back (0);
 
             kept.push_back (std::move (erase));
         }

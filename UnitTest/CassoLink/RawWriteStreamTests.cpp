@@ -317,8 +317,12 @@ public:
         Assert::AreEqual (8,  tracks[0].position);
         Assert::AreEqual (12, tracks[1].position);
         Assert::AreEqual (10, tracks[2].position);
-        Assert::IsTrue (std::all_of (tracks[1].stream.values.begin(), tracks[1].stream.values.end() - 1, [] (Byte value) { return value == 0xFF; }));
+        Assert::IsTrue (std::none_of (tracks[1].stream.values.begin(), tracks[1].stream.values.end(), [] (Byte value) { return value == 0xD5; }));
         Assert::AreNotEqual ((Byte) 0xFF, tracks[1].stream.values.back());
+
+        //  The sync bytes come in runs as an ordinary track's gaps do, not thousands in a row.
+        Assert::IsTrue (std::search_n (tracks[1].stream.values.begin(), tracks[1].stream.values.end(), 16, (Byte) 0xFF) == tracks[1].stream.values.end());
+        Assert::IsTrue (std::count (tracks[1].stream.values.begin(), tracks[1].stream.values.end(), (Byte) 0xFF) * 10 > (ptrdiff_t) tracks[1].stream.values.size() * 9);
     }
 
 
