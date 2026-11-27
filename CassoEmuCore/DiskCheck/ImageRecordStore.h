@@ -39,6 +39,7 @@ public:
     void       StoreContents  (const std::wstring & path, const ImageContents & contents) override;
     SavedGame  FindSavedGame  (const std::wstring & path) override;
     void       StoreSavedGame (const std::wstring & path, bool hasSavedGame) override;
+    void       Remove         (const std::wstring & path) override;
 
 private:
     using Record = ImageRecordCodec::Record;

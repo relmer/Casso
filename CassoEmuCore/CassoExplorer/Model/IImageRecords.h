@@ -38,4 +38,7 @@ public:
     virtual void       StoreContents  (const std::wstring & path, const ImageContents & contents) = 0;
     virtual SavedGame  FindSavedGame  (const std::wstring & path) = 0;
     virtual void       StoreSavedGame (const std::wstring & path, bool hasSavedGame) = 0;
+
+    //  Deletes the image's record, so its next read decodes the image again.
+    virtual void       Remove         (const std::wstring & path) = 0;
 };

@@ -40,6 +40,13 @@ public:
     void    SetQueuedCount (CountFn count) { m_count = std::move (count); }
     size_t  GetQueued      () override     { return m_count ? m_count() : 0; }
 
+    //  IsBooting returns what the function set here returns; false with none
+    //  set.
+    using PendingFn = std::function<bool (const std::wstring & path)>;
+
+    void    SetPendingCheck (PendingFn isPending)        { m_isPending = std::move (isPending); }
+    bool    IsBooting       (const std::wstring & path) override { return m_isPending ? m_isPending (path) : false; }
+
     bool                      HasThumbnail    (const std::wstring & path) override;
     HRESULT                   RemoveThumbnail (const std::wstring & path) override;
     HRESULT                   SetThumbnail    (const std::wstring & path, std::span<const Byte> png) override;
@@ -86,6 +93,7 @@ private:
     ThumbnailStore          & m_store;
     QueueFn                   m_queue;
     CountFn                   m_count;
+    PendingFn                 m_isPending;
     std::mutex                m_lock;
     std::vector<Target>       m_targets;
     std::set<std::wstring>    m_queued;      // each image passed to the queue function, by path, size and time

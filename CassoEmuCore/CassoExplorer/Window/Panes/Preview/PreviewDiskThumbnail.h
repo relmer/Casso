@@ -174,13 +174,21 @@ private:
 class ThumbnailScreen : public IDxuiControl
 {
 public:
-    void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override { SetBounds (boundsDip); (void) scaler; }
+    static constexpr float  kWaitingTextDip = 12.0f;
+
+    void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override { SetBounds (boundsDip); m_textPx = scaler.ToPxf (kWaitingTextDip); }
     void  Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
     void  SetPicture (std::shared_ptr<const DxuiIconImage> picture) { m_picture = std::move (picture); }
 
+    //  Text centered where the picture goes, while there is no picture.
+    void                  SetWaitingText (const std::wstring & waiting) { m_waiting = waiting; }
+    const std::wstring  & GetWaitingText () const                       { return m_waiting; }
+
 private:
     std::shared_ptr<const DxuiIconImage>  m_picture;
+    std::wstring                          m_waiting;
+    float                                 m_textPx = 0.0f;
 };
 
 
@@ -255,6 +263,7 @@ public:
     bool                  IsScreenShown () const { return HasScreen(); }
     RECT                  GetScreenRect () const { return HasScreen() ? m_screen->GetBounds() : RECT {}; }
     const std::wstring  & GetResultLine () const { return m_bootLine->GetText(); }
+    const std::wstring  & GetScreenText () const { return m_screen->GetWaitingText(); }
 
     //  The verdict's infobar above the thumbnail, the pane's bar, and
     //  Inspect... at the platter's bottom right; for a test.
@@ -330,7 +339,7 @@ private:
     //  The picture comes from the thumbnail store, not the analysis, so it is
     //  drawn while the analysis runs and the pane isn't laid out again when
     //  the analysis finishes.
-    bool  HasScreen          () const { return m_picture != nullptr && (m_state == State::Ready || m_state == State::Analyzing); }
+    bool  HasScreen          () const { return (m_picture != nullptr || m_isBooting) && (m_state == State::Ready || m_state == State::Analyzing); }
     void  GetFit             (int widthPx, int & outScreenPx, int & outPlatterPx) const;
     bool  HasVerdict         () const { return m_state == State::Ready && m_isVerdictShown; }
     int   GetVerdictHeightPx (int widthPx) const;
@@ -362,4 +371,5 @@ private:
     std::wstring                            m_path;
     State                                   m_state          = State::Analyzing;
     bool                                    m_isStale        = false;   // the last image is shown until the next one is read
+    bool                                    m_isBooting      = false;   // the image is being booted for its picture
 };

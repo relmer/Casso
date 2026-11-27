@@ -504,6 +504,11 @@ void ExplorerCommandManager::Dispatch (int id)
                 m_context.app.firewall->Invalidate();
             }
 
+            //  The images in view are read again, in case a stored read
+            //  came from an older reader. Other folders' stored reads and
+            //  every thumbnail are not deleted.
+            m_context.browser.ClearListedImageReads();
+
             m_context.browser.GetBrowserModel().InvalidateAllCatalogs();
             m_context.browser.GetLoader().ForgetLinkVisit();
             hr = m_context.browser.Refresh();
