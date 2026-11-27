@@ -84,10 +84,6 @@ public:
     //  for a new one.
     HRESULT  RemoveAll        (const std::filesystem::path & image);
 
-    //  The thumbnail made by booting and its record, so the image is booted
-    //  again. An image with a thumbnail the user set is left alone.
-    HRESULT  RemoveBooted     (const std::filesystem::path & image);
-
     //  Everything for a hash, for an image that was deleted.
     HRESULT  RemoveForDeleted (const std::string & hash);
 

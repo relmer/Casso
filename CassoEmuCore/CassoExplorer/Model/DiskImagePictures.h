@@ -45,7 +45,6 @@ public:
     HRESULT                   SetThumbnail    (const std::wstring & path, std::span<const Byte> png) override;
     std::vector<std::string>  GetKeys         (const std::vector<std::wstring> & paths) override;
     void                      RemoveDeleted   (const std::vector<std::string> & keys) override;
-    void                      RemoveBooted    (const std::vector<std::wstring> & paths) override;
     int                       CountUserSet    () override;
     HRESULT                   Clear           (bool includeUserSet) override;
 

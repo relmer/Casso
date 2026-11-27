@@ -40,7 +40,6 @@
 #include "Seams/Win32ShellItemVerbs.h"
 #include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
-#include "Seams/IDiskPictures.h"
 #include "Seams/IHostDialogs.h"
 #include "Seams/Win32HostDialogs.h"
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
@@ -318,10 +317,9 @@ bool ExplorerCommandManager::IsChecked (int id) const
 
 void ExplorerCommandManager::Dispatch (int id)
 {
-    HRESULT                    hr        = S_OK;
-    bool                       refill    = false;
-    bool                       routed    = false;
-    std::vector<std::wstring>  refreshed;
+    HRESULT  hr     = S_OK;
+    bool     refill = false;
+    bool     routed = false;
 
 
 
@@ -504,13 +502,9 @@ void ExplorerCommandManager::Dispatch (int id)
             }
 
             //  The images in view are read again, in case a stored read
-            //  came from an older reader. Other folders' stored reads are not deleted.
-            refreshed = m_context.browser.ClearListedImageReads();
-
-            if (m_context.app.pictures != nullptr)
-            {
-                m_context.app.pictures->RemoveBooted (refreshed);
-            }
+            //  came from an older reader. Other folders' stored reads and
+            //  every thumbnail are not deleted.
+            m_context.browser.ClearListedImageReads();
 
             m_context.browser.GetBrowserModel().InvalidateAllCatalogs();
             m_context.browser.GetLoader().ForgetLinkVisit();

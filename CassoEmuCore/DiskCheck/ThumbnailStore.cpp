@@ -825,45 +825,6 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ThumbnailStore::RemoveBooted
-//
-//  The streams are emptied too, since Find copies a stream the cache lacks
-//  back into the cache.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT ThumbnailStore::RemoveBooted (const std::filesystem::path & image)
-{
-    HRESULT          hr        = S_OK;
-    HRESULT          hrStream  = S_OK;
-    std::string      hash;
-    std::error_code  error;
-    bool             isUserSet = false;
-
-
-
-    hr = GetHash (image, hash);
-    CHR (hr);
-
-    isUserSet = std::filesystem::exists (GetPath (hash, s_kByUser), error);
-    BAIL_OUT_IF (isUserSet, S_OK);
-
-    std::filesystem::remove (GetPath (hash, s_kBooted), error);
-    std::filesystem::remove (GetPath (hash, s_kRecord), error);
-
-    hrStream = WriteStreams (image, {}, std::string());
-    IGNORE_RETURN_VALUE (hrStream, S_OK);
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ThumbnailStore::RemoveForDeleted
 //
 ////////////////////////////////////////////////////////////////////////////////

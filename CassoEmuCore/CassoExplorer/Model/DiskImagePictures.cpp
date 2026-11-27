@@ -463,41 +463,6 @@ void DiskImagePictures::RemoveDeleted (const std::vector<std::string> & keys)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskImagePictures::RemoveBooted
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskImagePictures::RemoveBooted (const std::vector<std::wstring> & paths)
-{
-    HRESULT  hr = S_OK;
-
-
-
-    for (const std::wstring & path : paths)
-    {
-        std::wstring  prefix = path + L"|";
-
-
-
-        hr = m_store.RemoveBooted (path);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-
-        {
-            std::lock_guard  lock (m_lock);
-
-            std::erase_if (m_queued, [&prefix] (const std::wstring & key) { return key.starts_with (prefix); });
-        }
-    }
-
-    NotifyReady (kPicturesChanged);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DiskImagePictures::CountUserSet
 //
 ////////////////////////////////////////////////////////////////////////////////

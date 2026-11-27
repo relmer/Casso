@@ -59,10 +59,6 @@ public:
     virtual std::vector<std::string>  GetKeys       (const std::vector<std::wstring> & paths) = 0;
     virtual void                      RemoveDeleted (const std::vector<std::string> & keys)   = 0;
 
-    //  The removal of the thumbnails made by booting the images, which are
-    //  booted again when next drawn. A thumbnail the user set stays.
-    virtual void  RemoveBooted (const std::vector<std::wstring> & paths) = 0;
-
     //  The count of thumbnails the user set, and the removal of every
     //  thumbnail made by booting, and with includeUserSet those too.
     virtual int      CountUserSet () = 0;
