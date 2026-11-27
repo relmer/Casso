@@ -233,6 +233,7 @@ struct CassoExplorerPrefs
     HRESULT  SaveFile (const std::wstring & path, IFileSystem & fs) const;
 
     JsonValue  ToJson   () const;
+    HRESULT    ToText   (std::string & outText) const;
 
     //  Moves `disk` to the front of linkProDosDisks, adding it when it isn't
     //  listed, and drops all but the newest kLinkProDosDiskMax.

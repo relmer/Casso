@@ -1194,6 +1194,7 @@
     <ClCompile Include="Devices\Printer\ObjMeshParser.cpp" />
     <ClCompile Include="Devices\Printer\PrinterStatusModel.cpp" />
     <ClCompile Include="Devices\Printer\PrinterViewport.cpp" />
+    <ClCompile Include="Config\BackgroundFileWriter.cpp" />
     <ClCompile Include="Config\Win32FileSystem.cpp" />
     <ClCompile Include="Config\WindowPlacementProfile.cpp" />
     <ClCompile Include="Config\UserConfigStore.cpp" />
@@ -2367,6 +2368,7 @@
     <ClInclude Include="External\stb_vorbis.c" />
     <ClInclude Include="Config\DiskInspectorPrefs.h" />
     <ClInclude Include="Config\IFileSystem.h" />
+    <ClInclude Include="Config\BackgroundFileWriter.h" />
     <ClInclude Include="Config\Win32FileSystem.h" />
     <ClInclude Include="Config\WindowPlacementProfile.h" />
     <ClInclude Include="Config\UserConfigStore.h" />
