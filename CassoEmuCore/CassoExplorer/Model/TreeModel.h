@@ -271,6 +271,11 @@ public:
     void  Invalidate    (const std::wstring & id);
     void  InvalidateAll ();
 
+    //  Whether a host folder's cached children match the folder on disk: the
+    //  same subfolders, archives and disk images. A write to a file in the
+    //  folder leaves them current, so the tree doesn't read the folder again.
+    bool  IsHostListingCurrent (const std::wstring & id);
+
     //  How many times a listing was actually produced, so a test can prove
     //  the cache answers the second expand.
     int   GetFetchCount () const { return m_fetchCount; }
@@ -390,6 +395,9 @@ private:
     bool             IsHiddenDrive      (const std::wstring & path) const;
     HRESULT          ListHostFolder     (bool underCasso, const std::wstring & path, std::vector<TreeNode> & outNodes);
     bool             HasTreeChildren    (const std::wstring & path);
+
+    //  The node id for an item ListHostFolder lists, or empty for a plain file.
+    static std::wstring  GetHostItemId (bool underCasso, const HostFolderItem & item);
 
     static bool  TryParseImageOrDirectoryId (const std::wstring & id, bool & outUnderCasso,
                                              std::wstring & outPath, std::string & outInner);

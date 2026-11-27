@@ -570,6 +570,36 @@ public:
     }
 
 
+    TEST_METHOD (HostListing_StaysCurrentUntilANodeChanges)
+    {
+        InMemoryFileSystem     fs;
+        HostFolderReader       hostFolders;
+        TreeModel              model (fs, hostFolders);
+        std::vector<TreeNode>  nodes;
+        std::wstring           id = TreeModel::MakeFolderId (true, kDisks);
+
+        SeedHost (fs);
+        Configure (model);
+
+        Assert::IsFalse (model.IsHostListingCurrent (id), L"nothing is cached before the first listing");
+
+        AssertSucceeded (model.GetChildren (id, nodes));
+        Assert::IsTrue  (model.IsHostListingCurrent (id));
+
+        AssertSucceeded (fs.WriteAllText (L"C:\\Disks\\readme.txt", "written again"));
+        AssertSucceeded (fs.WriteAllText (L"C:\\Disks\\notes.txt",  "a new plain file"));
+        Assert::IsTrue  (model.IsHostListingCurrent (id), L"plain files aren't tree nodes");
+
+        AssertSucceeded (fs.WriteAllText (L"C:\\Disks\\New\\x.txt", "x"));
+        Assert::IsFalse (model.IsHostListingCurrent (id), L"a new subfolder is a new node");
+
+        model.Invalidate (id);
+        AssertSucceeded (model.GetChildren (id, nodes));
+        AssertSucceeded (fs.WriteAllText (L"C:\\Disks\\more.po", "an image by its extension"));
+        Assert::IsFalse (model.IsHostListingCurrent (id), L"a new disk image is a new node");
+    }
+
+
 
     TEST_METHOD (ThisPc_ListsDrivesAndTheirFolders)
     {

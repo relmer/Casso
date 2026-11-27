@@ -1725,7 +1725,7 @@ HRESULT TreeModel::ListHostFolder (bool underCasso, const std::wstring & path, s
 
         if (item.kind == HostFolderItem::Kind::Folder)
         {
-            node.id        = MakeFolderId (underCasso, item.path);
+            node.id        = GetHostItemId (underCasso, item);
             node.kind      = TreeNode::Kind::HostFolder;
             node.location  = Location::MakeHostFolder (item.path);
             node.canExpand = HasTreeChildren (item.path);
@@ -1734,7 +1734,7 @@ HRESULT TreeModel::ListHostFolder (bool underCasso, const std::wstring & path, s
         }
         else if (item.kind == HostFolderItem::Kind::Archive)
         {
-            node.id        = std::wstring (kShellRootTag) + item.path;
+            node.id        = GetHostItemId (underCasso, item);
             node.kind      = TreeNode::Kind::ShellRoot;
             node.location  = Location::MakeShellFolder (item.path, item.entry.name);
             node.canExpand = true;
@@ -1744,7 +1744,7 @@ HRESULT TreeModel::ListHostFolder (bool underCasso, const std::wstring & path, s
         }
         else if (item.kind == HostFolderItem::Kind::Image)
         {
-            node.id       = MakeImageId (underCasso, item.path);
+            node.id       = GetHostItemId (underCasso, item);
             node.kind     = TreeNode::Kind::DiskImage;
             node.location = Location::MakeDiskImage (item.path);
 
@@ -1770,6 +1770,94 @@ HRESULT TreeModel::ListHostFolder (bool underCasso, const std::wstring & path, s
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::GetHostItemId
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring TreeModel::GetHostItemId (bool underCasso, const HostFolderItem & item)
+{
+    switch (item.kind)
+    {
+        case HostFolderItem::Kind::Folder:  return MakeFolderId (underCasso, item.path);
+        case HostFolderItem::Kind::Archive: return std::wstring (kShellRootTag) + item.path;
+        case HostFolderItem::Kind::Image:   return MakeImageId (underCasso, item.path);
+        default:                            return std::wstring();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::IsHostListingCurrent
+//
+//  One read of the folder, without looking into each subfolder for an
+//  expander: a subfolder that changes is watched and read on its own.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TreeModel::IsHostListingCurrent (const std::wstring & id)
+{
+    //  A node's id, label and whether it is hidden.
+    using NodeKey = std::tuple<std::wstring, std::wstring, bool>;
+
+
+
+    HRESULT                       hr         = S_OK;
+    auto                          cached     = m_children.find (id);
+    bool                          underCasso = id.rfind (kCassoRootId, 0) == 0;
+    bool                          thisPc     = id.rfind (kThisPcRootId, 0) == 0;
+    std::wstring                  path;
+    std::vector<FileSystemEntry>  entries;
+    std::vector<HostFolderItem>   items;
+    std::vector<NodeKey>          before;
+    std::vector<NodeKey>          after;
+    bool                          current    = false;
+
+
+
+    BAIL_OUT_IF (cached == m_children.end() || (!underCasso && !thisPc), S_OK);
+
+    path = id.substr (wcslen (underCasso ? kCassoRootId : kThisPcRootId));
+    BAIL_OUT_IF (path.empty() || PathResolver::IsNetworkPath (path), S_OK);
+
+    hr = m_fs.EnumerateAllEntries (path, entries);
+    CHR (hr);
+
+    m_hostFolders.Classify (path, entries, items);
+
+    for (const HostFolderItem & item : items)
+    {
+        std::wstring  itemId = GetHostItemId (underCasso, item);
+
+        if (!itemId.empty())
+        {
+            after.emplace_back (itemId, item.label, item.entry.isHidden);
+        }
+    }
+
+    for (const TreeNode & node : cached->second)
+    {
+        before.emplace_back (node.id, node.label, node.hidden);
+    }
+
+    std::sort (before.begin(), before.end());
+    std::sort (after.begin(), after.end());
+
+    current = before == after;
+
+Error:
+    return current;
 }
 
 
