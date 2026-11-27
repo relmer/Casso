@@ -194,11 +194,13 @@ Error:
 //
 //  Uploads a BGRA8 CPU pixel buffer into the cached ID2D1Bitmap for its
 //  address and draws it into the destination DIP rect with linear
-//  interpolation, or nearest-neighbor for a sharp frame. The bitmap is created lazily and recreated when the
-//  source dimensions change; otherwise CopyFromMemory rewrites the pixels
-//  in place each call. The cache is emptied once it has
-//  s_kMaxFramebufferBitmaps buffers. Used by the Settings → Theme preview to show
-//  the live emulator framebuffer inside the mock window.
+//  interpolation, or nearest-neighbor for a sharp frame. A frame drawn
+//  smaller than its pixels is first averaged down to the drawn size, since
+//  sampling it makes a dithered picture's stripes beat against the screen's
+//  pixels, in color bands that move with every size. The bitmap is created
+//  lazily and recreated when the uploaded size changes; otherwise
+//  CopyFromMemory rewrites the pixels in place each call. The cache is
+//  emptied once it has s_kMaxFramebufferBitmaps buffers.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -212,9 +214,16 @@ HRESULT DxuiRenderIcons::DrawFramebuffer (
     float            destHeightDip,
     bool             sharp)
 {
-    HRESULT              hr     = S_OK;
-    D2D1_RECT_F          dest   = {};
-    FramebufferBitmap  * cached = nullptr;
+    HRESULT              hr      = S_OK;
+    D2D1_RECT_F          dest    = {};
+    FramebufferBitmap  * cached  = nullptr;
+    float                dpiX    = 96.0f;
+    float                dpiY    = 96.0f;
+    int                  drawnW  = 0;
+    int                  drawnH  = 0;
+    const uint32_t     * pixels  = srcBgraPixels;
+    int                  width   = srcWidthPx;
+    int                  height  = srcHeightPx;
 
 
 
@@ -225,6 +234,16 @@ HRESULT DxuiRenderIcons::DrawFramebuffer (
     CBRA (srcBgraPixels);
     CBRA (srcWidthPx > 0 && srcHeightPx > 0);
 
+    m_renderer.m_d2dContext->GetDpi (&dpiX, &dpiY);
+    drawnW = std::max (1, (int) std::lround (destWidthDip  * dpiX / 96.0f));
+    drawnH = std::max (1, (int) std::lround (destHeightDip * dpiY / 96.0f));
+
+    if (drawnW < srcWidthPx || drawnH < srcHeightPx)
+    {
+        Shrink (srcBgraPixels, srcWidthPx, srcHeightPx, drawnW, drawnH, m_shrunk, width, height);
+        pixels = m_shrunk.data();
+    }
+
     if (m_framebufferBitmaps.size() >= s_kMaxFramebufferBitmaps && !m_framebufferBitmaps.contains (srcBgraPixels))
     {
         m_framebufferBitmaps.clear();
@@ -233,8 +252,8 @@ HRESULT DxuiRenderIcons::DrawFramebuffer (
     cached = &m_framebufferBitmaps[srcBgraPixels];
 
     if (cached->bitmap == nullptr ||
-        cached->width  != srcWidthPx ||
-        cached->height != srcHeightPx)
+        cached->width  != width ||
+        cached->height != height)
     {
         D2D1_BITMAP_PROPERTIES  props = {};
 
@@ -244,18 +263,17 @@ HRESULT DxuiRenderIcons::DrawFramebuffer (
         props.dpiY                  = 96.0f;
 
         cached->bitmap.Reset();
-        hr = m_renderer.m_d2dContext->CreateBitmap (D2D1::SizeU ((UINT32) srcWidthPx, (UINT32) srcHeightPx),
+        hr = m_renderer.m_d2dContext->CreateBitmap (D2D1::SizeU ((UINT32) width, (UINT32) height),
                                          nullptr, 0, &props, &cached->bitmap);
         CHRA (hr);
-        cached->width  = srcWidthPx;
-        cached->height = srcHeightPx;
+        cached->width  = width;
+        cached->height = height;
     }
 
     {
-        D2D1_RECT_U  srcRect = D2D1::RectU (0, 0, (UINT32) srcWidthPx, (UINT32) srcHeightPx);
+        D2D1_RECT_U  srcRect = D2D1::RectU (0, 0, (UINT32) width, (UINT32) height);
 
-        hr = cached->bitmap->CopyFromMemory (&srcRect, srcBgraPixels,
-                                                  (UINT32) (srcWidthPx * sizeof (uint32_t)));
+        hr = cached->bitmap->CopyFromMemory (&srcRect, pixels, (UINT32) (width * sizeof (uint32_t)));
         CHRA (hr);
     }
 
@@ -271,6 +289,91 @@ HRESULT DxuiRenderIcons::DrawFramebuffer (
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Shrink
+//
+//  A box filter, one axis at a time: each pixel is the mean of the source
+//  pixels under it, a partly covered one weighted by the part covered.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiRenderIcons::Shrink (
+    const uint32_t        * src,
+    int                     srcWidth,
+    int                     srcHeight,
+    int                     width,
+    int                     height,
+    std::vector<uint32_t> & outPixels,
+    int                   & outWidth,
+    int                   & outHeight)
+{
+    std::vector<float>  across;
+    double              scaleX = 0.0;
+    double              scaleY = 0.0;
+
+
+
+    outWidth  = std::clamp (width,  1, srcWidth);
+    outHeight = std::clamp (height, 1, srcHeight);
+    scaleX    = (double) srcWidth  / outWidth;
+    scaleY    = (double) srcHeight / outHeight;
+
+    across.assign ((size_t) outWidth * srcHeight * 3, 0.0f);
+
+    for (int y = 0; y < srcHeight; y++)
+    {
+        for (int x = 0; x < outWidth; x++)
+        {
+            double   from = x * scaleX;
+            double   to   = from + scaleX;
+            float  * sum  = &across[((size_t) y * outWidth + x) * 3];
+
+            for (int j = (int) from; j < srcWidth && j < to; j++)
+            {
+                uint32_t  pixel  = src[(size_t) y * srcWidth + j];
+                float     weight = (float) ((std::min (to, (double) j + 1) - std::max (from, (double) j)) / scaleX);
+
+                sum[0] += weight * (float) (pixel & 0xFF);
+                sum[1] += weight * (float) ((pixel >> 8) & 0xFF);
+                sum[2] += weight * (float) ((pixel >> 16) & 0xFF);
+            }
+        }
+    }
+
+    outPixels.assign ((size_t) outWidth * outHeight, 0xFF000000u);
+
+    for (int y = 0; y < outHeight; y++)
+    {
+        double  from = y * scaleY;
+        double  to   = from + scaleY;
+
+        for (int x = 0; x < outWidth; x++)
+        {
+            float  sum[3] = {};
+
+            for (int j = (int) from; j < srcHeight && j < to; j++)
+            {
+                const float  * row    = &across[((size_t) j * outWidth + x) * 3];
+                float          weight = (float) ((std::min (to, (double) j + 1) - std::max (from, (double) j)) / scaleY);
+
+                sum[0] += weight * row[0];
+                sum[1] += weight * row[1];
+                sum[2] += weight * row[2];
+            }
+
+            outPixels[(size_t) y * outWidth + x] = 0xFF000000u
+                                                 | (uint32_t) std::lround (std::min (sum[2], 255.0f)) << 16
+                                                 | (uint32_t) std::lround (std::min (sum[1], 255.0f)) << 8
+                                                 | (uint32_t) std::lround (std::min (sum[0], 255.0f));
+        }
+    }
 }
 
 

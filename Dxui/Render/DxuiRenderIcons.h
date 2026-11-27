@@ -32,6 +32,18 @@ public:
 
     void  ReleaseBitmaps () { m_framebufferBitmaps.clear(); m_iconBitmaps.clear(); }
 
+    //  `src` averaged down to `width` by `height`, each pixel the mean of the
+    //  source area it covers. A side larger than the source's is clamped to
+    //  the source's size. `outWidth` and `outHeight` return the result's size.
+    static void  Shrink (const uint32_t        * src,
+                         int                     srcWidth,
+                         int                     srcHeight,
+                         int                     width,
+                         int                     height,
+                         std::vector<uint32_t> & outPixels,
+                         int                   & outWidth,
+                         int                   & outHeight);
+
 private:
     HRESULT  GetIconLayerGeometry (const DxuiVectorIcon & icon, const DxuiVectorIconLayer & layer, ID2D1PathGeometry ** outGeometry);
 
@@ -66,6 +78,9 @@ private:
     static constexpr size_t  s_kMaxFramebufferBitmaps = 16;
 
     std::unordered_map<const uint32_t *, FramebufferBitmap>  m_framebufferBitmaps;
+
+    //  A frame averaged down to its drawn size, before it's uploaded.
+    std::vector<uint32_t>  m_shrunk;
 
     // One cached bitmap per distinct picture. D2D batches the draws of a
     // frame, so pixels uploaded into a bitmap already drawn once would show

@@ -374,7 +374,8 @@ public:
     // framebuffer, a picture preview) scaled into the destination rect.
     // Implementations keep the frame in its own cached GPU bitmap, separate
     // from the icon cache, and re-upload the pixels on every call. A sharp
-    // frame is scaled with nearest-neighbor, so each pixel stays a square.
+    // frame is enlarged with nearest-neighbor, so each pixel stays a square.
+    // Any frame drawn smaller than its pixels is averaged.
     virtual HRESULT  DrawFramebuffer (const uint32_t * srcBgraPixels,
                                       int              srcWidthPx,
                                       int              srcHeightPx,
