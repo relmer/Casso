@@ -2604,14 +2604,20 @@ bool CassoExplorerActions::IsTargetPascal() const
 //
 //  CassoExplorerActions::IsImagePascal
 //
+//  From the catalog the list or the preview read, or from the file system
+//  the facts worker read for the list. The image is read here only when
+//  canRead is set: the command bar's state is computed on every paint, so
+//  Krunch is left off until the facts worker has read the image.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CassoExplorerActions::IsImagePascal (const std::wstring & image) const
+bool CassoExplorerActions::IsImagePascal (const std::wstring & image, bool canRead) const
 {
     VolumeListing    listing;
+    VolumeFacts      volume;
     VolumeKind       kind  = VolumeKind::Unknown;
     ImageFacts     * facts = nullptr;
-    bool             read  = false;
+    bool             known = false;
 
 
 
@@ -2622,13 +2628,25 @@ bool CassoExplorerActions::IsImagePascal (const std::wstring & image) const
 
     facts = &GetImageFacts (image);
 
-    //  The catalog the list or the preview read, when there is one.
     if (!facts->checkedKind)
     {
-        read               = m_browser.GetBrowserModel().TryGetCachedCatalog (image, listing, kind)
-                          || m_browser.GetOperations().List (TextEncoding::WideToNarrow (image), listing, kind).Succeeded();
-        facts->isPascal    = read && kind == VolumeKind::Pascal;
-        facts->checkedKind = true;
+        if (m_browser.GetBrowserModel().TryGetCachedCatalog (image, listing, kind))
+        {
+            known = true;
+        }
+        else if (m_browser.TryGetVolumeFacts (image, facts->stamp, volume))
+        {
+            kind  = volume.fileSystem == TextEncoding::NarrowToWide (VolumeImage::GetSystemName (VolumeKind::Pascal)) ? VolumeKind::Pascal : VolumeKind::Unknown;
+            known = true;
+        }
+        else if (canRead)
+        {
+            kind  = m_browser.GetOperations().List (TextEncoding::WideToNarrow (image), listing, kind).Succeeded() ? kind : VolumeKind::Unknown;
+            known = true;
+        }
+
+        facts->isPascal    = known && kind == VolumeKind::Pascal;
+        facts->checkedKind = known;
     }
 
     return facts->isPascal;

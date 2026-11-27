@@ -238,6 +238,10 @@ public:
     void                    SetStockDisks        (std::vector<StockDiskRow> disks)  { m_sources.stockDisks = std::move (disks); }
     void                    SetDemoDisks         (std::vector<StockDiskRow> disks)  { m_sources.demoDisks  = std::move (disks); }
     IDiskFileIo           & GetFileIo            ()                              { return m_fileIo; }
+
+    //  An image's file system and volume name, when the facts worker has read
+    //  them at that size and time.
+    bool                    TryGetVolumeFacts    (const std::wstring & path, const FileStamp & stamp, VolumeFacts & outFacts);
     size_t                  GetScopedOutCount    () const                        { return m_scopedOut; }
 
     //  A picker's name filter: the rows are those whose file name contains

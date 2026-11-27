@@ -1140,7 +1140,7 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
             m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.compressedfile.extract");
         }
 
-        if (!partition && m_context.actions.IsImagePascal (image))
+        if (!partition && m_context.actions.IsImagePascal (image, true))
         {
             m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::Krunch), [this, location]()
             {
