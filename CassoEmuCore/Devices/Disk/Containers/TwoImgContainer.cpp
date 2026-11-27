@@ -75,6 +75,13 @@ HRESULT TwoImgContainer::Parse (
 
     dataOffset    = ReadLittle32 (bytes, kOffData);
     dataLength    = ReadLittle32 (bytes, kOffDataLength);
+
+    //  Sweet16 writes 0 for a ProDOS-order image's length.
+    if (dataLength == 0 && outHeader.format == TwoImgHeader::kFormatProDosOrder)
+    {
+        dataLength = outHeader.blockCount * kBlockBytes;
+    }
+
     commentOffset = ReadLittle32 (bytes, kOffComment);
     commentLength = ReadLittle32 (bytes, kOffCommentLen);
     creatorOffset = ReadLittle32 (bytes, kOffCreator2);

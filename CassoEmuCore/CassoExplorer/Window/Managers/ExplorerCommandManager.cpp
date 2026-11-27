@@ -19,6 +19,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerPickerSearch.h"
 #include "Config/FileAssociations.h"
 #include "Config/ShellExtensionRegistration.h"
+#include "Seams/IFolderThumbnails.h"
 #include "Seams/Win32UserClasses.h"
 #include "Update/Win32InstallEnvironment.h"
 #include "Core/TextEncoding.h"
@@ -159,6 +160,8 @@ bool ExplorerCommandManager::IsEnabled (int id) const
         case CassoExplorerCommands::kCrossReference:    return m_context.preview.GetBarMode() == CassoExplorerCommands::kPreviewBarListing;
         case CassoExplorerCommands::kPictureMonochrome:
         case CassoExplorerCommands::kPictureColor:      return m_context.browser.GetPreviewer().GetMonitorChoice().CanTogglePictureColor();
+        case CassoExplorerCommands::kGetFonts:          return !m_context.browser.GetPreviewer().GetPreview().fontNotes.empty() && !AssetBootstrap::AreIIgsFontsCached();
+        case CassoExplorerCommands::kPictureCrt:
         case CassoExplorerCommands::kSavePicture:       return m_context.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Picture && !m_context.browser.GetPreviewer().GetPreview().bgra.empty();
         case CassoExplorerCommands::kExpandPreview:     return m_context.preview.IsShown();
         case CassoExplorerCommands::kViewAs:            return !m_context.browser.GetPreviewer().GetPreview().viewChoices.empty();
@@ -280,6 +283,7 @@ bool ExplorerCommandManager::IsChecked (int id) const
         case CassoExplorerCommands::kGroupAscending:    return model.HasTabs() && !model.GetActiveTab().groupDescending;
         case CassoExplorerCommands::kGroupDescending:   return model.HasTabs() && model.GetActiveTab().groupDescending;
         case CassoExplorerCommands::kLineAddresses:     return m_context.prefs.lineAddresses;
+        case CassoExplorerCommands::kPictureCrt:        return m_context.prefs.previewCrt;
         case CassoExplorerCommands::kCrossReference:    return m_context.preview.GetText().IsCrossReference();
         case CassoExplorerCommands::kPictureMonochrome: return m_context.browser.GetPreviewer().GetMonitorChoice().CanTogglePictureColor() && m_context.browser.GetPreviewer().GetPreview().pictureMode == PicturePreview::Mode::DoubleHiResMono;
         case CassoExplorerCommands::kPictureColor:      return m_context.browser.GetPreviewer().GetMonitorChoice().CanTogglePictureColor() && m_context.browser.GetPreviewer().GetPreview().pictureMode != PicturePreview::Mode::DoubleHiResMono;
@@ -502,6 +506,11 @@ void ExplorerCommandManager::Dispatch (int id)
                 m_context.app.firewall->Invalidate();
             }
 
+            //  The images in view are read again, in case a stored read
+            //  came from an older reader. Other folders' stored reads and
+            //  every thumbnail are not deleted.
+            m_context.browser.ClearListedImageReads();
+
             m_context.browser.GetBrowserModel().InvalidateAllCatalogs();
             m_context.browser.GetLoader().ForgetLinkVisit();
             hr = m_context.browser.Refresh();
@@ -551,6 +560,8 @@ void ExplorerCommandManager::Dispatch (int id)
         case CassoExplorerCommands::kPictureMonochrome:  m_context.preview.GetPicture().ShowForm (false);                               break;
         case CassoExplorerCommands::kPictureColor:       m_context.preview.GetPicture().ShowForm (true);                                break;
         case CassoExplorerCommands::kSavePicture:        m_context.preview.GetPicture().SavePicture();                                  break;
+        case CassoExplorerCommands::kPictureCrt:         m_context.preview.GetPicture().ToggleCrt();                                    break;
+        case CassoExplorerCommands::kGetFonts:           GetFonts();                                                                    break;
         case CassoExplorerCommands::kEditWozMetadata:    m_context.properties.ShowWozProperties (m_context.browser.GetPreviewer().GetPreview().wozPath, WozPropertiesDialog::kMetaTab); break;
 
         case CassoExplorerCommands::kCharsetAppleText:   ChooseCharset (Charset::AppleText);  break;
@@ -720,6 +731,44 @@ void ExplorerCommandManager::ChooseCharset (Charset charset)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerCommandManager::GetFonts
+//
+//  The fonts offered in the download dialog, then the picture made again
+//  with its text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerCommandManager::GetFonts()
+{
+    std::string  error;
+    bool         downloaded = false;
+    HRESULT      hr         = AssetBootstrap::OfferIIgsFonts (m_context.window.GetHwnd(), m_context.theme, downloaded, error);
+
+
+
+    if (FAILED (hr) || !error.empty())
+    {
+        m_context.window.ShowMessage (std::format (L"The Apple fonts could not be downloaded. {}", TextEncoding::NarrowToWide (error)), MB_ICONERROR);
+        return;
+    }
+
+    if (!downloaded)
+    {
+        return;
+    }
+
+    if (m_context.preview.TryLoadFonts())
+    {
+        m_context.preview.FillPreview();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerCommandManager::ShowOptions
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -742,6 +791,7 @@ void ExplorerCommandManager::ShowOptions()
     std::wstring             cassoExe         = LaunchCommand::GetSiblingPath (folder, LaunchCommand::kCassoExe);
     bool                     packaged         = install.HasPackageIdentity();
     bool                     wasRegistered    = packaged || FileAssociations::IsRegistered (classes, cassoExe, module);
+    bool                     sweepChanged     = false;
     HRESULT                  hr               = S_OK;
 
 
@@ -755,6 +805,7 @@ void ExplorerCommandManager::ShowOptions()
     choices.autoPreview  = m_context.prefs.autoPreview;
     choices.enterExpands = m_context.prefs.enterExpandsPreview;
     choices.autoThumbnails = m_context.prefs.autoThumbnails;
+    choices.folderThumbnails = m_context.prefs.folderThumbnails;
     choices.fullSendFolder    = m_context.prefs.fullSendFolder.empty() ? FullSendWindowManager::GetDefaultFullSendFolder() : m_context.prefs.fullSendFolder;
     choices.fullSendExtension = m_context.prefs.fullSendExtension;
     choices.bootSoundPlace    = m_context.prefs.bootSoundPlace;
@@ -823,7 +874,10 @@ void ExplorerCommandManager::ShowOptions()
 
     m_context.prefs.autoPreview         = choices.autoPreview;
     m_context.prefs.enterExpandsPreview = choices.enterExpands;
+    sweepChanged = choices.autoThumbnails != m_context.prefs.autoThumbnails || choices.folderThumbnails != m_context.prefs.folderThumbnails;
+
     m_context.prefs.autoThumbnails      = choices.autoThumbnails;
+    m_context.prefs.folderThumbnails    = choices.folderThumbnails;
     m_context.prefs.rawCopyMenu         = choices.rawCopyMenu;
     m_context.prefs.fullSendFolder    = choices.fullSendFolder == FullSendWindowManager::GetDefaultFullSendFolder() ? std::wstring() : choices.fullSendFolder;
     m_context.prefs.fullSendExtension = choices.fullSendExtension;
@@ -834,6 +888,11 @@ void ExplorerCommandManager::ShowOptions()
     m_context.prefs.fullSendProtection = choices.fullSendProtection;
     m_context.fullSendWindows.ApplyFullSendPrefs();
     m_context.cassoLinkManager.ApplyVerifyPrefs();
+
+    if (sweepChanged && m_context.app.folderThumbnails != nullptr)
+    {
+        m_context.app.folderThumbnails->ApplySetting();
+    }
 
 
     //  The user's file types change only when the box was changed.

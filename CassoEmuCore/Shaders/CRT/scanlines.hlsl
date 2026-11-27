@@ -7,16 +7,16 @@
 //   mask emulation and a curvature warp; both are omitted in this v1 port.
 //   The kernel is also AREA-AVERAGED rather than point sampled -- see below.
 
-cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; float g_gamma; float g_persistence; float g_pixelScaleX; float g_pixelScaleY; float g_pictureV0; float g_pictureV1; float g_bloomThreshold; };
+cbuffer CrtCb : register(b0) { float g_brightness; float g_scanlineIntensity; float g_bloomRadius; float g_bloomStrength; float g_colorBleedWidth; float g_outputW; float g_outputH; float g_contrast; float g_gamma; float g_persistence; float g_pixelScaleX; float g_pixelScaleY; float g_pictureV0; float g_pictureV1; float g_bloomThreshold; float g_pictureX; float g_pictureY; float g_sourceLines; };
 Texture2D    tex : register(t0);
 SamplerState sam : register(s0);
 struct PSInput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };
 
-static const float kNativeScanlines = 192.0;
-static const float kPi              = 3.14159265;
+static const float kPi = 3.14159265;
 
-//  A //e draws 192 scanlines, and this pass lays down 192 cycles across the
-//  PICTURE, which g_pictureV0..V1 locates inside the target. The picture is
+//  A //e draws 192 scanlines, and this pass lays down g_sourceLines cycles,
+//  192 for the screen and a picture's row count for another picture, across
+//  the PICTURE, which g_pictureV0..V1 locates inside the target. The picture is
 //  the whole target only in the desk scene; everywhere else it is a
 //  letterboxed subrect, and spending the 192 cycles across the target instead
 //  put a window-size-dependent number of them on the picture and the rest on
@@ -42,7 +42,7 @@ float4 main (PSInput i) : SV_TARGET
 {
     float4 c       = tex.Sample (sam, i.uv);
     float  span    = max (g_pictureV1 - g_pictureV0, 1e-6);
-    float  linePos = ((i.uv.y - g_pictureV0) / span) * kNativeScanlines;
+    float  linePos = ((i.uv.y - g_pictureV0) / span) * max (g_sourceLines, 1.0);
     float  perPix  = max (abs (ddy (linePos)), 1e-6);
     float  rolloff = max (sin (kPi * perPix) / (kPi * perPix), 0.0);
     float  bright  = 0.5 - 0.5 * cos (2.0 * kPi * linePos) * rolloff;

@@ -114,6 +114,14 @@ CassoExplorerShell::~CassoExplorerShell()
     m_windows.clear();
 
     m_links.GetFullSendOptions().SetImageHandler (nullptr);
+
+    //  The worker's thread ranks images through the sweep.
+    if (m_bootWorker != nullptr)
+    {
+        m_bootWorker->SetRank (nullptr);
+    }
+
+    m_folderThumbnails.reset();
     m_bootWorker.reset();
 
     if (m_oleInitialized)
@@ -154,7 +162,21 @@ void CassoExplorerShell::StartBootWorker()
     m_bootWorker->SetManifestIo (&m_fileIo);
     m_bootWorker->SetOnCount ([this]() { m_pictures.NotifyReady (IDiskPictures::kQueueChanged); });
     m_pictures.SetQueuedCount ([this]() { return m_bootWorker != nullptr ? m_bootWorker->GetPending() : 0; });
+    m_pictures.SetPendingCheck ([this] (const std::wstring & path) { return m_bootWorker != nullptr && m_bootWorker->IsPending (path); });
     m_bootWorker->SetGivenNames (&m_givenNames);
+
+    m_folderThumbnails = std::make_unique<FolderThumbnails> (FolderThumbnails::Seams
+    {
+        FolderThumbnails::ListFiles,
+        [this] (const std::wstring & path) { return m_pictures.HasThumbnail (path); },
+        [this] (const FolderThumbnails::ImageFile & image) { return m_pictures.TryMarkQueued (image.path, image.bytes, image.time); },
+        [this] (const std::wstring & path) { m_bootWorker->QueueFolderImage (path); },
+        [this]() { m_bootWorker->RemoveFolderImages(); m_pictures.ForgetQueued(); },
+        [this]() { return m_prefs.autoThumbnails && m_prefs.folderThumbnails; }
+    }, GetTickCount64());
+
+    m_bootWorker->SetRank ([this] (const std::wstring & folder) { return m_folderThumbnails->GetRank (folder); });
+    m_folderThumbnails->Start();
     m_bootWorker->SetDone ([this] (const ExplorerBootWorker::Result & result)
     {
         std::string  file = TextEncoding::WideToNarrow (std::filesystem::path (result.path).filename().wstring());
@@ -1045,6 +1067,8 @@ CassoExplorerWindow * CassoExplorerShell::OpenWindow (CassoExplorerWindowRequest
     context.pictures    = &m_pictures;
     context.records     = ImageRecordStore::GetDefaultFolder().empty() ? nullptr : &m_records;
     context.givenNames  = &m_givenNames;
+
+    context.folderThumbnails = m_folderThumbnails.get();
 
     slot->window = std::make_unique<CassoExplorerWindow> (*slot->browser, *slot->actions, m_prefs, std::move (context));
 

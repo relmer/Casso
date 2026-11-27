@@ -546,6 +546,7 @@ void ExplorerTabManager::FillTabs()
 
     m_tabs->SetTabs (std::move (tabs));
     m_tabs->SetSelected ((int) model.GetActiveIndex());
+    m_context.folderSync.UpdateThumbnailFolders (false);
 
     if (loading)
     {

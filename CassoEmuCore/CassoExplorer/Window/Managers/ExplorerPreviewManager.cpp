@@ -1,5 +1,7 @@
 #include "Pch.h"
 #include "Core/AppTimerIds.h"
+#include "AssetBootstrap.h"
+#include "FileTypes/QuickDrawFontLibrary.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "CassoExplorer/InspectorWindowSet.h"
@@ -63,6 +65,7 @@ void ExplorerPreviewManager::Create()
     ExplorerTextStyles::Apply (*m_summary, ExplorerTextStyles::kPreviewText);
     m_summary->SetProportional (true);
     m_summary->SetVisible      (false);
+    m_summary->SetOnRowClick   ([this] (int) { m_context.commandManager.Dispatch (CassoExplorerCommands::kGetFonts); });
 
     m_sections = m_context.window.CreateChild<DxuiSegmentedControl>();
     m_sections->SetSegments ({ L"Saved game", L"Disk" });
@@ -325,7 +328,108 @@ void ExplorerPreviewManager::Hide()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerPreviewManager::TryLoadFonts
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerPreviewManager::TryLoadFonts()
+{
+    HRESULT                                hr        = S_OK;
+    PreviewViewState                     & viewState = m_context.browser.GetPreviewer().GetViewState();
+    std::unique_ptr<QuickDrawFontLibrary>  fonts;
+    bool                                   loaded    = false;
+
+
+
+    BAIL_OUT_IF (viewState.HasQuickDrawFonts() || !AssetBootstrap::AreIIgsFontsCached(), S_OK);
+
+    fonts = std::make_unique<QuickDrawFontLibrary>();
+    CPRA (fonts);
+
+    hr = AssetBootstrap::LoadIIgsFonts (*fonts);
+    CHR (hr);
+
+    viewState.SetQuickDrawFonts (std::move (fonts));
+    m_context.browser.GetPreviewer().UpdatePreview();
+    loaded = true;
+
+Error:
+    return loaded;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerPreviewManager::FillPreview
+//
+//  A picture with text in a font that isn't loaded is made again once the
+//  downloaded IIgs fonts are loaded.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPreviewManager::FillPreview()
+{
+    if (!m_context.browser.GetPreviewer().GetPreview().fontNotes.empty())
+    {
+        TryLoadFonts();
+    }
+
+    FillContent();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::BuildNoteRows
+//
+//  A picture whose text is in fonts that aren't downloaded has one link
+//  row that offers them, in place of a warning for each font.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiTextView::Row> ExplorerPreviewManager::BuildNoteRows (const PreviewContent & preview) const
+{
+    std::vector<DxuiTextView::Row>  rows;
+    std::vector<DxuiTextView::Row>  warnings = PreviewText::BuildWarningRows (preview.warning);
+    DxuiTextView::Row               offer;
+
+
+
+    if (!preview.fontNotes.empty() && !AssetBootstrap::AreIIgsFontsCached())
+    {
+        offer.cells   = { L"This image uses Apple fonts that are not downloaded yet. Click here to download." };
+        offer.info    = true;
+        offer.link    = true;
+        offer.heading = true;
+        rows.push_back (offer);
+    }
+    else
+    {
+        for (const std::wstring & note : preview.fontNotes)
+        {
+            std::vector<DxuiTextView::Row>  noteRows = PreviewText::BuildWarningRows (note);
+
+            rows.insert (rows.end(), noteRows.begin(), noteRows.end());
+        }
+    }
+
+    rows.insert (rows.end(), warnings.begin(), warnings.end());
+    return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::FillContent
 //
 //  The preview's kind picks the view: a picture in the picture view, a
 //  catalog as rows under the list's columns, bytes in the hex view, the
@@ -334,7 +438,7 @@ void ExplorerPreviewManager::Hide()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerPreviewManager::FillPreview()
+void ExplorerPreviewManager::FillContent()
 {
     const PreviewContent  & preview  = m_context.browser.GetPreviewer().GetPreview();
     bool                    autoOpen = UpdateAutoPreview();
@@ -357,7 +461,7 @@ void ExplorerPreviewManager::FillPreview()
     bool                    sets     = preview.charset != Charset::Default;
     bool                    sheet    = preview.sheetForm != SheetForm::None;
     bool                    details  = visible && ((woz && preview.kind == PreviewContent::Kind::Catalog) || preview.detailsAbove) && !preview.details.empty();
-    bool                    warned   = visible && hex && !preview.warning.empty();
+    bool                    warned   = visible && (hex || picture) && (!preview.warning.empty() || !preview.fontNotes.empty());
     bool                    hadThem  = m_summary->IsVisible();
     int                     mode     = !visible ? CassoExplorerCommands::kPreviewBarNone
                                      : hex      ? CassoExplorerCommands::kPreviewBarHex
@@ -433,9 +537,10 @@ void ExplorerPreviewManager::FillPreview()
     //  A WOZ image's details above its catalog, which moves the catalog down,
     //  and an AppleSingle file's above the file it holds.
     //  An image with no file system has its details in place of a catalog.
-    //  A file whose format's decoder failed has the reason above its bytes.
+    //  A file whose format's decoder failed has the reason above its bytes,
+    //  and a picture has its decoder's notes above it.
     m_summary->SetRows    (details ? PreviewText::BuildDetailRows (preview.details)
-                         : warned  ? PreviewText::BuildWarningRows (preview.warning)
+                         : warned  ? BuildNoteRows (preview)
                                    : std::vector<DxuiTextView::Row>());
     m_summary->SetVisible (details || warned);
 

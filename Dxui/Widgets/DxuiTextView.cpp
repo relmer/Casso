@@ -395,6 +395,11 @@ bool DxuiTextView::OnMouse (const DxuiMouseEvent & ev)
 
             handled = true;
         }
+        else if (ev.button == DxuiMouseButton::Left && !onBar && GetLinkRowAt (point) >= 0)
+        {
+            m_pressedLink = GetLinkRowAt (point);
+            handled       = true;
+        }
         else if (ev.button == DxuiMouseButton::Left && !onBar && m_pictures.TryStartPan (point))
         {
             handled = true;
@@ -421,7 +426,17 @@ bool DxuiTextView::OnMouse (const DxuiMouseEvent & ev)
         break;
 
     case DxuiMouseEventKind::Up:
-        if (m_pictures.IsPanning())
+        if (m_pressedLink >= 0)
+        {
+            if (GetLinkRowAt (point) == m_pressedLink)
+            {
+                m_onRowClick (m_pressedLink);
+            }
+
+            m_pressedLink = -1;
+            handled       = true;
+        }
+        else if (m_pictures.IsPanning())
         {
             m_pictures.EndPan();
             handled = true;
@@ -438,6 +453,58 @@ bool DxuiTextView::OnMouse (const DxuiMouseEvent & ev)
     }
 
     return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::GetCursorForPoint
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LPCWSTR DxuiTextView::GetCursorForPoint (POINT clientPx) const
+{
+    return (GetLinkRowAt (clientPx) >= 0) ? IDC_HAND : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::GetLinkRowAt
+//
+//  The link row whose lines are under the point, or -1. A row is a link
+//  only while a row click function is set.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiTextView::GetLinkRowAt (POINT point) const
+{
+    POINT                        origin = GetTextOrigin();
+    int                          lineH  = m_layout.GetCellHeightPx();
+    int                          shown  = m_layout.GetLineCount() - m_scroll.GetTopLine();
+    DxuiTextSelection::Position  pos;
+    bool                         inside = false;
+
+
+
+    inside = m_onRowClick && lineH > 0
+          && point.x >= m_boundsDip.left && point.x < m_boundsDip.right
+          && point.y >= origin.y && point.y < origin.y + shown * lineH;
+
+    if (!inside)
+    {
+        return -1;
+    }
+
+    pos = m_selection.HitTest (point);
+
+    return (pos.row >= 0 && pos.row < (int) m_layout.GetRows().size() && m_layout.GetRows()[(size_t) pos.row].link) ? pos.row : -1;
 }
 
 

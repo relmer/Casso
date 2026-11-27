@@ -98,6 +98,31 @@ public:
 
 
 
+    TEST_METHOD (CassoNodeImages_AreImages_UnlessNotDownloaded)
+    {
+        Rig  rig;
+
+
+
+        rig.source.location = Location::MakeRoot (TreeModel::kCassoRootId);
+        rig.AddRow (L"Sixies.dsk", true);
+        rig.AddRow (L"DOS 3.3 System Master", true);
+        rig.rows[0].hostPath    = L"C:\\Demo\\Sixies.dsk";
+        rig.rows[1].hostPath    = L"C:\\Stock\\DOS 3.3 System Master.dsk";
+        rig.rows[1].isStockDisk = true;
+
+        rig.selection.SetSelectedRows ({ 0 });
+        Assert::IsTrue  (rig.selection.AreSelectedRowsImages(), L"A file the Casso node lists is an image, for its thumbnail");
+
+        rig.selection.SetSelectedRows ({ 1 });
+        Assert::IsFalse (rig.selection.AreSelectedRowsImages(), L"A stock disk not downloaded has no file yet");
+
+        rig.rows[1].stockDownloaded = true;
+        Assert::IsTrue  (rig.selection.AreSelectedRowsImages());
+    }
+
+
+
     TEST_METHOD (SetSelectedRows_DropsRowsOutOfRange_AndUpdatesTheView)
     {
         Rig  rig;

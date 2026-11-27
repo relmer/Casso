@@ -1009,10 +1009,11 @@ void PreviewDecoder::FromDecoded (const DecodedFile & decoded, PreviewContent & 
             break;
 
         case DecodedFile::Kind::Picture:
-            outContent.kind   = PreviewContent::Kind::Picture;
-            outContent.bgra   = decoded.bgra;
-            outContent.width  = decoded.width;
-            outContent.height = decoded.height;
+            outContent.kind        = PreviewContent::Kind::Picture;
+            outContent.bgra        = decoded.bgra;
+            outContent.width       = decoded.width;
+            outContent.height      = decoded.height;
+            outContent.pixelAspect = decoded.pixelAspect;
             break;
 
         default:
@@ -1021,6 +1022,8 @@ void PreviewDecoder::FromDecoded (const DecodedFile & decoded, PreviewContent & 
             outContent.assembler = decoded.format == FileFormat::Merlin || decoded.format == FileFormat::ScAssembler || decoded.format == FileFormat::Lisa;
             break;
     }
+
+    outContent.fontNotes = decoded.fontNotes;
 
     for (const std::wstring & note : decoded.notes)
     {

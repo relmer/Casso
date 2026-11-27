@@ -15,6 +15,7 @@
 #include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/StockBootDisks.h"
+#include "FileTypes/QuickDrawFontLibrary.h"
 #include "EmbeddedMachineConfigs.h"
 #include "External/StbVorbisWrapper.h"
 #include "resource.h"
@@ -769,6 +770,38 @@ static HRESULT WriteFileBytes (const fs::path & path, span<const Byte> bytes)
 
     wroteWell = out.good();
     CBRA (wroteWell);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadFileBytes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static HRESULT ReadFileBytes (const fs::path & path, vector<Byte> & outBytes)
+{
+    HRESULT     hr       = S_OK;
+    ifstream    in;
+    bool        readWell = false;
+
+
+
+    in.open (path, ios::binary);
+
+    readWell = in.good();
+    CBREx (readWell, HRESULT_FROM_WIN32 (ERROR_OPEN_FAILED));
+
+    outBytes.assign (istreambuf_iterator<char> (in), istreambuf_iterator<char>());
+
+    readWell = !in.bad();
+    CBREx (readWell, HRESULT_FROM_WIN32 (ERROR_READ_FAULT));
 
 Error:
     return hr;
@@ -2466,6 +2499,297 @@ HRESULT AssetBootstrap::EnsureStockBootDisk (
     string        & outError)
 {
     return DownloadStockBootDisk (GetStockBootDiskSpec (disk), GetDiskDirectory(), outDiskPath, outError);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IIgs fonts disks
+//
+//  System 6.0.3's SystemTools1 disk, with Courier, Geneva, Helvetica, Times
+//  and Venice from 9 to 24 points and Shaston 16, and its Fonts disk, with
+//  the larger sizes. Apple's System 6.0.1 is posted only as Macintosh
+//  self-extracting archives; these disks have the same Apple fonts as plain
+//  ProDOS images. Shaston 8, the system font, is on neither disk; it's in
+//  the IIgs ROM, and ROM 01 is the smaller of the two.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr size_t  s_kFontDiskBytes = 819200;
+
+static constexpr BootDiskSpec s_kIIgsFontDisks[] =
+{
+    {
+        L"IIgs System 6.0.3 SystemTools1.po",
+        L"/ftp.apple.asimov.net/images/gs/os/gsos/Apple_IIGS_System_6.0.3/SystemTools1.po",
+        s_kFontDiskBytes,
+        "IIgs SystemTools1",
+        "Apple IIgs System 6.0.3 SystemTools1, with the IIgs fonts to 24 points.",
+        s_kpszBootDiskMirrorHost
+    },
+    {
+        L"IIgs System 6.0.3 Fonts.po",
+        L"/ftp.apple.asimov.net/images/gs/os/gsos/Apple_IIGS_System_6.0.3/Fonts.po",
+        s_kFontDiskBytes,
+        "IIgs Fonts",
+        "Apple IIgs System 6.0.3 Fonts, with the IIgs fonts from 27 points.",
+        s_kpszBootDiskMirrorHost
+    },
+};
+
+static constexpr BootDiskSpec s_kIIgsRom =
+{
+    L"IIgs ROM 01.rom",
+    L"/ftp.apple.asimov.net/emulators/rom_images/xgs.rom",
+    131072,
+    "IIgs ROM 01",
+    "Apple IIgs ROM 01, with Shaston 8.",
+    s_kpszBootDiskMirrorHost
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetIIgsFontDiskPaths
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<fs::path> AssetBootstrap::GetIIgsFontDiskPaths()
+{
+    std::vector<fs::path>  paths;
+
+
+
+    for (const BootDiskSpec & spec : s_kIIgsFontDisks)
+    {
+        paths.push_back (GetDiskDirectory() / spec.cassoName);
+    }
+
+    paths.push_back (GetDiskDirectory() / s_kIIgsRom.cassoName);
+    return paths;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AreIIgsFontsCached
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AssetBootstrap::AreIIgsFontsCached()
+{
+    error_code  ec;
+
+
+
+    for (const fs::path & path : GetIIgsFontDiskPaths())
+    {
+        if (!fs::exists (path, ec))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MakeFontDownloadFn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static StartupAssetEntry::DownloadFn MakeFontDownloadFn (const BootDiskSpec & spec, fs::path destPath)
+{
+    return [&spec, destPath] (
+        std::atomic<std::uint64_t> & bytesDone,
+        std::atomic<bool>          & cancel,
+        std::string                & err) -> HRESULT
+    {
+        HRESULT       hr      = S_OK;
+        HINTERNET     hSes    = nullptr;
+        vector<Byte>  payload;
+
+
+
+        hSes = WinHttpOpen (s_kpszUserAgent,
+                            WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+                            WINHTTP_NO_PROXY_NAME,
+                            WINHTTP_NO_PROXY_BYPASS,
+                            0);
+        CBRF (hSes != nullptr, err = "Cannot initialize WinHTTP session");
+
+        hr = DownloadHttp (hSes, spec.host, spec.asimovUrlPath, spec.expectedSize, spec.shortLabel, payload, err, &bytesDone, &cancel);
+        CHR (hr);
+
+        hr = WriteFileBytes (destPath, payload);
+        CHRF (hr, err = format ("Cannot write {}", destPath.string()));
+
+    Error:
+        if (hSes != nullptr)
+        {
+            WinHttpCloseHandle (hSes);
+        }
+
+        return hr;
+    };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OfferIIgsFonts
+//
+//  A file already downloaded isn't listed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssetBootstrap::OfferIIgsFonts (
+    HWND                 owner,
+    const IDxuiTheme   * theme,
+    bool               & outDownloaded,
+    string             & outError)
+{
+    HRESULT                 hr      = S_OK;
+    auto                    failure = std::make_shared<string>();
+    StartupDownloadSet      set;
+    StartupDownloadPrompt   prompt;
+    StartupDownloadResult   result  = StartupDownloadResult::Exit;
+    error_code              ec;
+    const BootDiskSpec    * specs[] = { &s_kIIgsFontDisks[0], &s_kIIgsFontDisks[1], &s_kIIgsRom };
+
+
+
+    outDownloaded = false;
+    outError.clear();
+
+    fs::create_directories (GetDiskDirectory(), ec);
+
+    for (const BootDiskSpec * spec : specs)
+    {
+        StartupAssetEntry              entry;
+        StartupAssetEntry::DownloadFn  fetch;
+
+
+
+        entry.destPaths.push_back (GetDiskDirectory() / spec->cassoName);
+
+        if (fs::exists (entry.destPaths.front(), ec))
+        {
+            continue;
+        }
+
+        entry.kind          = StartupAssetKind::BootDisk;
+        entry.groupLabel    = L"Apple IIgs fonts";
+        entry.displayName   = AsciiToWide (spec->shortLabel);
+        entry.kindLabel     = (spec == &s_kIIgsRom) ? L"ROM" : L"Disk";
+        entry.source        = L"Asimov archive";
+        entry.selectable    = false;
+        entry.selected      = true;
+        entry.expectedBytes = (std::uint64_t) spec->expectedSize;
+
+        // The dialog reports a failed row only as "Failed", so the reason is
+        // copied out for the caller.
+        fetch            = MakeFontDownloadFn (*spec, entry.destPaths.front());
+        entry.downloadFn = [fetch, failure] (
+            std::atomic<std::uint64_t> & bytesDone,
+            std::atomic<bool>          & cancel,
+            std::string                & err) -> HRESULT
+        {
+            HRESULT  hrFetch = fetch (bytesDone, cancel, err);
+
+
+
+            if (FAILED (hrFetch))
+            {
+                *failure = err;
+            }
+
+            return hrFetch;
+        };
+
+        set.entries.push_back (std::move (entry));
+    }
+
+    BAIL_OUT_IF (set.IsEmpty(), S_OK);
+
+    prompt.title = L"Download Apple fonts";
+    prompt.intro = L"Casso uses Apple IIgs's fonts to render text in these pictures. Download these files from the Asimov archive?";
+    prompt.theme = theme;
+
+    result = StartupDownloadDialog::Show (GetModuleHandleW (nullptr), owner, "", L"", set, &prompt);
+
+    if (result == StartupDownloadResult::PartialDone)
+    {
+        outError = failure->empty() ? string ("The download failed.") : *failure;
+    }
+
+Error:
+    outDownloaded = AreIIgsFontsCached();
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadIIgsFonts
+//
+//  Adds the fonts on each fonts disk that has been downloaded, and the ROM's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssetBootstrap::LoadIIgsFonts (QuickDrawFontLibrary & ioFonts)
+{
+    HRESULT     hr = S_OK;
+    error_code  ec;
+
+
+
+    for (const fs::path & path : GetIIgsFontDiskPaths())
+    {
+        vector<Byte>  blocks;
+
+
+
+        if (!fs::exists (path, ec))
+        {
+            continue;
+        }
+
+        hr = ReadFileBytes (path, blocks);
+        CHR (hr);
+
+        if (path.filename() == s_kIIgsRom.cassoName)
+        {
+            ioFonts.AddRom (blocks);
+            continue;
+        }
+
+        hr = ioFonts.AddVolume (blocks);
+        CHR (hr);
+    }
+
+Error:
+    return hr;
 }
 
 

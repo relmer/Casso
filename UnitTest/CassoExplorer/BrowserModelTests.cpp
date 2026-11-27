@@ -365,6 +365,92 @@ public:
 
 
 
+    TEST_METHOD (Back_ReturnsTheSelectionAndTopRowALocationWasLeftWith)
+    {
+        BrowserModel  model;
+        int           topRow = 0;
+
+
+
+        model.SetTopRowSource ([&topRow]() { return topRow; });
+        model.OpenTab (Folder (L"C:\\A"));
+        model.SetSelection ({ L"Games" });
+        topRow = 40;
+
+        model.NavigateTo (Folder (L"C:\\A\\Games"));
+
+        Assert::IsTrue   (model.GetActiveTab().selection.empty(), L"the new location has nothing selected");
+        Assert::AreEqual (0, model.GetActiveTab().listTopRow, L"the new location opens at its top");
+
+        model.SetSelection ({ L"Archon.woz" });
+        topRow = 3;
+
+        Assert::IsTrue   (model.GoBack());
+        Assert::AreEqual ((size_t) 1, model.GetActiveTab().selection.size());
+        Assert::AreEqual (std::wstring (L"Games"), model.GetActiveTab().selection[0]);
+        Assert::AreEqual (40, model.GetActiveTab().listTopRow);
+
+        topRow = 40;
+
+        Assert::IsTrue   (model.GoForward());
+        Assert::AreEqual (std::wstring (L"Archon.woz"), model.GetActiveTab().selection[0]);
+        Assert::AreEqual (3, model.GetActiveTab().listTopRow);
+    }
+
+
+
+    TEST_METHOD (SeveralStepsBack_ReadTheTopRowOnlyForTheFirst)
+    {
+        BrowserModel  model;
+        int           topRow = 0;
+
+
+
+        model.SetTopRowSource ([&topRow]() { return topRow; });
+        model.OpenTab (Folder (L"C:\\A"));
+        topRow = 10;
+        model.NavigateTo (Folder (L"C:\\A\\B"));
+        topRow = 20;
+        model.NavigateTo (Folder (L"C:\\A\\B\\C"));
+        topRow = 30;
+
+        Assert::IsTrue   (model.GoBack (true));
+        Assert::IsTrue   (model.GoBack (false));
+        Assert::AreEqual (10, model.GetActiveTab().listTopRow);
+
+        topRow = 99;
+
+        Assert::IsTrue   (model.GoForward (false));
+        Assert::AreEqual (20, model.GetActiveTab().listTopRow, L"B has its saved row, not the list's");
+        Assert::IsTrue   (model.GoForward (false));
+        Assert::AreEqual (30, model.GetActiveTab().listTopRow);
+    }
+
+
+
+    TEST_METHOD (ARestoredHistory_OpensItsEntriesAtTheTop)
+    {
+        BrowserModel        model;
+        BrowserModel::Tab   tab;
+
+
+
+        tab.location   = Folder (L"C:\\A\\B");
+        tab.back       = { Folder (L"C:\\A") };
+        tab.listTopRow = 12;
+        model.InsertTab (0, tab);
+        model.SetSelection ({ L"x" });
+
+        Assert::IsTrue   (model.GoBack());
+        Assert::IsTrue   (model.GetActiveTab().selection.empty());
+        Assert::AreEqual (0, model.GetActiveTab().listTopRow);
+        Assert::IsTrue   (model.GoForward());
+        Assert::AreEqual (std::wstring (L"x"), model.GetActiveTab().selection[0]);
+        Assert::AreEqual (12, model.GetActiveTab().listTopRow);
+    }
+
+
+
     TEST_METHOD (CatalogCache_AnswersUntilAWriteInvalidatesIt)
     {
         BrowserModel   model;

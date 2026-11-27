@@ -193,6 +193,9 @@ extern "C" int WINAPI wCassoExplorerMain (
         }
     }
 
+    hrOptional = AssetBootstrap::EnsureMachineConfigs (hInstance);
+    IGNORE_RETURN_VALUE (hrOptional, S_OK);
+
     hrOptional = AssetBootstrap::EnsureThemes (hInstance);
     IGNORE_RETURN_VALUE (hrOptional, S_OK);
 

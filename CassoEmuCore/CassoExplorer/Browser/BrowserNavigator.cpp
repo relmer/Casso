@@ -509,6 +509,30 @@ std::wstring BrowserNavigator::ExpandVariables (const std::wstring & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BrowserNavigator::ReloadWithSelection
+//
+//  The location Back or Forward returned to is listed with the rows that
+//  were selected when it was left. Listing it clears the selection, so the
+//  keys are copied first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BrowserNavigator::ReloadWithSelection()
+{
+    std::vector<std::wstring>  keys = m_model.GetActiveTab().selection;
+
+
+
+    m_listing.ReloadAfterNavigation();
+    m_listing.SelectRowsByKeys (keys);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BrowserNavigator::GoBackBy
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -519,14 +543,14 @@ bool BrowserNavigator::GoBackBy (size_t steps)
 
 
 
-    while (moved < steps && m_model.HasTabs() && m_model.GoBack())
+    while (moved < steps && m_model.HasTabs() && m_model.GoBack (moved == 0))
     {
         moved++;
     }
 
     if (moved > 0)
     {
-        m_listing.ReloadAfterNavigation();
+        ReloadWithSelection();
     }
 
     return moved > 0;
@@ -548,14 +572,14 @@ bool BrowserNavigator::GoForwardBy (size_t steps)
 
 
 
-    while (moved < steps && m_model.HasTabs() && m_model.GoForward())
+    while (moved < steps && m_model.HasTabs() && m_model.GoForward (moved == 0))
     {
         moved++;
     }
 
     if (moved > 0)
     {
-        m_listing.ReloadAfterNavigation();
+        ReloadWithSelection();
     }
 
     return moved > 0;
@@ -734,7 +758,7 @@ bool BrowserNavigator::GoBack()
         return false;
     }
 
-    m_listing.ReloadAfterNavigation();
+    ReloadWithSelection();
 
     return true;
 }
@@ -756,7 +780,7 @@ bool BrowserNavigator::GoForward()
         return false;
     }
 
-    m_listing.ReloadAfterNavigation();
+    ReloadWithSelection();
 
     return true;
 }

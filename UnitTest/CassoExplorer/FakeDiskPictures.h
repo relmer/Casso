@@ -25,6 +25,7 @@ public:
     static constexpr int       kHeight = 384;
 
     std::wstring  resultLine = L"Boots on the Apple //e.";
+    bool          hasPicture = true;
 
 
 
@@ -53,6 +54,11 @@ public:
 
 
         (void) path;
+
+        if (!hasPicture)
+        {
+            return false;
+        }
 
         image->width  = kWidth;
         image->height = kHeight;
@@ -87,8 +93,10 @@ public:
     int                       CountUserSet    () override                                  { return 0; }
     HRESULT                   Clear           (bool) override                              { return S_OK; }
     size_t                    GetQueued       () override                                  { return queued; }
+    bool                      IsBooting       (const std::wstring &) override              { return isBooting; }
 
-    size_t  queued = 0;
+    size_t  queued    = 0;
+    bool    isBooting = false;
 
 private:
     std::mutex                                 m_lock;

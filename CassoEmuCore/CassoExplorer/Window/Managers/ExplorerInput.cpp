@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
+#include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Window/Managers/ExplorerPickerMode.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerSearch.h"
@@ -512,6 +513,11 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
 
     m_context.window.ArmTick();
 
+    if (press)
+    {
+        NoteInput();
+    }
+
     m_context.treePane.UpdateLabelTip (ev);
     m_context.preview.GetListing().UpdateValueTipAt (ev);
     m_context.preview.GetText().UpdatePictureTipAt (ev);
@@ -549,7 +555,25 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
     if (ev.kind == DxuiMouseEventKind::Wheel && ev.ctrl && !ev.wheelHorizontal
         && m_context.preview.IsOverPane (point) && !m_context.preview.IsOverMap (point))
     {
-        m_context.commandManager.Dispatch ((ev.wheelDelta > 0.0f) ? CassoExplorerCommands::kZoomIn : CassoExplorerCommands::kZoomOut);
+        m_zoomWheelNotches += ev.wheelDelta;
+
+        //  Notches already waiting are taken with this one, so a hard spin
+        //  zooms once to where it ends rather than once for each notch.
+        for (MSG waiting; PeekMessageW (&waiting, m_context.window.GetHwnd(), WM_MOUSEWHEEL, WM_MOUSEWHEEL, PM_NOREMOVE)
+                          && (GET_KEYSTATE_WPARAM (waiting.wParam) & MK_CONTROL) != 0; )
+        {
+            PeekMessageW (&waiting, m_context.window.GetHwnd(), WM_MOUSEWHEEL, WM_MOUSEWHEEL, PM_REMOVE);
+            m_zoomWheelNotches += (float) GET_WHEEL_DELTA_WPARAM (waiting.wParam) / WHEEL_DELTA;
+        }
+
+        if (std::abs (m_zoomWheelNotches) >= 1.0f)
+        {
+            int  notches = (int) m_zoomWheelNotches;
+
+            m_zoomWheelNotches -= (float) notches;
+            m_context.preview.SetPreviewZoom (m_context.preview.GetShownZoom() + notches * ExplorerCommandManager::kPreviewZoomStep);
+        }
+
         return true;
     }
 
@@ -703,6 +727,11 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
 
 
     m_context.window.ArmTick();
+
+    if (ev.kind == DxuiKeyEventKind::Down)
+    {
+        NoteInput();
+    }
 
     //  Alt+Enter opens a Properties dialog from inside this key-down, and the
     //  dialog's message loop would take the WM_SYSCHAR TranslateMessage has
@@ -912,6 +941,26 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
     m_context.window.Invalidate();
 
     return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerInput::NoteInput
+//
+//  After a click or key press with the Casso node in the active tab, the
+//  known folders' thumbnails start at once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerInput::NoteInput()
+{
+    m_hasInput = true;
+
+    m_context.folderSync.UpdateThumbnailFolders (false);
 }
 
 

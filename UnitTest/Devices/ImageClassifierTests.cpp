@@ -112,6 +112,19 @@ public:
 
 
 
+    TEST_METHOD (TwoImgWithNoLength_ProDosOrder_IsItsBlocks)
+    {
+        std::vector<Byte>  head = B::MakeTwoImgHead (BlockImageFile::kTwoImgProDos, (uint32_t) B::k800K);
+
+
+
+        std::fill_n (head.begin() + BlockImageFile::kTwoImgDataLength, 4, (Byte) 0);
+
+        AssertClass (ImageClassifier::ClassifyHeader (L".2mg", BlockImageFile::kTwoImgHeader + B::k800K, head), ImageFormFactor::Floppy35, ImageLayout::TwoImg, B::k800K, L"Sweet16's 800K");
+    }
+
+
+
     TEST_METHOD (InconsistentTwoImgIsUnclassified)
     {
         uint64_t  headerBytes = BlockImageFile::kTwoImgHeader;

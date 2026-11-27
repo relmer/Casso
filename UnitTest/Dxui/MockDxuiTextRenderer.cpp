@@ -375,13 +375,15 @@ HRESULT MockDxuiTextRenderer::DrawFramebuffer (
     float            destXDip,
     float            destYDip,
     float            destWidthDip,
-    float            destHeightDip)
+    float            destHeightDip,
+    bool             sharp)
 {
     RecordedTextCall  call;
 
 
 
     UNREFERENCED_PARAMETER (srcBgraPixels);
+    UNREFERENCED_PARAMETER (sharp);
 
     call.kind          = RecordedTextKind::DrawFramebuffer;
     call.x             = destXDip;
