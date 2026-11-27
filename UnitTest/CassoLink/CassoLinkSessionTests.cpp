@@ -404,6 +404,30 @@ public:
     }
 
 
+    //  A session stopped on purpose puts its leaving in the Apple's history.
+    TEST_METHOD (Stop_AddsTheDisconnectToTheApplesHistory)
+    {
+        Rig   rig;
+        bool  logged = false;
+
+
+
+        rig.Start();
+        Assert::IsTrue (rig.sink.WaitForState (LinkState::Ready));
+
+        rig.session->Stop();
+
+        {
+            std::lock_guard<std::mutex>  guard (rig.apple.lock);
+
+            //  The line is in capitals for an Apple that may have no lowercase.
+            logged = std::any_of (rig.apple.logs.begin(), rig.apple.logs.end(), [] (const std::string & text) { return _stricmp (text.c_str(), "Disconnected by the PC") == 0; });
+        }
+
+        Assert::IsTrue (logged);
+    }
+
+
 
 
     TEST_METHOD (Enumerate_ListsBothDrives)

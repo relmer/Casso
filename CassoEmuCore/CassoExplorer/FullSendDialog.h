@@ -193,6 +193,7 @@ private:
 
     static void      MakeMapItems (const Map & map, MapItems & outItems);
     static uint32_t  GetCellColor (const FullSendDriveStatus & drive, int track, const IDxuiTheme & theme);
+    static void      PaintNoData  (IDxuiPainter & painter, const IDxuiTheme & theme, float left, float top, float width, float height);
 
     //  A disk's row as it was last painted.
     struct Row

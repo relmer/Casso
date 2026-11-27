@@ -225,6 +225,7 @@ void CassoLinkJobPanel::Init (DxuiTooltip * tooltip)
 
     Adopt (m_tabs);
     Adopt (m_drive);
+    Adopt (m_autoOpen);
 }
 
 
@@ -369,6 +370,8 @@ void CassoLinkJobPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
 
     LayTabs();
     LayDrive();
+
+    m_autoOpen.Layout (RECT { boundsPx.left, boundsPx.bottom - (LONG) scaler.ToPxf (kFooterDip), boundsPx.right, boundsPx.bottom }, scaler);
 }
 
 
@@ -465,7 +468,7 @@ void CassoLinkJobPanel::LayDrive()
 {
     RECT  bounds = GetBounds();
     LONG  pad    = (LONG) m_scaler.ToPxf (kPadDip);
-    RECT  drive  = { bounds.left + pad, bounds.top + (LONG) GetHeader (GetSelected()), bounds.right - pad, bounds.bottom };
+    RECT  drive  = { bounds.left + pad, bounds.top + (LONG) GetHeader (GetSelected()), bounds.right - pad, bounds.bottom - (LONG) m_scaler.ToPxf (kFooterDip) };
 
 
 
@@ -519,14 +522,15 @@ void CassoLinkJobPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     const CassoLinkJobView   * view   = GetSelected();
     float                      edge   = std::max (1.0f, std::floor (m_scaler.ToPxf (1.0f)));
     float                      pageT  = (float) bounds.top + m_scaler.ToPxf (kTabsDip);
+    float                      pageB  = (float) bounds.bottom - m_scaler.ToPxf (kFooterDip);
     uint32_t                   page   = DxuiColor::Mix (theme.Background(), theme.Foreground(), kPageShade);
 
 
 
     //  The selected tab and the page under it are one lighter color with a
     //  border, so the tab reads as the page's top, as in a tab control.
-    painter.FillRect ((float) bounds.left, pageT, (float) (bounds.right - bounds.left), (float) bounds.bottom - pageT, page);
-    painter.OutlineRect ((float) bounds.left, pageT, (float) (bounds.right - bounds.left), (float) bounds.bottom - pageT, edge, theme.Divider());
+    painter.FillRect ((float) bounds.left, pageT, (float) (bounds.right - bounds.left), pageB - pageT, page);
+    painter.OutlineRect ((float) bounds.left, pageT, (float) (bounds.right - bounds.left), pageB - pageT, edge, theme.Divider());
 
     m_tabs.SetSelectedFill (page);
     m_tabs.SetStripFill (theme.Background());
@@ -731,6 +735,15 @@ void CassoLinkJobDialog::OnCreate()
         if (m_actions.showInFolder)
         {
             m_actions.showInFolder (imagePath);
+        }
+    });
+
+    m_panel->GetAutoOpen().SetChecked (m_actions.autoOpen);
+    m_panel->GetAutoOpen().SetOnChange ([this] (bool checked)
+    {
+        if (m_actions.setAutoOpen)
+        {
+            m_actions.setAutoOpen (checked);
         }
     });
 

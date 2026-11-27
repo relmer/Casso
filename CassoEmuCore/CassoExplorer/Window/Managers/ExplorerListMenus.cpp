@@ -174,9 +174,10 @@ void ExplorerListMenus::ShowHomeItemMenu (int x, int y, int row)
 
 
 
-    //  A picker changes no file and opens no menu of file commands.
+    //  A picker has its own menu, with the commands of a file dialog.
     if (m_context.IsPicker())
     {
+        m_pickerMenus.ShowListMenu (x, y, -1);
         return;
     }
 
@@ -411,9 +412,10 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
 
 
-    //  A picker changes no file and opens no menu of file commands.
+    //  A picker has its own menu, with the commands of a file dialog.
     if (m_context.IsPicker())
     {
+        m_pickerMenus.ShowListMenu (x, y, group);
         return;
     }
 
@@ -650,7 +652,10 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
         if (verb == CassoExplorerActions::Verb::Open)
         {
-            command->menuImage   = m_context.menus.GetOpenMenuImage (browsable, m_context.cassoTarget.GetSelectedImagePath());
+            //  A disk image with no file system opens here too, to show why it can't be listed.
+            bool  opensHere = browsable || (m_context.browser.GetSelectedRows().size() == 1 && m_context.browser.OpensInExplorer (m_context.browser.GetSelectedRows()[0]));
+
+            command->menuImage   = m_context.menus.GetOpenMenuImage (opensHere, m_context.cassoTarget.GetSelectedImagePath());
             command->accelerator = L"Enter";
         }
 
@@ -1235,7 +1240,7 @@ void ExplorerListMenus::AddOpenWithMenu (std::vector<DxuiPopupMenuItem> & items)
 
 bool ExplorerListMenus::IsListVerbOffered (CassoExplorerActions::Verb verb) const
 {
-    std::vector<CassoExplorerActions::Verb>  verbs = m_context.actions.GetListVerbs();
+    std::vector<CassoExplorerActions::Verb>  verbs = m_context.IsPicker() ? ExplorerPickerMenus::GetPickerVerbs (m_context.actions.GetListVerbs()) : m_context.actions.GetListVerbs();
 
 
 

@@ -81,6 +81,7 @@ HRESULT CassoLinkSession::Start (const CassoLinkSettings & settings)
     m_virtualDrives.SetImage (1, TextEncoding::WideToNarrow (settings.virtualDrives.drive1));
     m_virtualDrives.SetImage (2, TextEncoding::WideToNarrow (settings.virtualDrives.drive2));
     m_stopping           = false;
+    m_runEnded           = false;
     m_connector.m_thread = std::jthread ([this] (std::stop_token stop) { Run (stop); });
 
 Error:
@@ -101,9 +102,20 @@ void CassoLinkSession::Stop()
 {
     if (m_connector.m_thread.joinable())
     {
+        ULONGLONG  deadline = GetTickCount64() + s_kFarewellMs;
+
+
+
         m_stopping = true;
         m_connector.m_thread.request_stop();
         m_connector.m_wake.notify_all();
+
+        //  An idle session ends within a poll and sends its farewell first;
+        //  one busy with an operation has its line closed to end it.
+        while (!m_runEnded && GetTickCount64() < deadline)
+        {
+            Sleep (s_kFarewellPollMs);
+        }
 
         {
             std::lock_guard<std::mutex>  lock (m_connector.m_lock);
@@ -985,6 +997,24 @@ void CassoLinkSession::Run (std::stop_token stop)
 
         m_connector.m_queue.clear();
     }
+
+    //  The Apple's history has the PC leaving on purpose; an Apple that stops
+    //  hearing from the PC adds its own line.
+    if (!server && m_host && m_connector.m_state == LinkState::Ready && m_connector.IsLineOpen())
+    {
+        logged = m_connector.LogOnApple (s_kFarewell);
+
+        //  The Apple's next Ready follows the line, so the line isn't lost
+        //  when the port closes with it still in the port's buffer.
+        if (SUCCEEDED (logged))
+        {
+            logged = m_host->ServeOne (kIdlePollMs);
+        }
+
+        IGNORE_RETURN_VALUE (logged, S_OK);
+    }
+
+    m_runEnded = true;
 
     Disconnect();
     SetState (LinkState::Closed);

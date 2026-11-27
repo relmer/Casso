@@ -1090,6 +1090,45 @@ public:
 
 
 
+    //  A link is busy, and the PC kept awake, from a job's queuing until the
+    //  job ends and its transfer ages out.
+    TEST_METHOD (AJob_KeepsTheLinksBusy_UntilItEnds)
+    {
+        Rig                             rig;
+        std::shared_ptr<LinkOperation>  read;
+        auto                            until = std::chrono::steady_clock::now() + std::chrono::seconds (30);
+
+
+
+        AssertSucceeded (rig.links->Start ("Test"));
+
+        while (!rig.links->BuildTreeEntries()[0].replying && std::chrono::steady_clock::now() < until)
+        {
+            std::this_thread::yield();
+        }
+
+        Assert::IsFalse (rig.links->IsAnyBusy(), L"idle once connected");
+
+        AssertSucceeded (rig.links->Submit ("Test", [&read] (CassoLinkSession & session)
+        {
+            read = session.ReadDisk (1, "C:\\Images\\Drive 1.dsk", false);
+            return read;
+        }, nullptr));
+
+        Assert::IsTrue (rig.links->IsAnyBusy(), L"busy once queued");
+
+        while (rig.links->IsAnyBusy() && std::chrono::steady_clock::now() < until)
+        {
+            std::this_thread::yield();
+        }
+
+        Assert::IsTrue  (read->state == LinkOperationState::Done);
+        Assert::IsFalse (rig.links->IsAnyBusy(), L"idle once the read ends");
+    }
+
+
+
+
     TEST_METHOD (AFailure_FromALostLine_GivesTheReason)
     {
         LinkOperation  operation;

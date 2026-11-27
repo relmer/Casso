@@ -22,8 +22,8 @@ struct RawWriteTrack;
 //
 //  A WOZ track's bits are split into bytes of eight bits each, and the zero
 //  bits after each are its zeros, up to kMaxZeros. The split starts at the
-//  track's longest run of sync bytes, so the end of its bits, padded to a
-//  whole byte, falls in that run rather than in a sector. A NIB or NB2 track's
+//  track's seam (FindSeam), so the end of its bits, padded to a whole byte,
+//  falls in sync bytes or junk rather than in a sector. A NIB or NB2 track's
 //  nibbles are written as they are, and $FF in a run of kSyncRun or more
 //  is written as a 10-bit sync byte.
 //
@@ -68,17 +68,35 @@ public:
 
     //  A raw image's tracks to write, in order of position: each whole track
     //  with data, and each half or quarter position whose data differs from
-    //  the whole tracks on either side. ERROR_INVALID_DATA for a file that
+    //  the whole tracks on either side and isn't them read off center
+    //  (DropOffCenterReads). ERROR_INVALID_DATA for a file that
     //  doesn't load, with outTooLong the first position of a track longer
     //  than the module's buffers, or -1.
     static HRESULT  GetImageTracks (std::span<const Byte> fileBytes, std::vector<RawWriteTrack> & outTracks, int & outTooLong);
 
-    //  The stream rotated to start in the middle of its longest run of sync
-    //  bytes, with sync bytes added to or dropped from that run so that it is
-    //  a little longer than `cells`, one turn of the drive: the end of the
-    //  write then overlaps its start within the run. False when the track has
-    //  no run of s_kMinSyncRun sync bytes, or the run is too short to drop
-    //  the excess.
+    //  Whether a quarter-track position's stream is only the whole tracks on
+    //  either side read off center, as a capture stores it: each D5 AA in it
+    //  begins s_kSectorBytes bytes found in one of them. A half track with a
+    //  sector of its own, as copy protection reads, isn't. Writing an
+    //  off-center read would overwrite the track beside it. Either neighbor
+    //  can be null.
+    static bool     IsOffCenterRead (const RawWriteStream & quarter, const RawWriteStream * below, const RawWriteStream * above);
+
+    //  Drops each quarter position that is IsOffCenterRead. A whole track
+    //  beside a half track that is kept, with no sector of its own and at
+    //  least s_kBleedShare of it in that half track, becomes an erase of sync
+    //  bytes moved ahead of the half track.
+    static void     DropOffCenterReads (std::vector<RawWriteTrack> & ioTracks);
+
+    //  The stream rotated to start at its seam (FindSeam), the middle of a
+    //  sync run, with at least s_kSeamSyncs sync bytes ahead of the seam, so
+    //  that the write, with the cells the module writes around it, is longer
+    //  than `cells`, one turn of the drive: its end then overlaps its start,
+    //  on those sync bytes only. For a stream too long for that, sync bytes
+    //  are dropped from the run at its end, then bits from its longest runs
+    //  of zero bits, which are weak-bit stretches, to no fewer than
+    //  s_kWeakZeros, then sync bytes from runs between sectors. False when
+    //  the excess can't be dropped.
     bool    FitToTurn (size_t cells);
 
     //  The bits the stream writes, one to a byte, for a check of FromBits.
@@ -95,16 +113,69 @@ private:
     static constexpr size_t  s_kMinRevolution = 5600;
     static constexpr size_t  s_kMatchBytes    = 64;
     static constexpr Byte    s_kSyncValue     = 0xFF;
-    static constexpr size_t  s_kMinSyncRun    = 16;
     static constexpr size_t  s_kOverlapCells  = 40;
+    static constexpr Byte    s_kPrologFirst   = 0xD5;
+    static constexpr Byte    s_kPrologSecond  = 0xAA;
+    static constexpr size_t  s_kGroupBytes    = 200;      // the stretch a group of prologs is counted over
+    static constexpr size_t  s_kWeakZeros     = 16;       // the fewest zero bits FitToTurn leaves in a weak-bit run it shortens
+    static constexpr size_t  s_kSectorBytes   = 16;       // the bytes from a D5 AA that IsOffCenterRead looks for in the tracks beside
+    static constexpr size_t  s_kChunkBytes    = 12;       // the chunk GetSharedPart looks for in the tracks beside
+    static constexpr double  s_kBleedShare    = 0.75;     // the part of a whole track found in the half track beside that makes it that half track's edge
+    static constexpr Byte    s_kEraseEnd      = 0x96;     // the byte that ends each of an erase's sync runs
+    static constexpr size_t  s_kEraseRun      = 16;       // an erase's sync run and the byte that ends it
+    static constexpr size_t  s_kErasePercent  = 97;       // an erase's length, as a percentage of the track it replaces
+
+    //  The cells the module writes around the stream: ahead of it, the
+    //  self-sync byte write mode starts with (rplay in ThirteenSector.s);
+    //  after it, the program's two self-sync bytes and the zero bits the drive
+    //  writes until write mode is turned off (pdone in Program.s).
+    static constexpr size_t  s_kLeadInCells   = kBitsPerByte + kSyncZeros;
+    static constexpr size_t  s_kLeadOutCells  = 38;
+
+    //  The fewest sync bytes ahead of the seam: enough to take the most the
+    //  end of the write can overlap the stream, and s_kResyncSyncs more for a
+    //  drive to frame bytes again after the zero bits it ends with.
+    static constexpr size_t  s_kResyncSyncs   = 4;
+    static constexpr size_t  s_kSeamSyncs     = (2 * s_kOverlapCells - s_kLeadInCells + kBitsPerByte + kSyncZeros - 1) / (kBitsPerByte + kSyncZeros) + s_kResyncSyncs;
+
+    //  The fewest sync bytes at the end of the stream after FitToTurn, ahead
+    //  of the self-sync bytes the module writes after it.
+    static constexpr size_t  s_kTailSyncs     = 4;
+
+    //  The fewest sync bytes in a run between sectors after FitToTurn.
+    static constexpr size_t  s_kGapSyncs      = 6;
+
+    //  The most cells a stream can have, for a turn of `cells`, when its sync
+    //  bytes ahead of the seam are `headCells`.
+    static size_t  GetLongestFit (size_t cells, size_t headCells);
+
+    //  Drops one sync byte from the longest run of more than s_kGapSyncs in
+    //  the bytes from `first` up to `end`, and its cells from ioTotal. False
+    //  when no run is that long.
+    bool  DropGapSync (size_t first, size_t end, size_t & ioTotal);
 
     //  `bits` split into bytes of eight bits each and the zero bits after,
     //  with outStarts each byte's first bit.
-    static void  Split (std::span<const uint8_t> bits, RawWriteStream & outStream, std::vector<size_t> & outStarts);
+    static void    Split         (std::span<const uint8_t> bits, RawWriteStream & outStream, std::vector<size_t> & outStarts);
+
+    //  The first bit of a byte as a drive frames the track, reading around it
+    //  once first, since the track's first bit can be inside a byte.
+    static size_t  FindByteStart (std::span<const uint8_t> bits);
 
     //  The longest run of sync bytes, which may wrap past the end: its first
     //  byte and length. False for none.
     bool  FindSyncRun (size_t & outAt, size_t & outLength) const;
+
+    //  The part of a stream's chunks found in either neighbor, 0 to 1.
+    static double  GetSharedPart      (const RawWriteStream & stream, const RawWriteStream * below, const RawWriteStream * above);
+
+    //  Where the write's seam goes: the longest run of sync bytes when it has
+    //  kSyncRun or more, with outSync set and outLength its length. A track
+    //  packed too tightly for one, as Karateka's are, can have sector data
+    //  right up to a prolog, so the seam goes at the first prolog of its
+    //  densest group of D5 AA AA prologs, a sector boundary, with outLength 0.
+    //  False for an empty stream.
+    bool  FindSeam (size_t & outAt, size_t & outLength, bool & outSync) const;
 
     bool  IsSyncByte (size_t at) const { return values[at] == s_kSyncValue && zeros[at] >= 1 && zeros[at] <= kSyncZeros; }
 };

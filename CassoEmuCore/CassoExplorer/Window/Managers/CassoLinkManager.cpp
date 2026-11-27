@@ -932,8 +932,8 @@ void CassoLinkManager::AddConnectionRows (std::vector<DxuiPopupMenuItem> & items
         //  has no CassoLink disk or format here.
         bool          isBlock = TreeModel::TryParseLinkId (location.path, link, slot, drive) && drive >= CassoLinkBlockDevices::kFirstDrive;
 
-        m_context.menus.AddMenuCommand (items, L"Create &image...", [this, location]() { m_context.linkDrives.ReadDiskToImage (location); });
-        m_context.menus.AddMenuCommand (items, L"&Write image...",  [this, location]() { m_context.linkDrives.WriteImageToDisk (location); });
+        m_context.menus.AddMenuCommand (items, L"Create &image from...", [this, location]() { m_context.linkDrives.ReadDiskToImage (location); });
+        m_context.menus.AddMenuCommand (items, L"&Write image to...",    [this, location]() { m_context.linkDrives.WriteImageToDisk (location); });
 
         if (!isBlock)
         {
@@ -1222,6 +1222,36 @@ void CassoLinkManager::UpdateTransferTimer()
     }
 
     m_transferTimer = transferring;
+
+    UpdateKeepAwake();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkManager::UpdateKeepAwake
+//
+//  The PC doesn't sleep while a connection is busy: sleep closes the serial
+//  port or socket under the transfer. The display can turn off.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkManager::UpdateKeepAwake()
+{
+    bool  busy = m_context.app.links != nullptr && m_context.app.links->IsAnyBusy();
+
+
+
+    if (busy == m_keptAwake)
+    {
+        return;
+    }
+
+    SetThreadExecutionState (busy ? (ES_CONTINUOUS | ES_SYSTEM_REQUIRED) : ES_CONTINUOUS);
+    m_keptAwake = busy;
 }
 
 
@@ -1243,6 +1273,7 @@ void CassoLinkManager::HandleTransferTimer()
 
 
     m_context.linkJobs.Update();
+    UpdateKeepAwake();
 
     //  The last progress aged out, as in a Full Send waiting for disks.
     if (m_context.app.links == nullptr || !m_context.app.links->IsAnyTransferring())
