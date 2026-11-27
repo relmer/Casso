@@ -114,6 +114,8 @@ void ShellChrome::LayoutDriveBar (int bottomInsetPx, int clientW, int clientH, U
     fan.SetExpandAll (sliding);
     fan.Layout       (originX, rowTop, slot, gap, gapY, pad, arrow);
 
+    m_driveBarSlideHeightPx = 0;
+
     if (sliding)
     {
         fan.Close();
@@ -127,6 +129,11 @@ void ShellChrome::LayoutDriveBar (int bottomInsetPx, int clientW, int clientH, U
         rowTop = stripBottom - (int) slot.cy - bottomGap
                + (int) lroundf ((1.0f - m_driveBarSlideProgress) * (float) (std::max (fan.GetExpandedHeight(), (int) slot.cy) + pad + bottomGap));
         fan.Layout (originX, rowTop, slot, gap, gapY, pad, arrow);
+
+        if (fan.GetClassCount() > 0 || tapeDocked)
+        {
+            m_driveBarSlideHeightPx = std::max (fan.GetExpandedHeight(), (int) slot.cy) + pad + bottomGap;
+        }
     }
 
     if (tapeDocked)
