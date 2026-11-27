@@ -33,11 +33,20 @@ enum class VolumeKind;
 class BrowserModel
 {
 public:
+    //  A location's selection and the list's top row, as left for another.
+    struct View
+    {
+        std::vector<std::wstring>  selection;
+        int                        listTopRow = 0;
+    };
+
     struct Tab
     {
         Location                   location;
         std::vector<Location>      back;
         std::vector<Location>      forward;
+        std::vector<View>          backViews;      // the views of back's last entries, matched from the end; none for a restored history
+        std::vector<View>          forwardViews;   // the same for forward
         std::vector<std::wstring>  selection;
         CatalogModel::Column       sortColumn      = CatalogModel::Column::Name;
         bool                       sortDescending  = false;
@@ -99,12 +108,19 @@ public:
     const Tab  & GetActiveTab   () const             { return m_tabs[m_active]; }
     bool         HasTabs        () const             { return !m_tabs.empty(); }
 
-    //  Navigation within the active tab.
+    //  Navigation within the active tab. The selection and top row of the
+    //  location left are saved, and Back or Forward to it restores them. The
+    //  top row is read from the function SetTopRowSource sets, unless
+    //  readTopRow is false, as for every step after the first of several.
     void  NavigateTo   (const Location & location);
     bool  CanGoBack    () const;
     bool  CanGoForward () const;
-    bool  GoBack       ();
-    bool  GoForward    ();
+    bool  GoBack       (bool readTopRow = true);
+    bool  GoForward    (bool readTopRow = true);
+
+    using TopRowFn = std::function<int()>;
+
+    void  SetTopRowSource (TopRowFn topRow) { m_topRow = std::move (topRow); }
 
     //  Selection and sort within the active tab.
     void  SetSelection (std::vector<std::wstring> ids);
@@ -146,7 +162,11 @@ private:
     static bool  IsHostFolder          (IFileSystem & fs, const std::wstring & path);
     static bool  IsLabelBefore         (const AddressSegment & a, const AddressSegment & b);
     static bool  TryParseLinkAddress   (const std::wstring & path, const std::vector<std::wstring> & linkNames, Location & outLocation);
+    static void  RestoreView           (Tab & tab, std::vector<View> & views);
+
+    View  TakeView (Tab & tab, bool readTopRow) const;
 
     std::vector<Tab>  m_tabs;
     size_t            m_active = 0;
+    TopRowFn          m_topRow;
 };

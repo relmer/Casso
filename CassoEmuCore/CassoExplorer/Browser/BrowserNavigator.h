@@ -85,7 +85,8 @@ public:
     static std::wstring  ExpandVariables   (const std::wstring & text);
 
 private:
-    Location  GetLocation () const                                         { return m_model.HasTabs() ? m_model.GetActiveTab().location : Location(); }
+    Location  GetLocation         () const                                 { return m_model.HasTabs() ? m_model.GetActiveTab().location : Location(); }
+    void      ReloadWithSelection ();
 
     BrowserModel      & m_model;
     IFileSystem       & m_fs;

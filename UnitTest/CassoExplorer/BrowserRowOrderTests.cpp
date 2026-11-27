@@ -29,6 +29,7 @@ public:
     public:
         void      ReloadAfterNavigation() override                                           {}
         void      ReturnToTab           (const std::vector<std::wstring> &) override         {}
+        void      SelectRowsByKeys      (const std::vector<std::wstring> &) override         {}
         bool      IsOnMissingDrive      (const Location &) const override                    { return false; }
         bool      IsHomeLocation() const override                                            { return home; }
         void      RequestHomeRead() override                                                 {}

@@ -309,6 +309,7 @@ private:
     //  IBrowserListing, for the navigator.
     void      ReloadAfterNavigation () override                                          { m_loader.ReloadAfterNavigation(); }
     void      ReturnToTab           (const std::vector<std::wstring> & rowKeys) override;
+    void      SelectRowsByKeys      (const std::vector<std::wstring> & rowKeys) override { m_selection.SelectRowsByKeys (rowKeys); }
     bool      IsOnMissingDrive      (const Location & location) const override           { return m_loader.IsOnMissingDrive (location); }
     Location  GetShellParent        () const override                                    { return m_list.shellParent; }
 
