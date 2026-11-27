@@ -194,11 +194,12 @@ Error:
 //
 //  Uploads a BGRA8 CPU pixel buffer into the cached ID2D1Bitmap for its
 //  address and draws it into the destination DIP rect with linear
-//  interpolation, or nearest-neighbor for a sharp frame. A frame drawn
-//  smaller than its pixels is first averaged down to the drawn size, since
-//  sampling it makes a dithered picture's stripes beat against the screen's
-//  pixels, in color bands that move with every size. The bitmap is created
-//  lazily and recreated when the uploaded size changes; otherwise
+//  interpolation, or nearest-neighbor for a sharp frame. A frame drawn at
+//  anything but its size or a whole multiple of it is first resampled to
+//  the drawn size, each pixel averaged over at least two source pixels:
+//  sampled, a dithered picture's one-pixel stripes beat against the
+//  screen's pixels, in color bands that move with every size. The bitmap is
+//  created lazily and recreated when the uploaded size changes; otherwise
 //  CopyFromMemory rewrites the pixels in place each call. The cache is
 //  emptied once it has s_kMaxFramebufferBitmaps buffers.
 //
@@ -221,6 +222,8 @@ HRESULT DxuiRenderIcons::DrawFramebuffer (
     float                dpiY    = 96.0f;
     int                  drawnW  = 0;
     int                  drawnH  = 0;
+    bool                 blendX  = false;
+    bool                 blendY  = false;
     const uint32_t     * pixels  = srcBgraPixels;
     int                  width   = srcWidthPx;
     int                  height  = srcHeightPx;
@@ -238,10 +241,15 @@ HRESULT DxuiRenderIcons::DrawFramebuffer (
     drawnW = std::max (1, (int) std::lround (destWidthDip  * dpiX / 96.0f));
     drawnH = std::max (1, (int) std::lround (destHeightDip * dpiY / 96.0f));
 
-    if (drawnW < srcWidthPx || drawnH < srcHeightPx)
+    blendX = !IsWholeMultiple (drawnW, srcWidthPx);
+    blendY = !IsWholeMultiple (drawnH, srcHeightPx);
+
+    if (blendX || blendY)
     {
-        Shrink (srcBgraPixels, srcWidthPx, srcHeightPx, drawnW, drawnH, m_shrunk, width, height);
-        pixels = m_shrunk.data();
+        Resample (srcBgraPixels, srcWidthPx, srcHeightPx, drawnW, drawnH, blendX, blendY, m_resampled);
+        pixels = m_resampled.data();
+        width  = drawnW;
+        height = drawnH;
     }
 
     if (m_framebufferBitmaps.size() >= s_kMaxFramebufferBitmaps && !m_framebufferBitmaps.contains (srcBgraPixels))
@@ -297,81 +305,149 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Shrink
-//
-//  A box filter, one axis at a time: each pixel is the mean of the source
-//  pixels under it, a partly covered one weighted by the part covered.
+//  IsWholeMultiple
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiRenderIcons::Shrink (
+bool DxuiRenderIcons::IsWholeMultiple (int drawn, int source)
+{
+    int  multiple = (int) std::lround ((double) drawn / source);
+
+
+
+    return multiple >= 1 && std::abs (drawn - multiple * source) <= 1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetWeights
+//
+//  For each of `count` pixels across `source` pixels, the first source
+//  pixel it covers and each covered pixel's share. A pixel covers the source
+//  span under it, widened to two source pixels around the same center when
+//  `blend` is set.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiRenderIcons::GetWeights (int source, int count, bool blend, std::vector<Weights> & outWeights)
+{
+    double  scale = (double) source / count;
+    double  span  = blend ? std::max (scale, 2.0) : scale;
+
+
+
+    outWeights.assign ((size_t) count, Weights());
+
+    for (int i = 0; i < count; i++)
+    {
+        double     center = (i + 0.5) * scale;
+        double     from   = std::max (center - span / 2.0, 0.0);
+        double     to     = std::min (center + span / 2.0, (double) source);
+        double     total  = 0.0;
+        Weights  & w      = outWeights[(size_t) i];
+
+        w.first = std::min ((int) from, source - 1);
+
+        for (int j = w.first; j < source && j < to; j++)
+        {
+            double  share = std::max (std::min (to, (double) j + 1) - std::max (from, (double) j), 0.0);
+
+            w.shares.push_back ((float) share);
+            total += share;
+        }
+
+        if (total <= 0.0)
+        {
+            w.shares.assign (1, 1.0f);
+            continue;
+        }
+
+        for (float & share : w.shares)
+        {
+            share = (float) (share / total);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Resample
+//
+//  One axis at a time: each pixel is the weighted mean of the source pixels
+//  GetWeights finds under it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiRenderIcons::Resample (
     const uint32_t        * src,
     int                     srcWidth,
     int                     srcHeight,
     int                     width,
     int                     height,
-    std::vector<uint32_t> & outPixels,
-    int                   & outWidth,
-    int                   & outHeight)
+    bool                    blendX,
+    bool                    blendY,
+    std::vector<uint32_t> & outPixels)
 {
-    std::vector<float>  across;
-    double              scaleX = 0.0;
-    double              scaleY = 0.0;
+    std::vector<Weights>  across;
+    std::vector<Weights>  down;
+    std::vector<float>    rows;
 
 
 
-    outWidth  = std::clamp (width,  1, srcWidth);
-    outHeight = std::clamp (height, 1, srcHeight);
-    scaleX    = (double) srcWidth  / outWidth;
-    scaleY    = (double) srcHeight / outHeight;
+    GetWeights (srcWidth,  width,  blendX, across);
+    GetWeights (srcHeight, height, blendY, down);
 
-    across.assign ((size_t) outWidth * srcHeight * 3, 0.0f);
+    rows.assign ((size_t) width * srcHeight * 3, 0.0f);
 
     for (int y = 0; y < srcHeight; y++)
     {
-        for (int x = 0; x < outWidth; x++)
+        for (int x = 0; x < width; x++)
         {
-            double   from = x * scaleX;
-            double   to   = from + scaleX;
-            float  * sum  = &across[((size_t) y * outWidth + x) * 3];
+            const Weights  & w   = across[(size_t) x];
+            float          * sum = &rows[((size_t) y * width + x) * 3];
 
-            for (int j = (int) from; j < srcWidth && j < to; j++)
+            for (size_t k = 0; k < w.shares.size(); k++)
             {
-                uint32_t  pixel  = src[(size_t) y * srcWidth + j];
-                float     weight = (float) ((std::min (to, (double) j + 1) - std::max (from, (double) j)) / scaleX);
+                uint32_t  pixel = src[(size_t) y * srcWidth + w.first + k];
 
-                sum[0] += weight * (float) (pixel & 0xFF);
-                sum[1] += weight * (float) ((pixel >> 8) & 0xFF);
-                sum[2] += weight * (float) ((pixel >> 16) & 0xFF);
+                sum[0] += w.shares[k] * (float) (pixel & 0xFF);
+                sum[1] += w.shares[k] * (float) ((pixel >> 8) & 0xFF);
+                sum[2] += w.shares[k] * (float) ((pixel >> 16) & 0xFF);
             }
         }
     }
 
-    outPixels.assign ((size_t) outWidth * outHeight, 0xFF000000u);
+    outPixels.assign ((size_t) width * height, 0xFF000000u);
 
-    for (int y = 0; y < outHeight; y++)
+    for (int y = 0; y < height; y++)
     {
-        double  from = y * scaleY;
-        double  to   = from + scaleY;
+        const Weights  & w = down[(size_t) y];
 
-        for (int x = 0; x < outWidth; x++)
+        for (int x = 0; x < width; x++)
         {
             float  sum[3] = {};
 
-            for (int j = (int) from; j < srcHeight && j < to; j++)
+            for (size_t k = 0; k < w.shares.size(); k++)
             {
-                const float  * row    = &across[((size_t) j * outWidth + x) * 3];
-                float          weight = (float) ((std::min (to, (double) j + 1) - std::max (from, (double) j)) / scaleY);
+                const float  * row = &rows[((size_t) (w.first + k) * width + x) * 3];
 
-                sum[0] += weight * row[0];
-                sum[1] += weight * row[1];
-                sum[2] += weight * row[2];
+                sum[0] += w.shares[k] * row[0];
+                sum[1] += w.shares[k] * row[1];
+                sum[2] += w.shares[k] * row[2];
             }
 
-            outPixels[(size_t) y * outWidth + x] = 0xFF000000u
-                                                 | (uint32_t) std::lround (std::min (sum[2], 255.0f)) << 16
-                                                 | (uint32_t) std::lround (std::min (sum[1], 255.0f)) << 8
-                                                 | (uint32_t) std::lround (std::min (sum[0], 255.0f));
+            outPixels[(size_t) y * width + x] = 0xFF000000u
+                                              | (uint32_t) std::lround (std::min (sum[2], 255.0f)) << 16
+                                              | (uint32_t) std::lround (std::min (sum[1], 255.0f)) << 8
+                                              | (uint32_t) std::lround (std::min (sum[0], 255.0f));
         }
     }
 }

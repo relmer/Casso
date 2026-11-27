@@ -32,17 +32,21 @@ public:
 
     void  ReleaseBitmaps () { m_framebufferBitmaps.clear(); m_iconBitmaps.clear(); }
 
-    //  `src` averaged down to `width` by `height`, each pixel the mean of the
-    //  source area it covers. A side larger than the source's is clamped to
-    //  the source's size. `outWidth` and `outHeight` return the result's size.
-    static void  Shrink (const uint32_t        * src,
-                         int                     srcWidth,
-                         int                     srcHeight,
-                         int                     width,
-                         int                     height,
-                         std::vector<uint32_t> & outPixels,
-                         int                   & outWidth,
-                         int                   & outHeight);
+    //  `src` resampled to `width` by `height`, each pixel the mean of the
+    //  source pixels under it. On an axis whose blend flag is set, each pixel
+    //  averages at least two source pixels, which blends one-pixel dither.
+    static void  Resample (const uint32_t        * src,
+                           int                     srcWidth,
+                           int                     srcHeight,
+                           int                     width,
+                           int                     height,
+                           bool                    blendX,
+                           bool                    blendY,
+                           std::vector<uint32_t> & outPixels);
+
+    //  Whether `drawn` pixels are the source's size or a whole multiple of
+    //  it, within a pixel of rounding.
+    static bool  IsWholeMultiple (int drawn, int source);
 
 private:
     HRESULT  GetIconLayerGeometry (const DxuiVectorIcon & icon, const DxuiVectorIconLayer & layer, ID2D1PathGeometry ** outGeometry);
@@ -79,8 +83,18 @@ private:
 
     std::unordered_map<const uint32_t *, FramebufferBitmap>  m_framebufferBitmaps;
 
-    //  A frame averaged down to its drawn size, before it's uploaded.
-    std::vector<uint32_t>  m_shrunk;
+    //  A frame resampled to its drawn size, before it's uploaded.
+    std::vector<uint32_t>  m_resampled;
+
+    //  The first source pixel a resampled pixel covers, and each covered
+    //  pixel's share of it.
+    struct Weights
+    {
+        int                 first = 0;
+        std::vector<float>  shares;
+    };
+
+    static void  GetWeights (int source, int count, bool blend, std::vector<Weights> & outWeights);
 
     // One cached bitmap per distinct picture. D2D batches the draws of a
     // frame, so pixels uploaded into a bitmap already drawn once would show
