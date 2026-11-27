@@ -76,8 +76,9 @@ public:
     //  The stream rotated to start at its seam (FindSeam), the middle of a
     //  sync run, with sync bytes added there, or dropped from the run, so
     //  that it is a little longer than `cells`, one turn of the drive: the
-    //  end of the write then overlaps its start at the seam. False when the
-    //  excess can't be dropped.
+    //  end of the write then overlaps its start at the seam. A track with no
+    //  sync run gets at least s_kSeamSyncs sync bytes at its seam, so the
+    //  overlap falls on them. False when the excess can't be dropped.
     bool    FitToTurn (size_t cells);
 
     //  The bits the stream writes, one to a byte, for a check of FromBits.
@@ -99,7 +100,10 @@ private:
     static constexpr Byte    s_kPrologFirst   = 0xD5;
     static constexpr Byte    s_kPrologSecond  = 0xAA;
     static constexpr size_t  s_kGroupBytes    = 200;      // the stretch a group of prologs is counted over
-    static constexpr size_t  s_kSeamLead      = 10;       // the bytes between the seam and the group's first prolog
+
+    //  The sync bytes a track with no sync run is given at its seam, enough to
+    //  take the most the end of the write can overlap its start.
+    static constexpr size_t  s_kSeamSyncs     = (2 * s_kOverlapCells + kBitsPerByte + kSyncZeros - 1) / (kBitsPerByte + kSyncZeros);
 
     //  `bits` split into bytes of eight bits each and the zero bits after,
     //  with outStarts each byte's first bit.
@@ -115,10 +119,9 @@ private:
 
     //  Where the write's seam goes: the longest run of sync bytes when it has
     //  kSyncRun or more, with outSync set and outLength its length. A track
-    //  packed too tightly for one, as Karateka's are, has the junk its master
-    //  left in front of its densest group of D5 AA AA prologs, so the seam
-    //  goes s_kSeamLead bytes before that group's first prolog, with
-    //  outLength 0.
+    //  packed too tightly for one, as Karateka's are, can have sector data
+    //  right up to a prolog, so the seam goes at the first prolog of its
+    //  densest group of D5 AA AA prologs, a sector boundary, with outLength 0.
     //  False for an empty stream.
     bool  FindSeam (size_t & outAt, size_t & outLength, bool & outSync) const;
 

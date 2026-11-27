@@ -227,7 +227,7 @@ bool RawWriteStream::FindSeam (size_t & outAt, size_t & outLength, bool & outSyn
         }
     }
 
-    outAt     = (group + count - std::min (s_kSeamLead, count - 1)) % count;
+    outAt     = group;
     outLength = 0;
 
     return true;
@@ -337,6 +337,7 @@ bool RawWriteStream::FitToTurn (size_t cells)
     size_t  headSyncs = 0;
     size_t  tailSyncs = 0;
     size_t  total     = 0;
+    size_t  added     = 0;
     size_t  low       = cells + s_kOverlapCells;
     size_t  high      = cells + 2 * s_kOverlapCells;
     bool    sync      = false;
@@ -377,11 +378,14 @@ bool RawWriteStream::FitToTurn (size_t cells)
         tailSyncs--;
     }
 
-    while (total < low)
+    //  With no sync run the seam is at a prolog, and the overlap must fall on
+    //  added sync bytes rather than on the sector before it.
+    while (total < low || (!sync && added < s_kSeamSyncs))
     {
         values.insert (values.begin(), s_kSyncValue);
         zeros.insert  (zeros.begin(),  (Byte) kSyncZeros);
         total += kBitsPerByte + kSyncZeros;
+        added++;
     }
 
     return total <= high;
