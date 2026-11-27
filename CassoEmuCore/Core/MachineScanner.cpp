@@ -61,6 +61,44 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MachineScanner::GetFamilyYear
+//
+//  The release year of the machine `fileName` is a variant of: Apple2e for
+//  Apple2eEnhanced, Apple2c for Apple2cPlus, Apple2 for Apple2Plus. A
+//  machine that isn't a listed machine's variant is its own family.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int MachineScanner::GetFamilyYear (const std::map<wstring, int> & years, const wstring & fileName)
+{
+    int  year = years.contains (fileName) ? years.at (fileName) : INT_MAX;
+
+
+
+    for (const wchar_t * suffix : { L"Enhanced", L"Plus" })
+    {
+        wstring  base = fileName;
+
+        if (base.ends_with (suffix))
+        {
+            base.resize (base.size() - wcslen (suffix));
+        }
+
+        if (base != fileName && years.contains (base))
+        {
+            year = years.at (base);
+        }
+    }
+
+    return year;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Scan
 //
 //  Walks each search path looking for a Machines/ directory. The first
@@ -78,7 +116,8 @@ vector<MachineInfo> MachineScanner::Scan (
     const MachineScanner::FileReader      & reader,
     const MachineScanner::ConfigPredicate & hasEmbeddedConfig)
 {
-    vector<MachineInfo>  results;
+    vector<MachineInfo>     results;
+    std::map<wstring, int>  years;
 
 
 
@@ -129,14 +168,23 @@ vector<MachineInfo> MachineScanner::Scan (
     // Sort chronologically by releaseYear (ascending), then by display
     // name as a tiebreaker. Machines without a releaseYear sort to the
     // end so old configs without the field don't move ahead of the
-    // embedded defaults.
-    std::sort (results.begin(), results.end(),
-               [] (const MachineInfo & a, const MachineInfo & b)
+    // embedded defaults. A variant, such as Apple2eEnhanced, sorts right
+    // after the machine it is a variant of, Apple2e.
+    for (const MachineInfo & info : results)
     {
-        int  aYear = a.releaseYear > 0 ? a.releaseYear : INT_MAX;
-        int  bYear = b.releaseYear > 0 ? b.releaseYear : INT_MAX;
+        years[info.fileName] = info.releaseYear > 0 ? info.releaseYear : INT_MAX;
+    }
 
-        if (aYear != bYear) { return aYear < bYear; }
+    std::sort (results.begin(), results.end(),
+               [&years] (const MachineInfo & a, const MachineInfo & b)
+    {
+        int  aYear   = a.releaseYear > 0 ? a.releaseYear : INT_MAX;
+        int  bYear   = b.releaseYear > 0 ? b.releaseYear : INT_MAX;
+        int  aFamily = GetFamilyYear (years, a.fileName);
+        int  bFamily = GetFamilyYear (years, b.fileName);
+
+        if (aFamily != bFamily) { return aFamily < bFamily; }
+        if (aYear != bYear)     { return aYear < bYear; }
         return a.displayName < b.displayName;
     });
 

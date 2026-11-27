@@ -70,10 +70,21 @@ struct FileDialogSpec
     std::optional<ReceivingDrive>  receivingDrive;
     std::wstring                   driveLabel;
 
+    //  Images: the capsules the picker's bar lists in place of the receiving
+    //  drive's, such as 5.25" and 140K (16-sector).
+    std::vector<std::wstring>      listedTerms;
+
+    //  Images: the picker opens on the Casso node, the folders Casso has
+    //  used, with the stock disks listed and initialSearch in its search box.
+    //  An image to open with no initialFolder opens there as well.
+    bool                           startInCasso = false;
+    std::wstring                   initialSearch;
+
     //  Images: when set, the picker's bar has a Verify check box, checked
     //  as *verify is, and *verify is set to the box's state when a file is
     //  picked.
     bool                         * verify       = nullptr;
+    std::wstring                   verifyLabel;                 // the Verify box's text; "Verify" when empty
 };
 
 

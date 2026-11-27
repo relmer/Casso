@@ -1,7 +1,7 @@
 #include "Pch.h"
 #include "GuestSession.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "TestMachine.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -15,7 +15,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  End-to-end spec-conformance tests for the disk pipeline. Builds a
 //  synthetic .dsk image whose track 0 sectors carry known data patterns,
-//  nibblizes it through NibblizationLayer, mounts it on a //e + Disk II
+//  nibblizes it through Nibblizer, mounts it on a //e + Disk II
 //  harness, then runs the *actual* Disk2.rom boot firmware on the
 //  emulated 6502 until it has loaded sector 0 into RAM. Asserts that the
 //  bytes the real boot ROM decoded into RAM match the original raw
@@ -69,7 +69,7 @@ public:
 
 
 
-        vector<Byte>   raw (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>   raw (NibbleFormat::kImageByteSize, 0);
 
         // A .dsk holds its sectors in DOS logical order: logical sector S of
         // track T starts at file offset (T * 16 + S) * 256. The DOS 3.3

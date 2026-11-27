@@ -115,7 +115,7 @@ struct CommandLineOptions
         enum class Command      { None, List, Get, Put, Delete, Boot, Create, Init,
                                   Mkdir, Rmdir, SectorRead, SectorWrite, BlockRead,
                                   BlockWrite, Krunch, Test, Dupes, Search, Inspect,
-                                  Repair, SetThumbnail, GetThumbnail, RemoveThumbnail, Help };
+                                  GetStamp, Repair, SetThumbnail, GetThumbnail, RemoveThumbnail, Help };
 
         //  How a payload's bytes relate to the file on the host. Verbatim means
         //  no CHARACTER conversion -- length and header semantics still apply,
@@ -164,6 +164,7 @@ struct CommandLineOptions
         std::string  picturePath;                      // the picture `set-thumbnail` sets
         bool         noFreeUnowned  = false;           // --no-free-unowned, for `repair`
         bool         listOnly       = false;           // --list, for `repair`
+        bool         isJson         = false;           // --json, for `get-stamp`
         std::string  typeName;                         // --type, as the user wrote it
         Word         loadAddress    = 0;               // --load
         bool         hasLoadAddress = false;           // $0000 is a legal address
@@ -368,6 +369,7 @@ struct CommandLineOptions
         std::vector<BlockAttachment>  hdAttachments;        // --hd <slot>[.<unit>]=<image>
         std::vector<BlockAttachment>  smartPortAttachments; // --smartport <n>=<image>
         std::string  explore;                          // --explore <image>: open it in Casso Explorer instead
+        std::string  launch;                           // --launch <image>: boot it in a temporary copy of a stock machine
         size_t       traceEntries = 0;                 // --trace [size]; 0 = off
 
         //  The power-on DRAM seed, so a startup fault seen once can be

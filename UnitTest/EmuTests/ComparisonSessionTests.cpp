@@ -384,7 +384,7 @@ public:
 
         rows = ComparisonText::BuildRows (listed, ComparisonText::GetAllGroups(), -1, false);
         Assert::AreEqual (size_t (3), rows.size());
-        Assert::AreEqual (std::wstring (L"2 bytes differ, the first at $40"), rows[0].cells[4]);
+        Assert::AreEqual (std::wstring (L"There are 2 bytes that differ, the first at $40"), rows[0].cells[4]);
         Assert::AreEqual (std::wstring (L"HELLO"), rows[2].cells[4]);
         Assert::AreEqual (2, rows[2].finding, L"a row refers to its difference");
 

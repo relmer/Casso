@@ -1,9 +1,9 @@
 #include "Pch.h"
 #include "GuestSession.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "TestMachine.h"
 #include "TextScreenScraper.h"
 #include "KeystrokeInjector.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Machines/Apple2/Common/Apple80ColTextMode.h"
 #include "Machines/Apple2/Common/AppleHiResMode.h"
@@ -138,7 +138,7 @@ public:
 
     vector<Byte> BuildSyntheticDsk()
     {
-        vector<Byte>   raw (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>   raw (NibbleFormat::kImageByteSize, 0);
 
         // Boot ROM loads file offset 0..255 into RAM at $0800-$08FF
         // and JMPs to $0801. Plant `JMP $0801` (4C 01 08) so the CPU
@@ -156,7 +156,7 @@ public:
 
     vector<Byte> BuildSyntheticPo()
     {
-        vector<Byte>   raw (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>   raw (NibbleFormat::kImageByteSize, 0);
 
         // Same JMP-to-self halt as BuildSyntheticDsk -- see comment there.
         raw[1] = 0x4C; raw[2] = 0x01; raw[3] = 0x08;

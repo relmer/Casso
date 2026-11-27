@@ -78,6 +78,7 @@
 #include "Ui/Dialogs/SalvageDialogContent.h"
 #include "Ui/Settings/SettingsPanelState.h"
 #include "Ui/Settings/SettingsSheet.h"   // TEMP (T162 3a dev trigger)
+#include "Devices/Disk/Store/DiskFlusher.h"
 #include "Seams/Win32IntentChannel.h"
 #include "Devices/Disk/PreservedCopy.h"
 #include "Devices/BlockDevice/BlockDeviceAttachments.h"
@@ -283,7 +284,7 @@ EmulatorShell::~EmulatorShell()
     // be delivered and its answer would never be acted on. It runs on this
     // thread with OLE still initialized -- OleUninitialize is below -- so the
     // store asks through a blocking file dialog instead.
-    hrFlush = m_machine.GetDiskStore().FlushAllForShutdown();
+    hrFlush = m_machine.GetDiskStore().GetFlusher().FlushAllForShutdown();
     IGNORE_RETURN_VALUE (hrFlush, S_OK);
 
     // Same idea for a preference change still inside its debounce window:
@@ -977,7 +978,35 @@ HRESULT EmulatorShell::Initialize (
     // installed before the command-line disks go in so those are covered too.
     m_disks->InstallMountReporting();
 
-    m_disks->GetManager()->MountCommandLineDisks (disk1Path, disk2Path);
+    // On the //c Plus, drive 1 is the internal 3.5 drive and drive 2 is the
+    // first drive on the disk port. The 5.25 drive is last on the port, so
+    // it is drive 2 only when no 3.5 drive is ahead of it. It is slot 6
+    // drive 1.
+    if (m_machine.GetRefs().apple2cPlusDiskPort != nullptr)
+    {
+        if (!disk1Path.empty())
+        {
+            m_disks->InsertFloppy35 (0, 0, disk1Path);
+        }
+
+        if (m_machine.FindFloppy35 (0, 1) != nullptr)
+        {
+            if (!disk2Path.empty())
+            {
+                m_disks->InsertFloppy35 (0, 1, disk2Path);
+            }
+
+            m_disks->GetManager()->MountCommandLineDisks (std::string(), std::string());
+        }
+        else
+        {
+            m_disks->GetManager()->MountCommandLineDisks (disk2Path, std::string());
+        }
+    }
+    else
+    {
+        m_disks->GetManager()->MountCommandLineDisks (disk1Path, disk2Path);
+    }
 
     m_tapeDeck->InsertStartupTape (tapePath);
 
@@ -1042,6 +1071,7 @@ void EmulatorShell::InitAssetPathsAndStores()
 
     m_machine.SetAssetBaseDir (assetBaseDir.wstring());
     m_settings->CreateConfigStore (assetBaseDir.wstring());
+    m_settings->GetConfigStore()->SetRunningMachine (m_machine.GetConfig());
 
     // The stock hard disk image is made here the first time a machine lists
     // it. A folder that can't be made leaves those drives empty.
@@ -1169,11 +1199,19 @@ HRESULT EmulatorShell::BuildMachineDevices (const MachineConfig & config)
 
 
 
+    // A temporary machine's settings aren't saved; a later machine's are.
+    if (m_settings != nullptr && m_settings->GetConfigStore() != nullptr)
+    {
+        m_settings->GetConfigStore()->SetRunningMachine (config);
+    }
+
     // --hd and --smartport apply to the first machine only, and are never
     // saved: the copy built from has them, the config does not.
     if (!m_runHdAttachments.empty() || !m_runSmartPortAttachments.empty())
     {
-        hrAttach = BlockDeviceAttachments::Apply (m_runHdAttachments, m_runSmartPortAttachments, built, error);
+        hrAttach = BlockDeviceAttachments::Apply (m_runHdAttachments, m_runSmartPortAttachments, built, error,
+                                                  PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(), PathResolver::GetWorkingDirectory()),
+                                                  PathResolver::FindFile);
 
         if (FAILED (hrAttach))
         {

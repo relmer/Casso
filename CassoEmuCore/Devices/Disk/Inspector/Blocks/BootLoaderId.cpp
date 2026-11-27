@@ -20,6 +20,7 @@ static constexpr LPCWSTR s_kpszPascalText    = L"MUST BOOT FROM SLOT";
 static constexpr LPCWSTR s_kpszProDos8Text   = L"PRODOS 8 V";
 static constexpr LPCWSTR s_kpszProDosText    = L"PRODOS";
 static constexpr LPCWSTR s_kpszGsOsPath      = L"SYSTEM/GS.OS";
+static constexpr LPCWSTR s_kpszNoSystemText  = L"UNABLE TO LOAD PRODOS";
 
 
 
@@ -77,6 +78,10 @@ std::wstring BootLoaderId::Identify (const BlockImage & image, const BlockMap & 
     else if (text.find (s_kpszPascalText) != std::wstring::npos)
     {
         loader = L"Apple Pascal loader";
+    }
+    else if (text.find (s_kpszNoSystemText) != std::wstring::npos)
+    {
+        loader = L"No PRODOS file";
     }
     else if (map.fileSystem == BlockFileSystem::Hfs && image[0] == s_kHfsSignature[0] && image[1] == s_kHfsSignature[1])
     {

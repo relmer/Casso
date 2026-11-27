@@ -29,7 +29,10 @@ void InspectorStatusBar::Create (DxuiPanel & parent, ZoomFn onZoom, bool hasHelp
 {
     m_hasHelp     = hasHelp;
     m_zoomControl = parent.CreateChild<DxuiZoomControl>();
-    m_zoomControl->SetOnZoom (std::move (onZoom));
+    m_zoomControl->SetShowBox (false);
+    m_zoomControl->SetSteps   (DxuiZoomControl::GetStandardSteps());
+    m_zoomControl->SetOnStep  (DxuiZoomControl::StepZoom);
+    m_zoomControl->SetOnZoom  (std::move (onZoom));
 }
 
 
@@ -40,21 +43,25 @@ void InspectorStatusBar::Create (DxuiPanel & parent, ZoomFn onZoom, bool hasHelp
 //
 //  InspectorStatusBar::Tick
 //
-//  The zoom's slider goes by where the cursor is, not the last mouse event, so
-//  it stays through a tooltip that ends the window's hover.
+//  The zoom's panel opens and closes by where the cursor is, not by the last
+//  mouse event, so a tooltip that ends the window's hover doesn't close it.
+//  True while the panel moves.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void InspectorStatusBar::Tick (HWND owner)
+bool InspectorStatusBar::Tick (HWND owner)
 {
-    POINT  cursor = {};
+    POINT  cursor    = {};
+    bool   isChanged = false;
 
 
 
     if (m_scaler.GetDpi() != 0 && owner != nullptr && GetCursorPos (&cursor) && ScreenToClient (owner, &cursor))
     {
-        m_zoomControl->UpdateHover (cursor);
+        isChanged = m_zoomControl->UpdateHover (cursor, (int64_t) GetTickCount64());
     }
+
+    return isChanged;
 }
 
 
@@ -80,8 +87,8 @@ int InspectorStatusBar::GetHeightPx (const DxuiDpiScaler & scaler) const
 //
 //  InspectorStatusBar::Layout
 //
-//  The zoom over the bar's last field, the "?" button in the field before
-//  it, and the lead items and the hint in the rest.
+//  The zoom's button centered in the bar's last field, the "?" button in the
+//  field before it, and the lead items and the hint in the rest.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -105,7 +112,7 @@ void InspectorStatusBar::Layout (const RECT & area, const DxuiDpiScaler & scaler
 
     m_helpPx  = m_hasHelp ? RECT { help.left + pad, area.top + 3, help.right - pad, area.bottom - 3 } : RECT {};
     m_chipsPx = { area.left + pad, area.top, m_hasHelp ? help.left : zoom.left, area.bottom };
-    m_zoomControl->Layout ({ zoom.left + pad, area.top + 1, zoom.right - pad, area.bottom - 1 }, scaler);
+    m_zoomControl->PlaceInRow ({ zoom.left, area.top, zoom.right - pad, area.bottom }, RECT {}, scaler);
 }
 
 
@@ -131,7 +138,7 @@ void InspectorStatusBar::LayOutBar (int leadPx)
     m_bar.SetFields ({ { L"", 0, false, leadPx },
                        { m_hint, 0, true },
                        { L"", 0, false, helpW },
-                       { L"", DxuiZoomControl::kWidthDip + 2 * InspectorMetrics::kMarginDip, false } });
+                       { L"", DxuiZoomPopup::kButtonWidthDip + 2 * InspectorMetrics::kMarginDip, false } });
 }
 
 
@@ -197,6 +204,27 @@ void InspectorStatusBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text
 
 const InspectorStatusBar::LeadItem * InspectorStatusBar::GetLinkedChipAt (POINT p) const
 {
+    const LeadItem  * chip = GetChipAt (p);
+
+
+
+    return (chip != nullptr && chip->isLinked) ? chip : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorStatusBar::GetChipAt
+//
+//  The placed chip under a point, as the band was last drawn, or null.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const InspectorStatusBar::LeadItem * InspectorStatusBar::GetChipAt (POINT p) const
+{
     float             chipH = m_scaler.ToPxf (s_kChipHeightDip);
     float             top   = (m_chipsPx.top + m_chipsPx.bottom - chipH) / 2.0f;
     const LeadItem  * found = nullptr;
@@ -205,7 +233,7 @@ const InspectorStatusBar::LeadItem * InspectorStatusBar::GetLinkedChipAt (POINT 
 
     for (const LeadItem & item : m_placed)
     {
-        bool  isOver = item.isLinked && item.isPlaced && p.x >= item.x && p.x < item.x + item.w && p.y >= top && p.y < top + chipH;
+        bool  isOver = item.isPlaced && p.x >= item.x && p.x < item.x + item.w && p.y >= top && p.y < top + chipH;
 
         found = (found == nullptr && isOver) ? &item : found;
     }
@@ -246,7 +274,7 @@ float InspectorStatusBar::PlaceLead (IDxuiTextRenderer & text, vector<LeadItem> 
         text.MeasureString (item.text.c_str(), m_scaler.ToPxf (item.kind == LeadKind::Selection ? s_kHintTextDip : s_kChipTextDip),
                             item.kind == LeadKind::Selection ? DxuiTheme::GetUiFace() : DxuiTheme::kBodyFace, item.w, h);
 
-        item.w     += (isChip || item.kind == LeadKind::Result) ? 2 * pad : 0.0f;
+        item.w     += (isChip || item.kind == LeadKind::Result || item.kind == LeadKind::Unsaved) ? 2 * pad : 0.0f;
         selectionW  = (item.kind == LeadKind::Selection) ? item.w : selectionW;
     }
 
@@ -265,7 +293,7 @@ float InspectorStatusBar::PlaceLead (IDxuiTextRenderer & text, vector<LeadItem> 
 
         if (item.isPlaced)
         {
-            x += item.w + gap * (isChip || item.kind == LeadKind::Result ? 1.0f : 2.0f);
+            x += item.w + gap * (isChip || item.kind == LeadKind::Result || item.kind == LeadKind::Unsaved ? 1.0f : 2.0f);
         }
     }
 
@@ -305,10 +333,16 @@ void InspectorStatusBar::PaintLead (IDxuiPainter & painter, IDxuiTextRenderer & 
                                  DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
                 break;
 
+            case LeadKind::Unsaved:
+                painter.FillRoundedRect (item.x, y, item.w, chipH, chipH / 2, badColor);
+                text.DrawString (item.text.c_str(), item.x, y, item.w, chipH, DxuiColor::GetContrastingInk (badColor), textPx, DxuiTheme::kBodyFace,
+                                 DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
+                break;
+
             case LeadKind::Chip:
             case LeadKind::BadChip:
             {
-                uint32_t  ink = (item.kind == LeadKind::BadChip) ? badColor : (item.isLinked ? theme.Accent() : theme.Foreground());
+                uint32_t  ink = (item.kind == LeadKind::BadChip) ? badColor : ((item.isLinked || item.isInfo) ? theme.Accent() : theme.Foreground());
 
                 painter.FillRoundedRect (item.x, y, item.w, chipH, chipH / 2, theme.ButtonIdle());
 
@@ -318,7 +352,7 @@ void InspectorStatusBar::PaintLead (IDxuiPainter & painter, IDxuiTextRenderer & 
                 }
 
                 painter.OutlineRoundedRect (item.x, y, item.w, chipH, chipH / 2, m_scaler.ToPxf (1.0f),
-                                            (item.kind == LeadKind::BadChip || item.isLinked) ? ink : theme.ButtonBorder());
+                                            (item.kind == LeadKind::BadChip || item.isLinked || item.isInfo) ? ink : theme.ButtonBorder());
                 text.DrawString (item.text.c_str(), item.x, y, item.w, chipH, ink, textPx,
                                  DxuiTheme::kBodyFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
                 break;

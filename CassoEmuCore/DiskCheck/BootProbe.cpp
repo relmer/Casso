@@ -73,6 +73,8 @@ HRESULT BootProbe::Probe (MachineHost & host, MachineBuilder & builder, const st
 
     ReadTextRows (host, trace.rows);
 
+    trace.hasDos = host.GetMemoryBus().ReadByte (s_kDosVector) == s_kJmp;
+
     trace.isTextMode = !host.GetSoftSwitchMirror().graphicsMode;
     trace.isBlank    = IsBlank (trace.rows, trace.isTextMode, outReport.frame);
 
@@ -145,6 +147,41 @@ bool BootProbe::IsHeadAtRest (const Trace & trace, const Limits & limits)
     }
 
     return atRest;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BootProbe::IsMostlyIdle
+//
+//  Whether the motor was off for more than half the last settledSlices
+//  samples, after the screen changed from the one when the drive started.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BootProbe::IsMostlyIdle (const Trace & trace, const Limits & limits)
+{
+    size_t  count  = trace.samples.size();
+    size_t  window = (size_t) std::max (limits.settledSlices, 1);
+    size_t  off    = 0;
+    bool    idle   = trace.driveStarted >= 0 && count > (size_t) trace.driveStarted + window;
+
+
+
+    if (idle)
+    {
+        idle = trace.samples.back().frameHash != trace.samples[(size_t) trace.driveStarted].frameHash;
+    }
+
+    for (size_t at = count - window; idle && at < count; at++)
+    {
+        off += trace.samples[at].isMotorOn ? 0 : 1;
+    }
+
+    return idle && off * 2 > window;
 }
 
 
@@ -292,6 +329,34 @@ BootVerdict BootProbe::Judge (const Trace & trace, const Limits & limits, std::s
         verdict   = BootVerdict::NotBootable;
         outReason = "The disk has a ProDOS file system but no boot files.";
     }
+    else if (HasRow (trace.rows, "I/O ERROR"))
+    {
+        //  DOS couldn't read the disk: a bad disk, or a capture of one, ends
+        //  at a prompt after DOS's message.
+        verdict   = BootVerdict::NotBootable;
+        outReason = "DOS reported an I/O error while loading from the disk.";
+    }
+    else if (HasRow (trace.rows, "HAS NO DOS TO BOOT"))
+    {
+        //  An Eamon adventure's disk is a data disk, run from the Eamon master,
+        //  and its boot code prints "THIS DISK HAS NO DOS TO BOOT."
+        verdict   = BootVerdict::NotBootable;
+        outReason = "The disk is a data disk with no DOS to boot.";
+    }
+    else if (HasRow (trace.rows, "Check Disk Drive") || HasRow (trace.rows, "CHECK DISK DRIVE"))
+    {
+        //  The //c ROM prints this when the disk in its drive has no boot
+        //  code it can load: a blank or a data disk.
+        verdict   = BootVerdict::NotBootable;
+        outReason = "The disk has no boot code on it.";
+    }
+    else if (trace.isTextMode && last.starts_with ("*") && (HasRow (trace.rows, "Z-80") || HasRow (trace.rows, "Z80")))
+    {
+        //  A CP/M disk's loader looks for its Z-80 card and stops at the
+        //  monitor without one. Casso doesn't emulate the card.
+        verdict   = BootVerdict::Booted;
+        outReason = "The disk booted far enough to look for a Z-80 card, which Casso doesn't emulate.";
+    }
     else if (trace.isTextMode && last.starts_with ("*"))
     {
         verdict   = BootVerdict::DidNotBoot;
@@ -301,6 +366,11 @@ BootVerdict BootProbe::Judge (const Trace & trace, const Limits & limits, std::s
     {
         verdict   = BootVerdict::DidNotBoot;
         outReason = "The machine stopped at a BASIC prompt after an error.";
+    }
+    else if (IsBarePrompt (trace))
+    {
+        verdict   = BootVerdict::DidNotBoot;
+        outReason = "The machine stopped at a BASIC prompt with nothing else on the screen. A load that failed, or a failed copy-protection check, often ends this way.";
     }
     else if (trace.samples.back().frameHash == trace.samples[(size_t) trace.driveStarted].frameHash)
     {
@@ -326,12 +396,64 @@ BootVerdict BootProbe::Judge (const Trace & trace, const Limits & limits, std::s
         verdict   = BootVerdict::Booted;
         outReason = "Screen updates were detected and the drive returned to idle.";
     }
+    else if (!trace.isBlank && IsMostlyIdle (trace, limits))
+    {
+        //  A game whose title loads more now and then, as Tapper's attract
+        //  mode does, has the motor off most of the time; a loader in the
+        //  middle of a read has it on.
+        verdict   = BootVerdict::Booted;
+        outReason = "The screen changed, and the drive was idle most of the time at the end, loading now and then.";
+    }
     else
     {
         outReason = "The screen changed, but the drive didn't stop before the time limit.";
     }
 
     return verdict;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BootProbe::IsBarePrompt
+//
+//  A screen of prompts alone. With DOS loaded, one prompt can be a boot
+//  whose greeting program prints nothing, so it takes two: a command that
+//  failed without a message, as Zork I's image ends.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BootProbe::IsBarePrompt (const Trace & trace)
+{
+    int   prompts     = 0;
+    bool  onlyPrompts = true;
+
+
+
+    if (!trace.isTextMode)
+    {
+        return false;
+    }
+
+    for (const std::string & row : trace.rows)
+    {
+        size_t  first = row.find_first_not_of (' ');
+        size_t  end   = row.find_last_not_of (' ');
+
+        if (first == std::string::npos)
+        {
+            continue;
+        }
+
+        //  A prompt is ] and at most the cursor after it.
+        prompts     += row[first] == ']' ? 1 : 0;
+        onlyPrompts  = onlyPrompts && row[first] == ']' && end - first <= 1;
+    }
+
+    return onlyPrompts && prompts >= (trace.hasDos ? 2 : 1);
 }
 
 

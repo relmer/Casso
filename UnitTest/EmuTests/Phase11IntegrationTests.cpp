@@ -1,7 +1,7 @@
 #include "Pch.h"
 #include "GuestSession.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "TestMachine.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -54,7 +54,7 @@ public:
 
     vector<Byte> BuildSyntheticDsk()
     {
-        vector<Byte>   raw (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>   raw (NibbleFormat::kImageByteSize, 0);
 
         // See EmuValidationSuiteTests::BuildSyntheticDsk for rationale:
         // plant `JMP $0801` so the CPU halts cleanly in legal code
@@ -69,7 +69,7 @@ public:
 
     vector<Byte> BuildSyntheticPo()
     {
-        vector<Byte>   raw (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>   raw (NibbleFormat::kImageByteSize, 0);
 
         raw[1] = 0x4C; raw[2] = 0x01; raw[3] = 0x08;
 
@@ -262,7 +262,7 @@ public:
 
         Assert::IsTrue  (invoked,                   L"Eject must auto-flush dirty image");
         Assert::AreEqual (string ("writable.dsk"),  capturedPath);
-        Assert::AreEqual (size_t (NibblizationLayer::kImageByteSize), captured.size(),
+        Assert::AreEqual (size_t (NibbleFormat::kImageByteSize), captured.size(),
             L"Flushed payload must be 143360 bytes for a .dsk write-back");
         Assert::IsFalse (store.IsMounted (kSlot6, kDrive1),
             L"Eject must remove the mount entry");

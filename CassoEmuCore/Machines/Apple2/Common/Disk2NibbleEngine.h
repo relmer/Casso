@@ -222,6 +222,7 @@ private:
     void     SeekFlux           (double angle);
     uint8_t  StepFluxPulse      ();
     void     RecordFluxWriteBit (uint8_t bit);
+    void     PrepareWrite       ();
 
     DiskImage *  m_disk          = nullptr;
     int          m_currentTrack  = 0;
@@ -229,6 +230,9 @@ private:
     bool         m_writeMode     = false;
     bool         m_shiftLoadMode = false;
     size_t       m_bitPos        = 0;
+
+    // Whether the write under way has its slot from the disk yet.
+    bool         m_isWritePrepared = false;
 
     // Logic State Sequencer registers. m_lssState is the 4-bit P6
     // sequencer state (high nibble of the ROM command); m_lssClock is

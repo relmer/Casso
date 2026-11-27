@@ -175,6 +175,7 @@ std::wstring FullSendPanel::DescribeSummary (const FullSendSnapshot & snapshot, 
         case FullSendActivity::EditingPrefix:   text = prefix + L"a file name prefix is being typed on the Apple";           break;
         case FullSendActivity::Checking:        text = prefix + std::format (L"checking drive {}, {}", snapshot.drive, tally); break;
         case FullSendActivity::Validating:      text = prefix + std::format (L"validating the image, {}", tally);             break;
+        case FullSendActivity::Saving:          text = prefix + std::format (L"saving the image, {}", tally);                 break;
         default:                                                                                                                break;
     }
 
@@ -209,7 +210,7 @@ std::wstring FullSendPanel::DescribeSummary (const FullSendSnapshot & snapshot, 
 std::wstring FullSendPanel::DescribeCell (const FullSendDriveStatus & drive, int position)
 {
     std::wstring  track = (position % 4 == 0) ? std::format (L"Track {}", position / 4) : std::format (L"Track {:.2f}", position / 4.0);
-    std::wstring  state = L"not read yet";
+    std::wstring  state = drive.writing ? L"not written yet" : L"not read yet";
 
 
 
@@ -217,21 +218,22 @@ std::wstring FullSendPanel::DescribeCell (const FullSendDriveStatus & drive, int
     {
         switch (drive.positions[(size_t) position])
         {
-            case FullSendPositionMark::Read:     state = L"read";                                                        break;
-            case FullSendPositionMark::Weak:     state = L"weak bits, which read differently every time, as on the disk"; break;
-            case FullSendPositionMark::Unstable: state = L"the reads differ in length";                                  break;
-            default:                                                                                                      break;
+            case FullSendPositionMark::Read:     state = L"read";                                        break;
+            case FullSendPositionMark::Weak:     state = L"weak bits which read differently each time"; break;
+            case FullSendPositionMark::Unstable: state = L"the reads differ in length";                 break;
+            default:                                                                                     break;
         }
     }
     else
     {
         switch (drive.tracks[(size_t) position / 4])
         {
-            case FullSendTrackMark::Read:       state = L"read";                                  break;
-            case FullSendTrackMark::Verified:   state = L"read and verified";                     break;
-            case FullSendTrackMark::Unreliable: state = L"a sector's reads disagree";             break;
-            case FullSendTrackMark::Unreadable: state = L"a sector could not be read";            break;
-            default:                                                                              break;
+            case FullSendTrackMark::Read:       state = drive.writing ? L"written" : L"read";                           break;
+            case FullSendTrackMark::Verified:   state = drive.writing ? L"written and verified" : L"read and verified"; break;
+            case FullSendTrackMark::NotInImage: state = L"no data in the image";                                        break;
+            case FullSendTrackMark::Unreliable: state = L"a sector's reads disagree";                                   break;
+            case FullSendTrackMark::Unreadable: state = L"a sector could not be read";                                  break;
+            default:                                                                                                    break;
         }
     }
 
@@ -349,7 +351,7 @@ bool FullSendPanel::OnMouse (const DxuiMouseEvent & ev)
 
 
 
-    if (HandleClick (ev))
+    if (HandleClick (ev) || HandleWheel (ev))
     {
         return true;
     }
@@ -461,8 +463,8 @@ void FullSendPanel::MakeMapItems (const Map & map, MapItems & outItems)
 //
 //  FullSendPanel::LayMap
 //
-//  A drive's map magnified about a pointer at a strength, spreading past
-//  the ends of the map at rest, with the point under the pointer under it.
+//  A drive's map magnified about a pointer at a strength. The cells near
+//  the pointer grow taller and wider, and the row spreads around them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -650,6 +652,7 @@ std::wstring FullSendPanel::DescribeActivity (const FullSendSnapshot & snapshot,
         case FullSendActivity::Capturing:       return std::format (L"The disk in drive {} is likely copy-protected; using raw capture mode.", snapshot.drive);
         case FullSendActivity::WaitingForDisk:  return std::format (L"The {} is waiting for more disks to send.", apple);
         case FullSendActivity::Validating:      return std::format (L"Validating the image of the disk in drive {}: booting it to check that it runs.", snapshot.drive);
+        case FullSendActivity::Saving:          return std::format (L"Saving the image of the disk in drive {}.", snapshot.drive);
         case FullSendActivity::WaitingForApple: return std::format (L"Waiting for the Apple to reply, {}.", FormatSeconds (snapshot.waited));
         case FullSendActivity::EditingPrefix:   return L"A file name prefix is being typed on the Apple.";
         case FullSendActivity::Ended:           return L"The session ended. " + TextEncoding::NarrowToWide (snapshot.reason);
@@ -676,12 +679,14 @@ std::wstring FullSendPanel::DescribeDrive (const FullSendDriveStatus & drive)
     switch (drive.state)
     {
         case FullSendDiskState::Checking:  state = L"Checking";                              break;
-        case FullSendDiskState::Sending:   state = drive.verified ? L"Sending, with verification" : L"Sending"; break;
+        case FullSendDiskState::Sending:   state = drive.writing ? (drive.verified ? L"Writing, with verification" : L"Writing")
+                                                                 : (drive.verified ? L"Sending, with verification" : L"Sending"); break;
         case FullSendDiskState::Capturing: state = L"Capturing raw";                         break;
-        case FullSendDiskState::Sent:      state = L"Sent";                                  break;
+        case FullSendDiskState::Sent:      state = drive.writing ? L"Written" : L"Sent";     break;
         case FullSendDiskState::Duplicate: state = L"Duplicate";                             break;
         case FullSendDiskState::Empty:     state = L"Unformatted, or no disk";               break;
         case FullSendDiskState::Blank:     state = L"Blank";                                 break;
+        case FullSendDiskState::Failed:    state = L"Failed";                                break;
         default:                           state = L"No disk read yet";                      break;
     }
 
@@ -715,6 +720,11 @@ std::wstring FullSendPanel::DescribeTimes (const FullSendDriveStatus & drive)
     if (done)
     {
         return std::format (L"Took {}", FormatSeconds (drive.elapsed));
+    }
+
+    if (drive.state == FullSendDiskState::Failed)
+    {
+        return std::format (L"Failed after {}", FormatSeconds (drive.elapsed));
     }
 
     if (!busy)
@@ -946,14 +956,21 @@ void FullSendPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
 
     m_maps = {};
 
-    DrawLine (text, DescribeActivity (m_view.snapshot, m_view.machine), left, top, width, theme.Foreground(), true);
-
-    if (!m_view.connection.empty())
+    if (m_view.isJob)
     {
-        DrawLine (text, m_view.connection, left, top, width, theme.ForegroundMuted(), false, DxuiTextHAlign::Right);
+        column = width;
     }
+    else
+    {
+        DrawLine (text, DescribeActivity (m_view.snapshot, m_view.machine), left, top, width, theme.Foreground(), true);
 
-    top += m_scaler.ToPxf (kHeadingDip) + section;
+        if (!m_view.connection.empty())
+        {
+            DrawLine (text, m_view.connection, left, top, width, theme.ForegroundMuted(), false, DxuiTextHAlign::Right);
+        }
+
+        top += m_scaler.ToPxf (kHeadingDip) + section;
+    }
 
     //  A drive the Apple lacks is omitted, and the other one is at the left.
     first  = top;
@@ -964,20 +981,20 @@ void FullSendPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
         first = PaintDrive (painter, text, theme, 1, m_view.snapshot.drives[0], left, top, column);
     }
 
-    if (m_view.snapshot.present[1])
+    //  Side by side only when both fit; a job's one column is the width.
+    if (m_view.snapshot.present[1] && (!m_view.snapshot.present[0] || left + column + gap + column <= left + width + 0.5f))
     {
         second = PaintDrive (painter, text, theme, 2, m_view.snapshot.drives[1], m_view.snapshot.present[0] ? left + column + gap : left, top, column);
     }
 
-    //  A magnified map is drawn over everything near it, on an opaque cover
-    //  from its drive's heading down: the text drawn so far is flushed
-    //  first, so the cover hides the headings and titles under it.
+    //  A magnified map's cells are drawn over the text near them: the text
+    //  drawn so far is flushed first. The map at rest isn't drawn under it,
+    //  as the spread cells leave gaps where it would show.
     if (m_cover.right > m_cover.left && m_hotDrive >= 0 && m_maps[(size_t) m_hotDrive].isPainted)
     {
         LayMap (m_hotDrive, m_pointerX, gain, spans);
 
         painter.FlushLayer();
-        painter.FillRect ((float) m_cover.left, (float) m_cover.top, (float) (m_cover.right - m_cover.left), (float) (m_cover.bottom - m_cover.top), theme.Background());
         PaintCells (painter, theme, m_view.snapshot.drives[(size_t) m_hotDrive], m_maps[(size_t) m_hotDrive], spans);
     }
 
@@ -985,12 +1002,15 @@ void FullSendPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
 
     top = PaintLegend (painter, text, theme, top) + section;
 
-    DrawLine (text, DescribeTotals (m_view.snapshot.totals), left, top, width, theme.Foreground());
-    top += m_scaler.ToPxf (kLineDip) + section;
+    if (!m_view.isJob)
+    {
+        DrawLine (text, DescribeTotals (m_view.snapshot.totals), left, top, width, theme.Foreground());
+        top += m_scaler.ToPxf (kLineDip) + section;
 
-    top = PaintDisks (text, theme, top) + section;
+        top = PaintDisks (painter, text, theme, top) + section;
+    }
 
-    PaintActivity (text, theme, top);
+    PaintActivity (painter, text, theme, top);
 }
 
 
@@ -1019,6 +1039,7 @@ float FullSendPanel::PaintDrive (IDxuiPainter & painter, IDxuiTextRenderer & tex
     bool          busy    = drive.state == FullSendDiskState::Sending || drive.state == FullSendDiskState::Capturing;
     std::wstring  title   = drive.title.empty() ? std::wstring (L"No disk") : TextEncoding::NarrowToWide (drive.title);
     float         header  = top;
+    bool          atRest  = m_cover.right <= m_cover.left || m_hotDrive != number - 1;
 
 
 
@@ -1029,10 +1050,14 @@ float FullSendPanel::PaintDrive (IDxuiPainter & painter, IDxuiTextRenderer & tex
     DrawLine (text, title, left, top, width, theme.Foreground());
     top += lineH + space * 2.0f;
 
-    //  The map at rest; Paint draws a magnified map over it.
+    //  The map at rest, unless Paint draws it magnified after the text.
     m_maps[(size_t) number - 1] = { true, left, top, pitch, pitch - space, cellH, header, width };
-    LayMap (number - 1, 0.0f, 0.0f, spans);
-    PaintCells (painter, theme, drive, m_maps[(size_t) number - 1], spans);
+
+    if (atRest)
+    {
+        LayMap (number - 1, 0.0f, 0.0f, spans);
+        PaintCells (painter, theme, drive, m_maps[(size_t) number - 1], spans);
+    }
 
     for (int track = 0; track < FullSendDriveStatus::kTracks; track++)
     {
@@ -1088,6 +1113,11 @@ void FullSendPanel::PaintCells (IDxuiPainter & painter, const IDxuiTheme & theme
 
         painter.FillRect (span.left, cellTop, span.width, height, GetCellColor (drive, track, theme));
 
+        if (drive.positions.empty() && drive.tracks[(size_t) track] == FullSendTrackMark::NotInImage)
+        {
+            PaintNoData (painter, theme, span.left, cellTop, span.width, height);
+        }
+
         for (int quarter = 1; quarter < 4 && (size_t) (track * 4 + quarter) < drive.positions.size(); quarter++)
         {
             if (TryGetQuarterColor (drive.positions[(size_t) (track * 4 + quarter)], quarter, shade))
@@ -1096,6 +1126,29 @@ void FullSendPanel::PaintCells (IDxuiPainter & painter, const IDxuiTheme & theme
             }
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendPanel::PaintNoData
+//
+//  A track with no data in the image: the cell's lower-right half is blue,
+//  below the diagonal from its bottom-left to its top-right corner.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendPanel::PaintNoData (IDxuiPainter & painter, const IDxuiTheme & theme, float left, float top, float width, float height)
+{
+    float  right  = left + width;
+    float  bottom = top + height;
+
+
+
+    painter.FillConvexQuad (right, top, right, bottom, left, bottom, left, bottom, GetColor (FullSendTrackMark::Read, theme));
 }
 
 
@@ -1181,9 +1234,10 @@ float FullSendPanel::PaintLegend (IDxuiPainter & painter, IDxuiTextRenderer & te
     {
         uint32_t         color;
         const wchar_t  * label;
+        bool             noData = false;
     };
 
-    const Entry  entries[] =
+    const Entry  readEntries[] =
     {
         { GetColor (FullSendTrackMark::Read, theme),          L"Read" },
         { GetColor (FullSendTrackMark::Verified, theme),      L"Verified" },
@@ -1192,12 +1246,22 @@ float FullSendPanel::PaintLegend (IDxuiPainter & painter, IDxuiTextRenderer & te
         { GetColor (FullSendPositionMark::Unstable, theme),   L"Reads differ in length" },
     };
 
-    HRESULT  hr     = S_OK;
-    RECT     bounds = GetBounds();
-    float    x      = (float) bounds.left;
-    float    lineH  = m_scaler.ToPxf (kLineDip);
-    float    swatch = m_scaler.ToPxf (kSwatchDip);
-    float    gap    = m_scaler.ToPxf (kColumnGapDip);
+    const Entry  writeEntries[] =
+    {
+        { GetColor (FullSendTrackMark::Read, theme),          L"Written" },
+        { GetColor (FullSendTrackMark::Verified, theme),      L"Verified" },
+        { GetColor (FullSendTrackMark::NotInImage, theme),    L"No data in the image", true },
+    };
+
+    HRESULT                 hr      = S_OK;
+    RECT                    bounds  = GetBounds();
+    float                   x       = (float) bounds.left;
+    float                   lineH   = m_scaler.ToPxf (kLineDip);
+    float                   swatch  = m_scaler.ToPxf (kSwatchDip);
+    float                   gap     = m_scaler.ToPxf (kColumnGapDip);
+    bool                    writing = (m_view.snapshot.present[0] && m_view.snapshot.drives[0].writing)
+                                   || (m_view.snapshot.present[1] && m_view.snapshot.drives[1].writing);
+    std::span<const Entry>  entries = writing ? std::span<const Entry> (writeEntries) : std::span<const Entry> (readEntries);
 
 
 
@@ -1210,6 +1274,12 @@ float FullSendPanel::PaintLegend (IDxuiPainter & painter, IDxuiTextRenderer & te
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         painter.FillRect (x, top + (lineH - swatch) * 0.5f, swatch, swatch, entry.color);
+
+        if (entry.noData)
+        {
+            PaintNoData (painter, theme, x, top + (lineH - swatch) * 0.5f, swatch, swatch);
+        }
+
         DrawLine (text, entry.label, x + swatch * 1.6f, top, width + swatch, theme.ForegroundMuted());
 
         x += swatch * 1.6f + width + gap;
@@ -1226,41 +1296,51 @@ float FullSendPanel::PaintLegend (IDxuiPainter & painter, IDxuiTextRenderer & te
 //
 //  FullSendPanel::PaintDisks
 //
-//  The latest disks done: number, file, file system, status and time.
-//  Returns the bottom of kDiskRows rows, whether or not as many are done.
+//  The disks done, the newest first, from the m_diskScroll'th: drive,
+//  number, file, file system, status and time. The wheel scrolls the list,
+//  and a thumb at its right marks the visible rows. Returns the bottom of
+//  kDiskRows rows, whether or not as many are done.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float FullSendPanel::PaintDisks (IDxuiTextRenderer & text, const IDxuiTheme & theme, float top) const
+float FullSendPanel::PaintDisks (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float top) const
 {
     RECT    bounds = GetBounds();
     float   left   = (float) bounds.left;
-    float   width  = (float) (bounds.right - bounds.left);
+    float   width  = (float) (bounds.right - bounds.left) - m_scaler.ToPxf (kThumbGutterDip);
     float   lineH  = m_scaler.ToPxf (kLineDip);
     size_t  count  = m_view.snapshot.disks.size();
-    float   number = width * 0.08f;
-    float   file   = width * 0.32f;
+    size_t  first  = std::min (m_diskScroll, count > (size_t) kDiskRows ? count - kDiskRows : 0);
+    float   drive  = width * 0.05f;
+    float   number = width * 0.07f;
+    float   file   = width * 0.28f;
     float   system = width * 0.14f;
     float   took   = width * 0.08f;
-    float   status = width - number - file - system - took;
+    float   status = width - drive - number - file - system - took;
 
 
 
-    DrawLine (text, count > (size_t) kDiskRows ? std::format (L"Disks done: the latest {} of {}", kDiskRows, count) : std::wstring (L"Disks done"),
+    DrawLine (text, count > (size_t) kDiskRows ? std::format (L"Disks done: {} to {} of {}", first + 1, std::min (first + kDiskRows, count), count) : std::wstring (L"Disks done"),
               left, top, width, theme.HeadingForeground(), true);
     top += m_scaler.ToPxf (kHeadingDip);
 
-    for (size_t i = 0; i < (size_t) kDiskRows; i++)
+    m_disksArea = RECT { (LONG) left, (LONG) top, (LONG) (left + width), (LONG) (top + lineH * kDiskRows) };
+    PaintThumb (painter, theme, m_disksArea, first, kDiskRows, count);
+
+    for (size_t i = first; i < first + (size_t) kDiskRows; i++)
     {
         if (i < count)
         {
             const FullSendDoneDisk  & disk = m_view.snapshot.disks[i];
             std::wstring              name = disk.row.file.empty() ? std::wstring (L"(no image)") : TextEncoding::NarrowToWide (disk.row.file);
 
-            DrawLine (text, std::format (L"{:04}", disk.row.sequence), left, top, number, theme.ForegroundMuted());
-            DrawLine (text, name, left + number, top, file, theme.Foreground());
-            DrawLine (text, TextEncoding::NarrowToWide (disk.fileSystem), left + number + file, top, system, theme.ForegroundMuted());
-            DrawLine (text, DescribeStatus (disk.row), left + number + file + system, top, status, theme.ForegroundMuted());
+            float                     x    = left + drive;
+
+            DrawLine (text, std::format (L"D{}", disk.row.drive), left, top, drive, theme.ForegroundMuted());
+            DrawLine (text, std::format (L"{:04}", disk.row.sequence), x, top, number, theme.ForegroundMuted());
+            DrawLine (text, name, x + number, top, file, theme.Foreground());
+            DrawLine (text, TextEncoding::NarrowToWide (disk.fileSystem), x + number + file, top, system, theme.ForegroundMuted());
+            DrawLine (text, DescribeStatus (disk.row), x + number + file + system, top, status, theme.ForegroundMuted());
             DrawLine (text, (disk.seconds > 0.0) ? FormatSeconds (disk.seconds) : std::wstring(), left + width - took, top, took, theme.ForegroundMuted(), false, DxuiTextHAlign::Right);
 
             if (!disk.row.file.empty())
@@ -1283,21 +1363,25 @@ float FullSendPanel::PaintDisks (IDxuiTextRenderer & text, const IDxuiTheme & th
 //
 //  FullSendPanel::PaintActivity
 //
-//  The latest activity lines, the newest last, each after its time. A line
-//  wider than the list wraps onto a second row, and the list has as many of
-//  the latest lines as fit its rows.
+//  The activity lines, the newest first, from m_lineScroll lines back from
+//  the newest, each after its time and the drive it's about. A line wider
+//  than the list wraps onto a second row, and the list has as many lines as
+//  fit its rows. The wheel scrolls the list, and a thumb at its right marks the
+//  visible lines.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float FullSendPanel::PaintActivity (IDxuiTextRenderer & text, const IDxuiTheme & theme, float top) const
+float FullSendPanel::PaintActivity (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float top) const
 {
     RECT                       bounds = GetBounds();
     float                      left   = (float) bounds.left;
-    float                      width  = (float) (bounds.right - bounds.left);
+    float                      width  = (float) (bounds.right - bounds.left) - m_scaler.ToPxf (kThumbGutterDip);
     float                      lineH  = m_scaler.ToPxf (kLineDip);
     float                      time   = width * 0.10f;
+    float                      drive  = width * 0.05f;
     size_t                     count  = m_view.snapshot.lines.size();
-    size_t                     first  = count;
+    size_t                     end    = count - std::min (m_lineScroll, count > 0 ? count - 1 : 0);
+    size_t                     first  = end;
     int                        used   = 0;
     std::vector<std::wstring>  lines  (count);
     std::vector<int>           rows   (count, 1);
@@ -1322,7 +1406,7 @@ float FullSendPanel::PaintActivity (IDxuiTextRenderer & text, const IDxuiTheme &
         hr = text.MeasureString (lines[i].c_str(), m_scaler.ToPxf (kFontDip), s_kpszFont, measured, height);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        rows[i] = (measured > width - time) ? 2 : 1;
+        rows[i] = (measured > width - time - drive) ? 2 : 1;
         textH   = (height > 0.0f) ? std::min (height, lineH) : textH;
 
         if (used + rows[i] > kActivityRows)
@@ -1334,20 +1418,25 @@ float FullSendPanel::PaintActivity (IDxuiTextRenderer & text, const IDxuiTheme &
         first = i;
     }
 
+    PaintThumb (painter, theme, m_activity, count - end, end - first, count);
+
     //  A wrapped line's text begins where a single line's does, centered in
     //  the first row, and its block is one row and one more line of text
     //  tall, so the space below it matches the space below a single line.
-    for (size_t i = first; i < count; i++)
+    for (size_t i = end; i-- > first; )
     {
         HRESULT  hr     = S_OK;
         float    inset  = (lineH - textH) * 0.5f;
         float    blockH = rows[i] == 1 ? lineH : lineH + textH;
+        float    x      = left + time + drive;
+        int      number = m_view.snapshot.lines[i].drive;
 
         DrawLine (text, TextEncoding::NarrowToWide (m_view.snapshot.lines[i].time), left, top, time, theme.ForegroundMuted());
+        DrawLine (text, number > 0 ? std::format (L"D{}", number) : std::wstring(), left + time, top, drive, theme.ForegroundMuted());
 
-        hr = rows[i] == 1 ? text.DrawString (lines[i].c_str(), left + time, top, width - time, lineH, theme.Foreground(), m_scaler.ToPxf (kFontDip), s_kpszFont,
+        hr = rows[i] == 1 ? text.DrawString (lines[i].c_str(), x, top, width - time - drive, lineH, theme.Foreground(), m_scaler.ToPxf (kFontDip), s_kpszFont,
                                              DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false)
-                          : text.DrawString (lines[i].c_str(), left + time, top + inset, width - time, blockH - inset, theme.Foreground(), m_scaler.ToPxf (kFontDip), s_kpszFont,
+                          : text.DrawString (lines[i].c_str(), x, top + inset, width - time - drive, blockH - inset, theme.Foreground(), m_scaler.ToPxf (kFontDip), s_kpszFont,
                                              DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, true);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
@@ -1355,6 +1444,86 @@ float FullSendPanel::PaintActivity (IDxuiTextRenderer & text, const IDxuiTheme &
     }
 
     return top;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendPanel::PaintThumb
+//
+//  A list's thumb in the gutter at its right, the share of its height that
+//  the visible entries are of all of them, `first` entries down from the top.
+//  A list with every entry visible has no thumb.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendPanel::PaintThumb (IDxuiPainter & painter, const IDxuiTheme & theme, const RECT & area, size_t first, size_t shown, size_t total) const
+{
+    float  height = (float) (area.bottom - area.top);
+    float  thumbW = m_scaler.ToPxf (kThumbDip);
+    float  thumbH = 0.0f;
+    float  thumbY = 0.0f;
+
+
+
+    if (total == 0 || shown >= total)
+    {
+        return;
+    }
+
+    thumbH = std::max (height * (float) shown / (float) total, thumbW * 2.0f);
+    thumbY = (float) area.top + (height - thumbH) * (float) first / (float) (total - shown);
+
+    painter.FillRect ((float) GetBounds().right - thumbW, thumbY, thumbW, thumbH, theme.ForegroundMuted());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendPanel::HandleWheel
+//
+//  The wheel over the disks done or the activity scrolls that list a row a
+//  notch: up toward the newest entry, and down toward older ones.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FullSendPanel::HandleWheel (const DxuiMouseEvent & ev)
+{
+    POINT   pt      = { ev.positionDip.x, ev.positionDip.y };
+    int     notches = (int) std::lround (ev.wheelDelta);
+    size_t  disks   = m_view.snapshot.disks.size();
+    size_t  lines   = m_view.snapshot.lines.size();
+    bool    handled = false;
+
+
+
+    if (ev.kind != DxuiMouseEventKind::Wheel || ev.wheelHorizontal || notches == 0)
+    {
+        return false;
+    }
+
+    if (PtInRect (&m_disksArea, pt))
+    {
+        int64_t  most = disks > (size_t) kDiskRows ? (int64_t) (disks - kDiskRows) : 0;
+
+        m_diskScroll = (size_t) std::clamp ((int64_t) m_diskScroll - notches, (int64_t) 0, most);
+        handled      = true;
+    }
+    else if (PtInRect (&m_activity, pt))
+    {
+        int64_t  most = lines > 0 ? (int64_t) lines - 1 : 0;
+
+        m_lineScroll = (size_t) std::clamp ((int64_t) m_lineScroll - notches, (int64_t) 0, most);
+        handled      = true;
+    }
+
+    return handled;
 }
 
 
@@ -1540,8 +1709,9 @@ void FullSendDialog::AddCommand (std::vector<DxuiPopupMenuItem> & items, const w
 //  A disk's row has Open, Inspect disk image and, for a WOZ image, Disk
 //  properties, as the image's menu in the folder has them, then Repair disk
 //  image when the file system is bad or suspect and the inspector can
-//  repair it. The activity list has Copy, which copies every line of the
-//  session.
+//  repair it, and Report a problem last. The activity list has Copy, which
+//  copies every line of the session, and while a session runs, a raw capture
+//  of each drive's disk at the next pause.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1559,6 +1729,13 @@ std::vector<DxuiPopupMenuItem> FullSendDialog::MakeMenu (const std::string & fil
     if (file.empty())
     {
         AddCommand (items, L"&Copy", [this]() { DxuiClipboard::SetText (GetHwnd(), FullSendPanel::FormatActivity (m_view.snapshot)); });
+
+        if (m_rawCapture && IsRunning (m_view.snapshot))
+        {
+            AddCommand (items, L"Capture drive &1 raw for a report", [this]() { m_rawCapture (1); });
+            AddCommand (items, L"Capture drive &2 raw for a report", [this]() { m_rawCapture (2); });
+        }
+
         return items;
     }
 
@@ -1581,6 +1758,8 @@ std::vector<DxuiPopupMenuItem> FullSendDialog::MakeMenu (const std::string & fil
     {
         AddCommand (items, L"&Repair disk image...", [this, file]() { if (m_diskAction) { m_diskAction (file, DiskAction::Repair); } });
     }
+
+    AddCommand (items, L"Report a &problem...", [this, file]() { if (m_diskAction) { m_diskAction (file, DiskAction::Report); } });
 
     return items;
 }

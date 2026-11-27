@@ -4,6 +4,7 @@
 
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/Model/GroupChoices.h"
+#include "CassoExplorer/Window/Managers/ExplorerPickerMenus.h"
 
 struct ExplorerContext;
 class ExplorerListPane;
@@ -51,6 +52,13 @@ public:
     std::vector<DxuiPopupMenuItem>  GetSearchOptionChoices ();
     std::vector<DxuiPopupMenuItem>  GetViewChoices         (bool withKeys);
 
+    //  A separator only between two rows, and never two in a row.
+    static void  AddSeparator          (std::vector<DxuiPopupMenuItem> & items);
+    static void  RemoveExtraSeparators (std::vector<DxuiPopupMenuItem> & items);
+
+    void                   AddViewMenus    (std::vector<DxuiPopupMenuItem> & items);
+    ExplorerPickerMenus  & GetPickerMenus  () { return m_pickerMenus; }
+
 private:
     std::wstring    GetBackgroundShellId (const Location & shown) const;
     void            AddBackgroundRows    (std::vector<DxuiPopupMenuItem> & items, const Location & shown);
@@ -60,11 +68,13 @@ private:
     static constexpr const wchar_t *  s_kFilterGroupIcon = L"imageres.dll,-198";
 
 
-    void  AddViewMenus    (std::vector<DxuiPopupMenuItem> & items);
     void  AddOpenWithMenu (std::vector<DxuiPopupMenuItem> & items);
     void  AddCopyAsMenu   (std::vector<DxuiPopupMenuItem> & items);
     void  AddConvertMenu  (std::vector<DxuiPopupMenuItem> & items);
+    void  AddCardRows     (std::vector<DxuiPopupMenuItem> & items, const Location & card);
+    void  InsertSubmenu   (std::vector<DxuiPopupMenuItem> & items, size_t at, const wchar_t * label, const wchar_t * svg, std::shared_ptr<const DxuiIconImage> image, std::vector<DxuiPopupMenuItem> choices);
 
-    ExplorerListPane  & m_pane;
-    ExplorerContext   & m_context;
+    ExplorerListPane     & m_pane;
+    ExplorerContext      & m_context;
+    ExplorerPickerMenus    m_pickerMenus { *this, m_context };
 };

@@ -13,24 +13,181 @@
 
 
 
-static constexpr Byte   s_kHighBit         = 0x80;
-static constexpr Byte   s_kFirstPrintable  = 0x20;
-static constexpr Byte   s_kLastPrintable   = 0x7E;
-static constexpr float  s_kOffsetCharsDip  = 30.0f;
-static constexpr float  s_kByteDip         = 22.0f;
-static constexpr float  s_kTextGapDip      = 12.0f;
-static constexpr float  s_kCharDip         = 8.0f;
-static constexpr float  s_kHeaderGapDip    = 20.0f;
-static constexpr uint32_t  s_kSelectionAlpha = 0x50000000u;
-static constexpr uint32_t  s_kDiffAlpha      = 0x50000000u;
-static constexpr uint32_t  s_kHitAlpha       = 0x60000000u;
-static constexpr float     s_kDiffLineDip    = 2.0f;
-static constexpr float     s_kMinRowDip      = 11.0f;
-static constexpr float     s_kMarkDip        = 5.0f;
-static constexpr float     s_kCursorDip      = 1.5f;
+static constexpr float     s_kHeaderGapDip   = 20.0f;
+static constexpr float     s_kByteCells      = 74.0f;   // the hex view's character cells across a row of 16 bytes
+static constexpr float     s_kCellDip        = 8.0f;
+static constexpr float     s_kMinZoom        = 0.6f;
+static constexpr float     s_kZoomStep       = 0.05f;
+static constexpr float     s_kDiffShare      = 0.35f;
+static constexpr float     s_kHitShare       = 0.45f;
+static constexpr float     s_kConflictShare  = 0.25f;
 static constexpr uint32_t  s_kPanelArgb      = 0xFF0E121Au;
 static constexpr float     s_kPanelRadiusDip = 6.0f;
 static constexpr float     s_kPanelPadDip    = 8.0f;
+static constexpr int       s_kSectorRows     = DiskFieldFormat::kSectorBytes / SectorsView::kBytesPerRow;
+
+//  Each byte has one mark, the first of these that applies.
+static constexpr uint8_t  s_kMarkNone     = 0;
+static constexpr uint8_t  s_kMarkDiffers  = 1;
+static constexpr uint8_t  s_kMarkHit      = 2;
+static constexpr uint8_t  s_kMarkChanged  = 3;
+static constexpr uint8_t  s_kMarkConflict = 4;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SectorsView::SectorsView
+//
+//  Both hex views reserve the edit frame, so their columns line up; only
+//  the main one is edited. Neither is in the window's tab order: the view
+//  passes them its input.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SectorsView::SectorsView (InspectorViewContext & context) :
+    InspectorView (context)
+{
+    for (DxuiHexView * hex : { &m_hexA, &m_hexB })
+    {
+        hex->SetParent       (this);
+        hex->SetFocusable    (false);
+        hex->SetEditable     (true);
+        hex->SetBytesPerRow  (kBytesPerRow);
+        hex->SetTextEncoding (DxuiHexViewTypes::TextEncoding::AppleHighBit);
+        hex->SetMarkColor    ([] (uint8_t, uint32_t &) { return false; });
+    }
+
+    m_hexA.SetSource (&m_sourceA);
+    m_hexB.SetSource (&m_sourceB);
+
+    m_hexA.SetByteStyle ([this] (uint64_t offset, uint8_t mark, bool isSelected, DxuiHexViewTypes::Column, DxuiHexViewTypes::ByteStyle & outStyle)
+    {
+        return PickStyle (m_sourceA, offset, mark, isSelected, outStyle);
+    });
+
+    m_hexB.SetByteStyle ([this] (uint64_t offset, uint8_t mark, bool isSelected, DxuiHexViewTypes::Column, DxuiHexViewTypes::ByteStyle & outStyle)
+    {
+        return PickStyle (m_sourceB, offset, mark, isSelected, outStyle);
+    });
+
+    m_hexA.SetIsChanged ([] (uint64_t, uint8_t mark)
+    {
+        return mark == s_kMarkChanged || mark == s_kMarkConflict;
+    });
+
+    m_hexA.SetOnType ([this] (uint64_t offset, bool isHexColumn, bool isHighNibble, wchar_t ch)
+    {
+        int  edit = GetEdit();
+
+
+
+        if (edit < 0)
+        {
+            return false;
+        }
+
+        return isHexColumn ? m_context.edits->TypeHexDigit (edit, static_cast<int> (offset), isHighNibble, ch)
+                           : m_context.edits->TypeCharacter (edit, static_cast<int> (offset), ch);
+    });
+
+    m_hexA.SetOnSelectionChanged ([this] () { TakeSelection(); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SectorsView::GetFullWidthPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int SectorsView::GetFullWidthPx (const DxuiDpiScaler & scaler)
+{
+    return static_cast<int> (std::ceil (scaler.ToPxf (s_kByteCells * s_kCellDip + 2.0f * DxuiHexView::kEditFrameDip)));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SectorsView::Layout
+//
+//  The header has a fixed number of lines and the edit bar's row is there
+//  whether or not a sector is edited, so the bytes don't move when a
+//  sector is edited or another is selected.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SectorsView::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
+{
+    int  y = 0;
+
+
+
+    InspectorView::Layout (boundsDip, scaler);
+
+    y = boundsDip.top + static_cast<int> (std::ceil (scaler.ToPxf (static_cast<float> (kHeaderDip)) * (kHeaderLines + 0.25f)));
+
+    if (m_editRow)
+    {
+        y += m_editRow ({ boundsDip.left, y, boundsDip.right, y });
+    }
+
+    m_bytesTopPx = y;
+    PlaceBytes (m_isBad, m_isB);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SectorsView::PlaceBytes
+//
+//  The hex views below the bad-data band, when there is one. Their rows
+//  shrink to the room there is, both views and B's title sharing it while
+//  comparing, down to the smallest legible row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SectorsView::PlaceBytes (bool isBad, bool isB)
+{
+    float  pad    = m_scaler.ToPxf (s_kPanelRadiusDip);
+    float  rowDip = m_scaler.ToPxf (static_cast<float> (kRowDip));
+    float  top    = static_cast<float> (m_bytesTopPx) + pad + (isBad ? rowDip * 1.25f : 0.0f);
+    float  room   = static_cast<float> (m_boundsDip.bottom) - top - pad;
+    float  frame  = 2.0f * std::max (1.0f, m_scaler.ToPxf (static_cast<float> (DxuiHexView::kEditFrameDip)));
+    float  rows   = isB ? 2.0f * s_kSectorRows + 1.5f : static_cast<float> (s_kSectorRows);
+    float  rowPx  = (m_rowPx > 0.0f) ? m_rowPx : rowDip;
+    float  zoom   = std::min ({ 1.0f, (room - (isB ? 2 : 1) * frame) / (rows * rowPx), GetWidth() / GetFullWidthPx (m_scaler) });
+    float  row    = 0;
+    LONG   height = 0;
+
+
+
+    m_isBad = isBad;
+    m_isB   = isB;
+
+    zoom = std::max (s_kMinZoom, std::floor (zoom / s_kZoomStep) * s_kZoomStep);
+    m_hexA.SetZoom (zoom);
+    m_hexB.SetZoom (zoom);
+
+    row    = rowPx * zoom;
+    height = static_cast<LONG> (std::ceil (row * s_kSectorRows + frame)) + 1;
+
+    m_hexA.Layout ({ m_boundsDip.left, static_cast<LONG> (top), m_boundsDip.right, static_cast<LONG> (top) + height }, m_scaler);
+
+    top += height + row * 1.5f;
+    m_hexB.Layout ({ m_boundsDip.left, static_cast<LONG> (top), m_boundsDip.right, static_cast<LONG> (top) + height }, m_scaler);
+}
 
 
 
@@ -44,57 +201,96 @@ static constexpr float     s_kPanelPadDip    = 8.0f;
 
 void SectorsView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    const TrackAnalysis *   track  = m_context.GetTrack();
-    const AnalyzedSector *  sector = (track != nullptr) ? m_context.model->GetSector() : nullptr;
-    float                   y      = static_cast<float> (m_boundsDip.top);
+    const TrackAnalysis *   track   = m_context.GetTrack();
+    const AnalyzedSector *  sector  = (track != nullptr) ? m_context.model->GetSector() : nullptr;
+    const DxuiTheme *       surface = dynamic_cast<const DxuiTheme *> (&GetPanelTheme (theme));
+    float                   pad     = m_scaler.ToPxf (s_kPanelPadDip);
+    float                   top     = static_cast<float> (m_bytesTopPx);
+    float                   rowDip  = m_scaler.ToPxf (static_cast<float> (kRowDip));
+    bool                    isBad   = false;
+    bool                    isB     = false;
+    RECT                    cell    = {};
     std::wstring            empty;
 
 
 
-    m_grid.isShown = false;
+    m_hexA.SetVisible (false);
+    m_hexB.SetVisible (false);
 
-    if (m_context.hasDisk && m_context.analysis != nullptr)
+    if (!m_context.hasDisk || m_context.analysis == nullptr)
     {
-        if (sector != nullptr)
-        {
-            y = PaintHeader (text, theme, *sector, *track, y);
-        }
+        return;
+    }
 
-        //  The bytes on a near-black panel with a blue tint (FR-150).
-        if (sector != nullptr && sector->dataField >= 0)
+    if (sector != nullptr)
+    {
+        PaintHeader (text, theme, *sector, *track);
+    }
+
+    if (sector == nullptr || sector->dataField < 0)
+    {
+        empty = (sector == nullptr && track != nullptr && !track->sectors.empty())
+                    ? std::wstring (L"No sector is selected. Click a sector on the platter, in the strip or in the row of sectors to see its bytes.")
+                    : InspectorText::FormatNoSectorData (m_context.analysis->entries[m_context.model->GetQuarterTrack()], track);
+        text.DrawString (empty.c_str(), static_cast<float> (m_boundsDip.left), (sector == nullptr) ? static_cast<float> (m_boundsDip.top) : top, GetWidth(), rowDip * 3,
+                         theme.Foreground(), m_scaler.ToPxf (kTextDip), DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, true);
+        return;
+    }
+
+    isBad = sector->isDataCheck && !sector->isDataGood;
+    isB   = m_context.trackB != nullptr;
+
+    if (isBad != m_isBad || isB != m_isB)
+    {
+        PlaceBytes (isBad, isB);
+    }
+
+    //  The bytes on a near-black panel with a blue tint (FR-150).
+    m_panelTheme           = (surface != nullptr) ? *surface : DxuiTheme::Dark();
+    m_panelTheme.contentBg = s_kPanelArgb;
+
+    painter.FillRoundedRect (m_boundsDip.left - pad, top, GetWidth() + pad, m_boundsDip.bottom - top, m_scaler.ToPxf (s_kPanelRadiusDip), s_kPanelArgb);
+
+    if (isBad)
+    {
+        painter.FillRect (static_cast<float> (m_boundsDip.left), top + m_scaler.ToPxf (s_kPanelRadiusDip), GetWidth(), rowDip,
+                          (m_context.palette.colors.failedChecksum & 0x00FFFFFF) | 0x40000000);
+        text.DrawString (L"Data field checksum failed; these bytes are as decoded", static_cast<float> (m_boundsDip.left), top + m_scaler.ToPxf (s_kPanelRadiusDip),
+                         GetWidth(), rowDip, m_panelTheme.ErrorForeground(), m_scaler.ToPxf (kSmallDip), DxuiTheme::kBodyFace, DxuiTextHAlign::Left,
+                         DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
+    }
+
+    ShowBytes (*sector, *track);
+    FollowSelection();
+
+    m_hexA.SetEditing     (m_isEditing && GetEdit() >= 0);
+    m_hexA.OnFocusChanged (m_isEditing && GetEdit() >= 0 && m_hasKeys);
+    m_hexA.SetVisible     (true);
+    m_hexA.Paint          (painter, text, m_panelTheme);
+
+    if (isB)
+    {
+        cell = m_hexB.GetBounds();
+        text.DrawString (m_sourceB.GetByteCount() > 0 ? L"B" : L"B has no sector to pair with this one", static_cast<float> (m_boundsDip.left),
+                         cell.top - rowDip * m_hexB.GetZoom(), GetWidth(), rowDip * m_hexB.GetZoom(), m_panelTheme.HeadingForeground(), m_scaler.ToPxf (kSmallDip),
+                         DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
+
+        if (m_sourceB.GetByteCount() > 0)
         {
-            painter.FillRoundedRect (m_boundsDip.left - m_scaler.ToPxf (s_kPanelPadDip), y, GetWidth() + m_scaler.ToPxf (s_kPanelPadDip), m_boundsDip.bottom - y,
-                                     m_scaler.ToPxf (s_kPanelRadiusDip), s_kPanelArgb);
-            PaintBytes (painter, text, GetPanelTheme (theme), *sector, *track, y + m_scaler.ToPxf (s_kPanelRadiusDip));
-        }
-        else
-        {
-            empty = (sector == nullptr && track != nullptr && !track->sectors.empty())
-                        ? std::wstring (L"No sector is selected. Click a sector on the platter, in the strip or in the row of sectors to see its bytes.")
-                        : InspectorText::FormatNoSectorData (m_context.analysis->entries[m_context.model->GetQuarterTrack()], track);
-            text.DrawString (empty.c_str(), static_cast<float> (m_boundsDip.left), y, GetWidth(), m_scaler.ToPxf (static_cast<float> (kRowDip * 3)),
-                             theme.Foreground(), m_scaler.ToPxf (kTextDip), DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, true);
+            m_hexB.SetVisible (true);
+            m_hexB.Paint      (painter, text, m_panelTheme);
         }
     }
-}
 
+    //  The hex view measures its rows as it paints. Once a row's height is
+    //  known, the views are placed again for it.
+    cell = m_hexA.GetByteRect (0, DxuiHexViewTypes::Column::Hex);
 
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SectorsView::GetTextChar
-//
-////////////////////////////////////////////////////////////////////////////////
-
-wchar_t SectorsView::GetTextChar (Byte value)
-{
-    Byte  masked = static_cast<Byte> (value & ~s_kHighBit);
-
-
-
-    return (masked >= s_kFirstPrintable && masked <= s_kLastPrintable) ? static_cast<wchar_t> (masked) : L'.';
+    if (cell.bottom > cell.top && std::abs ((cell.bottom - cell.top) / m_hexA.GetZoom() - m_rowPx) >= 1.0f)
+    {
+        m_rowPx = (cell.bottom - cell.top) / m_hexA.GetZoom();
+        PlaceBytes (isBad, isB);
+    }
 }
 
 
@@ -105,40 +301,47 @@ wchar_t SectorsView::GetTextChar (Byte value)
 //
 //  SectorsView::PaintHeader
 //
-//  Labeled values, wrapping onto as many lines as the width needs; returns
-//  where the bytes start.
+//  The header's lines (FR-040): where the sector is, its checks, where the
+//  file system puts it and its role, then its owners and how many times
+//  the guest read, wrote and scanned it (FR-161). Each line is at a fixed
+//  place, whether or not it has items, and is cut off at the view's edge.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float SectorsView::PaintHeader (IDxuiTextRenderer & text, const IDxuiTheme & theme, const AnalyzedSector & sector, const TrackAnalysis & track, float y)
+void SectorsView::PaintHeader (IDxuiTextRenderer & text, const IDxuiTheme & theme, const AnalyzedSector & sector, const TrackAnalysis & track)
 {
-    vector<HeaderItem>  items  = InspectorText::BuildSectorHeader (sector, track);
-    vector<HeaderItem>  owners;
-    float               gap    = m_scaler.ToPxf (s_kHeaderGapDip);
-    float               rowH   = m_scaler.ToPxf (static_cast<float> (kHeaderDip));
-    float               textPx = m_scaler.ToPxf (kSmallDip);
-    float               x      = static_cast<float> (m_boundsDip.left);
-    float               w      = 0;
-    float               h      = 0;
-    float               top    = y;
-    std::wstring        line;
+    using Lines = std::array<vector<HeaderItem>, kHeaderLines>;
+
+    MapFileSystem       fileSystem = (m_context.fileMap != nullptr) ? m_context.fileMap->fileSystem : MapFileSystem::None;
+    SectorHeader        header     = InspectorText::BuildSectorHeader (sector, track, fileSystem);
+    Lines               lines;
+    vector<HeaderItem>  mapped;
+    float               gap        = m_scaler.ToPxf (s_kHeaderGapDip);
+    float               rowH       = m_scaler.ToPxf (static_cast<float> (kHeaderDip));
+    float               textPx     = m_scaler.ToPxf (kSmallDip);
+    float               x          = 0;
+    float               y          = 0;
+    float               w          = 0;
+    float               h          = 0;
+    float               right      = 0;
+    HRESULT             hr         = S_OK;
 
 
 
-    //  With a pending edit, the data checksum result once applied (FR-098).
-    if (int edit = GetEdit(); edit >= 0)
-    {
-        items.push_back (HeaderItem::MakeResult (L"Checksum after save", EditController::IsChecksumGoodAfter (m_context.edits->GetEdit (edit), track) ? L"Good" : L"Bad"));
-    }
+    std::copy (header.begin(), header.end(), lines.begin());
 
-    //  On a whole track of a mapped volume, the sector's role and owners.
+    //  On a whole track of a mapped volume, the sector's role, and its owners
+    //  on the last line.
     if (m_context.fileMap != nullptr && m_context.model->GetQuarterTrack() % DiskImage::kQuarterTracksPerWholeTrack == 0)
     {
-        owners = FileMapText::BuildSectorItems (*m_context.fileMap, m_context.model->GetQuarterTrack() / DiskImage::kQuarterTracksPerWholeTrack, sector.sector);
-        items.insert (items.end(), owners.begin(), owners.end());
+        mapped = FileMapText::BuildSectorItems (*m_context.fileMap, m_context.model->GetQuarterTrack() / DiskImage::kQuarterTracksPerWholeTrack, sector.sector);
+
+        for (const HeaderItem & item : mapped)
+        {
+            lines[(item.label == L"Owner" || item.label == L"Owners") ? 3 : 2].push_back (item);
+        }
     }
 
-    //  How many times the guest read, wrote and scanned the sector (FR-161).
     if (m_context.drive != nullptr && m_context.drive->access != nullptr && &sector >= track.sectors.data() && &sector < track.sectors.data() + track.sectors.size())
     {
         size_t    qt     = static_cast<size_t> (m_context.model->GetQuarterTrack());
@@ -149,36 +352,39 @@ float SectorsView::PaintHeader (IDxuiTextRenderer & text, const IDxuiTheme & the
 
         if (reads > 0)
         {
-            items.push_back ({ L"Reads", NumberFormat::FormatInteger (reads) });
+            lines[3].push_back ({ L"Reads", NumberFormat::FormatInteger (reads) });
         }
 
         if (writes > 0)
         {
-            items.push_back ({ L"Writes", NumberFormat::FormatInteger (writes) });
+            lines[3].push_back ({ L"Writes", NumberFormat::FormatInteger (writes) });
         }
 
         if (scans > 0)
         {
-            items.push_back ({ L"Scans", NumberFormat::FormatInteger (scans) });
+            lines[3].push_back ({ L"Scans", NumberFormat::FormatInteger (scans) });
         }
     }
 
-    for (const HeaderItem & item : items)
+    for (size_t line = 0; line < lines.size(); line++)
     {
-        line = item.label + L": " + item.value;
-        text.MeasureString (line.c_str(), textPx, DxuiTheme::kBodyFace, w, h);
+        x     = static_cast<float> (m_boundsDip.left);
+        y     = m_boundsDip.top + line * rowH;
+        right = m_boundsDip.right - ((line == 0) ? m_headerReservePx : 0.0f);
 
-        if (x + w > m_boundsDip.right - ((y == top) ? m_headerReservePx : 0.0f) && x > m_boundsDip.left)
+        hr = text.PushClipRect (x, y, std::max (0.0f, right - x), rowH);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        for (const HeaderItem & item : lines[line])
         {
-            x  = static_cast<float> (m_boundsDip.left);
-            y += rowH;
+            text.MeasureString ((item.label.empty() ? item.value : item.label + L": " + item.value).c_str(), textPx, DxuiTheme::kBodyFace, w, h);
+            PaintHeaderItem (text, theme, item, x, y, rowH);
+            x += w + gap;
         }
 
-        PaintHeaderItem (text, theme, item, x, y, rowH);
-        x += w + gap;
+        hr = text.PopClipRect();
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
-
-    return y + rowH * 1.5f;
 }
 
 
@@ -199,8 +405,9 @@ float SectorsView::PaintHeader (IDxuiTextRenderer & text, const IDxuiTheme & the
 void SectorsView::PaintHeaderItem (IDxuiTextRenderer & text, const IDxuiTheme & theme, const HeaderItem & item, float x, float y, float rowH) const
 {
     float         textPx  = m_scaler.ToPxf (kSmallDip);
-    std::wstring  line    = item.label + L": " + item.value;
-    size_t        badAt   = std::min (item.label.size() + 2 + std::min (item.badStart, item.value.size()), line.size());
+    std::wstring  prefix  = item.label.empty() ? std::wstring() : item.label + L": ";
+    std::wstring  line    = prefix + item.value;
+    size_t        badAt   = std::min (prefix.size() + std::min (item.badStart, item.value.size()), line.size());
     size_t        badEnd  = std::min (badAt + item.badLength, line.size());
     size_t        ends[]  = { badAt, badEnd, line.size() };
     size_t        start   = 0;
@@ -233,92 +440,62 @@ void SectorsView::PaintHeaderItem (IDxuiTextRenderer & text, const IDxuiTheme & 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SectorsView::GetFullWidthPx
+//  SectorsView::ShowBytes
+//
+//  The sector's bytes, its pending edit's when it has one, with their marks:
+//  a byte the guest also wrote, a changed byte, a byte of a find hit, and
+//  while comparing, a byte that differs from B's paired sector (FR-121).
+//  B's bytes are marked where they differ from the sector as decoded.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int SectorsView::GetFullWidthPx (const DxuiDpiScaler & scaler)
+void SectorsView::ShowBytes (const AnalyzedSector & sector, const TrackAnalysis & track)
 {
-    return static_cast<int> (std::ceil (scaler.ToPxf (s_kOffsetCharsDip + kBytesPerRow * (s_kByteDip + s_kCharDip) + s_kTextGapDip)));
-}
+    const DataFieldDecode &  data   = track.fields[sector.dataField].data;
+    std::span<const Byte>    bytesB = GetPairedBytes (track);
+    int                      index  = static_cast<int> (&sector - track.sectors.data());
+    int                      edit   = GetEdit();
+    const PendingEdit *      change = (edit >= 0) ? &m_context.edits->GetEdit (edit) : nullptr;
+    std::span<const Byte>    shown  = (change != nullptr) ? std::span<const Byte> (change->bytes) : std::span<const Byte> (data.bytes);
+    uint64_t                 countB = m_sourceB.GetByteCount();
 
 
 
+    m_sourceA.SetBytes (shown);
+    m_sourceB.SetBytes (bytesB);
 
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SectorsView::PaintBytes
-//
-//  The sector's bytes; while comparing, B's paired sector below them, both
-//  grids sized to fit, with each byte that differs marked in both (FR-121).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SectorsView::PaintBytes (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const AnalyzedSector & sector, const TrackAnalysis & track, float y)
-{
-    const DataFieldDecode &  data    = track.fields[sector.dataField].data;
-    std::span<const Byte>    bytesB  = GetPairedBytes (track);
-    bool                     isB     = m_context.trackB != nullptr;
-    float                    fit     = std::min (1.0f, GetWidth() / GetFullWidthPx (m_scaler));
-    float                    rowH    = m_scaler.ToPxf (static_cast<float> (kRowDip)) * std::max (fit, 0.75f);
-    float                    textPx  = 0;
-    float                    left    = static_cast<float> (m_boundsDip.left);
-    bool                     isBad   = sector.isDataCheck && !sector.isDataGood;
-    int                      rows    = static_cast<int> (data.bytes.size() + kBytesPerRow - 1) / kBytesPerRow;
-    int                      index   = static_cast<int> (&sector - track.sectors.data());
-    int                      edit    = GetEdit();
-    std::span<const Byte>    shown   = (edit >= 0) ? std::span<const Byte> (m_context.edits->GetEdit (edit).bytes) : std::span<const Byte> (data.bytes);
-    vector<Byte>             hits    (data.bytes.size(), 0);
-    vector<Byte>             changed (data.bytes.size(), 0);
-    ByteGrid                 grid;
-
-
-
-    //  The rows shrink to the height there is, both grids and B's title
-    //  sharing it while comparing, down to the smallest legible row.
-    rows = rows * (isB ? 2 : 1);
-    rowH = std::min (rowH, std::max (m_scaler.ToPxf (s_kMinRowDip), (static_cast<float> (m_boundsDip.bottom) - y) / (rows + (isB ? 2.5f : 0.0f) + (isBad ? 1.25f : 0.0f))));
-    fit  = std::min (fit, rowH / m_scaler.ToPxf (static_cast<float> (kRowDip)));
-    rows = rows / (isB ? 2 : 1);
-
-    textPx = m_scaler.ToPxf (kTextDip) * fit;
-    grid   = { y, rowH, left + m_scaler.ToPxf (s_kOffsetCharsDip) * fit, 0.0f, m_scaler.ToPxf (s_kByteDip) * fit, m_scaler.ToPxf (s_kCharDip) * fit, true };
-    grid.textLeft = grid.hexLeft + kBytesPerRow * grid.byteW + m_scaler.ToPxf (s_kTextGapDip) * fit;
-
-    if (isBad)
+    if (m_sourceB.GetByteCount() != countB)
     {
-        painter.FillRect (left, y, GetWidth(), rowH, (m_context.palette.colors.failedChecksum & 0x00FFFFFF) | 0x40000000);
-        text.DrawString (L"Data field checksum failed; these bytes are as decoded", left, y, GetWidth(), rowH, theme.ErrorForeground(),
-                         m_scaler.ToPxf (kSmallDip), DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
-        grid.top += rowH * 1.25f;
+        m_hexB.SetSource (&m_sourceB);
     }
 
-    for (size_t i = 0; m_context.findMarks != nullptr && i < hits.size(); i++)
+    for (size_t i = 0; i < shown.size(); i++)
     {
-        hits[i] = m_context.findMarks->IsByteMarked (&track, index, static_cast<int> (i)) ? 1 : 0;
-    }
+        int  at = static_cast<int> (i);
 
-    for (size_t i = 0; edit >= 0 && i < changed.size(); i++)
-    {
-        changed[i] = m_context.edits->GetEdit (edit).IsConflict (static_cast<int> (i)) ? 2 : m_context.edits->GetEdit (edit).IsChanged (static_cast<int> (i)) ? 1 : 0;
-    }
-
-    m_grid = grid;
-    PaintSelection (painter, theme);
-    PaintGrid      (painter, text, theme, grid, shown, bytesB, hits, changed, textPx);
-    PaintCursor    (painter, theme);
-
-    if (isB)
-    {
-        grid.top += rows * rowH + rowH * 0.5f;
-        text.DrawString (!bytesB.empty() ? L"B" : L"B has no sector to pair with this one", left, grid.top, GetWidth(), rowH, theme.HeadingForeground(),
-                         m_scaler.ToPxf (kSmallDip), DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
-        grid.top += rowH;
-
-        if (!bytesB.empty())
+        if (change != nullptr && change->IsConflict (at))
         {
-            PaintGrid (painter, text, theme, grid, bytesB, data.bytes, {}, {}, textPx);
+            m_sourceA.SetMark (i, s_kMarkConflict);
+        }
+        else if (change != nullptr && change->IsChanged (at))
+        {
+            m_sourceA.SetMark (i, s_kMarkChanged);
+        }
+        else if (m_context.findMarks != nullptr && m_context.findMarks->IsByteMarked (&track, index, at))
+        {
+            m_sourceA.SetMark (i, s_kMarkHit);
+        }
+        else if (!bytesB.empty() && (i >= bytesB.size() || bytesB[i] != shown[i]))
+        {
+            m_sourceA.SetMark (i, s_kMarkDiffers);
+        }
+    }
+
+    for (size_t i = 0; i < bytesB.size(); i++)
+    {
+        if (i >= data.bytes.size() || data.bytes[i] != bytesB[i])
+        {
+            m_sourceB.SetMark (i, s_kMarkDiffers);
         }
     }
 }
@@ -329,84 +506,54 @@ void SectorsView::PaintBytes (IDxuiPainter & painter, IDxuiTextRenderer & text, 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SectorsView::PaintGrid
+//  SectorsView::PickStyle
 //
-//  Rows of 16 under their offsets, hex then text. A byte that differs from
-//  the other side's is tinted and underlined, so it shows without color;
-//  with no other side, nothing is marked. A byte of a find hit is tinted
-//  and outlined in both columns. A byte a pending edit changed is drawn in
-//  the edit color with a corner mark in both columns (FR-097), and the mark
-//  is in the failure color where the guest also wrote the byte.
+//  A byte that differs from the other side's has the difference color
+//  behind it, a byte of a find hit the find color with an outline, and a
+//  byte the guest also wrote an outline in the failure color. A zero byte
+//  is muted. A selected byte is the hex view's selection.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SectorsView::PaintGrid (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const ByteGrid & grid, std::span<const Byte> bytes,
-                                std::span<const Byte> other, std::span<const Byte> hits, std::span<const Byte> changed, float textPx)
+bool SectorsView::PickStyle (const BlockHexSource & source, uint64_t offset, uint8_t mark, bool isSelected, DxuiHexViewTypes::ByteStyle & outStyle) const
 {
-    float     left   = static_cast<float> (m_boundsDip.left);
-    float     line   = m_scaler.ToPxf (s_kDiffLineDip);
-    size_t    i      = 0;
-    int       row    = 0;
-    int       col    = 0;
-    float     rowTop = 0;
-    uint32_t  color  = 0;
-    float     mark   = m_scaler.ToPxf (s_kMarkDip);
-    float     hx     = 0;
-    float     tx     = 0;
-    wchar_t   ch[2]  = {};
+    const DiskInspectorColors &  colors = m_context.palette.colors;
 
 
 
-    for (i = 0; i < bytes.size(); i++)
+    outStyle = DxuiHexViewTypes::ByteStyle();
+
+    if (isSelected)
     {
-        row    = static_cast<int> (i) / kBytesPerRow;
-        col    = static_cast<int> (i) % kBytesPerRow;
-        rowTop = grid.top + row * grid.rowH;
-        color  = (bytes[i] == 0) ? theme.ForegroundMuted() : theme.Foreground();
-        hx     = grid.hexLeft + col * grid.byteW;
-        tx     = grid.textLeft + col * grid.charW;
-
-        //  A row that does not fit in the view is left out rather than drawn
-        //  over what lies below it.
-        if (rowTop + grid.rowH > static_cast<float> (m_boundsDip.bottom))
-        {
-            continue;
-        }
-
-        if (col == 0)
-        {
-            text.DrawString (std::format (L"{:02X}", i).c_str(), left, rowTop, grid.hexLeft - left, grid.rowH, theme.ForegroundMuted(), textPx,
-                             DxuiTheme::kMonoFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-        }
-
-        if (i < hits.size() && hits[i] != 0)
-        {
-            painter.FillRect    (grid.hexLeft + col * grid.byteW, rowTop, grid.byteW * 0.8f, grid.rowH, (m_context.palette.colors.findHit & 0x00FFFFFFu) | s_kHitAlpha);
-            painter.OutlineRect (grid.hexLeft + col * grid.byteW, rowTop, grid.byteW * 0.8f, grid.rowH, 1.0f, m_context.palette.colors.findHit);
-            painter.FillRect    (grid.textLeft + col * grid.charW, rowTop, grid.charW, grid.rowH, (m_context.palette.colors.findHit & 0x00FFFFFFu) | s_kHitAlpha);
-        }
-
-        if (!other.empty() && (i >= other.size() || other[i] != bytes[i]))
-        {
-            painter.FillRect (grid.hexLeft + col * grid.byteW, rowTop, grid.byteW * 0.8f, grid.rowH, (m_context.palette.colors.difference & 0x00FFFFFFu) | s_kDiffAlpha);
-            painter.FillRect (grid.hexLeft + col * grid.byteW, rowTop + grid.rowH - line, grid.byteW * 0.8f, line, m_context.palette.colors.difference);
-            painter.FillRect (grid.textLeft + col * grid.charW, rowTop + grid.rowH - line, grid.charW, line, m_context.palette.colors.difference);
-        }
-
-        if (i < changed.size() && changed[i] != 0)
-        {
-            color = (changed[i] == 2) ? m_context.palette.colors.failedChecksum : m_context.palette.colors.pendingEdit;
-            painter.FillConvexQuad (hx, rowTop, hx + mark, rowTop, hx, rowTop + mark, hx, rowTop + mark, color);
-            painter.FillConvexQuad (tx, rowTop, tx + mark, rowTop, tx, rowTop + mark, tx, rowTop + mark, color);
-        }
-
-        text.DrawString (std::format (L"{:02X}", bytes[i]).c_str(), grid.hexLeft + col * grid.byteW, rowTop, grid.byteW, grid.rowH, color, textPx,
-                         DxuiTheme::kMonoFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-
-        ch[0] = GetTextChar (bytes[i]);
-        text.DrawString (ch, grid.textLeft + col * grid.charW, rowTop, grid.charW, grid.rowH, color, textPx,
-                         DxuiTheme::kMonoFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        return false;
     }
+
+    switch (mark)
+    {
+        case s_kMarkDiffers:
+            outStyle.fill = DxuiColor::Mix (s_kPanelArgb, colors.difference | 0xFF000000u, s_kDiffShare);
+            break;
+
+        case s_kMarkHit:
+            outStyle.fill    = DxuiColor::Mix (s_kPanelArgb, colors.findHit | 0xFF000000u, s_kHitShare);
+            outStyle.outline = colors.findHit | 0xFF000000u;
+            break;
+
+        case s_kMarkConflict:
+            outStyle.fill    = DxuiColor::Mix (s_kPanelArgb, colors.failedChecksum | 0xFF000000u, s_kConflictShare);
+            outStyle.outline = colors.failedChecksum | 0xFF000000u;
+            break;
+
+        default:
+            break;
+    }
+
+    if (offset < source.GetBytes().size() && source.GetBytes()[offset] == 0)
+    {
+        outStyle.ink = m_panelTheme.ForegroundMuted();
+    }
+
+    return outStyle.fill != 0 || outStyle.ink != 0;
 }
 
 
@@ -439,32 +586,86 @@ std::span<const Byte> SectorsView::GetPairedBytes (const TrackAnalysis & track) 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SectorsView::PaintSelection
+//  SectorsView::FollowSelection
 //
-//  The selected bytes shaded in both columns, a run per row.
+//  The main hex view's selection and column from the view model's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SectorsView::PaintSelection (IDxuiPainter & painter, const IDxuiTheme & theme)
+void SectorsView::FollowSelection()
 {
-    int       first = m_context.model->GetFirstByte();
-    int       end   = first + m_context.model->GetByteCount();
-    int       row   = 0;
-    int       a     = 0;
-    int       b     = 0;
-    float     y     = 0;
-    uint32_t  shade = (theme.Accent() & 0x00FFFFFFu) | s_kSelectionAlpha;
+    int                       first  = m_context.model->GetFirstByte();
+    int                       count  = m_context.model->GetByteCount();
+    int                       anchor = m_context.model->GetByteAnchor();
+    DxuiHexViewTypes::Column  column = m_context.model->IsTextColumn() ? DxuiHexViewTypes::Column::Text : DxuiHexViewTypes::Column::Hex;
+    uint64_t                  from   = 0;
+    uint64_t                  to     = 0;
 
 
 
-    for (row = (first >= 0) ? first / kBytesPerRow : kBytesPerRow; row * kBytesPerRow < end; row++)
+    m_isFollowing = true;
+
+    if (first < 0 || count <= 0)
     {
-        a = std::max (first, row * kBytesPerRow) % kBytesPerRow;
-        b = (std::min (end, (row + 1) * kBytesPerRow) - 1) % kBytesPerRow + 1;
-        y = m_grid.top + row * m_grid.rowH;
+        if (m_hexA.HasSelection())
+        {
+            m_hexA.ClearSelection();
+        }
+    }
+    else
+    {
+        from = (anchor >= first && anchor < first + count) ? static_cast<uint64_t> (anchor) : static_cast<uint64_t> (first);
+        to   = (from == static_cast<uint64_t> (first)) ? static_cast<uint64_t> (first + count - 1) : static_cast<uint64_t> (first);
 
-        painter.FillRect (m_grid.hexLeft + a * m_grid.byteW, y, (b - a) * m_grid.byteW, m_grid.rowH, shade);
-        painter.FillRect (m_grid.textLeft + a * m_grid.charW, y, (b - a) * m_grid.charW, m_grid.rowH, shade);
+        if (!m_hexA.HasSelection() || m_hexA.GetSelectionAnchor() != from || m_hexA.GetCaret() != to)
+        {
+            m_hexA.SelectByte (from, column);
+
+            if (to != from)
+            {
+                m_hexA.ExtendSelectionTo (to);
+            }
+        }
+    }
+
+    if (m_hexA.GetActiveColumn() != column)
+    {
+        m_hexA.SetActiveColumn (column);
+    }
+
+    m_isFollowing = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SectorsView::TakeSelection
+//
+//  The view model's byte selection from the main hex view's, after a click,
+//  a drag, a key or typing changes it there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SectorsView::TakeSelection()
+{
+    uint64_t  anchor = m_hexA.GetSelectionAnchor();
+    uint64_t  caret  = m_hexA.GetCaret();
+
+
+
+    if (m_isFollowing || !m_hexA.HasSelection())
+    {
+        return;
+    }
+
+    m_context.model->SelectBytes (static_cast<int> (anchor), 1, m_hexA.GetActiveColumn() == DxuiHexViewTypes::Column::Text);
+
+    if (caret != anchor)
+    {
+        m_context.model->ExtendBytes (static_cast<int> (caret));
     }
 }
 
@@ -477,49 +678,99 @@ void SectorsView::PaintSelection (IDxuiPainter & painter, const IDxuiTheme & the
 //  SectorsView::OnMouse
 //
 //  A press on a byte in either column selects it, Shift extends the
-//  selection to it, and a drag extends it as it goes (FR-043).
+//  selection to it, and a drag extends it as it goes (FR-043). The main hex
+//  view takes the press, and the drag until the button is released.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool SectorsView::OnMouse (const DxuiMouseEvent & ev)
 {
-    bool  isText    = false;
-    int   index     = HitTest (ev.positionDip, isText);
+    RECT  bounds    = m_hexA.GetBounds();
+    bool  isOver    = m_hexA.IsVisible() && PtInRect (&bounds, ev.positionDip);
     bool  isHandled = false;
 
 
 
-    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && index >= 0)
+    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && isOver)
     {
-        if (ev.shift && m_context.model->GetByteCount() > 0)
-        {
-            m_context.model->ExtendBytes (index);
-        }
-        else
-        {
-            m_context.model->SelectBytes (index, 1, isText);
-            m_isLowNibble = !isText && ev.positionDip.x >= m_grid.hexLeft + (index % kBytesPerRow) * m_grid.byteW + m_grid.byteW * 0.4f;
-        }
+        int      at       = HitTest (ev.positionDip);
+        int64_t  nowMs    = static_cast<int64_t> (GetTickCount64());
+        bool     isDouble = at >= 0 && at == m_pressAt && m_pressMs != 0 && nowMs - m_pressMs <= static_cast<int64_t> (GetDoubleClickTime());
 
-        m_isDragging = true;
+        m_isDragging = !isDouble;
         isHandled    = true;
-    }
-    else if (ev.kind == DxuiMouseEventKind::Move && m_isDragging)
-    {
-        if (index >= 0)
-        {
-            m_context.model->ExtendBytes (index);
-        }
+        m_pressAt    = at;
+        m_pressMs    = isDouble ? 0 : nowMs;
 
-        isHandled = true;
+        (void) m_hexA.OnMouse (ev);
+
+        if (isDouble && m_onOpen)
+        {
+            m_onOpen (at);
+        }
     }
-    else if (ev.kind == DxuiMouseEventKind::Up && m_isDragging)
+    else if ((ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Up) && m_isDragging)
     {
-        m_isDragging = false;
+        m_isDragging = ev.kind == DxuiMouseEventKind::Move;
         isHandled    = true;
+
+        (void) m_hexA.OnMouse (ev);
     }
 
     return isHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SectorsView::OnFocusEntered
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SectorsView::OnFocusEntered (bool forward)
+{
+    int  first = m_context.model->GetFirstByte();
+
+
+
+    m_context.model->SelectBytes ((std::max) (0, first), (first >= 0) ? m_context.model->GetByteCount() : 1, !forward);
+    FollowSelection();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SectorsView::GoToByte
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SectorsView::GoToByte (int offset)
+{
+    m_context.model->SelectBytes (offset, 1, false);
+    FollowSelection();
+    m_hexA.GoToOffset (static_cast<uint64_t> (offset));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SectorsView::SetEditing
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SectorsView::SetEditing (bool isEditing)
+{
+    m_isEditing = isEditing;
+    m_hexA.ResetNibble();
 }
 
 
@@ -549,136 +800,55 @@ int SectorsView::GetEdit() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SectorsView::PaintCursor
-//
-//  While editing, a box around the hex digit or the character typing goes
-//  to.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SectorsView::PaintCursor (IDxuiPainter & painter, const IDxuiTheme & theme)
-{
-    int    offset = m_context.model->GetFirstByte();
-    float  row    = 0;
-    float  col    = 0;
-    float  digitW = m_grid.byteW * 0.4f;
-
-
-
-    if (m_isEditing && m_grid.isShown && offset >= 0 && offset < DiskFieldFormat::kSectorBytes && GetEdit() >= 0)
-    {
-        row = m_grid.top + (offset / kBytesPerRow) * m_grid.rowH;
-        col = static_cast<float> (offset % kBytesPerRow);
-
-        if (m_context.model->IsTextColumn())
-        {
-            painter.OutlineRect (m_grid.textLeft + col * m_grid.charW, row, m_grid.charW, m_grid.rowH, m_scaler.ToPxf (s_kCursorDip), theme.Accent());
-        }
-        else
-        {
-            painter.OutlineRect (m_grid.hexLeft + col * m_grid.byteW + (m_isLowNibble ? digitW : 0.0f), row, digitW, m_grid.rowH, m_scaler.ToPxf (s_kCursorDip), theme.Accent());
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SectorsView::MoveCursor
-//
-//  The cursor is the selection's first byte, so moving it selects that
-//  byte alone; it stops at the sector's first and last bytes.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SectorsView::MoveCursor (int offset, bool isTextColumn, bool isLowNibble)
-{
-    if (offset < 0)
-    {
-        offset      = 0;
-        isLowNibble = false;
-    }
-    else if (offset >= DiskFieldFormat::kSectorBytes)
-    {
-        offset      = DiskFieldFormat::kSectorBytes - 1;
-        isLowNibble = !isTextColumn;
-    }
-
-    m_isLowNibble = isLowNibble && !isTextColumn;
-    m_context.model->SelectBytes (offset, 1, isTextColumn);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  SectorsView::OnEditKey
 //
-//  In the hex column a digit sets the digit under the cursor and moves to
-//  the next one; in the text column a character sets the byte and moves on.
-//  The arrows move by a digit or a character and by a row, Home and End to
+//  While the sector is edited, typing and the keys that move the caret go
+//  to the main hex view: the arrows by a byte and by a row, Home and End to
 //  the row's ends, and Tab between the columns.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool SectorsView::OnEditKey (const DxuiKeyEvent & ev)
 {
-    int   edit      = GetEdit();
-    int   offset    = m_context.model->GetFirstByte();
-    bool  isText    = m_context.model->IsTextColumn();
-    bool  isHandled = false;
+    bool  isCaretKey = ev.kind == DxuiKeyEventKind::Down && (ev.vk == VK_LEFT || ev.vk == VK_RIGHT || ev.vk == VK_UP || ev.vk == VK_DOWN ||
+                                                              ev.vk == VK_HOME || ev.vk == VK_END || ev.vk == VK_TAB);
 
 
 
-    if (!m_isEditing || edit < 0 || offset < 0)
+    if (!m_isEditing || GetEdit() < 0 || m_context.model->GetFirstByte() < 0 || ev.ctrl || ev.alt)
     {
         return false;
     }
 
-    if (ev.kind == DxuiKeyEventKind::Char && !ev.ctrl && !ev.alt)
+    if (ev.kind != DxuiKeyEventKind::Char && !isCaretKey)
     {
-        if (isText)
-        {
-            isHandled = m_context.edits->TypeCharacter (edit, offset, static_cast<wchar_t> (ev.vk));
-
-            if (isHandled)
-            {
-                MoveCursor (offset + 1, true, false);
-            }
-        }
-        else
-        {
-            isHandled = m_context.edits->TypeHexDigit (edit, offset, !m_isLowNibble, static_cast<wchar_t> (ev.vk));
-
-            if (isHandled)
-            {
-                MoveCursor (m_isLowNibble ? offset + 1 : offset, false, !m_isLowNibble);
-            }
-        }
-    }
-    else if (ev.kind == DxuiKeyEventKind::Down && !ev.ctrl && !ev.alt && !ev.shift)
-    {
-        isHandled = true;
-
-        switch (ev.vk)
-        {
-            case VK_LEFT:  MoveCursor ((isText || !m_isLowNibble) ? offset - 1 : offset, isText, !isText && !m_isLowNibble); break;
-            case VK_RIGHT: MoveCursor ((isText || m_isLowNibble) ? offset + 1 : offset, isText, !isText && !m_isLowNibble);  break;
-            case VK_UP:    MoveCursor (offset - kBytesPerRow, isText, m_isLowNibble);                                          break;
-            case VK_DOWN:  MoveCursor (offset + kBytesPerRow, isText, m_isLowNibble);                                          break;
-            case VK_HOME:  MoveCursor (offset - offset % kBytesPerRow, isText, false);                                         break;
-            case VK_END:   MoveCursor (offset - offset % kBytesPerRow + kBytesPerRow - 1, isText, !isText);                    break;
-            case VK_TAB:   MoveCursor (offset, !isText, false);                                                                break;
-            default:       isHandled = false;                                                                                  break;
-        }
+        return false;
     }
 
-    return isHandled;
+    FollowSelection();
+
+    return m_hexA.OnKey (ev);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SectorsView::HitTest
+//
+//  The byte of the main hex view under a point, or -1.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int SectorsView::HitTest (POINT pointPx) const
+{
+    DxuiHexViewTypes::HitResult  hit = m_hexA.IsVisible() ? m_hexA.HitTestPoint (pointPx) : DxuiHexViewTypes::HitResult();
+
+
+
+    return hit.hit ? static_cast<int> (hit.offset) : -1;
 }
 
 
@@ -697,8 +867,7 @@ bool SectorsView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & outA
 {
     const TrackAnalysis *  track  = m_context.GetTrack();
     int                    sector = (m_context.model != nullptr) ? m_context.model->GetSectorIndex() : -1;
-    bool                   isText = false;
-    int                    index  = HitTest (pointPx, isText);
+    int                    index  = HitTest (pointPx);
     bool                   hasTip = index >= 0 && sector >= 0 && m_context.findMarks != nullptr && m_context.findMarks->IsByteMarked (track, sector, index);
 
 
@@ -736,41 +905,4 @@ bool SectorsView::GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch> &
     }
 
     return hasTip;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SectorsView::HitTest
-//
-//  The byte under a point and which column it is in, or -1. A drag past
-//  either column's edge takes the byte at that edge.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int SectorsView::HitTest (POINT pointPx, bool & outIsText) const
-{
-    int    index    = -1;
-    int    row      = 0;
-    int    col      = 0;
-    float  hexRight = m_grid.hexLeft + kBytesPerRow * m_grid.byteW;
-    float  txtRight = m_grid.textLeft + kBytesPerRow * m_grid.charW;
-
-
-
-    outIsText = pointPx.x >= m_grid.textLeft - (m_grid.textLeft - hexRight) / 2;
-
-    if (m_grid.isShown && pointPx.y >= m_grid.top && pointPx.y < m_grid.top + kBytesPerRow * m_grid.rowH && pointPx.x < txtRight + m_grid.charW &&
-        pointPx.x >= m_grid.hexLeft - m_grid.byteW)
-    {
-        row   = std::clamp (static_cast<int> ((pointPx.y - m_grid.top) / m_grid.rowH), 0, kBytesPerRow - 1);
-        col   = outIsText ? static_cast<int> ((pointPx.x - m_grid.textLeft) / m_grid.charW) : static_cast<int> ((pointPx.x - m_grid.hexLeft) / m_grid.byteW);
-        col   = std::clamp (col, 0, kBytesPerRow - 1);
-        index = row * kBytesPerRow + col;
-    }
-
-    return index;
 }

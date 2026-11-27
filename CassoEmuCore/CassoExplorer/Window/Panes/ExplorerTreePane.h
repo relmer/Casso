@@ -66,6 +66,7 @@ public:
     bool                              IsInteracting        () const { return m_tree->IsInteracting(); }
     void                              RevealLocationInTree ();
     void                              RefreshTree          ();
+    void                              RefreshTreeIcons     ();
     void                              ReloadChildren       (const std::wstring & id);
     void                              ExpandNode           (const std::wstring & id) { m_tree->SetRowExpanded (m_tree->FindRowById (id), true); }
     void                              SetActivityPulse     (float pulse) { m_tree->SetActivityPulse (pulse); }
@@ -86,6 +87,9 @@ public:
     bool  HandleKey           (const DxuiKeyEvent & ev) { return m_tree->OnKey (ev); }
     void  HandleFocusChanged  (bool focused) { m_tree->OnFocusChanged (focused); }
 
+    //  Explorer's row of Cut, Copy, Paste, Rename and Delete for a folder on the disk; a drive has Copy and Paste.
+    void  AddTreeIconRow      (std::vector<DxuiPopupMenuItem> & items, const std::wstring & folder, const std::wstring & id, bool drive);
+
 private:
     //  A press on a drive's, a folder's or an image's node, which drags it
     //  once the pointer moves far enough.
@@ -100,9 +104,14 @@ private:
     void  ScrollTreeToRow      (int row);
     int   WalkTreeLabels       (int row, const std::wstring & path);
     int   RevealPartitionSteps (int row, const std::wstring & path, bool underCasso, bool isPartition);
+    void  UpdateReadNode       (const std::wstring & id);
     void  ShowLabelTipAt       (POINT point);
     void  ShowTreeContextMenu  (int x, int y, const std::wstring & id);
-    void  AddTreeIconRow       (std::vector<DxuiPopupMenuItem> & items, const std::wstring & folder, const std::wstring & id, bool drive);
+    void  AddPartitionRows     (std::vector<DxuiPopupMenuItem> & items, const std::wstring & partition);
+    void  AddOpenRow           (std::vector<DxuiPopupMenuItem> & items, const Location & location);
+    void  AddCassoSubmenu      (std::vector<DxuiPopupMenuItem> & items, const std::wstring & image);
+    void  AddCompareRows       (std::vector<DxuiPopupMenuItem> & items, const std::wstring & image);
+    void  AddAppleDriveIconRow (std::vector<DxuiPopupMenuItem> & items, const Location & drive);
     void  AddRootRows          (std::vector<DxuiPopupMenuItem> & items, const Location & location, int x, int y);
     void  ShowTreeEmptyMenu    (int x, int y);
     void  AddNavPaneToggle     (std::vector<DxuiPopupMenuItem> & items, const wchar_t * label, CassoExplorerPrefs::NavOption option);

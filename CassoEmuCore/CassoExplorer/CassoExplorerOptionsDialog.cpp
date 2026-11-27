@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/CassoExplorerOptionsDialog.h"
 #include "Config/CrtPresets.h"
+#include "Core/TextEncoding.h"
 #include "Config/CrtResolver.h"
 #include "Ui/Settings/DisplayPage.h"
 #include "CassoExplorer/Window/ExplorerTextStyles.h"
@@ -13,6 +14,7 @@
 static constexpr int  s_kSheetWidthDip  = 720;   // Casso's own Settings sheet's width, which the Display page is laid out for
 static constexpr int  s_kSheetHeightDip = 700;
 static constexpr int  s_kSheetMinHeight = 320;
+static constexpr UINT s_kSlideTickMs    = 16;    // the tick rate while a control slides
 
 
 
@@ -28,6 +30,8 @@ struct FullSendFormat
 //  The common types first, then the rest under a heading. The first
 //  CassoExplorerFullSendPage::kCommonFormatCount entries are the common ones.
 //  Each type's second line is the car it would be.
+static constexpr const wchar_t *  s_kEsotericaHeading = L"Esoterica, for the disk image format enthusiast";
+
 static constexpr FullSendFormat  s_kFullSendFormats[] =
 {
     { L"Automatic: .po for ProDOS and Pascal disks, .dsk for everything else",
@@ -40,11 +44,45 @@ static constexpr FullSendFormat  s_kFullSendFormats[] =
       L"That same Civic, with aftermarket faux Acura badges. Same engine, better standing at the car show.",                                                    ".do"  },
     { L".po: ProDOS-order sectors, even for a DOS 3.3 disk, if that's your thing",
       L"A right-hand-drive import in Ohio. Everything works, but the drive-through window is on the wrong side. Passing mailmen give you a nod of respect.",    ".po"  },
-    { L".nib: Nibbles, 6,656 bytes a track, padded past a real track's length",
+    { L".nib: Nibbles, padded past a real track's length",
       L"A Saab 900 Turbo. The key goes in the floor between the seats, and its driver will explain why, whether you want him to or not.",                       ".nib" },
-    { L".nb2: Nibbles, 6,384 bytes a track, closer to a real track. For when .nib is too mainstream",
+    { L".nb2: Nibbles, closer to a real track. For when .nib is too mainstream",
       L"A Pontiac Aztek. A beak only a mother could love, and a tent in the back for when family and friends abandon you due to your automotive proclivities.", ".nb2" },
 };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerFullSendPage::GetFormatFilters
+//
+//  The format list as a save picker's types, grouped as on the page, with
+//  each type's car as its note. Automatic lists the types it can save.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<FileDialogFilter> CassoExplorerFullSendPage::GetFormatFilters()
+{
+    std::vector<FileDialogFilter>  filters;
+
+
+
+    for (size_t i = 0; i < std::size (s_kFullSendFormats); i++)
+    {
+        FileDialogFilter  filter;
+
+        filter.name    = s_kFullSendFormats[i].label;
+        filter.note    = s_kFullSendFormats[i].car;
+        filter.pattern = (*s_kFullSendFormats[i].extension == '\0') ? std::wstring (L"*.dsk;*.po;*.woz") : L"*" + TextEncoding::NarrowToWide (s_kFullSendFormats[i].extension);
+        filter.heading = (i == kCommonFormatCount) ? std::wstring (s_kEsotericaHeading) : std::wstring();
+
+        filters.push_back (filter);
+    }
+
+    return filters;
+}
 
 
 
@@ -57,7 +95,7 @@ static constexpr FullSendFormat  s_kFullSendFormats[] =
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassoExplorerGeneralPage::Init (DxuiLabel & previewNote, DxuiCheckbox & autoPreview, DxuiCheckbox & enterExpands, DxuiCheckbox & registration, DxuiCheckbox & rawCopyMenu,
-                                     DxuiCheckbox & autoThumbnails)
+                                     DxuiCheckbox & autoThumbnails, DxuiCheckbox & folderThumbnails)
 {
     m_previewNote  = &previewNote;
     m_autoPreview  = &autoPreview;
@@ -65,6 +103,7 @@ void CassoExplorerGeneralPage::Init (DxuiLabel & previewNote, DxuiCheckbox & aut
     m_register     = &registration;
     m_rawCopyMenu  = &rawCopyMenu;
     m_thumbnails   = &autoThumbnails;
+    m_folderThumbs = &folderThumbnails;
 
     Adopt (previewNote);
     Adopt (autoPreview);
@@ -72,6 +111,7 @@ void CassoExplorerGeneralPage::Init (DxuiLabel & previewNote, DxuiCheckbox & aut
     Adopt (registration);
     Adopt (rawCopyMenu);
     Adopt (autoThumbnails);
+    Adopt (folderThumbnails);
 }
 
 
@@ -86,17 +126,23 @@ void CassoExplorerGeneralPage::Init (DxuiLabel & previewNote, DxuiCheckbox & aut
 
 void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    int  previewEnd   = boundsDip.top + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
-    int  noteTop      = previewEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip);
+    int  fieldH       = scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
+    int  groupGap     = scaler.ToPx (kGroupGapDip);
+    int  previewEnd   = boundsDip.top + fieldH;
+    int  noteTop      = previewEnd;
     int  noteBottom   = noteTop + scaler.ToPx (kNoteHeightDip);
-    int  enterTop     = noteBottom + scaler.ToPx (ExplorerMetrics::kStackGapDip * 2);
-    int  enterEnd     = enterTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
-    int  registerTop  = enterEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 4);
-    int  registerEnd  = registerTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
-    int  rawCopyTop   = registerEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 2);
-    int  rawCopyEnd   = rawCopyTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
-    int  thumbsTop    = rawCopyEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 4);
-    int  thumbsEnd    = thumbsTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
+    int  enterTop     = noteBottom;
+    int  enterEnd     = enterTop + fieldH;
+    int  registerTop  = enterEnd + groupGap;
+    int  registerEnd  = registerTop + fieldH;
+    int  rawCopyTop   = registerEnd;
+    int  rawCopyEnd   = rawCopyTop + fieldH;
+    int  thumbsTop    = rawCopyEnd + groupGap;
+    int  thumbsEnd    = thumbsTop + fieldH;
+    int  foldersTop   = thumbsEnd;
+    int  foldersEnd   = foldersTop + fieldH;
+    int  devTop       = foldersEnd + groupGap;
+    int  devEnd       = devTop + fieldH;
 
 
 
@@ -108,8 +154,14 @@ void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScal
     m_register->Layout    (RECT { boundsDip.left, registerTop, boundsDip.right, registerEnd }, scaler);
     m_rawCopyMenu->Layout (RECT { boundsDip.left, rawCopyTop, boundsDip.right, rawCopyEnd }, scaler);
     m_thumbnails->Layout  (RECT { boundsDip.left, thumbsTop, boundsDip.right, thumbsEnd }, scaler);
+    m_folderThumbs->Layout (RECT { boundsDip.left + scaler.ToPx (kNoteIndentDip), foldersTop, boundsDip.right, foldersEnd }, scaler);
 
-    SetContentHeightPx (thumbsEnd - boundsDip.top);
+    if (m_devRegister != nullptr)
+    {
+        m_devRegister->Layout (RECT { boundsDip.left, devTop, boundsDip.left + scaler.ToPx (DxuiButtonRow::GetWidthForLabel (m_devRegister->GetAccessibleName())), devEnd }, scaler);
+    }
+
+    SetContentHeightPx (((m_devRegister != nullptr) ? devEnd : foldersEnd) - boundsDip.top);
 }
 
 
@@ -124,7 +176,8 @@ void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScal
 
 bool CassoExplorerGeneralPage::OnMouse (const DxuiMouseEvent & ev)
 {
-    return m_autoPreview->OnMouse (ev) || m_enterExpands->OnMouse (ev) || m_register->OnMouse (ev) || m_rawCopyMenu->OnMouse (ev) || m_thumbnails->OnMouse (ev);
+    return m_autoPreview->OnMouse (ev) || m_enterExpands->OnMouse (ev) || m_register->OnMouse (ev) || m_rawCopyMenu->OnMouse (ev) || m_thumbnails->OnMouse (ev)
+        || m_folderThumbs->OnMouse (ev) || (m_devRegister != nullptr && m_devRegister->OnMouse (ev));
 }
 
 
@@ -601,7 +654,7 @@ void CassoExplorerOptionsDialog::OnBuildPages()
     m_namingNote.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
 
     //  Writes the user's file types only when OK is pressed with it changed.
-    m_register.SetLabel   (L"Open disk images in Casso (.dsk, .do, .po, .woz, .nib, .nb2)");
+    m_register.SetLabel   (L"Boot disk images in Casso when you double-click them in File Explorer (.dsk, .do, .po, .woz, .nib, .nb2)");
     m_register.SetChecked (m_choices.registered);
     m_register.SetEnabled (!m_choices.packaged);
 
@@ -622,9 +675,21 @@ void CassoExplorerOptionsDialog::OnBuildPages()
     m_general = CreatePage<CassoExplorerGeneralPage> (L"General");
     m_autoThumbnails.SetLabel   (L"Automatically create thumbnails for disk images by booting them headlessly and capturing the screen");
     m_autoThumbnails.SetChecked (m_choices.autoThumbnails);
+    m_autoThumbnails.SetOnChange ([this] (bool checked) { m_folderThumbnails.SetEnabled (checked); });
+
+    m_folderThumbnails.SetLabel   (L"Create thumbnails for disk images in Casso's known folders list and folders that you browse");
+    m_folderThumbnails.SetChecked (m_choices.folderThumbnails);
+    m_folderThumbnails.SetEnabled (m_choices.autoThumbnails);
 
 
-    m_general->Init (m_previewNote, m_autoPreview, m_enterExpands, m_register, m_rawCopyMenu, m_autoThumbnails);
+    m_general->Init (m_previewNote, m_autoPreview, m_enterExpands, m_register, m_rawCopyMenu, m_autoThumbnails, m_folderThumbnails);
+
+    if (m_display.registerShellExtension)
+    {
+        m_devRegister.SetLabel   (L"DEBUG: Register CassoShellExtension");
+        m_devRegister.SetOnClick ([this]() { m_display.registerShellExtension (GetHwnd()); });
+        m_general->SetDevButton  (m_devRegister);
+    }
 
     m_hostNames = CreatePage<CassoExplorerHostNamesPage> (L"Host file names");
     m_hostNames->Init (m_namingNote, m_naming);
@@ -663,6 +728,42 @@ void CassoExplorerOptionsDialog::OnBuildPages()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerOptionsDialog::OnDialogTick
+//
+//  Advances the controls that animate, the sounds choice's sliding pill.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerOptionsDialog::OnDialogTick()
+{
+    m_fullSendSounds.Tick ((int64_t) GetTickCount64());
+    UpdateTickRate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerOptionsDialog::UpdateTickRate
+//
+//  Frame rate while the pill slides, so it moves smoothly and starts at
+//  once; the default rate otherwise.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerOptionsDialog::UpdateTickRate()
+{
+    SetDialogTickIntervalMs (m_fullSendSounds.WantsTick() ? s_kSlideTickMs : kDefaultDialogTickMs);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerOptionsDialog::WireFullSend
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -672,7 +773,6 @@ void CassoExplorerOptionsDialog::WireFullSend()
     std::vector<std::wstring>  rows;
     std::vector<bool>          enabled;
     std::vector<bool>          headings;
-    std::vector<std::wstring>  cars;
     int                        selected = 0;
 
 
@@ -681,16 +781,14 @@ void CassoExplorerOptionsDialog::WireFullSend()
     {
         if (i == CassoExplorerFullSendPage::kCommonFormatCount)
         {
-            rows.push_back (L"Esoterica, for the disk image format enthusiast");
+            rows.push_back (s_kEsotericaHeading);
             enabled.push_back (false);
             headings.push_back (true);
-            cars.push_back (std::wstring());
         }
 
         rows.push_back (s_kFullSendFormats[i].label);
         enabled.push_back (true);
         headings.push_back (false);
-        cars.push_back (s_kFullSendFormats[i].car);
 
         selected = m_choices.fullSendExtension == s_kFullSendFormats[i].extension ? (int) i : selected;
     }
@@ -698,7 +796,6 @@ void CassoExplorerOptionsDialog::WireFullSend()
     m_fullSendFormat.list.SetItems            (rows);
     m_fullSendFormat.list.SetItemsEnabled     (enabled);
     m_fullSendFormat.list.SetItemHeadings     (headings);
-    m_fullSendFormat.list.SetItemDescriptions (cars);
     m_fullSendFormat.list.SetSelected         (GetFormatRow (selected));
     m_fullSendFormat.list.SetSelect           ([this] (int row) { m_fullSendFormat.note.SetText (s_kFullSendFormats[(size_t) GetFormatIndex (row)].car); });
 
@@ -718,8 +815,8 @@ void CassoExplorerOptionsDialog::WireFullSend()
 
     m_fullSendNote.SetText      (L"Full Send quickly archives a stack of floppies. Just keep feeding the drives on the Apple after each disk is completed "
                                  L"and find your disk images in the Full Send folder. Full Send detects duplicates, and can detect and image many "
-                                 L"copy-protection schemes. If a particular copy-protection scheme isn't auto-detected, capture the disk with "
-                                 L"Capture raw disk on its drive's menu instead.");
+                                 L"copy-protection schemes. If a particular copy-protection scheme isn't auto-detected, choose Create image on "
+                                 L"its drive's menu and save it as a WOZ, which captures the disk raw.");
     ExplorerTextStyles::Apply (m_fullSendNote, ExplorerTextStyles::kFormNote);
     m_fullSendNote.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
 
@@ -734,7 +831,7 @@ void CassoExplorerOptionsDialog::WireFullSend()
     m_fullSendSoundsLabel.SetText (L"Play capture success or failure sounds on");
     ExplorerTextStyles::Apply (m_fullSendSoundsLabel, ExplorerTextStyles::kFormLabel);
 
-    m_fullSendSounds.SetAnimationsEnabled (false);
+    m_fullSendSounds.SetOnChange ([this] (int) { UpdateTickRate(); });
     m_fullSendSounds.SetSegments ({ L"The PC", L"The Apple", L"Both", L"Neither" });
     m_fullSendSounds.SetSelected (m_choices.bootSoundPlace);
 
@@ -884,7 +981,7 @@ void CassoExplorerOptionsDialog::WireVerify()
 
     m_verifyOverrideHead.SetText (L"Verify for specific connections, or for a single transfer");
     ExplorerTextStyles::Apply (m_verifyOverrideHead, ExplorerTextStyles::kFormLabel);
-    m_verifyOverrideNote.SetText (L"A connection's settings can override these options. A drive's menu has Create verified image and Write image and verify for that transfer. "
+    m_verifyOverrideNote.SetText (L"A connection's settings can override these options. "
                                   L"In Full Send on the Apple, press V at any time to turn verification on or off. Tracks already read aren't read again. "
                                   L"The Apple's screen always indicates whether verification is on.");
 
@@ -1084,6 +1181,7 @@ HRESULT CassoExplorerOptionsDialog::OnOk()
     m_choices.autoPreview  = m_autoPreview.IsChecked();
     m_choices.enterExpands = m_enterExpands.IsChecked();
     m_choices.autoThumbnails = m_autoThumbnails.IsChecked();
+    m_choices.folderThumbnails = m_folderThumbnails.IsChecked();
     m_choices.fullSendExtension = s_kFullSendFormats[(size_t) GetFormatIndex (m_fullSendFormat.list.GetSelectedIndex())].extension;
     m_choices.bootSoundPlace    = m_fullSendSounds.GetSelected();
     m_choices.verifyReads       = m_verifyRows[0].toggle.IsChecked();

@@ -2,6 +2,7 @@
 
 #include "EhmTestHelper.h"
 #include "FixtureProvider.h"
+#include "TestMachine.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/FilePath.h"
 #include "Machines/Apple2/Common/Dos33Geometry.h"
@@ -418,5 +419,40 @@ public:
         Assert::IsTrue (extracted == payload.bytes, L"the file CiderPress II extracts is the one written");
 
         fs::remove_all (folder);
+    }
+
+
+    //  A 13-sector disk in the //c's built-in drive boots DOS 3.2.1, with the
+    //  13-sector boot page swapped in at $C600. DOS puts JMPs at $03D0 and
+    //  $03D3 once it's loaded, and the //c's 16-sector ROM never reads the
+    //  disk.
+    TEST_METHOD (Dos321MasterNib_BootsOnIIc)
+    {
+        static constexpr const char *  kImage   = "nib/dos321-master.nib";
+        static constexpr uint64_t      kBootCap = 30'000'000ULL;
+        static constexpr Byte          kJmp     = 0x4C;
+
+
+
+        FixtureProvider     fixtures;
+        std::vector<Byte>   bytes;
+        HRESULT             hrOpen = fixtures.OpenFixture (std::string (kRoot) + "/" + kImage, bytes);
+
+
+
+        if (FAILED (hrOpen))
+        {
+            Logger::WriteMessage (std::format ("SKIPPED: {} is not on this machine; run scripts/FetchCiderPressTestFiles.ps1\n", kImage).c_str());
+            return;
+        }
+
+        TestMachine  machine ("Apple2c");
+
+        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "C:/disks/master.nib", DiskFormat::Nib, bytes));
+        machine.PowerCycle();
+        machine.RunCycles (kBootCap);
+
+        Assert::AreEqual (kJmp, machine.GetMemoryBus().ReadByte (0x03D0), L"DOS's warm start vector");
+        Assert::AreEqual (kJmp, machine.GetMemoryBus().ReadByte (0x03D3), L"DOS's cold start vector");
     }
 };

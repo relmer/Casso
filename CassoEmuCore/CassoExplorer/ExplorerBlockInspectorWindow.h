@@ -39,6 +39,8 @@ public:
     void     CompareWith     (const std::wstring & pathB) override;
     void     ChangeTheme     (const DxuiTheme * theme) override;
     HWND     GetHwnd         () const override;
+    bool     ConfirmExit     () override;
+    void     Close           () override;
 
 private:
     std::wstring                           m_path;

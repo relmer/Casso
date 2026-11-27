@@ -122,6 +122,14 @@ extern "C" int WINAPI wCassoExplorerMain (
 
     CassoExplorerShell::WaitForUpdatedProcess (options.cleanupOldPid);
 
+    if (!options.openPath.empty() && options.selectPath.empty())
+    {
+        std::error_code  error;
+        std::wstring     fullPath = CassoExplorerShell::GetFullPath (options.openPath);
+
+        CassoExplorerShell::SelectOpenedFile (fullPath, std::filesystem::is_regular_file (fullPath, error), options);
+    }
+
     //  A /select goes through the running app, which picks the tab.
     existing = (options.newWindow || !options.selectPath.empty()) ? nullptr : ExplorerWindowFinder::FindWindowForOwner (options.owner);
 
@@ -178,6 +186,9 @@ extern "C" int WINAPI wCassoExplorerMain (
             setMode (kAllowDark);
         }
     }
+
+    hrOptional = AssetBootstrap::EnsureMachineConfigs (hInstance);
+    IGNORE_RETURN_VALUE (hrOptional, S_OK);
 
     hrOptional = AssetBootstrap::EnsureThemes (hInstance);
     IGNORE_RETURN_VALUE (hrOptional, S_OK);

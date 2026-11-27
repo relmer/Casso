@@ -51,6 +51,8 @@ void CopyOptionRows::Add (FileFormat format, DiskOperations::Encoding encoding, 
         added.push_back (Row::Code);
     }
 
+    added.push_back (Row::HexDump);
+
     for (Row row : added)
     {
         if (std::find (ioRows.begin(), ioRows.end(), row) == ioRows.end())
@@ -85,6 +87,7 @@ int CopyOptionRows::GetChoice (Row row, const DecodeOptions & options)
         case Row::DoubleHiRes:  return (int) options.doubleHiRes;
         case Row::Basic:        return options.basicColor ? 2 : options.basicRawControls ? 1 : 0;
         case Row::Code:         return (int) options.disassembly;
+        case Row::HexDump:      return options.hexDump ? 1 : 0;
         default:                return 0;
     }
 }
@@ -108,6 +111,7 @@ void CopyOptionRows::SetChoice (Row row, int choice, DecodeOptions & ioOptions)
         case Row::HiRes:        ioOptions.hiResMono   = choice == 1;                break;
         case Row::DoubleHiRes:  ioOptions.doubleHiRes = (DoubleHiResForm) choice;   break;
         case Row::Code:         ioOptions.disassembly = (DisassemblyCpu) choice;    break;
+        case Row::HexDump:      ioOptions.hexDump     = choice == 1;                break;
 
         case Row::Basic:
             ioOptions.basicRawControls = choice == 1;

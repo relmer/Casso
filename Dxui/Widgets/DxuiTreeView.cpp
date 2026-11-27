@@ -534,8 +534,10 @@ bool DxuiTreeView::SetRowExpanded (int flatRow, bool expanded)
 //
 //  The fresh nodes set the order and what each row shows. A node that was
 //  already there keeps whether it is open, and what was read under it -- merged
-//  in turn where the fresh node brings children of its own. A node that is not
-//  in the fresh set is gone, and whatever was under it with it.
+//  in turn where the fresh node brings children of its own. A node that was
+//  read and had no children is read again when the fresh node has children to
+//  read, as a storage card has once it opens. A node that is not in the fresh
+//  set is gone, and whatever was under it with it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -558,7 +560,7 @@ void DxuiTreeView::MergeNodes (std::vector<DxuiTreeNode> & current, std::vector<
             node.children = std::move (found->children);
             MergeNodes (node.children, std::move (children));
         }
-        else
+        else if (!found->childrenLoaded || !found->children.empty())
         {
             node.children       = std::move (found->children);
             node.childrenLoaded = found->childrenLoaded;
@@ -580,28 +582,44 @@ void DxuiTreeView::MergeNodes (std::vector<DxuiTreeNode> & current, std::vector<
 //
 //  Applies a change under one node on a row in place, as Explorer's
 //  navigation pane does: rows elsewhere stay as they are, and the tree never
-//  shows anything in between.
+//  shows anything in between. Every row with the id is changed, since one
+//  folder can have two rows, as a removable drive does at the top level and
+//  under This PC.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiTreeView::ReplaceChildren (const std::wstring & id, std::vector<DxuiTreeNode> children)
 {
-    DxuiTreeNode *  node   = GetNodeAtMutable (FindRowById (id));
-    RowIds          ids    = GetRowIds();
-    bool            opened = false;
+    std::vector<DxuiTreeNode *>  nodes;
+    RowIds                       ids    = GetRowIds();
+    bool                         opened = false;
+    int                          row    = 0;
 
 
 
-    if (node == nullptr)
+    for (row = 0; row < (int) m_flatRows.size() && !id.empty(); row++)
+    {
+        DxuiTreeNode *  n = GetNodeAtMutable (row);
+
+        if (n != nullptr && n->id == id)
+        {
+            nodes.push_back (n);
+        }
+    }
+
+    if (nodes.empty())
     {
         return false;
     }
 
-    MergeNodes (node->children, std::move (children));
+    for (DxuiTreeNode * node : nodes)
+    {
+        MergeNodes (node->children, children);
 
-    node->childrenLoaded = true;
-    opened               = id == m_openWhenFilled && !node->children.empty();
-    node->expanded       = (node->expanded || opened) && !node->children.empty();
+        node->childrenLoaded = true;
+        opened               = opened || (id == m_openWhenFilled && !node->children.empty());
+        node->expanded       = (node->expanded || (id == m_openWhenFilled && !node->children.empty())) && !node->children.empty();
+    }
 
     if (opened)
     {
@@ -986,6 +1004,9 @@ void DxuiTreeView::ToggleRow (int flatRow)
 //  they naturally traverse into and out of expanded subtrees without knowing
 //  anything about depth.
 //
+//  Home and End go to the first and last rows, and Page Up and Page Down move
+//  by one row less than the rows in view, as a list does.
+//
 //  The highlight is seeded to row 0 on the first key while focused, so a tree
 //  that has never been clicked still responds to an arrow press instead of
 //  requiring a mouse first.
@@ -1005,6 +1026,8 @@ bool DxuiTreeView::OnKey (WPARAM vk)
     bool                  isActive = false;
     bool                  handled  = false;
     int                   parent   = -1;
+    int                   last     = (int) m_flatRows.size() - 1;
+    int                   page     = (std::max) (GetRowCap() - 1, 1);
 
 
 
@@ -1027,6 +1050,22 @@ bool DxuiTreeView::OnKey (WPARAM vk)
 
             case VK_DOWN:
                 if (m_highlight < (int) m_flatRows.size() - 1) { SelectRow (SkipDividers (m_highlight + 1, 1)); }
+                break;
+
+            case VK_HOME:
+                SelectRow (SkipDividers (0, 1));
+                break;
+
+            case VK_END:
+                SelectRow (SkipDividers (last, -1));
+                break;
+
+            case VK_PRIOR:
+                SelectRow (SkipDividers ((std::max) (m_highlight - page, 0), -1));
+                break;
+
+            case VK_NEXT:
+                SelectRow (SkipDividers ((std::min) (m_highlight + page, last), 1));
                 break;
 
             case VK_RIGHT:
@@ -1145,12 +1184,23 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     //  The widest row sets how far the tree scrolls sideways, so it is
     //  measured before either scrollbar is sized. A row's right edge is its
     //  indent, twisty, checkbox, icon and label, laid out as they are drawn.
+    //  A label is measured again only when it or the font size changes, so a
+    //  tree of thousands of rows repaints without measuring each one.
     m_rowsExtentPx = 0;
     m_labelSpans.assign (m_flatRows.size(), POINT {});
+
+    if (m_labelFontDip != fontDip)
+    {
+        m_labelWidths.clear();
+        m_labelFontDip = fontDip;
+    }
+
+    m_labelWidths.resize (m_flatRows.size());
 
     for (const FlatRow & fr : m_flatRows)
     {
         const DxuiTreeNode  * node   = fr.divider ? nullptr : GetNodeAt ((int) (&fr - m_flatRows.data()));
+        LabelWidth          & cached = m_labelWidths[(size_t) (&fr - m_flatRows.data())];
         float                 labelW = 0.0f;
         float                 labelH = 0.0f;
         float                 right  = 0.0f;
@@ -1160,7 +1210,18 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
             continue;
         }
 
-        hr = text.MeasureString (node->label.c_str(), fontDip, DxuiTheme::kBodyFace, labelW, labelH);
+        hr = S_OK;
+
+        if (!cached.measured || cached.label != node->label)
+        {
+            hr = text.MeasureString (node->label.c_str(), fontDip, DxuiTheme::kBodyFace, labelW, labelH);
+
+            cached.label    = node->label;
+            cached.width    = labelW;
+            cached.measured = SUCCEEDED (hr);
+        }
+
+        labelW = cached.width;
 
         right = (float) (GetLeftPadPx() + fr.depth * m_indentPx + m_twistyPx + GetCheckboxWidthPx()) + iconLead + labelW + textGap;
 

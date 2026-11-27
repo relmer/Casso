@@ -132,6 +132,24 @@ void DxuiCaptionBar::SetTitle (const std::wstring & title, size_t markAt)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetTitleChips
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiCaptionBar::SetTitleChips (std::vector<DxuiTitleChip> chips)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    m_chips = std::move (chips);
+    m_chipRectsPx.clear();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetAppIcon
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -324,6 +342,17 @@ void DxuiCaptionBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 
 const wchar_t * DxuiCaptionBar::GetTooltipAt (POINT clientPx, RECT & anchorPx) const
 {
+    int  chip = GetTitleChipAt (clientPx);
+
+
+
+    if (chip >= 0)
+    {
+        anchorPx = m_chipRectsPx[(size_t) chip];
+
+        return m_chips[(size_t) chip].tip.empty() ? nullptr : m_chips[(size_t) chip].tip.c_str();
+    }
+
     if (!m_titleCut || !PtInRect (&m_titleRectPx, clientPx))
     {
         return nullptr;
@@ -332,6 +361,34 @@ const wchar_t * DxuiCaptionBar::GetTooltipAt (POINT clientPx, RECT & anchorPx) c
     anchorPx = m_titleRectPx;
 
     return m_title.c_str();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetTitleChipAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiCaptionBar::GetTitleChipAt (POINT clientPx) const
+{
+    int     found = -1;
+    size_t  i     = 0;
+
+
+
+    for (i = 0; found < 0 && i < m_chipRectsPx.size() && i < m_chips.size(); i++)
+    {
+        if (PtInRect (&m_chipRectsPx[i], clientPx))
+        {
+            found = (int) i;
+        }
+    }
+
+    return found;
 }
 
 
@@ -352,8 +409,6 @@ const wchar_t * DxuiCaptionBar::GetTooltipAt (POINT clientPx, RECT & anchorPx) c
 void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     constexpr float    kTitleFontDip     = 14.0f;
-    constexpr float    kTitlePadDip      = 14.0f;
-    constexpr float    kIconPadFraction  = 0.18f;
 
 
 
@@ -369,11 +424,17 @@ void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     float         titleWidthPx  = 0.0f;
     float         fontPx        = 0.0f;
     float         buttonStripPx = 0.0f;
+    float         chipsPx       = 0.0f;
+    float         drawnPx       = 0.0f;
     int           buttonCount   = 0;
+
+    std::vector<float>  chipWidthsPx;
 
 
 
     DXUI_ASSERT_UI_THREAD();
+
+    m_chipRectsPx.clear();
 
     if (!m_renderCaption)
     {
@@ -390,9 +451,9 @@ void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
     painter.FillGradientRect (xPx, yPx, wPx, hPx, theme.TitleBarTop(), theme.TitleBarBottom());
 
-    iconPadPx    = hPx * kIconPadFraction;
+    iconPadPx    = hPx * s_kIconPadFraction;
     iconSizePx   = hPx - iconPadPx * 2.0f;
-    textOffsetPx = m_scaler.ToPxf (kTitlePadDip);
+    textOffsetPx = m_scaler.ToPxf (s_kTitlePadDip);
 
     if (iconSizePx > 0.0f && !m_iconPixels.empty() && m_iconW > 0 && m_iconH > 0)
     {
@@ -402,7 +463,7 @@ void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                                                yPx + iconPadPx,
                                                iconSizePx, iconSizePx);
         IGNORE_RETURN_VALUE (hrIcon, S_OK);
-        textOffsetPx = m_scaler.ToPxf (kTitlePadDip) + iconSizePx + iconPadPx;
+        textOffsetPx = m_scaler.ToPxf (s_kTitlePadDip) + iconSizePx + iconPadPx;
     }
 
     buttonCount   = (m_minBtn ? 1 : 0) + (m_maxBtn ? 1 : 0) + (m_closeBtn ? 1 : 0);
@@ -410,15 +471,17 @@ void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     buttonStripPx += (m_accessory != nullptr && m_accessory->IsVisible()) ? m_scaler.ToPxf ((float) m_accessoryWidthDip) : 0.0f;
 
     textLeftPx   = xPx + textOffsetPx;
-    titleWidthPx = wPx - textOffsetPx - buttonStripPx - m_scaler.ToPxf (kTitlePadDip);
+    titleWidthPx = wPx - textOffsetPx - buttonStripPx - m_scaler.ToPxf (s_kTitlePadDip);
     if (titleWidthPx < 0.0f)
     {
         titleWidthPx = 0.0f;
     }
 
-    fontPx = m_scaler.ToPxf (kTitleFontDip);
+    fontPx  = m_scaler.ToPxf (kTitleFontDip);
+    chipsPx = FitChips (text, titleWidthPx - m_scaler.ToPxf (s_kMinTitleDip), chipWidthsPx);
+    drawnPx = PaintTitle (painter, text, theme, RECT { std::lround (textLeftPx), std::lround (yPx), std::lround (textLeftPx + titleWidthPx - chipsPx), std::lround (yPx + hPx) }, fontPx);
 
-    PaintTitle (painter, text, theme, RECT { std::lround (textLeftPx), std::lround (yPx), std::lround (textLeftPx + titleWidthPx), std::lround (yPx + hPx) }, fontPx);
+    PaintChips (painter, text, theme, textLeftPx + drawnPx, yPx, hPx, fontPx, chipWidthsPx);
 
     DxuiPanel::Paint (painter, text, theme);
 }
@@ -434,11 +497,12 @@ void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 //  One line, as Windows draws a caption. The unsaved-changes dot at
 //  m_markAt always has its room. A title too long for the rest is cut in
 //  the middle with an ellipsis: first the text before the dot, then, if
-//  the title is too wide after that, the text after it.
+//  the title is too wide after that, the text after it. Returns the width
+//  drawn, where the chips start.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiCaptionBar::PaintTitle (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & areaPx, float fontPx)
+float DxuiCaptionBar::PaintTitle (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & areaPx, float fontPx)
 {
     constexpr float  kDotFraction = 0.45f;
     constexpr float  kGapFraction = 0.35f;
@@ -480,6 +544,138 @@ void DxuiCaptionBar::PaintTitle (IDxuiPainter & painter, IDxuiTextRenderer & tex
 
         hr = text.DrawString (tail.c_str(), leftPx + headPx + markPx, topPx, std::max (0.0f, widthPx - headPx - markPx), heightPx, theme.CaptionForeground(), fontPx, kTitleFamily, DxuiTextHAlign::Left, DxuiTextVAlign::Center);
         IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    return std::min (widthPx, headPx + markPx + MeasureTitle (text, tail, fontPx));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FitChips
+//
+//  The width of each chip that fits in the room, in order. Chips are left
+//  out from the last until the rest fit. Returns the width they take with
+//  the gap before each.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiCaptionBar::FitChips (IDxuiTextRenderer & text, float roomPx, std::vector<float> & outWidthsPx) const
+{
+    float  padPx   = m_scaler.ToPxf (s_kChipPadDip);
+    float  gapPx   = m_scaler.ToPxf (s_kChipGapDip);
+    float  fontPx  = m_scaler.ToPxf (s_kChipTextDip);
+    float  totalPx = 0.0f;
+
+
+
+    outWidthsPx.clear();
+
+    for (const DxuiTitleChip & chip : m_chips)
+    {
+        outWidthsPx.push_back (MeasureTitle (text, chip.text, fontPx) + padPx * 2.0f);
+        totalPx += gapPx + outWidthsPx.back();
+    }
+
+    while (!outWidthsPx.empty() && totalPx > roomPx)
+    {
+        totalPx -= gapPx + outWidthsPx.back();
+        outWidthsPx.pop_back();
+    }
+
+    return outWidthsPx.empty() ? 0.0f : totalPx;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetChipTopPx
+//
+//  The chip's top in the caption: the chip's text is centered in the chip,
+//  and the chip is placed so that text's baseline is on the baseline of the
+//  title, which is centered in the caption. A chip that would cross the
+//  caption's edge is moved inside it, and with no font metrics the chip is
+//  centered.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiCaptionBar::GetChipTopPx (IDxuiTextRenderer & text, float topPx, float heightPx, float titleFontPx, float chipPx, float chipFontPx)
+{
+    HRESULT  hr             = S_OK;
+    float    titleLinePx    = 0.0f;
+    float    titleBasePx    = 0.0f;
+    float    chipLinePx     = 0.0f;
+    float    chipBasePx     = 0.0f;
+    float    baselinePx     = 0.0f;
+    float    chipTopPx      = topPx + (heightPx - chipPx) / 2.0f;
+
+
+
+    hr = text.GetLineMetrics (titleFontPx, kTitleFamily, DxuiFontWeight::Normal, titleLinePx, titleBasePx);
+    CHR (hr);
+
+    hr = text.GetLineMetrics (chipFontPx, kTitleFamily, DxuiFontWeight::Normal, chipLinePx, chipBasePx);
+    CHR (hr);
+
+    baselinePx = topPx + (heightPx - titleLinePx) / 2.0f + titleBasePx;
+    chipTopPx  = baselinePx - chipBasePx - (chipPx - chipLinePx) / 2.0f;
+    chipTopPx  = std::clamp (chipTopPx, topPx, std::max (topPx, topPx + heightPx - chipPx));
+
+Error:
+    return chipTopPx;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintChips
+//
+//  Each chip that fits, after the gap that follows the title: a rounded
+//  button fill, outlined and lettered in the accent for an Info chip, as
+//  the disk inspector's status bar draws its chips. The chips sit where
+//  their text's baseline is on the title's baseline, inside the caption.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiCaptionBar::PaintChips (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float leftPx, float topPx, float heightPx, float titleFontPx, const std::vector<float> & widthsPx)
+{
+    float     gapPx   = m_scaler.ToPxf (s_kChipGapDip);
+    float     chipPx  = m_scaler.ToPxf (s_kChipHeightDip);
+    float     fontPx  = m_scaler.ToPxf (s_kChipTextDip);
+    float     xPx     = leftPx;
+    float     yPx     = GetChipTopPx (text, topPx, heightPx, titleFontPx, chipPx, fontPx);
+    bool      isInfo  = false;
+    uint32_t  ink     = 0;
+    uint32_t  outline = 0;
+    HRESULT   hr      = S_OK;
+    size_t    i       = 0;
+
+
+
+    for (i = 0; i < widthsPx.size() && i < m_chips.size(); i++)
+    {
+        isInfo  = m_chips[i].kind == DxuiTitleChipKind::Info;
+        ink     = isInfo ? theme.Accent() : theme.CaptionForeground();
+        outline = isInfo ? ink : theme.ButtonBorder();
+        xPx    += gapPx;
+
+        painter.FillRoundedRect    (xPx, yPx, widthsPx[i], chipPx, chipPx / 2.0f, theme.ButtonIdle());
+        painter.OutlineRoundedRect (xPx, yPx, widthsPx[i], chipPx, chipPx / 2.0f, m_scaler.ToPxf (1.0f), outline);
+
+        hr = text.DrawString (m_chips[i].text.c_str(), xPx, yPx, widthsPx[i], chipPx, ink, fontPx, kTitleFamily, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        m_chipRectsPx.push_back (RECT { std::lround (xPx), std::lround (yPx), std::lround (xPx + widthsPx[i]), std::lround (yPx + chipPx) });
+        xPx += widthsPx[i];
     }
 }
 
@@ -568,6 +764,11 @@ DxuiHitTestKind DxuiCaptionBar::ClassifyHit (POINT clientDip) const
 
 
 
+    if (IsOverIcon (clientDip))
+    {
+        return DxuiHitTestKind::SystemMenu;
+    }
+
     n = GetChildCount();
 
     // Reverse order so visually-topmost children win. A child that reports
@@ -599,6 +800,36 @@ DxuiHitTestKind DxuiCaptionBar::ClassifyHit (POINT clientDip) const
     }
 
     return kind;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsOverIcon
+//
+//  The icon as Paint places it, when the caption is drawn here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiCaptionBar::IsOverIcon (POINT clientDip) const
+{
+    RECT   b    = GetBounds();
+    float  h    = (float) (b.bottom - b.top);
+    float  pad  = h * s_kIconPadFraction;
+    float  left = (float) b.left + s_kTitlePadDip;
+    float  size = h - pad * 2.0f;
+
+
+
+    if (!m_renderCaption || m_iconPixels.empty() || size <= 0.0f)
+    {
+        return false;
+    }
+
+    return clientDip.x >= left && clientDip.x < left + size && clientDip.y >= b.top && clientDip.y < b.bottom;
 }
 
 

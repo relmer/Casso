@@ -551,6 +551,7 @@ JsonValue CassoExplorerPrefs::ToJson() const
     std::vector<std::pair<std::string, JsonValue>>  splitterFields;
     std::vector<JsonValue>                          tabValues;
     std::vector<JsonValue>                          typedValues;
+    std::vector<JsonValue>                          searchValues;
     std::vector<JsonValue>                          propertyValues;
     std::vector<JsonValue>                          linkValues;
     std::vector<JsonValue>                          widthValues;
@@ -614,6 +615,11 @@ JsonValue CassoExplorerPrefs::ToJson() const
         typedValues.push_back (JsonValue (TextEncoding::WideToNarrow (typed)));
     }
 
+    for (const std::wstring & search : searchHistory)
+    {
+        searchValues.push_back (JsonValue (TextEncoding::WideToNarrow (search)));
+    }
+
     for (const std::wstring & property : propertyColumns)
     {
         propertyValues.push_back (JsonValue (TextEncoding::WideToNarrow (property)));
@@ -656,17 +662,20 @@ JsonValue CassoExplorerPrefs::ToJson() const
     root.emplace_back ("theme",          JsonValue (theme));
     root.emplace_back ("previewVisible", JsonValue (previewVisible));
     root.emplace_back ("navigationPane", JsonValue (navigationPane));
+    root.emplace_back ("openJobsWindow", JsonValue (openJobsWindow));
     root.emplace_back ("searchSystemFiles", JsonValue (searchSystemFiles));
     root.emplace_back ("searchZipped",      JsonValue (searchZipped));
     root.emplace_back ("searchContents",    JsonValue (searchContents));
     root.emplace_back ("autoPreview",    JsonValue (autoPreview));
     root.emplace_back ("enterExpandsPreview", JsonValue (enterExpandsPreview));
     root.emplace_back ("autoThumbnails", JsonValue (autoThumbnails));
+    root.emplace_back ("folderThumbnails", JsonValue (folderThumbnails));
     root.emplace_back ("rawCopyMenu",    JsonValue (rawCopyMenu));
     root.emplace_back ("copyOptions",    OptionsToJson (copyOptions));
     root.emplace_back ("hostNaming",     JsonValue (hostNaming));
     root.emplace_back ("fullSendFolder", JsonValue (TextEncoding::WideToUtf8 (fullSendFolder)));
     root.emplace_back ("fullSendExtension", JsonValue (fullSendExtension));
+    root.emplace_back ("copyFolder", JsonValue (TextEncoding::WideToUtf8 (copyFolder)));
     root.emplace_back ("verifyReads", JsonValue (verifyReads));
     root.emplace_back ("verifyWrites", JsonValue (verifyWrites));
     root.emplace_back ("autoVerify", JsonValue (autoVerify));
@@ -681,6 +690,7 @@ JsonValue CassoExplorerPrefs::ToJson() const
     root.emplace_back ("hexGrouping",    JsonValue ((double) hexGrouping));
     root.emplace_back ("cffaAdapter",    JsonValue ((double) cffaAdapter));
     root.emplace_back ("lineAddresses",  JsonValue (lineAddresses));
+    root.emplace_back ("previewCrt",     JsonValue (previewCrt));
     root.emplace_back ("skipElevationNotice", JsonValue (skipElevationNotice));
     root.emplace_back ("hexColumns",     JsonValue ((double) hexColumns));
     root.emplace_back ("hexShowValues",  JsonValue (hexShowValues));
@@ -716,6 +726,7 @@ JsonValue CassoExplorerPrefs::ToJson() const
     root.emplace_back ("splitters",      JsonValue (std::move (splitterFields)));
     root.emplace_back ("tabs",           JsonValue (std::move (tabValues)));
     root.emplace_back ("typedPaths",     JsonValue (std::move (typedValues)));
+    root.emplace_back ("searchHistory",  JsonValue (std::move (searchValues)));
     root.emplace_back ("listColumnWidths", JsonValue (std::move (widthValues)));
     root.emplace_back ("listColumnOrder",  JsonValue (std::move (orderValues)));
     root.emplace_back ("listHiddenColumns", MakeIntArray (hiddenColumns));
@@ -742,6 +753,15 @@ JsonValue CassoExplorerPrefs::ToJson() const
     }
 
     root.emplace_back ("linkFolderSeen",   JsonValue (std::move (seenValues)));
+
+    std::vector<JsonValue>  diskValues;
+
+    for (const std::wstring & disk : linkProDosDisks)
+    {
+        diskValues.push_back (JsonValue (TextEncoding::WideToUtf8 (disk)));
+    }
+
+    root.emplace_back ("linkProDosDisks", JsonValue (std::move (diskValues)));
 
     std::vector<JsonValue>  choiceValues;
 
@@ -821,6 +841,28 @@ std::vector<int> CassoExplorerPrefs::ReadIntArray (const JsonValue & object, con
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerPrefs::RememberLinkProDosDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerPrefs::RememberLinkProDosDisk (const std::wstring & disk)
+{
+    std::erase_if (linkProDosDisks, [&disk] (const std::wstring & listed) { return _wcsicmp (listed.c_str(), disk.c_str()) == 0; });
+
+    linkProDosDisks.insert (linkProDosDisks.begin(), disk);
+
+    if (linkProDosDisks.size() > kLinkProDosDiskMax)
+    {
+        linkProDosDisks.resize (kLinkProDosDiskMax);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerPrefs::FromJson
 //
 //  Every field is optional and keeps its default when absent or malformed,
@@ -836,7 +878,9 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     const JsonValue  * splitters    = nullptr;
     const JsonValue  * tabArray     = nullptr;
     const JsonValue  * typedArray   = nullptr;
+    const JsonValue  * searchArray  = nullptr;
     const JsonValue  * seenArray    = nullptr;
+    const JsonValue  * diskArray    = nullptr;
     const JsonValue  * choiceArray  = nullptr;
     const JsonValue  * linkArray    = nullptr;
     const JsonValue  * options      = nullptr;
@@ -865,12 +909,14 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
 
     root.HasBool ("previewVisible", previewVisible);
     root.HasBool ("navigationPane", navigationPane);
+    root.HasBool ("openJobsWindow", openJobsWindow);
     root.HasBool ("searchSystemFiles", searchSystemFiles);
     root.HasBool ("searchZipped",      searchZipped);
     root.HasBool ("searchContents",    searchContents);
     root.HasBool ("autoPreview",    autoPreview);
     root.HasBool ("enterExpandsPreview", enterExpandsPreview);
     root.HasBool ("autoThumbnails", autoThumbnails);
+    root.HasBool ("folderThumbnails", folderThumbnails);
     root.HasBool ("rawCopyMenu",    rawCopyMenu);
 
     if (root.HasObject ("copyOptions", options))
@@ -879,6 +925,7 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     }
 
     root.HasBool ("lineAddresses",  lineAddresses);
+    root.HasBool ("previewCrt",     previewCrt);
     root.HasBool ("skipElevationNotice", skipElevationNotice);
     root.HasBool ("hexShowValues",  hexShowValues);
     root.HasBool ("treeCassoOpen",     treeCassoOpen);
@@ -939,6 +986,11 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     if (root.HasString ("fullSendFolder", text))
     {
         fullSendFolder = TextEncoding::Utf8ToWide (text);
+    }
+
+    if (root.HasString ("copyFolder", text))
+    {
+        copyFolder = TextEncoding::Utf8ToWide (text);
     }
 
     root.HasBool ("verifyReads", verifyReads);
@@ -1052,6 +1104,21 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
         }
     }
 
+    if (root.HasArray ("linkProDosDisks", diskArray))
+    {
+        linkProDosDisks.clear();
+
+        for (i = 0; i < diskArray->GetArraySize() && linkProDosDisks.size() < kLinkProDosDiskMax; i++)
+        {
+            const JsonValue &  value = diskArray->GetArrayElement (i);
+
+            if (value.GetType() == JsonType::String && !value.GetString().empty())
+            {
+                linkProDosDisks.push_back (TextEncoding::Utf8ToWide (value.GetString()));
+            }
+        }
+    }
+
     if (root.HasArray ("filesystemChoices", choiceArray))
     {
         for (i = 0; i < choiceArray->GetArraySize(); i++)
@@ -1077,6 +1144,21 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
             if (value.GetType() == JsonType::String)
             {
                 typedPaths.push_back (TextEncoding::NarrowToWide (value.GetString()));
+            }
+        }
+    }
+
+    if (root.HasArray ("searchHistory", searchArray))
+    {
+        searchHistory.clear();
+
+        for (i = 0; i < searchArray->GetArraySize(); i++)
+        {
+            const JsonValue &  value = searchArray->GetArrayElement (i);
+
+            if (value.GetType() == JsonType::String)
+            {
+                searchHistory.push_back (TextEncoding::NarrowToWide (value.GetString()));
             }
         }
     }

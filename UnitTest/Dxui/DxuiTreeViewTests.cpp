@@ -350,6 +350,39 @@ public:
         Assert::AreEqual (1, tv.GetHighlight());
     }
 
+    TEST_METHOD (HomeEndAndPageKeys_MoveTheHighlight)
+    {
+        DxuiTreeView               tv;
+        std::vector<DxuiTreeNode>  nodes;
+        RECT                       rect  = { 0, 0, 200, 100 };
+
+        for (int i = 0; i < 20; i++)
+        {
+            nodes.push_back (MakeNode (std::format (L"n{}", i).c_str(), DxuiTreeCapabilityFlag::Optional, false));
+        }
+
+        tv.SetRect      (rect);
+        tv.SetRowHeight (20);
+        tv.SetNodes     (std::move (nodes));
+        tv.SetFocused   (true);
+
+        Assert::IsTrue   (tv.OnKey (VK_END));
+        Assert::AreEqual (19, tv.GetHighlight());
+
+        Assert::IsTrue   (tv.OnKey (VK_PRIOR));
+        Assert::AreEqual (19 - (tv.GetRowCap() - 1), tv.GetHighlight(), L"a page is one row less than the rows in view");
+
+        Assert::IsTrue   (tv.OnKey (VK_HOME));
+        Assert::AreEqual (0, tv.GetHighlight());
+
+        Assert::IsTrue   (tv.OnKey (VK_NEXT));
+        Assert::AreEqual (tv.GetRowCap() - 1, tv.GetHighlight());
+
+        Assert::IsTrue   (tv.OnKey (VK_PRIOR));
+        Assert::IsTrue   (tv.OnKey (VK_PRIOR));
+        Assert::AreEqual (0, tv.GetHighlight(), L"Page Up stops at the first row");
+    }
+
     TEST_METHOD (KeyboardToggle_OnlyAffectsInteractiveRow)
     {
         DxuiTreeView  tv = MakeFlatTree();
@@ -662,6 +695,39 @@ public:
     }
 
 
+    //  A removable drive is a row at the top level and another under This PC,
+    //  with one id; a change to the drive's folder is shown in both.
+    TEST_METHOD (ReplaceChildren_ChangesEveryRowWithTheId)
+    {
+        DxuiTreeView               tv;
+        std::vector<DxuiTreeNode>  roots;
+        DxuiTreeNode               pc    = MakeUnread (L"pc");
+        DxuiTreeNode               drive = MakeUnread (L"H");
+        std::vector<DxuiTreeNode>  fresh;
+
+
+
+        drive.childrenLoaded = true;
+        drive.expanded       = true;
+        drive.children.push_back (MakeUnread (L"H\\old.dsk"));
+
+        pc.childrenLoaded = true;
+        pc.expanded       = true;
+        pc.children.push_back (drive);
+
+        roots.push_back (pc);
+        roots.push_back (drive);
+
+        tv.SetRect      (RECT { 0, 0, 200, 400 });
+        tv.SetRowHeight (20);
+        tv.SetNodes     (std::move (roots));
+
+        fresh.push_back (MakeUnread (L"H\\new.po"));
+
+        Assert::IsTrue (tv.ReplaceChildren (L"H", std::move (fresh)));
+        Assert::IsTrue (RowIds (tv) == std::vector<std::wstring> { L"pc", L"H", L"H\\new.po", L"H", L"H\\new.po" }, L"both rows of the drive have the new image");
+    }
+
     TEST_METHOD (ReplaceChildren_OpensANodeAskedOpenBeforeItsChildrenWereRead)
     {
         DxuiTreeView               tv;
@@ -769,6 +835,27 @@ public:
         tv.ReplaceChildren (L"r", std::move (fresh));
 
         Assert::AreEqual (tv.FindRowById (L"c10"), tv.GetTopRow(), L"Rows added above what is on screen do not move it");
+    }
+
+
+    TEST_METHOD (ReplaceChildren_ReadsANodeThatGainedChildren)
+    {
+        DxuiTreeView               tv;
+        std::vector<DxuiTreeNode>  roots;
+        DxuiTreeNode               card = MakeFolder (L"card");
+
+
+
+        card.childrenLoaded = true;
+        roots.push_back (MakeFolder (L"pc:", { card }, true));
+
+        tv.SetRect      (RECT { 0, 0, 200, 400 });
+        tv.SetRowHeight (20);
+        tv.SetNodes     (std::move (roots));
+
+        tv.ReplaceChildren (L"pc:", { MakeUnread (L"card") });
+
+        Assert::IsFalse (tv.GetNodeAt (tv.FindRowById (L"card"))->childrenLoaded, L"a node with nothing under it that now has children is read again");
     }
 
 

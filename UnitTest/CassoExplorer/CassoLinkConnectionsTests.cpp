@@ -13,7 +13,7 @@
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Net/FirewallMonitor.h"
 #include "Seams/ILinkAnnouncements.h"
@@ -48,7 +48,7 @@ public:
 
         Rig()
         {
-            std::vector<Byte>  buffer (NibblizationLayer::kImageByteSize, 0);
+            std::vector<Byte>  buffer (NibbleFormat::kImageByteSize, 0);
             std::vector<Byte>  next;
             FilePayload        payload;
             CassoLinkSettings  settings;
@@ -62,7 +62,7 @@ public:
 
             AssertSucceeded (Dos33Volume (buffer).Write (FilePath::Parse ("HELLO"), payload, next));
             apple.drives[0] = next;
-            apple.drives[1] = std::vector<Byte> (NibblizationLayer::kImageByteSize, 0);
+            apple.drives[1] = std::vector<Byte> (NibbleFormat::kImageByteSize, 0);
 
             settings.name      = "Test";
             settings.transport = LinkTransport::Emulated;
@@ -924,6 +924,26 @@ public:
 
 
 
+    //  With the CassoLink ProDOS disk's driver on the line, the page has
+    //  the model in place of the search's text, and a drive with no image is
+    //  "no image".
+    TEST_METHOD (TheDriversText_ListsTheVirtualDrives)
+    {
+        CassoLinkSettings  link;
+
+        link.name                 = "Serial (any port)";
+        link.virtualDrives.drive1 = L"C:\\Disks\\Blank ProDOS 1.po";
+
+        Assert::AreEqual (std::wstring (L"The Apple is using the virtual drives."), CassoLinkConnectionText::DescribeState (LinkState::WaitingForReady, link, L"pc", true));
+        Assert::AreEqual (std::wstring (L"Apple //c is using the virtual drives."), CassoLinkConnectionText::DescribeState (LinkState::WaitingForReady, link, L"pc", true, L"Apple //c"));
+        Assert::AreEqual (std::wstring (L"Blank ProDOS 1.po"), CassoLinkConnectionText::DescribeDriveImage (link.virtualDrives.drive1));
+        Assert::AreEqual (std::wstring (L"no image"), CassoLinkConnectionText::DescribeDriveImage (link.virtualDrives.drive2));
+        Assert::AreEqual (std::wstring (L"Connected."), CassoLinkConnectionText::DescribeState (LinkState::Ready, link, L"pc", true), L"Casso's program, not the driver");
+        Assert::AreEqual (std::wstring (L"Click Serial (any port) to connect."), CassoLinkConnectionText::DescribeState (LinkState::Closed, link, L"pc", true));
+    }
+
+
+
     TEST_METHOD (TheWaitingText_NamesTheMachine_AndWhatToDo)
     {
         CassoLinkSettings  link;
@@ -998,6 +1018,27 @@ public:
 
 
 
+    //  A serial link set to any port displays the port it opened; one
+    //  set to a port, or not connected, displays its name.
+    TEST_METHOD (DescribeName_ShowsTheOpenPortOfAnAnyPortLink)
+    {
+        CassoLinkSettings  link;
+
+        link.transport = LinkTransport::Serial;
+        link.name      = CassoLinkSettings::MakeName (link);
+
+        Assert::AreEqual (std::wstring (L"Serial (COM3)"),     CassoLinkConnectionText::DescribeName (link, L"COM3"));
+        Assert::AreEqual (std::wstring (L"Serial (any port)"), CassoLinkConnectionText::DescribeName (link, std::wstring()), L"not connected");
+
+        link.name = "My //c";
+        Assert::AreEqual (std::wstring (L"My //c (COM3)"), CassoLinkConnectionText::DescribeName (link, L"COM3"), L"a name the user typed");
+
+        link.port = "COM4";
+        Assert::AreEqual (std::wstring (L"My //c"), CassoLinkConnectionText::DescribeName (link, L"COM4"), L"a link set to a port");
+    }
+
+
+
     //  A line that closes or goes quiet during an operation is reported as
     //  that, not as the Apple failing the operation.
     //  A link connected again reads its drives again, so a disk changed while
@@ -1006,7 +1047,7 @@ public:
     {
         Rig                         rig;
         std::vector<LinkTreeEntry>  entries;
-        std::vector<Byte>           other (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>           other (NibbleFormat::kImageByteSize, 0);
         auto                        until = std::chrono::steady_clock::now() + std::chrono::seconds (30);
 
         auto  volumeOf = [&rig, &entries] () -> std::wstring
@@ -1044,6 +1085,45 @@ public:
         }
 
         Assert::AreEqual (std::wstring (L"DOS 3.3 volume 201"), volumeOf(), L"the drive read again once connected again");
+    }
+
+
+
+
+    //  A link is busy, and the PC kept awake, from a job's queuing until the
+    //  job ends and its transfer ages out.
+    TEST_METHOD (AJob_KeepsTheLinksBusy_UntilItEnds)
+    {
+        Rig                             rig;
+        std::shared_ptr<LinkOperation>  read;
+        auto                            until = std::chrono::steady_clock::now() + std::chrono::seconds (30);
+
+
+
+        AssertSucceeded (rig.links->Start ("Test"));
+
+        while (!rig.links->BuildTreeEntries()[0].replying && std::chrono::steady_clock::now() < until)
+        {
+            std::this_thread::yield();
+        }
+
+        Assert::IsFalse (rig.links->IsAnyBusy(), L"idle once connected");
+
+        AssertSucceeded (rig.links->Submit ("Test", [&read] (CassoLinkSession & session)
+        {
+            read = session.ReadDisk (1, "C:\\Images\\Drive 1.dsk", false);
+            return read;
+        }, nullptr));
+
+        Assert::IsTrue (rig.links->IsAnyBusy(), L"busy once queued");
+
+        while (rig.links->IsAnyBusy() && std::chrono::steady_clock::now() < until)
+        {
+            std::this_thread::yield();
+        }
+
+        Assert::IsTrue  (read->state == LinkOperationState::Done);
+        Assert::IsFalse (rig.links->IsAnyBusy(), L"idle once the read ends");
     }
 
 

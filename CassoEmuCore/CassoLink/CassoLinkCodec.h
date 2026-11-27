@@ -94,6 +94,10 @@ public:
     //  The bit of Status's drive byte that marks a write-protected disk.
     static constexpr Byte  kStatusWriteProtected = 0x40;
 
+    //  The bit for a drive whose disk has 13-sector address fields, which a
+    //  read for 16 sectors passes over.
+    static constexpr Byte  kStatusThirteenSector = 0x20;
+
     static constexpr Byte  kCancel        = 0xD1;
     static constexpr Byte  kLabel         = 0xDC;
     static constexpr Byte  kLog           = 0xDD;
@@ -134,6 +138,8 @@ public:
     static constexpr Byte  kKeyEscape     = 0x9B;
     static constexpr Byte  kKeyLeft       = 0x88;
     static constexpr Byte  kKeyDelete     = 0xFF;
+    static constexpr Byte  kKeyRawDrive1  = 0x01;     // pressed on the PC, never sent by the Apple
+    static constexpr Byte  kKeyRawDrive2  = 0x02;
     static constexpr Byte  kWaitKeys      = 0x00;
     static constexpr Byte  kWaitTyped     = 0x01;
 
@@ -196,6 +202,18 @@ public:
     static constexpr Byte    kNibbleData       = 0xF4;
     static constexpr size_t  kMaxNibbleStream  = 0x3500;
 
+    //  The 13-sector module's Write raw track: the drive, the quarter-track
+    //  position and the count of bytes, low byte first; then the stream as
+    //  Write nibble track's (RawWriteStream::BuildModuleStream).
+    static constexpr Byte    kWriteRawTrack    = 0xFA;
+
+    //  A drive's note: the drive, then the text, at most kNoteLength
+    //  characters, drawn on the drive's row in place of its idle text until
+    //  another note replaces it. An empty text clears it. The program's
+    //  NOTELEN is the same.
+    static constexpr Byte    kDriveNote        = 0xFB;
+    static constexpr size_t  kNoteLength       = 36;
+
     //  The 13-sector module's Read 13-sector track: the drive, the track and
     //  the sectors requested, a bit each, low byte first. The reply is a
     //  13-sector data packet for each sector found, in physical order: the
@@ -229,6 +247,9 @@ public:
 
     //  The longest Log text the program draws, after the time.
     static constexpr size_t  kLogLength   = 34;
+
+    //  The same in 80 columns.
+    static constexpr size_t  kWideLogLength = 74;
 
     // Acknowledgement kinds.
     static constexpr Byte  kAck          = 0x06;
@@ -305,6 +326,8 @@ public:
         { kBlockPlain,    "CMDBLKPLAIN" },
         { kWriteNibbleTrack, "CMDWNIBS"  },
         { kNibbleData,    "CMDNIBDATA"  },
+        { kWriteRawTrack, "CMDWRAW"     },
+        { kDriveNote,     "CMDNOTE"     },
         { kReadThirteenTrack, "CMDRD13" },
         { kThirteenData,  "CMDSEC13"    },
         { kVirtualBlock,  "CMDVBLOCK"   },
@@ -334,7 +357,7 @@ public:
     static HRESULT   ParseBlock        (const CassoLinkPacket & packet, bool checkCrc, uint32_t & outBlock, std::vector<Byte> & outData);
 
     // Sector nibbles: the track, the sector, its data field's 343 nibbles as
-    // NibblizationLayer encodes them, and their CRC. Write sectors sends
+    // DiskFieldFormat encodes them, and their CRC. Write sectors sends
     // these, so the Apple writes them as they are rather than encoding them.
     static HRESULT   EncodeSectorNibbles (Byte track, Byte sector, std::span<const Byte> data, std::vector<Byte> & out);
     static HRESULT   ParseSectorNibbles  (const CassoLinkPacket & packet, Byte & outTrack, Byte & outSector, std::span<Byte> outData);

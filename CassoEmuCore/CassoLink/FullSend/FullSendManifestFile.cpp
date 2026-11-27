@@ -297,9 +297,44 @@ Error:
 
 HRESULT FullSendManifestFile::Write (IDiskFileIo & fileIo, const std::string & path, const FullSendManifest & manifest)
 {
+    return Write (fileIo, path, manifest, GetTickCount64());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendManifestFile::Write
+//
+//  Another process with the manifest open, such as a file indexer or a
+//  second Casso, fails a write with access denied or a sharing violation
+//  for a moment. Any other failure returns at once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT FullSendManifestFile::Write (IDiskFileIo & fileIo, const std::string & path, const FullSendManifest & manifest, uint64_t commitTag)
+{
+    HRESULT               hr      = S_OK;
+    std::vector<Byte>     bytes   = manifest.Format();
+    bool                  isBusy  = false;
     CommitPlan::Progress  progress;
 
 
 
-    return DurableCommit::Commit (fileIo, path, manifest.Format(), GetTickCount64(), CommitMode::Replace, progress);
+    for (int attempt = 1; attempt <= s_kWriteTries; attempt++)
+    {
+        hr     = DurableCommit::Commit (fileIo, path, bytes, commitTag, CommitMode::Replace, progress);
+        isBusy = hr == HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED) || hr == HRESULT_FROM_WIN32 (ERROR_SHARING_VIOLATION) || hr == HRESULT_FROM_WIN32 (ERROR_LOCK_VIOLATION);
+
+        if (!isBusy || attempt == s_kWriteTries)
+        {
+            break;
+        }
+
+        s_sleep (s_kWriteRetryMs);
+    }
+
+    return hr;
 }

@@ -87,7 +87,7 @@ public:
 
     //  The store's writes made to the file, then the Disk Copy 4.2 data
     //  checksum computed again and written. The file is flushed after, even
-    //  when a write fails, which ends a card's confirmation for the thread.
+    //  when a write fails.
     HRESULT  Commit ();
 
     //  Whether the file's size and time are as they were when it was opened
@@ -118,6 +118,10 @@ public:
     static bool  IsTwoImgHeader    (std::span<const Byte> header);
     static bool  IsDiskCopyHeader  (std::span<const Byte> header, uint64_t fileBytes);
     static bool  IsBlockExtension  (const std::string & path);
+
+    //  A 2IMG payload's length. Sweet16 writes 0 for a ProDOS-order image,
+    //  which is then its block count times 512, as other readers take it.
+    static uint64_t  GetTwoImgDataBytes (std::span<const Byte> header);
 
 private:
     static constexpr size_t    kDcDataSum        = 72;

@@ -5,10 +5,15 @@
 #include "CassoLink/FullSend/FullSendDisk.h"
 #include "CassoLink/FullSend/FullSendManifestFile.h"
 #include "Core/TextEncoding.h"
+#include "DiskCheck/BootProbe.h"
 #include "DiskCheck/BootTitle.h"
 #include "DiskCheck/GivenNames.h"
-#include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/DiskSourceFormat.h"
 #include "Devices/Disk/Inspector/Repair/FileSystemCheck.h"
+#include "FileTypes/SaveSummary.h"
+#include "Machines/Apple2/Common/CpmVolume.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
 
 
 
@@ -45,7 +50,7 @@ ExplorerBootWorker::~ExplorerBootWorker()
         std::lock_guard  lock (m_lock);
 
         m_stop = true;
-        m_queue.clear();
+        m_queue.Clear();
     }
 
     m_wake.notify_all();
@@ -163,30 +168,106 @@ void ExplorerBootWorker::SetLimits (const BootProbe::Limits & limits)
 
 void ExplorerBootWorker::Queue (const std::wstring & path, const std::string & model, const std::string & source)
 {
+    //  An image a connection just wrote goes ahead of those a list queued.
+    Add ({ path, model, source, source.empty() ? BootQueue::Urgency::InView : BootQueue::Urgency::Connection });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBootWorker::QueueFolderImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerBootWorker::QueueFolderImage (const std::wstring & path)
+{
+    Add ({ path, std::string(), std::string(), BootQueue::Urgency::Folder });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBootWorker::RemoveFolderImages
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerBootWorker::RemoveFolderImages()
+{
     CountFn  onCount;
+    size_t   removed = 0;
 
 
 
     {
         std::lock_guard  lock (m_lock);
-        bool             isWaiting = std::any_of (m_queue.begin(), m_queue.end(), [&path] (const Item & item) { return _wcsicmp (item.path.c_str(), path.c_str()) == 0; });
 
-        if (m_stop || isWaiting)
+        removed = m_queue.RemoveFolderImages();
+        onCount = m_onCount;
+    }
+
+    if (removed > 0 && onCount)
+    {
+        onCount();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBootWorker::SetRank
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerBootWorker::SetRank (BootQueue::RankFn rank)
+{
+    std::lock_guard  lock (m_lock);
+
+
+
+    m_rank = std::move (rank);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBootWorker::Add
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerBootWorker::Add (BootQueue::Item item)
+{
+    CountFn  onCount;
+    bool     isAdded = false;
+
+
+
+    {
+        std::lock_guard  lock (m_lock);
+
+        if (m_stop)
         {
             return;
         }
 
-        //  An image a connection just wrote goes ahead of those a list queued.
-        if (source.empty())
-        {
-            m_queue.push_back ({ path, model, source });
-        }
-        else
-        {
-            m_queue.push_front ({ path, model, source });
-        }
-
+        isAdded = m_queue.TryAdd (std::move (item));
         onCount = m_onCount;
+    }
+
+    if (!isAdded)
+    {
+        return;
     }
 
     m_wake.notify_all();
@@ -232,7 +313,30 @@ size_t ExplorerBootWorker::GetPending() const
 
 
 
-    return m_queue.size() + (m_working ? 1 : 0);
+    return m_queue.GetCount() + (m_working ? 1 : 0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBootWorker::IsPending
+//
+//  The image is cleared before its result is reported, so a window that
+//  reads it on the result's message finds it done.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerBootWorker::IsPending (const std::wstring & path) const
+{
+    std::lock_guard  lock (m_lock);
+    bool             isWaiting = m_queue.Contains (path);
+
+
+
+    return isWaiting || _wcsicmp (m_current.c_str(), path.c_str()) == 0;
 }
 
 
@@ -251,7 +355,7 @@ void ExplorerBootWorker::WaitUntilIdle()
 
 
 
-    m_idle.wait (lock, [this]() { return m_queue.empty() && !m_working && !m_reporting; });
+    m_idle.wait (lock, [this]() { return m_queue.GetCount() == 0 && !m_working && !m_reporting; });
 }
 
 
@@ -295,7 +399,7 @@ ExplorerBootWorker::Result ExplorerBootWorker::Check (const std::wstring & path,
         given  = m_given;
     }
 
-    hr = DiskImageStore::GetSourceFormatByExtension (narrow, format);
+    hr = DiskSourceFormat::GetSourceFormatByExtension (narrow, format);
     CHR (hr);
 
     {
@@ -314,9 +418,24 @@ ExplorerBootWorker::Result ExplorerBootWorker::Check (const std::wstring & path,
     hr = BootCheck::Run (bytes, format, model, limits, m_build, report, result.machine, result.missing);
     CHR (hr);
 
+    //  A CP/M data disk has no system on tracks 0 to 2, and its boot runs
+    //  whatever bytes are on track 0.
+    if (report.verdict == BootVerdict::DidNotBoot && IsCpmDataDisk (bytes, narrow))
+    {
+        report.verdict = BootVerdict::NotBootable;
+        report.reason  = "The disk is a CP/M data disk, with no system on tracks 0 to 2.";
+    }
+
     result.hasReport = true;
     result.verdict   = report.verdict;
     result.reason    = report.reason;
+
+    //  A disk that doesn't boot and has a saved game has the save for its
+    //  thumbnail, drawn as a text screen.
+    if (report.verdict != BootVerdict::Booted)
+    {
+        DrawSave (bytes, TextEncoding::WideToNarrow (file.wstring()), m_build, report);
+    }
 
     hr = PicturePreview::EncodePng (report.frame, report.width, report.height, png);
     CHR (hr);
@@ -337,22 +456,39 @@ ExplorerBootWorker::Result ExplorerBootWorker::Check (const std::wstring & path,
         std::string  fromUser = FindGivenName (*fileIo, given, folder, name);
         FullSendRow  row;
         bool         renamed  = false;
+        std::string  print;
+        bool         isRaw    = false;
 
         CheckFileSystem (bytes, path, result);
+
+        //  A raw capture is of a disk that is likely copy-protected, whose
+        //  file system's bookkeeping is often odd on purpose, so it has no
+        //  verdict of damage.
+        hr = FullSendManifestFile::FindFingerprint (*fileIo, folder, name, print, isRaw);
+
+        if (SUCCEEDED (hr) && isRaw && (result.fsCheck == FullSendManifest::kCheckBad || result.fsCheck == FullSendManifest::kCheckSuspect))
+        {
+            result.fsCheck = FullSendManifest::kCheckNone;
+            result.fsFinding.clear();
+        }
 
         hr = FullSendManifestFile::NoteBoot (*fileIo, folder, name, record.verdict, result.fsCheck, row);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        //  An image with unreadable sectors or a bad file system is a failed
-        //  capture, even when it boots. The Apple's tone has the same rule. A
-        //  raw capture has every track, so the count from the sector read
-        //  before it doesn't apply.
-        result.isComplete = (row.unreadable == 0 || row.status == FullSendManifest::kStatusRawCapture) && result.fsCheck != FullSendManifest::kCheckBad;
+        //  An image that didn't boot with unreadable sectors or a bad file
+        //  system is a failed capture. One that boots isn't, as a crack's odd
+        //  catalog reads as bad. The Apple's tone has the same rule. A raw
+        //  capture has every track, so the count from the sector read before
+        //  it doesn't apply.
+        result.isComplete = report.verdict == BootVerdict::Booted
+                            || ((row.unreadable == 0 || row.status == FullSendManifest::kStatusRawCapture) && result.fsCheck != FullSendManifest::kCheckBad);
 
         //  An image saved as a number is renamed with the user's earlier name
-        //  for its disk, or its title once it boots, or with neither, a DOS
-        //  3.3 disk's first program after HELLO.
-        if (titled.empty() && (format == DiskFormat::Dsk || format == DiskFormat::Do))
+        //  for its disk, or its title once it boots. A DOS 3.3 disk that
+        //  doesn't boot, as a data disk, takes its first program after HELLO;
+        //  one that boots with no title found stays a number, as a game's
+        //  program files are often called something meaningless.
+        if (titled.empty() && report.verdict != BootVerdict::Booted && (format == DiskFormat::Dsk || format == DiskFormat::Do))
         {
             titled = MakeNumberedName (name, FullSendDisk::GetProgramTitle (bytes));
         }
@@ -636,16 +772,17 @@ void ExplorerBootWorker::Run()
 
     for (;;)
     {
-        Item     item;
-        DoneFn   done;
-        BusyFn   isBusy;
-        CountFn  onCount;
-        Result   result;
+        BootQueue::Item  item;
+        DoneFn           done;
+        BusyFn           isBusy;
+        CountFn          onCount;
+        Result           result;
+        bool             isTaken = false;
 
         {
             std::unique_lock  lock (m_lock);
 
-            m_wake.wait (lock, [this]() { return m_stop || !m_queue.empty(); });
+            m_wake.wait (lock, [this]() { return m_stop || m_queue.GetCount() > 0; });
 
             if (m_stop)
             {
@@ -676,10 +813,16 @@ void ExplorerBootWorker::Run()
                 return;
             }
 
-            item      = m_queue.front();
-            m_working = true;
+            isTaken = m_queue.TryTakeNext (m_rank, item);
 
-            m_queue.pop_front();
+            //  The folder images can be removed while the emulator is busy.
+            if (!isTaken)
+            {
+                continue;
+            }
+
+            m_working = true;
+            m_current = item.path;
         }
 
         result        = Check (item.path, item.model);
@@ -689,6 +832,7 @@ void ExplorerBootWorker::Run()
             std::lock_guard  lock (m_lock);
 
             done = m_done;
+            m_current.clear();
         }
 
         if (done)
@@ -719,4 +863,77 @@ void ExplorerBootWorker::Run()
 
         m_idle.notify_all();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBootWorker::IsCpmDataDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerBootWorker::IsCpmDataDisk (const std::vector<Byte> & bytes, const std::string & path)
+{
+    std::vector<Byte>   sectors;
+    SectorDecodeReport  decoded;
+    HRESULT             hr      = VolumeImage::Load (bytes, path, sectors, decoded);
+
+
+
+    return SUCCEEDED (hr) && VolumeImage::DetectFilesystem (sectors) == VolumeKind::Cpm && !CpmVolume::HasSystemTracks (sectors);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBootWorker::DrawSave
+//
+//  The rows are written to the text page of an enhanced //e, powered on and
+//  not run, in normal characters, and its screen is drawn as a boot's is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerBootWorker::DrawSave (const std::vector<Byte> & bytes, const std::string & path, const BootCheck::MachineFn & build, BootReport & ioReport)
+{
+    HRESULT                   hr      = S_OK;
+    std::vector<Byte>         sectors;
+    SectorDecodeReport        decoded;
+    std::vector<std::string>  rows;
+    BootCheck::Built          built;
+    std::string               error;
+    bool                      isDrawn = false;
+
+
+
+    hr = VolumeImage::Load (bytes, path, sectors, decoded);
+    BAIL_OUT_IF (FAILED (hr) || !SaveSummary::Find (sectors, rows), S_OK);
+
+    hr = build (BootCheck::kEnhanced, built, error);
+    BAIL_OUT_IF (FAILED (hr) || built.host == nullptr || built.builder == nullptr, S_OK);
+
+    built.host->PowerCycle();
+
+    for (size_t row = 0; row < SaveSummary::kRows; row++)
+    {
+        Word  base = (Word) (s_kTextPage + (row % 8) * s_kRowStride + (row / 8) * s_kThirdStride);
+
+        for (size_t column = 0; column < SaveSummary::kColumns; column++)
+        {
+            char  ch = (row < rows.size() && column < rows[row].size()) ? rows[row][column] : ' ';
+
+            built.host->GetMemoryBus().WriteByte ((Word) (base + column), (Byte) (ch | s_kNormal));
+        }
+    }
+
+    BootProbe::RenderFrame (*built.host, *built.builder, ioReport.frame, ioReport.width, ioReport.height);
+    isDrawn = true;
+
+Error:
+    return isDrawn;
 }

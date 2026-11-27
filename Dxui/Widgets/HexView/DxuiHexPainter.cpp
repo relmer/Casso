@@ -306,18 +306,27 @@ void DxuiHexPainter::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & them
     //  The value column, a value at a time.
     for (int first = 0; m_view.m_showValues && (first < count); first += m_view.m_grouping)
     {
-        uint64_t  offset   = (row * (uint64_t) m_view.m_bytesPerRow) + (uint64_t) first;
-        int       present  = (std::min) (m_view.m_grouping, count - first);
-        uint64_t  value    = 0;
-        bool      selected = false;
-        uint32_t  argb     = GetByteColor (theme, m_rowMarks[(size_t) first]);
-        RECT      cell     = m_view.m_layout.GetCellRect (m_view.m_layout.GetColumnStartCell (DxuiHexViewTypes::Column::Hex) + ((first / m_view.m_grouping) * (m_view.m_layout.GetValueCells() + 1)),
-                                                          row, m_view.m_layout.GetValueCells());
+        uint64_t                     offset   = (row * (uint64_t) m_view.m_bytesPerRow) + (uint64_t) first;
+        int                          present  = (std::min) (m_view.m_grouping, count - first);
+        uint64_t                     value    = 0;
+        bool                         selected = false;
+        uint32_t                     argb     = GetByteColor (theme, m_rowMarks[(size_t) first]);
+        RECT                         cell     = m_view.m_layout.GetCellRect (m_view.m_layout.GetColumnStartCell (DxuiHexViewTypes::Column::Hex) + ((first / m_view.m_grouping) * (m_view.m_layout.GetValueCells() + 1)),
+                                                                             row, m_view.m_layout.GetValueCells());
+        DxuiHexViewTypes::ByteStyle  style;
 
         for (int index = 0; index < present; index++)
         {
             value   |= (uint64_t) m_rowBytes[(size_t) (first + index)] << (index * 8);
             selected = selected || m_view.IsByteSelected (offset + (uint64_t) index);
+        }
+
+        if (GetByteStyle (theme, offset, m_rowMarks[(size_t) first], selected, DxuiHexViewTypes::Column::Hex, style))
+        {
+            FillStyled (text, m_view.m_layout.GetValueSelectionRect (offset, cell), style);
+
+            DrawCell (text, cell, FormatValue (value, present).c_str(), style.ink != 0 ? style.ink : argb, font, style.isBold ? DxuiFontWeight::Bold : DxuiFontWeight::Normal);
+            continue;
         }
 
         if (selected)
@@ -331,12 +340,22 @@ void DxuiHexPainter::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & them
     //  The text column, a byte at a time.
     for (int index = 0; index < count; index++)
     {
-        uint64_t      offset  = (row * (uint64_t) m_view.m_bytesPerRow) + (uint64_t) index;
-        RECT          txtRect = m_view.m_layout.GetByteRect (offset, DxuiHexViewTypes::Column::Text);
-        uint32_t      argb    = GetByteColor (theme, m_rowMarks[(size_t) index]);
-        std::wstring  charOf  = { GetCharFor (m_rowBytes[(size_t) index]) };
+        uint64_t                     offset  = (row * (uint64_t) m_view.m_bytesPerRow) + (uint64_t) index;
+        RECT                         txtRect = m_view.m_layout.GetByteRect (offset, DxuiHexViewTypes::Column::Text);
+        uint32_t                     argb    = GetByteColor (theme, m_rowMarks[(size_t) index]);
+        std::wstring                 charOf  = { GetCharFor (m_rowBytes[(size_t) index]) };
+        DxuiHexViewTypes::ByteStyle  style;
 
-        //  Selected bytes are drawn in the full foreground, over the selection.
+        //  A byte the host styles is drawn its way. Otherwise selected bytes
+        //  are drawn in the full foreground, over the selection.
+        if (GetByteStyle (theme, offset, m_rowMarks[(size_t) index], m_view.IsByteSelected (offset), DxuiHexViewTypes::Column::Text, style))
+        {
+            FillStyled (text, m_view.m_layout.GetSelectionCellRect (offset, index, txtRect, false), style);
+
+            DrawCell (text, txtRect, charOf.c_str(), style.ink != 0 ? style.ink : argb, font, style.isBold ? DxuiFontWeight::Bold : DxuiFontWeight::Normal);
+            continue;
+        }
+
         if (m_view.IsByteSelected (offset))
         {
             FillCell (text, m_view.m_layout.GetSelectionCellRect (offset, index, txtRect, false), theme.SelectionBackground());
@@ -361,7 +380,7 @@ void DxuiHexPainter::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & them
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHexPainter::DrawCell (IDxuiTextRenderer & text, const RECT & rect, const wchar_t * chars, uint32_t argb, const DxuiFontHandle & font)
+void DxuiHexPainter::DrawCell (IDxuiTextRenderer & text, const RECT & rect, const wchar_t * chars, uint32_t argb, const DxuiFontHandle & font, DxuiFontWeight weight)
 {
     HRESULT  hr = S_OK;
 
@@ -380,9 +399,57 @@ void DxuiHexPainter::DrawCell (IDxuiTextRenderer & text, const RECT & rect, cons
                           font.face,
                           DxuiTextHAlign::Left,
                           DxuiTextVAlign::Top,
-                          DxuiFontWeight::Normal,
+                          weight,
                           false);
     IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexPainter::GetByteStyle
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHexPainter::GetByteStyle (const IDxuiTheme & theme, uint64_t offset, uint8_t mark, bool isSelected, DxuiHexViewTypes::Column column, DxuiHexViewTypes::ByteStyle & outStyle) const
+{
+    return m_view.GetByteStyle (theme, offset, mark, isSelected, column, outStyle);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexPainter::FillStyled
+//
+//  A styled byte's fill, inside its outline when it has one. The outline is
+//  a twelfth of the cell's height, and at least a pixel.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexPainter::FillStyled (IDxuiTextRenderer & text, const RECT & rect, const DxuiHexViewTypes::ByteStyle & style)
+{
+    constexpr LONG  kEdgeShare = 12;
+    LONG            edge       = std::max<LONG> (1, (rect.bottom - rect.top) / kEdgeShare);
+
+
+
+    if (style.outline != 0)
+    {
+        FillCell (text, rect, style.outline);
+        FillCell (text, RECT { rect.left + edge, rect.top + edge, rect.right - edge, rect.bottom - edge }, style.fill);
+        return;
+    }
+
+    if (style.fill != 0)
+    {
+        FillCell (text, rect, style.fill);
+    }
 }
 
 

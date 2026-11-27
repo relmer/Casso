@@ -46,10 +46,11 @@ public:
     };
 
     //  Whether track 3's directory contains a CP/M volume (FR-085): a valid
-    //  entry in use and no invalid one, or more than four valid ones in use;
-    //  a directory of free entries alone is an empty volume.
-    static bool  IsFound (const SectorSource & source);
-    static void  Read    (const SectorSource & source, FileMap & outMap);
+    //  entry in use and no invalid one, or a damaged directory CpmVolume
+    //  reads; a directory of free entries alone is an empty volume.
+    static bool  IsFound        (const SectorSource & source);
+    static bool  IsFoundLenient (const SectorSource & source);
+    static void  Read           (const SectorSource & source, FileMap & outMap);
 
     //  The CP/M sector's cell for allocation block b's sector n.
     static int   GetBlockCell (int block, int sector);
@@ -60,4 +61,5 @@ private:
     static std::wstring  DescribeInvalid (const Byte * entry);
     static Entry         ReadEntry       (const Byte * entry, int index);
     static void          CheckEntries    (FileMapWriter & writer, const vector<Entry> & entries);
+    static std::wstring  FormatPath      (int user, const std::wstring & name);
 };

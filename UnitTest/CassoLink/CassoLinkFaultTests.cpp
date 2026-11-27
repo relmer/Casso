@@ -10,7 +10,7 @@
 #include "CassoLink/LinkFault.h"
 #include "CassoLink/LinkProgram.h"
 #include "Devices/Disk/DiskImageStore.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 #include "Seams/InProcessByteStream.h"
 #include "SteppedByteStream.h"
 
@@ -235,7 +235,7 @@ public:
 
     static size_t  DosOffset (int track, int physical)
     {
-        return (size_t) (track * 16 + NibblizationLayer::GetDosFileIndexForPhysicalSector (physical)) * 256;
+        return (size_t) (track * 16 + SectorInterleave::GetDosFileIndexForPhysicalSector (physical)) * 256;
     }
 
     static bool  SameSector (const std::vector<Byte> & data, size_t index, const std::vector<Byte> & image, size_t offset)

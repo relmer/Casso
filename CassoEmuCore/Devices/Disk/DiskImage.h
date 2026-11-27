@@ -104,7 +104,7 @@ public:
 //  Phase 9 scope: bit-stream storage + the soft sector-level Load that
 //  preserves Phase 8 runtime behavior (.dsk → 6+2 nibblization → packed
 //  bit stream). The full WOZ / .DO / .PO loaders + true round-trip
-//  Serialize land in Phase 10 (NibblizationLayer / WozLoader).
+//  Serialize land in Phase 10 (Nibblizer / WozLoader).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -212,6 +212,10 @@ public:
     //  dirty ones otherwise sees a rewritten track as untouched.
     void             MarkTrackDirty      (int track);
 
+    // Marks the image as changed when no track did, as after its WOZ
+    // metadata is replaced, so the next flush writes it.
+    void             MarkDirty           () { m_dirty = true; }
+
     //  A slot the shared sector writer changed, apart from guest writes
     //  through the drive. A save clears both. A slot only the writer changed
     //  can be saved in place where a guest-written one is rebuilt.
@@ -235,6 +239,16 @@ public:
     // data -- which a report about tracks that failed to load needs, since a
     // damaged slot resolves to nothing.
     int              GetMappedSlot       (int quarterTrack) const;
+
+    // Returns the slot for a write at a quarter track, called as the write
+    // starts. A head writes a band about as wide as a whole track, so the
+    // write gets a new slot when its slot is also mapped from a quarter track
+    // two or more away, and the quarter tracks on either side are mapped to
+    // it, except one a write was centered on. The new slot starts as a copy
+    // of the old one, or blank, `blankBitCount` bits, where the position had
+    // no data. With no room for another slot, returns the slot the quarter
+    // track maps to, or -1 for none.
+    int              PrepareQuarterTrackWrite (int quarterTrack, size_t blankBitCount);
 
     // Flux slots. A slot is a flux track when the image's FLUX map refers to
     // it; its bit buffer then stays empty and every bit-level accessor sees
@@ -265,7 +279,7 @@ public:
     void  SetQuarterTrackSlot  (int quarterTrack, int slot);
     void  EnsureTrackSlots     (int slotCount);
 
-    // Direct bit-buffer access for bulk writers (NibblizationLayer, WozLoader).
+    // Direct bit-buffer access for bulk writers (Nibblizer, WozLoader).
     // ResizeTrack must be called first; the returned buffer length matches the
     // packed-byte size for the track. Bypasses write-protect.
     vector<Byte> &   GetTrackBitsForWrite (int track) { return m_trackBits[track]; }
@@ -291,6 +305,18 @@ private:
     // which case neither out-parameter is meaningful.
     bool     TryLocateBit     (int track, size_t bitIndex, size_t & byteIdx, int & shift) const;
 
+    // Returns the quarter track a write to `slot` was centered on, or with no
+    // such write, the whole track that maps to it, else the middle of the
+    // quarter tracks that map to it. -1 for none.
+    int      GetSlotCenter    (int slot) const;
+
+    // Whether every quarter track that maps to `slot` is within one of
+    // `quarterTrack`, so a write there overwrites all of them.
+    bool     IsSlotWithinBand (int slot, int quarterTrack) const;
+
+    // Adds a slot with a copy of `fromSlot`, or a blank one where it is -1.
+    int      CreateWriteSlot  (int fromSlot, size_t blankBitCount);
+
     string                         m_filePath;
     vector<vector<Byte>>           m_trackBits;
     vector<size_t>                 m_trackBitCounts;
@@ -300,6 +326,7 @@ private:
     vector<uint64_t>               m_guestWriteCounts;
     uint64_t                       m_saveCount            = 0;
     vector<int>                    m_quarterTrackMap;
+    vector<bool>                   m_isWriteCenter;
     vector<TrackKind>              m_slotKind;
     vector<FluxTrack>              m_fluxTracks;
     uint64_t                       m_layoutGeneration     = 0;

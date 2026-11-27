@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
+#include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Window/Managers/ExplorerPickerMode.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerSearch.h"
@@ -512,8 +513,14 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
 
     m_context.window.ArmTick();
 
+    if (press)
+    {
+        NoteInput();
+    }
+
     m_context.treePane.UpdateLabelTip (ev);
     m_context.preview.GetListing().UpdateValueTipAt (ev);
+    m_context.preview.GetText().UpdatePictureTipAt (ev);
 
     //  A five-button mouse's back and forward buttons move through the tab's
     //  history wherever the pointer is, as in Explorer.
@@ -543,11 +550,30 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    //  Ctrl with the wheel over the preview zooms it, as in a browser.
+    //  Ctrl with the wheel over the preview zooms it, as in a browser. Over a
+    //  map, the map zooms instead.
     if (ev.kind == DxuiMouseEventKind::Wheel && ev.ctrl && !ev.wheelHorizontal
-        && m_context.preview.IsOverPane (point))
+        && m_context.preview.IsOverPane (point) && !m_context.preview.IsOverMap (point))
     {
-        m_context.commandManager.Dispatch ((ev.wheelDelta > 0.0f) ? CassoExplorerCommands::kZoomIn : CassoExplorerCommands::kZoomOut);
+        m_zoomWheelNotches += ev.wheelDelta;
+
+        //  Notches already waiting are taken with this one, so a hard spin
+        //  zooms once to where it ends rather than once for each notch.
+        for (MSG waiting; PeekMessageW (&waiting, m_context.window.GetHwnd(), WM_MOUSEWHEEL, WM_MOUSEWHEEL, PM_NOREMOVE)
+                          && (GET_KEYSTATE_WPARAM (waiting.wParam) & MK_CONTROL) != 0; )
+        {
+            PeekMessageW (&waiting, m_context.window.GetHwnd(), WM_MOUSEWHEEL, WM_MOUSEWHEEL, PM_REMOVE);
+            m_zoomWheelNotches += (float) GET_WHEEL_DELTA_WPARAM (waiting.wParam) / WHEEL_DELTA;
+        }
+
+        if (std::abs (m_zoomWheelNotches) >= 1.0f)
+        {
+            int  notches = (int) m_zoomWheelNotches;
+
+            m_zoomWheelNotches -= (float) notches;
+            m_context.preview.SetPreviewZoom (m_context.preview.GetShownZoom() + notches * ExplorerCommandManager::kPreviewZoomStep);
+        }
+
         return true;
     }
 
@@ -702,6 +728,11 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
 
     m_context.window.ArmTick();
 
+    if (ev.kind == DxuiKeyEventKind::Down)
+    {
+        NoteInput();
+    }
+
     //  Alt+Enter opens a Properties dialog from inside this key-down, and the
     //  dialog's message loop would take the WM_SYSCHAR TranslateMessage has
     //  already queued for it as a menu mnemonic with no match, and beep. Casso
@@ -821,7 +852,7 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
 
     //  Ctrl+Z on the files undoes the last file operation; in a text box it is
     //  the box's own, which has the keys before this.
-    if (ev.ctrl && !ev.alt && !ev.shift && ev.vk == 'Z' && (m_focus == ExplorerPane::List || m_focus == ExplorerPane::Tree) && !m_context.rename.IsRenaming() && !m_context.IsPicker())
+    if (ev.ctrl && !ev.alt && !ev.shift && ev.vk == 'Z' && (m_focus == ExplorerPane::List || m_focus == ExplorerPane::Tree) && !m_context.rename.IsRenaming())
     {
         m_context.undo.UndoLast();
         return true;
@@ -910,6 +941,26 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
     m_context.window.Invalidate();
 
     return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerInput::NoteInput
+//
+//  After a click or key press with the Casso node in the active tab, the
+//  known folders' thumbnails start at once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerInput::NoteInput()
+{
+    m_hasInput = true;
+
+    m_context.folderSync.UpdateThumbnailFolders (false);
 }
 
 

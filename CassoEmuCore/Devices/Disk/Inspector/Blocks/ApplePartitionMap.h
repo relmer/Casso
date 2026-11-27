@@ -30,15 +30,17 @@ public:
 
     struct Entry
     {
-        uint32_t      mapBlock   = 0;
-        uint32_t      firstBlock = 0;
-        uint32_t      blockCount = 0;
+        uint32_t      mapBlock      = 0;
+        uint32_t      firstBlock    = 0;
+        uint32_t      blockCount    = 0;
+        uint32_t      mapBlockCount = 0;
         std::wstring  name;
         std::wstring  type;
     };
 
     //  False, with no entries, for a store with no map. First block and
-    //  count are in 512-byte blocks, and clipped to the store.
+    //  counts are in 512-byte blocks. blockCount is clipped to the store, and
+    //  mapBlockCount is the count in the map.
     static bool  TryRead (IBlockStore & store, vector<Entry> & outEntries);
 
     static bool  IsDescriptor (BlockBytes bytes);

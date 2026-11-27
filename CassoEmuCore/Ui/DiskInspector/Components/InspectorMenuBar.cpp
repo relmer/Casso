@@ -96,8 +96,12 @@ vector<DxuiMenuBarItem> InspectorMenuBar::BuildItems (const InspectorCommands & 
         rows.clear();
     };
     add (c.exportFile);
+    add (c.stampFormat);
     add (c.save);
     add (c.saveEditedCopy);
+    separator();
+    add (c.saveRaw);
+    add (c.overwriteRaw);
     separator();
     add (c.close);
     menu (L"&File");
@@ -172,6 +176,9 @@ vector<DxuiMenuBarItem> InspectorMenuBar::BuildItems (const InspectorCommands & 
     add (c.endComparison);
     separator();
     add (c.decodeSettings);
+    separator();
+    add (c.readAsCpm);
+    add (c.detectFilesystem);
     separator();
     add (c.repair);
     menu (L"&Disk");

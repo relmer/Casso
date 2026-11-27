@@ -1,7 +1,8 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
+#include "Machines/Apple2/Common/TrackBitReader.h"
 
 
 
@@ -220,7 +221,7 @@ HRESULT NibbleImageCodec::DeriveTrack (const DiskImage & img, int track, vector<
 
     while (bitPos < trackBits)
     {
-        nibble = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
+        nibble = TrackBitReader::ReadNibbleAt (img, track, bitPos);
 
         if (nibble == 0)
         {
@@ -302,10 +303,10 @@ void NibbleImageCodec::RotateGapToEnd (vector<Byte> & nibbles)
         //  starts here.
         end         = runStart + runLength;
         beforeField = (runLength != 0) && (i + 2 < count) &&
-                      (nibbles[i]     == NibblizationLayer::kProlog0) &&
-                      (nibbles[i + 1] == NibblizationLayer::kProlog1) &&
-                      (nibbles[i + 2] == NibblizationLayer::kAddressProlog2 ||
-                       nibbles[i + 2] == NibblizationLayer::kDataProlog2);
+                      (nibbles[i]     == NibbleFormat::kProlog0) &&
+                      (nibbles[i + 1] == NibbleFormat::kProlog1) &&
+                      (nibbles[i + 2] == NibbleFormat::kAddressProlog2 ||
+                       nibbles[i + 2] == NibbleFormat::kDataProlog2);
 
         if (beforeField && runLength > bestLen)
         {

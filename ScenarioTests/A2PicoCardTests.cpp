@@ -134,7 +134,7 @@ public:
         Assert::AreEqual (std::string ("apple/users.po"), read.drives[0].path);
         Assert::IsTrue   (read.drives[0].isPresent);
         Assert::IsTrue   (read.drives[0].problem.empty(), read.drives[0].problem.c_str());
-        Assert::AreEqual (std::wstring (L"A2Pico card. 1 of its 8 A2retroNET drives have an image."), ActionsA2retroNet::Summarize (read));
+        Assert::AreEqual (std::wstring (L"This A2Pico card is using 1 of its 8 drives."), ActionsA2retroNet::Summarize (read));
 
         //  The .po boots ProDOS from a Disk II, read in ProDOS order.
         po = card.io.files["E:\\apple\\users.po"];

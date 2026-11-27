@@ -84,6 +84,15 @@ struct ActionsTypes
         ConvertToTapeAudio,
         ConvertToDiskAudio,
 
+        //  The selected image written beside it in another image format.
+        ConvertToDsk,
+        ConvertToPo,
+        ConvertToTwoImg,
+        ConvertToHdv,
+        ConvertToWoz,
+        ConvertToNib,
+        ConvertToNb2,
+
         //  The selected image set as a drive in an A2Pico card's A2retroNET.txt.
         AddToA2retroNet,
 
@@ -102,6 +111,14 @@ struct ActionsTypes
 
         //  Copy to folder, its conversion options chosen first.
         GetWithOptions,
+
+        //  The selected image stored as the first of a later comparison, and
+        //  the selected image compared with the stored one.
+        SelectForCompare,
+        CompareToPick,
+
+        //  A break between groups of a menu's rows, not a command.
+        Separator,
     };
 
     //  What a put does with the bytes. ByContent is the rule a left-drag
@@ -110,6 +127,15 @@ struct ActionsTypes
     //  guess. PascalText and MerlinSource are the imports of the file format
     //  table, on the file systems each is written to.
     enum class Conversion { ByContent, Text, Applesoft, Binary, PascalText, MerlinSource };
+
+    //  How a copy out writes each file: in its conversion, as the bytes on
+    //  the volume, or as a hex dump of those bytes.
+    enum class CopyForm { Converted, Raw, HexDump };
+
+    //  Which files a copy out writes under the host file naming style: none,
+    //  the ones it doesn't convert, or all of them, unconverted. ByStyle is
+    //  All for AppleSingle and Unconverted for the others.
+    enum class NamingScope { None, Unconverted, All, ByStyle };
 
     //  Whether the files a drop holds already say what they are, and the
     //  one row a menu shows when they do: "BIN $2000" for a recorded type,

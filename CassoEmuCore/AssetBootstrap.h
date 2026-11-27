@@ -24,6 +24,7 @@ using MediaFilter = bool (*) (const std::wstring & path);
 class IDxuiTheme;
 struct CassoTheme;
 struct EmbeddedConfig;
+class QuickDrawFontLibrary;
 
 
 
@@ -233,6 +234,21 @@ public:
                                             wstring     & outDiskPath,
                                             string      & outError);
 
+    // The IIgs System 6 disks whose System/Fonts folders have the fonts a
+    // QuickDraw II picture's text is drawn in, and the IIgs ROM, which has
+    // Shaston 8, in the disk cache.
+    static std::vector<fs::path>  GetIIgsFontDiskPaths ();
+    static bool                   AreIIgsFontsCached   ();
+    static HRESULT                LoadIIgsFonts        (QuickDrawFontLibrary & ioFonts);
+
+    // The startup download dialog for the IIgs fonts, modal on `owner`.
+    // `outDownloaded` is true once every file is downloaded; a failed
+    // download sets `outError` and returns S_OK, as Cancel does without it.
+    static HRESULT                OfferIIgsFonts       (HWND                 owner,
+                                                        const IDxuiTheme   * theme,
+                                                        bool               & outDownloaded,
+                                                        string             & outError);
+
     // A catalog ROM no machine config requires (the Super Serial Card's
     // firmware), downloaded on request into its device folder. Blocking, no
     // UI; `outPath` is the file written.
@@ -240,8 +256,9 @@ public:
                                             fs::path    & outPath,
                                             string      & outError);
 
-    // The startup download dialog for that ROM, with `title` and `intro` in
-    // place of the startup wording and Cancel in place of Exit. Modal on
+    // The startup download dialog for a catalog ROM, from the host its entry
+    // lists or AppleWin's resource folder, with `title` and `intro` in place of the
+    // startup wording and Cancel in place of Exit. Modal on
     // `owner`. `outDownloaded` is true when the ROM was written; a failed
     // download sets `outError` and returns S_OK, as Cancel does without it.
     static HRESULT   OfferOptionalRomDownload (HWND                 owner,

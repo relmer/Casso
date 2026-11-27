@@ -85,4 +85,9 @@ public:
     // Production reader: slurps the entire text file at `file` into
     // `outText`. Returns E_FAIL on any I/O error.
     static HRESULT ReadFile (const fs::path & file, string & outText);
+
+
+private:
+
+    static int GetFamilyYear (const std::map<wstring, int> & years, const wstring & fileName);
 };

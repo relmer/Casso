@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Model/Location.h"
+#include "CassoExplorer/Model/NewFileMarks.h"
 
 class FirewallMonitor;
 struct CassoLinkSettings;
@@ -19,8 +20,7 @@ struct LinkTreeEntry;
 //  CassoLinkManager
 //
 //  The CassoLink connections in the window: adding, editing and removing
-//  them, bootstrapping an Apple, the firewall's remedies, the list's link
-//  buttons and the status bar's activity log.
+//  them, bootstrapping an Apple and the status bar's activity log.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,10 +30,6 @@ public:
     explicit CassoLinkManager (ExplorerContext & context);
     ~CassoLinkManager();
 
-    //  The list's Bootstrap button's size.
-    static constexpr int  kListActionWidthDip   = 160;
-    static constexpr int  kListActionWideDip    = 200;   // the firewall's actions, whose labels are longer
-    static constexpr int  kListActionHeightDip  = 32;
     static constexpr int  kActivityShownMinutes = 15;
     static constexpr int  kFaultTextMax         = 400;
 
@@ -48,6 +44,7 @@ public:
     void          SaveCassetteBootstrap   (const std::string & name);
     void          ArmLinkFaults           ();
     bool          IsSerialConnection      (const std::string & name) const;
+    bool          HasVirtualDrives        (const std::string & name) const;
     bool          IsCassetteConnection    (const std::string & name) const;
     bool          CanBootstrapConnection  (const std::string & name) const;
     bool          CanMakeSosDisk          (const std::string & name) const;
@@ -71,22 +68,12 @@ public:
     void          HandleTransferTimer     ();
     void          HandleCassetteTimer     ();
     void          NoteListFilled          ();
-
-    void          CreateListActions       ();
-    void          LayoutListActions       ();
-    bool          IsFirewallMessage       () const { return m_listActionFirewall; }
+    bool          IsNewFile               (const std::wstring & path) const;
 
     //  The status bar's detail has the pending operations, until they finish.
-    void         MarkJobsShown          () { m_linkJobsShown = true; }
-    RECT         GetListActionRect      () const;
-    RECT         GetListActionAltRect   () const;
-    std::string  GetBootstrapConnection () const;
-    void         FillListAction         (bool hasMessage);
-    bool         IsStoppedServer        (const std::string & name) const;
-    void         PollFirewall           ();
-    void         FixFirewall            (bool markPrivate);
-    bool         TryGetConnectionEntry  (const std::wstring & name, LinkTreeEntry & outEntry) const;
-    uint32_t     GetAnnouncedChanges    () const { return m_announcedChanges; }
+    void      MarkJobsShown         () { m_linkJobsShown = true; }
+    bool      TryGetConnectionEntry (const std::wstring & name, LinkTreeEntry & outEntry) const;
+    uint32_t  GetAnnouncedChanges   () const { return m_announcedChanges; }
 
     void  HandleConnectionChanged ();
     void  HandleRunningChanged    ();
@@ -94,8 +81,10 @@ public:
 private:
     void  UpdateUnseenFiles   ();
     void  UpdateTransferTimer ();
+    void  UpdateKeepAwake     ();
 
-    static constexpr UINT  kTransferFrameMs = 150;
+    static constexpr UINT  kTransferFrameMs = 33;
+    static constexpr UINT  kPulseFrameMs    = 150;
     static constexpr int   kPulseFrames     = 8;
 
     //  The cassette audio is sent again while no Ready from the shim has
@@ -107,17 +96,12 @@ private:
     bool  HasCassetteStarted   () const;
 
     ExplorerContext  & m_context;
-    bool               m_transferTimer        = false;
-    int                m_pulseFrame           = 0;
-    uint32_t           m_announcedChanges     = 0;   // ILinkAnnouncements::GetChangeCount at the last look
-    uint32_t           m_firewallVersion      = 0;   // FirewallMonitor::GetVersion the views were drawn from
-    HANDLE             m_firewallHelper       = nullptr;   // the elevated helper, until it exits
-    DxuiButton       * m_listAction           = nullptr;
-    DxuiButton       * m_listActionAlt        = nullptr;
-    bool               m_listActionFirewall   = false;
-    bool               m_linkJobsShown        = false;
-    std::string        m_listActionConnection;
-    bool               m_listActionConnects   = false;
+    bool               m_transferTimer    = false;
+    bool               m_keptAwake        = false;
+    int                m_pulseFrame       = 0;
+    uint32_t           m_announcedChanges = 0;   // ILinkAnnouncements::GetChangeCount at the last look
+    bool               m_linkJobsShown    = false;
+    NewFileMarks       m_newFiles;                // the listed receiving folder's files that arrived since its last listing
 
     //  The cassette bootstrap's audio, while PlaySound sends it from memory,
     //  the link it starts, and how many times it was sent.

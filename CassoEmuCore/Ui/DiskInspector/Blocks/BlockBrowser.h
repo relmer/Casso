@@ -116,6 +116,11 @@ public:
     bool  CanGoBack    () const { return !m_back.empty(); }
     bool  CanGoForward () const { return !m_forward.empty(); }
 
+    //  The block drawn below the list at the current place. Back and Forward
+    //  return to the block drawn at the place they return to.
+    void      SetDrawnBlock (uint32_t block)       { m_drawn = block; }
+    uint32_t  GetDrawnBlock ()               const { return m_drawn; }
+
     const BlockPlace  & GetPlace () const { return m_place; }
 
     //  The Block place at a block, with its volume.
@@ -202,8 +207,15 @@ private:
     static void           SetEntryColumns     (BlockListing & listing);
     static LPCWSTR        GetStructureName    (BlockStructure structure, uint32_t tree);
 
+    struct Visit
+    {
+        BlockPlace  place;
+        uint32_t    drawn = 0;
+    };
+
     const BlockInspectorModel  * m_model = nullptr;
     BlockPlace                   m_place;
-    vector<BlockPlace>           m_back;
-    vector<BlockPlace>           m_forward;
+    uint32_t                     m_drawn = 0;
+    vector<Visit>                m_back;
+    vector<Visit>                m_forward;
 };

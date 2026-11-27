@@ -4,7 +4,7 @@
 #include "CassoLink/FullSend/FullSendProtection.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -32,7 +32,7 @@ public:
     //  A DOS 3.3 disk with one binary file of the given bytes.
     static Image  DosWithFile (const char * name, const std::vector<Byte> & bytes)
     {
-        Image        buffer (NibblizationLayer::kImageByteSize, 0);
+        Image        buffer (NibbleFormat::kImageByteSize, 0);
         Image        next;
         FilePayload  payload;
 
@@ -68,7 +68,7 @@ public:
     //  Bytes that differ from one another, with no file system.
     static Image  Noise()
     {
-        Image     image (NibblizationLayer::kImageByteSize, 0);
+        Image     image (NibbleFormat::kImageByteSize, 0);
         uint32_t  state = 12345;
 
 
@@ -89,18 +89,25 @@ public:
 
     TEST_METHOD (BootFamily_IsKnownByItsLoadersOpening_OrPascalsMessage)
     {
-        Image              image (NibblizationLayer::kImageByteSize, 0);
+        Image              image (NibbleFormat::kImageByteSize, 0);
         std::vector<Byte>  message;
 
 
 
         Assert::IsTrue (FullSendProtection::GetBootFamily (image) == FullSendProtection::BootFamily::None, L"Zeros");
 
+        std::fill_n (image.begin(), 256, (Byte) 0xE5);
+        Assert::IsTrue (FullSendProtection::GetBootFamily (image) == FullSendProtection::BootFamily::None, L"A CP/M data disk's $E5 fill");
+        std::fill_n (image.begin(), 256, (Byte) 0);
+
         Put (image, 0, { 0x01, 0xA5, 0x27, 0xC9, 0x09, 0xD0, 0x18, 0xA5, 0x2B });
         Assert::IsTrue (FullSendProtection::GetBootFamily (image) == FullSendProtection::BootFamily::Dos33, L"DOS 3.3");
 
         Put (image, 0, { 0x01, 0xA5, 0x27, 0xC9, 0x09, 0xD0, 0x0F, 0x8A });
         Assert::IsTrue (FullSendProtection::GetBootFamily (image) == FullSendProtection::BootFamily::Cpm, L"CP/M");
+
+        Put (image, 0, { 0x01, 0xA5, 0x27, 0xC9, 0x09, 0xD0, 0x15, 0x8A });
+        Assert::IsTrue (FullSendProtection::GetBootFamily (image) == FullSendProtection::BootFamily::Cpm, L"WordStar's CP/M");
 
         Put (image, 0, { 0x01, 0x38, 0xB0, 0x03, 0x4C, 0x00, 0x00, 0x00, 0x00 });
         Assert::IsTrue (FullSendProtection::GetBootFamily (image) == FullSendProtection::BootFamily::ProDos, L"ProDOS");
@@ -118,7 +125,7 @@ public:
             message.push_back ((Byte) (ch | 0x80));
         }
 
-        std::copy (message.begin(), message.end(), image.begin() + (ptrdiff_t) (14 * NibblizationLayer::kSectorByteSize + 0x20));
+        std::copy (message.begin(), message.end(), image.begin() + (ptrdiff_t) (14 * NibbleFormat::kSectorByteSize + 0x20));
 
         Assert::IsTrue (FullSendProtection::GetBootFamily (image) == FullSendProtection::BootFamily::Pascal, L"Apple Pascal's runtime loader");
     }
@@ -182,7 +189,7 @@ public:
     {
         Image  noise = Noise();
         Image  cpm   = Noise();
-        Image  zeros (NibblizationLayer::kImageByteSize, 0);
+        Image  zeros (NibbleFormat::kImageByteSize, 0);
 
 
 
@@ -192,7 +199,7 @@ public:
         Assert::IsTrue  (FullSendProtection::Find (noise).hasOtherBoot, L"No known loader");
         Assert::IsFalse (FullSendProtection::Find (zeros).isUnrecognized, L"Every byte the same");
         Assert::IsFalse (FullSendProtection::Find (zeros).hasOtherBoot, L"A boot sector of zeros");
-        Assert::IsFalse (FullSendProtection::Find (Image (NibblizationLayer::kImageByteSize, 0x01)).hasOtherBoot, L"Every byte 1");
+        Assert::IsFalse (FullSendProtection::Find (Image (NibbleFormat::kImageByteSize, 0x01)).hasOtherBoot, L"Every byte 1");
         Assert::IsFalse (FullSendProtection::Find (cpm).isUnrecognized, L"CP/M's loader");
     }
 };

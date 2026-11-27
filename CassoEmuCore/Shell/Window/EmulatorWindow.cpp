@@ -54,6 +54,7 @@
 #include "Machines/Apple2/Common/AppleMouse.h"
 #include "Core/Prng.h"
 #include "Config/DiskSettings.h"
+#include "Config/FileAssociations.h"
 #include "Core/UnicodeSymbols.h"
 #include "Core/MachineConfig.h"
 #include "Core/JsonParser.h"
@@ -76,6 +77,7 @@
 #include "Devices/Disk/PreservedCopy.h"
 #include "Devices/Disk/WriteProtectChange.h"
 #include "Core/AppTimerIds.h"
+#include "Devices/Disk/Store/ExternalChangeMonitor.h"
 
 
 
@@ -366,7 +368,6 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->GetRoot().Adopt (m_chrome->m_mainMenu);
     m_host->GetRoot().Adopt (m_chrome->m_driveBandSurface);
 
-    m_host->GetRoot().Adopt (m_tapeDeck->GetWidget());
     m_host->GetRoot().Adopt (m_chrome->m_fpsReadout);
     m_host->GetRoot().Adopt (m_scene->m_sceneViewReadout);
     m_host->GetRoot().Adopt (m_scene->m_sceneDriveLabel[0]);
@@ -465,6 +466,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // of drives is drawn over the strip. The bar's zoom readout is drawn
     // over the bar.
     m_host->GetRoot().Adopt (m_chrome->m_driveBarFan);
+    m_host->GetRoot().Adopt (m_tapeDeck->GetWidget());   // after the bar, so it is drawn inside its box
     m_chrome->HideDriveBar();
     m_host->GetRoot().Adopt (m_disks->GetDriveChrome()[0]);
     m_host->GetRoot().Adopt (m_disks->GetDriveChrome()[1]);
@@ -629,7 +631,6 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_VIEW_FRAME_RATE:         return m_settings->GetPrefs().showFrameRate;
             case IDM_VIEW_SCENE_VIEW:         return m_settings->GetPrefs().showSceneView;
             case IDM_VIEW_AUTOHIDE_DRIVES:    return m_settings->GetPrefs().autoHideDrives;
-            case IDM_VIEW_FLOPPY_PAIR_BESIDE: return m_settings->GetPrefs().deskFloppyPairBeside;
 
             default:                          return false;
         }
@@ -709,11 +710,12 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
         switch (commandId)
         {
-            case IDM_VIEW_FLOPPY_PAIR_BESIDE: visible = m_scene->IsFloppyPairBesideOffered();                                       break;
+            case IDM_VIEW_FLOPPY_PAIR_BESIDE: visible = m_scene->IsFloppyPairBesideOffered() && m_scene->IsClassOnDesk (DeskDriveClass::Floppy); break;
 
             // A place row is for a class the machine has drives of.
             case IDM_VIEW_FLOPPIES_ON_DESK:   visible = m_scene->HasDriveClass (DeskDriveClass::Floppy);                            break;
             case IDM_VIEW_HARD_DISKS_ON_DESK: visible = m_scene->HasDriveClass (DeskDriveClass::HardDisk);                          break;
+            case IDM_VIEW_RECORDER_ON_DESK:   visible = m_tapeDeck->IsTapeRecorderShown() && DeskSceneActive();                     break;
 
             // The //c Plus's port drives are plugged in from the plug-in rows.
             // Each row is visible only while the port has room for its kind.
@@ -777,6 +779,16 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_VIEW_HARD_DISKS_ON_DESK:
             {
                 return EmulatorCommands::GetDrivePlaceLabel (true, m_scene->IsClassOnDesk (DeskDriveClass::HardDisk));
+            }
+
+            case IDM_VIEW_FLOPPY_PAIR_BESIDE:
+            {
+                return EmulatorCommands::GetFloppyPairPlaceLabel (m_settings->GetPrefs().deskFloppyPairBeside);
+            }
+
+            case IDM_VIEW_RECORDER_ON_DESK:
+            {
+                return EmulatorCommands::GetRecorderPlaceLabel (!m_tapeDeck->IsRecorderDocked());
             }
 
             case IDM_DISK_WP1:
@@ -1175,6 +1187,7 @@ int EmulatorShell::RunMessageLoop()
             // After the first frame is on screen, so the update check never
             // stands between a launch and a picture.
             m_updater->StartAutomaticUpdateCheck();
+            FileAssociations::StartInstallRegistration();
         }
     }
 
@@ -2349,7 +2362,7 @@ DxuiMessageResult EmulatorShell::OnCopyData (WPARAM sender, LPARAM data)
                 m_disks->GetIntentReplies().NoteReload (payload.imagePath, replyTo);
             }
 
-            m_machine.GetDiskStore().NoteExternalChange (payload.imagePath, payload.intent, replyTo != nullptr);
+            m_machine.GetDiskStore().GetChangeMonitor().NoteExternalChange (payload.imagePath, payload.intent, replyTo != nullptr);
             break;
     }
 

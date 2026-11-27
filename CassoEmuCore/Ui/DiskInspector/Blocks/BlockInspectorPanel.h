@@ -13,11 +13,10 @@ class BlockFieldsView;
 class BlockHexView;
 class BlockInspectorModel;
 class BlockMapView;
-class EditBar;
 class FloatingGroup;
 class OverlayChip;
 struct BlockField;
-struct EditBarState;
+struct BlockEditState;
 struct InspectorCommands;
 
 
@@ -36,8 +35,8 @@ struct InspectorCommands;
 //  previous and next block buttons and its capsules, the field line, Copy
 //  block, a row with the pending edits or a long job's progress, and the
 //  block's hex view over its fields; and the map of the whole volume, with
-//  the platter's corner groups: the overlays at the bottom left, and zoom -
-//  and + at the bottom right. Splitters part
+//  the platter's corner groups: the overlays at the bottom left, and the
+//  zoom at the bottom right. Splitters part
 //  the three. A click on the map selects the row that covers the block,
 //  and a double-click opens the block.
 //
@@ -74,6 +73,11 @@ public:
     void  SetOnCopy         (ActionFn fn)  { m_onCopy    = std::move (fn); }
     void  SetOnHint         (HintFn fn)    { m_onHint    = std::move (fn); }
 
+    //  The infobar over the list: the volume's verdict and first finding,
+    //  with Repair... while Repair is available; empty text hides it.
+    void                    SetNotice (const std::wstring & text, bool isBad, bool canRepair, ActionFn onRepair);
+    const DxuiInfoBanner  & GetNotice () const { return *m_notice; }
+
     //  Reads the model again after a change, once the current block is
     //  loaded. A block not loaded yet is loaded by a job first.
     void  Refresh () override;
@@ -81,6 +85,10 @@ public:
     //  The controls enabled or disabled, and the progress read, from the
     //  worker's jobs. The window calls it on each frame.
     void  UpdateBusy ();
+
+    //  The map's zoom control from the map's zoom and the cursor, on each
+    //  frame. True when the control grew or shrank.
+    bool  UpdateZoom (HWND owner);
 
     IBlockJobs  & GetJobs   ()       { return m_jobs; }
     bool          IsBusy    () const { return m_jobs.IsBusy(); }
@@ -97,15 +105,15 @@ public:
     void  GoToBlock   (uint32_t block) override;
 
     //  Editing, as Edit block turns on and off: typing in the hex view
-    //  changes the block only while it is on. The edit bar's state is the
-    //  window's.
-    void       SetEditing   (bool isEditing) override;
-    bool       IsEditing    () const override { return m_isEditing; }
-    void       SetEditState (const EditBarState & state) override;
-    EditBar  & GetEditBar   () const override { return m_header.GetEditBar(); }
-    void       Step         (int64_t delta) override;
-    void       GoBack       () override;
-    void       GoForward    () override;
+    //  changes the block only while it is on. The edit controls' state is
+    //  the window's.
+    void               SetEditing   (bool isEditing) override;
+    bool               IsEditing    () const override { return m_isEditing; }
+    void               SetEditState (const BlockEditState & state) override;
+    BlockHeaderView  & GetHeader    () override       { return m_header; }
+    void               Step         (int64_t delta) override;
+    void               GoBack       () override;
+    void               GoForward    () override;
 
     //  The overlays, as the corner chips and the View menu turn them.
     bool  IsFilesOn      () const override { return m_isFilesOn; }
@@ -119,6 +127,10 @@ public:
 
     //  The current block as a hex dump with its text, for Copy block.
     std::wstring  BuildBlockText () const override;
+
+    //  A block selected with the caret on a byte, so an undo or a redo is
+    //  seen as it happens.
+    void  ShowBlockByte (uint32_t block, int offset) override;
 
     //  "Selected: block 2" at the Block level, the path of the file or the
     //  directory at the Files and File levels, the volume's name at the
@@ -164,11 +176,9 @@ private:
     DxuiToolbar           * m_tools           = nullptr;
     BlockMapView          * m_map             = nullptr;
     FloatingGroup         * m_chipsGroup      = nullptr;
-    FloatingGroup         * m_zoomGroup       = nullptr;
+    DxuiZoomControl       * m_zoomControl     = nullptr;
     OverlayChip           * m_filesChip       = nullptr;
     OverlayChip           * m_diffsChip       = nullptr;
-    DxuiIconButton        * m_zoomOut         = nullptr;
-    DxuiIconButton        * m_zoomIn          = nullptr;
     BlockNavigator          m_nav;
     BlockPanelSplitters     m_splitters;
     BlockJobQueue           m_jobs;
@@ -179,6 +189,8 @@ private:
     ActionFn                m_onQueued;
 
     ActionFn                m_onCopy;
+    ActionFn                m_onRepair;
+    DxuiInfoBanner        * m_notice          = nullptr;
     HintFn                  m_onHint;
     bool                    m_isFilesOn       = true;
     bool                    m_isDiffsOn       = true;

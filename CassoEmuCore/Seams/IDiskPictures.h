@@ -45,11 +45,17 @@ public:
     //  booted included.
     virtual size_t  GetQueued () = 0;
 
+    //  Whether the image is waiting or being booted for its picture.
+    virtual bool    IsBooting (const std::wstring & path) = 0;
+
     //  Whether the image has a thumbnail, and its removal: the one the user
     //  set, after which the thumbnail made by booting is drawn, or with none
     //  set, the one made by booting.
     virtual bool     HasThumbnail    (const std::wstring & path) = 0;
     virtual HRESULT  RemoveThumbnail (const std::wstring & path) = 0;
+
+    //  The PNG becomes the thumbnail the user set for the image.
+    virtual HRESULT  SetThumbnail (const std::wstring & path, std::span<const Byte> png) = 0;
 
     //  The keys of the thumbnails of files to be deleted, and the removal of
     //  those thumbnails once the files are gone.

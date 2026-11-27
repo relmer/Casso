@@ -238,6 +238,24 @@ public:
         return MeasureString (text, fontSizeDip, fontFamily, outWidthDip, outHeightDip);
     }
 
+    // A single line's height and its baseline below the line's top, for
+    // text that has to sit on another text's baseline. A renderer that has
+    // no font metrics returns E_NOTIMPL, and the caller centers the text.
+    virtual HRESULT  GetLineMetrics (float            fontSizeDip,
+                                     const wchar_t  * fontFamily,
+                                     DxuiFontWeight   weight,
+                                     float          & outHeightDip,
+                                     float          & outBaselineDip)
+    {
+        UNREFERENCED_PARAMETER (fontSizeDip);
+        UNREFERENCED_PARAMETER (fontFamily);
+        UNREFERENCED_PARAMETER (weight);
+
+        outHeightDip   = 0.0f;
+        outBaselineDip = 0.0f;
+        return E_NOTIMPL;
+    }
+
     // Word-wrapped measurement inside maxWidthDip: outWidthDip is the widest
     // wrapped line, outHeightDip the stacked line height -- the box a
     // wrapping DrawString of the same text needs. The default forwards to
@@ -355,14 +373,17 @@ public:
     // Blit an opaque BGRA8 frame that changes from call to call (an emulator
     // framebuffer, a picture preview) scaled into the destination rect.
     // Implementations keep the frame in its own cached GPU bitmap, separate
-    // from the icon cache, and re-upload the pixels on every call.
+    // from the icon cache, and re-upload the pixels on every call. A sharp
+    // frame is enlarged with nearest-neighbor, so each pixel stays a square.
+    // Any frame drawn smaller than its pixels is averaged.
     virtual HRESULT  DrawFramebuffer (const uint32_t * srcBgraPixels,
                                       int              srcWidthPx,
                                       int              srcHeightPx,
                                       float            destXDip,
                                       float            destYDip,
                                       float            destWidthDip,
-                                      float            destHeightDip)           = 0;
+                                      float            destHeightDip,
+                                      bool             sharp = false)           = 0;
 
     // Blit a premultiplied BGRA8 bitmap (e.g. the app icon harvested
     // from an HICON) into the target. Implementations cache the source
@@ -424,7 +445,7 @@ public:
         return E_NOTIMPL;
     }
 
-    HRESULT  DrawFramebuffer (const uint32_t *, int, int, float, float, float, float) override
+    HRESULT  DrawFramebuffer (const uint32_t *, int, int, float, float, float, float, bool = false) override
     {
         return S_OK;
     }

@@ -16,7 +16,8 @@
 //  set. Each listed port is opened in turn at each of the given
 //  speeds, the bootstrap speed and then the link's; a port another program
 //  has open fails to open and is skipped. Idle is sent, and the port is the
-//  link's when Casso's shim or program replies Ready within the timeout.
+//  link's when Casso's shim or program replies Ready, or the CassoLink ProDOS
+//  disk's driver sends a virtual drive request, within the timeout.
 //  Each port is closed before it is opened again or the next is opened, and
 //  the search stops at the first that replies.
 //

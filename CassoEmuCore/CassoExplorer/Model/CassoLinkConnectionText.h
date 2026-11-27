@@ -28,8 +28,12 @@ public:
     //  progress, and how many follow it. Empty for none.
     static std::wstring  DescribeJobs    (const std::vector<std::shared_ptr<LinkOperation>> & jobs);
 
-    //  The text under a link's root in place of its drives.
-    static std::wstring  DescribeState   (LinkState state, const CassoLinkSettings & settings, const std::wstring & pcName);
+    //  The text under a link's root in place of its drives. With
+    //  `usingDrives`, the CassoLink ProDOS disk's driver on `model`, or on
+    //  an Apple of no known model, is using the virtual drives on the line;
+    //  the drives' images are links under it.
+    static std::wstring  DescribeState      (LinkState state, const CassoLinkSettings & settings, const std::wstring & pcName, bool usingDrives = false, const std::wstring & model = std::wstring());
+    static std::wstring  DescribeDriveImage (const std::wstring & path);
 
     //  A speed with its thousands separated, as 115,200.
     static std::wstring  FormatBaud      (DWORD baud);
@@ -37,6 +41,11 @@ public:
     //  Whether a link's name already says its address's port, as a name
     //  made from the settings does, so a sentence need not repeat it.
     static bool          NamesItsPort    (const std::wstring & name, const std::wstring & address);
+
+    //  A link's displayed name: a serial link set to any port, once a port is
+    //  open, has that port in place of "any port", as Serial (COM3), or after
+    //  a name the user typed, as My //c (COM3).
+    static std::wstring  DescribeName    (const CassoLinkSettings & settings, const std::wstring & openPort);
 
     //  The command a Wi-Fi modem dials for a link: ATDT, this PC's name with
     //  .local, and the link's TCP port.

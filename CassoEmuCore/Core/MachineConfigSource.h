@@ -40,7 +40,7 @@ struct MachineConfigChoice
 //  such as a card it has no firmware for, so a disk stamp higher than the
 //  embedded stamp selects the embedded text for that session.
 //
-//  Neither function writes the file. Replacing a stale file is
+//  No function here writes the file. Replacing a stale file is
 //  AssetBootstrap::EnsureMachineConfigs, through MachineConfigUpgrade::Plan.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,8 +53,6 @@ public:
                                                 const wstring & machineName,
                                                 const fs::path & diskPath,
                                                 string         & outText);
-
-private:
     static HRESULT              GetEmbeddedText (HINSTANCE       hInstance,
                                                  const wstring & machineName,
                                                  string        & outText);

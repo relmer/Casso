@@ -314,6 +314,27 @@ void FullSendStatus::SetTitle (int drive, const std::string & title, const std::
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullSendStatus::SetWriting
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendStatus::SetWriting (int drive)
+{
+    std::lock_guard        lock (m_lock);
+    FullSendDriveStatus  & status = GetDrive (drive);
+
+
+
+    status.writing = true;
+    m_snapshot.revision++;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullSendStatus::MarkTrack
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -355,6 +376,12 @@ void FullSendStatus::BeginCapture (int drive)
     FullSendDriveStatus  & status = GetDrive (drive);
 
 
+
+    //  A capture after a sector read of the disk counts from the read's start.
+    if (status.state != FullSendDiskState::Sending)
+    {
+        status.started = m_seconds();
+    }
 
     status.state       = FullSendDiskState::Capturing;
     status.positions.assign (FullSendDriveStatus::kPositions, FullSendPositionMark::Unread);
@@ -528,6 +555,32 @@ void FullSendStatus::ClearDisk (int drive, FullSendDiskState state)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullSendStatus::FailDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendStatus::FailDisk (int drive)
+{
+    std::lock_guard        lock   (m_lock);
+    FullSendDriveStatus  & status = GetDrive (drive);
+
+
+
+    if (status.state == FullSendDiskState::Sending || status.state == FullSendDiskState::Capturing)
+    {
+        status.elapsed     = m_seconds() - status.started;
+        status.secondsLeft = -1.0;
+        status.state       = FullSendDiskState::Failed;
+        m_snapshot.revision++;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullSendStatus::AddBlank
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -552,13 +605,46 @@ void FullSendStatus::AddBlank()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void FullSendStatus::AddLine (const std::string & text)
+void FullSendStatus::AddLine (const std::string & text, int drive)
 {
     std::lock_guard  lock (m_lock);
 
 
 
-    AddTimedLine (text);
+    AddTimedLine (text, drive);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::RenameDisks
+//
+//  A disk's row is found by its sequence and fingerprint.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendStatus::RenameDisks (const std::vector<FullSendRow> & rows)
+{
+    std::lock_guard  lock (m_lock);
+    bool             changed = false;
+
+
+
+    for (FullSendDoneDisk & disk : m_snapshot.disks)
+    {
+        auto  found = std::find_if (rows.begin(), rows.end(), [&disk] (const FullSendRow & row) { return row.sequence == disk.row.sequence && row.fingerprint == disk.row.fingerprint; });
+
+        if (found != rows.end() && !found->file.empty() && found->file != disk.row.file)
+        {
+            disk.row.file = found->file;
+            changed       = true;
+        }
+    }
+
+    m_snapshot.revision += changed ? 1 : 0;
 }
 
 
@@ -665,9 +751,9 @@ std::vector<FullSendBoot> FullSendStatus::TakeBoots()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void FullSendStatus::AddTimedLine (const std::string & text)
+void FullSendStatus::AddTimedLine (const std::string & text, int drive)
 {
-    m_snapshot.lines.push_back ({ m_time(), text });
+    m_snapshot.lines.push_back ({ m_time(), text, drive });
     m_snapshot.revision++;
 }
 

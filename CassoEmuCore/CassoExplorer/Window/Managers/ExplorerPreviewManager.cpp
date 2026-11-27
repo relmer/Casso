@@ -1,5 +1,7 @@
 #include "Pch.h"
 #include "Core/AppTimerIds.h"
+#include "AssetBootstrap.h"
+#include "FileTypes/QuickDrawFontLibrary.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "CassoExplorer/InspectorWindowSet.h"
@@ -63,6 +65,17 @@ void ExplorerPreviewManager::Create()
     ExplorerTextStyles::Apply (*m_summary, ExplorerTextStyles::kPreviewText);
     m_summary->SetProportional (true);
     m_summary->SetVisible      (false);
+    m_summary->SetOnRowClick   ([this] (int) { m_context.commandManager.Dispatch (CassoExplorerCommands::kGetFonts); });
+
+    m_sections = m_context.window.CreateChild<DxuiSegmentedControl>();
+    m_sections->SetSegments ({ L"Saved game", L"Disk" });
+    m_sections->SetVisible  (false);
+    m_sections->SetOnChange ([this] (int index)
+    {
+        m_context.browser.GetPreviewer().GetViewState().SetSavedGameShown (index == 0);
+        FillPreview();
+        m_context.window.Invalidate();
+    });
 
     m_find.Create();
     m_thumbnail.Create();
@@ -134,10 +147,11 @@ void ExplorerPreviewManager::Configure()
 
 void ExplorerPreviewManager::Layout (const RECT & rect)
 {
-    const DxuiDpiScaler  & scaler    = m_context.scaler;
-    RECT                   content   = rect;
-    int                    barPx     = 0;
-    int                    summaryPx = 0;
+    const DxuiDpiScaler  & scaler     = m_context.scaler;
+    RECT                   content    = rect;
+    int                    barPx      = 0;
+    int                    summaryPx  = 0;
+    int                    summaryTop = -1;
 
 
 
@@ -155,34 +169,81 @@ void ExplorerPreviewManager::Layout (const RECT & rect)
         content.top += barPx;
     }
 
+    //  The switch between a disk's saved game and the disk, under the toolbar:
+    //  the pane's width inside its padding, and centered at its widest.
+    if (m_sections->IsVisible())
+    {
+        int  band   = scaler.ToPx (kSectionsBandDip);
+        int  height = scaler.ToPx (kSectionsDip);
+        int  pad    = scaler.ToPx (kSectionsPadDip);
+        int  width  = (std::min) ((int) (content.right - content.left) - 2 * pad, scaler.ToPx (kSectionsMaxDip));
+        int  left   = content.left + ((int) (content.right - content.left) - width) / 2;
+        int  top    = content.top + (band - height) / 2;
+
+        m_sections->Layout (RECT { left, top, left + (std::max) (width, 0), top + height }, scaler);
+        content.top += band;
+    }
+
     //  A disk image's small platter and chips, under the toolbar (FR-072),
-    //  scrolled away by the wheel no further than the view under them
-    //  overflows the pane.
+    //  and a WOZ image's details under them, scrolled away by the wheel or
+    //  the pane's bar as one, no further than the view under them overflows
+    //  the pane.
     m_headerTop = content.top;
+
+    //  The pane's bar is drawn at its right edge beside a thumbnail, so the
+    //  details and the view stop short of it, and the details are measured
+    //  at the width they're laid out at.
+    if (m_thumbnail.IsShown())
+    {
+        content.right -= scaler.ToPx (ThumbnailScrollbar::kWidthDip);
+    }
+
+    if (m_summary->IsVisible())
+    {
+        m_summary->GetScroll().SetVerticalScrollbarHidden (m_thumbnail.IsShown());
+        m_summary->Layout  (content, scaler);
+        m_summary->Measure (*m_context.window.GetTextRenderer(), *m_context.theme);
+    }
 
     if (m_thumbnail.IsShown())
     {
         //  The thumbnail is laid out no narrower than the pane's least width,
         //  and clipped at the pane's edge when the window forces it narrower.
-        int  thumbW = (std::max) (static_cast<int> (content.right - content.left), scaler.ToPx (ExplorerLayout::kMinPreviewWidthDip));
-        int  height = m_thumbnail.GetHeightPx (thumbW);
-        int  need   = 0;
+        int  thumbW    = (std::max) (static_cast<int> (m_rect.right - content.left), scaler.ToPx (ExplorerLayout::kMinPreviewWidthDip));
+        int  height    = m_thumbnail.GetHeightPx (thumbW);
+        int  detailsPx = m_summary->IsVisible() ? m_summary->GetContentHeightPx() + scaler.ToPx (kRuleBandDip) : 0;
+        int  need      = 0;
 
         for (const PreviewView * view : m_views)
         {
             need = (std::max) (need, view->GetContentHeightPx());
         }
 
-        m_headerRange  = (std::max) (0, height + need - static_cast<int> (content.bottom - content.top));
-        m_headerMax    = (std::min) (m_headerRange, height);
+        m_headerRange  = (std::max) (0, height + detailsPx + need - static_cast<int> (content.bottom - content.top));
+        m_headerMax    = (std::min) (m_headerRange, height + detailsPx);
         m_headerScroll = std::clamp (m_headerScroll, 0, m_headerMax);
         m_headerPage   = static_cast<int> (content.bottom - content.top);
         content.top    = m_thumbnail.Layout (RECT { content.left, content.top, content.left + thumbW - scaler.ToPx (ThumbnailScrollbar::kWidthDip), content.top + height },
-                                             m_headerScroll, content.bottom, content.right - scaler.ToPx (ThumbnailScrollbar::kWidthDip));
+                                             (std::min) (m_headerScroll, height), content.bottom, content.right);
 
         m_thumbnail.GetScrollbar().Layout     (RECT { m_rect.right - scaler.ToPx (ThumbnailScrollbar::kWidthDip), m_headerTop, m_rect.right, m_rect.bottom }, scaler);
         m_thumbnail.GetScrollbar().SetVisible (m_headerRange > 0);
         SyncScrollbar();
+
+        //  The details scroll away by whole lines once the thumbnail is gone.
+        if (m_summary->IsVisible())
+        {
+            int  lineH  = (std::max) (1, m_summary->GetLayout().GetCellHeightPx());
+            int  hidden = (std::max) (0, m_headerScroll - height);
+            int  lines  = (hidden + lineH - 1) / lineH;
+
+            m_summary->GetScroll().SetVerticalScrollbarHidden (true);
+            summaryTop = lines;
+
+            //  The box shrinks by the lines scrolled away, not the pixels, so
+            //  its last line stays above the view under it.
+            summaryPx = std::clamp (m_summary->GetContentHeightPx() - lines * lineH, 0, (std::max) (0, static_cast<int> (content.bottom - content.top)));
+        }
     }
     else
     {
@@ -190,6 +251,14 @@ void ExplorerPreviewManager::Layout (const RECT & rect)
         m_headerMax    = 0;
         m_headerScroll = 0;
         m_thumbnail.Hide();
+
+        //  With no thumbnail, the details are as tall as their lines at the
+        //  pane's width, up to a share of the pane.
+        if (m_summary->IsVisible())
+        {
+            m_summary->GetScroll().SetVerticalScrollbarHidden (false);
+            summaryPx = (std::min) (m_summary->GetContentHeightPx(), (int) (content.bottom - content.top) / kSummaryShare);
+        }
     }
 
     //  The views' bars are hidden while the pane's bar scrolls the thumbnail
@@ -199,19 +268,20 @@ void ExplorerPreviewManager::Layout (const RECT & rect)
         view->SetScrollbarHidden (m_thumbnail.IsShown());
     }
 
-    //  A WOZ image's details, between the toolbar and the catalog, as tall as
-    //  their lines at the pane's width, up to a share of the pane.
+    //  A WOZ image's details, between the thumbnail and the catalog.
     if (m_summary->IsVisible())
     {
-        m_summary->Layout  (content, scaler);
-        m_summary->Measure (*m_context.window.GetTextRenderer(), *m_context.theme);
-
-        summaryPx = (std::min) (m_summary->GetContentHeightPx(), (int) (content.bottom - content.top) / kSummaryShare);
-
         m_summary->Layout (RECT { content.left, content.top, content.right, content.top + summaryPx }, scaler);
 
+        //  Scrolled once the box is its height, so the line isn't clamped to
+        //  the height it had before.
+        if (summaryTop >= 0)
+        {
+            m_summary->GetScroll().SetTopLine (summaryTop);
+        }
+
         m_ruleBand  = RECT { content.left, content.top + summaryPx, content.right, content.top + summaryPx + scaler.ToPx (kRuleBandDip) };
-        content.top = m_ruleBand.bottom;
+        content.top = (std::min) (m_ruleBand.bottom, content.bottom);
     }
 
     m_content = content;
@@ -245,10 +315,46 @@ void ExplorerPreviewManager::Hide()
         view->Hide();
     }
 
-    m_message->SetVisible (false);
-    m_summary->SetVisible (false);
-    m_toolbar->SetVisible (false);
+    m_message->SetVisible  (false);
+    m_summary->SetVisible  (false);
+    m_sections->SetVisible (false);
+    m_toolbar->SetVisible  (false);
     m_thumbnail.Hide();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::TryLoadFonts
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerPreviewManager::TryLoadFonts()
+{
+    HRESULT                                hr        = S_OK;
+    PreviewViewState                     & viewState = m_context.browser.GetPreviewer().GetViewState();
+    std::unique_ptr<QuickDrawFontLibrary>  fonts;
+    bool                                   loaded    = false;
+
+
+
+    BAIL_OUT_IF (viewState.HasQuickDrawFonts() || !AssetBootstrap::AreIIgsFontsCached(), S_OK);
+
+    fonts = std::make_unique<QuickDrawFontLibrary>();
+    CPRA (fonts);
+
+    hr = AssetBootstrap::LoadIIgsFonts (*fonts);
+    CHR (hr);
+
+    viewState.SetQuickDrawFonts (std::move (fonts));
+    m_context.browser.GetPreviewer().UpdatePreview();
+    loaded = true;
+
+Error:
+    return loaded;
 }
 
 
@@ -259,6 +365,72 @@ void ExplorerPreviewManager::Hide()
 //
 //  ExplorerPreviewManager::FillPreview
 //
+//  A picture with text in a font that isn't loaded is made again once the
+//  downloaded IIgs fonts are loaded.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPreviewManager::FillPreview()
+{
+    if (!m_context.browser.GetPreviewer().GetPreview().fontNotes.empty())
+    {
+        TryLoadFonts();
+    }
+
+    FillContent();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::BuildNoteRows
+//
+//  A picture whose text is in fonts that aren't downloaded has one link
+//  row that offers them, in place of a warning for each font.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiTextView::Row> ExplorerPreviewManager::BuildNoteRows (const PreviewContent & preview) const
+{
+    std::vector<DxuiTextView::Row>  rows;
+    std::vector<DxuiTextView::Row>  warnings = PreviewText::BuildWarningRows (preview.warning);
+    DxuiTextView::Row               offer;
+
+
+
+    if (!preview.fontNotes.empty() && !AssetBootstrap::AreIIgsFontsCached())
+    {
+        offer.cells   = { L"This image uses Apple fonts that are not downloaded yet. Click here to download." };
+        offer.info    = true;
+        offer.link    = true;
+        offer.heading = true;
+        rows.push_back (offer);
+    }
+    else
+    {
+        for (const std::wstring & note : preview.fontNotes)
+        {
+            std::vector<DxuiTextView::Row>  noteRows = PreviewText::BuildWarningRows (note);
+
+            rows.insert (rows.end(), noteRows.begin(), noteRows.end());
+        }
+    }
+
+    rows.insert (rows.end(), warnings.begin(), warnings.end());
+    return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::FillContent
+//
 //  The preview's kind picks the view: a picture in the picture view, a
 //  catalog as rows under the list's columns, bytes in the hex view, the
 //  shell's preview of a host file over the pane, and everything else as
@@ -266,9 +438,9 @@ void ExplorerPreviewManager::Hide()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerPreviewManager::FillPreview()
+void ExplorerPreviewManager::FillContent()
 {
-    const PreviewContent  & preview  = m_context.browser.GetPreview();
+    const PreviewContent  & preview  = m_context.browser.GetPreviewer().GetPreview();
     bool                    autoOpen = UpdateAutoPreview();
     bool                    toggled  = UpdateShown() || autoOpen;
     bool                    visible  = m_shown;
@@ -282,14 +454,14 @@ void ExplorerPreviewManager::FillPreview()
     bool                    vars     = preview.kind == PreviewContent::Kind::Variables;
     bool                    columns  = (preview.kind == PreviewContent::Kind::Catalog && preview.lines.empty()) || vars || preview.kind == PreviewContent::Kind::Grid;
     bool                    program  = preview.kind == PreviewContent::Kind::Listing && !preview.bytes.empty();
-    bool                    forms    = picture && m_context.browser.CanTogglePictureColor();
+    bool                    forms    = picture && m_context.browser.GetPreviewer().GetMonitorChoice().CanTogglePictureColor();
     bool                    shell    = preview.kind == PreviewContent::Kind::Shell;
     bool                    woz      = !preview.wozPath.empty();
     bool                    random   = preview.recordLength > 0;
     bool                    sets     = preview.charset != Charset::Default;
     bool                    sheet    = preview.sheetForm != SheetForm::None;
-    bool                    details  = visible && woz && preview.kind == PreviewContent::Kind::Catalog && !preview.details.empty();
-    bool                    warned   = visible && hex && !preview.warning.empty();
+    bool                    details  = visible && ((woz && preview.kind == PreviewContent::Kind::Catalog) || preview.detailsAbove) && !preview.details.empty();
+    bool                    warned   = visible && (hex || picture) && (!preview.warning.empty() || !preview.fontNotes.empty());
     bool                    hadThem  = m_summary->IsVisible();
     int                     mode     = !visible ? CassoExplorerCommands::kPreviewBarNone
                                      : hex      ? CassoExplorerCommands::kPreviewBarHex
@@ -314,12 +486,33 @@ void ExplorerPreviewManager::FillPreview()
 
     m_lastKind = preview.kind;
 
+    //  A disk with a saved game has the switch between the two, and the
+    //  disk's thumbnail only with the disk.
+    if (m_sections->IsVisible() != (visible && preview.hasSavedGame))
+    {
+        m_sections->SetVisible (visible && preview.hasSavedGame);
+        m_context.layout.RecomputeLayout();
+    }
+
+    //  A disk decoded as a whole that isn't a saved game, such as a game
+    //  disk with its map, is labeled on the switch by its view name.
+    {
+        std::wstring  savedGameName = preview.savedGameName.empty() ? L"Saved game" : preview.savedGameName;
+
+        if (m_sections->GetSegments().front() != savedGameName)
+        {
+            m_sections->SetSegments ({ savedGameName, L"Disk" });
+        }
+
+        m_sections->SetSelected (preview.savedGameShown ? 0 : 1);
+    }
+
     //  The thumbnail of an image or a card's partition selected alone, in a
     //  format the inspector reads; none for one that fails to open (FR-072).
     {
         bool          wasShown = m_thumbnail.IsShown();
-        bool          isOne    = visible && !error && m_context.browser.GetSelectedRows().size() == 1;
-        std::wstring  path     = isOne && m_context.browser.AreSelectedRowsImages() ? m_context.cassoTarget.GetSelectedImagePath() : std::wstring();
+        bool          isOne    = visible && !error && !preview.savedGameShown && m_context.browser.GetSelectedRows().size() == 1;
+        std::wstring  path     = isOne && m_context.browser.GetSelection().AreSelectedRowsImages() ? m_context.cassoTarget.GetSelectedImagePath() : std::wstring();
 
         if (isOne && m_context.browser.IsPartitionListLocation())
         {
@@ -328,6 +521,7 @@ void ExplorerPreviewManager::FillPreview()
 
         m_headerScroll = (InspectorWindowSet::CanInspect (path) && path == m_thumbnail.GetPath()) ? m_headerScroll : 0;
         m_thumbnail.SetPath (InspectorWindowSet::CanInspect (path) ? path : std::wstring());
+        m_thumbnail.SetListingWarning (preview.kind == PreviewContent::Kind::Catalog ? preview.warning : std::wstring());
 
         if (m_thumbnail.IsShown() != wasShown || m_thumbnail.IsShown())
         {
@@ -340,11 +534,13 @@ void ExplorerPreviewManager::FillPreview()
     m_listing.Fill   (preview, columns);
     FillText         (preview);
 
-    //  A WOZ image's details above its catalog, which moves the catalog down.
+    //  A WOZ image's details above its catalog, which moves the catalog down,
+    //  and an AppleSingle file's above the file it holds.
     //  An image with no file system has its details in place of a catalog.
-    //  A file whose format's decoder failed has the reason above its bytes.
+    //  A file whose format's decoder failed has the reason above its bytes,
+    //  and a picture has its decoder's notes above it.
     m_summary->SetRows    (details ? PreviewText::BuildDetailRows (preview.details)
-                         : warned  ? PreviewText::BuildWarningRows (preview.warning)
+                         : warned  ? BuildNoteRows (preview)
                                    : std::vector<DxuiTextView::Row>());
     m_summary->SetVisible (details || warned);
 
@@ -404,8 +600,9 @@ void ExplorerPreviewManager::FillPreview()
     {
         m_context.layout.RecomputeLayout();
 
-        //  A view sized to the pane has the pane's size only now.
-        FillPreview();
+        //  A shell preview is made at the pane's size, which the pane has only
+        //  now. A document's tables are built again for the width in Layout.
+        m_shell.Update (preview, m_content);
     }
 
     m_context.window.Invalidate();
@@ -448,10 +645,42 @@ void ExplorerPreviewManager::HandlePicturesReady()
 
 void ExplorerPreviewManager::TakeThumbnail()
 {
+    const PreviewContent  & preview = m_context.browser.GetPreviewer().GetPreview();
+
+
+
     m_thumbnail.TakeResult();
-    FillText (m_context.browser.GetPreview());
+
+    //  Only an image's details include the file system the thumbnail found.
+    if (preview.kind == PreviewContent::Kind::Details)
+    {
+        FillText (preview);
+    }
+
     m_context.layout.RecomputeLayout();
     m_context.window.Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::TakeFileSystemCheck
+//
+//  A finished file-system check, on the UI thread; the pane is laid out
+//  again when its infobar appears.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPreviewManager::TakeFileSystemCheck()
+{
+    if (m_thumbnail.TakeCheck())
+    {
+        m_context.layout.RecomputeLayout();
+        m_context.window.Invalidate();
+    }
 }
 
 
@@ -470,6 +699,17 @@ void ExplorerPreviewManager::FillText (const PreviewContent & preview)
     PreviewContent  found;
 
 
+
+    //  A catalog's damage is shown in the thumbnail's infobar, not below the
+    //  catalog.
+    if (preview.kind == PreviewContent::Kind::Catalog && m_thumbnail.IsShown() && !preview.warning.empty())
+    {
+        found         = preview;
+        found.warning.clear();
+
+        m_text.Fill (found);
+        return;
+    }
 
     if (preview.kind != PreviewContent::Kind::Details || system.empty())
     {
@@ -579,7 +819,7 @@ std::wstring ExplorerPreviewManager::GetAutoKey() const
 bool ExplorerPreviewManager::UpdateAutoPreview()
 {
     const std::vector<int>  & selected = m_context.browser.GetSelectedRows();
-    const PreviewContent    & preview  = m_context.browser.GetPreview();
+    const PreviewContent    & preview  = m_context.browser.GetPreviewer().GetPreview();
     std::wstring              key      = GetAutoKey();
     bool                      known    = false;
     std::wstring              address  = BrowserModel::FormatAddress (m_context.browser.GetLocation());
@@ -919,6 +1159,13 @@ bool ExplorerPreviewManager::TickScrollbars (int64_t nowMs)
 
     moved = m_thumbnail.GetScrollbar().TickBar (nowMs) || moved;
 
+    //  The switch's pill slides to a new selection.
+    if (m_sections->WantsTick())
+    {
+        m_sections->Tick (nowMs);
+        moved = true;
+    }
+
     return moved;
 }
 
@@ -1058,8 +1305,9 @@ bool ExplorerPreviewManager::HandleWheel (const DxuiMouseEvent & ev)
 //  The preview's text -- a listing, a catalog, a hex dump -- selects as text
 //  does, so the cursor over it is the I-beam, except over its scrollbars.
 //  The pane's bar beside a disk image's thumbnail is drawn over the view, so
-//  the bar is checked first. Over the thumbnail's platter or block map,
-//  which opens the inspector on a click, the cursor is IDC_HAND.
+//  the bar is checked first. Over the thumbnail's platter, block map or file
+//  system infobar, which open the inspector on a click, the cursor is
+//  IDC_HAND.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1069,7 +1317,7 @@ LPCWSTR ExplorerPreviewManager::GetCursorForPoint (POINT clientPx) const
 
 
 
-    cursor = (cursor != nullptr) ? cursor : (m_thumbnail.IsShown() && m_thumbnail.IsOverPlatter (clientPx) ? IDC_HAND : nullptr);
+    cursor = (cursor != nullptr) ? cursor : (m_thumbnail.IsShown() && (m_thumbnail.IsOverPlatter (clientPx) || m_thumbnail.IsOverVerdict (clientPx)) ? IDC_HAND : nullptr);
     cursor = (cursor != nullptr) ? cursor : m_text.GetCursorForPoint (clientPx);
     cursor = (cursor != nullptr) ? cursor : m_hex.GetCursorForPoint (clientPx);
     cursor = (cursor != nullptr) ? cursor : m_listing.GetCursorForPoint (clientPx);
@@ -1197,21 +1445,6 @@ void ExplorerPreviewManager::RestoreTabState()
         UpdateShown();
         m_context.layout.RecomputeLayout();
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerPreviewManager::HandleAutoPreviewTimer
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ExplorerPreviewManager::HandleAutoPreviewTimer()
-{
-    FillPreview();
 }
 
 
@@ -1368,7 +1601,7 @@ void ExplorerPreviewManager::SetExpanded (bool expanded)
 
     if (expanded && selected.size() > 1)
     {
-        m_context.browser.GetRowKeys (keys);
+        m_context.browser.GetSelection().GetRowKeys (keys);
 
         for (int row : selected)
         {
@@ -1412,7 +1645,7 @@ int ExplorerPreviewManager::GetStepTarget (bool forward) const
 
 
 
-    m_context.browser.GetRowKeys (keys);
+    m_context.browser.GetSelection().GetRowKeys (keys);
 
     return PreviewSteps::GetTarget (m_context.browser.GetRows(), keys, m_stepSet, current, forward);
 }
@@ -1599,7 +1832,7 @@ bool ExplorerPreviewManager::HandleExpandedKey (const DxuiKeyEvent & ev, Explore
 
 void ExplorerPreviewManager::ChooseRecordLength()
 {
-    std::wstring  text   = std::to_wstring (m_context.browser.GetPreview().recordLength);
+    std::wstring  text   = std::to_wstring (m_context.browser.GetPreviewer().GetPreview().recordLength);
     size_t        length = 0;
     bool          parsed = false;
 
@@ -1618,7 +1851,7 @@ void ExplorerPreviewManager::ChooseRecordLength()
 
     if (parsed)
     {
-        m_context.browser.SetPreviewRecordLength (length);
+        m_context.browser.GetPreviewer().GetViewState().SetRecordLength (length);
         FillPreview();
     }
 }

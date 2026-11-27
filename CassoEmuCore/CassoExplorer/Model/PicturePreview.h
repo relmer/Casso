@@ -89,6 +89,11 @@ public:
     static constexpr int  kWidth  = 560;
     static constexpr int  kHeight = 384;
 
+    //  The scanlines the CRT pass draws across a picture `height` rows tall:
+    //  192 for an Apple II screen, drawn two rows to a scanline, and one per
+    //  row for any other picture, such as a IIgs one.
+    static int  GetScanlines (int height) { return (height == kHeight) ? kHeight / 2 : height; }
+
     static constexpr Word    kHiResPage1        = 0x2000;
     static constexpr Word    kHiResPage2        = 0x4000;
     static constexpr Word    kLoResPage1        = 0x0400;

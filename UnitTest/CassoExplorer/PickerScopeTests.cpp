@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Machines/Apple2/Common/ThirteenSectorCodec.h"
 
 #include "../EhmTestHelper.h"
 #include "../EmuTests/FakeDiskFileIo.h"
@@ -183,6 +184,27 @@ public:
 
 
 
+    TEST_METHOD (ARealDrive_AlsoListsThirteenSectorImages)
+    {
+        CatalogRow   d13     = MakeFile (L"dos32.d13", ImageFormFactor::None, ImageLayout::None, 0);
+        CatalogRow   bad     = MakeFile (L"short.d13", ImageFormFactor::None, ImageLayout::None, 0);
+        PickerScope  real    (MakeRequest ({ { L"All files", L"*.*" } }, ReceivingDrive { ReceivingDriveKind::Floppy525, 0, true }));
+        PickerScope  emu     (MakeRequest ({ { L"All files", L"*.*" } }, ReceivingDrive { ReceivingDriveKind::Floppy525, 0 }));
+
+
+
+        d13.sizeBytes = ThirteenSectorCodec::kImageByteSize;
+        bad.sizeBytes = 1000;
+
+        Assert::IsTrue  (real.Passes (d13));
+        Assert::IsFalse (real.Passes (bad));
+        Assert::IsFalse (emu.Passes  (d13));
+        Assert::IsTrue  (real.Passes (MakeFile (L"small.dsk", ImageFormFactor::Floppy525, ImageLayout::Sector, k140K)));
+        Assert::IsFalse (real.Passes (MakeFile (L"big.po",    ImageFormFactor::Floppy35,  ImageLayout::Raw,    k800K)));
+    }
+
+
+
     TEST_METHOD (NoFiltersListsEveryFile)
     {
         PickerScope  scope (MakeRequest ({}));
@@ -289,22 +311,6 @@ public:
 
         browser.SetNameFilter (L"");
         Assert::AreEqual ((size_t) 2, browser.GetRows().size());
-    }
-
-
-
-    TEST_METHOD (NameFilterWords)
-    {
-        std::vector<std::wstring>  words = CassoExplorerBrowser::SplitFilterWords (L"  Zork   II ");
-
-
-
-        Assert::AreEqual ((size_t) 2, words.size());
-        Assert::AreEqual (std::wstring (L"zork"), words[0]);
-        Assert::AreEqual (std::wstring (L"ii"),   words[1]);
-        Assert::IsTrue  (CassoExplorerBrowser::IsNameFilterMatch (L"Zork II.woz", words));
-        Assert::IsFalse (CassoExplorerBrowser::IsNameFilterMatch (L"Zork I.woz",  words));
-        Assert::IsTrue  (CassoExplorerBrowser::IsNameFilterMatch (L"anything",    {}));
     }
 
 

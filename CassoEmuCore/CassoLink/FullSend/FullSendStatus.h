@@ -28,6 +28,7 @@ enum class FullSendActivity : Byte
     Validating,         // the image just written is being booted on the PC
     EditingPrefix,
     Ended,
+    Saving,             // the image just read is being built and written on the PC
 };
 
 enum class FullSendTrackMark : Byte
@@ -37,6 +38,7 @@ enum class FullSendTrackMark : Byte
     Verified,
     Unreliable,
     Unreadable,
+    NotInImage,     // a write: the image has no data for the track
 };
 
 enum class FullSendPositionMark : Byte
@@ -58,6 +60,7 @@ enum class FullSendDiskState : Byte
     Duplicate,
     Empty,
     Blank,
+    Failed,
 };
 
 
@@ -84,6 +87,7 @@ struct FullSendDriveStatus
     std::string                        title;
     std::string                        fileSystem;
     bool                               verified    = false;
+    bool                               writing     = false;   // a disk written from an image, not read into one
     std::vector<FullSendTrackMark>     tracks      = std::vector<FullSendTrackMark> (kTracks, FullSendTrackMark::Unread);
     std::vector<FullSendPositionMark>  positions;                  // empty but in a raw capture
     int                                pass        = 0;
@@ -122,6 +126,7 @@ struct FullSendLine
 {
     std::string  time;
     std::string  text;
+    int          drive = 0;    // the drive the line is about, 0 for the session
 };
 
 struct FullSendTotals
@@ -212,6 +217,7 @@ public:
     //  toward the disk's rate.
     void  BeginDisk      (int drive, bool verified, std::span<const int> haveTracks);
     void  SetTitle       (int drive, const std::string & title, const std::string & fileSystem);
+    void  SetWriting     (int drive);
     void  MarkTrack      (int drive, int track, FullSendTrackMark mark);
 
     void  BeginCapture   (int drive);
@@ -225,10 +231,17 @@ public:
     //  A drive with no disk, or a disk left unsent.
     void  ClearDisk      (int drive, FullSendDiskState state);
 
+    //  A disk whose transfer failed: its time stops and its tracks stay.
+    void  FailDisk       (int drive);
+
     //  A blank disk, counted in the totals.
     void  AddBlank       ();
 
-    void  AddLine        (const std::string & text);
+    void  AddLine        (const std::string & text, int drive = 0);
+
+    //  Each disk done takes the file name its row in the manifest has now,
+    //  as an image renamed in Casso Explorer is renamed in the manifest.
+    void  RenameDisks    (const std::vector<FullSendRow> & rows);
 
     //  An image's boot result, as BootProbe::GetVerdictName has it, and its
     //  file-system verdict, from the thread that booted it: set in the
@@ -259,7 +272,7 @@ private:
     static size_t         GetIndex      (int drive) { return drive == 2 ? 1 : 0; }
     double                EstimateLeft  (size_t index, double now) const;
     static int            CountRead     (const FullSendDriveStatus & drive);
-    void                  AddTimedLine  (const std::string & text);
+    void                  AddTimedLine  (const std::string & text, int drive = 0);
     static bool           IsIdle        (FullSendActivity activity);
     void                  NoteIdle      ();
 

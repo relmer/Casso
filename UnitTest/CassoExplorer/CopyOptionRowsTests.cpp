@@ -39,8 +39,8 @@ public:
         CopyOptionRows::Add (FileFormat::None,              Encoding::Verbatim, true,  rows);
         CopyOptionRows::Add (FileFormat::AppleWorksWp,      Encoding::Verbatim, false, rows);
 
-        Assert::IsTrue (rows == std::vector<Row> { Row::Charset, Row::HiRes, Row::Basic, Row::Code },
-                        L"a picture binary is a picture, not code, and a format without options doesn't add a row");
+        Assert::IsTrue (rows == std::vector<Row> { Row::HexDump, Row::Charset, Row::HiRes, Row::Basic, Row::Code },
+                        L"a picture binary is a picture, not code, a format without options adds only the hex dump row");
     }
 
 
@@ -67,6 +67,11 @@ public:
         CopyOptionRows::SetChoice (Row::Basic, 1, options);
 
         Assert::IsTrue (!options.basicColor && options.basicRawControls);
+
+        CopyOptionRows::SetChoice (Row::HexDump, 1, options);
+
+        Assert::IsTrue   (options.hexDump);
+        Assert::AreEqual (1, CopyOptionRows::GetChoice (Row::HexDump, options));
     }
 
 

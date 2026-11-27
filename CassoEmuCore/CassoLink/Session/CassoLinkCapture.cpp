@@ -3,10 +3,12 @@
 #include "CassoLink/Session/CassoLinkCapture.h"
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/CassoLinkHost.h"
+#include "CassoLink/Session/CaptureStamp.h"
 #include "CassoLink/Session/CaptureStream.h"
 #include "CassoLink/Session/CassoLinkDiskTransfer.h"
+#include "Devices/Disk/DiskFieldFormat.h"
 #include "Devices/Disk/DiskImage.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Update/ZipArchive.h"
 
@@ -54,6 +56,7 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
     run.started = GetTickCount64();
     run.stop    = stop;
     run.planned = (last / 4 + 1) * kWholeReads;
+    run.tracks  = last / 4 + 1;
 
     for (int position = 0; position <= last; position += 4)
     {
@@ -63,6 +66,7 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
         bool      made       = false;
         bool      isStandard = false;
         bool      unsure     = false;
+        int       before     = run.done;
 
         //  Each whole track after the first waits on a marker on the one
         //  before, so the tracks can be placed relative to each other. The
@@ -103,11 +107,15 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
         standard.push_back (isStandard);
         positions.push_back (std::move (read));
 
+        run.tracksDone++;
+        run.trackReads += run.done - before;
+
         //  The gap below this track is read when either track beside it isn't
         //  standard, so its three positions count as soon as both are known.
         if (standard.size() >= 2 && !(standard[standard.size() - 2] && standard.back()))
         {
             run.planned += 3;
+            run.gaps    += 3;
         }
     }
 
@@ -138,6 +146,8 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
 
         read = Position();
 
+        int  before = run.done;
+
         hr = ReadPosition (run, position, 1, read);
         CHR (hr);
 
@@ -166,6 +176,9 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
                 CHR (hr);
             }
         }
+
+        run.gapsDone++;
+        run.gapReads += run.done - before;
 
         positions.push_back (std::move (read));
     }
@@ -428,6 +441,98 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkCapture::ProbeHasData
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkCapture::ProbeHasData (CassoLinkHost & host, Byte drive, std::span<const Byte> module, bool & outHasData)
+{
+    static constexpr int  kProbeTracks[] = { 0, 17, 3 };
+    HRESULT               hr             = S_OK;
+    Result                result;
+    ProgressFn            none;
+    Run                   run            { host, drive, module, none, result };
+    std::vector<Byte>     bytes;
+    size_t                start          = 0;
+    size_t                length         = 0;
+    bool                  missed         = false;
+
+
+
+    outHasData = false;
+
+    for (int track : kProbeTracks)
+    {
+        hr = ReadOnce (run, track * 4, 0, 1, 1, CassoLinkHost::kNoSync, {}, bytes, missed);
+        CHR (hr);
+
+        outHasData = FindReference (bytes, start, length) && length != 0;
+        BAIL_OUT_IF (outHasData, S_OK);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::ProbeRevolution
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkCapture::ProbeRevolution (CassoLinkHost & host, Byte drive, std::span<const Byte> module, std::span<const Byte> previous, std::vector<Byte> & outRevolution, bool & outSame)
+{
+    HRESULT            hr      = S_OK;
+    Result             result;
+    ProgressFn         none;
+    Run                run     { host, drive, module, none, result };
+    std::vector<Byte>  bytes;
+    std::vector<Byte>  twice;
+    std::vector<int>   map;
+    std::vector<bool>  stretch;
+    size_t             start   = 0;
+    size_t             length  = 0;
+    size_t             differ  = 0;
+    bool               missed  = false;
+    bool               isFound = false;
+
+
+
+    outRevolution.clear();
+    outSame = false;
+
+    hr = ReadOnce (run, 0, 0, 1, 1, CassoLinkHost::kNoSync, {}, bytes, missed);
+    CHR (hr);
+
+    isFound = FindReference (bytes, start, length) && length != 0;
+    BAIL_OUT_IF (!isFound, S_OK);
+
+    outRevolution.assign (bytes.begin() + (ptrdiff_t) start, bytes.begin() + (ptrdiff_t) (start + length));
+
+    BAIL_OUT_IF (previous.size() < kAlignBytes || previous.size() > length + s_kBand || length > previous.size() + s_kBand, S_OK);
+
+    twice.assign (outRevolution.begin(), outRevolution.end());
+    twice.insert (twice.end(), outRevolution.begin(), outRevolution.end());
+
+    for (size_t from : FindAnchors (previous, twice))
+    {
+        outSame = outSame || (Align (previous, twice, from, map, differ, stretch) && differ * s_kProbeShare <= previous.size());
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkCapture::ReadOnce
 //
 //  The module is loaded again before the read when a read of the drive
@@ -452,10 +557,16 @@ HRESULT CassoLinkCapture::ReadOnce (Run & run, int position, Byte delay, int rea
     //  so the last read draws it full.
     after = (Byte) std::max (run.percent, std::min (100, (run.done + 1) * 100 / std::max (run.planned, run.done + 1)));
 
-    //  A request the line drops is made again, with the module loaded again
-    //  when the program no longer has it.
+    //  A request the line drops is made again, after the line is recovered,
+    //  with the module loaded again when the program no longer has it.
     for (int attempt = 0; attempt < s_kReadAttempts; attempt++)
     {
+        if (attempt > 0)
+        {
+            hr = run.host.RecoverLine();
+            CHR (hr);
+        }
+
         hr = run.host.EnsureModule (run.module);
 
         if (SUCCEEDED (hr))
@@ -496,7 +607,7 @@ HRESULT CassoLinkCapture::ReadOnce (Run & run, int position, Byte delay, int rea
     report.reads       = reads;
     report.pass        = run.pass;
     report.percent     = run.percent;
-    report.secondsLeft = (run.done >= s_kPaceReads) ? (double) elapsed / 1000.0 / run.done * std::max (0, run.planned - run.done) : -1.0;
+    report.secondsLeft = (run.done >= s_kPaceReads) ? (double) elapsed / 1000.0 / run.done * EstimateReadsLeft (run) : -1.0;
 
     if (run.progress)
     {
@@ -505,6 +616,43 @@ HRESULT CassoLinkCapture::ReadOnce (Run & run, int position, Byte delay, int rea
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::EstimateReadsLeft
+//
+//  The tracks left at the reads per track so far, and the positions between
+//  tracks at the reads per position so far, with one read each before any is
+//  done. Before the second pass, the positions between the tracks left are
+//  expected at the share found so far.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int CassoLinkCapture::EstimateReadsLeft (const Run & run)
+{
+    double  perTrack   = run.tracksDone > 0 ? (double) run.trackReads / run.tracksDone : (double) kWholeReads;
+    double  perGap     = run.gapsDone > 0 ? (double) run.gapReads / run.gapsDone : 1.0;
+    int     tracksLeft = run.tracks - run.tracksDone;
+    int     current    = run.done - run.trackReads - run.gapReads;
+    double  gaps       = run.gaps;
+    double  left       = 0.0;
+
+
+
+    if (run.pass == 1 && run.tracksDone > 1)
+    {
+        gaps += (double) run.gaps / (run.tracksDone - 1) * tracksLeft;
+    }
+
+    //  The reads of the track or position in progress are part of its share.
+    left = perTrack * tracksLeft + perGap * (gaps - run.gapsDone) - current;
+
+    return std::max (0, (int) (left + 0.5));
 }
 
 
@@ -845,11 +993,11 @@ Error:
 int CassoLinkCapture::CountSectors (std::span<const Byte> revolution, int track, bool & outThirteen, int & outAddressed)
 {
     std::vector<Byte>  bytes;
-    std::vector<Byte>  sector;
+    DataFieldDecode    sector;
     std::set<int>      found;
     std::set<int>      addressed;
     bool               kindKnown = false;
-    size_t             wrap      = std::min (revolution.size(), (size_t) NibblizationLayer::kDataNibbleCount + 2 * s_kDataWithin);
+    size_t             wrap      = std::min (revolution.size(), (size_t) NibbleFormat::kDataNibbleCount + 2 * s_kDataWithin);
 
 
 
@@ -896,7 +1044,7 @@ int CassoLinkCapture::CountSectors (std::span<const Byte> revolution, int track,
             outThirteen = is13;
         }
 
-        for (data = at + 11; data + 3 + NibblizationLayer::kDataNibbleCount <= bytes.size() && data < at + 11 + s_kDataWithin && !hasData; data++)
+        for (data = at + 11; data + 3 + NibbleFormat::kDataNibbleCount <= bytes.size() && data < at + 11 + s_kDataWithin && !hasData; data++)
         {
             bool  standard = bytes[data + 1] == s_kProlog1 && bytes[data + 2] == s_kData;
             bool  other    = is16 && bytes[data + 1] == s_kOtherProlog1;
@@ -907,7 +1055,8 @@ int CassoLinkCapture::CountSectors (std::span<const Byte> revolution, int track,
         //  The loop has gone one past the prolog.
         if (hasData && is16)
         {
-            hasData = NibblizationLayer::DecodeDataNibbles (&bytes[data + 2], sector);
+            DiskFieldFormat::DecodeData (DiskFieldKind::Sixteen, std::span<const Byte> (&bytes[data + 2], DiskFieldFormat::kBodyLength62), bytes[data + 2 + DiskFieldFormat::kBodyLength62], sector);
+            hasData = sector.isChecksumGood && sector.invalidNibbles.empty();
         }
 
         if (hasData && is13 == outThirteen)
@@ -1384,8 +1533,36 @@ HRESULT CassoLinkCapture::BuildWoz (const std::vector<Position> & positions, int
         image.SetQuarterTrackSlot (position, found->second);
     }
 
+    //  A half track dropped as read across two tracks, between two quarter
+    //  tracks a protection wrote, each with its own stream: a head there
+    //  reads their data, and a loader can step there to read it, so it reads
+    //  the lower one's stream rather than random bits.
+    for (int position = 2; position + 1 < CassoLinkCodec::kQuarterTracks; position += 4)
+    {
+        auto  lower = slots.find (position - 1);
+
+        if (read.contains (position) || streams.contains (position) || lower == slots.end() || !slots.contains (position + 1) || !std::ranges::any_of (positions, [position] (const Position & each) { return each.position == position; }))
+        {
+            continue;
+        }
+
+        image.SetQuarterTrackSlot (position, lower->second);
+    }
+
     hr = WozLoader::Serialize (image, outResult.woz);
     CHR (hr);
+
+    //  The boot sector format is track 0's: a 13-sector disk boots only from
+    //  a Disk II with the 13-sector boot ROM.
+    if (auto  zero = streams.find (0);  zero != streams.end())
+    {
+        bool  thirteen  = false;
+        int   addressed = 0;
+
+        CountSectors (zero->second.bytes, 0, thirteen, addressed);
+
+        edits.bootSectorFormat = addressed == 0 ? WozLoader::kBootSectorUnknown : thirteen ? WozLoader::kBootSector13 : WozLoader::kBootSector16;
+    }
 
     edits.meta.push_back ({ "image_date", imageDate });
     edits.meta.push_back ({ "notes", DescribeResult (outResult, drive) });
@@ -1405,6 +1582,9 @@ HRESULT CassoLinkCapture::BuildWoz (const std::vector<Position> & positions, int
         outResult.woz[s_kInfoProtected]    = outResult.writeProtected ? 1 : 0;
         Write32 (outResult.woz, s_kWozCrcOffset, ZipArchive::ComputeCrc32 (std::span<const Byte> (outResult.woz).subspan (s_kWozHeaderBytes)));
     }
+
+    hr = CaptureStamp::AddToWoz (positions, outResult, imageDate, outResult.woz);
+    CHR (hr);
 
 Error:
     return hr;

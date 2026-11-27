@@ -10,6 +10,33 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiTitleChip
+//
+//  A rounded label drawn after a caption's title, such as "Read as CP/M",
+//  with a tooltip over it. An Info chip is drawn in the theme's accent, and
+//  a Plain chip in the caption's text color.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class DxuiTitleChipKind
+{
+    Info,
+    Plain,
+};
+
+struct DxuiTitleChip
+{
+    std::wstring       text;
+    std::wstring       tip;
+    DxuiTitleChipKind  kind = DxuiTitleChipKind::Info;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiCaptionBar
 //
 //  Container panel covering the custom-chrome title-bar strip at the
@@ -67,6 +94,10 @@ public:
     void  SetAppIcon       (std::vector<uint32_t> bgraPremul, int widthPx, int heightPx);
     void  SetMaximized     (bool maximized);
 
+    // Chips drawn after the title; none by default. In a narrow caption the
+    // title is cut first, then chips are left out from the last.
+    void  SetTitleChips    (std::vector<DxuiTitleChip> chips);
+
     // A consumer's control shown in a caption-button column to the left of
     // the system buttons (non-owning; null removes it). Laid out in DIPs like
     // the system buttons; hidden, it takes no room from the title.
@@ -91,17 +122,34 @@ public:
 
     DxuiHitTestKind     ClassifyHit       (POINT clientDip) const override;
 
-    // The full title when the last paint cut it short and the point, in
-    // client pixels, is over it; null otherwise, so a title that fits shows
-    // no tip. The anchor is the title's rect.
+    // Over a chip, its tip; over the title the last paint cut short, the
+    // full title; null for a title that fits and anywhere else. The anchor
+    // is the chip's or the title's rect, in client pixels.
     const wchar_t       * GetTooltipAt      (POINT clientPx, RECT & anchorPx) const;
+
+    // The chip under a point in client pixels, as the last paint placed the
+    // chips, or -1. ClassifyHit returns Caption over a chip, so the window
+    // can be dragged by it.
+    int                   GetTitleChipAt    (POINT clientPx) const;
     DxuiAccessibleRole    GetAccessibleRole () const          override { return DxuiAccessibleRole::CaptionBar; }
 
 private:
-    static constexpr int      kButtonWidthDip   = 46;
+    static constexpr int    kButtonWidthDip    = 46;
+    static constexpr float  s_kTitlePadDip     = 14.0f;
+    static constexpr float  s_kIconPadFraction = 0.18f;
+    static constexpr float  s_kMinTitleDip     = 48.0f;
+    static constexpr float  s_kChipPadDip      = 8.0f;
+    static constexpr float  s_kChipGapDip      = 6.0f;
+    static constexpr float  s_kChipHeightDip   = 20.0f;
+    static constexpr float  s_kChipTextDip     = 12.0f;
+
+    bool                 IsOverIcon   (POINT clientDip) const;
     static constexpr wchar_t  kTitleFamily[]    = L"Segoe UI";
 
-    void                 PaintTitle   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & areaPx, float fontPx);
+    float                PaintTitle   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & areaPx, float fontPx);
+    float                FitChips     (IDxuiTextRenderer & text, float roomPx, std::vector<float> & outWidthsPx) const;
+    void                 PaintChips   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float leftPx, float topPx, float heightPx, float titleFontPx, const std::vector<float> & widthsPx);
+    static float         GetChipTopPx (IDxuiTextRenderer & text, float topPx, float heightPx, float titleFontPx, float chipPx, float chipFontPx);
     static float         MeasureTitle (IDxuiTextRenderer & text, const std::wstring & value, float fontPx);
     static std::wstring  FitTitle     (IDxuiTextRenderer & text, const std::wstring & value, float fontPx, float roomPx);
 
@@ -111,6 +159,8 @@ private:
     size_t                               m_markAt            = std::wstring::npos;
     bool                                 m_titleCut          = false;
     RECT                                 m_titleRectPx       = {};
+    std::vector<DxuiTitleChip>           m_chips;
+    std::vector<RECT>                    m_chipRectsPx;
     std::vector<uint32_t>                m_iconPixels;
     int                                  m_iconW             = 0;
     int                                  m_iconH             = 0;

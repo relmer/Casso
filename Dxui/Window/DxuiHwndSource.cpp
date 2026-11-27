@@ -2606,12 +2606,19 @@ Error:
 //  -> after-paint / compose -> PresentFrame), which bails cleanly if the
 //  painter / text renderer / RTV / swap chain are missing. A window that paces
 //  its frames first waits for the last one to leave the queue.
+//  A minimized window isn't painted: its root is laid out at no width.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiHwndSource::PaintPump()
 {
     DXUI_ASSERT_UI_THREAD();
+
+    if (m_hwnd != nullptr && IsIconic (m_hwnd))
+    {
+        return;
+    }
+
     WaitForFrameSlot();
     RenderFrame (m_theme);
 }
@@ -2872,6 +2879,13 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
             break;
 
         case WM_NCLBUTTONDOWN:
+            if (wp == HTSYSMENU)
+            {
+                ClickWindowIcon (ptScreen);
+                result = 0;
+                break;
+            }
+
             result = IsClaimed (m_client != nullptr
                                   ? m_client->OnNcLButtonDown ((LRESULT) wp, ptScreen.x, ptScreen.y)
                                   : DxuiMessageResult::NotHandled,
@@ -3931,7 +3945,9 @@ void DxuiHwndSource::HandleSize (WPARAM wp, LPARAM lp)
     // swap chain during a live edge-drag -- which reads as the content subtly
     // shifting as the window resizes. Full-ownership mode only; adopt mode's
     // client repaints through its own OnSize.
-    if (m_ownsPaintPump)
+    // A minimized window has no extent to paint at, and its controls measure
+    // text at a zero width.
+    if (m_ownsPaintPump && widthPx > 0 && heightPx > 0)
     {
         WaitForFrameSlot();
         RenderFrame (m_theme);
@@ -4145,6 +4161,34 @@ void DxuiHwndSource::SetTitle (const std::wstring & title, size_t markAt)
     if (m_caption)
     {
         m_caption->SetTitle (title, markAt);
+        if (m_hwnd != nullptr)
+        {
+            InvalidateRect (m_hwnd, nullptr, FALSE);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::SetTitleChips
+//
+//  Chips drawn after the title in the host-owned caption. The window text
+//  has the title alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::SetTitleChips (const std::vector<DxuiTitleChip> & chips)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    if (m_caption)
+    {
+        m_caption->SetTitleChips (chips);
+
         if (m_hwnd != nullptr)
         {
             InvalidateRect (m_hwnd, nullptr, FALSE);
@@ -4970,6 +5014,49 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiHwndSource::ClickWindowIcon
+//
+//  As on a caption Windows draws: a click on the icon opens the system menu,
+//  and a second click on the icon within the double-click time closes the
+//  window. The second click dismisses the menu, so it is detected after the
+//  menu returns: the button down, over the icon, in time.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::ClickWindowIcon (POINT ptScreen)
+{
+    HRESULT    hr      = S_OK;
+    ULONGLONG  opened  = GetTickCount64();
+    POINT      now     = {};
+    bool       inTime  = false;
+    bool       isDown  = false;
+    bool       onIcon  = false;
+
+
+
+    hr = ShowSystemMenu (ptScreen);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    inTime = GetTickCount64() - opened <= GetDoubleClickTime();
+    isDown = (GetAsyncKeyState (VK_LBUTTON) & 0x8000) != 0;
+
+    if (inTime && isDown && GetCursorPos (&now))
+    {
+        onIcon = SendMessageW (m_hwnd, WM_NCHITTEST, 0, MAKELPARAM (now.x, now.y)) == HTSYSMENU;
+    }
+
+    if (onIcon)
+    {
+        PostMessageW (m_hwnd, WM_SYSCOMMAND, SC_CLOSE, 0);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiHwndSource::IsSystemMenuDropped
 //
 //  Whether the window is created without the system menu style. Without it,
@@ -5076,6 +5163,7 @@ LRESULT DxuiHwndSource::KindToHt (DxuiHitTestKind kind)
         case DxuiHitTestKind::None:             ht = HTNOWHERE;       break;
         case DxuiHitTestKind::Client:           ht = HTCLIENT;        break;
         case DxuiHitTestKind::Caption:          ht = HTCAPTION;       break;
+        case DxuiHitTestKind::SystemMenu:       ht = HTSYSMENU;       break;
         case DxuiHitTestKind::MinButton:        ht = HTMINBUTTON;     break;
         case DxuiHitTestKind::MaxButton:        ht = HTMAXBUTTON;     break;
         case DxuiHitTestKind::CloseButton:      ht = HTCLOSE;         break;

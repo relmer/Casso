@@ -16,7 +16,7 @@ namespace fs = std::filesystem;
 
 static constexpr int    s_kRowHeightDp        = 28;
 static constexpr int    s_kRowGapDp           = 2;
-static constexpr int    s_kBodyWidthDp        = 620;
+static constexpr int    s_kBodyWidthDp        = 720;
 static constexpr int    s_kHeaderHeightDp     = 26;
 static constexpr int    s_kHeaderGapAboveDp   = 12;
 static constexpr float  s_kFontDp             = 13.0f;
@@ -541,6 +541,7 @@ void StartupDownloadDialog::PaintBody (
     sourceLabel.SetDpi         (state.dpi);
     sourceLabel.SetFontSizeDip (s_kFontDp);
     sourceLabel.SetColor       (fgDim);
+    sourceLabel.SetElide       (DxuiElide::Tail);
 
     statusLabel.SetDpi         (state.dpi);
     statusLabel.SetFontSizeDip (s_kFontDp);
@@ -765,7 +766,8 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
                   + headerCount * (s_kHeaderHeightDp + s_kRowGapDp + s_kHeaderGapAboveDp)
                   + rowCount    * (s_kRowHeightDp    + s_kRowGapDp);
 
-        dlg.ConfigureDownload (std::move (content), requiresRoms, s_kTickIntervalMs);
+        //  A dialog opened from inside the app has Cancel, so it has no Skip.
+        dlg.ConfigureDownload (std::move (content), requiresRoms || prompt != nullptr, s_kTickIntervalMs);
 
         if (prompt != nullptr)
         {

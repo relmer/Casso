@@ -3,7 +3,9 @@
 #include "DiskImage.h"
 #include "DamagedMountReport.h"
 #include "DiskImageStore.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Devices/Disk/Store/DiskFileCommit.h"
+#include "Machines/Apple2/Common/Denibblizer.h"
+#include "Machines/Apple2/Common/Nibblizer.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 
@@ -55,6 +57,7 @@ void DiskImage::InitWholeTrackMap()
 
 
     m_quarterTrackMap.assign (kQuarterTrackCount, -1);
+    m_isWriteCenter.assign   (kQuarterTrackCount, false);
     m_layoutGeneration++;
 
     for (qt = 0; qt < kQuarterTrackCount; qt++)
@@ -152,6 +155,224 @@ int DiskImage::GetMappedSlot (int quarterTrack) const
 
 
     return inMap ? m_quarterTrackMap[quarterTrack] : -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrepareQuarterTrackWrite
+//
+//  A Disk II head writes a band a little narrower than the spacing of whole
+//  tracks, so a write at track 2.5 overwrites the edges of tracks 2 and 3,
+//  not their centers. On a sector image every quarter track of a whole track
+//  maps to one slot, and a write at 2.5 into it would replace track 2. Here a
+//  write gets a new slot when its slot is also mapped from two or more
+//  quarter tracks away. A head on either side of a write reads mostly what
+//  was written, so those quarter tracks map to its slot, except one a write
+//  was centered on: a head there reads that band.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DiskImage::PrepareQuarterTrackWrite (int quarterTrack, size_t blankBitCount)
+{
+    int   slot      = -1;
+    int   center    = -1;
+    int   neighbor  = 0;
+    int   qt        = 0;
+    bool  inMap     = (quarterTrack >= 0 && quarterTrack < static_cast<int> (m_quarterTrackMap.size()));
+    bool  ownsSlot  = false;
+    bool  changed   = false;
+
+
+
+    if (!inMap)
+    {
+        return -1;
+    }
+
+    slot     = ResolveQuarterTrack (quarterTrack);
+    center   = GetSlotCenter (slot);
+    ownsSlot = (slot >= 0) && (center == quarterTrack || IsSlotWithinBand (slot, quarterTrack));
+
+    if (!ownsSlot)
+    {
+        slot = CreateWriteSlot (slot, blankBitCount);
+
+        if (slot < 0)
+        {
+            return ResolveQuarterTrack (quarterTrack);
+        }
+
+        m_quarterTrackMap[quarterTrack] = slot;
+        changed                         = true;
+    }
+
+    for (qt = 0; qt < static_cast<int> (m_quarterTrackMap.size()); qt++)
+    {
+        if (m_quarterTrackMap[qt] == slot)
+        {
+            m_isWriteCenter[qt] = false;
+        }
+    }
+
+    m_isWriteCenter[quarterTrack] = true;
+
+    for (neighbor = quarterTrack - 1; neighbor <= quarterTrack + 1; neighbor += 2)
+    {
+        bool  inRange = (neighbor >= 0 && neighbor < static_cast<int> (m_quarterTrackMap.size()));
+
+        if (!inRange || m_quarterTrackMap[neighbor] == slot)
+        {
+            continue;
+        }
+
+        if (GetSlotCenter (ResolveQuarterTrack (neighbor)) != neighbor)
+        {
+            m_quarterTrackMap[neighbor] = slot;
+            m_isWriteCenter[neighbor]   = false;
+            changed                     = true;
+        }
+    }
+
+    if (changed)
+    {
+        m_layoutGeneration++;
+    }
+
+    return slot;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetSlotCenter
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DiskImage::GetSlotCenter (int slot) const
+{
+    vector<int>  players;
+    int          center = -1;
+    int          qt     = 0;
+
+
+
+    if (slot < 0)
+    {
+        return -1;
+    }
+
+    for (qt = 0; qt < static_cast<int> (m_quarterTrackMap.size()); qt++)
+    {
+        if (m_quarterTrackMap[qt] != slot)
+        {
+            continue;
+        }
+
+        if (m_isWriteCenter[qt])
+        {
+            return qt;
+        }
+
+        if (center < 0 && qt % kQuarterTracksPerWholeTrack == 0)
+        {
+            center = qt;
+        }
+
+        players.push_back (qt);
+    }
+
+    if (center < 0 && !players.empty())
+    {
+        center = players[players.size() / 2];
+    }
+
+    return center;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsSlotWithinBand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImage::IsSlotWithinBand (int slot, int quarterTrack) const
+{
+    bool  within = true;
+    int   qt     = 0;
+
+
+
+    for (qt = 0; within && qt < static_cast<int> (m_quarterTrackMap.size()); qt++)
+    {
+        within = (m_quarterTrackMap[qt] != slot) || std::abs (qt - quarterTrack) <= 1;
+    }
+
+    return within;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CreateWriteSlot
+//
+//  The new slot goes after the last. A sector image's map has entries for
+//  whole tracks with no slot, past the last one. Entries for the new slot's
+//  index are cleared first, or those quarter tracks would read it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DiskImage::CreateWriteSlot (int fromSlot, size_t blankBitCount)
+{
+    int  slot = GetTrackCount();
+    int  qt   = 0;
+
+
+
+    if (slot >= kQuarterTrackCount)
+    {
+        return -1;
+    }
+
+    for (qt = 0; qt < static_cast<int> (m_quarterTrackMap.size()); qt++)
+    {
+        if (m_quarterTrackMap[qt] == slot)
+        {
+            m_quarterTrackMap[qt] = -1;
+            m_isWriteCenter[qt]   = false;
+        }
+    }
+
+    EnsureTrackSlots (slot + 1);
+
+    if (fromSlot >= 0)
+    {
+        m_trackBits[slot]      = m_trackBits[fromSlot];
+        m_trackBitCounts[slot] = m_trackBitCounts[fromSlot];
+        m_slotKind[slot]       = m_slotKind[fromSlot];
+        m_fluxTracks[slot]     = m_fluxTracks[fromSlot];
+    }
+    else
+    {
+        ResizeTrack (slot, blankBitCount);
+    }
+
+    MarkTrackDirty (slot);
+
+    return slot;
 }
 
 
@@ -319,6 +540,7 @@ void DiskImage::CommitPendingWrite()
 void DiskImage::ClearQuarterTrackMap()
 {
     m_quarterTrackMap.assign (kQuarterTrackCount, -1);
+    m_isWriteCenter.assign   (kQuarterTrackCount, false);
     m_layoutGeneration++;
 }
 
@@ -328,6 +550,7 @@ void DiskImage::SetQuarterTrackSlot (int quarterTrack, int slot)
     if (quarterTrack >= 0 && quarterTrack < static_cast<int> (m_quarterTrackMap.size()))
     {
         m_quarterTrackMap[quarterTrack] = slot;
+        m_isWriteCenter[quarterTrack]   = false;
         m_layoutGeneration++;
     }
 }
@@ -745,7 +968,7 @@ void DiskImage::ClearDirty()
 //  Serialize
 //
 //  For sector-based formats (DSK/DO/PO) this calls back into the
-//  NibblizationLayer to recover the flat sector image. For WOZ images it
+//  Denibblizer to recover the flat sector image. For WOZ images it
 //  re-emits a WOZ v2 byte image from the live per-track bit streams via
 //  WozLoader::Serialize, so guest writes round-trip on flush.
 //
@@ -762,7 +985,7 @@ HRESULT DiskImage::Serialize (vector<Byte> & outBytes) const
         case DiskFormat::Dsk:
         case DiskFormat::Do:
         case DiskFormat::Po:
-            hr = NibblizationLayer::Denibblize (*this, m_format, outBytes);
+            hr = Denibblizer::Denibblize (*this, m_format, outBytes);
             break;
 
         case DiskFormat::Woz:
@@ -870,7 +1093,7 @@ void DiskImage::SetLoadedForTest (bool loaded, bool dirty)
 //  LoadFromBytes
 //
 //  In-memory load entry point used by DiskImageStore and unit tests. The
-//  raw bytes are routed through the appropriate loader (NibblizationLayer
+//  raw bytes are routed through the appropriate loader (Nibblizer
 //  for DSK/DO/PO; WozLoader for WOZ). The cached raw bytes preserve the
 //  Phase 9 round-trip path until WOZ writeback lands.
 //
@@ -901,7 +1124,7 @@ void DiskImage::LoadFromBytes (DiskFormat fmt, const vector<Byte> & raw, const s
         case DiskFormat::Dsk:
         case DiskFormat::Do:
         case DiskFormat::Po:
-            hr = NibblizationLayer::Nibblize (raw, fmt, *this);
+            hr = Nibblizer::Nibblize (raw, fmt, *this);
             break;
 
         case DiskFormat::Woz:
@@ -982,13 +1205,13 @@ Error:
 //
 //  LoadDsk
 //
-//  Thin shim — delegates to NibblizationLayer::NibblizeDsk.
+//  Calls Nibblizer::NibblizeDsk.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DiskImage::LoadDsk (const vector<Byte> & raw)
 {
-    return NibblizationLayer::NibblizeDsk (raw, *this);
+    return Nibblizer::NibblizeDsk (raw, *this);
 }
 
 
@@ -1085,7 +1308,7 @@ HRESULT DiskImage::Flush()
         hr = Serialize (bytes);
         CHR (hr);
 
-        hr = DiskImageStore::WriteFileAtomically (m_filePath, bytes);
+        hr = DiskFileCommit::WriteFileAtomically (m_filePath, bytes);
         CHR (hr);
     }
 

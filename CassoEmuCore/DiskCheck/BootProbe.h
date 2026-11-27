@@ -56,7 +56,8 @@ struct BootReport
 //  Booted: the screen differs from the screen when the drive first started,
 //  and the drive's motor was off for settledSlices slices, or at the limit
 //  its head was on one track for that long: a loader that is reading has
-//  the motor on and the head moving. Did not
+//  the motor on and the head moving. Booted as well: at the limit, a screen
+//  that isn't blank with the motor off for most of that long. Did not
 //  boot: the screen is as it was when the drive started, at the limit; or
 //  the machine is at the monitor's prompt, or at BASIC's after an error.
 //  Not bootable: the screen has ProDOS's message that it found no system
@@ -94,6 +95,7 @@ public:
         std::vector<std::string>  rows;
         bool                      isTextMode   = true;
         bool                      isBlank      = false;     // the screen at the end, by IsBlank
+        bool                      hasDos       = true;      // $3D0 has the JMP that DOS 3.3 and BASIC.SYSTEM put there
 
         //  The program counter at short intervals once the boot ended, and
         //  the memory from the lowest to the highest of them and of the
@@ -132,6 +134,10 @@ public:
     static bool         IsSettled    (const Trace & trace, const Limits & limits);
     static bool         IsHeadAtRest (const Trace & trace, const Limits & limits);
 
+    //  Whether the motor was off for more than half the last settledSlices
+    //  samples, after the screen changed from the one when the drive started.
+    static bool         IsMostlyIdle (const Trace & trace, const Limits & limits);
+
     //  Whether the screen is nearly blank: a text screen with fewer than
     //  s_kBlankChars characters and no row that begins with a prompt, or a
     //  graphics screen with less than 1 / s_kBlankLitDivisor of its pixels
@@ -148,9 +154,17 @@ public:
     //  The 40-column text screen's rows, through the processor's memory.
     static void         ReadTextRows (MachineHost & host, std::vector<std::string> & outRows);
 
+    //  Whether a text screen has nothing but BASIC prompts with no DOS in
+    //  memory: a load that failed and fell to the ROM's BASIC. A disk that
+    //  boots to BASIC has DOS 3.3 or BASIC.SYSTEM, which set $3D0.
+    static bool         IsBarePrompt (const Trace & trace);
+
 private:
     static uint64_t     HashFrame (const std::vector<uint32_t> & frame);
     static bool         HasRow    (const std::vector<std::string> & rows, std::string_view text);
+
+    static constexpr Word  s_kDosVector = 0x03D0;
+    static constexpr Byte  s_kJmp       = 0x4C;
 
     static constexpr uint32_t  s_kTextArgb         = 0xFFFFFFFF;
     static constexpr Word      s_kTextPage1        = 0x0400;

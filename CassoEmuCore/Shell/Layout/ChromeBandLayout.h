@@ -22,6 +22,7 @@ struct ChromeBandInputs
     bool   drivesOnBar         = false;   // the desk plan puts drives on the drive bar
     bool   hasCaseSwitches     = false;   // only the //c has the switch strip
     int    driveBarThicknessDp = 0;
+    int    dockRecorderDp      = 0;       // a docked recorder's row height, 0 when it is not docked
     float  chromeSceneScale    = 1.0f;    // the drive band zooms with the scene
     float  driveBarZoom        = 1.0f;    // or, with drives on the bar, with the bar's zoom
     int    toolbarBandDp       = 0;

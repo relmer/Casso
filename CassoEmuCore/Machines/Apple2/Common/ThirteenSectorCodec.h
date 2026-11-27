@@ -7,6 +7,8 @@
 #include "Devices/Disk/SectorFieldWriter.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
 
+struct TrackMarks;
+
 
 
 
@@ -38,11 +40,17 @@ public:
     static constexpr size_t  kSectorByteSize  = 256;
     static constexpr size_t  kImageByteSize   = kSectorByteSize * kSectorsPerTrack * kTrackCount;
     static constexpr Word    kUnusedCoverage  = 0xE000;
+    static constexpr Word    kAllSectors      = (Word) ((1u << kSectorsPerTrack) - 1);
 
     //  True when the first formatted track examined has more 13-sector
     //  address fields than 16-sector ones. Track 0 is examined last, because
     //  a 13-sector disk can have a 16-sector boot track.
-    static bool     IsThirteenSector (const DiskImage & image);
+    static bool     IsThirteenSector     (const DiskImage & image);
+
+    //  True when the boot track has 13-sector address fields and no 16-sector
+    //  ones, so only the 13-sector boot ROM can start the disk. For a disk
+    //  with no address field on track 0, IsThirteenSector returns the answer.
+    static bool     IsThirteenSectorBoot (const DiskImage & image);
 
     //  Succeeds over damage: a sector that failed to decode is zeros in the
     //  buffer and its track is Partial in the report.
@@ -59,7 +67,16 @@ public:
 
 private:
     static FieldMarks  MakeMarks         ();
-    static void        LocateTrack       (const DiskImage & image, int track, vector<LocatedField> & outFields);
+    static void        AddMark           (vector<DiskMarkPattern> & ioMarks, const DiskMarkPattern & mark);
+    static FieldMarks  MakeStampedMarks  (const TrackMarks & marks);
+    static void        LocateTrack       (const DiskImage & image, int track, const FieldMarks & marks, vector<LocatedField> & outFields);
+    static void        TakeSectors       (const vector<LocatedField>  &  fields,
+                                          int                            track,
+                                          Word                           skip,
+                                          Word                        &  ioCoverage,
+                                          bool                        &  ioDuplicated,
+                                          int                         &  ioAddresses,
+                                          vector<Byte>                &  outSectors);
     static bool        IsGoodSector      (const vector<LocatedField> & fields, const LocatedField & address);
     static bool        IsUnwrittenSector (const LocatedField & address);
     static void        AppendNibble      (vector<Byte> & bits, size_t & bitOffset, Byte nibble);

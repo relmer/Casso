@@ -53,10 +53,10 @@ public:
     };
 
 
-    //  A data object with or without Casso Explorer's mark, a handler
+    //  A data object with or without Casso Explorer's marks, a handler
     //  initialized with it, and an empty menu. `target` is the folder the
     //  handler is initialized with, the temporary folder when it is null.
-    static void  Build (Fixture & fixture, bool offered, PIDLIST_ABSOLUTE target = nullptr)
+    static void  Build (Fixture & fixture, bool offered, PIDLIST_ABSOLUTE target = nullptr, bool hexOffered = false)
     {
         std::vector<DxuiDragDropSource::Format>  formats;
         wchar_t                                  temp[MAX_PATH] = {};
@@ -65,6 +65,15 @@ public:
         if (offered)
         {
             formats.push_back ({ (CLIPFORMAT) RegisterClipboardFormatW (RawCopyDropHandler::kOfferedFormat), 1, [] (int, std::vector<uint8_t> & out)
+            {
+                out.assign (1, 0);
+                return S_OK;
+            } });
+        }
+
+        if (hexOffered)
+        {
+            formats.push_back ({ (CLIPFORMAT) RegisterClipboardFormatW (RawCopyDropHandler::kHexDumpOfferedFormat), 1, [] (int, std::vector<uint8_t> & out)
             {
                 out.assign (1, 0);
                 return S_OK;
@@ -142,6 +151,49 @@ public:
 
         info.lpVerb = "open";
         Assert::AreEqual (E_FAIL, fixture.menu->InvokeCommand (&info), L"another verb is not the handler's");
+    }
+
+
+    TEST_METHOD (AHexDumpMark_GetsTheHexDumpItem_AndPickingItStoresTheFolder)
+    {
+        Fixture               fixture;
+        CMINVOKECOMMANDINFO   info    = { sizeof (info) };
+        std::vector<uint8_t>  stored;
+
+        Build (fixture, false, nullptr, true);
+
+        Assert::AreEqual (MAKE_HRESULT (SEVERITY_SUCCESS, FACILITY_NULL, 2), fixture.menu->QueryContextMenu (fixture.popup, 0, 100, 200, CMF_NORMAL));
+        Assert::AreEqual (1, GetMenuItemCount (fixture.popup));
+        Assert::AreEqual (std::wstring (RawCopyDropHandler::kHexDumpMenuText), GetItemText (fixture.popup, 0));
+        Assert::AreEqual (101u, GetMenuItemID (fixture.popup, 0));
+
+        info.lpVerb = MAKEINTRESOURCEA (0);
+        Assert::AreEqual (E_FAIL, fixture.menu->InvokeCommand (&info), L"the raw copy isn't offered");
+
+        info.lpVerb = MAKEINTRESOURCEA (1);
+        Assert::AreEqual (S_OK, fixture.menu->InvokeCommand (&info));
+        Assert::IsTrue   (fixture.source->GetStoredBytes (RawCopyDropHandler::kHexDumpFolderFormat, stored));
+        Assert::AreEqual (fixture.path, RawCopyDropHandler::GetFolder (stored));
+        Assert::IsFalse  (fixture.source->GetStoredBytes (RawCopyDropHandler::kFolderFormat, stored));
+    }
+
+
+    TEST_METHOD (BothMarks_GetBothItems_InOrder)
+    {
+        Fixture               fixture;
+        CMINVOKECOMMANDINFO   info    = { sizeof (info) };
+        std::vector<uint8_t>  stored;
+
+        Build (fixture, true, nullptr, true);
+
+        Assert::AreEqual (MAKE_HRESULT (SEVERITY_SUCCESS, FACILITY_NULL, 2), fixture.menu->QueryContextMenu (fixture.popup, 0, 1, 10, CMF_NORMAL));
+        Assert::AreEqual (2, GetMenuItemCount (fixture.popup));
+        Assert::AreEqual (std::wstring (RawCopyDropHandler::kMenuText),        GetItemText (fixture.popup, 0));
+        Assert::AreEqual (std::wstring (RawCopyDropHandler::kHexDumpMenuText), GetItemText (fixture.popup, 1));
+
+        info.lpVerb = RawCopyDropHandler::kHexDumpVerbA;
+        Assert::AreEqual (S_OK, fixture.menu->InvokeCommand (&info));
+        Assert::IsTrue   (fixture.source->GetStoredBytes (RawCopyDropHandler::kHexDumpFolderFormat, stored));
     }
 
 

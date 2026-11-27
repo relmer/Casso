@@ -50,7 +50,11 @@ public:
 
     // Whether the scene came up, and whether the loaded models are the //c's.
     bool  IsReady    () const { return m_deskSceneReady; }
-    bool  IsMachineC () const { return m_deskSceneMachineIsC; }
+
+    // Resets the view, as Ctrl+0 does, when the next replan finds the drives
+    // changed. Called from the CPU thread when the machine is rebuilt.
+    void  ResetViewOnReplan () { m_resetViewOnReplan = true; }
+    bool  IsMachineC        () const { return m_deskSceneMachineIsC; }
 
     // Where each of the machine's drives goes (DeskDrivePlan), made when the
     // machine's models load; a class's place toggles between the desk and
@@ -62,6 +66,7 @@ public:
     bool                                     IsClassOnDesk          (DeskDriveClass driveClass) const;
     void                                     ToggleClassOnDesk      (DeskDriveClass driveClass);
     void                                     ToggleFloppyPairBeside ();
+    void                                     ToggleRecorderOnDesk   ();
 
     // The option to move the floppies beside the monitor is in the menus
     // while two Disk II drives are under it and the drives are not
@@ -71,7 +76,8 @@ public:
     // The Disk II drives the machine has, on the desk or not.
     int   CountDiskIiDrives () const;
 
-    // Whether the desk plan puts any of the machine's drives on the drive bar.
+    // Whether the desk plan puts any of the machine's drives on the drive
+    // bar, or the recorder is docked there.
     bool  AreDrivesOnBar    () const;
 
     // Whether a drive was active within `windowCycles` of `now`: a hard disk
@@ -283,15 +289,21 @@ public:
     // Re-hangs the mounted-image basename strip under each projected drive.
     // The desk's baked labels: the two drives' names, the recorder's tape
     // name, its counter, the name of the key under the pointer, the title on
-    // the cassette, the name of the drive under the pointer, and the two
-    // drives' info icons, which are last.
-    static constexpr size_t  s_kSceneLabelCount    = 9;
-    static constexpr int     s_kSceneTapeNameCell  = 2;
-    static constexpr int     s_kSceneCounterCell   = 3;
-    static constexpr int     s_kSceneKeyCell       = DeskScene::kTipLabel;
-    static constexpr int     s_kSceneCassetteCell  = 5;   // the title written on the cassette itself
-    static constexpr int     s_kSceneHoverCell     = 6;   // on the face of the drive under the pointer
-    static constexpr int     kSceneInfoIconCell    = 7;   // drive 0's info icon; drive 1's is the next cell
+    // the cassette, the name of the drive under the pointer, the two drives'
+    // info icons, the two drives' captions, and each extra drive's disk name
+    // and caption.
+    static constexpr int     s_kSceneTapeNameCell     = 2;
+    static constexpr int     s_kSceneCounterCell      = 3;
+    static constexpr int     s_kSceneKeyCell          = DeskScene::kTipLabel;
+    static constexpr int     s_kSceneCassetteCell     = 5;   // the title written on the cassette itself
+    static constexpr int     s_kSceneHoverCell        = 6;   // on the face of the drive under the pointer
+    static constexpr int     kSceneInfoIconCell       = 7;   // drive 0's info icon; drive 1's is the next cell
+    static constexpr int     s_kSceneCaptionCell      = 9;   // drive 0's caption; drive 1's is the next cell
+    static constexpr int     s_kSceneExtraNameCell    = 11;
+    static constexpr int     s_kSceneExtraCaptionCell = s_kSceneExtraNameCell + kMaxDeskExtras;
+    static constexpr size_t  s_kSceneLabelCount       = (size_t) (s_kSceneExtraCaptionCell + kMaxDeskExtras);
+
+    static bool  IsSceneIconCell (int cell) { return cell >= kSceneInfoIconCell && cell < s_kSceneCaptionCell; }
 
     // The drive under the pointer whose name is on its face: a desk extra
     // drive, or a Disk II in a stack, which have no name strip. A change
@@ -353,7 +365,10 @@ public:
     int          GetSceneLabelHalfWidthPx (const DeskSceneComposition & comp);
     bool         TryMakeCassetteTitleQuad (const DeskSceneComposition & comp, const SIZE & cellPx, float corners[4][3]);
     bool         TryMakeHoverLabelQuad    (const DeskSceneComposition & comp, const SIZE & cellPx, float corners[4][3]);
-    std::wstring GetHoverLabelText        () const;
+    bool         GetExtraLabelAnchor      (const DeskSceneComposition & comp, int extra, float outAnchor[3]) const;
+    bool         TryMakeDriveRowQuad      (const DeskSceneComposition & comp, bool isExtra, int index, int row,
+                                           const SIZE & size, int gapPx, int offsetXPx, float corners[4][3]) const;
+    void         SetSceneCaptionNames     (const DeskSceneComposition & comp, std::array<std::wstring, s_kSceneLabelCount> & names) const;
 
     // Splits a drive's name strip between the name and the info icon after
     // it, with the 2D widget's rule: centered together when the name fits,
@@ -488,6 +503,7 @@ private:
     bool                             m_deskSceneMachineIsC = false;
     std::vector<DeskDrivePlacement>  m_drivePlan;
     int                              m_plannedDiskIiCount  = -1;
+    std::atomic<bool>                m_resetViewOnReplan   = false;
     std::vector<DeskDrive>           m_plannedDrives;
     bool                             m_floppyPairMovable   = false;
     int                              m_deskSceneDebug      = 0;   // CASSO_SCENE_DEBUG: 1=layout rects, 2=+calibration texture

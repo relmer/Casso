@@ -180,7 +180,7 @@ HRESULT MockDxuiTextRenderer::MeasureString (
     }
     else
     {
-        outWidthDip  = (float) key.size() * s_kFallbackGlyphWidthDip;
+        outWidthDip  = (float) key.size() * ((m_gdiClassic && m_gdiGlyphWidthDip > 0.0f) ? m_gdiGlyphWidthDip : s_kFallbackGlyphWidthDip);
         outHeightDip = s_kFallbackLineHeightDip;
     }
 
@@ -375,13 +375,15 @@ HRESULT MockDxuiTextRenderer::DrawFramebuffer (
     float            destXDip,
     float            destYDip,
     float            destWidthDip,
-    float            destHeightDip)
+    float            destHeightDip,
+    bool             sharp)
 {
     RecordedTextCall  call;
 
 
 
     UNREFERENCED_PARAMETER (srcBgraPixels);
+    UNREFERENCED_PARAMETER (sharp);
 
     call.kind          = RecordedTextKind::DrawFramebuffer;
     call.x             = destXDip;

@@ -56,6 +56,10 @@ public:
     // connected. The flag is per machine, saved in $cassoUiPrefs.
     bool          MachineHasCassettePort () const;
     bool          IsTapeRecorderShown    () const { return MachineHasCassettePort() && m_tapeRecorderConnected; }
+
+    // With the desk scene, the recorder is on the desk or in the drive dock.
+    bool          IsRecorderDocked       () const;
+    bool          IsRecorderOnDesk       () const { return IsTapeRecorderShown() && !IsRecorderDocked(); }
     bool          IsRecorderConnected    () const { return m_tapeRecorderConnected; }
     void          SetRecorderConnected   (bool connected) { m_tapeRecorderConnected = connected; }
     void          LoadRecorderConnected  (const JsonValue & uiPrefs);

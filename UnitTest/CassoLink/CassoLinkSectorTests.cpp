@@ -11,7 +11,9 @@
 #include "CassoLink/LinkProgram.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
+#include "Machines/Apple2/Common/ThirteenSectorCodec.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 #include "Seams/InProcessByteStream.h"
 #include "SteppedByteStream.h"
 
@@ -183,14 +185,14 @@ public:
     //  ProDOS-ordered file.
     static size_t  DosOffset (int track, int physical)
     {
-        return (size_t) (track * 16 + NibblizationLayer::GetDosFileIndexForPhysicalSector (physical)) * 256;
+        return (size_t) (track * 16 + SectorInterleave::GetDosFileIndexForPhysicalSector (physical)) * 256;
     }
 
     static size_t  ProDosOffset (int track, int physical)
     {
-        int  logical = NibblizationLayer::GetDosFileIndexForPhysicalSector (physical);
+        int  logical = SectorInterleave::GetDosFileIndexForPhysicalSector (physical);
 
-        return (size_t) (track * 16 + NibblizationLayer::GetPoFileIndexForDosLogicalSector (logical)) * 256;
+        return (size_t) (track * 16 + SectorInterleave::GetPoFileIndexForDosLogicalSector (logical)) * 256;
     }
 
     static bool  SameSector (const std::vector<Byte> & data, size_t index, const std::vector<Byte> & image, size_t offset)
@@ -331,7 +333,8 @@ public:
 
 
     //  With no reply for several seconds, the PC is gone: the label of its
-    //  operation is cleared, and the PC is waited for again.
+    //  operation is cleared, the history has the link lost with no time, as
+    //  the Apple has no clock, and the PC is waited for again.
     TEST_METHOD (APcThatStopsAnswering_ClearsItsLabel_AndIsWaitedForAgain)
     {
         Rig                       rig;
@@ -350,6 +353,7 @@ public:
 
         Assert::AreEqual (std::string::npos, rows[4].find_first_not_of (' '), L"the label row is blank");
         Assert::AreNotEqual (std::string::npos, rows[0].find ("Waiting"), L"the PC is waited for");
+        Assert::AreEqual (0, (int) rows[15].find ("--:-- Link lost: no reply from the PC"), L"the history's top line");
     }
 
 
@@ -621,6 +625,73 @@ public:
 
         rows = TextScreenScraper::Scrape (rig.machine);
         Assert::IsTrue (rows[10].starts_with ("D2: Idle"), TextEncoding::NarrowToWide (rows[10]).c_str());
+    }
+
+
+
+
+    //  A drive's note replaces its row's text for a disk with no recognized
+    //  sectors, as a copy-protected one just written has, and an empty note
+    //  puts the text back.
+    TEST_METHOD (ADriveNote_ReplacesTheDrivesRowText_UntilCleared)
+    {
+        Rig                       rig;
+        const Byte                sectors[] = { 0 };
+        std::vector<std::string>  rows;
+
+        rig.Connect();
+        rig.machine.GetDiskStore().Eject (6, 1);
+        rig.Read (2, 0, sectors, CassoLinkHost::kErrorNotFound);
+
+        Assert::AreEqual (S_OK, rig.Run ([&] () { return rig.host->SendDriveNote (2, "Wrote: Prince of Persia side A"); }));
+
+        for (int frame = 0; frame < 60; frame++)
+        {
+            rig.machine.RunCycles (kFrame);
+        }
+
+        rows = TextScreenScraper::Scrape (rig.machine);
+        Assert::IsTrue (rows[10].starts_with ("D2: Wrote: Prince of Persia side A"), TextEncoding::NarrowToWide (rows[10]).c_str());
+
+        Assert::AreEqual (S_OK, rig.Run ([&] () { return rig.host->SendDriveNote (2, std::string()); }));
+
+        for (int frame = 0; frame < 60; frame++)
+        {
+            rig.machine.RunCycles (kFrame);
+        }
+
+        rows = TextScreenScraper::Scrape (rig.machine);
+        Assert::IsTrue (rows[10].starts_with ("D2: Empty or no recognized sectors"), TextEncoding::NarrowToWide (rows[10]).c_str());
+    }
+
+
+
+
+    //  A 13-sector disk has address fields the 16-sector read passes over, so
+    //  its drive's row has the disk's format rather than no recognized sectors.
+    TEST_METHOD (AReadOfA13SectorDisk_ShowsA13SectorDisk)
+    {
+        Rig                       rig;
+        const Byte                sectors[] = { 0 };
+        std::vector<Byte>         flat (ThirteenSectorCodec::kImageByteSize, 0x5A);
+        DiskImage                 image;
+        std::vector<Byte>         woz;
+        std::vector<std::string>  rows;
+
+        AssertSucceeded (ThirteenSectorCodec::Nibblize (flat, 254, image));
+        AssertSucceeded (WozLoader::Serialize (image, woz));
+
+        rig.Connect();
+        AssertSucceeded (rig.machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Woz, woz));
+        rig.Read (2, 0, sectors, CassoLinkHost::kErrorNotFound);
+
+        for (int frame = 0; frame < 60; frame++)
+        {
+            rig.machine.RunCycles (kFrame);
+        }
+
+        rows = TextScreenScraper::Scrape (rig.machine);
+        Assert::IsTrue (rows[10].starts_with ("D2: 13-sector disk"), TextEncoding::NarrowToWide (rows[10]).c_str());
     }
 
 

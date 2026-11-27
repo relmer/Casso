@@ -203,6 +203,13 @@ struct BlockMap
     //  damage, in its findings.
     static LPCWSTR     GetRoleName (SectorRole role);
 
+    //  A damage role as a finding's sentence, for `count` blocks or sectors,
+    //  as "There are 7 blocks in use that are marked free", and for the one block a header
+    //  describes, as "This block is in two or more files". Empty for any
+    //  other role.
+    static std::wstring  FormatRoleFinding  (SectorRole role, size_t count, bool isSectors = false);
+    static std::wstring  FormatBlockFinding (SectorRole role);
+
     //  The first 512-byte block of an HFS allocation block.
     uint32_t          GetAllocationBlock (uint32_t allocationBlock) const { return allocationStart + allocationBlock * blocksPerAllocation; }
 };

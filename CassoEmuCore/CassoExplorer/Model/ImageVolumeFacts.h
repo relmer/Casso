@@ -22,6 +22,7 @@ struct VolumeFacts
 {
     std::wstring  fileSystem;
     std::wstring  volumeName;
+    std::wstring  problem;      // why the image can't be opened, or empty
 
     bool  operator== (const VolumeFacts &) const = default;
 };
@@ -67,6 +68,9 @@ public:
     //  Queues the files not read yet, in place of any still queued.
     void  Queue    (const std::vector<Request> & requests);
     void  Cancel   ();
+
+    //  Discards a file's facts, so they are read again when next queued.
+    void  Erase    (const std::wstring & path);
 
     //  An image's facts, read on the calling thread.
     static VolumeFacts  Read (IDiskFileIo & fileIo, const std::string & path);

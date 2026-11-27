@@ -19,17 +19,17 @@ struct BlockField;
 //
 //  The current block's hex view beside its fields list: the bytes with
 //  their marks, a byte's tip, a cut-off field row's tip, and the most bytes
-//  in a hex row that fit. The views are children of the panel that creates
-//  the pane.
+//  in a hex row that fit. The hex view draws the edit look. The views are
+//  children of the panel that creates the pane.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class BlockHexPane
 {
 public:
-    static constexpr int    kBytesPerRow  = 16;
-    static constexpr int    kMinHexBytes  = 8;       // the fewest bytes in a hex row when the fields are fitted
-    static constexpr float  kHexScrollDip = 12.0f;   // room for the hex view's vertical scroll bar
+    static constexpr int    kBytesPerRow   = 16;
+    static constexpr int    kMinHexBytes   = 8;       // the fewest bytes in a hex row when the fields are fitted
+    static constexpr float  kHexScrollDip  = 12.0f;   // room for the hex view's vertical scroll bar
 
     void  Create       (DxuiPanel & parent);
     void  SetPopupHost (DxuiHwndSource * host) { m_fieldTip.SetPopupHost (host); }
@@ -56,6 +56,11 @@ public:
     //  or 0 before the view has measured its text.
     int  MeasureMinHexPx (const DxuiDpiScaler & scaler);
 
+    //  The hex view's width within `widthPx`: its columns for the most bytes
+    //  in a row that fit, its scroll bar and the edit frame, or `widthPx`
+    //  before the view has measured its text.
+    int  FitHexWidthPx (int widthPx, const DxuiDpiScaler & scaler);
+
     //  The tip for a byte under a point: its field, and what its color
     //  marks. False where there is no byte.
     bool  GetTooltip (POINT pointPx, const BlockInspectorModel & model, std::wstring & outText, RECT & outAnchorPx, vector<DxuiTooltipSwatch> & outSwatches) const;
@@ -69,7 +74,7 @@ private:
     static constexpr uint32_t  s_kFieldColor   = 0xFF60B0F0;
     static constexpr uint32_t  s_kLinkColor    = 0xFF60D090;
 
-    static uint32_t  GetMarkColor (uint8_t mark);
+    uint32_t  GetMarkColor (uint8_t mark) const;
 
     void  FitRows (int widthPx, const DxuiDpiScaler & scaler);
 

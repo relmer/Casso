@@ -20,6 +20,7 @@ static constexpr LPCWSTR s_kpszTriangleDown  = L"\x25BC";       // U+25BC BLACK 
 static constexpr LPCWSTR s_kpszTriangleRight = L"\x25B6";       // U+25B6 BLACK RIGHT-POINTING TRIANGLE
 static constexpr LPCWSTR s_kpszTriangleLeft  = L"\x25C0";       // U+25C0 BLACK LEFT-POINTING TRIANGLE
 static constexpr LPCWSTR s_kpszMinusSign     = L"\x2212";       // U+2212 MINUS SIGN (-)
+static constexpr LPCWSTR s_kpszTimesSign     = L"\x00D7";       // U+00D7 MULTIPLICATION SIGN
 
 // Segoe MDL2 Assets icon-font glyphs (private use area; render only with
 // the "Segoe MDL2 Assets" family).
@@ -33,5 +34,6 @@ static constexpr LPCWSTR s_kpszMdl2ChevronRight = L"\xE76C";    // U+E76C Segoe 
 static constexpr LPCWSTR s_kpszMdl2Calendar     = L"\xE787";    // U+E787 Segoe MDL2 Calendar
 static constexpr LPCWSTR s_kpszMdl2ChromeClose  = L"\xE8BB";    // U+E8BB Segoe MDL2 ChromeClose (a window or tab close X)
 static constexpr LPCWSTR s_kpszMdl2WarningSolid = L"\xE814";    // U+E814 Segoe MDL2 warning triangle, filled
+static constexpr LPCWSTR s_kpszMdl2InfoRing     = L"\xE946";    // U+E946 Segoe MDL2 "i" in a ring
 static constexpr LPCWSTR s_kpszMdl2Pinned       = L"\xE840";    // U+E840 Segoe MDL2 Pinned (outline, with its needle)
 static constexpr LPCWSTR s_kpszMdl2PinnedFill   = L"\xE842";    // U+E842 Segoe MDL2 PinnedFill (the head, filled)

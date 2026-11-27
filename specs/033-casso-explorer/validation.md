@@ -809,6 +809,14 @@ Archon, the owner's original disk, captured from drive 1 of the owner's //c over
 | Sectors | Every sector of tracks 0 to 4 and 7 to 34 matches the reference's but six: track 1's sector 3 and one sector each of tracks 23, 27 and 29 differ with good checksums, as the owner's copy differs from the reference's; two sectors of track 30 have a bad nibble, and track 31's sector 12 is missing. Tracks 4.75 to 6.5 have no flux on the owner's disk |
 | Boot | In Casso's //c, the image boots to Archon's board and its options screen |
 
+Captured again 2026-11-21 from drive 2 with this build (Release), synchronized:
+
+| Measure | Result |
+|---|---|
+| Time | 7 minutes 19 seconds: 144 reads, 120 seconds reading the disk and 294 seconds sending over the line, 1,427,456 bytes sent for 2,027,520 stored. SC-055's 5 minutes isn't met |
+| Positions | 12 of the 102 positions between whole tracks; 39 streams, 4 weak tracks and no unstable one |
+| Boot | In Casso, the image boots to Archon's options screen |
+
 ## 17. SOS disks in MAME's Apple ///, 2026-11-12 (T626 to T628, SC-060)
 
 MAME 0.289's `apple3` with the Apple /// ROM from the apple2.org.za
@@ -1212,8 +1220,17 @@ Fixed during the walk:
 
 ### 7f. CassoLink additions
 
-Not walked: the owner's //c is on COM3 for another session's captures, and the
-emulator targets are that session's.
+Walked on the emulator targets by the Story 23 to 29 tasks; the results are in the
+sections below. The step on the owner's //c left is under T580.
+
+| Step | Result |
+|---|---|
+| 1. Block devices | AppleWin's hard disk and MAME's //c with a UniDisk 3.5: Block devices in other emulators (T574) and Block devices in MAME (T709) |
+| 2. Raw capture | Each protected WOZ captured in an emulated //c and booted: `CassoLinkCaptureTests` (T579). Archon on the owner's //c took 18 minutes 47 seconds, over SC-055's 5 minutes: section 16 (T580, open) |
+| 3. Virtual drives | SAVE to each drive on an emulated //c: `CassoLinkVirtualDriveTests` (T585). Passed on the owner's //c 2026-11-22 (SC-056): CAT of each drive, and TEST1 and TEST2 saved from BASIC.SYSTEM to drives 1 and 2 and found in their .po images |
+| 4. Cassette disks | A 140K disk each way on an emulated ][+ and //e, and ADTPro's audio client: `CassoLinkCassetteTests` and `CassoLinkAdtProAudioTests` (T592) |
+| 5. Tape recordings | Each format loaded and run in an emulated ][+ and read back: `TapeRecordingTests` (T597) |
+| 6. Interfaces and the Apple /// | Story 28's emulator targets (T602) and section 18 (T606) |
 
 ### 7g. File systems and layouts
 
@@ -1351,3 +1368,75 @@ whether or not a disk is in it, since the drive isn't checked before then. The
 Apple's line read "Bad 0" while the window counted 1 disk with bad sectors.
 
 The walk on the owner's //c remains for both tasks.
+
+
+## A CFFA card on screen (T677, T772, 2026-11-20)
+
+Walked on the 2 GB CF card in a USB reader, in a copy of Casso Explorer started
+with `CASSO_PROFILE_DIR` set to a profile with no links, so no serial port was
+opened. Input was posted to the window and checked by capture. Nothing was
+written to the card.
+
+| Step | Result |
+|---|---|
+| Casso Explorer started with the card in the reader | This PC lists "Storage card (H:, SCM CF USB3.0 CF SD, 1.9 GB)" and hides H:, after the fix below |
+| The card opened | Casso Explorer's Administrator access prompt, then Windows' UAC prompt for Casso Storage Card Broker |
+| The card | four 32 MB CFFA partitions: NEWDISK, CARD2, CARD3 and CARD4 |
+| Partition 1 | the volume, 31.9 MB free, with the folder WALK |
+| WALK | the folder DEEP and the 21-byte text file HELLO |
+| Inspect disk image on partition 1 | "Block inspector - Partition 1: NEWDISK on SCM CF USB3.0 CF SD (1.9 GB)": block 0 is the ProDOS boot loader, with the volume bitmap, volume directory and WALK listed; 65,536 blocks, 25 used |
+
+A card already in the reader when Casso Explorer started wasn't listed: since
+the cards stopped being read every two seconds, they were read only when a
+drive letter changed or Windows reported a device change. They are now read
+once at the start.
+
+The card's node in the tree had no expander after the card was opened: a tree
+node read with nothing under it stayed that way when it was refreshed with
+children to read. Now the node opens to the four partitions.
+
+## A 13-sector disk on the owner's //c (T611, 2026-11-22)
+
+CiderPress II's `3.2.1-master.d13` was written to a blank floppy in the //c's
+drive 2 over CassoLink on COM3, and the disk booted DOS 3.2.1 through Apple's 13-sector boot utility (BOOT13), since the //c's ROM boots only 16-sector disks. Create image
+from read it back as `DOS 3.2.1 Master.d13` in 0:45, with no sectors that
+couldn't be read. The two files are byte-identical, 116,480 bytes each.
+
+The program's bar stayed empty through the 13-sector read and write: those
+requests didn't send the bar's percentages. They do now.
+
+## Images opened from File Explorer in a temporary machine (T1414, 2026-11-25)
+
+The developer build registered itself at startup and replaced its earlier
+`--disk1` registration with `--launch "%1"`, the block types and `.d13`, and
+the six `Casso.OpenOn` rows. Each image was opened from a copy, with the
+window started minimized and not activated. Opening a type went through
+`ShellExecuteEx` with the default verb, as a double-click does; an Open in
+Casso on row ran the row's registered command. A launch was checked by its
+process and its window title.
+
+| Opened | Result |
+|---|---|
+| .dsk .do .po .woz .nib .nb2, default verb | "Apple //e Enhanced (temporary)" |
+| .d13 .2mg .2img .hdv .dc .dc42 .image, default verb | Windows' "Pick an app" prompt, the first time each type is opened |
+| 140K .dsk, each Open on row | every model, "(temporary)" |
+| 800K .image, each Open on row | every model but the Apple ][, "(temporary)"; the Apple ][ refusal message |
+| 32 MB .hdv, each Open on row | the ][, ][+, //e and //e Enhanced, "(temporary)"; a refusal message on the //c and //c Plus |
+
+`CassoData\Machines` and `UserPrefs.json` were byte-identical before and
+after the launches (SC-079).
+
+Windows displays its app prompt the first time a type is opened after a
+program registers it, and the user's answer is stored where a program can't
+write it. The six types an earlier build registered had been opened before,
+so only the new seven prompted.
+
+Not checked here: the guest screen after each boot, Casso Explorer's Open on
+rows on screen, and the package's submenu, which can only be checked in an installed package.
+
+## Hex dump as a copy conversion (T1432, 2026-11-26)
+
+The owner checked the hex dump conversion on screen in Casso Explorer.
+
+Not checked here: the hex dump item on File Explorer's right-drag menu, as
+the registered shell extension was an older build. The 033 gate wasn't run.

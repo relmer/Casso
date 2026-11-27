@@ -339,8 +339,8 @@ public:
         NativeListing::FormatCpm (listing, lines);
 
         Assert::AreEqual (std::string ("Recs  Bytes  Ext Acc"), lines[0]);
-        Assert::AreEqual (std::string ("  56     7k    1 R/W A:TEST.COM"), lines[1]);
-        Assert::AreEqual (std::string (" 256    32k    3 R/W A:TESTFILE"), lines[2]);
+        Assert::AreEqual (std::string ("  56     7k    1 R/W TEST.COM"), lines[1]);
+        Assert::AreEqual (std::string (" 256    32k    3 R/W TESTFILE"), lines[2]);
 
         AssertSucceeded (volume.Read (FilePath::Parse ("TEST.COM"), test));
 
@@ -385,9 +385,9 @@ public:
 
         NativeListing::FormatCpm (listing, lines);
 
-        Assert::AreEqual (std::string ("Bytes Remaining On A: 3k"), lines[lines.size() - 5]);
+        Assert::AreEqual (std::string ("3k free"), lines[lines.size() - 5]);
         Assert::AreEqual (std::string ("USER 31"), lines[lines.size() - 3]);
-        Assert::AreEqual (std::string ("  96    12k    1 R/W A:cp/am.sys"), lines.back());
+        Assert::AreEqual (std::string ("  96    12k    1 R/W 31:cp/am.sys"), lines.back());
 
         //  Strings that cross a sector boundary confirm the skew.
         AssertSucceeded (volume.Read (FilePath::Parse ("CONFIGIO.COM"), configure));

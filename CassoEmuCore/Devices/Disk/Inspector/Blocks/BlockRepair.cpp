@@ -358,7 +358,7 @@ void BlockRepair::PlanProDosBitmap (Work & work)
     if (pastEnd > 0)
     {
         AddChange (work, L"pastend", L"Mark " + NumberFormat::FormatInteger (pastEnd) + (pastEnd == 1 ? L" block" : L" blocks") + L" past the end of the volume as used in the bitmap",
-                   NumberFormat::FormatInteger (pastEnd) + (pastEnd == 1 ? L" block past the end of the volume is" : L" blocks past the end of the volume are") + L" marked free");
+                   (pastEnd == 1 ? L"There is " : L"There are ") + NumberFormat::FormatInteger (pastEnd) + (pastEnd == 1 ? L" block past the end of the volume that is" : L" blocks past the end of the volume that are") + L" marked free");
     }
 }
 
@@ -566,7 +566,8 @@ void BlockRepair::AddBitmapChanges (Work & work, const Tally & tally, LPCWSTR un
 {
     auto  noun  = [unit] (int n) { return std::wstring (unit) + (n == 1 ? L"" : L"s"); };
     auto  count = [noun] (int n) { return NumberFormat::FormatInteger (n) + L" " + noun (n); };
-    auto  verb  = [] (int n) { return (n == 1) ? L" is" : L" are"; };
+    auto  verb  = [] (int n) { return (n == 1) ? L" that is" : L" that are"; };
+    auto  there = [] (int n) { return std::wstring ((n == 1) ? L"There is " : L"There are "); };
     int   s     = tally.structures;
 
 
@@ -578,19 +579,19 @@ void BlockRepair::AddBitmapChanges (Work & work, const Tally & tally, LPCWSTR un
 
         if (n > 0)
         {
-            AddChange (work, L"used:" + path, L"Mark " + count (n) + L" of " + path + L" as used in the bitmap", count (n) + L" used by " + path + verb (n) + L" marked free");
+            AddChange (work, L"used:" + path, L"Mark " + count (n) + L" of " + path + L" as used in the bitmap", there (n) + count (n) + L" used by " + path + verb (n) + L" marked free");
         }
     }
 
     if (s > 0)
     {
         AddChange (work, L"structures", L"Mark " + NumberFormat::FormatInteger (s) + L" " + structure + L" " + noun (s) + L" as used in the bitmap",
-                   NumberFormat::FormatInteger (s) + L" " + structure + L" " + noun (s) + verb (s) + L" marked free");
+                   there (s) + NumberFormat::FormatInteger (s) + L" " + structure + L" " + noun (s) + verb (s) + L" marked free");
     }
 
     if (tally.unowned > 0)
     {
-        AddChange (work, L"unowned", L"Mark " + count (tally.unowned) + L" not in any file as free in the bitmap", count (tally.unowned) + L" not in any file" + verb (tally.unowned) + L" marked used");
+        AddChange (work, L"unowned", L"Mark " + count (tally.unowned) + L" not in any file as free in the bitmap", there (tally.unowned) + count (tally.unowned) + L" not in any file" + verb (tally.unowned) + L" marked used");
     }
 }
 

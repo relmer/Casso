@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 #include "Machines/Apple2/Common/InfocomSave.h"
+#include "InfocomSaveBuilder.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -12,10 +13,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  InfocomSaveTests
 //
-//  A save disk built here as the interpreter writes one: a version 3
-//  story's dynamic memory, with one object, HALL, and the room, score and
-//  moves in its first globals, after three pages of state, from track 8 for
-//  position 2, in physical sector order. The real save is in
+//  InfocomSaveBuilder's save disk, read back. The real save is in
 //  ScenarioTests/GameDataTests.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -24,79 +22,9 @@ TEST_CLASS (InfocomSaveTests)
 {
 public:
 
-    static constexpr size_t  kDiskBytes  = 143360;
-    static constexpr size_t  kObjects    = 0x40;
-    static constexpr size_t  kGlobals    = 0x100;
-    static constexpr size_t  kNameTable  = 0x180;
-    static constexpr size_t  kStatic     = 0x200;
-
-
-    static void PutWord (std::vector<Byte> & bytes, size_t at, int value)
-    {
-        bytes[at]     = (Byte) ((value >> 8) & 0xFF);
-        bytes[at + 1] = (Byte) (value & 0xFF);
-    }
-
-
-    //  The story's dynamic memory, `flags` the header's first flags byte.
-    static std::vector<Byte> MakeMemory (Byte flags)
-    {
-        std::vector<Byte>  memory (kStatic, 0);
-        size_t             entry = kObjects + 31 * 2;
-
-
-
-        memory[0] = 3;
-        memory[1] = flags;
-        PutWord (memory, 0x02, 5);
-        PutWord (memory, 0x0A, (int) kObjects);
-        PutWord (memory, 0x0C, (int) kGlobals);
-        PutWord (memory, 0x0E, (int) kStatic);
-        memcpy (&memory[0x12], "123456", 6);
-
-        //  Object 1's property table: its name in two words, "hall" as the
-        //  Z-characters 13, 6, 17, 17, then two pads of 5.
-        PutWord (memory, entry + 7, (int) kNameTable);
-        memory[kNameTable] = 2;
-        PutWord (memory, kNameTable + 1, (13 << 10) | (6 << 5) | 17);
-        PutWord (memory, kNameTable + 3, 0x8000 | (17 << 10) | (5 << 5) | 5);
-
-        PutWord (memory, kGlobals,     1);
-        PutWord (memory, kGlobals + 2, 7);
-        PutWord (memory, kGlobals + 4, 12);
-
-        return memory;
-    }
-
-
-    //  A disk with `memory` saved at `position`, in DOS sector order.
-    static std::vector<Byte> MakeDisk (const std::vector<Byte> & memory, int position)
-    {
-        static constexpr int  kDosSectorOfPhysical[16] = { 0, 13, 11, 9, 7, 5, 3, 1, 14, 12, 10, 8, 6, 4, 2, 15 };
-
-        std::vector<Byte>  disk (kDiskBytes, 0);
-        std::vector<Byte>  stream (InfocomSave::kStatePages * InfocomSave::kPageBytes, 0xA5);
-
-
-
-        stream.insert (stream.end(), memory.begin(), memory.end());
-        stream.resize ((stream.size() + 255) / 256 * 256, 0);
-
-        for (size_t page = 0; page * 256 < stream.size(); page++)
-        {
-            size_t  track = (size_t) position * InfocomSave::kTracksPerPosition + page / 16;
-            size_t  at    = (track * 16 + (size_t) kDosSectorOfPhysical[page % 16]) * 256;
-
-            memcpy (&disk[at], &stream[page * 256], 256);
-        }
-
-        return disk;
-    }
-
-
     TEST_METHOD (TryReadPosition_ReadsTheRoomScoreAndMoves)
     {
-        std::vector<Byte>       disk = MakeDisk (MakeMemory (0), 2);
+        std::vector<Byte>       disk = InfocomSaveBuilder::MakeDisk (InfocomSaveBuilder::MakeMemory (0), 2);
         InfocomSave::Position   position;
 
 
@@ -114,11 +42,136 @@ public:
     }
 
 
+    //  The player is the object in the room that a global variable has, its
+    //  tree is what it carries, and the rest of the room's tree is what's
+    //  there. Every object is named "hall" by the builder's one name table.
+    TEST_METHOD (TryReadPosition_ReadsWhatIsCarriedAndWhatIsHere)
+    {
+        constexpr size_t       kEntries = InfocomSaveBuilder::kObjects + 31 * 2;
+        constexpr size_t       kSize    = 9;
+        std::vector<Byte>      memory   = InfocomSaveBuilder::MakeMemory (0);
+        InfocomSave::Position  position;
+
+
+
+        for (size_t n = 1; n <= 4; n++)
+        {
+            InfocomSaveBuilder::PutWord (memory, kEntries + (n - 1) * kSize + 7, (int) InfocomSaveBuilder::kNameTable);
+        }
+
+        memory[kEntries + 0 * kSize + 6] = 2;      // the hall has the player
+        memory[kEntries + 1 * kSize + 4] = 1;
+        memory[kEntries + 1 * kSize + 5] = 4;      // and the box after it
+        memory[kEntries + 1 * kSize + 6] = 3;      // the player has the lamp
+        memory[kEntries + 2 * kSize + 4] = 2;
+        memory[kEntries + 3 * kSize + 4] = 1;
+        InfocomSaveBuilder::PutWord (memory, InfocomSaveBuilder::kGlobals + 3 * 2, 2);
+
+        Assert::IsTrue (InfocomSave::TryReadPosition (InfocomSaveBuilder::MakeDisk (memory, 0), 0, position));
+        Assert::IsTrue (position.carried == std::vector<InfocomSave::Item> ({ { 0, L"hall" } }), L"The lamp");
+        Assert::IsTrue (position.here    == std::vector<InfocomSave::Item> ({ { 0, L"hall" } }), L"The box, and not the player");
+    }
+
+    //  The player can be in something in the room, such as a bed, and a
+    //  lower global can have another character: the object with something
+    //  in it is the player. Objects 2 to 5 are a bed, a character, the
+    //  player in the bed, and a lamp the player has.
+    TEST_METHOD (TryReadPosition_FindsThePlayerInABed)
+    {
+        constexpr size_t       kEntries = InfocomSaveBuilder::kObjects + 31 * 2;
+        constexpr size_t       kSize    = 9;
+        std::vector<Byte>      memory   = InfocomSaveBuilder::MakeMemory (0);
+        InfocomSave::Position  position;
+
+
+
+        for (size_t n = 1; n <= 5; n++)
+        {
+            InfocomSaveBuilder::PutWord (memory, kEntries + (n - 1) * kSize + 7, (int) InfocomSaveBuilder::kNameTable);
+        }
+
+        memory[kEntries + 0 * kSize + 6] = 2;      // the hall has the bed
+        memory[kEntries + 1 * kSize + 4] = 1;
+        memory[kEntries + 1 * kSize + 5] = 3;      // and the character after it
+        memory[kEntries + 1 * kSize + 6] = 4;      // the bed has the player
+        memory[kEntries + 2 * kSize + 4] = 1;
+        memory[kEntries + 3 * kSize + 4] = 2;
+        memory[kEntries + 3 * kSize + 6] = 5;      // the player has the lamp
+        memory[kEntries + 4 * kSize + 4] = 4;
+        InfocomSaveBuilder::PutWord (memory, InfocomSaveBuilder::kGlobals + 3 * 2, 3);
+        InfocomSaveBuilder::PutWord (memory, InfocomSaveBuilder::kGlobals + 4 * 2, 4);
+
+        Assert::IsTrue (InfocomSave::TryReadPosition (InfocomSaveBuilder::MakeDisk (memory, 0), 0, position));
+        Assert::IsTrue (position.carried == std::vector<InfocomSave::Item> ({ { 0, L"hall" } }), L"The lamp");
+        Assert::IsTrue (position.here    == std::vector<InfocomSave::Item> ({ { 0, L"hall" }, { 0, L"hall" } }), L"The bed and the character, and not the player");
+    }
+
+
+    //  A later interpreter numbers positions from 1, in slots of 136 pages
+    //  for a version 4 story that fits them and 184 for a version 5 story.
+    //  Its status line isn't in the globals.
+    TEST_METHOD (FindPositions_ReadsALaterInterpretersSlots)
+    {
+        std::vector<Byte>                   memory = InfocomSaveBuilder::MakeMemory (0);
+        std::vector<InfocomSave::Position>  positions;
+
+
+
+        memory[0] = 4;
+        InfocomSave::FindPositions (InfocomSaveBuilder::MakeLateDisk (memory, 1, InfocomSave::kSmallSlotPages), positions);
+
+        Assert::AreEqual ((size_t) 1, positions.size());
+        Assert::AreEqual (2, positions[0].number, L"The second slot is position 2");
+        Assert::AreEqual (4, positions[0].version);
+        Assert::IsFalse  (positions[0].hasStatus);
+
+        memory[0] = 5;
+        InfocomSave::FindPositions (InfocomSaveBuilder::MakeLateDisk (memory, 2, InfocomSave::kLargeSlotPages), positions);
+
+        Assert::AreEqual ((size_t) 1, positions.size());
+        Assert::AreEqual (3, positions[0].number);
+
+        InfocomSave::FindPositions (InfocomSaveBuilder::MakeLateDisk (memory, 1, InfocomSave::kSmallSlotPages), positions);
+        Assert::IsTrue (positions.empty(), L"A version 5 story is never in the small slots");
+    }
+
+
+    //  A later story in the table has its moves, or its clock in minutes,
+    //  from the table's global, and no score.
+    TEST_METHOD (FindPositions_ReadsALaterStorysMovesOrClock)
+    {
+        std::vector<Byte>                   memory = InfocomSaveBuilder::MakeMemory (0);
+        std::vector<InfocomSave::Position>  positions;
+
+
+
+        memory.resize (0x300, 0);
+        memory[0] = 4;
+        InfocomSaveBuilder::PutWord (memory, 0x0E, 0x300);
+        InfocomSaveBuilder::PutWord (memory, 0x02, 77);
+        memcpy (&memory[0x12], "850814", 6);
+        InfocomSaveBuilder::PutWord (memory, InfocomSaveBuilder::kGlobals + 57 * 2, 1149);
+        InfocomSave::FindPositions (InfocomSaveBuilder::MakeLateDisk (memory, 0, InfocomSave::kSmallSlotPages), positions);
+
+        Assert::AreEqual ((size_t) 1, positions.size());
+        Assert::IsTrue   (positions[0].isTimed && !positions[0].hasScore);
+        Assert::AreEqual (std::string ("A Mind Forever Voyaging (release 77), time 7:09 PM"), InfocomSave::Describe (positions[0]));
+
+        InfocomSaveBuilder::PutWord (memory, 0x02, 11);
+        memcpy (&memory[0x12], "860509", 6);
+        InfocomSaveBuilder::PutWord (memory, InfocomSaveBuilder::kGlobals + 133 * 2, 42);
+        InfocomSave::FindPositions (InfocomSaveBuilder::MakeLateDisk (memory, 0, InfocomSave::kSmallSlotPages), positions);
+
+        Assert::AreEqual ((size_t) 1, positions.size());
+        Assert::AreEqual (std::string ("Trinity (release 11), 42 moves"), InfocomSave::Describe (positions[0]));
+    }
+
+
     //  A version 3 story with the timed flag has the hours and minutes in
     //  the globals of the score and the moves.
     TEST_METHOD (Describe_ATimedStoryHasTheTime)
     {
-        std::vector<Byte>       disk = MakeDisk (MakeMemory (0x02), 0);
+        std::vector<Byte>       disk = InfocomSaveBuilder::MakeDisk (InfocomSaveBuilder::MakeMemory (0x02), 0);
         InfocomSave::Position   position;
 
 
@@ -161,8 +214,8 @@ public:
 
     TEST_METHOD (FindPositions_OnlyTheSavedOnes)
     {
-        std::vector<Byte>                    disk = MakeDisk (MakeMemory (0), 7);
-        std::vector<Byte>                    blank (kDiskBytes, 0);
+        std::vector<Byte>                    disk = InfocomSaveBuilder::MakeDisk (InfocomSaveBuilder::MakeMemory (0), 7);
+        std::vector<Byte>                    blank (InfocomSaveBuilder::kDiskBytes, 0);
         std::vector<InfocomSave::Position>   positions;
 
 

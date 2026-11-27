@@ -206,10 +206,33 @@ public:
             Assert::IsTrue (RunUntilScreenShows (machine, "]", kBootCap), L"the machine stops at BASIC");
             KeystrokeInjector::InjectLine (machine, "PR#5");
 
-            Assert::IsTrue (RunUntilScreenShows (machine, "PRODOS 1.0", kBootCap), TextEncoding::NarrowToWide (machineId).c_str());
+            bool ok = RunUntilScreenShows (machine, "PRODOS 1.0", kBootCap);
+            if (!ok) { Logger::WriteMessage (std::format ("PC {:04X}\n", machine.GetCpu()->GetPC()).c_str()); std::vector<std::string> rows; GuestSession::CollectRows (machine, rows); for (auto & r : rows) Logger::WriteMessage ((r + "\n").c_str()); }
+            Assert::IsTrue (ok, TextEncoding::NarrowToWide (machineId).c_str());
         }
     }
 
+
+    //  A TEMPORARY ][+ STARTS SLOT 7 after power on: its ROM boots only a
+    //  Disk II, so with the Disk II in slot 6 and no disk in it, the machine
+    //  otherwise loops in slot 6's ROM.
+    TEST_METHOD (LironCard_BootSlotStartsTheCardOnIIPlus)
+    {
+        FakeDiskFileIo           io;
+        std::vector<PortConfig>  ports;
+
+
+
+        Attach (io, Make800K (GuestSession::RequireProDosUsersDisk()), ports);
+        ports[0].device = kpszUniDisk35Device;
+
+        TestMachine  machine ("Apple2Plus", TestMachine::Slots::AsShipped, { { 7, kpszLironCardDevice, ports } }, io,
+                              [] (MachineConfig & config, MachineBuildServices &) { config.bootSlot = 7; });
+
+        machine.PowerCycle();
+
+        Assert::IsTrue (RunUntilScreenShows (machine, "PRODOS 1.0", kBootCap), L"ProDOS boots from the card in slot 7");
+    }
 
     //  TWO CHAINED UNIDISKS both take unit numbers: the first passes the bus
     //  enable to the second once it has its number.

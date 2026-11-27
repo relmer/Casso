@@ -53,15 +53,47 @@ HRESULT ExplorerInspectorWindow::Create (HINSTANCE hInstance, HWND anchor, const
     hr = m_window->Create (hInstance, anchor, theme, host, true);
     CHR (hr);
 
+    //  Casso Explorer's icon, in the caption as well as on the taskbar.
     icon = (anchor != nullptr) ? reinterpret_cast<HICON> (SendMessageW (anchor, WM_GETICON, ICON_BIG, 0)) : nullptr;
-
-    if (icon != nullptr)
-    {
-        SendMessageW (m_window->GetHwnd(), WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM> (icon));
-    }
+    m_window->SetAppIcon (icon);
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerInspectorWindow::ConfirmExit
+//
+//  A minimized window with unsaved edits is restored first, so its prompt
+//  opens over it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerInspectorWindow::ConfirmExit()
+{
+    BOOL  isShown = FALSE;
+
+
+
+    if (!m_window->HasUnsavedEdits())
+    {
+        return true;
+    }
+
+    if (IsIconic (m_window->GetHwnd()))
+    {
+        isShown = ShowWindow (m_window->GetHwnd(), SW_RESTORE);
+        IGNORE_RETURN_VALUE (isShown, TRUE);
+    }
+
+    Front();
+
+    return m_window->ConfirmDiscardEdits (L"Exiting Casso Explorer", nullptr);
 }
 
 
@@ -253,4 +285,19 @@ void ExplorerInspectorWindow::ChangeTheme (const DxuiTheme * theme)
 HWND ExplorerInspectorWindow::GetHwnd() const
 {
     return m_window->GetHwnd();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerInspectorWindow::Close
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerInspectorWindow::Close()
+{
+    m_window->Hide();
 }

@@ -32,11 +32,17 @@ public:
     HRESULT  PlaceOnClipboard  (HWND owner, const std::vector<std::wstring> & paths, bool cut);
     bool     ClipboardHasFiles () const;
     HRESULT  PasteInto         (HWND owner, const std::wstring & folder, IShellItemVerbs::PasteResult & outResult);
+    HRESULT  DropInto          (HWND owner, IDataObject * data, const std::wstring & folder, bool isMove, IShellItemVerbs::PasteResult & outResult);
     HRESULT  MoveItemsTo       (HWND owner, const std::vector<std::wstring> & paths, const std::vector<std::wstring> & targets);
     HRESULT  CreateFolder      (HWND owner, const std::wstring & parent, const std::wstring & name);
     HRESULT  Share             (HWND owner, const std::vector<std::wstring> & paths);
 
     static bool  IsFromFolder (IDataObject * data, const std::wstring & folder);
+
+    //  Whether the folder's volume stores named streams, and whether a file
+    //  in the object has a name the folder has already.
+    static bool  HasNamedStreams (const std::wstring & folder);
+    static bool  HasNameInFolder (IDataObject * data, const std::wstring & folder);
 
     //  Whether the two paths are one folder, compared without a final
     //  backslash: a drive's root, I:\, ends in one, and a folder's path may.
@@ -87,6 +93,8 @@ public:
 
 private:
     friend class Win32ShellItemVerbs;
+
+    HRESULT  TransferInto (HWND owner, IDataObject * data, const std::wstring & folder, bool isMove, IShellItemVerbs::PasteResult & outResult);
 
     Win32ShellItemVerbs  & m_verbs;
     Win32ShareSheet        m_shareSheet;

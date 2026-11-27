@@ -6,8 +6,11 @@
 #include "CassoExplorer/Model/FolderOptions.h"
 #include "CassoExplorer/Window/ExplorerContext.h"
 #include "CassoExplorer/Window/Managers/CassoLinkDriveManager.h"
+#include "CassoExplorer/Window/Managers/CassoLinkListActions.h"
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerImageTools.h"
+#include "CassoExplorer/Window/Managers/ExplorerVerbs.h"
 #include "CassoExplorer/Window/Managers/ExplorerDragDrop.h"
 #include "CassoExplorer/Window/Managers/ExplorerClipboard.h"
 #include "CassoExplorer/Window/Managers/ExplorerTransferPrompts.h"
@@ -28,6 +31,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerThemes.h"
 #include "CassoExplorer/Window/Managers/ExplorerTips.h"
 #include "CassoExplorer/Window/Managers/FullSendWindowManager.h"
+#include "CassoExplorer/Window/Managers/CassoLinkJobManager.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
@@ -106,13 +110,17 @@ struct ExplorerWindowParts
     ExplorerFolderSync                      folderSync       { context };
     CassoLinkManager                        cassoLinkManager { context };
     CassoLinkDriveManager                   linkDrives       { context };
+    CassoLinkListActions                    linkListActions  { context };
     FullSendWindowManager                   fullSendWindows  { context };
+    CassoLinkJobManager                     linkJobs         { context };
     ExplorerDragDrop                        dragDrop         { context };
     ExplorerTabManager                      tabManager       { context };
     ExplorerPreviewManager                  preview          { context };
     ExplorerAddressBar                      addressBar       { context };
     ExplorerMenus                           menus            { context };
     ExplorerCommandManager                  commandManager   { context };
+    ExplorerVerbs                           verbs            { context };
+    ExplorerImageTools                      imageTools       { context };
     ExplorerClipboard                       clipboard        { context };
     ExplorerTransferPrompts                 prompts          { context };
     ExplorerDeletion                        deletion         { context };

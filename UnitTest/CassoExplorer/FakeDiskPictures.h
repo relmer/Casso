@@ -25,6 +25,7 @@ public:
     static constexpr int       kHeight = 384;
 
     std::wstring  resultLine = L"Boots on the Apple //e.";
+    bool          hasPicture = true;
 
 
 
@@ -54,6 +55,11 @@ public:
 
         (void) path;
 
+        if (!hasPicture)
+        {
+            return false;
+        }
+
         image->width  = kWidth;
         image->height = kHeight;
         image->bgraPremul.assign ((size_t) kWidth * kHeight, kColor);
@@ -81,13 +87,16 @@ public:
     void                      RemoveTarget    (HWND) override                              {}
     bool                      HasThumbnail    (const std::wstring &) override              { return false; }
     HRESULT                   RemoveThumbnail (const std::wstring &) override              { return S_OK; }
+    HRESULT                   SetThumbnail    (const std::wstring &, std::span<const Byte>) override { return S_OK; }
     std::vector<std::string>  GetKeys         (const std::vector<std::wstring> &) override { return {}; }
     void                      RemoveDeleted   (const std::vector<std::string> &) override  {}
     int                       CountUserSet    () override                                  { return 0; }
     HRESULT                   Clear           (bool) override                              { return S_OK; }
     size_t                    GetQueued       () override                                  { return queued; }
+    bool                      IsBooting       (const std::wstring &) override              { return isBooting; }
 
-    size_t  queued = 0;
+    size_t  queued    = 0;
+    bool    isBooting = false;
 
 private:
     std::mutex                                 m_lock;

@@ -146,6 +146,7 @@ public:
     //  What the container itself records: for WOZ, the INFO and META chunks and
     //  how much of the surface the track map claims.
     static std::string  DescribeWozChunks (const std::vector<Byte> & fileBytes);
+    static std::string  DescribeStamp     (const std::vector<Byte> & fileBytes);
 
     //  A 2IMG or Disk Copy 4.2 image's header, listed as the WOZ chunks are.
     static std::string  DescribeContainerHeader (const std::vector<Byte> & fileBytes);

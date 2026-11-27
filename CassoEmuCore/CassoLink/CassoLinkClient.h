@@ -35,10 +35,19 @@ struct CassoLinkClient
     //  The SOS program's Ready, from an Apple ///.
     bool                 isSos = false;
 
+    //  The bytes at $Cn01, $Cn03, $Cn05 and $Cn07 of slots 1 to 7, which
+    //  identify the card's firmware. Earlier programs sent none.
+    bool                  hasSlotIds = false;
+    std::array<Byte, 28>  slotIds    = {};
+
     //  The model the bytes identify, as Apple //c (ROM 4); empty without them.
     std::wstring  GetModelName () const;
 
     //  True for a //e, //c or IIgs, whose screen has small letters; false
     //  for a ][ or ][+, and without the bytes.
     bool          HasLowercase () const;
+
+    //  The card each slot's firmware bytes identify, as "6: Disk II", one
+    //  slot to a line; empty without the bytes.
+    std::string   GetSlotCards () const;
 };

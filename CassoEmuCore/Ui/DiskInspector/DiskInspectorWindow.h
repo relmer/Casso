@@ -91,6 +91,7 @@ public:
     //  Before something discards the pending edits (FR-108): true when there
     //  are none, or the user confirms that they are discarded.
     bool     ConfirmDiscardEdits (const std::wstring & action, std::function<void()> afterSave) override;
+    bool     HasUnsavedEdits     () const { return !m_session.edits.IsEmpty(); }
 
     //  The window's state to save, and the saved state applied to a new
     //  window before ShowDrive (FR-080). The host sets `isOpen`, and
@@ -184,6 +185,8 @@ private:
 
     RECT          GetWalkthroughArea (WalkthroughArea area) const;
     void          UpdateControls     ();
+    void          SyncEditFocus      ();
+    bool          IsViewFocused      () const;
     void          OnSelection        () override;
     void          ShowTrackTab       (int tab) override;
     void          ShowTabContent     ();
@@ -215,6 +218,7 @@ private:
     InspectorCommands                     m_commands;
     std::wstring                          m_title;
     size_t                                m_titleMark      = std::wstring::npos;
+    bool                                  m_isTitleCpm     = false;
     DxuiTooltip                           m_tooltip;
     DxuiTooltip                           m_zoomNote;
     bool                                  m_isSplitting    = false;
@@ -225,6 +229,7 @@ private:
     int                     m_flownQuarterTrack = -1;
     int                     m_flownSector       = -1;
     bool                    m_isFocusShown      = false;
+    bool                    m_wasEditing        = false;
     bool                    m_isFileGone        = false;
     bool                    m_isRepairWanted    = false;
 

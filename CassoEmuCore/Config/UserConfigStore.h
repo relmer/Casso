@@ -7,6 +7,8 @@
 
 #include "Core/JsonValue.h"
 
+struct MachineConfig;
+
 
 
 
@@ -104,6 +106,10 @@ public:
     HRESULT      Reset             (const std::string & machineName,
                                     IFileSystem       & fs) const;
     std::wstring GetUserFilePath      (const std::string & machineName) const;
+
+    // While the running machine's config has isTemporary, every write of
+    // UserPrefs.json returns S_OK without writing.
+    void         SetRunningMachine    (const MachineConfig & config);
     std::wstring GetUserPrefsFilePath () const;
 
     // The clock the preserved copy's filename is stamped from. Tests install a
@@ -302,6 +308,9 @@ private:
     bool                                        m_loadUnresolved = false;
 
     GlobalUserPrefs                           * m_prefs          = nullptr;
+
+    // The running machine's MachineConfig::isTemporary.
+    bool                                        m_isTemporary    = false;
 
     std::function<time_t ()>                    m_timestamp;
 };

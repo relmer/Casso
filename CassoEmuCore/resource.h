@@ -39,7 +39,7 @@
 #define IDM_DISK_WP2                40029
 
 // Build a salvaged copy of a damaged image. Offered only for a disk that is
-// both damaged and ordinarily formatted -- see DiskImageStore::AssessSalvage.
+// both damaged and ordinarily formatted -- see DiskSalvager::AssessSalvage.
 #define IDM_DISK_SALVAGE1           40070
 #define IDM_DISK_SALVAGE2           40071
 
@@ -163,6 +163,9 @@
 // The chain is rebuilt, so the machine restarts.
 #define IDM_STORAGE_ATTACH_APPLE35  40501
 #define IDM_STORAGE_ATTACH_FLOPPY   40502
+
+// The cassette recorder's place with the desk scene: the desk or the drive dock.
+#define IDM_VIEW_RECORDER_ON_DESK   40503
 
 // The //c Plus's second 5.25-inch drive on its disk port, slot 6 drive 2.
 // Taken from a separate block above every open branch's ids.

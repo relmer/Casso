@@ -9,11 +9,14 @@
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Ui/DiskInspector/Blocks/BlockFieldsView.h"
+#include "Ui/DiskInspector/Blocks/BlockHeaderView.h"
+#include "Ui/DiskInspector/Blocks/BlockHexPane.h"
 #include "Ui/DiskInspector/Blocks/BlockHexSource.h"
 #include "Ui/DiskInspector/Blocks/BlockHexView.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorPanel.h"
 #include "Ui/DiskInspector/Blocks/BlockMapGrid.h"
 #include "Ui/DiskInspector/Blocks/BlockMapView.h"
+#include "Ui/DiskInspector/InspectorMarquee.h"
 #include "Core/NumberFormat.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -304,6 +307,75 @@ public:
     }
 
 
+    TEST_METHOD (MapView_ATallRunHasItsNameCenteredInTheWholeRun)
+    {
+        static constexpr size_t  kBigBytes = 200 * kBlockBytes;
+        static constexpr float   kMostCell = 48.0f;
+
+        FakeDiskFileIo                   io;
+        BlockInspectorModel              model;
+        BlockMapView                     view;
+        DxuiDpiScaler                    scaler;
+        DxuiDarkTheme                    theme;
+        MockDxuiPainter                  painter;
+        MockDxuiTextRenderer             text;
+        BlockMapGrid                     grid (k800KBlocks, 400, 400);
+        vector<Byte>                     buffer (k800KBlocks * kBlockBytes, 0);
+        vector<Byte>                     next;
+        FilePayload                      payload;
+        std::unique_ptr<BlockImageFile>  file;
+        std::wstring                     error;
+        vector<uint32_t>                 blocks;
+        POINT                            at    = {};
+        const RecordedTextCall         * label = nullptr;
+
+
+
+        AssertSucceeded (ProDosSkeleton::Write (buffer, "BLOCKS"));
+
+        payload.bytes.assign (kBigBytes, 0x5A);
+        payload.type           = ProDosVolume::kTypeBinary;
+        payload.loadAddress    = kLoad;
+        payload.hasLoadAddress = true;
+
+        AssertSucceeded (ProDosVolume (buffer).Write (FilePath::Parse ("BIG"), payload, next));
+
+        io.files["vol.po"]  = next;
+        io.stamps["vol.po"] = { next.size(), kTime };
+
+        AssertSucceeded (BlockImageFile::Open (io, "vol.po", file, error));
+        AssertSucceeded (model.Open (std::move (file)));
+
+        for (uint32_t block = 0; block < k800KBlocks; block++)
+        {
+            if (model.GetOwners (block).find (L"BIG") != std::wstring::npos)
+            {
+                blocks.push_back (block);
+            }
+        }
+
+        Assert::IsTrue (blocks.size() > 150);
+
+        view.SetModel    (&model);
+        view.SetZoomable (true);
+        view.Layout      (RECT { 0, 0, 400, 400 }, scaler);
+        view.Refresh();
+
+        at = grid.GetCellOrigin (grid.GetCellOf (blocks[blocks.size() / 2]));
+        view.StepZoomAt (100, { at.x + 1, at.y + 1 });
+        view.Paint (painter, text, theme);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            label = (call.text == L"BIG") ? &call : label;
+        }
+
+        Assert::IsNotNull (label);
+        Assert::IsTrue    (label->height > kMostCell * 2, L"the name's rectangle spans the rows of the run, not one row");
+        Assert::IsTrue    (label->vAlign == DxuiTextVAlign::Center);
+    }
+
+
     TEST_METHOD (MapView_ZoomStepsEvenlyToALargeCellAndTipsAsTheFileMapGrid)
     {
         FakeDiskFileIo             io;
@@ -445,7 +517,8 @@ public:
 
         source.SetBytes (bytes);
         hex.SetSource   (&source);
-        hex.SetOnType   ([&] (uint64_t offset, bool isHex, bool isHigh, wchar_t ch) { (void) isHex; typed.push_back ({ offset, isHigh, ch }); return true; });
+        hex.SetEditing  (true);
+        hex.SetOnType  ([&] (uint64_t offset, bool isHex, bool isHigh, wchar_t ch) { (void) isHex; typed.push_back ({ offset, isHigh, ch }); return true; });
         hex.GoToOffset  (10);
 
         Assert::IsTrue (hex.OnChar (L'A'));
@@ -643,6 +716,211 @@ public:
     }
 
 
+    TEST_METHOD (Panel_BackAfterFollowingAFieldDrawsTheEarlierBlock)
+    {
+        FakeDiskFileIo        io;
+        BlockInspectorModel   model;
+        BlockInspectorPanel   panel;
+        DxuiDarkTheme         theme;
+        DxuiDpiScaler         scaler;
+        MockDxuiTextRenderer  text;
+
+
+
+        OpenModel (io, model);
+
+        panel.Init   (&model, nullptr, &theme, nullptr, &text);
+        panel.Layout (RECT { 0, 0, 1180, 700 }, scaler);
+
+        //  As a click on the volume directory's row, then on its link to the
+        //  next directory block.
+        panel.GetNavigator().SelectForBlock (2);
+        Assert::AreEqual ((uint32_t) 2, model.GetBlock());
+
+        panel.SelectBlock (3);
+        Assert::AreEqual ((uint32_t) 3, model.GetBlock());
+        Assert::IsTrue   (panel.GetNavigator().GetBrowser().CanGoBack());
+
+        panel.GoBack();
+        Assert::AreEqual ((uint32_t) 2, model.GetBlock(), L"Back draws block 2 again");
+
+        panel.GoForward();
+        Assert::AreEqual ((uint32_t) 3, model.GetBlock(), L"Forward draws block 3 again");
+    }
+
+
+    TEST_METHOD (Panel_SelectingABlockOfAStructureFliesTheMapToTheStructure)
+    {
+        FakeDiskFileIo        io;
+        BlockInspectorModel   model;
+        BlockInspectorPanel   panel;
+        DxuiDarkTheme         theme;
+        DxuiDpiScaler         scaler;
+        MockDxuiTextRenderer  text;
+
+
+
+        OpenModel (io, model);
+
+        panel.Init   (&model, nullptr, &theme, nullptr, &text);
+        panel.Layout (RECT { 0, 0, 1180, 700 }, scaler);
+
+        //  Block 2 is the volume directory's key block, so its row, blocks 2
+        //  to 5, is selected and highlighted.
+        panel.GoToBlock (2);
+        Assert::IsTrue (panel.GetMap().HasSeveralHighlighted());
+        Assert::IsTrue (panel.GetMap().IsFlying(), L"the map flies to blocks 2 to 5");
+
+        for (double ms = InspectorMarquee::GetClockMs(); panel.GetMap().StepFlight (ms); ms += InspectorViewModel::kFlightLegMs)
+        {
+        }
+
+        Assert::IsTrue (panel.GetMap().GetZoom() > 1.0, L"the flight ends zoomed in");
+    }
+
+
+    TEST_METHOD (Panel_ADoubleClickOnAByteEditsItWithoutMovingTheHexView)
+    {
+        FakeDiskFileIo        io;
+        BlockInspectorModel   model;
+        BlockInspectorPanel   panel;
+        DxuiDarkTheme         theme;
+        DxuiDpiScaler         scaler;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        DxuiMouseEvent        ev;
+        RECT                  before = {};
+        RECT                  after  = {};
+        RECT                  byte   = {};
+        BlockEditState        state;
+        int                   click  = 0;
+
+
+
+        OpenModel (io, model);
+
+        panel.Init   (&model, nullptr, &theme, nullptr, &text);
+        panel.Layout (RECT { 0, 0, 1180, 700 }, scaler);
+        panel.SelectBlock (2);
+        panel.Paint  (painter, text, theme);
+
+        before         = panel.GetHexView()->GetBounds();
+        byte           = panel.GetHexView()->GetByteRect (5, DxuiHexView::Column::Hex);
+        ev.button      = DxuiMouseButton::Left;
+        ev.positionDip = { (byte.left + byte.right) / 2, (byte.top + byte.bottom) / 2 };
+
+        for (click = 0; click < 2; click++)
+        {
+            ev.kind = DxuiMouseEventKind::Down;
+            panel.OnMouse (ev);
+            ev.kind = DxuiMouseEventKind::Up;
+            panel.OnMouse (ev);
+        }
+
+        Assert::IsTrue   (panel.IsEditing(), L"a double-click starts editing");
+        Assert::AreEqual ((uint64_t) 5, panel.GetHexView()->GetCaret());
+
+        state.canEdit   = true;
+        state.isEditing = true;
+        panel.SetEditState (state);
+
+        after = panel.GetHexView()->GetBounds();
+        Assert::AreEqual (before.top, after.top, L"the hex view stays where it was");
+        Assert::AreEqual (std::wstring (L"Done"), panel.GetHeader().GetEdit().GetAccessibleName());
+        Assert::IsTrue   (panel.GetHeader().GetUndo().IsVisible());
+    }
+
+
+    TEST_METHOD (Panel_TheHexViewIsAsWideAsItsColumns)
+    {
+        FakeDiskFileIo        io;
+        BlockInspectorModel   model;
+        BlockInspectorPanel   panel;
+        DxuiDarkTheme         theme;
+        DxuiDpiScaler         scaler;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        BlockEditState        state;
+        RECT                  before = {};
+        RECT                  after  = {};
+
+
+
+        OpenModel (io, model);
+
+        panel.Init   (&model, nullptr, &theme, nullptr, &text);
+        panel.Layout (RECT { 0, 0, 1600, 700 }, scaler);
+        panel.SelectBlock (2);
+        panel.Paint  (painter, text, theme);
+        panel.Paint  (painter, text, theme);
+
+        before = panel.GetHexView()->GetBounds();
+
+        Assert::IsTrue   (panel.GetHexView()->GetContentWidthPx() > 0);
+        Assert::AreEqual (panel.GetHexView()->GetContentWidthPx() + scaler.ToPx ((int) BlockHexPane::kHexScrollDip), (int) (before.right - before.left),
+                          L"no blank width is left right of the ASCII column");
+
+        state.canEdit   = true;
+        state.isEditing = true;
+        panel.SetEditState (state);
+        panel.Paint (painter, text, theme);
+
+        after = panel.GetHexView()->GetBounds();
+        Assert::AreEqual (before.left,  after.left,  L"edit mode doesn't move the hex view");
+        Assert::AreEqual (before.right, after.right, L"edit mode doesn't resize the hex view");
+    }
+
+
+    TEST_METHOD (HexPane_BytesAreDrawnAsTheMemoryWindowDrawsThem)
+    {
+        DxuiHexViewTypes::EditColors     colors      = { 0xFF0078D4, 0xFF1E1E1E, 0xFFD4D4D4 };
+        DxuiHexViewTypes::EditByteState  idleState   = {};
+        DxuiHexViewTypes::EditByteState  plainState  = { true, false, false, true, false, false };
+        DxuiHexViewTypes::EditByteState  editedState = { true, false, false, true, false, true };
+        DxuiHexViewTypes::EditByteState  caretState  = { true, true,  false, true, false, false };
+        DxuiHexViewTypes::EditByteState  bothState   = { true, true,  false, true, false, true };
+        DxuiHexViewTypes::EditByteState  typedState  = { true, true,  true,  true, false, true };
+        DxuiHexViewTypes::EditByteState  typedText   = { true, true,  true,  false, false, true };
+        DxuiHexViewTypes::EditByteState  selState    = { true, false, false, true, true,  true };
+        DxuiHexViewTypes::ByteStyle      idle;
+        DxuiHexViewTypes::ByteStyle      plain;
+        DxuiHexViewTypes::ByteStyle      edited;
+        DxuiHexViewTypes::ByteStyle      caret;
+        DxuiHexViewTypes::ByteStyle      both;
+        DxuiHexViewTypes::ByteStyle      typed;
+        DxuiHexViewTypes::ByteStyle      typedChar;
+        DxuiHexViewTypes::ByteStyle      selected;
+
+
+
+        Assert::IsFalse (DxuiHexView::PickEditStyle (colors, idleState,   idle),     L"a byte not edited, outside editing, is the hex view's");
+        Assert::IsFalse (DxuiHexView::PickEditStyle (colors, selState,    selected), L"a selected byte is the hex view's selection, edited or not");
+
+        Assert::IsTrue  (DxuiHexView::PickEditStyle (colors, plainState,  plain));
+        Assert::IsTrue  (DxuiHexView::PickEditStyle (colors, editedState, edited));
+        Assert::IsTrue  (DxuiHexView::PickEditStyle (colors, caretState,  caret));
+        Assert::IsTrue  (DxuiHexView::PickEditStyle (colors, bothState,   both));
+        Assert::IsTrue  (DxuiHexView::PickEditStyle (colors, typedState,  typed));
+        Assert::IsTrue  (DxuiHexView::PickEditStyle (colors, typedText,   typedChar));
+
+        Assert::IsTrue   (plain.fill != 0 && plain.fill != colors.background, L"editable bytes have a tint");
+        Assert::IsTrue   (!edited.isBold && !plain.isBold && !caret.isBold && !both.isBold, L"edited bytes are regular weight");
+        Assert::AreEqual (DxuiHexView::GetReadableInk (DxuiHexView::GetChangedInk (colors.background), edited.fill), edited.ink, L"an edited byte is in the changed-byte red");
+        Assert::IsTrue   (DxuiColor::ComputeContrastRatio (edited.ink, edited.fill) >= DxuiHexView::kMinContrast);
+
+        Assert::AreEqual (colors.accent, caret.fill, L"the caret byte has the accent behind it");
+        Assert::AreEqual (DxuiColor::GetContrastingInk (colors.accent), caret.ink);
+        Assert::AreEqual (caret.fill, both.fill, L"an edited caret byte looks like any caret byte");
+        Assert::AreEqual (caret.ink,  both.ink);
+
+        Assert::AreEqual (0u,         typed.outline, L"a byte being typed has no box");
+        Assert::AreEqual (caret.fill, typed.fill,    L"a byte being typed is a caret byte");
+        Assert::AreEqual (caret.ink,  typed.ink);
+        Assert::AreEqual (0u,         typedChar.outline);
+        Assert::AreEqual (caret.fill, typedChar.fill);
+    }
+
+
     TEST_METHOD (Panel_ADoubleClickOnTheMapOpensTheBlock)
     {
         FakeDiskFileIo        io;
@@ -676,6 +954,37 @@ public:
 
         Assert::IsFalse (panel.GetNavigator().IsBlockPlace(), L"the list stays at its place");
         Assert::IsTrue  (model.GetBlock() > 100, L"the block at the middle of the map is drawn below the list");
+    }
+
+
+    TEST_METHOD (Panel_APressOutsideTheAddressBarEndsItsEdit)
+    {
+        FakeDiskFileIo        io;
+        BlockInspectorModel   model;
+        BlockInspectorPanel   panel;
+        DxuiDarkTheme         theme;
+        DxuiDpiScaler         scaler;
+        MockDxuiTextRenderer  text;
+        DxuiMouseEvent        ev;
+        RECT                  map    = {};
+
+
+
+        OpenModel (io, model);
+
+        panel.Init   (&model, nullptr, &theme, nullptr, &text);
+        panel.Layout (RECT { 0, 0, 1180, 700 }, scaler);
+
+        panel.GetNavigator().GetCrumbs().BeginEdit();
+        Assert::IsTrue (panel.GetNavigator().GetCrumbs().IsEditing());
+
+        map            = panel.GetMap().GetBounds();
+        ev.kind        = DxuiMouseEventKind::Down;
+        ev.button      = DxuiMouseButton::Left;
+        ev.positionDip = { (map.left + map.right) / 2, (map.top + map.bottom) / 2 };
+        panel.OnMouse (ev);
+
+        Assert::IsFalse (panel.GetNavigator().GetCrumbs().IsEditing(), L"a press on the map ends the edit");
     }
 
 

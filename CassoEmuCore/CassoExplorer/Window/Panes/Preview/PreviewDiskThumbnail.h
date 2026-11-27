@@ -3,6 +3,9 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Model/DiskThumbnailWorker.h"
+#include "CassoExplorer/Model/FileSystemCheckScheduler.h"
+#include "Devices/Disk/IDiskFileIo.h"
+#include "Shell/BackgroundWorkQueue.h"
 #include "Ui/DiskInspector/Blocks/BlockMapView.h"
 #include "Ui/DiskInspector/InspectorView.h"
 #include "Ui/DiskInspector/InspectorViewModel.h"
@@ -92,13 +95,21 @@ public:
     void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override { SetBounds (boundsDip); m_scaler = scaler; }
     void  Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
-    void  SetChips (vector<SummaryChip> chips)  { m_chips = std::move (chips); m_line.clear(); }
-    void  SetLine  (const std::wstring & line)  { m_line = line; m_chips.clear(); }
+    void  SetChips (vector<SummaryChip> chips)  { m_chips = std::move (chips); m_line.clear(); m_chipRects.clear(); }
+    void  SetLine  (const std::wstring & line)  { m_line = line; m_chips.clear(); m_chipRects.clear(); }
+
+    //  The info chip under a point, as the chips were last drawn, and where it
+    //  is; false for none.
+    bool  TryGetInfoChipAt (POINT pointPx, RECT & outRect) const;
+
+    //  The rows the chips wrap onto in a width, two at the least.
+    int   CountRows (IDxuiTextRenderer * text, const DxuiDpiScaler & scaler, int widthPx) const;
 
 private:
     const DiskInspectorPalette  & m_palette;
     DxuiDpiScaler                 m_scaler;
     vector<SummaryChip>           m_chips;
+    vector<RECT>                  m_chipRects;   // each chip's place, as last drawn
     std::wstring                  m_line;
 };
 
@@ -163,13 +174,21 @@ private:
 class ThumbnailScreen : public IDxuiControl
 {
 public:
-    void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override { SetBounds (boundsDip); (void) scaler; }
+    static constexpr float  kWaitingTextDip = 12.0f;
+
+    void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override { SetBounds (boundsDip); m_textPx = scaler.ToPxf (kWaitingTextDip); }
     void  Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
     void  SetPicture (std::shared_ptr<const DxuiIconImage> picture) { m_picture = std::move (picture); }
 
+    //  Text centered where the picture goes, while there is no picture.
+    void                  SetWaitingText (const std::wstring & waiting) { m_waiting = waiting; }
+    const std::wstring  & GetWaitingText () const                       { return m_waiting; }
+
 private:
     std::shared_ptr<const DxuiIconImage>  m_picture;
+    std::wstring                          m_waiting;
+    float                                 m_textPx = 0.0f;
 };
 
 
@@ -193,7 +212,7 @@ private:
 //  inspector in block mode.
 //
 //  An image that has been booted has the picture of its screen beside the
-//  platter, or above it in a narrow pane, and a line with its boot result.
+//  platter, both scaled down in a narrow pane, and a line with its boot result.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -212,6 +231,11 @@ public:
     void  SetPath    (const std::wstring & path);
     void  TakeResult ();
 
+    //  The file-system check of an image of blocks: its timer, and its result
+    //  posted to the window. TakeCheck returns whether the infobar changed.
+    void  TickCheck  ();
+    bool  TakeCheck  ();
+
     //  The image in the pane, renamed from one path to the other.
     void  MovePath   (const std::wstring & from, const std::wstring & to);
 
@@ -228,9 +252,10 @@ public:
 
 
     bool                  IsShown       () const { return !m_path.empty() && m_state != State::Failed; }
-    bool                  IsReady       () const { return m_state == State::Ready; }
+    bool                  IsReady       () const { return m_state == State::Ready && !m_isStale; }
     int                   GetHeightPx   (int widthPx) const;
     bool                  IsOverPlatter (POINT pointPx) const;
+    bool                  IsOverVerdict (POINT pointPx) const;
     const std::wstring  & GetPath       () const { return m_path; }
 
     //  The screen's picture as it is laid out, empty when it isn't drawn, and
@@ -238,6 +263,7 @@ public:
     bool                  IsScreenShown () const { return HasScreen(); }
     RECT                  GetScreenRect () const { return HasScreen() ? m_screen->GetBounds() : RECT {}; }
     const std::wstring  & GetResultLine () const { return m_bootLine->GetText(); }
+    const std::wstring  & GetScreenText () const { return m_screen->GetWaitingText(); }
 
     //  The verdict's infobar above the thumbnail, the pane's bar, and
     //  Inspect... at the platter's bottom right; for a test.
@@ -256,6 +282,11 @@ public:
     //  OK or a disk with no standard file system.
     static std::wstring  FormatVerdict (FileSystemVerdict verdict, const std::wstring & finding);
 
+    //  The damage the image's listing reports, shown as a warning infobar when
+    //  the analysis has no verdict to show, and its text there.
+    void                 SetListingWarning    (const std::wstring & warning);
+    static std::wstring  FormatListingWarning (const std::wstring & warning);
+
     //  The file system the analysis found and its verdict, as "DOS 3.3,
     //  damaged", for the preview's details of an image that doesn't mount,
     //  as one with a lost VTOC header; empty before the analysis or for an
@@ -272,7 +303,12 @@ private:
     bool  IsInspectBeside    (int widthPx) const;
     bool  HandlePlatterMouse (const DxuiMouseEvent & ev);
     bool  HandleScreenMouse  (const DxuiMouseEvent & ev);
+    void  ShowChipTip        (const DxuiMouseEvent & ev);
     void  SetHot             (bool isHot);
+
+    using KeptResult = std::pair<FileStamp, DiskThumbnailResult>;
+
+    static constexpr size_t  kRecentCount = 8;
 
     enum class State
     {
@@ -287,12 +323,24 @@ private:
     DiskThumbnailResult  BuildThumbnail (const std::wstring & path);
 
     void  ApplyResult        ();
+    void  StartCheck         ();
+    void  ArmCheckTimer      (int64_t delayMs);
+    bool  ShowCheck          ();
+    void  ApplyVerdict       ();
+    bool  GetStamp           (const std::wstring & path, FileStamp & outStamp) const;
+    bool  FindRecent         (const std::wstring & path, DiskThumbnailResult & outResult) const;
+    void  KeepRecent         (const DiskThumbnailResult & result);
+
+    //  The result's chips, and the chip of a disk read as CP/M by the
+    //  user's choice.
+    vector<SummaryChip>  GetChips () const;
+
     bool  IsBlocks           () const { return m_result.blocks != nullptr; }
     //  The picture comes from the thumbnail store, not the analysis, so it is
     //  drawn while the analysis runs and the pane isn't laid out again when
     //  the analysis finishes.
-    bool  HasScreen          () const { return m_picture != nullptr && (m_state == State::Ready || m_state == State::Analyzing); }
-    bool  IsBeside           (int widthPx) const;
+    bool  HasScreen          () const { return (m_picture != nullptr || m_isBooting) && (m_state == State::Ready || m_state == State::Analyzing); }
+    void  GetFit             (int widthPx, int & outScreenPx, int & outPlatterPx) const;
     bool  HasVerdict         () const { return m_state == State::Ready && m_isVerdictShown; }
     int   GetVerdictHeightPx (int widthPx) const;
     void  PlaceVerdict       (const RECT & area, int top, int height);
@@ -301,7 +349,10 @@ private:
     InspectorViewContext                    m_view;
     InspectorViewModel                      m_model;
     DiskThumbnailWorker                     m_worker;
+    BackgroundWorkQueue                     m_checkQueue;                    // before m_checks, so a check is canceled before the queue is joined
+    FileSystemCheckScheduler                m_checks;
     DiskThumbnailResult                     m_result;
+    std::list<KeptResult>                   m_recent;   // the results read last, newest first, so a pane opened again isn't read again
     DxuiScrollPanel                       * m_header            = nullptr;   // the controls below, clipped where the pane scrolls them away
     ThumbnailPlatterView                  * m_platter           = nullptr;
     ThumbnailBlockMap                     * m_blockMap          = nullptr;
@@ -312,9 +363,13 @@ private:
     DxuiButton                            * m_inspect           = nullptr;   // Inspect..., at the platter area's bottom right
     ThumbnailScrollbar                    * m_scrollbar         = nullptr;   // a window child after the views, so it's offered the mouse first
     bool                                    m_isVerdictShown    = false;
+    std::wstring                            m_listingWarning;
     bool                                    m_isVerdictReserved = false;     // the last image's infobar space is reserved while the next is read
+    bool                                    m_isChipTipShown    = false;
 
     std::shared_ptr<const DxuiIconImage>    m_picture;
     std::wstring                            m_path;
     State                                   m_state          = State::Analyzing;
+    bool                                    m_isStale        = false;   // the last image is shown until the next one is read
+    bool                                    m_isBooting      = false;   // the image is being booted for its picture
 };

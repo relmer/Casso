@@ -59,9 +59,10 @@ public:
     //  nothing to drag. `log`, when given, is set with which files the drop read
     //  whole, so a move deletes only originals the target got intact. With
     //  `offerRawCopy`, a drag of files with a conversion is marked for
-    //  RawCopyDropHandler.
+    //  RawCopyDropHandler, and with `offerHexDump`, a drag of files.
     static std::vector<DxuiDragDropSource::Format>  BuildFormats (CassoExplorerBrowser & browser, HostFileNaming::Style style,
-                                                                  std::shared_ptr<RenderLog> log = nullptr, bool raw = false, bool offerRawCopy = false);
+                                                                  std::shared_ptr<RenderLog> log = nullptr, bool raw = false, bool offerRawCopy = false,
+                                                                  bool offerHexDump = false);
 
     //  The same formats on the clipboard, for a paste into Explorer. A drag
     //  reads each file when the target asks, while it still holds the
@@ -128,6 +129,10 @@ public:
     //  RawCopyDropHandler::kOfferedFormat, on a drag of files with a
     //  conversion, so File Explorer's right-drag menu offers a raw copy.
     static DxuiDragDropSource::Format  MakeRawCopyMarker ();
+
+    //  RawCopyDropHandler::kHexDumpOfferedFormat, on a drag of files, so File
+    //  Explorer's right-drag menu offers a copy as hex dumps.
+    static DxuiDragDropSource::Format  MakeHexDumpMarker ();
 
     //  A linked Apple's whole drive as one image file, its volume in its name:
     //  the drive's id for Casso Explorer's own drops, and the image's bytes,

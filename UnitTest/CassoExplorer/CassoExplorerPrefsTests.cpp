@@ -78,6 +78,7 @@ public:
         saved.treeCassoLinkOpen   = true;
         saved.typedPaths.push_back (L"C:\\Disks\\Merlin.po");
         saved.typedPaths.push_back (L"C:\\Games");
+        saved.searchHistory.push_back (L"wizardry.code");
         saved.columnWidthsDip = { 240, 0, 90 };
         saved.tabs.push_back (Location::MakeHostFolder (L"C:\\Disks"));
         saved.tabs.push_back (Location::MakeDiskDirectory (L"C:\\Disks\\a.po", "SUBDIR"));
@@ -109,6 +110,8 @@ public:
         Assert::AreEqual ((size_t) 2, loaded.typedPaths.size());
         Assert::AreEqual (std::wstring (L"C:\\Disks\\Merlin.po"), loaded.typedPaths[0]);
         Assert::AreEqual (std::wstring (L"C:\\Games"),            loaded.typedPaths[1]);
+        Assert::AreEqual ((size_t) 1, loaded.searchHistory.size());
+        Assert::AreEqual (std::wstring (L"wizardry.code"), loaded.searchHistory[0]);
     }
 
 
@@ -461,5 +464,34 @@ public:
         Assert::AreEqual ((DWORD) 9600,   loaded.links[0].bootstrapBaud);
         Assert::IsFalse  (loaded.links[0].hardwareHandshake);
         Assert::IsTrue   (loaded.links[0].port.empty(), L"no port: search");
+    }
+
+
+
+    TEST_METHOD (LinkProDosDisks_RememberNewestFirst_AndRoundTrip)
+    {
+        InMemoryFileSystem  fs;
+        CassoExplorerPrefs  saved;
+        CassoExplorerPrefs  loaded;
+
+
+
+        for (size_t i = 0; i < CassoExplorerPrefs::kLinkProDosDiskMax + 2; i++)
+        {
+            saved.RememberLinkProDosDisk (std::format (L"C:/Disks/ProDOS {}.po", i));
+        }
+
+        saved.RememberLinkProDosDisk (L"c:/disks/prodos 5.PO");
+
+        Assert::AreEqual (CassoExplorerPrefs::kLinkProDosDiskMax, saved.linkProDosDisks.size(), L"the newest only");
+        Assert::AreEqual (std::wstring (L"c:/disks/prodos 5.PO"), saved.linkProDosDisks[0], L"a disk used again moves first");
+        Assert::AreEqual (std::wstring (L"C:/Disks/ProDOS 11.po"), saved.linkProDosDisks[1]);
+        Assert::AreEqual ((size_t) 1, (size_t) std::count_if (saved.linkProDosDisks.begin(), saved.linkProDosDisks.end(),
+                                                               [] (const std::wstring & disk) { return _wcsicmp (disk.c_str(), L"C:/Disks/ProDOS 5.po") == 0; }));
+
+        AssertSucceeded (saved.Save (kBase, fs));
+        AssertSucceeded (loaded.Load (kBase, fs));
+
+        Assert::IsTrue (loaded.linkProDosDisks == saved.linkProDosDisks);
     }
 };

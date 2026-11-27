@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "CassoExplorer/OpenOnCommand.h"
 #include "CassoExplorer/RawCopyDropHandler.h"
 
 
@@ -27,9 +28,9 @@ STDAPI DllGetClassObject (_In_ REFCLSID clsid, _In_ REFIID riid, _Outptr_ LPVOID
     CBREx (ppv != nullptr, E_POINTER);
 
     *ppv = nullptr;
-    CBREx (clsid == RawCopyDropHandler::kClsid, CLASS_E_CLASSNOTAVAILABLE);
+    CBREx (clsid == RawCopyDropHandler::kClsid || clsid == RawCopyDropHandler::kDevClsid || clsid == OpenOnCommand::kClsid, CLASS_E_CLASSNOTAVAILABLE);
 
-    hr = RawCopyDropHandler::CreateClassFactory (riid, ppv);
+    hr = clsid == OpenOnCommand::kClsid ? OpenOnCommand::CreateClassFactory (riid, ppv) : RawCopyDropHandler::CreateClassFactory (riid, ppv);
     CHR (hr);
 
 Error:
@@ -52,5 +53,5 @@ Error:
 __control_entrypoint (DllExport)
 STDAPI DllCanUnloadNow()
 {
-    return (RawCopyDropHandler::GetObjectCount() == 0) ? S_OK : S_FALSE;
+    return (RawCopyDropHandler::GetObjectCount() == 0 && OpenOnCommand::GetObjectCount() == 0) ? S_OK : S_FALSE;
 }

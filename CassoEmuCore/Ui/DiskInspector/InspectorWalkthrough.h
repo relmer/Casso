@@ -76,12 +76,15 @@ public:
     void             Next         ();
     bool             IsOpen       () const { return m_isOpen; }
     int              GetStep      () const { return m_step; }
+    bool             IsLastStep   () const { return m_step + 1 == static_cast<int> (GetSteps().size()); }
     WalkthroughArea  GetArea      () const;
 
     //  The card and the dimming around `areaPx`, which is empty for a step
-    //  on disk facts. HitTest uses the buttons' rectangles from the last Paint.
-    void               Paint   (IDxuiTextRenderer & text, const IDxuiTheme & theme, const DxuiDpiScaler & scaler, const RECT & windowPx, const RECT & areaPx);
-    WalkthroughButton  HitTest (POINT pointPx) const;
+    //  on disk facts. HitTest and GetButtonRect use the buttons' rectangles
+    //  from the last Paint.
+    void               Paint         (IDxuiTextRenderer & text, const IDxuiTheme & theme, const DxuiDpiScaler & scaler, const RECT & windowPx, const RECT & areaPx);
+    WalkthroughButton  HitTest       (POINT pointPx) const;
+    RECT               GetButtonRect (WalkthroughButton button) const;
 
     //  Where the card goes: beside the area where it fits, in the order
     //  right, left, below and above, else in the middle of the window.

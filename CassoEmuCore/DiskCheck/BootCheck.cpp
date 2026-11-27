@@ -9,6 +9,7 @@
 #include "Core/PathResolver.h"
 #include "Core/Prng.h"
 #include "Core/TextEncoding.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 
 
 
@@ -51,8 +52,10 @@ HRESULT BootMachine::Build (const std::string & machineId, std::string & outErro
 {
     HRESULT                hr          = S_OK;
     Win32FileSystem        files;
+    bool                   thirteen    = machineId.ends_with (BootCheck::kThirteen);
+    std::string            baseId      = thirteen ? machineId.substr (0, machineId.size() - std::strlen (BootCheck::kThirteen)) : machineId;
     std::vector<fs::path>  searchPaths = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(), PathResolver::GetWorkingDirectory());
-    fs::path               configPath  = PathResolver::FindFile (searchPaths, fs::path ("Machines") / machineId / (machineId + ".json"));
+    fs::path               configPath  = PathResolver::FindFile (searchPaths, fs::path ("Machines") / baseId / (baseId + ".json"));
     bool                   hasConfig   = !configPath.empty();
     std::string            jsonText;
     MachineConfig          config;
@@ -66,14 +69,14 @@ HRESULT BootMachine::Build (const std::string & machineId, std::string & outErro
     hr = MachineConfigSource::ReadConfigText (GetModuleHandleW (nullptr), TextEncoding::NarrowToWide (machineId), configPath, jsonText);
     CHR (hr);
 
-    hr = KeepDiskSlots (jsonText);
-    CHRF (hr, outError = std::format ("The machine {}'s configuration couldn't be read.", machineId));
+    hr = KeepDiskSlots (jsonText, thirteen);
+    CHRF (hr, outError = std::format ("The machine {}'s configuration couldn't be read.", baseId));
 
-    hr = MachineConfigLoader::Load (jsonText, machineId, searchPaths, config, outError);
+    hr = MachineConfigLoader::Load (jsonText, baseId, searchPaths, config, outError);
     CHR (hr);
 
     SetPrng (std::make_unique<Prng> (s_kSeed));
-    SetCurrentMachineName (TextEncoding::NarrowToWide (machineId));
+    SetCurrentMachineName (TextEncoding::NarrowToWide (baseId));
 
     GetConfig() = config;
 
@@ -92,11 +95,12 @@ Error:
 //
 //  BootMachine::KeepDiskSlots
 //
-//  The machine's JSON again, with only its Disk II cards in its slots.
+//  The machine's JSON again, with only its Disk II cards in its slots, and
+//  each card's ROM the 13-sector one when `thirteen` is set.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT BootMachine::KeepDiskSlots (std::string & ioJson)
+HRESULT BootMachine::KeepDiskSlots (std::string & ioJson, bool thirteen)
 {
     HRESULT                                         hr      = S_OK;
     JsonValue                                       root;
@@ -121,10 +125,26 @@ HRESULT BootMachine::KeepDiskSlots (std::string & ioJson)
 
         for (size_t at = 0; at < value.GetArraySize(); at++)
         {
-            if (value.GetArrayElement (at).HasString ("device", device) && device == "disk-ii")
+            const JsonValue                                 & slot = value.GetArrayElement (at);
+            std::vector<std::pair<std::string, JsonValue>>    card;
+
+            if (!slot.HasString ("device", device) || device != "disk-ii")
             {
-                disks.push_back (value.GetArrayElement (at));
+                continue;
             }
+
+            if (!thirteen)
+            {
+                disks.push_back (slot);
+                continue;
+            }
+
+            for (const auto & [name, field] : slot.GetObjectEntries())
+            {
+                card.emplace_back (name, name == "rom" ? JsonValue (std::string (BootCheck::kRom13)) : field);
+            }
+
+            disks.push_back (JsonValue (std::move (card)));
         }
 
         entries.emplace_back (key, JsonValue (std::move (disks)));
@@ -223,6 +243,11 @@ std::string BootCheck::GetMachineId (const std::string & model)
 
 std::string BootCheck::GetMachineName (const std::string & machineId)
 {
+    if (machineId.ends_with (kThirteen))
+    {
+        return GetMachineName (machineId.substr (0, machineId.size() - std::strlen (kThirteen))) + " with a 13-sector Disk II";
+    }
+
     return machineId == "Apple2cPlus" ? "Apple //c Plus"
          : machineId == "Apple2c"     ? "Apple //c"
          : machineId == kEnhanced     ? "enhanced Apple //e"
@@ -242,14 +267,15 @@ std::string BootCheck::GetMachineName (const std::string & machineId)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::string> BootCheck::GetMachines (const std::string & capturedFrom)
+std::vector<std::string> BootCheck::GetMachines (const std::string & capturedFrom, bool isThirteen)
 {
     std::vector<std::string>  machines;
-    std::string               first = GetMachineId (capturedFrom);
+    std::string               first    = GetMachineId (capturedFrom);
+    std::string               thirteen = isThirteen ? std::string (kPlus) + kThirteen : std::string();
 
 
 
-    for (const std::string & id : { first, std::string (kEnhanced), std::string (kPlus) })
+    for (const std::string & id : { thirteen, first, std::string (kEnhanced), std::string (kPlus) })
     {
         if (!id.empty() && std::find (machines.begin(), machines.end(), id) == machines.end())
         {
@@ -258,6 +284,32 @@ std::vector<std::string> BootCheck::GetMachines (const std::string & capturedFro
     }
 
     return machines;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BootCheck::IsThirteenSector
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BootCheck::IsThirteenSector (const std::vector<Byte> & image, DiskFormat format)
+{
+    WozLoader::Description  woz;
+
+
+
+    if (format != DiskFormat::Woz)
+    {
+        return false;
+    }
+
+    WozLoader::Describe (image, woz);
+
+    return woz.isWoz && woz.hasBootSectorFormat && woz.bootSectorFormat == WozLoader::kBootSector13;
 }
 
 
@@ -323,15 +375,17 @@ HRESULT BootCheck::Run (const std::vector<Byte> & image, DiskFormat format, cons
     outMissing.clear();
 
     //  The machines are built on this thread, and each boots on another.
-    for (const std::string & id : GetMachines (capturedFrom))
+    for (const std::string & id : GetMachines (capturedFrom, IsThirteenSector (image, format)))
     {
         Built        built;
         std::string  error;
         HRESULT      hrBuild = build (id, built, error);
 
+        //  A 13-sector disk's machine missing is the 13-sector ROM missing, as
+        //  the ][+'s ROMs are checked with the plain ][+.
         if (FAILED (hrBuild) || built.host == nullptr || built.builder == nullptr)
         {
-            outMissing.push_back (error.empty() ? id : error);
+            outMissing.push_back (id.ends_with (kThirteen) ? std::string (kRom13) : error.empty() ? id : error);
             continue;
         }
 

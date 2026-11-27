@@ -137,9 +137,16 @@ struct PreviewContent
     std::vector<uint32_t>      bgra;
     int                        width  = 0;
     int                        height = 0;
+
+    //  A picture's pixel height over its width on the machine's monitor. A
+    //  IIgs screen fills a 4:3 monitor, so its pixels are taller than wide.
+    float                      pixelAspect = 1.0f;
     std::vector<CatalogRow>    rows;
     std::vector<Paragraph>     paragraphs;
     Grid                       grid;
+
+    //  A note for each font of the picture's text that isn't available.
+    std::vector<std::wstring>  fontNotes;
 
     //  The rows are what an archive holds, shown as the file list shows a
     //  folder rather than as a catalog.
@@ -148,6 +155,10 @@ struct PreviewContent
     //  What an image with no file system says about itself, as label and value.
     std::vector<std::pair<std::wstring, std::wstring>>  details;
     std::wstring                                        message;
+
+    //  The details are listed above the view, as an AppleSingle file's are
+    //  above the file it holds.
+    bool                                                detailsAbove = false;
 
     //  A VAR file's simple variables and array elements, and its arrays.
     std::vector<VariableRow>                            variables;
@@ -198,6 +209,12 @@ struct PreviewContent
     //  A WOZ image, for Disk properties. Its catalog has the image's WOZ info
     //  and metadata in `details`, listed above it.
     std::wstring               wozPath;
+
+    //  Set for a disk with a game's saved game on it, which previews as either
+    //  the saved game or the disk; `savedGameShown` indicates which.
+    bool                       hasSavedGame   = false;
+    bool                       savedGameShown = false;
+    std::wstring               savedGameName;    // the switch's label for the saved game; empty for "Saved game"
 
     //  The character set text was read in, Default when the preview has no
     //  choice of one, and the record length a random-access text file was

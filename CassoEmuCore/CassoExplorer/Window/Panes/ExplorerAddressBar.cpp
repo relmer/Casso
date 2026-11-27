@@ -1,6 +1,8 @@
 #include "Pch.h"
+#include "CassoExplorer/Picker/PickerRequest.h"
 
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
+#include "CassoExplorer/Window/Panes/ExplorerPickerSearch.h"
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "CassoExplorer/Window/ExplorerMetrics.h"
@@ -89,14 +91,14 @@ void ExplorerAddressBar::Configure()
         return isOpen ? PhysicalCards::FormatDrive (found) : std::format (L"Physical drive {}", drive);
     };
 
-    m_addressRoot.getPartitionLabel = [this] (const std::wstring & path) { return m_context.browser.GetTreeModel().GetPartitionLabel (path); };
-    m_addressRoot.getVolumeLabel    = [this] (const std::wstring & path) { return m_context.browser.GetTreeModel().GetVolumeLabel (path); };
+    m_addressRoot.getPartitionLabel = [this] (const std::wstring & path) { return m_context.browser.GetTreeModel().GetImageNodes().GetPartitionLabel (path); };
+    m_addressRoot.getVolumeLabel    = [this] (const std::wstring & path) { return m_context.browser.GetTreeModel().GetImageNodes().GetVolumeLabel (path); };
 
     m_address->SetOnSegment ([this] (int index)
     {
         if (index >= 0 && index < (int) m_addressSegments.size())
         {
-            m_context.browser.NavigateToLocation (m_addressSegments[(size_t) index].location);
+            m_context.browser.GetNavigator().NavigateToLocation (m_addressSegments[(size_t) index].location);
             m_context.listPane.FillList();
         }
     });
@@ -120,6 +122,12 @@ void ExplorerAddressBar::Configure()
         {
             LeaveSearch();
         }
+
+        if (m_findBox->IsFocused())
+        {
+            m_searchTyped = text;
+            ShowSearchHistory (text);
+        }
     });
 
     m_address->SetOnHistory      ([this] (const RECT & anchor) { ShowAddressHistoryMenu (anchor); });
@@ -129,6 +137,10 @@ void ExplorerAddressBar::Configure()
     //  turns it into completions as a path is typed.
     m_suggest.SetPopupHost (m_context.window.GetPopupHost());
     m_suggest.SetOnPick    ([this] (const std::wstring & text) { SubmitAddress (text); });
+
+    m_searchSuggest.SetPopupHost (m_context.window.GetPopupHost());
+    m_searchSuggest.SetOnPick    ([this] (const std::wstring & text) { PickSearchHistory (text); });
+    m_searchSuggest.SetOnRemove  ([this] (const std::wstring & text) { RemoveSearchHistory (text); });
 
     m_address->SetOnEditState ([this] (bool editing)
     {
@@ -149,6 +161,40 @@ void ExplorerAddressBar::Configure()
         ShowAddressSuggestions (text);
     });
     m_address->SetOnEditKey ([this] (WPARAM vk) { return HandleAddressKey (vk); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerAddressBar::ApplyTheme
+//
+//  A save form's address box is the band's color with an edge, and its
+//  search box a step lighter, as the standard Save As dialog draws them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerAddressBar::ApplyTheme (const DxuiTheme * theme)
+{
+    bool  saveForm = m_context.app.picker != nullptr && m_context.app.picker->IsSave();
+
+
+
+    m_suggest.SetTheme       (theme);
+    m_searchSuggest.SetTheme (theme);
+
+    if (theme == nullptr || m_address == nullptr || m_findBox == nullptr)
+    {
+        return;
+    }
+
+    if (saveForm)
+    {
+        m_address->SetRestColors (theme->ContentBackground(), theme->Border());
+        m_findBox->SetRestColors (DxuiColor::Mix (theme->ContentBackground(), theme->Foreground(), s_kSaveSearchTint), theme->Border());
+    }
 }
 
 
@@ -180,9 +226,9 @@ void ExplorerAddressBar::Layout (const RECT & free, const RECT & strip, int righ
 
     addressRect.right -= (int) std::lround (scaler.ToPxf (ExplorerMetrics::kFindBoxRightInsetDip));
 
-    //  A picker's search box is above the list, so the address takes the
-    //  whole row.
-    if (m_context.IsPicker())
+    //  An open form's search box is above the list, so the address takes
+    //  the whole row.
+    if (m_context.pickerSearch.HasBox())
     {
         m_findBox->SetVisible (false);
         m_findBox->Layout     (RECT { addressRect.right, addressRect.top, addressRect.right, addressRect.bottom }, scaler);
@@ -268,7 +314,7 @@ void ExplorerAddressBar::HandleLocationChanged (const Location & location)
 
     SearchQuery::TryParseId (location.path, scope, query);
     m_findBox->SetText        (query);
-    m_findBox->SetPlaceholder (L"Search " + (m_context.browser.TryGetUpTarget (up) ? GetNavLabel (up) : std::wstring()));
+    m_findBox->SetPlaceholder (L"Search " + (m_context.browser.GetNavigator().TryGetUpTarget (up) ? GetNavLabel (up) : std::wstring()));
 }
 
 
@@ -411,8 +457,23 @@ LPCWSTR ExplorerAddressBar::GetCursorForPoint (POINT clientPx) const
 
 void ExplorerAddressBar::HandleFocusChanged (ExplorerPane focus)
 {
+    bool  searching = focus == ExplorerPane::LocationSearch;
+
+
+
     m_address->OnFocusChanged (focus == ExplorerPane::Address);
-    m_findBox->SetFocused     (focus == ExplorerPane::LocationSearch);
+    m_findBox->SetFocused     (searching);
+
+    //  The box opens its history as it takes focus, as Explorer's does.
+    if (searching && !m_searchSuggest.IsOpen())
+    {
+        m_searchTyped = m_findBox->GetText();
+        ShowSearchHistory (m_searchTyped);
+    }
+    else if (!searching)
+    {
+        m_searchSuggest.Close();
+    }
 }
 
 
@@ -478,7 +539,7 @@ void ExplorerAddressBar::GoToLocation (const Location & location)
 {
     if (m_context.browser.GetLocation() != location)
     {
-        m_context.browser.NavigateToLocation (location);
+        m_context.browser.GetNavigator().NavigateToLocation (location);
         m_context.listPane.FillList();
     }
 }
@@ -583,7 +644,7 @@ void ExplorerAddressBar::FillNavTips()
         forward = L"Forward to " + GetNavLabel (model.GetActiveTab().forward.back());
     }
 
-    if (m_context.browser.TryGetUpTarget (up))
+    if (m_context.browser.GetNavigator().TryGetUpTarget (up))
     {
         upTip = L"Up to \"" + GetNavLabel (up) + L"\" (Alt + Up Arrow)";
     }
@@ -653,7 +714,7 @@ void ExplorerAddressBar::SubmitAddress (const std::wstring & text)
 
 
 
-    if (m_context.browser.NavigateToAddress (isLong ? L"\\\\?\\" + text : text))
+    if (m_context.browser.GetNavigator().NavigateToAddress (isLong ? L"\\\\?\\" + text : text))
     {
         m_context.input.SetFocusPane (ExplorerPane::List);
         m_context.listPane.FillList();
@@ -661,12 +722,12 @@ void ExplorerAddressBar::SubmitAddress (const std::wstring & text)
         //  The typed path joins the history now, not only at a clean exit, and
         //  a folder joins Explorer's list too. A path into a disk image stays
         //  in Casso Explorer's own: Explorer would open the image file.
-        AddTypedPath (CassoExplorerBrowser::RootOnSystemDrive (text));
+        AddTypedPath (BrowserNavigator::RootOnSystemDrive (text));
         m_context.window.SaveSession();
 
         if (m_context.browser.GetLocation().kind == Location::Kind::HostFolder)
         {
-            WriteExplorerTypedPath (CassoExplorerBrowser::RootOnSystemDrive (text));
+            WriteExplorerTypedPath (BrowserNavigator::RootOnSystemDrive (text));
         }
     }
     else
@@ -736,7 +797,7 @@ void ExplorerAddressBar::ShowAddressMenu (int index, const RECT & anchor)
 
         command->dispatch = [this, target]()
         {
-            m_context.browser.NavigateToLocation (target);
+            m_context.browser.GetNavigator().NavigateToLocation (target);
             m_context.listPane.FillList();
         };
 
@@ -879,7 +940,7 @@ std::vector<std::wstring> ExplorerAddressBar::GetAddressHistory() const
 std::vector<std::wstring> ExplorerAddressBar::GetCompletions (const std::wstring & typed)
 {
     std::vector<std::wstring>  out;
-    std::wstring               rooted = CassoExplorerBrowser::RootOnSystemDrive (typed);
+    std::wstring               rooted = BrowserNavigator::RootOnSystemDrive (typed);
     size_t                     slash  = rooted.find_last_of (L'\\');
     std::wstring               folder;
     std::wstring               prefix;
@@ -968,7 +1029,7 @@ void ExplorerAddressBar::ShowAddressContextMenu (int x, int y)
     {
         HKEY  key = nullptr;
 
-        m_context.browser.GetTypedPaths().Clear();
+        m_context.browser.GetNavigator().GetTypedPaths().Clear();
         m_context.prefs.typedPaths.clear();
 
         if (RegOpenKeyExW (HKEY_CURRENT_USER, kExplorerTypedPathsKey, 0, KEY_ALL_ACCESS, &key) == ERROR_SUCCESS)
@@ -1105,7 +1166,7 @@ void ExplorerAddressBar::ShowAddressOverflowMenu (const RECT & anchor)
         command->label    = EscapeMnemonics (m_addressSegments[(size_t) i].label);
         command->dispatch = [this, target]()
         {
-            m_context.browser.NavigateToLocation (target);
+            m_context.browser.GetNavigator().NavigateToLocation (target);
             m_context.listPane.FillList();
         };
 
@@ -1147,11 +1208,11 @@ void ExplorerAddressBar::LeaveSearch()
     //  Changing an option adds a search to the history, and all of them close.
     while (SearchQuery::IsId (m_context.browser.GetLocation().path))
     {
-        if (!m_context.browser.GoBack())
+        if (!m_context.browser.GetNavigator().GoBack())
         {
-            if (m_context.browser.TryGetUpTarget (searched))
+            if (m_context.browser.GetNavigator().TryGetUpTarget (searched))
             {
-                m_context.browser.NavigateToLocation (searched);
+                m_context.browser.GetNavigator().NavigateToLocation (searched);
             }
 
             break;
@@ -1186,18 +1247,42 @@ void ExplorerAddressBar::CloseSearch()
 //  ExplorerAddressBar::HandleFindBoxKey
 //
 //  Enter searches, Escape empties the box and leaves a search's results, as
-//  Explorer's box does; every other key edits the query.
+//  Explorer's box does; every other key edits the query. While the history
+//  is open, Up and Down walk it and Escape closes it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ExplorerAddressBar::HandleFindBoxKey (const DxuiKeyEvent & ev)
 {
-    bool  down = ev.kind == DxuiKeyEventKind::Down;
+    bool          down = ev.kind == DxuiKeyEventKind::Down;
+    std::wstring  shown;
 
 
+
+    if (down && (ev.vk == VK_DOWN || ev.vk == VK_UP))
+    {
+        if (!m_searchSuggest.IsOpen())
+        {
+            m_searchTyped = m_findBox->GetText();
+            ShowSearchHistory (m_searchTyped);
+            return true;
+        }
+
+        shown = m_searchSuggest.MoveHighlight ((ev.vk == VK_DOWN) ? 1 : -1);
+        m_findBox->SetText (shown.empty() ? m_searchTyped : shown);
+        m_context.window.Invalidate();
+        return true;
+    }
+
+    if (down && ev.vk == VK_ESCAPE && m_searchSuggest.IsOpen())
+    {
+        m_searchSuggest.Close();
+        return true;
+    }
 
     if (down && ev.vk == VK_RETURN)
     {
+        m_searchSuggest.Close();
         SearchLocation (m_findBox->GetText());
         return true;
     }
@@ -1310,7 +1395,7 @@ void ExplorerAddressBar::RunSearchWith (const SearchQuery::Options & options)
 
     if (SearchQuery::TryParseId (m_context.browser.GetLocation().path, scope, query))
     {
-        m_context.browser.NavigateToLocation (Location::MakeShellFolder (SearchQuery::MakeId (scope, query, options), (scope == SearchQuery::kEverywhere) ? query : SearchQuery::GetLabel (scope)));
+        m_context.browser.GetNavigator().NavigateToLocation (Location::MakeShellFolder (SearchQuery::MakeId (scope, query, options), (scope == SearchQuery::kEverywhere) ? query : SearchQuery::GetLabel (scope)));
         m_context.listPane.FillList();
     }
 }
@@ -1365,7 +1450,8 @@ void ExplorerAddressBar::ApplySearchPrefs()
 //
 //  ExplorerAddressBar::GetCassoSearchScope
 //
-//  A search from Casso's root covers each of Casso's own folders on the host.
+//  A search from Casso's root covers each of Casso's folders on the host, and
+//  the stock disks when the root lists them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1384,6 +1470,10 @@ std::wstring ExplorerAddressBar::GetCassoSearchScope()
         if (node.location.kind == Location::Kind::HostFolder && !node.location.path.empty())
         {
             folders.push_back (node.location.path);
+        }
+        else if (node.id == TreeModel::kStockDisksId)
+        {
+            folders.push_back (SearchQuery::kStockDisks);
         }
     }
 
@@ -1423,6 +1513,8 @@ void ExplorerAddressBar::SearchLocation (const std::wstring & query)
         return;
     }
 
+    AddSearchHistory (query);
+
     if (m_context.browser.IsHomeLocation())
     {
         scope = SearchQuery::kEverywhere;
@@ -1455,7 +1547,7 @@ void ExplorerAddressBar::SearchLocation (const std::wstring & query)
         return;
     }
 
-    m_context.browser.NavigateToLocation (Location::MakeShellFolder (SearchQuery::MakeId (scope, query, options), (scope == SearchQuery::kEverywhere) ? query : SearchQuery::GetLabel (scope)));
+    m_context.browser.GetNavigator().NavigateToLocation (Location::MakeShellFolder (SearchQuery::MakeId (scope, query, options), (scope == SearchQuery::kEverywhere) ? query : SearchQuery::GetLabel (scope)));
     m_context.listPane.FillList();
     m_context.input.SetFocusPane (ExplorerPane::List);
 }
@@ -1501,11 +1593,11 @@ void ExplorerAddressBar::ShowAddressRootsMenu (const RECT & anchor)
         {
             if (own.kind != Location::Kind::None)
             {
-                m_context.browser.NavigateToLocation (own);
+                m_context.browser.GetNavigator().NavigateToLocation (own);
             }
             else
             {
-                m_context.browser.NavigateToAddress (target);
+                m_context.browser.GetNavigator().NavigateToAddress (target);
             }
 
             m_context.listPane.FillList();
@@ -1560,7 +1652,7 @@ void ExplorerAddressBar::ShowHistoryMenu (bool forward, const RECT & anchor)
         command->label    = EscapeMnemonics (BrowserCells::GetLocationLabel (stack[stack.size() - 1 - i]));
         command->dispatch = [this, forward, steps]()
         {
-            if (forward ? m_context.browser.GoForwardBy (steps) : m_context.browser.GoBackBy (steps))
+            if (forward ? m_context.browser.GetNavigator().GoForwardBy (steps) : m_context.browser.GetNavigator().GoBackBy (steps))
             {
                 m_context.listPane.FillList();
             }
@@ -1656,4 +1748,124 @@ BrowserModel::AddressRoot ExplorerAddressBar::GetProfileRoot()
     }
 
     return root;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerAddressBar::ShowSearchHistory
+//
+//  The list under the search box: every earlier query when nothing is
+//  typed, and those that contain what is typed once something is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerAddressBar::ShowSearchHistory (const std::wstring & typed)
+{
+    m_searchSuggest.Show (m_findBox->GetBounds(), GetSearchSuggestions (m_context.prefs.searchHistory, typed));
+    m_context.window.Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerAddressBar::GetSearchSuggestions
+//
+//  Matched without regard to case. A query that is exactly what is typed is
+//  left out, since picking it would change nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> ExplorerAddressBar::GetSearchSuggestions (const std::vector<std::wstring> & history, const std::wstring & typed)
+{
+    std::vector<std::wstring>  out;
+    std::wstring               lowerTyped = typed;
+
+
+
+    std::transform (lowerTyped.begin(), lowerTyped.end(), lowerTyped.begin(), ::towlower);
+
+    for (const std::wstring & query : history)
+    {
+        std::wstring  lower = query;
+
+        std::transform (lower.begin(), lower.end(), lower.begin(), ::towlower);
+
+        if (lower != lowerTyped && lower.find (lowerTyped) != std::wstring::npos)
+        {
+            out.push_back (query);
+        }
+    }
+
+    return out;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerAddressBar::AddSearchHistory
+//
+//  Every window shares the preferences' history, so a query goes on top of
+//  that list.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerAddressBar::AddSearchHistory (const std::wstring & query)
+{
+    TypedPathHistory  shared;
+
+
+
+    shared.Reset (m_context.prefs.searchHistory);
+    shared.Add (query);
+    m_context.prefs.searchHistory = shared.GetEntries();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerAddressBar::PickSearchHistory
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerAddressBar::PickSearchHistory (const std::wstring & query)
+{
+    m_searchSuggest.Close();
+    m_findBox->SetText (query);
+    SearchLocation (query);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerAddressBar::RemoveSearchHistory
+//
+//  The X on a row of the list takes that query out of the history. The
+//  list stays open, without the row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerAddressBar::RemoveSearchHistory (const std::wstring & query)
+{
+    std::vector<std::wstring>  & history = m_context.prefs.searchHistory;
+
+
+
+    std::erase (history, query);
+    ShowSearchHistory (m_searchTyped);
 }

@@ -34,6 +34,8 @@ its decoder is written. The table is the test list for
 | Paintworks | $C0/$0000 | none | picture | `NAME.Super Hi-Res.png` | no | SuperHiRes |
 | 3200-color | $C1/$0002 | none | picture | `NAME.3200 Color.png` | no | SuperHiRes |
 | DreamGrafix | $C0/$8005 | none | picture | `NAME.3200 Color.png` | no | SuperHiRes |
+| QuickDraw II picture | $C1/$0001, or a $C1 file of another aux type that starts with a picture's header and the version opcode, as Beagle Bros clip art's $C1/$8000 and Beagle Draw's $C1/$0002 do, unless it has a screen's aux type and size: the port's SCB, the frame, then opcodes to the end of the file, as IIgs Technical Note 46 sets them out | none | picture, the frame's size, drawn by running the opcodes in the standard palette; text is drawn with its face, mode, colors and spacing in a IIgs font of its family, from System 6.0.3's SystemTools1 and Fonts disks and Shaston 8 from the IIgs ROM 01, once they're downloaded. While they aren't, the notes have one link that opens the download dialog. Text in a font that isn't available is listed in the notes, by family and size | `NAME.QuickDraw II.png` | no | SuperHiRes |
+| Packed QuickDraw II picture | $C0/$0003: a $C1/$0001 picture packed with PackBytes | none | picture, as the unpacked picture | `NAME.QuickDraw II.png` | no | SuperHiRes |
 | 3201 | BIN, name ending `.3201`, starting `APP` $00 or `NRL` $00 | none | picture | `NAME.3200 Color.png` | no | SuperHiRes |
 | IIgs animation | $C2/$0000 | none | picture, first frame | `NAME.Animation.png` | no | PaintworksAnim |
 | LZ4FH | $08/$8066 | none | picture | `NAME.LZ4FH.png` | no | HiRes, fhpack |
@@ -51,6 +53,13 @@ its decoder is written. The table is the test list for
 | Print Shop font | $F8/$C316 for Print Shop GS | B at $6000 or $5FF4, more than 576 bytes | sheet | `NAME.Font.png` | no | PrintShop |
 | IIgs bitmap font | $C8 | none | sheet | `NAME.Font.png` | no | BitmapFont |
 | Wizardry scenario | Pascal file `SCENARIO.DATA` on a Wizardry I to III disk | Pascal kind 5, the same name | the saved game: the roster with each inventory, and the level the party is on as a picture | `NAME.Wizardry.rtf`, with the map in it | no | R56 |
+| Ultima IV save | none | DOS B files `ROST`, 512 bytes, and `PRTY`, 32 bytes, on one disk | the roster and party, and the world map from a Disk B image in the same host folder with the party marked | `NAME.Ultima4.rtf`, with the map in it | no | the saves on the owner's disks |
+| Ultima III save | none | a disk with no catalog with a party of 1 to 4 at track 3 sector 5, each member's character at sector 6, and a 64 by 64 map of terrain from sector 13, read from the disk's sectors | the world map with the party marked, then the party and the rest of the roster | `NAME.Ultima3.rtf`, with the map in it | no | the saves on the owner's disks |
+| Ultima V save | none | ProDOS files `ROSTER` and `PRTY.DATA`, and deep water in the first map chunk at block 152 | the world map with the party marked, then the party, the rest of the roster, food, gold and the date | `NAME.Ultima5.rtf`, with the map in it | no | the woz-a-day Britannia disk |
+| Ultima I save | none | ProDOS file `U1.VARS` with a race and class from 1 to 4 | the character, position and inventory, and the player's continent from a game disk in the same host folder with the player marked | `NAME.Ultima1.rtf` | no | a save made in Casso |
+| Ultima I game disk | none | ProDOS file `GEN` whose table at byte 2794 unpacks to four continents of 64 by 64 tiles | the four continents with a legend | `NAME.Ultima1.rtf` | no | the woz-a-day image |
+| Ultima II save | none | a disk with the character at track 4 sector 8: a high-bit name, F or M, class and race 0 to 3, decimal stats | the character and position | `NAME.Ultima2.rtf` | no | a save made in Casso |
+| Ultima (1981) save | none | DOS 3.2 file `NAME=<character>` and the Applesoft variables in the file `BEVERY` | the character, position and inventory, and the player's continent from the file `BTERRA<n>` with the player marked | `NAME.Ultima.rtf` | no | a save made in Casso |
 | Infocom story | BIN, or a host `.z1` to `.z8` or `.dat`, with a Z-machine header: version 1 to 8 at $00, the high memory, dictionary and object table addresses inside the file | the story's sectors on an Infocom disk with no catalog, from track 3 on, opened as one file | listing | `NAME.Z-machine.txt` | no | Z-Machine Standards Document 1.1 |
 
 Import rows: a host file whose suffix is the row's Out suffix is put as
@@ -79,7 +88,8 @@ enum class FileFormat { None, PascalText, RandomText, Merlin, ScAssembler, Lisa,
                         Lz4fh, PrintShopGraphic, PrintShopGsClipArt, ShapeTable,
                         IigsIcons, HiResFont, Apple3Font, FontrixFont, PrintShopFont,
                         IigsFont, WizardryScenario, InfocomStory, HiResScreen,
-                        DoubleHiResScreen, LoResScreen, MacPaint };
+                        DoubleHiResScreen, LoResScreen, MacPaint, QuickDrawPicture,
+                        PackedQuickDrawPicture };
 
 class FileFormatTable
 {
@@ -106,6 +116,14 @@ sets a processor: the 6502 with its documented opcodes, the 6502 with its
 undocumented ones, the 65C02, or the 65816. 65816 code starts with 16-bit
 registers when `longRegisters` is set, and the widths follow REP and SEP
 when `followFlags` is set.
+
+Any file is copied as `NAME.hex dump.txt` when `DecodeOptions::hexDump` is
+set (`HexDump`): 16 bytes a line, the offset of the line's first byte, the
+bytes in hex in two halves, and the bytes as characters in the chosen
+character set, a control character as a period. The offset has four digits
+for a file of 64 KB or less and six for a larger one. Copy to folder with
+options sets it for one copy, and File Explorer's right-drag menu has Copy
+here as hex dump.
 
 `Decode` fails with `ERROR_INVALID_DATA` and a reason in words for a file
 that fails its check, which FR-169's preview and copy report. `Export`

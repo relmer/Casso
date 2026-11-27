@@ -681,8 +681,8 @@ void StorageCardWiring::WireDeviceAudio()
 
 
 
-        // The rate is 0 until audio starts. ShellAudio loads the samples when
-        // audio starts.
+        //  Before audio starts there is no rate; the sounds are loaded when
+        //  it starts.
         if (rate != 0)
         {
             hrLoad = audio->LoadSamples (AssetBootstrap::GetDriveSoundsDirectory() / Floppy35AudioSource::kSampleFolder, rate);

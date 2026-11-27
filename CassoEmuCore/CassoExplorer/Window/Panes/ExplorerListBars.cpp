@@ -8,9 +8,10 @@
 #include "CassoExplorer/Model/SearchExpression.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerVerbs.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
+#include "CassoExplorer/Window/Managers/ExplorerUndo.h"
 #include "CassoExplorer/Window/Managers/ExplorerOpen.h"
-#include "Core/AppMessages.h"
 
 
 
@@ -152,48 +153,59 @@ bool ExplorerListBars::FillSearchBar()
 //
 //  At an A2Pico card's root, its drives in a sentence. In any folder on the
 //  card, where a copy to the card lands, its images with a ProDOS volume in
-//  a form A2retroNET doesn't read, with Write as .po. A warning when a drive has a
-//  problem, the settings file has CR LF line ends, or an image is offered.
+//  a form A2retroNET doesn't read, with Convert to .po, which replaces each
+//  with a .po. A warning when a drive has a problem, the settings file has
+//  CR LF line ends, or an image is offered.
+//  And a selected or converted image the firmware reads that isn't a
+//  drive, with Set as drive for a free drive. An image copied to the card
+//  is set as a free drive right away.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ExplorerListBars::FillCardBar()
 {
-    const Location             & location  = m_context.browser.GetLocation();
-    std::wstring                 root      = std::filesystem::path (location.path).root_path().wstring();
-    std::vector<std::wstring>    labels;
-    std::vector<std::wstring>    arrived;
-    std::wstring                 text;
-    HRESULT                      hr        = S_OK;
-    BOOL                         posted    = TRUE;
-    bool                         visible   = m_cardBar->IsVisible();
-    bool                         onCard    = false;
-    bool                         atRoot    = false;
-    bool                         problem   = false;
-    bool                         show      = false;
-    bool                         relabeled = false;
+    const Location                                      & location  = m_context.browser.GetLocation();
+    std::wstring                                          root      = std::filesystem::path (location.path).root_path().wstring();
+    std::vector<std::wstring>                             labels;
+    std::vector<std::wstring>                             arrived;
+    std::vector<std::pair<std::wstring, std::wstring>>    replaced;
+    std::wstring                                          text;
+    HRESULT                                               hr        = S_OK;
+    bool                                                  visible   = m_cardBar->IsVisible();
+    bool                                                  onCard    = false;
+    bool                                                  atRoot    = false;
+    bool                                                  problem   = false;
+    bool                                                  show      = false;
+    bool                                                  relabeled = false;
+    bool                                                  isOne     = false;
 
 
 
     m_cardActions.clear();
     m_convertible.clear();
+    m_setPath.clear();
+    m_setDrive = 0;
 
     //  Files dropped on or from a card that Windows has moved since.
     m_context.actions.GetA2retroNet().ResolveMoves();
 
-    //  Images copied to a card that A2retroNET doesn't read. The question
-    //  about them waits for a message, so the list is filled first.
+    //  Images copied to a card are set as its drives once Windows has
+    //  written them.
     m_context.actions.GetA2retroNet().TakeArrived (arrived);
 
     if (!arrived.empty())
     {
-        m_arrived.insert (m_arrived.end(), arrived.begin(), arrived.end());
+        m_context.verbs.ReportOutcome (m_context.actions.GetA2retroNet().AddArrived (arrived, replaced), L"Add to A2retroNET drives");
 
-        if (m_context.window.GetHwnd() != nullptr)
+        //  Undoing the copy of an image replaced with a .po removes the .po,
+        //  and the tree lists the .po in its folder.
+        for (const auto & [from, to] : replaced)
         {
-            posted = PostMessageW (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerCardArrivals, 0, 0);
-            IGNORE_RETURN_VALUE (posted, TRUE);
+            m_context.undo.ReplacePath (from, to);
+            m_context.folderSync.RefreshTreeFolder (std::filesystem::path (to).parent_path().wstring());
         }
+
+        m_context.folderSync.RefreshAfterHostChange();
     }
 
     onCard = location.kind == Location::Kind::HostFolder && !root.empty() && m_context.actions.IsA2PicoCard (root) && location.path != m_cardBarClosed;
@@ -209,6 +221,8 @@ bool ExplorerListBars::FillCardBar()
     {
         hr = m_context.actions.GetA2retroNet().FindConvertible (location.path, m_convertible);
         IGNORE_RETURN_VALUE (hr, S_OK);
+
+        FindSettable (root);
     }
 
     if (atRoot)
@@ -224,19 +238,33 @@ bool ExplorerListBars::FillCardBar()
         }
     }
 
+    //  Each offer is on a line of its own.
     if (!m_convertible.empty())
     {
-        text   += std::format (L"{}{} {} a ProDOS volume in a form A2retroNET doesn't read. Write as .po makes a copy it reads.", text.empty() ? L"" : L" ", DescribeFiles (m_convertible), m_convertible.size() == 1 ? L"has" : L"have");
+        isOne   = m_convertible.size() == 1;
+        text   += std::format (L"{}Only .po images can be mounted as drives. Convert {} to .po?", text.empty() ? L"" : L"\n",
+                               isOne ? std::format (L"\"{}\"", std::filesystem::path (m_convertible[0]).filename().wstring())
+                                     : std::format (L"{} images", m_convertible.size()));
         problem = true;
 
         m_cardActions.push_back (CardAction::WritePo);
+    }
+
+    if (m_setDrive != 0)
+    {
+        text += std::format (L"{}Drive {} is free. Set \"{}\" as drive {}?", text.empty() ? L"" : L"\n", m_setDrive, std::filesystem::path (m_setPath).filename().wstring(), m_setDrive);
+
+        m_cardActions.push_back (CardAction::SetDrive);
     }
 
     show = !text.empty();
 
     for (CardAction action : m_cardActions)
     {
-        labels.push_back (action == CardAction::Drives ? L"Drives..." : action == CardAction::Repair ? L"Repair" : L"Write as .po");
+        labels.push_back (action == CardAction::Drives   ? std::wstring (L"Drives...")
+                        : action == CardAction::Repair   ? std::wstring (L"Repair")
+                        : action == CardAction::SetDrive ? std::format (L"Set as drive {}", m_setDrive)
+                        :                                  std::wstring (L"Convert to .po"));
     }
 
     //  New buttons have no place until the bar is laid out, so they are
@@ -292,43 +320,33 @@ std::wstring ExplorerListBars::DescribeFiles (const std::vector<std::wstring> & 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerListBars::OfferArrived
+//  ExplorerListBars::FindSettable
+//
+//  The selected images come first, then those copied or written to the card.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerListBars::OfferArrived()
+void ExplorerListBars::FindSettable (const std::wstring & root)
 {
-    std::vector<std::wstring>  paths  = std::move (m_arrived);
-    std::wstring               text;
-    std::wstring               written;
-    int                        choice = IDNO;
+    std::vector<std::wstring>  candidates;
+    int                        drive = 0;
 
 
 
-    m_arrived.clear();
+    m_context.browser.GetSelection().GetSelectedHostPaths (candidates);
+    candidates.insert (candidates.end(), m_settable.begin(), m_settable.end());
 
-    if (paths.empty())
+    for (const std::wstring & path : candidates)
     {
-        return;
+        bool  onCard = _wcsicmp (std::filesystem::path (path).root_path().wstring().c_str(), root.c_str()) == 0;
+
+        if (onCard && m_context.actions.GetA2retroNet().TryGetFreeDrive (path, drive))
+        {
+            m_setPath  = path;
+            m_setDrive = drive;
+            return;
+        }
     }
-
-    text = paths.size() == 1
-         ? std::format (L"A2Pico doesn't support {}. Would you like to convert it to {}?", DescribeFiles (paths), std::filesystem::path (paths[0]).filename().replace_extension (L".po").wstring())
-         : std::format (L"A2Pico doesn't support {}. Would you like to convert them to .po images?", DescribeFiles (paths));
-
-    choice = DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, text.c_str(), L"Convert for A2Pico", MB_YESNO, { L"Convert", L"Don't convert" });
-
-    if (choice != IDYES)
-    {
-        return;
-    }
-
-    for (const std::wstring & path : paths)
-    {
-        m_context.commandManager.ReportOutcome (m_context.actions.GetA2retroNet().ReplaceWithPo (path, written), L"Convert for A2Pico");
-    }
-
-    m_context.folderSync.RefreshAfterHostChange();
 }
 
 
@@ -343,8 +361,9 @@ void ExplorerListBars::OfferArrived()
 
 void ExplorerListBars::RunCardAction (size_t index)
 {
-    CardAction    action = index < m_cardActions.size() ? m_cardActions[index] : CardAction::Drives;
-    std::wstring  written;
+    CardAction             action = index < m_cardActions.size() ? m_cardActions[index] : CardAction::Drives;
+    std::wstring           written;
+    ActionsTypes::Outcome  outcome;
 
 
 
@@ -359,13 +378,27 @@ void ExplorerListBars::RunCardAction (size_t index)
     }
     else if (action == CardAction::Repair)
     {
-        m_context.commandManager.ReportOutcome (m_context.actions.RepairA2retroNetConfig (m_card.root), L"Repair A2retroNET.txt");
+        m_context.verbs.ReportOutcome (m_context.actions.RepairA2retroNetConfig (m_card.root), L"Repair A2retroNET.txt");
+    }
+    else if (action == CardAction::SetDrive)
+    {
+        outcome = m_context.actions.GetA2retroNet().Add (m_setPath);
+        m_context.verbs.ReportOutcome (outcome, L"Set as drive");
+
+        std::erase_if (m_settable, [this] (const std::wstring & path) { return _wcsicmp (path.c_str(), m_setPath.c_str()) == 0; });
     }
     else
     {
         for (const std::wstring & path : m_convertible)
         {
-            m_context.commandManager.ReportOutcome (m_context.actions.GetA2retroNet().ConvertToPo (path, written), L"Write as .po");
+            outcome = m_context.actions.GetA2retroNet().ReplaceWithPo (path, written);
+            m_context.verbs.ReportOutcome (outcome, L"Convert to .po");
+
+            //  The .po is offered as a drive.
+            if (outcome.Succeeded())
+            {
+                m_settable.push_back (written);
+            }
         }
 
         m_context.folderSync.RefreshAfterHostChange();

@@ -4,6 +4,7 @@
 #include "FakeDiskFileIo.h"
 #include "FixtureProvider.h"
 #include "GuestSession.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 #include "TestMachine.h"
 #include "TextScreenScraper.h"
 #include "CassoLink/FakeNetworkCards.h"
@@ -15,7 +16,6 @@
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/BlockDevice/BlockDeviceCatalog.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -136,7 +136,7 @@ public:
 
             for (int p = 0; p < 16; p++)
             {
-                size_t  offset = (size_t) (track * 16 + NibblizationLayer::GetDosFileIndexForPhysicalSector (p)) * 256;
+                size_t  offset = (size_t) (track * 16 + SectorInterleave::GetDosFileIndexForPhysicalSector (p)) * 256;
 
                 data.insert (data.end(), disk.begin() + (ptrdiff_t) offset, disk.begin() + (ptrdiff_t) offset + 256);
             }

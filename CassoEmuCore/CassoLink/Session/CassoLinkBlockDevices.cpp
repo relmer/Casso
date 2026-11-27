@@ -2,6 +2,7 @@
 
 #include "CassoLink/Session/CassoLinkBlockDevices.h"
 #include "CassoLink/Session/CassoLinkBlockTransfer.h"
+#include "CassoLink/Session/LinkImageSource.h"
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/CassoLinkSession.h"
 #include "Devices/Disk/BlockBuffer.h"
@@ -62,14 +63,13 @@ HRESULT CassoLinkBlockDevices::List (LinkOperation & operation)
 
 
 
-    UNREFERENCED_PARAMETER (operation);
-
     hr = EnsureModule();
     CHR (hr);
 
     hr = m_session.m_host->ListBlockDevices (devices);
     CHR (hr);
 
+    operation.devicesFound = devices.size();
     m_units.clear();
 
     for (const CassoLinkBlockDevice & device : devices)
@@ -452,8 +452,10 @@ HRESULT CassoLinkBlockDevices::Transfer (LinkOperation & operation, Unit & unit,
 
     unit.volume.reset();
 
+    CBRAEx (isRead || operation.source != nullptr, E_INVALIDARG);
+
     hr = isRead ? CassoLinkBlockTransfer::ReadDevice  (*m_session.m_host, m_session.m_fileIo, unit.device, operation.imagePath, verify, operation.resume, report, cancel, result)
-                : CassoLinkBlockTransfer::WriteDevice (*m_session.m_host, m_session.m_fileIo, unit.device, operation.imagePath, verify, operation.resume, report, cancel, result);
+                : CassoLinkBlockTransfer::WriteDevice (*m_session.m_host, m_session.m_fileIo, unit.device, *operation.source, verify, operation.resume, report, cancel, result);
 
     operation.message = result.message;
 

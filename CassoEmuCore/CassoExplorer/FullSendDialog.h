@@ -33,6 +33,11 @@ public:
         std::wstring      connection;
         std::wstring      machine;      // the Apple's model, as Apple //c (ROM 3); empty when it isn't known
         FullSendSnapshot  snapshot;
+
+        //  A single disk job's drive, as the job window draws it: its drive
+        //  across the whole width, the legend and the activity, without the
+        //  session's state line, totals or disks done.
+        bool              isJob = false;
     };
 
     static constexpr float  kHeadingDip     = 26.0f;
@@ -46,6 +51,8 @@ public:
     static constexpr float  kHeadingFontDip = 14.0f;
     static constexpr int    kDiskRows       = 6;
     static constexpr int    kActivityRows   = 6;
+    static constexpr float  kThumbDip       = 4.0f;    // a list's scroll thumb
+    static constexpr float  kThumbGutterDip = 8.0f;    // and the gutter at the list's right it's drawn in
 
     //  A map cell's largest size, under the pointer, and the range in tracks
     //  either side over which cells are magnified.
@@ -141,8 +148,9 @@ public:
 private:
     float  PaintDrive    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, int number, const FullSendDriveStatus & drive, float left, float top, float width) const;
     float  PaintLegend   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float top) const;
-    float  PaintDisks    (IDxuiTextRenderer & text, const IDxuiTheme & theme, float top) const;
-    float  PaintActivity (IDxuiTextRenderer & text, const IDxuiTheme & theme, float top) const;
+    float  PaintDisks    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float top) const;
+    float  PaintActivity (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float top) const;
+    void   PaintThumb    (IDxuiPainter & painter, const IDxuiTheme & theme, const RECT & area, size_t first, size_t shown, size_t total) const;
     void   DrawLine      (IDxuiTextRenderer & text, const std::wstring & line, float left, float top, float width, uint32_t color, bool heading = false, DxuiTextHAlign align = DxuiTextHAlign::Left) const;
     void   PaintProgress (IDxuiPainter & painter, float left, float top, float width, float height, bool isGrowing) const;
 
@@ -176,6 +184,7 @@ private:
 
     void   AddCell       (float left, float top, float width, float height, int number, int position) const;
     bool   HandleClick   (const DxuiMouseEvent & ev);
+    bool   HandleWheel   (const DxuiMouseEvent & ev);
     void   UpdateTip     (int drive, int track, POINT pointPx, int64_t nowMs);
     int    FindMapAt     (POINT pointPx) const;
     void   LayMap        (int drive, float pointer, float strength, MapSpans & outSpans) const;
@@ -184,6 +193,7 @@ private:
 
     static void      MakeMapItems (const Map & map, MapItems & outItems);
     static uint32_t  GetCellColor (const FullSendDriveStatus & drive, int track, const IDxuiTheme & theme);
+    static void      PaintNoData  (IDxuiPainter & painter, const IDxuiTheme & theme, float left, float top, float width, float height);
 
     //  A disk's row as it was last painted.
     struct Row
@@ -198,6 +208,9 @@ private:
     mutable std::vector<Cell>  m_cells;
     mutable std::vector<Row>   m_rows;
     mutable RECT               m_activity    = {};
+    mutable RECT               m_disksArea   = {};
+    size_t                     m_diskScroll  = 0;           // the disks done scrolled past, from the newest
+    size_t                     m_lineScroll  = 0;           // the activity lines scrolled past, from the newest
     mutable Maps               m_maps        = {};
     mutable const IDxuiTheme * m_theme       = nullptr;     // as last painted with, for the tip's color marks
     mutable RECT               m_cover       = {};          // what a magnified map covers, from its drive's heading down; empty with none
@@ -242,11 +255,12 @@ public:
     //  The actions on a disk's row: a double-click selects its image in the
     //  folder, and its menu has Open, Inspect disk image, Disk properties and
     //  Repair disk image.
-    enum class DiskAction { Select, Open, Inspect, Properties, Repair };
+    enum class DiskAction { Select, Open, Inspect, Properties, Repair, Report };
 
     using DiskActionFn = std::function<void (const std::string & file, DiskAction action)>;
     using MovedFn      = std::function<void (POINT topLeftPx)>;
     using CanRepairFn  = std::function<bool (const std::string & file)>;
+    using RawCaptureFn = std::function<void (int drive)>;
 
     //  The snapshot function returns false when no connection has a session
     //  to draw, and the view it was given is drawn as it is.
@@ -271,6 +285,11 @@ public:
     //  Whether the inspector can repair a row's image, called when the menu
     //  of a row whose file system is bad or suspect opens.
     void  SetCanRepair  (CanRepairFn canRepair) { m_canRepair = std::move (canRepair); }
+
+    //  A raw capture of a drive's disk at the session's next pause, for a disk
+    //  that failed or looked blank, offered on the activity list's menu while
+    //  a session runs.
+    void  SetRawCapture (RawCaptureFn capture) { m_rawCapture = std::move (capture); }
 
     //  The menu of a disk's row, or of the activity list for an empty file.
     std::vector<DxuiPopupMenuItem>  MakeMenu (const std::string & file);
@@ -303,6 +322,7 @@ private:
     DiskActionFn                                 m_diskAction;
     MovedFn                                      m_onMoved;
     CanRepairFn                                  m_canRepair;
+    RawCaptureFn                                 m_rawCapture;
     POINT                                        m_lastTopLeft  = { LONG_MIN, LONG_MIN };
     std::vector<std::shared_ptr<DxuiCommand>>    m_menuCommands;   // the open menu's commands
 };

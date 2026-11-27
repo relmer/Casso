@@ -11,6 +11,7 @@
 #include "Ui/DiskInspector/Blocks/BlockRepairController.h"
 #include "Ui/DiskInspector/Components/InspectorDialogs.h"
 #include "Ui/DiskInspector/DiskInspectorPalette.h"
+#include "Ui/DiskInspector/IDiskInspectorHost.h"
 #include "Ui/DiskInspector/InspectorMarquee.h"
 
 
@@ -76,6 +77,7 @@ HRESULT BlockInspectorWindow::Open (
 
     SetTheme (theme);
     m_tips->SetTheme (*theme);
+    m_panel->GetNavigator().SetRootLabel (m_session.GetFileName());
     Show (true);
     m_session.Open();
 
@@ -98,10 +100,13 @@ Error:
 
 void BlockInspectorWindow::OnCreate()
 {
-    m_menus.Create  (*this, GetPopupHost(), GetTextRenderer(), m_commands);
-    m_status.Create (*this, [this] (double zoom) { SetZoom (zoom); }, false);
+    m_menus.Create (*this, GetPopupHost(), GetTextRenderer(), m_commands);
 
     m_panel = CreateChild<BlockInspectorPanel>();
+
+    //  The status bar's zoom is created after the panel, so its slider, which
+    //  opens over the panel, is drawn on top and has the pointer there.
+    m_status.Create (*this, [this] (double zoom) { SetZoom (zoom); }, false);
 
     CreateParts();
     m_menus.Rebuild (m_commands);
@@ -122,7 +127,7 @@ void BlockInspectorWindow::OnCreate()
     m_panel->SetOnJobQueued    ([this] () { m_isDirty = true; });
     m_panel->SetOnCopy         ([this] () { m_edits->CopyBlock(); });
     m_panel->SetOnHint         ([this] (const std::wstring & hint) { m_status.SetHint (hint); m_isDirty = true; });
-    m_edits->ConnectEditBar();
+    m_edits->ConnectEditControls();
 
     FocusControl (m_panel->GetHexView());
 }
@@ -156,6 +161,67 @@ void BlockInspectorWindow::CreateParts()
 
     m_tips->SetPopupHost (GetPopupHost());
     m_commandSet->Build();
+
+    if (m_onTransferRaw)
+    {
+        m_commands.saveRaw                 = std::make_shared<DxuiCommand>();
+        m_commands.saveRaw->label          = L"Save bloc&ks to a file...";
+        m_commands.saveRaw->dispatch       = [this] () { TransferRaw (true); };
+        m_commands.saveRaw->isEnabled      = [this] () { return m_model.IsOpen(); };
+        m_commands.overwriteRaw            = std::make_shared<DxuiCommand>();
+        m_commands.overwriteRaw->label     = L"&Overwrite blocks from a file...";
+        m_commands.overwriteRaw->dispatch  = [this] () { TransferRaw (false); };
+        m_commands.overwriteRaw->isEnabled = [this] () { return m_model.IsOpen() && m_model.GetEdits().IsEmpty(); };
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorWindow::UpdateNotice
+//
+//  The panel's infobar from the current volume, with Repair... running the
+//  Disk menu's Repair.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorWindow::UpdateNotice()
+{
+    bool          isBad     = false;
+    bool          canRepair = false;
+    std::wstring  text      = m_repair->GetNotice (isBad, canRepair);
+
+
+
+    m_panel->SetNotice (text, isBad, canRepair, [this] () { BlockCommandSet::Run (m_commands.repair); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorWindow::TransferRaw
+//
+//  The host's save or overwrite of blocks, starting at the selected block.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorWindow::TransferRaw (bool isSave)
+{
+    InspectorRawTransfer  transfer;
+
+
+
+    transfer.isSectors = false;
+    transfer.isSave    = isSave;
+    transfer.start     = m_model.GetBlock();
+
+    m_onTransferRaw (transfer);
 }
 
 
@@ -183,11 +249,21 @@ void BlockInspectorWindow::RenderIfChanged()
     m_session.RunPendingReload();
 
     m_panel->UpdateBusy();
-    m_edits->UpdateEditBar();
+    UpdateNotice();
+    m_edits->UpdateEditControls();
     m_session.UpdateTitle();
     DxuiPanel::Tick ((int64_t) GetTickCount64());
     m_menus.Tick ((int64_t) GetTickCount64());
-    m_status.Tick (GetHwnd());
+    if (m_status.Tick (GetHwnd()))
+    {
+        m_isDirty = true;
+    }
+
+    if (m_panel->UpdateZoom (GetHwnd()))
+    {
+        m_isDirty = true;
+    }
+
     m_tips->Tick ((int64_t) GetTickCount64());
 
     //  The window's context menus open with an animation each frame
@@ -274,8 +350,10 @@ void BlockInspectorWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
         selection = m_panel->GetSelectionLine();
     }
 
-    DxuiPanel::Paint (painter, text, theme);
+    //  The band first, since its background would cover the zoom's slider,
+    //  which is one of the window's children.
     m_status.Paint (painter, text, theme, BlockInspectorState::BuildLead (m_model, isBusy, selection), palette.colors.sectorBad);
+    DxuiPanel::Paint (painter, text, theme);
 }
 
 
@@ -391,6 +469,14 @@ bool BlockInspectorWindow::OnKey (const DxuiKeyEvent & ev)
     if (m_commandSet->TryRunKey (ev, isResult))
     {
         return isResult;
+    }
+
+    //  Enter and F4 open the address bar for a path, so they go to the
+    //  focused control alone. Otherwise Enter in the hex view opens the
+    //  address bar without the focus, and nothing ends that edit but Escape.
+    if ((ev.vk == VK_RETURN || ev.vk == VK_F4) && focused != (IDxuiControl *) &m_panel->GetNavigator().GetCrumbs())
+    {
+        return focused != nullptr && focused->OnKey (ev);
     }
 
     return DxuiPanel::OnKey (ev);

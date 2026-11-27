@@ -209,8 +209,10 @@ public:
     //  thread; their messages are returned.
     std::vector<std::wstring>  RunCompletions ();
 
-    //  Operations submitted and not yet finished, in the order they run.
-    std::vector<std::shared_ptr<LinkOperation>>  GetPendingJobs () const;
+    //  Operations submitted and not yet finished, in the order they run, and
+    //  the same with each one's connection.
+    std::vector<std::shared_ptr<LinkOperation>>                          GetPendingJobs       () const;
+    std::vector<std::pair<std::string, std::shared_ptr<LinkOperation>>>  GetPendingJobsByLink () const;
 
     //  The activity log: each connection's connects and drops, its finished
     //  operations, and ADTPro's requests, oldest first, the latest kLogLength.
@@ -230,8 +232,16 @@ public:
     //  Whether any connection is in a transfer.
     bool  IsAnyTransferring () const;
 
+    //  Whether any connection has a job queued or running, a transfer, or a
+    //  Full Send, during which the PC is kept from sleeping.
+    bool  IsAnyBusy         () const;
+
     //  Whether an image is being written to a drive, or waits to be.
     bool  IsWritingDisk (const std::string & name, int drive) const;
+
+    //  Whether a drive has a job running or waiting, or its connection is in
+    //  a Full Send.
+    bool  IsDriveBusy   (const std::string & name, int drive) const;
 
     //  A file's contents, waiting up to timeoutMs for them. Only for a drop,
     //  where the target requests the bytes and cannot finish without them.

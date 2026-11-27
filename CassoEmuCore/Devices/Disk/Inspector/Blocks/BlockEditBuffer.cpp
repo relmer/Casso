@@ -46,7 +46,8 @@ void BlockEditBuffer::Record (const std::map<uint32_t, Pending> & before)
     m_actions.resize (m_undoAt);
     m_actions.push_back ({ before, m_pending });
 
-    m_undoAt = m_actions.size();
+    m_undoAt      = m_actions.size();
+    m_digitAction = SIZE_MAX;
 }
 
 
@@ -105,9 +106,11 @@ bool BlockEditBuffer::TypeHexDigit (uint32_t block, const Block & base, int offs
 
 
 
-    Block  current = base;
-    int    value   = -1;
-    Byte   byte    = 0;
+    Block   current   = base;
+    int     value     = -1;
+    Byte    byte      = 0;
+    size_t  digitAt   = m_digitAction;
+    bool    isChanged = false;
 
 
 
@@ -139,7 +142,26 @@ bool BlockEditBuffer::TypeHexDigit (uint32_t block, const Block & base, int offs
     byte = current[offset];
     byte = isHighNibble ? (Byte) ((byte & kLowNibble) | (value << kNibbleBits)) : (Byte) ((byte & kHighNibble) | value);
 
-    return Change (block, base, offset, byte);
+    isChanged = Change (block, base, offset, byte);
+
+    if (isChanged && isHighNibble)
+    {
+        m_digitAction = m_undoAt - 1;
+        m_digitBlock  = block;
+        m_digitOffset = offset;
+    }
+    else if (isChanged && digitAt != SIZE_MAX && digitAt + 2 == m_undoAt && m_undoAt == m_actions.size() &&
+             m_digitBlock == block && m_digitOffset == offset)
+    {
+        //  The second digit joins the first digit's action, so a byte is one
+        //  undo step.
+        m_actions[digitAt].after = m_actions.back().after;
+        m_actions.pop_back();
+        m_undoAt--;
+    }
+
+    //  A first digit that matches the byte moves on to the second digit.
+    return isChanged || isHighNibble;
 }
 
 
@@ -293,6 +315,86 @@ bool BlockEditBuffer::Undo()
     m_pending = m_actions[m_undoAt].before;
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockEditBuffer::GetUndoAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BlockEditBuffer::GetUndoAt (uint32_t & outBlock, int & outOffset) const
+{
+    return CanUndo() && FindChange (m_actions[m_undoAt - 1], outBlock, outOffset);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockEditBuffer::GetRedoAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BlockEditBuffer::GetRedoAt (uint32_t & outBlock, int & outOffset) const
+{
+    return CanRedo() && FindChange (m_actions[m_undoAt], outBlock, outOffset);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockEditBuffer::FindChange
+//
+//  The lowest block whose bytes differ before and after an action, and the
+//  first byte that differs. A block missing on one side has the bytes it
+//  started with there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BlockEditBuffer::FindChange (const Action & action, uint32_t & outBlock, int & outOffset)
+{
+    std::set<uint32_t>  blocks;
+    bool                isFound = false;
+
+
+
+    for (const auto & [block, pending] : action.before)
+    {
+        blocks.insert (block);
+    }
+
+    for (const auto & [block, pending] : action.after)
+    {
+        blocks.insert (block);
+    }
+
+    for (auto it = blocks.begin(); !isFound && it != blocks.end(); ++it)
+    {
+        auto           before = action.before.find (*it);
+        auto           after  = action.after.find (*it);
+        const Block  & start  = (before != action.before.end()) ? before->second.atStart : after->second.atStart;
+        const Block  & from   = (before != action.before.end()) ? before->second.bytes : start;
+        const Block  & to     = (after != action.after.end()) ? after->second.bytes : start;
+
+        for (int k = 0; !isFound && k < static_cast<int> (kBlockBytes); k++)
+        {
+            isFound   = from[k] != to[k];
+            outBlock  = *it;
+            outOffset = k;
+        }
+    }
+
+    return isFound;
 }
 
 

@@ -267,14 +267,15 @@ TapeDeckView ShellTapeDeck::GetTapeView() const
 void ShellTapeDeck::SyncTapeChrome()
 {
     RECT           drive   = m_shell.m_disks->GetDriveChrome()[0].GetOuterRect();
-    bool           isShown = IsTapeRecorderShown() && !m_shell.DeskSceneActive() && !IsRectEmpty (&drive) &&
-                             m_tapeAnchorDpi != 0;
+    bool           isShown = IsTapeRecorderShown() && m_tapeAnchorDpi != 0 &&
+                             (m_shell.DeskSceneActive() ? IsRecorderDocked() : !IsRectEmpty (&drive));
     DxuiDpiScaler  scaler;
     TapeDeckView   view    = GetTapeView();
 
 
 
     m_tapeChrome.SyncFromView (view);
+    m_tapeChrome.SetDocked (m_shell.DeskSceneActive() && IsRecorderDocked());
     m_shell.m_scene->SyncSceneTapeLabel();
 
     // A static guest screen presents no frames, and a program loading from
@@ -314,6 +315,21 @@ void ShellTapeDeck::SyncTapeChrome()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsRecorderDocked
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellTapeDeck::IsRecorderDocked() const
+{
+    return IsTapeRecorderShown() && m_shell.m_settings->GetPrefs().recorderInDock;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RegisterTapeDropTarget
 //
 //  Adds the recorder to the drop targets the drives already registered: the
@@ -332,7 +348,7 @@ void ShellTapeDeck::RegisterTapeDropTarget()
 
     BAIL_OUT_IF (!IsTapeRecorderShown(), S_OK);
 
-    if (m_shell.DeskSceneActive())
+    if (m_shell.DeskSceneActive() && !IsRecorderDocked())
     {
         rect = m_shell.m_scene->GetScene().Composition().recorderRectPx;
     }

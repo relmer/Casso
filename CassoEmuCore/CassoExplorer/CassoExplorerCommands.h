@@ -30,7 +30,6 @@ public:
         kExit = 100,
         kRefresh,
         kTogglePreview,
-        kShowDisassembly,
         kThemeLight,
         kThemeDark,
         kThemeSystem,
@@ -146,10 +145,6 @@ public:
         //  A search's results by relevance, on the Sort menu only there.
         kSortByRelevance,
 
-        //  A hex preview's bytes in hex, the other form of the preview from
-        //  kShowDisassembly.
-        kShowBytes,
-
         //  The character set a text preview is read in, a choice of one, and
         //  the record length a random-access text file is split by.
         kCharsetAppleText,
@@ -202,6 +197,12 @@ public:
 
         //  The Full Send window, on the View menu.
         kFullSendStatus,
+
+        //  A picture preview drawn through the CRT pass or as its pixels.
+        kPictureCrt,
+
+        //  The IIgs fonts downloaded, for a picture's text.
+        kGetFonts,
 
         //  kSortByColumn + the column's index, one per list column.
         kSortByColumn = 400,
@@ -367,7 +368,7 @@ private:
         { kNewTab,            Menu::File, L"&New tab",            L"Ctrl+T",   false },
         { kCloseTab,          Menu::File, L"&Close tab",          L"Ctrl+W",   false },
         { kSeparator,         Menu::File, nullptr,                nullptr,     false },
-        { kInspectDiskImage,  Menu::File, L"&Inspect disk image", nullptr,     false },
+        { kInspectDiskImage,  Menu::File, L"&Inspect / repair",   nullptr,     false },
         { kCompareDiskImages, Menu::File, L"Co&mpare disk images", nullptr,    false },
         { kSeparator,         Menu::File, nullptr,                nullptr,     false },
         { kExit,              Menu::File, L"E&xit",               nullptr,     false },
@@ -393,8 +394,6 @@ private:
         { kSeparator,         Menu::View, nullptr,                nullptr,     false },
         { kTogglePreview,     Menu::View, L"&Preview pane",       L"Alt+P",    true  },
         { kExpandPreview,     Menu::View, L"E&xpand preview",     L"Alt+Shift+P", true },
-        { kShowDisassembly,   Menu::View, L"&Disassembly",        nullptr,     true  },
-        { kShowBytes,         Menu::View, L"&Bytes",              nullptr,     true  },
         { kSeparator,         Menu::View, nullptr,                nullptr,     false },
         { kZoomIn,            Menu::View, L"Zoom &in",            L"Ctrl++",   false },
         { kZoomOut,           Menu::View, L"Zoom &out",           L"Ctrl+-",   false },
@@ -466,6 +465,8 @@ private:
         { kCancelLinkOperation, Menu::Count, L"Cancel",            nullptr,     false },
         { kAddLink,           Menu::Count, L"Add a CassoLink connection...", nullptr, false },
         { kSavePicture,       Menu::Count, L"&Save picture as...", nullptr,     false },
+        { kPictureCrt,        Menu::Count, L"CRT effect",          nullptr,     true  },
+        { kGetFonts,          Menu::Count, L"Get fonts",           nullptr,     false },
         { kEditWozMetadata,   Menu::Count, L"&Edit metadata...",   nullptr,     false },
         { kCharsetAppleText,  Menu::Count, L"&Apple text",         nullptr,     true  },
         { kCharsetMacOsRoman, Menu::Count, L"&Mac OS Roman",       nullptr,     true  },
@@ -599,11 +600,6 @@ private:
         { kCancelLinkOperation, DxuiToolbar::Kind::Command, 5, s_kpszMdl2Cancel,   L"Cancel",       L"Cancel the running operation"       },
     };
 
-    //  The faces of the hex preview's two forms: 6502 code, and the bytes it
-    //  assembles to.
-    static constexpr const wchar_t *  s_kpszDisassemblyFace = L"LDA\nRTS";
-    static constexpr const wchar_t *  s_kpszBytesFace       = L"A9\n60";
-
     static constexpr ToolbarRow  kPreviewToolbarRows[] =
     {
         { kPreviousFile,      DxuiToolbar::Kind::Command, 8, s_kpszMdl2ChevronLeft,  L"Previous",  L"Previous file (Left)",                                    true },
@@ -611,13 +607,12 @@ private:
         { kViewAs,            DxuiToolbar::Kind::DropDown, 7, s_kpszMdl2List,     L"View as",       L"Choose how the file is displayed"                      },
         { kLineAddresses,     DxuiToolbar::Kind::Toggle,  0, s_kpszMdl2Tag,       L"Show address",  L"Show where each line starts in memory"                   },
         { kCrossReference,    DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Cross-reference", L"List the program's variables, line references and addresses" },
-        { kShowDisassembly,   DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Disassembly",   L"Show disassembly",                                       true },
-        { kShowBytes,         DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Bytes",         L"Show bytes",                                             true },
         //  The Go to and search boxes, which the host supplies as custom entries.
         { kGoToOffset,        DxuiToolbar::Kind::Command, 0, nullptr,             L"Go to",         L""                                                       },
         { kFind,              DxuiToolbar::Kind::Command, 1, nullptr,             L"Search",        L"",                                                       false, true },
         { kPictureMonochrome, DxuiToolbar::Kind::Toggle,  0, s_kpszMdl2Contrast,  L"Monochrome",    L"Draw the picture as its bits, on a monochrome monitor" },
         { kPictureColor,      DxuiToolbar::Kind::Toggle,  0, s_kpszMdl2Palette,   L"Color",         L"Draw the picture in color, on the color monitor"      },
+        { kPictureCrt,        DxuiToolbar::Kind::Toggle,  0, s_kpszMdl2Monitor,   L"CRT",           L"Apply CRT effects" },
         { kEditWozMetadata,   DxuiToolbar::Kind::Command, 0, s_kpszMdl2Edit,      L"Edit metadata", L"Edit the image's title, publisher and other metadata" },
         { kCharsetAppleText,  DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Apple text",    L"Read the text as Apple II text"                        },
         { kCharsetMacOsRoman, DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Mac OS Roman",  L"Read the text as Mac OS Roman, the Apple IIgs set"     },

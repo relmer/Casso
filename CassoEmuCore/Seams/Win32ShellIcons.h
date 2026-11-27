@@ -73,6 +73,10 @@ public:
     //  when some are ready; the window then calls TakeLoaded.
     void  LoadInBackground (HWND hwnd, UINT message);
 
+    //  As LoadInBackground, for the tree's per-path icons only. Every other
+    //  icon is read when it is asked for.
+    void  LoadTreeInBackground (HWND hwnd, UINT message);
+
     //  Moves the icons loaded since the last call into the cache. Whether
     //  there were any.
     bool  TakeLoaded();
@@ -121,6 +125,7 @@ private:
     std::shared_ptr<const DxuiIconImage>  Queue            (const std::wstring & key, const std::wstring & path, bool isDirectory, bool overlays, bool thumbnail = false, int sizePx = 0);
     bool                                  HasThumbnail     (const std::wstring & extension);
     std::shared_ptr<const DxuiIconImage>  GetIconForPath   (const std::wstring & path, bool isDirectory, bool overlays);
+    static bool                           IsPlainFolder    (const std::wstring & path);
     void                                  StoreIcon        (const std::wstring & key, std::shared_ptr<const DxuiIconImage> image);
     bool                                  IsFailureExpired (const std::wstring & key) const;
     void                                  RunLoader        ();
@@ -179,6 +184,7 @@ private:
     UINT                              m_notifyMessage = 0;
     std::vector<std::thread>          m_loaders;
     bool                              m_plainFolders  = false;
+    bool                              m_treeOnly      = false;
     std::mutex                        m_lock;
     std::condition_variable           m_wake;
     std::deque<Request>               m_requests;

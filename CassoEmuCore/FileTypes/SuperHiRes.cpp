@@ -165,9 +165,10 @@ void SuperHiRes::Render (const Screen & screen, DecodedFile & outFile)
         wide = wide || (line < screen.scbs.size() && (screen.scbs[line] & kMode640) != 0);
     }
 
-    outFile.kind   = DecodedFile::Kind::Picture;
-    outFile.width  = (int) (screen.bytesPerLine * (wide ? 4 : 2));
-    outFile.height = (int) height;
+    outFile.kind        = DecodedFile::Kind::Picture;
+    outFile.width       = (int) (screen.bytesPerLine * (wide ? 4 : 2));
+    outFile.height      = (int) height;
+    outFile.pixelAspect = wide ? kPixelAspect640 : kPixelAspect320;
     outFile.bgra.assign ((size_t) outFile.width * height, 0xFF000000);
 
     for (size_t line = 0; line < drawn; line++)

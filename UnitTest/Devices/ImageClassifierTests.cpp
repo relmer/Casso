@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/DiskSourceFormat.h"
 #include "Devices/Disk/ImageClassifier.h"
 #include "Devices/Disk/Inspector/Blocks/BlockImageFile.h"
 #include "Devices/Tape/TapeImageLoader.h"
@@ -108,6 +108,19 @@ public:
         AssertClass (B::ClassifyTwoImg (BlockImageFile::kTwoImgProDos, B::k32M),                     ImageFormFactor::HardDisk,  ImageLayout::TwoImg, B::k32M,  L"ProDOS order 32 MB");
         AssertClass (B::ClassifyTwoImg (BlockImageFile::kTwoImgDos,    B::k140K),                    ImageFormFactor::Floppy525, ImageLayout::TwoImg, B::k140K, L"DOS order 140K");
         AssertClass (B::ClassifyTwoImg (BlockImageFile::kTwoImgNibble, ImageClassifier::kNibBytes),  ImageFormFactor::Floppy525, ImageLayout::TwoImg, B::k140K, L"nibble");
+    }
+
+
+
+    TEST_METHOD (TwoImgWithNoLength_ProDosOrder_IsItsBlocks)
+    {
+        std::vector<Byte>  head = B::MakeTwoImgHead (BlockImageFile::kTwoImgProDos, (uint32_t) B::k800K);
+
+
+
+        std::fill_n (head.begin() + BlockImageFile::kTwoImgDataLength, 4, (Byte) 0);
+
+        AssertClass (ImageClassifier::ClassifyHeader (L".2mg", BlockImageFile::kTwoImgHeader + B::k800K, head), ImageFormFactor::Floppy35, ImageLayout::TwoImg, B::k800K, L"Sweet16's 800K");
     }
 
 
@@ -282,7 +295,7 @@ public:
         {
             std::wstring  name     = std::wstring (L"x") + extension;
             std::string   narrow   = std::string ("x") + std::filesystem::path (extension).string();
-            bool          expected = DiskImageStore::IsMountableImageExtension (name)
+            bool          expected = DiskSourceFormat::IsMountableImageExtension (name)
                                   || BlockImageFile::IsBlockExtension (narrow)
                                   || TapeImageLoader::IsTapeFileExtension (name);
 

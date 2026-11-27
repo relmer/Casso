@@ -192,12 +192,18 @@ Error:
 //
 //  DrawFramebuffer
 //
-//  Uploads a BGRA8 CPU pixel buffer into a cached ID2D1Bitmap and
-//  draws it into the destination DIP rect with linear interpolation.
-//  The bitmap is created lazily and recreated when the source
-//  dimensions change; otherwise CopyFromMemory rewrites the pixels
-//  in place each call. Used by the Settings → Theme preview to show
-//  the live emulator framebuffer inside the mock window.
+//  Uploads a BGRA8 CPU pixel buffer into the cached ID2D1Bitmap for its
+//  address and draws it into the destination DIP rect with linear
+//  interpolation, or nearest-neighbor for a sharp frame. On an axis drawn
+//  below twice the source's size, other than at exactly its size, the frame
+//  is first resampled to the drawn size, each pixel averaged over at least
+//  two source pixels: sampled, a dithered picture's one-pixel stripes beat
+//  against the screen's pixels, in color bands that move with every size.
+//  From twice the size up, a source pixel covers two screen pixels or more,
+//  so the stripes can't beat, and Direct2D scales that axis. The upload is
+//  skipped while the pixels and the uploaded size match the last ones, so
+//  a repaint at the same size costs only the draw. The cache is emptied
+//  once it has s_kMaxFramebufferBitmaps buffers.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -208,10 +214,22 @@ HRESULT DxuiRenderIcons::DrawFramebuffer (
     float            destXDip,
     float            destYDip,
     float            destWidthDip,
-    float            destHeightDip)
+    float            destHeightDip,
+    bool             sharp)
 {
-    HRESULT       hr     = S_OK;
-    D2D1_RECT_F   dest   = {};
+    HRESULT              hr        = S_OK;
+    D2D1_RECT_F          dest      = {};
+    FramebufferBitmap  * cached    = nullptr;
+    float                dpiX      = 96.0f;
+    float                dpiY      = 96.0f;
+    int                  drawnW    = 0;
+    int                  drawnH    = 0;
+    bool                 blendX    = false;
+    bool                 blendY    = false;
+    const uint32_t     * pixels    = srcBgraPixels;
+    int                  width     = srcWidthPx;
+    int                  height    = srcHeightPx;
+    uint64_t             key       = 0;
 
 
 
@@ -222,9 +240,72 @@ HRESULT DxuiRenderIcons::DrawFramebuffer (
     CBRA (srcBgraPixels);
     CBRA (srcWidthPx > 0 && srcHeightPx > 0);
 
-    if (m_framebufferBitmap == nullptr ||
-        m_framebufferBitmapW != srcWidthPx ||
-        m_framebufferBitmapH != srcHeightPx)
+    m_renderer.m_d2dContext->GetDpi (&dpiX, &dpiY);
+    drawnW = std::max (1, (int) std::lround (destWidthDip  * dpiX / 96.0f));
+    drawnH = std::max (1, (int) std::lround (destHeightDip * dpiY / 96.0f));
+
+    blendX = drawnW < 2 * srcWidthPx  && !IsWholeMultiple (drawnW, srcWidthPx);
+    blendY = drawnH < 2 * srcHeightPx && !IsWholeMultiple (drawnH, srcHeightPx);
+    width  = blendX ? drawnW : srcWidthPx;
+    height = blendY ? drawnH : srcHeightPx;
+    key    = HashPixels (srcBgraPixels, (size_t) srcWidthPx * (size_t) srcHeightPx) ^ ((uint64_t) width << 40) ^ ((uint64_t) height << 20);
+
+    if (m_framebufferBitmaps.size() >= s_kMaxFramebufferBitmaps && !m_framebufferBitmaps.contains (srcBgraPixels))
+    {
+        m_framebufferBitmaps.clear();
+    }
+
+    cached = &m_framebufferBitmaps[srcBgraPixels];
+
+    if (cached->bitmap == nullptr || cached->key != key)
+    {
+        if (blendX || blendY)
+        {
+            Resample (srcBgraPixels, srcWidthPx, srcHeightPx, width, height, blendX, blendY, m_resampled);
+            pixels = m_resampled.data();
+        }
+
+        hr = UploadFramebuffer (*cached, pixels, width, height);
+        CHR (hr);
+
+        cached->key = key;
+    }
+
+    dest.left   = destXDip;
+    dest.top    = destYDip;
+    dest.right  = destXDip + destWidthDip;
+    dest.bottom = destYDip + destHeightDip;
+
+    m_renderer.m_d2dContext->DrawBitmap (cached->bitmap.Get(),
+                              &dest, m_renderer.m_globalAlpha,
+                              sharp ? D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR : D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
+                              nullptr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UploadFramebuffer
+//
+//  The pixels copied into the cached bitmap, which is created again when
+//  their size changes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiRenderIcons::UploadFramebuffer (FramebufferBitmap & cached, const uint32_t * pixels, int width, int height)
+{
+    HRESULT      hr      = S_OK;
+    D2D1_RECT_U  srcRect = D2D1::RectU (0, 0, (UINT32) width, (UINT32) height);
+
+
+
+    if (cached.bitmap == nullptr || cached.width != width || cached.height != height)
     {
         D2D1_BITMAP_PROPERTIES  props = {};
 
@@ -233,34 +314,172 @@ HRESULT DxuiRenderIcons::DrawFramebuffer (
         props.dpiX                  = 96.0f;
         props.dpiY                  = 96.0f;
 
-        m_framebufferBitmap.Reset();
-        hr = m_renderer.m_d2dContext->CreateBitmap (D2D1::SizeU ((UINT32) srcWidthPx, (UINT32) srcHeightPx),
-                                         nullptr, 0, &props, &m_framebufferBitmap);
+        cached.bitmap.Reset();
+        hr = m_renderer.m_d2dContext->CreateBitmap (D2D1::SizeU ((UINT32) width, (UINT32) height), nullptr, 0, &props, &cached.bitmap);
         CHRA (hr);
-        m_framebufferBitmapW = srcWidthPx;
-        m_framebufferBitmapH = srcHeightPx;
+
+        cached.width  = width;
+        cached.height = height;
     }
 
-    {
-        D2D1_RECT_U  srcRect = D2D1::RectU (0, 0, (UINT32) srcWidthPx, (UINT32) srcHeightPx);
-
-        hr = m_framebufferBitmap->CopyFromMemory (&srcRect, srcBgraPixels,
-                                                  (UINT32) (srcWidthPx * sizeof (uint32_t)));
-        CHRA (hr);
-    }
-
-    dest.left   = destXDip;
-    dest.top    = destYDip;
-    dest.right  = destXDip + destWidthDip;
-    dest.bottom = destYDip + destHeightDip;
-
-    m_renderer.m_d2dContext->DrawBitmap (m_framebufferBitmap.Get(),
-                              &dest, m_renderer.m_globalAlpha,
-                              D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
-                              nullptr);
+    hr = cached.bitmap->CopyFromMemory (&srcRect, pixels, (UINT32) (width * sizeof (uint32_t)));
+    CHRA (hr);
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsWholeMultiple
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiRenderIcons::IsWholeMultiple (int drawn, int source)
+{
+    int  multiple = (int) std::lround ((double) drawn / source);
+
+
+
+    return multiple >= 1 && std::abs (drawn - multiple * source) <= 1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetWeights
+//
+//  For each of `count` pixels across `source` pixels, the first source
+//  pixel it covers and each covered pixel's share. A pixel covers the source
+//  span under it, widened to two source pixels around the same center when
+//  `blend` is set.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiRenderIcons::GetWeights (int source, int count, bool blend, std::vector<Weights> & outWeights)
+{
+    double  scale = (double) source / count;
+    double  span  = blend ? std::max (scale, 2.0) : scale;
+
+
+
+    outWeights.assign ((size_t) count, Weights());
+
+    for (int i = 0; i < count; i++)
+    {
+        double     center = (i + 0.5) * scale;
+        double     from   = std::max (center - span / 2.0, 0.0);
+        double     to     = std::min (center + span / 2.0, (double) source);
+        double     total  = 0.0;
+        Weights  & w      = outWeights[(size_t) i];
+
+        w.first = std::min ((int) from, source - 1);
+
+        for (int j = w.first; j < source && j < to; j++)
+        {
+            double  share = std::max (std::min (to, (double) j + 1) - std::max (from, (double) j), 0.0);
+
+            w.shares.push_back ((float) share);
+            total += share;
+        }
+
+        if (total <= 0.0)
+        {
+            w.shares.assign (1, 1.0f);
+            continue;
+        }
+
+        for (float & share : w.shares)
+        {
+            share = (float) (share / total);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Resample
+//
+//  One axis at a time: each pixel is the weighted mean of the source pixels
+//  GetWeights finds under it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiRenderIcons::Resample (
+    const uint32_t        * src,
+    int                     srcWidth,
+    int                     srcHeight,
+    int                     width,
+    int                     height,
+    bool                    blendX,
+    bool                    blendY,
+    std::vector<uint32_t> & outPixels)
+{
+    std::vector<Weights>  across;
+    std::vector<Weights>  down;
+    std::vector<float>    rows;
+
+
+
+    GetWeights (srcWidth,  width,  blendX, across);
+    GetWeights (srcHeight, height, blendY, down);
+
+    rows.assign ((size_t) width * srcHeight * 3, 0.0f);
+
+    for (int y = 0; y < srcHeight; y++)
+    {
+        for (int x = 0; x < width; x++)
+        {
+            const Weights  & w   = across[(size_t) x];
+            float          * sum = &rows[((size_t) y * width + x) * 3];
+
+            for (size_t k = 0; k < w.shares.size(); k++)
+            {
+                uint32_t  pixel = src[(size_t) y * srcWidth + w.first + k];
+
+                sum[0] += w.shares[k] * (float) (pixel & 0xFF);
+                sum[1] += w.shares[k] * (float) ((pixel >> 8) & 0xFF);
+                sum[2] += w.shares[k] * (float) ((pixel >> 16) & 0xFF);
+            }
+        }
+    }
+
+    outPixels.assign ((size_t) width * height, 0xFF000000u);
+
+    for (int y = 0; y < height; y++)
+    {
+        const Weights  & w = down[(size_t) y];
+
+        for (int x = 0; x < width; x++)
+        {
+            float  sum[3] = {};
+
+            for (size_t k = 0; k < w.shares.size(); k++)
+            {
+                const float  * row = &rows[((size_t) (w.first + k) * width + x) * 3];
+
+                sum[0] += w.shares[k] * row[0];
+                sum[1] += w.shares[k] * row[1];
+                sum[2] += w.shares[k] * row[2];
+            }
+
+            outPixels[(size_t) y * width + x] = 0xFF000000u
+                                              | (uint32_t) std::lround (std::min (sum[2], 255.0f)) << 16
+                                              | (uint32_t) std::lround (std::min (sum[1], 255.0f)) << 8
+                                              | (uint32_t) std::lround (std::min (sum[0], 255.0f));
+        }
+    }
 }
 
 

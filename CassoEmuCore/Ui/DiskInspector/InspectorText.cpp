@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Ui/DiskInspector/InspectorText.h"
+#include "Core/TextEncoding.h"
+#include "Devices/Disk/Stamp/FormatStampJson.h"
 #include "Core/UnicodeSymbols.h"
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
 #include "Devices/Disk/Inspector/FindingFormatter.h"
@@ -18,6 +20,72 @@
 
 //  Between items on a line.
 static const std::wstring  s_kSeparator = std::wstring (L" ") + s_kpszMiddleDot + L" ";
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::BuildStampChips
+//
+//  One chip when the image's format stamp lists address or data prologs
+//  other than the standard ones. The marks themselves are in the preview's
+//  Format stamp section.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<SummaryChip> InspectorText::BuildStampChips (const ImageDetails & image)
+{
+    vector<SummaryChip>  chips;
+    bool                 isAddressCustom = false;
+    bool                 isDataCustom    = false;
+
+
+
+    if (image.stampState != StampState::Readable)
+    {
+        return chips;
+    }
+
+    for (const StampTrack & track : image.stamp.tracks)
+    {
+        isAddressCustom = isAddressCustom || HasCustomMark (track.addressPrologs);
+        isDataCustom    = isDataCustom    || HasCustomMark (track.dataPrologs);
+    }
+
+    if (isAddressCustom || isDataCustom)
+    {
+        chips.push_back ({ SummaryChipKind::StampMarks,
+                           isAddressCustom && isDataCustom ? L"Uses nonstandard address and data marks"
+                         : isAddressCustom                 ? L"Uses nonstandard address marks"
+                         :                                   L"Uses nonstandard data marks",
+                           false });
+    }
+
+    return chips;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::HasCustomMark
+//
+//  Whether any prolog is other than D5 AA 96, D5 AA B5 or D5 AA AD.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool InspectorText::HasCustomMark (const vector<vector<Byte>> & prologs)
+{
+    static const vector<Byte>  kStandard[] = { { 0xD5, 0xAA, 0x96 }, { 0xD5, 0xAA, 0xB5 }, { 0xD5, 0xAA, 0xAD } };
+
+
+
+    return std::ranges::any_of (prologs, [] (const vector<Byte> & prolog) { return std::ranges::find (kStandard, prolog) == std::end (kStandard); });
+}
 
 
 
@@ -116,6 +184,7 @@ vector<SummaryChip> InspectorText::BuildBlockChips (const BlockInspectorModel & 
     int                   partitions = 0;
     int                   used       = 0;
     int                   crossed    = 0;
+    uint32_t              blocks     = model.GetBlockCount();
     std::wstring          volume;
 
 
@@ -148,7 +217,15 @@ vector<SummaryChip> InspectorText::BuildBlockChips (const BlockInspectorModel & 
         chips.push_back ({ SummaryChipKind::Volume, volume, false });
     }
 
-    chips.push_back ({ SummaryChipKind::Blocks, FormatCount (static_cast<int> (model.GetBlockCount()), L"block", L"blocks"), false });
+    //  A ProDOS volume smaller than its image, such as a 140K volume in a
+    //  32 MB partition, is counted at its size.
+    if (map != nullptr && (map->fileSystem == BlockFileSystem::ProDos || map->fileSystem == BlockFileSystem::Sos) &&
+        !map->blocks.empty() && map->blocks.size() < blocks)
+    {
+        blocks = static_cast<uint32_t> (map->blocks.size());
+    }
+
+    chips.push_back ({ SummaryChipKind::Blocks, FormatCount (static_cast<int> (blocks), L"block", L"blocks"), false });
 
     if (map != nullptr && map->fileSystem != BlockFileSystem::None)
     {
@@ -238,6 +315,54 @@ std::wstring InspectorText::FormatFileSystem (BlockFileSystem fileSystem)
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::MakeReadAsCpmChip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SummaryChip InspectorText::MakeReadAsCpmChip()
+{
+    SummaryChip  chip;
+
+
+
+    chip.kind   = SummaryChipKind::ReadAsCpm;
+    chip.text   = L"Read as CP/M";
+    chip.isInfo = true;
+
+    return chip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::MakeReadAsCpmTitleChip
+//
+//  The same chip for the caption, after the title, with its tip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiTitleChip InspectorText::MakeReadAsCpmTitleChip()
+{
+    DxuiTitleChip  chip;
+
+
+
+    chip.text = MakeReadAsCpmChip().text;
+    chip.tip  = kpszReadAsCpmTip;
+    chip.kind = DxuiTitleChipKind::Info;
+
+    return chip;
 }
 
 
@@ -652,41 +777,55 @@ HeaderItem HeaderItem::MakeResult (LPCWSTR label, const std::wstring & value)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  InspectorText::BuildSectorHeader
-//
-//  The Sector data header (FR-040): the sector, its address fields, both
-//  results and the encoding, and on a 16-sector track the DOS-order sector index and
-//  ProDOS block it has under the standard skew.
+//  HeaderItem::MakeCheck
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-vector<HeaderItem> InspectorText::BuildSectorHeader (const AnalyzedSector & sector, const TrackAnalysis & track)
+HeaderItem HeaderItem::MakeCheck (LPCWSTR label, bool isPresent, bool isChecked, bool isGood)
 {
-    const LocatedField &  address = track.fields[sector.addressField];
-    vector<HeaderItem>    items;
-    std::wstring          dataResult;
+    LPCWSTR     mark = !isPresent ? s_kpszEmptySet : !isChecked ? L"?" : isGood ? s_kpszCheckMark : s_kpszBallotX;
+    HeaderItem  item = { L"", std::wstring (mark) + L" " + label };
+
+
+
+    if (isPresent && isChecked && !isGood)
+    {
+        item.badStart  = 0;
+        item.badLength = item.value.size();
+    }
+
+    return item;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::BuildSectorHeader
+//
+//  The Sector data header's lines (FR-040): the sector, its volume and its
+//  encoding; its address and data checks; and where the file system puts
+//  it, as a ProDOS or Pascal block or a DOS 3.3 sector under the standard
+//  skew. A disk without one of those file systems has no third line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SectorHeader InspectorText::BuildSectorHeader (const AnalyzedSector & sector, const TrackAnalysis & track, MapFileSystem fileSystem)
+{
+    const LocatedField &  address  = track.fields[sector.addressField];
+    SectorHeader          lines;
     std::wstring          trackText;
     HeaderItem            location;
+    bool                  isSkewed = sector.kind == DiskFieldKind::Sixteen && sector.dosOrderIndex >= 0;
 
 
 
-    if (sector.dataField < 0)
-    {
-        dataResult = L"Missing";
-    }
-    else if (!sector.isDataCheck)
-    {
-        dataResult = L"Not checked";
-    }
-    else
-    {
-        dataResult = sector.isDataGood ? L"Good" : L"Bad";
-    }
-
-    //  The track in the address field is in the error color when it is neither
-    //  whole track the record is read as.
-    trackText = std::format (L"track {}", address.track);
-    location  = { L"Address field", std::format (L"{}, sector {}", trackText, InspectorFormat::FormatSector (sector.sector)) };
+    //  The track is in the error color when it is neither whole track the
+    //  record is read as.
+    trackText = std::format (L"Track {}", address.track);
+    location  = { L"", std::format (L"{}, sector {}", trackText, InspectorFormat::FormatSector (sector.sector)) };
 
     if (address.track != track.context.physicalTrack && address.track != track.context.alsoTrack)
     {
@@ -694,19 +833,23 @@ vector<HeaderItem> InspectorText::BuildSectorHeader (const AnalyzedSector & sect
         location.badLength = trackText.size();
     }
 
-    items.push_back (location);
-    items.push_back ({ L"Volume",   std::to_wstring (address.volume) });
-    items.push_back (HeaderItem::MakeResult (L"Address checksum", !sector.isAddressCheck ? L"Not checked" : (sector.isAddressGood ? L"Good" : L"Bad")));
-    items.push_back (HeaderItem::MakeResult (L"Data", dataResult));
-    items.push_back ({ L"Encoding", sector.kind == DiskFieldKind::Sixteen ? L"6-and-2" : L"5-and-3" });
+    lines[0].push_back (location);
+    lines[0].push_back ({ L"Volume", std::to_wstring (address.volume) });
+    lines[0].push_back ({ L"", sector.kind == DiskFieldKind::Sixteen ? L"6-and-2" : L"5-and-3" });
 
-    if (sector.kind == DiskFieldKind::Sixteen && sector.dosOrderIndex >= 0)
+    lines[1].push_back (HeaderItem::MakeCheck (L"Address", true, sector.isAddressCheck, sector.isAddressGood));
+    lines[1].push_back (HeaderItem::MakeCheck (L"Data", sector.dataField >= 0, sector.isDataCheck, sector.isDataGood));
+
+    if (isSkewed && (fileSystem == MapFileSystem::ProDos || fileSystem == MapFileSystem::Pascal))
     {
-        items.push_back ({ L"DOS-order sector index", InspectorFormat::FormatSector (sector.dosOrderIndex) });
-        items.push_back ({ L"ProDOS block",   std::format (L"{} ({} half)", sector.prodosBlock, sector.prodosHalf == 0 ? L"first" : L"second") });
+        lines[2].push_back ({ L"Block", std::format (L"{}, {} half", sector.prodosBlock, sector.prodosHalf == 0 ? L"first" : L"second") });
+    }
+    else if (isSkewed && fileSystem == MapFileSystem::Dos33)
+    {
+        lines[2].push_back ({ L"DOS sector", InspectorFormat::FormatSector (sector.dosOrderIndex) });
     }
 
-    return items;
+    return lines;
 }
 
 

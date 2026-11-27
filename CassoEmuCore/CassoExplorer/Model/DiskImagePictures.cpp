@@ -2,7 +2,7 @@
 
 #include "CassoExplorer/Model/DiskImagePictures.h"
 #include "Core/TextEncoding.h"
-#include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/DiskSourceFormat.h"
 #include "Devices/Printer/PngCodec.h"
 #include "DiskCheck/BootCheck.h"
 
@@ -147,6 +147,7 @@ bool DiskImagePictures::Read (const std::wstring & path, RgbaImage & outPicture,
     int64_t                time     = 0;
     std::vector<Byte>      png;
     bool                   isNew    = false;
+    bool                   isSwept  = false;
     bool                   found    = false;
 
 
@@ -158,15 +159,14 @@ bool DiskImagePictures::Read (const std::wstring & path, RgbaImage & outPicture,
 
     if (png.empty())
     {
-        time = (int64_t) std::filesystem::last_write_time (file, failed).time_since_epoch().count();
+        time  = (int64_t) std::filesystem::last_write_time (file, failed).time_since_epoch().count();
+        isNew = TryMarkQueued (path, bytes, time);
 
-        {
-            std::lock_guard  lock (m_lock);
+        //  An image a folder sweep queued is queued again, to be booted ahead
+        //  of the sweep's other images, now that it's in view.
+        isSwept = !isNew && m_isPending && m_isPending (path);
 
-            isNew = m_queued.insert (std::format (L"{}|{}|{}", path, bytes, time)).second;
-        }
-
-        if (isNew && m_queue)
+        if ((isNew || isSwept) && m_queue)
         {
             m_queue (path);
         }
@@ -181,6 +181,25 @@ bool DiskImagePictures::Read (const std::wstring & path, RgbaImage & outPicture,
 
 Error:
     return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImagePictures::TryMarkQueued
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImagePictures::TryMarkQueued (const std::wstring & path, uint64_t bytes, int64_t time)
+{
+    std::lock_guard  lock (m_lock);
+
+
+
+    return m_queued.insert (std::format (L"{}|{}|{}", path, bytes, time)).second;
 }
 
 
@@ -354,6 +373,31 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskImagePictures::SetThumbnail
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImagePictures::SetThumbnail (const std::wstring & path, std::span<const Byte> png)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    hr = m_store.SetByUser (path, png);
+    CHR (hr);
+
+    NotifyReady (kPicturesChanged);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskImagePictures::GetKeys
 //
 //  A file that can't be read, or isn't a disk image, has no key. A folder's
@@ -382,7 +426,7 @@ std::vector<std::string> DiskImagePictures::GetKeys (const std::vector<std::wstr
 
         for (const std::filesystem::directory_entry & entry : std::filesystem::recursive_directory_iterator (path, std::filesystem::directory_options::skip_permission_denied, error))
         {
-            HRESULT  hrFormat = entry.is_regular_file (error) ? DiskImageStore::GetSourceFormatByExtension (TextEncoding::WideToNarrow (entry.path().wstring()), format) : E_FAIL;
+            HRESULT  hrFormat = entry.is_regular_file (error) ? DiskSourceFormat::GetSourceFormatByExtension (TextEncoding::WideToNarrow (entry.path().wstring()), format) : E_FAIL;
 
             if (SUCCEEDED (hrFormat))
             {

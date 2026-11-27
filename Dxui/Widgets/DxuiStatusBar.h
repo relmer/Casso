@@ -38,13 +38,18 @@ public:
         //  and selection. Flowing fields come first; an empty one takes no
         //  room and draws no divider. Its own rectangle is not used.
         bool          flow     = false;
+
+        //  Painted over the field's cell after its text, as for an effect
+        //  that marks work under way.
+        std::function<void (IDxuiPainter &, const RECT &)>  overlay;
     };
 
     DxuiStatusBar() = default;
     ~DxuiStatusBar() override = default;
 
-    void  SetFields (std::vector<Field> fields);
-    void  SetText   (size_t index, std::wstring text);
+    void  SetFields  (std::vector<Field> fields);
+    void  SetText    (size_t index, std::wstring text);
+    void  SetOverlay (size_t index, std::function<void (IDxuiPainter &, const RECT &)> overlay);
 
     //  The line along the top and the lines between fields; on by default.
     void  SetDividers (bool dividers) { m_dividers = dividers; }
@@ -61,6 +66,9 @@ public:
     //  One field's rectangle after the last layout, in the bounds' pixels.
     RECT  GetFieldRect (size_t index) const;
 
+    //  Whether a field's text was cut short to fit at the last paint.
+    bool  IsElided     (size_t index) const { return index < m_elided.size() && m_elided[index]; }
+
     void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Label; }
@@ -74,6 +82,7 @@ public:
 private:
     std::vector<Field>  m_fields;
     std::vector<RECT>   m_fieldRects;
+    std::vector<bool>   m_elided;
     DxuiDpiScaler       m_scaler;
     bool                m_dividers = true;
     float               m_leadDip  = (float) kFieldPadDip;

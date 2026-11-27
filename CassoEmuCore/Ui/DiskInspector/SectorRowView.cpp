@@ -80,6 +80,15 @@ void SectorRowView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
                 painter.FillCircle (static_cast<float> (r.right) - m_scaler.ToPxf (2.0f * s_kHitDotDip), static_cast<float> (r.top) + m_scaler.ToPxf (2.0f * s_kHitDotDip),
                                     m_scaler.ToPxf (s_kHitDotDip), m_context.palette.colors.findHit);
             }
+
+            //  The selected sector's ring while the keys step through the row.
+            if (selected && m_hasKeys)
+            {
+                float  gap = m_scaler.ToPxf (2.0f);
+
+                painter.OutlineRoundedRect (static_cast<float> (r.left) - gap, static_cast<float> (r.top) - gap, static_cast<float> (r.right - r.left) + 2 * gap,
+                                            static_cast<float> (r.bottom - r.top) + 2 * gap, DxuiTheme::kCornerRadiusDip + gap, m_scaler.ToPxf (theme.FocusRingWidthDip()), theme.FocusRing());
+            }
         }
     }
 }

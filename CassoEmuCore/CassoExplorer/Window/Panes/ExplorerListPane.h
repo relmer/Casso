@@ -39,6 +39,7 @@ public:
     void  SetDarkSurface (bool isDark);
 
     static constexpr const wchar_t *  kNoSearchMatches = L"No items match your search.";
+    static constexpr const wchar_t *  kSearching       = L"Searching...";
 
     void  Create             ();
     void  Configure          ();
@@ -57,7 +58,6 @@ public:
     void                                     FillList                ();
     void                                     SetListSelection        (std::vector<int> rows);
     void                                     OnSelectionChanged      ();
-    bool                                     IsSelectionOpenable     () const;
     bool                                     SelectRowNamed          (const std::wstring & name);
 
     //  Selects the items with these names in `folder` once a listing has every
@@ -86,17 +86,19 @@ public:
 
     //  An item's date and size, so its properties are read again when it changes.
     static std::wstring  GetPropertyStamp (const CatalogRow & row) { return std::to_wstring (row.modifiedUnix) + L"." + std::to_wstring (row.sizeBytes); }
-    const std::vector<DxuiListView::Cell>  & GetListRowCells         (int row);
-    static std::wstring                      GetEmptyLocationMessage (Location::Kind kind);
-    void                                     UpdateTip               (const DxuiMouseEvent & ev, POINT point);
-    void                                     RefreshTip              ();
-    static bool                              IsHostFileRow           (const CatalogRow & row, std::wstring & outPath);
-    std::vector<DxuiPopupMenuItem>           GetScrollbarMenu        (const DxuiMouseEvent & ev) const;
-    bool                                     UpdateScrollbarHover    (POINT at) { return m_list->SetScrollbarHover (at); }
-    LPCWSTR                                  GetCursorForPoint       (POINT clientPx) const;
-    IDxuiControl                           * GetControl              () const { return m_list; }
-    DxuiListView                           * GetListView             () const { return m_list; }
-    RECT                                     GetBounds               () const { return m_list->GetBounds(); }
+    const std::vector<DxuiListView::Cell>  & GetListRowCells            (int row);
+    static std::wstring                      GetEmptyLocationMessage    (Location::Kind kind);
+    void                                     UpdateTip                  (const DxuiMouseEvent & ev, POINT point);
+    void                                     RefreshTip                 ();
+    static bool                              IsHostFileRow              (const CatalogRow & row, std::wstring & outPath);
+    bool                                     FetchSelectedStockDisks    ();
+    bool                                     IsStockDiskToFetchSelected () const;
+    std::vector<DxuiPopupMenuItem>           GetScrollbarMenu           (const DxuiMouseEvent & ev) const;
+    bool                                     UpdateScrollbarHover       (POINT at) { return m_list->SetScrollbarHover (at); }
+    LPCWSTR                                  GetCursorForPoint          (POINT clientPx) const;
+    IDxuiControl                           * GetControl                 () const { return m_list; }
+    DxuiListView                           * GetListView                () const { return m_list; }
+    RECT                                     GetBounds                  () const { return m_list->GetBounds(); }
 
     //  Rows cut to the clipboard and not yet pasted, drawn dimmed.
     void  SetCutPaths   (std::vector<std::wstring> paths) { m_cutPaths = std::move (paths); }

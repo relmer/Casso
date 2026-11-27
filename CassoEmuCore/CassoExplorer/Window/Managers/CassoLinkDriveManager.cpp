@@ -2,12 +2,17 @@
 
 #include "CassoExplorer/Window/Managers/CassoLinkDriveManager.h"
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
+#include "CassoExplorer/Window/Managers/CassoLinkJobManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerImageTools.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/Actions/ActionsTypes.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
+#include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "CassoExplorer/CassoExplorerNewDiskDialog.h"
+#include "CassoExplorer/CassoExplorerOptionsDialog.h"
 #include "CassoExplorer/CassoExplorerShell.h"
+#include "CassoExplorer/CassoLinkProDosDialog.h"
 #include "CassoExplorer/KrunchMapDialog.h"
 #include "CassoLink/FullSend/FullSendProtection.h"
 #include "Core/TextEncoding.h"
@@ -49,24 +54,33 @@ CassoLinkDriveManager::~CassoLinkDriveManager() = default;
 //  CassoLinkDriveManager::ReadDiskToImage
 //
 //  A linked Apple drive's disk into an image file the user picks, in the
-//  format of its extension. The drive is the one given, else the open
-//  drive, else the drive row selected on its machine; the list stays where
-//  it is. When sectors cannot be read, the user may read the disk again
-//  with them written as zeros.
+//  format of its extension: a WOZ is captured raw, and any other is the
+//  disk's sectors. A name without an image extension is Automatic, which
+//  picks the format as Full Send does. The drive is the one given, else the
+//  open drive, else the drive row selected on its machine; the list stays
+//  where it is. When sectors cannot be read, the user may read the disk
+//  again with them written as zeros.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassoLinkDriveManager::ReadDiskToImage (const Location & drive, bool forceVerify)
 {
-    HRESULT                        hr     = S_OK;
-    std::filesystem::path          picked;
-    bool                           chosen = false;
-    Location                       target;
-    std::wstring                   link;
-    int                            number = 0;
-    bool                           found  = false;
-    FileDialogSpec                 spec;
-    CassoExplorerActions::Outcome  outcome;
+    HRESULT                                   hr        = S_OK;
+    std::filesystem::path                     picked;
+    bool                                      chosen    = false;
+    Location                                  target;
+    std::wstring                              link;
+    int                                       number    = 0;
+    bool                                      found     = false;
+    FileDialogSpec                            spec;
+    CassoExplorerActions::Outcome             outcome;
+    bool                                      isAuto    = false;
+    bool                                      exists    = false;
+    std::wstring                              taken;
+    std::optional<FullSendProtectionChoices>  automatic;
+    bool                                      verify    = forceVerify;
+    bool                                      is13      = false;
+    std::wstring                              name;
 
 
 
@@ -79,11 +93,40 @@ void CassoLinkDriveManager::ReadDiskToImage (const Location & drive, bool forceV
         BAIL_OUT_IF (true, S_OK);
     }
 
-    spec.filters          = { FileDialogFilter { L"Disk images (*.dsk, *.do, *.po, *.d13, *.woz, *.nib, *.nb2)", L"*.dsk;*.do;*.po;*.d13;*.woz;*.nib;*.nb2" },
-                              FileDialogFilter { L"All files (*.*)", L"*.*" } };
+    is13 = m_context.browser.GetTreeModel().IsThirteenSectorDrive (target.path);
+    name = ActionsDriveImage::GetDriveImageName (m_context.browser.GetLinks(), TextEncoding::WideToNarrow (link), 6, number);
+
+    if (name.size() > 4 && _wcsicmp (name.c_str() + name.size() - 4, L".dsk") == 0)
+    {
+        name.resize (name.size() - 4);
+    }
+
+    //  The Full Send page's list. A 13-sector disk fits only a .d13, which
+    //  Full Send doesn't save, or a raw capture.
+    if (is13)
+    {
+        spec.filters = { FileDialogFilter { L".d13: 13 sectors a track, for DOS 3.2 and earlier", L"*.d13", std::wstring(),
+                                            L"A Model T. It starts with a crank, and only on dirt or cobblestone roads." } };
+
+        for (const FileDialogFilter & filter : CassoExplorerFullSendPage::GetFormatFilters())
+        {
+            if (filter.pattern == L"*.woz")
+            {
+                spec.filters.push_back (filter);
+            }
+        }
+
+        name += L".d13";
+    }
+    else
+    {
+        spec.filters = CassoExplorerFullSendPage::GetFormatFilters();
+    }
+
+    spec.verify           = &verify;
+    spec.verifyLabel      = L"Verify: read each track again and compare";
     spec.clientGuid       = s_kLinkDiskPickerGuid;
-    spec.defaultFileName  = ActionsAppleDrive::GetDriveImageName (m_context.browser.GetLinks(), TextEncoding::WideToNarrow (link), 6, number);
-    spec.defaultExtension = L"dsk";
+    spec.defaultFileName  = name;
     spec.askToReplace     = false;
     spec.title            = std::format (L"Create image from {}", m_context.browser.GetTreeModel().GetLinkDriveTitle (target.path));
     spec.content          = FileDialogContent::Images;
@@ -96,8 +139,29 @@ void CassoLinkDriveManager::ReadDiskToImage (const Location & drive, bool forceV
         CHR (hr);
         BAIL_OUT_IF (!chosen, S_OK);
 
-        if (GetFileAttributesW (picked.c_str()) != INVALID_FILE_ATTRIBUTES &&
-            DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, (picked.filename().wstring() + L" already exists. Overwrite it?").c_str(),
+        forceVerify = verify;
+        isAuto      = std::none_of (std::begin (s_kImageExtensions), std::end (s_kImageExtensions), [&picked] (const wchar_t * extension) { return _wcsicmp (picked.extension().c_str(), extension) == 0; });
+        exists      = false;
+
+        //  A 13-sector disk's name without an image extension is a .d13.
+        if (is13 && isAuto)
+        {
+            picked += L".d13";
+            isAuto  = false;
+        }
+
+        //  Automatic's file can have any of its extensions.
+        for (const wchar_t * extension : isAuto ? std::initializer_list<const wchar_t *> { L".dsk", L".po", L".woz" } : std::initializer_list<const wchar_t *> { L"" })
+        {
+            if (!exists && GetFileAttributesW ((picked.wstring() + extension).c_str()) != INVALID_FILE_ATTRIBUTES)
+            {
+                exists = true;
+                taken  = picked.filename().wstring() + extension;
+            }
+        }
+
+        if (exists &&
+            DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, (taken + L" already exists. Overwrite it?").c_str(),
                             L"Confirm save as", MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Overwrite", L"Cancel" }) != IDOK)
         {
             spec.initialFolder   = picked.parent_path();
@@ -106,18 +170,29 @@ void CassoLinkDriveManager::ReadDiskToImage (const Location & drive, bool forceV
         }
     }
 
+    if (_wcsicmp (picked.extension().c_str(), L".woz") == 0)
+    {
+        CaptureToImage (link, number, picked);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (isAuto)
+    {
+        automatic = m_context.prefs.fullSendProtection;
+    }
+
     //  The second read goes to the link and drive the first one read, not to
     //  whatever drive the window has open by the time the first one fails.
-    outcome = m_context.actions.ReadDiskToImage (TextEncoding::WideToNarrow (link), number, picked.wstring(), false, forceVerify, [this, picked, forceVerify] (const LinkOperation & operation, const std::string & link, int drive)
+    outcome = m_context.actions.GetDriveImages().ReadDiskToImage (TextEncoding::WideToNarrow (link), number, picked.wstring(), false, forceVerify, [this, picked, forceVerify, automatic] (const LinkOperation & operation, const std::string & link, int drive)
     {
-        std::wstring                   list    = TextEncoding::NarrowToWide (CassoLinkDiskTransfer::GetUnreadableListPath (TextEncoding::WideToNarrow (picked.filename().wstring())));
-        std::wstring                   message = TextEncoding::NarrowToWide (operation.message) + L"\n\nRead the disk again, writing those sectors as zeros? Their list is saved beside the image as " + list + L".";
-        CassoExplorerActions::Outcome  again;
+        std::filesystem::path  woz = picked;
 
-        if (DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, message.c_str(), L"Read disk to image",
-                            MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Read again", L"Cancel" }) == IDOK)
+        //  The job window's tab for the read offers what to do next.
+        woz.replace_extension (L".woz");
+
+        m_context.linkJobs.SetOffer (link, [this, link, drive, woz]() { CaptureToImage (TextEncoding::NarrowToWide (link), drive, woz); }, [this, link, drive, picked, forceVerify, automatic]()
         {
-            again = m_context.actions.ReadDiskToImage (link, drive, picked.wstring(), true, forceVerify, nullptr);
+            CassoExplorerActions::Outcome  again = m_context.actions.GetDriveImages().ReadDiskToImage (link, drive, picked.wstring(), true, forceVerify, nullptr, nullptr, automatic);
 
             if (!again.Succeeded())
             {
@@ -125,8 +200,8 @@ void CassoLinkDriveManager::ReadDiskToImage (const Location & drive, bool forceV
             }
 
             m_context.cassoLinkManager.HandleConnectionChanged();
-        }
-    }, [this, target, picked] () { OfferRawCapture (target, picked); });
+        });
+    }, isAuto ? std::function<void()>() : [this, target, picked] () { OfferRawCapture (target, picked); }, automatic);
 
     if (!outcome.Succeeded())
     {
@@ -215,7 +290,7 @@ void CassoLinkDriveManager::CaptureRawDisk (const Location & drive, const std::w
 
     spec.filters          = { FileDialogFilter { L"WOZ disk images (*.woz)", L"*.woz" } };
     spec.clientGuid       = s_kLinkDiskPickerGuid;
-    spec.defaultFileName  = !suggested.empty() ? suggested : std::filesystem::path (ActionsAppleDrive::GetDriveImageName (m_context.browser.GetLinks(), TextEncoding::WideToNarrow (link), 6, number)).replace_extension (L".woz").wstring();
+    spec.defaultFileName  = !suggested.empty() ? suggested : std::filesystem::path (ActionsDriveImage::GetDriveImageName (m_context.browser.GetLinks(), TextEncoding::WideToNarrow (link), 6, number)).replace_extension (L".woz").wstring();
     spec.defaultExtension = L"woz";
     spec.title            = std::format (L"Capture raw disk from {}", m_context.browser.GetTreeModel().GetLinkDriveTitle (target.path));
     spec.content          = FileDialogContent::Images;
@@ -224,22 +299,45 @@ void CassoLinkDriveManager::CaptureRawDisk (const Location & drive, const std::w
     CHR (hr);
     BAIL_OUT_IF (!chosen, S_OK);
 
-    outcome = m_context.actions.CaptureDisk (TextEncoding::WideToNarrow (link), number, picked.wstring(), [this, picked] (const std::wstring & report)
+    CaptureToImage (link, number, picked);
+
+Error:
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDriveManager::CaptureToImage
+//
+//  The tracks whose reads differ are reported when the capture is done.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkDriveManager::CaptureToImage (const std::wstring & link, int number, const std::filesystem::path & image)
+{
+    CassoExplorerActions::Outcome  outcome;
+
+
+
+    //  The job window opens on the capture's tab when it ends, with what it
+    //  found.
+    outcome = m_context.actions.GetDriveImages().CaptureDisk (TextEncoding::WideToNarrow (link), number, image.wstring(), [this] (const std::wstring &) { m_context.linkJobs.Update(); });
+
+    //  A capture that ran and failed has its reason in the job window.
+    if (!outcome.Succeeded() && m_context.linkJobs.HasJobs())
     {
-        std::wstring  text = picked.filename().wstring() + L" was captured." + (report.empty() ? std::wstring() : L"\n\n" + report);
-
-        m_context.window.ShowMessage (text.c_str(), MB_ICONINFORMATION);
-    });
-
-    if (!outcome.Succeeded())
+        m_context.linkJobs.ShowWindow();
+    }
+    else if (!outcome.Succeeded())
     {
         m_context.window.ShowMessage (outcome.message, MB_ICONERROR);
     }
 
     m_context.cassoLinkManager.HandleConnectionChanged();
-
-Error:
-    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 
@@ -265,6 +363,7 @@ void CassoLinkDriveManager::WriteImageToDisk (const Location & drive, bool force
     std::wstring           link;
     int                    number = 0;
     FileDialogSpec         spec;
+    bool                   verify = forceVerify;
 
 
 
@@ -282,13 +381,16 @@ void CassoLinkDriveManager::WriteImageToDisk (const Location & drive, bool force
     spec.clientGuid     = s_kLinkDiskPickerGuid;
     spec.title          = std::format (L"Write image to {}", m_context.browser.GetTreeModel().GetLinkDriveTitle (target.path));
     spec.content        = FileDialogContent::Images;
-    spec.receivingDrive = ReceivingDrive { ReceivingDriveKind::Floppy525, 0 };
+    spec.verify         = &verify;
+    spec.verifyLabel    = L"Verify: read the disk back and compare";
+    spec.receivingDrive = ReceivingDrive { ReceivingDriveKind::Floppy525, 0, true };
+    spec.listedTerms    = { L"5.25\"", L"140K (16-sector)", L"114K (13-sector)" };
 
     hr = m_context.dialogs.PickFileToOpen (m_context.window.GetHwnd(), spec, picked, chosen);
     CHR (hr);
     BAIL_OUT_IF (!chosen, S_OK);
 
-    StartImageWrite (target, picked.wstring(), forceVerify);
+    StartImageWrite (target, picked.wstring(), verify);
 
 Error:
     IGNORE_RETURN_VALUE (hr, S_OK);
@@ -328,11 +430,23 @@ void CassoLinkDriveManager::StartImageWrite (const Location & drive, const std::
         return;
     }
 
+    if (number >= CassoLinkBlockDevices::kFirstDrive)
+    {
+        StartBlockImageWrite (drive, link, number, imagePath, forceVerify);
+        return;
+    }
+
     name = TextEncoding::WideToNarrow (link);
 
-    hr = m_context.actions.CheckLinkDisk (name, number, [this, name, number, title, file, imagePath, forceVerify] (bool linkDisk, HRESULT result)
+    if (IsDriveBusy (name, number, slot))
+    {
+        return;
+    }
+
+    hr = m_context.actions.GetAppleDrive().CheckLinkDisk (name, number, [this, name, number, slot, link, title, file, imagePath, forceVerify] (bool linkDisk, HRESULT result)
     {
         std::wstring                   message;
+        std::wstring                   quoted  = file.find (L' ') != std::wstring::npos ? std::format (L"\"{}\"", file) : file;
         CassoExplorerActions::Outcome  outcome;
 
         if (FAILED (result))
@@ -345,15 +459,20 @@ void CassoLinkDriveManager::StartImageWrite (const Location & drive, const std::
                 ? std::format (L"{} has the CassoLink disk this Apple started from. Overwriting it does not end the connection, "
                                L"but the Apple cannot start CassoLink from that disk again until you choose Write CassoLink to disk."
                                L"\n\nOverwrite {} with {}?", title, title, file)
-                : std::format (L"Overwrite {} with {}?\n\nEverything on that disk is replaced.", title, file);
+                : std::format (L"Write {} to {} on {}?\n\nEverything on that disk will be overwritten.", quoted, TreeModel::GetLinkDriveLabel (slot, number), DescribeConnection (link));
 
         if (DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, message.c_str(), L"Write image",
-                            MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Overwrite", L"Cancel" }) != IDOK)
+                            MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Write", L"Cancel" }) != IDOK)
         {
             return;
         }
 
-        outcome = m_context.actions.WriteImageToAppleDrive (name, number, imagePath, forceVerify);
+        if (IsDriveBusy (name, number, slot))
+        {
+            return;
+        }
+
+        outcome = m_context.actions.GetDriveImages().WriteImageToAppleDrive (name, number, imagePath, forceVerify);
 
         if (!outcome.Succeeded())
         {
@@ -367,6 +486,34 @@ void CassoLinkDriveManager::StartImageWrite (const Location & drive, const std::
     }
 
     m_context.cassoLinkManager.HandleConnectionChanged();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDriveManager::IsDriveBusy
+//
+//  A busy drive starts nothing and queues nothing: the disk in it could
+//  change before a queued write ran.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkDriveManager::IsDriveBusy (const std::string & name, int number, int slot)
+{
+    CassoLinkConnections  * links = m_context.browser.GetLinks();
+    bool                    busy  = links != nullptr && links->IsDriveBusy (name, number);
+
+
+
+    if (busy)
+    {
+        m_context.window.ShowMessage (std::format (L"Can't write the image now, {} is busy.", TreeModel::GetLinkDriveLabel (slot, number)), MB_ICONWARNING);
+    }
+
+    return busy;
 }
 
 
@@ -509,16 +656,15 @@ void CassoLinkDriveManager::OpenSelectedLinkDrive()
 
 void CassoLinkDriveManager::SaveLinkToDisk (const Location & drive)
 {
-    wchar_t                        temp[MAX_PATH] = {};
     std::wstring                   message;
     Location                       target;
     std::wstring                   link;
-    int                            number         = 0;
+    int                            number  = 0;
     CassoExplorerActions::Outcome  outcome;
 
 
 
-    if (!TryGetTargetDrive (drive, target, link, number) || GetTempPathW (MAX_PATH, temp) == 0)
+    if (!TryGetTargetDrive (drive, target, link, number))
     {
         return;
     }
@@ -532,7 +678,7 @@ void CassoLinkDriveManager::SaveLinkToDisk (const Location & drive)
         return;
     }
 
-    outcome = m_context.actions.SaveLinkToDisk (TextEncoding::WideToNarrow (link), number, std::wstring (temp).substr (0, wcslen (temp) - 1));
+    outcome = m_context.actions.GetLinkDisks().SaveLinkToDisk (TextEncoding::WideToNarrow (link), number);
 
     if (!outcome.Succeeded())
     {
@@ -577,7 +723,7 @@ void CassoLinkDriveManager::FormatAppleDisk (const Location & location)
     drive  = m_context.browser.GetTreeModel().GetLinkDriveTitle (location.path);
     choice = CassoExplorerNewDiskDialog::Ask (m_context.window.GetHwnd(), m_context.theme, true, {}, CassoExplorerNewDiskChoices::kFormatDos33, drive, true);
 
-    if (!choice.confirmed || !m_context.commandManager.TryPrepareBootDisk (choice.request))
+    if (!choice.confirmed || !m_context.imageTools.TryPrepareBootDisk (choice.request))
     {
         return;
     }
@@ -589,7 +735,7 @@ void CassoLinkDriveManager::FormatAppleDisk (const Location & location)
         return;
     }
 
-    outcome = m_context.actions.FormatAppleDrive (TextEncoding::WideToNarrow (link), number, choice.request, std::wstring (temp).substr (0, wcslen (temp) - 1));
+    outcome = m_context.actions.GetDriveImages().FormatAppleDrive (TextEncoding::WideToNarrow (link), number, choice.request, std::wstring (temp).substr (0, wcslen (temp) - 1));
 
     if (!outcome.Succeeded())
     {
@@ -630,7 +776,7 @@ void CassoLinkDriveManager::KrunchAppleDisk (const Location & location)
     }
 
     name    = TextEncoding::WideToNarrow (link);
-    outcome = m_context.actions.KrunchAppleDrive (name, number, &operation);
+    outcome = m_context.actions.GetDriveImages().KrunchAppleDrive (name, number, &operation);
 
     if (!outcome.Succeeded())
     {
@@ -695,7 +841,7 @@ void CassoLinkDriveManager::SaveLinkDiskImage (const std::string & name)
     CHR (hr);
     BAIL_OUT_IF (!chosen, S_OK);
 
-    outcome = m_context.actions.SaveLinkDiskImage (picked.wstring(), link);
+    outcome = m_context.actions.GetLinkDisks().SaveLinkDiskImage (picked.wstring(), link);
 
     if (!outcome.Succeeded())
     {
@@ -738,14 +884,7 @@ void CassoLinkDriveManager::SaveLinkProDosDisk (const std::string & name)
         }
     }
 
-    spec.filters    = { FileDialogFilter { L"140K disk images (*.dsk, *.do, *.po)", L"*.dsk;*.do;*.po" },
-                        FileDialogFilter { L"All files (*.*)", L"*.*" } };
-    spec.clientGuid = s_kLinkDiskPickerGuid;
-    spec.title      = L"Choose your ProDOS disk, with PRODOS and BASIC.SYSTEM";
-    spec.content    = FileDialogContent::Images;
-
-    hr = m_context.dialogs.PickFileToOpen (m_context.window.GetHwnd(), spec, users, chosen);
-    CHR (hr);
+    chosen = ChooseProDosDisk (L"Make CassoLink virtual drives disk", GetProDosDiskNote(), L"Next", false, users);
     BAIL_OUT_IF (!chosen, S_OK);
 
     spec                  = FileDialogSpec();
@@ -753,19 +892,186 @@ void CassoLinkDriveManager::SaveLinkProDosDisk (const std::string & name)
     spec.clientGuid       = s_kLinkDiskPickerGuid;
     spec.defaultFileName  = L"CassoLink ProDOS.dsk";
     spec.defaultExtension = L"dsk";
-    spec.title            = L"Save CassoLink ProDOS disk";
+    spec.title            = L"Save CassoLink virtual drives disk";
     spec.content          = FileDialogContent::Images;
 
     hr = m_context.dialogs.PickFileToSave (m_context.window.GetHwnd(), spec, picked, chosen);
     CHR (hr);
     BAIL_OUT_IF (!chosen, S_OK);
 
-    outcome = m_context.actions.SaveLinkProDosDisk (users.wstring(), picked.wstring(), link);
+    outcome = m_context.actions.GetLinkDisks().SaveLinkProDosDisk (users.wstring(), picked.wstring(), link);
 
     if (!outcome.Succeeded())
     {
         m_context.window.ShowMessage (outcome.message, MB_ICONERROR);
     }
+
+Error:
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDriveManager::GetProDosDiskNote
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoLinkDriveManager::GetProDosDiskNote()
+{
+    return L"This boot disk contains a ProDOS driver that allows an Apple to access virtual drives via a CassoLink connection to "
+           L"Casso Explorer. Edit the CassoLink connection to configure the virtual drives connected to it.\n\n"
+           L"Select a ProDOS disk with PRODOS and BASIC.SYSTEM to use as the template for the virtual drives disk.";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDriveManager::GetOverwriteTarget
+//
+//  A linked drive as an overwrite button lists it: "Slot 6, Drive 1", with
+//  its volume in parentheses once known.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoLinkDriveManager::GetOverwriteTarget (const std::wstring & driveId) const
+{
+    LinkTreeEntry::Drive  drive;
+    std::wstring          name;
+    int                   slot   = 0;
+    int                   number = 0;
+    std::wstring          target;
+
+
+
+    if (m_context.browser.GetTreeModel().TryGetLinkDrive (driveId, drive))
+    {
+        target = drive.isBlockDevice ? TreeModel::GetBlockDeviceLabel (drive) : TreeModel::GetLinkDriveLabel (drive.slot, drive.drive);
+
+        if (!drive.empty && !drive.thirteenSector && !drive.volume.empty())
+        {
+            target += L" (" + drive.volume + L")";
+        }
+    }
+    else if (TreeModel::TryParseLinkId (driveId, name, slot, number))
+    {
+        target = TreeModel::GetLinkDriveLabel (slot, number);
+    }
+
+    return target;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDriveManager::ChooseProDosDisk
+//
+//  The user's ProDOS disk that a CassoLink virtual drives disk is made from,
+//  from the disks used before or by Browse. A chosen disk is put first in the
+//  list. False when canceled.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkDriveManager::ChooseProDosDisk (const std::wstring & title, const std::wstring & note, const std::wstring & confirm, bool destructive, std::filesystem::path & outDisk)
+{
+    CassoLinkProDosDialog::Request  request;
+    std::wstring                    disk;
+    bool                            chosen = false;
+
+
+
+    request.title   = title;
+    request.note    = note;
+    request.confirm     = confirm;
+    request.destructive = destructive;
+    request.history = m_context.prefs.linkProDosDisks;
+    request.browse  = [this] (HWND owner, std::wstring & ioDisk)
+    {
+        HRESULT                hr     = S_OK;
+        FileDialogSpec         spec;
+        std::filesystem::path  picked;
+        bool                   picks  = false;
+
+
+
+        spec.filters       = { FileDialogFilter { L"140K disk images (*.dsk, *.do, *.po)", L"*.dsk;*.do;*.po" },
+                               FileDialogFilter { L"All files (*.*)", L"*.*" } };
+        spec.clientGuid    = s_kLinkDiskPickerGuid;
+        spec.title         = L"Choose your ProDOS disk, with PRODOS and BASIC.SYSTEM";
+        spec.content       = FileDialogContent::Images;
+        spec.startInCasso  = true;
+        spec.initialSearch = L"prodos";
+
+        hr = m_context.dialogs.PickFileToOpen (owner, spec, picked, picks);
+
+        if (SUCCEEDED (hr) && picks)
+        {
+            ioDisk = picked.wstring();
+        }
+
+        return SUCCEEDED (hr) && picks;
+    };
+
+    chosen = CassoLinkProDosDialog::Choose (m_context.window.GetHwnd(), m_context.theme, request, disk);
+
+    if (chosen)
+    {
+        m_context.prefs.RememberLinkProDosDisk (disk);
+        outDisk = disk;
+    }
+
+    return chosen;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDriveManager::SaveLinkProDosToDisk
+//
+//  The CassoLink ProDOS disk, made from the user's ProDOS disk, onto the
+//  open Apple drive once the user confirms, with no image file saved
+//  first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkDriveManager::SaveLinkProDosToDisk (const Location & drive)
+{
+    HRESULT                        hr      = S_OK;
+    std::filesystem::path          users;
+    std::wstring                   title;
+    Location                       target;
+    std::wstring                   link;
+    int                            number  = 0;
+    CassoExplorerActions::Outcome  outcome;
+
+
+
+    BAIL_OUT_IF (!TryGetTargetDrive (drive, target, link, number), S_OK);
+
+    title = L"Overwrite " + GetOverwriteTarget (target.path);
+
+    BAIL_OUT_IF (!ChooseProDosDisk (L"Write CassoLink virtual drives disk", GetProDosDiskNote(), title, true, users), S_OK);
+
+    outcome = m_context.actions.GetLinkDisks().SaveLinkProDosToDisk (TextEncoding::WideToNarrow (link), number, users.wstring());
+
+    if (!outcome.Succeeded())
+    {
+        m_context.window.ShowMessage (outcome.message, MB_ICONERROR);
+    }
+
+    m_context.cassoLinkManager.HandleConnectionChanged();
 
 Error:
     IGNORE_RETURN_VALUE (hr, S_OK);
@@ -803,11 +1109,13 @@ void CassoLinkDriveManager::SaveLinkSosDisk (const std::string & name)
         }
     }
 
-    spec.filters    = { FileDialogFilter { L"140K disk images (*.dsk, *.do, *.po)", L"*.dsk;*.do;*.po" },
-                        FileDialogFilter { L"All files (*.*)", L"*.*" } };
-    spec.clientGuid = s_kLinkDiskPickerGuid;
-    spec.title      = L"Choose your SOS disk, with SOS.KERNEL and SOS.DRIVER";
-    spec.content    = FileDialogContent::Images;
+    spec.filters       = { FileDialogFilter { L"140K disk images (*.dsk, *.do, *.po)", L"*.dsk;*.do;*.po" },
+                           FileDialogFilter { L"All files (*.*)", L"*.*" } };
+    spec.clientGuid    = s_kLinkDiskPickerGuid;
+    spec.title         = L"Choose your SOS disk, with SOS.KERNEL and SOS.DRIVER";
+    spec.content       = FileDialogContent::Images;
+    spec.startInCasso  = true;
+    spec.initialSearch = L"sos";
 
     hr = m_context.dialogs.PickFileToOpen (m_context.window.GetHwnd(), spec, users, chosen);
     CHR (hr);
@@ -825,7 +1133,7 @@ void CassoLinkDriveManager::SaveLinkSosDisk (const std::string & name)
     CHR (hr);
     BAIL_OUT_IF (!chosen, S_OK);
 
-    outcome = m_context.actions.SaveLinkSosDisk (users.wstring(), picked.wstring(), link);
+    outcome = m_context.actions.GetLinkDisks().SaveLinkSosDisk (users.wstring(), picked.wstring(), link);
 
     if (!outcome.Succeeded())
     {

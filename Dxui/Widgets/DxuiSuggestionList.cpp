@@ -4,6 +4,7 @@
 #include "Window/DxuiPopupHost.h"
 #include "Theme/IDxuiTheme.h"
 #include "Theme/DxuiTheme.h"
+#include "Widgets/DxuiToolbar.h"
 
 
 
@@ -208,6 +209,8 @@ void DxuiSuggestionList::Render (IDxuiPainter & painter, IDxuiTextRenderer & tex
     float     insetY   = m_scaler.ToPxf (2.0f);
     float     fontPx   = m_scaler.ToPxf (DxuiTheme::kBodySizeDip);
     int       width    = m_widthPx;
+    bool      remove   = (bool) m_onRemove;
+    float     textW    = (float) width - padPx * 2.0f - (remove ? (float) rowPx : 0.0f);
     uint32_t  fg       = (m_theme != nullptr) ? m_theme->Foreground()      : 0xFFFFFFFFu;
     uint32_t  hover    = (m_theme != nullptr) ? m_theme->HoverBackground() : 0x33FFFFFFu;
     int       i        = 0;
@@ -229,10 +232,26 @@ void DxuiSuggestionList::Render (IDxuiPainter & painter, IDxuiTextRenderer & tex
                                      m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), hover);
         }
 
-        hr = text.DrawString (m_items[(size_t) i].c_str(), padPx, top, (float) width - padPx * 2.0f, (float) rowPx,
+        hr = text.DrawString (m_items[(size_t) i].c_str(), padPx, top, textW, (float) rowPx,
                               fg, fontPx, DxuiTheme::GetUiFace(),
                               DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
+
+        if (remove && i == m_highlight)
+        {
+            float  left = (float) (width - rowPx);
+
+            if (m_overX)
+            {
+                painter.FillRoundedRect (left + insetY * 2.0f, top + insetY * 2.0f, (float) rowPx - insetY * 4.0f, (float) rowPx - insetY * 4.0f,
+                                         m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), hover);
+            }
+
+            hr = text.DrawString (L"\xE711", left, top, (float) rowPx, (float) rowPx,
+                                  fg, m_scaler.ToPxf (10.0f), DxuiToolbar::kMdl2IconFace,
+                                  DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
     }
 }
 
@@ -268,15 +287,34 @@ int DxuiSuggestionList::HitTestRow (POINT localPx) const
 
 void DxuiSuggestionList::OnMove (POINT localPx)
 {
-    int  row = HitTestRow (localPx);
+    int   row   = HitTestRow (localPx);
+    bool  overX =row >= 0 && IsOverRemove (localPx);
 
 
 
-    if (row != m_highlight && m_popup != nullptr)
+    if ((row != m_highlight || overX != m_overX) && m_popup != nullptr)
     {
         m_highlight = row;
+        m_overX     = overX;
         m_popup->MarkDirty();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiSuggestionList::IsOverRemove
+//
+//  The X takes a square at the row's right end, as tall as the row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiSuggestionList::IsOverRemove (POINT localPx) const
+{
+    return m_onRemove && localPx.x >= m_widthPx - m_scaler.ToPx (kRowHeightDip);
 }
 
 
@@ -302,6 +340,14 @@ void DxuiSuggestionList::OnClick (POINT localPx)
     }
 
     pick = m_items[(size_t) row];
+
+    if (IsOverRemove (localPx))
+    {
+        m_overX = false;
+        m_onRemove (pick);
+        return;
+    }
+
     Close();
 
     if (m_onPick)

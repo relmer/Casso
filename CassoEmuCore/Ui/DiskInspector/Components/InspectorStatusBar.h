@@ -24,9 +24,11 @@
 class InspectorStatusBar
 {
 public:
+    //  Unsaved is a count of unsaved edits, filled in the bad color.
     enum class LeadKind
     {
         Result,
+        Unsaved,
         Chip,
         BadChip,
         Note,
@@ -35,7 +37,7 @@ public:
 
     //  One thing drawn at the band's left end, and where it goes. A linked
     //  chip is drawn in the accent, unless it's bad, and is tinted while the
-    //  pointer is on it.
+    //  pointer is on it. An info chip is drawn in the accent too.
     struct LeadItem
     {
         std::wstring  text;
@@ -44,6 +46,7 @@ public:
         float         w        = 0;
         bool          isPlaced = false;
         bool          isLinked = false;
+        bool          isInfo   = false;
     };
 
     using ZoomFn = std::function<void (double zoom)>;
@@ -52,8 +55,9 @@ public:
     //  `onZoom`. With `hasHelp` false there is no "?" button.
     void  Create (DxuiPanel & parent, ZoomFn onZoom, bool hasHelp);
 
-    //  The zoom's slider follows the cursor in `owner`'s client area.
-    void  Tick (HWND owner);
+    //  The zoom's panel opens by the cursor in `owner`'s client area; true
+    //  while it moves, so the window is drawn again.
+    bool  Tick (HWND owner);
 
     void  Layout      (const RECT & area, const DxuiDpiScaler & scaler);
     int   GetHeightPx (const DxuiDpiScaler & scaler) const;
@@ -66,8 +70,9 @@ public:
     bool  IsOverHelp     (POINT p) const { return m_hasHelp && PtInRect (&m_helpPx, p) != FALSE; }
     RECT  GetHelpRect    () const { return m_helpPx; }
 
-    //  The linked chip under a point, as the band was last drawn, or null;
-    //  and whether the pointer is on one.
+    //  The chip, or the linked chip, under a point, as the band was last
+    //  drawn, or null; and whether the pointer is on a linked one.
+    const LeadItem  * GetChipAt       (POINT p) const;
     const LeadItem  * GetLinkedChipAt (POINT p) const;
     void              SetLinkHot      (bool isHot) { m_isLinkHot = isHot; }
 

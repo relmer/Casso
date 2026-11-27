@@ -71,6 +71,7 @@ void PreviewPictureView::Configure()
 {
     m_picture->SetZoom    (1.0f);
     m_picture->SetScaling (false, true);
+    m_picture->SetSharp   (true);
 }
 
 
@@ -154,7 +155,7 @@ void PreviewPictureView::Fill (const PreviewContent & preview, bool picture, boo
 {
     if (picture)
     {
-        m_picture->SetFramebuffer (preview.bgra.data(), preview.width, preview.height);
+        m_picture->SetFramebuffer (preview.bgra.data(), preview.width, preview.height, preview.pixelAspect);
         UpdateCrtPicture (true);
     }
     else if (!keepShellPicture)
@@ -246,7 +247,7 @@ bool PreviewPictureView::HandlePictureMouse (const DxuiMouseEvent & ev)
 
 
 
-    if (press && ev.button == DxuiMouseButton::Right && m_context.browser.CanTogglePictureColor())
+    if (press && ev.button == DxuiMouseButton::Right && m_context.browser.GetPreviewer().GetMonitorChoice().CanTogglePictureColor())
     {
         m_context.input.SetFocusPane (ExplorerPane::Preview);
         m_context.input.ReleasePressed();
@@ -384,12 +385,13 @@ const ThemeCrtDefaults * PreviewPictureView::GetCrtDefaults()
 //  A preview has a single frame, so persistence, which blends a frame into
 //  the next, is left out. The picture's glow spills past its edges, into a
 //  black margin drawn around it.
+//  With the CRT effect turned off, the picture is drawn as its pixels.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void PreviewPictureView::UpdateCrtPicture (bool force)
 {
-    const PreviewContent   & preview  = m_context.browser.GetPreview();
+    const PreviewContent   & preview  = m_context.browser.GetPreviewer().GetPreview();
     int                      width    = 0;
     int                      height   = 0;
     int                      margin   = 0;
@@ -406,6 +408,14 @@ void PreviewPictureView::UpdateCrtPicture (bool force)
         return;
     }
 
+    if (!m_context.prefs.previewCrt)
+    {
+        m_picture->SetDisplayImage (std::vector<uint32_t>(), 0, 0);
+        m_crtWidth  = 0;
+        m_crtHeight = 0;
+        return;
+    }
+
     m_picture->GetScaledSize (width, height);
 
     if (width <= 0 || height <= 0 || (!force && width == m_crtWidth && height == m_crtHeight))
@@ -413,11 +423,12 @@ void PreviewPictureView::UpdateCrtPicture (bool force)
         return;
     }
 
-    found    = m_context.prefs.crtOverrides.find (CassoExplorerPrefs::kMonitorNames[(int) m_context.browser.GetPictureMonitor()]);
-    resolved = CrtResolver::Resolve (CrtPresets::GetPreset (PicturePreview::GetPresetIndex (m_context.browser.GetPictureMonitor())), GetCrtDefaults(),
+    found    = m_context.prefs.crtOverrides.find (CassoExplorerPrefs::kMonitorNames[(int) m_context.browser.GetPreviewer().GetMonitorChoice().GetPictureMonitor()]);
+    resolved = CrtResolver::Resolve (CrtPresets::GetPreset (PicturePreview::GetPresetIndex (m_context.browser.GetPreviewer().GetMonitorChoice().GetPictureMonitor())), GetCrtDefaults(),
                                      (found != m_context.prefs.crtOverrides.end()) ? found->second : CrtOverrides());
     params             = MakeCrtParams (resolved, (float) width, (float) height);
     params.persistence = 0.0f;
+    params.sourceLines = (float) PicturePreview::GetScanlines (preview.height);
 
     hr = m_crtPicture.Render (m_context.window.GetPopupHost()->GetDevice(), m_context.window.GetPopupHost()->GetContext(), preview.bgra, preview.width, preview.height,
                               width, height, params, drawn, margin);
@@ -447,7 +458,7 @@ void PreviewPictureView::UpdateCrtPicture (bool force)
 void PreviewPictureView::SelectMonitor (PicturePreview::Monitor monitor)
 {
     m_context.prefs.previewMonitor = CassoExplorerPrefs::kMonitorNames[(int) monitor];
-    m_context.browser.SetPreviewMonitor (monitor, m_context.prefs.previewCustomArgb);
+    m_context.browser.GetPreviewer().GetMonitorChoice().SetPreviewMonitor (monitor, m_context.prefs.previewCustomArgb);
     m_manager.FillPreview();
     m_context.window.Invalidate();
 }
@@ -468,7 +479,7 @@ void PreviewPictureView::SelectMonitor (PicturePreview::Monitor monitor)
 
 void PreviewPictureView::ShowForm (bool color)
 {
-    if ((m_context.browser.GetPreview().pictureMode != PicturePreview::Mode::DoubleHiResMono) != color && m_context.browser.TogglePictureColor())
+    if ((m_context.browser.GetPreviewer().GetPreview().pictureMode != PicturePreview::Mode::DoubleHiResMono) != color && m_context.browser.GetPreviewer().GetMonitorChoice().TogglePictureColor())
     {
         m_manager.FillPreview();
         m_context.window.Invalidate();
@@ -491,7 +502,7 @@ void PreviewPictureView::ShowForm (bool color)
 void PreviewPictureView::ShowContextMenu (int x, int y)
 {
     std::vector<DxuiPopupMenuItem>  items;
-    bool                            color = m_context.browser.GetPreview().pictureMode != PicturePreview::Mode::DoubleHiResMono;
+    bool                            color = m_context.browser.GetPreviewer().GetPreview().pictureMode != PicturePreview::Mode::DoubleHiResMono;
 
 
 
@@ -517,6 +528,27 @@ void PreviewPictureView::ShowContextMenu (int x, int y)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PreviewPictureView::ToggleCrt
+//
+//  The CRT effect turned on or off for every picture preview, and saved
+//  for the next start.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewPictureView::ToggleCrt()
+{
+    m_context.prefs.previewCrt = !m_context.prefs.previewCrt;
+
+    UpdateCrtPicture (true);
+    m_context.window.Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PreviewPictureView::SavePicture
 //
 //  The picture as the preview decodes it, on the monitor it is drawn for,
@@ -527,7 +559,7 @@ void PreviewPictureView::ShowContextMenu (int x, int y)
 
 void PreviewPictureView::SavePicture()
 {
-    const PreviewContent        & preview  = m_context.browser.GetPreview();
+    const PreviewContent        & preview  = m_context.browser.GetPreviewer().GetPreview();
     const std::vector<int>      & selected = m_context.browser.GetSelectedRows();
     HRESULT                       hr       = S_OK;
     std::filesystem::path         picked;

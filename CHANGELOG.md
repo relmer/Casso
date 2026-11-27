@@ -12,7 +12,8 @@ Entries before versioning was introduced use dates only.
 
 - Casso Explorer has Form factor, Formatted size and Last used columns.
 - Casso Explorer's Casso node lists every disk and tape image in its folders,
-  most recently used first.
+  most recently used first. Cut, copy, rename and delete them there as in
+  their folders.
 - Picking an image for a hard disk, or dropping one on it, sets it for the next
   restart.
 - Apple's Super Serial Card, in slot 2 of the ][, ][+, //e and Enhanced //e.
@@ -37,11 +38,18 @@ Entries before versioning was introduced use dates only.
 
 ### Changed
 
+- Refresh (F5) in Casso Explorer reads the folder's disk images again, in
+  place of the results stored from an earlier read.
+- While a disk image is booted for its thumbnail, Casso Explorer's preview has
+  "Getting thumbnail..." where the thumbnail goes.
 - Replaced Casso's disk image picker with one based on Casso Explorer. Each
   drive's picker lists only the images that drive can use, most recently used
   first, and stays open until you insert a disk or close it.
 - Every request to open or save a disk or tape image, in Casso and in Casso
   Explorer, uses the new picker, as does the boot disk choice at startup.
+  Right-click a file or folder in the picker to cut, copy, paste, rename or
+  delete it, or to see its properties. Right-click empty space for View, Sort
+  by, New folder and Refresh.
 - The pointer is the no-drop cursor while you drag an image over a drive that
   can't use it.
 - The recent list has room for 1,000 images, up from 16.
@@ -62,6 +70,9 @@ Entries before versioning was introduced use dates only.
 
 ### Fixed
 
+- The machine ROM download is offered in Casso Explorer before Casso has
+  ever run, so thumbnails can be made.
+- The preview of an image on the Casso node includes its thumbnail.
 - After going back to an older release, a machine that a newer release had set up no longer fails to start with a missing ROM error.
 - Going back to an older release no longer lists machines it doesn't support.
 - Speaker music made with pulse-width modulation, such as Archon's, sounds

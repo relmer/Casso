@@ -14,6 +14,7 @@ class DxuiPopupHost;
 class DxuiPopupMenu;
 class IDxuiHostClient;
 class DxuiCaptionBar;
+struct DxuiTitleChip;
 class DxuiTooltip;
 
 // Opaque declaration rather than including IDxuiHostClient.h: this header keeps
@@ -414,6 +415,7 @@ public:
     //  the consumer can lay its own content out beneath it.
     //
     void  SetTitle           (const std::wstring & title, size_t markAt = std::wstring::npos);
+    void  SetTitleChips      (const std::vector<DxuiTitleChip> & chips);
     void  SetCaptionIcon     (std::vector<uint32_t> bgraPremul, int widthPx, int heightPx);
     int   GetCaptionHeightPx () const;
 
@@ -698,6 +700,7 @@ public:
     //
     static LRESULT  KindToHt            (DxuiHitTestKind kind);
     HRESULT         ShowSystemMenu      (POINT ptScreen);
+    void            ClickWindowIcon     (POINT ptScreen);
     bool            IsSystemMenuDropped () const;
     POINT           GetSystemMenuPoint  () const;
     HMENU           GetWindowSystemMenu () const;

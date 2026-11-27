@@ -79,149 +79,6 @@ void CassoLinkConnections::SetLinks (const std::vector<CassoLinkSettings> & link
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoLinkConnections::ApplyFirewall
-//
-//  A Wi-Fi modem whose port the gate did not admit opens on its session's next attempt.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CassoLinkConnections::ApplyFirewall()
-{
-    if (m_firewall != nullptr)
-    {
-        m_gate.Set (m_firewall->GetSnapshot(), m_firewall->GetProgram());
-    }
-
-    ApplyListening();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoLinkConnections::ApplyListening
-//
-//  With the port bound by another program without reuse, no Apple is listed
-//  from an announcement; nothing else depends on them.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CassoLinkConnections::ApplyListening()
-{
-    HRESULT  hr = S_OK;
-
-
-
-    if (m_announcements != nullptr)
-    {
-        hr = m_announcements->SetListening (IsSearching() && IsAnnounceAdmitted());
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoLinkConnections::IsAnnounceAdmitted
-//
-//  Until the firewall is read, nothing is known to admit the port.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool CassoLinkConnections::IsAnnounceAdmitted() const
-{
-    return m_firewall == nullptr || (m_firewall->GetVersion() != 0 && m_firewall->Check (HostSocketKind::Udp, LinkProgram::kAnnouncePort).IsAdmitted());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoLinkConnections::IsSearching
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool CassoLinkConnections::IsSearching() const
-{
-    return std::any_of (m_saved.begin(), m_saved.end(), [] (const CassoLinkSettings & settings) { return settings.IsSearch(); });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoLinkConnections::GetInboundPort
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool CassoLinkConnections::GetInboundPort (const CassoLinkSettings & settings, FirewallPort & outPort)
-{
-    bool  inbound = settings.IsSearch() || settings.transport == LinkTransport::WifiModem;
-
-
-
-    if (inbound)
-    {
-        outPort.protocol = settings.IsSearch() ? HostSocketKind::Udp : HostSocketKind::Tcp;
-        outPort.port     = settings.IsSearch() ? LinkProgram::kAnnouncePort : CassoLinkSettings::kModemPort;
-    }
-
-    return inbound;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoLinkConnections::AddFirewall
-//
-//  The cause replaces the connection's state in the list, since none of the
-//  state's instructions can work until the port is allowed.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CassoLinkConnections::AddFirewall (const CassoLinkSettings & settings, LinkTreeEntry & entry) const
-{
-    FirewallPort     port;
-    FirewallVerdict  verdict;
-
-
-
-    if (m_firewall == nullptr || !GetInboundPort (settings, port))
-    {
-        return;
-    }
-
-    verdict = m_firewall->Check (port.protocol, port.port);
-
-    if (verdict.IsAdmitted())
-    {
-        return;
-    }
-
-    entry.firewall       = FirewallText::DescribeBlocked (kFirewallTitle, { port });
-    entry.firewallPublic = verdict.IsOnPublic();
-    entry.status         = std::format (L"{}{}{}", entry.firewall, entry.firewallPublic ? L" " : L"",
-                                        entry.firewallPublic ? FirewallText::kPublicChoice : L"");
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  CassoLinkConnections::SetRunning
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -962,6 +819,7 @@ std::vector<LinkTreeEntry> CassoLinkConnections::BuildTreeEntries() const
         auto           found = std::find_if (m_started.begin(), m_started.end(), [&settings] (const std::unique_ptr<Link> & link) { return link->settings.name == settings.name; });
 
         entry.name   = TextEncoding::NarrowToWide (settings.name);
+        entry.label  = CassoLinkConnectionText::DescribeName (settings, std::wstring());
         entry.folder = (settings.transport == LinkTransport::AdtProServer) ? settings.folder : std::wstring();
 
         if (found == m_started.end())
@@ -979,10 +837,13 @@ std::vector<LinkTreeEntry> CassoLinkConnections::BuildTreeEntries() const
             std::string  failure = (*found)->session->GetOpenFailure();
 
             entry.replying = state == LinkState::Ready || state == LinkState::Busy;
+            entry.label    = CassoLinkConnectionText::DescribeName (settings, entry.replying ? (*found)->session->GetPort() : std::wstring());
             entry.transferring = (*found)->sink->IsTransferring ((*found)->session->IsServingAdtPro());
             entry.fullSending  = (*found)->sink->IsFullSending();
             entry.model    = entry.replying ? (*found)->session->GetModelName() : std::wstring();
-            entry.status   = failure.empty() ? CassoLinkConnectionText::DescribeState (state, settings, CassoLinkShimBuilder::GetPcName()) : TextEncoding::NarrowToWide (failure);
+            entry.status   = failure.empty() ? CassoLinkConnectionText::DescribeState (state, settings, CassoLinkShimBuilder::GetPcName(),
+                                                                                                 (*found)->session->IsServingVirtualDrives(), (*found)->session->GetModelName())
+                                             : TextEncoding::NarrowToWide (failure);
         }
 
         AddFirewall (settings, entry);
@@ -1036,7 +897,8 @@ std::vector<LinkTreeEntry> CassoLinkConnections::BuildTreeEntries() const
             }
             else if (catalog->second->state == LinkOperationState::Failed)
             {
-                row.empty = catalog->second->result == HRESULT_FROM_WIN32 (ERROR_SECTOR_NOT_FOUND);
+                row.empty          = catalog->second->result == HRESULT_FROM_WIN32 (ERROR_SECTOR_NOT_FOUND);
+                row.thirteenSector = catalog->second->result == CassoLinkSession::kThirteenSectorDisk;
             }
 
             entry.drives.push_back (row);
@@ -1268,6 +1130,36 @@ std::vector<std::shared_ptr<LinkOperation>> CassoLinkConnections::GetPendingJobs
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkConnections::GetPendingJobsByLink
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::pair<std::string, std::shared_ptr<LinkOperation>>> CassoLinkConnections::GetPendingJobsByLink() const
+{
+    std::vector<std::pair<std::string, std::shared_ptr<LinkOperation>>>  pending;
+    std::lock_guard<std::mutex>                                          lock (m_lock);
+
+
+
+    for (const Job & job : m_jobs)
+    {
+        LinkOperationState  state = job.operation->state;
+
+        if (state == LinkOperationState::Queued || state == LinkOperationState::Running)
+        {
+            pending.push_back ({ job.link, job.operation });
+        }
+    }
+
+    return pending;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkConnections::IsAnyTransferring
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1282,6 +1174,33 @@ bool CassoLinkConnections::IsAnyTransferring() const
     {
         return link->session != nullptr && link->sink->IsTransferring (link->session->IsServingAdtPro());
     });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::IsAnyBusy
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkConnections::IsAnyBusy() const
+{
+    std::lock_guard<std::mutex>  lock (m_lock);
+    bool                         jobs  = std::any_of (m_jobs.begin(), m_jobs.end(), [] (const Job & job)
+    {
+        return job.operation->state == LinkOperationState::Queued || job.operation->state == LinkOperationState::Running;
+    });
+    bool                         links = std::any_of (m_started.begin(), m_started.end(), [] (const std::unique_ptr<Link> & link)
+    {
+        return link->session != nullptr && (link->sink->IsFullSending() || link->sink->IsTransferring (link->session->IsServingAdtPro()));
+    });
+
+
+
+    return jobs || links;
 }
 
 
@@ -1306,6 +1225,36 @@ bool CassoLinkConnections::IsWritingDisk (const std::string & name, int drive) c
 
         return job.link == name && job.operation->kind == LinkOperationKind::WriteDisk && job.operation->drive == drive
             && (state == LinkOperationState::Queued || state == LinkOperationState::Running);
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::IsDriveBusy
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkConnections::IsDriveBusy (const std::string & name, int drive) const
+{
+    std::lock_guard<std::mutex>  lock (m_lock);
+    auto                         found = std::find_if (m_started.begin(), m_started.end(), [&name] (const std::unique_ptr<Link> & link) { return link->settings.name == name; });
+
+
+
+    if (found != m_started.end() && (*found)->session != nullptr && (*found)->session->IsFullSendRunning())
+    {
+        return true;
+    }
+
+    return std::any_of (m_jobs.begin(), m_jobs.end(), [&] (const Job & job)
+    {
+        LinkOperationState  state = job.operation->state;
+
+        return job.link == name && job.operation->drive == drive && (state == LinkOperationState::Queued || state == LinkOperationState::Running);
     });
 }
 

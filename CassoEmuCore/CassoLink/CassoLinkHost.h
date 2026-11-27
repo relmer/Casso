@@ -10,6 +10,7 @@
 
 class IByteStream;
 class CassoLinkVirtualDrives;
+class RawWriteStream;
 
 
 
@@ -59,6 +60,7 @@ struct CassoLinkStatus
     Byte  done           = 0;
     Byte  error          = 0;
     bool  writeProtected = false;   // the drive's disk, as the program sensed it at the operation's start
+    bool  thirteenSector = false;   // and whether a 13-sector address field passed during it
 };
 
 //  A ProDOS block device or SmartPort unit, as the block module lists it:
@@ -252,6 +254,14 @@ public:
 
     void     SetTraceSink    (TraceFn sink) { m_trace = std::move (sink); }
 
+    //  Called for each reply sent to a virtual drive request, with the
+    //  model the installer's status request identified, or empty.
+    using VirtualFn = std::function<void (const std::wstring & model)>;
+
+    static constexpr size_t  kVirtualIdSize = 5;   // the ROM's identification bytes
+
+    void     SetVirtualSink  (VirtualFn sink) { m_virtualServed = std::move (sink); }
+
     //  The chip the Apple's program is built for: a 6551, or an Uthernet II's
     //  W5100.
     void     SetProgramChip (LinkChip chip) { m_programChip = chip; m_program.clear(); }
@@ -361,10 +371,19 @@ public:
     //  sends Ready, which the next operation takes.
     HRESULT  SendLabel    (const std::string & text);
 
+    //  A note on drive 1 or 2's row, cut to CassoLinkCodec::kNoteLength, or
+    //  with an empty text, the note cleared. The program draws it and sends
+    //  Ready.
+    HRESULT  SendDriveNote (Byte drive, const std::string & text);
+
     //  A line for the program's history, newest at the top: the PC's time,
     //  as the Apple may have no clock, then the text, as SendLabel cuts it,
-    //  to CassoLinkCodec::kLogLength.
+    //  to GetLogLength.
     HRESULT  SendLog      (int hour, int minute, const std::string & text);
+
+    //  The longest history text after the time: CassoLinkCodec::kWideLogLength
+    //  after SetColumns sets 80 columns, else CassoLinkCodec::kLogLength.
+    size_t   GetLogLength () const { return m_wide ? CassoLinkCodec::kWideLogLength : CassoLinkCodec::kLogLength; }
 
     //  Idle, sent unprompted. A shim or program whose Ready went out before
     //  the host connected is in its receive loop; Idle ends that loop, and
@@ -389,6 +408,12 @@ public:
     HRESULT  QueryModule       (Byte & outId, Byte & outVersion);
     HRESULT  LoadModule        (std::span<const Byte> module);
     HRESULT  EnsureModule      (std::span<const Byte> module);
+
+    //  After a request the client didn't take, or a damaged reply: the line's
+    //  errors are reported to the activity, and what the PC has received and
+    //  not read is dropped, so the next AwaitReady takes a fresh Ready and
+    //  both ends start again from a known state.
+    HRESULT  RecoverLine       ();
 
     //  A raw read of a quarter-track position by the capture module, which
     //  must be loaded: the bytes as the Apple stored them, a sync byte with
@@ -416,6 +441,21 @@ public:
     //  byte (CassoLinkCodec::kWriteNibbleTrack). A write-protected disk is the
     //  Status's error.
     HRESULT  WriteNibbleTrack    (Byte drive, Byte track, std::span<const Byte> stream, CassoLinkStatus & outStatus);
+
+    //  A track written as its bits by the 13-sector module, which must be
+    //  loaded, at a quarter-track position from 0 to 139
+    //  (CassoLinkCodec::kWriteRawTrack). E_INVALIDARG for a stream longer
+    //  than the module's buffers. `percents` is the Apple bar's percentage at
+    //  the track's start and end (GetTrackPercents or GetStepPercents).
+    HRESULT  WriteRawTrack       (Byte drive, Byte position, const RawWriteStream & stream, std::array<Byte, 2> percents, CassoLinkStatus & outStatus);
+
+    //  A 13-sector request's last two bytes: the whole disk's percentage at
+    //  the track's start and at its end, for the Apple's bar.
+    static std::array<Byte, 2>  GetTrackPercents (Byte track);
+
+    //  The same for step `index` of `count`, for an image whose tracks end
+    //  before track 34.
+    static std::array<Byte, 2>  GetStepPercents  (size_t index, size_t count);
 
     //  A 13-sector track's sectors in `requested`, a bit each, read by the
     //  13-sector module, which must be loaded (CassoLinkCodec::kReadThirteenTrack).
@@ -455,6 +495,11 @@ public:
     //  Any Cancel ends the wait with ERROR_CANCELLED.
     HRESULT  WaitForKey   (const std::vector<std::string> & lines, Byte & outKey);
 
+    //  A key pressed on the PC, from any thread. The next wait for a key
+    //  ends with it, at the Apple's next report that no key is pressed: a
+    //  Cancel ends the Apple's wait, and its Ready follows.
+    void     PressKey     (Byte key) { m_hostKey = key; }
+
     //  As WaitForKey, with every key the Apple's keyboard sends, for a line
     //  typed there.
     HRESULT  WaitForAnyKey (const std::vector<std::string> & lines, Byte & outKey);
@@ -479,12 +524,17 @@ public:
 private:
     HRESULT  Fill            (size_t count, DWORD timeoutMs, bool & outFilled);
     HRESULT  DiscardReceived ();
+    HRESULT  LoadChunk       (const std::vector<Byte> & chunk);
     void     Consume         (size_t count);
     HRESULT  ReadPacket      (DWORD timeoutMs, CassoLinkPacket & outPacket);
     void     TraceReceived   (const CassoLinkPacket & packet);
     HRESULT  AwaitRequest    ();
     HRESULT  Send            (std::span<const Byte> bytes);
     HRESULT  SendByte        (Byte value);
+
+    //  A request whose stream the Apple requests with an Acknowledge, and
+    //  again with a NAK, then a Status.
+    HRESULT  SendStreamRequest (Byte command, std::span<const Byte> request, std::span<const Byte> stream, const std::string & item, CassoLinkStatus & outStatus);
 
     HRESULT  ServeReady        (const CassoLinkPacket & packet);
     HRESULT  ServeVirtualBlock (const CassoLinkPacket & packet);
@@ -507,7 +557,7 @@ private:
 
     static bool  IsKeyReport  (const CassoLinkPacket & packet) { return packet.command == CassoLinkCodec::kWaitForKey && packet.payload.size() == 1 && (packet.payload[0] == CassoLinkCodec::kKeyQuit || packet.payload[0] == CassoLinkCodec::kKeyFullSend || packet.payload[0] == CassoLinkCodec::kKeyVerify); }
     void         NoteKey      (const CassoLinkPacket & packet) { m_quit = m_quit || packet.payload[0] == CassoLinkCodec::kKeyQuit; m_fullSendRequest = m_fullSendRequest || packet.payload[0] == CassoLinkCodec::kKeyFullSend; m_verifyToggle = m_verifyToggle != (packet.payload[0] == CassoLinkCodec::kKeyVerify); }
-    static bool  IsWholeReady (const CassoLinkPacket & packet) { size_t size = packet.payload.size(); return size == 4 || size == 9 || size == 11; }
+    static bool  IsWholeReady (const CassoLinkPacket & packet) { size_t size = packet.payload.size(); return size == 4 || size == 9 || size == 11 || size == 39; }
     static bool  IsBlank      (std::span<const Byte> sector) { return !sector.empty() && std::all_of (sector.begin(), sector.end(), [&sector] (Byte b) { return b == sector[0]; }); }
 
     //  An operation sent again while its request is lost or a reply arrives
@@ -576,6 +626,8 @@ private:
     bool                            m_fullSendRequest = false;
     bool                            m_verifyToggle    = false;
     bool                            m_awaitingKey     = false;
+    bool                            m_wide            = false;
+    std::atomic<Byte>               m_hostKey         { CassoLinkCodec::kKeyNone };
     std::atomic<uint64_t>           m_lastHeardMs     { 0 };
     std::atomic<uint64_t>           m_lastPacketMs    { 0 };   // the last packet sent or decoded
     Byte                            m_progressStart   = 0;
@@ -585,6 +637,7 @@ private:
     DWORD                           m_waitNoticeMs    = kWaitNoticeMs;
     bool                            m_quiet           = false;
     TraceFn                         m_trace;
+    VirtualFn                       m_virtualServed;
     std::string                     m_tracedReady;     // text of the last Ready traced
     bool                            m_faultProgram    = false;
     bool                            m_blockCrc        = true;

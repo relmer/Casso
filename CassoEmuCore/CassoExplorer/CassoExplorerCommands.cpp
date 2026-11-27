@@ -44,7 +44,6 @@ CassoExplorerCommands::CassoExplorerCommands (Handlers handlers)
                             || (row.id >= kPictureMonochrome && row.id <= kPictureColor)
                             || (row.id >= kCharsetAppleText && row.id <= kCharsetIso8859)
                             || row.id == kSheetValues || row.id == kSheetFormulas
-                            || row.id == kShowDisassembly || row.id == kShowBytes
                             || (row.id >= kViewAsDefault && row.id <= kViewAsResourceFork);
 
         command->dispatch = [this, id]()
@@ -91,6 +90,14 @@ CassoExplorerCommands::CassoExplorerCommands (Handlers handlers)
     ApplyToolbarRows (kArchiveRows);
     ApplyToolbarRows (kAppleDriveRows);
     ApplyToolbarRows (kPreviewToolbarRows);
+
+    for (std::shared_ptr<DxuiCommand> & command : m_commands)
+    {
+        if (command->id == kPictureCrt)
+        {
+            command->checkedTip = L"Don't apply CRT effects";
+        }
+    }
 }
 
 
@@ -692,12 +699,8 @@ std::vector<DxuiToolbar::Entry> CassoExplorerCommands::BuildPreviewToolbarEntrie
         entry.iconOnly   = row.iconOnly;
         entry.vectorIcon = GetCommandBarIcon (row.id);
 
-        //  The two forms, Expand and View as stay on the strip at any width.
-        //  The forms' faces are code and the bytes it assembles to.
-        entry.pinned   = row.id == kShowDisassembly || row.id == kShowBytes || row.id == kExpandPreview || row.id == kViewAs;
-        entry.faceText = (row.id == kShowDisassembly) ? s_kpszDisassemblyFace
-                       : (row.id == kShowBytes)       ? s_kpszBytesFace
-                                                      : nullptr;
+        //  Expand and View as stay on the strip at any width.
+        entry.pinned     = row.id == kExpandPreview || row.id == kViewAs;
         entry.custom     = (row.id == kFind)       ? search
                          : (row.id == kGoToOffset) ? goTo
                                                    : nullptr;
@@ -754,7 +757,7 @@ std::vector<int> CassoExplorerCommands::GetPreviewToolbarCommandIds (int bar, bo
 int CassoExplorerCommands::GetPreviewBar (int id)
 {
     return (id == kLineAddresses || id == kCrossReference)                         ? kPreviewBarListing
-         : (id == kPictureMonochrome || id == kPictureColor || id == kSavePicture) ? kPreviewBarPicture
+         : (id == kPictureMonochrome || id == kPictureColor || id == kSavePicture || id == kPictureCrt) ? kPreviewBarPicture
          : (id == kEditWozMetadata)                                                ? kPreviewBarWoz
          : (id >= kCharsetAppleText && id <= kCharsetIso8859)                      ? kPreviewBarText
          : (id == kRecordLength)                                                   ? kPreviewBarRecords
@@ -770,7 +773,7 @@ int CassoExplorerCommands::GetPreviewBar (int id)
 //
 //  CassoExplorerCommands::IsOnPreviewBar
 //
-//  Save as PNG is on both picture bars, Search on the variables' bar as
+//  Save as PNG and the CRT effect are on both picture bars, Search on the variables' bar as
 //  well as the hex view's, and the character sets on a random-access text
 //  file's bar as well as the text bar. Expand, View as, Copy, Save as,
 //  previous and next are on every bar.
@@ -784,6 +787,6 @@ bool CassoExplorerCommands::IsOnPreviewBar (int id, int bar)
         return true;
     }
 
-    return GetPreviewBar (id) == bar || (id == kSavePicture && bar == kPreviewBarSave) || (id == kFind && bar == kPreviewBarVariables)
+    return GetPreviewBar (id) == bar || ((id == kSavePicture || id == kPictureCrt) && bar == kPreviewBarSave) || (id == kFind && bar == kPreviewBarVariables)
         || (GetPreviewBar (id) == kPreviewBarText && bar == kPreviewBarRecords);
 }

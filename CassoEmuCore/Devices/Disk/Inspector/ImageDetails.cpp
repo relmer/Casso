@@ -58,6 +58,7 @@ ImageDetails ImageDetails::MakeFromCopy (const DiskCopy & copy)
     details.info       = copy.woz.info;
     details.layout     = copy.woz.layout;
     details.isCrcMatch = !copy.hasCrcMismatch;
+    details.stampState = FormatStampChunk::GetStamp (copy.woz, details.stamp);
 
     if (!details.isWoz)
     {
@@ -191,7 +192,7 @@ void ImageDetails::CheckMeta (const WozFileLayout & layout, vector<Finding> & in
 void ImageDetails::CheckChunks (const WozFileLayout & layout, vector<Finding> & inOut)
 {
     static constexpr std::string_view  kpszOrdered[] = { "INFO", "TMAP", "TRKS", "FLUX" };
-    static constexpr std::string_view  kpszOnce[]    = { "INFO", "TMAP", "TRKS", "FLUX", "WRIT", "META" };
+    static constexpr std::string_view  kpszOnce[]    = { "INFO", "TMAP", "TRKS", "FLUX", "WRIT", "META", "CASS" };
 
 
 

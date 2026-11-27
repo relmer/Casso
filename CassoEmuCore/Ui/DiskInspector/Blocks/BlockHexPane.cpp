@@ -24,11 +24,17 @@ void BlockHexPane::Create (DxuiPanel & parent)
 
     m_hex->SetBytesPerRow  (kBytesPerRow);
     m_hex->SetTextEncoding (DxuiHexView::TextEncoding::AppleHighBit);
-    m_hex->SetMarkColor    ([] (uint8_t mark, uint32_t & outArgb)
+    m_hex->SetMarkColor    ([this] (uint8_t mark, uint32_t & outArgb)
     {
         outArgb = GetMarkColor (mark);
 
         return mark != BlockHexSource::kMarkNone;
+    });
+    m_hex->SetIsChanged    ([] (uint64_t offset, uint8_t mark)
+    {
+        (void) offset;
+
+        return mark == BlockHexSource::kMarkChanged;
     });
 }
 
@@ -42,7 +48,7 @@ void BlockHexPane::Create (DxuiPanel & parent)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t BlockHexPane::GetMarkColor (uint8_t mark)
+uint32_t BlockHexPane::GetMarkColor (uint8_t mark) const
 {
     return mark == BlockHexSource::kMarkChanged ? s_kChangedColor
          : mark == BlockHexSource::kMarkDiffers ? s_kDiffersColor
@@ -191,7 +197,7 @@ void BlockHexPane::Layout (const RECT & hexPx, const RECT & fieldsPx, const Dxui
 
     m_hex->Layout    (hexPx, scaler);
     m_fields->Layout (fieldsPx, scaler);
-    FitRows ((int) (hexPx.right - hexPx.left), scaler);
+    FitRows ((int) (m_hex->GetBounds().right - m_hex->GetBounds().left), scaler);
 }
 
 
@@ -274,6 +280,35 @@ int BlockHexPane::MeasureMinHexPx (const DxuiDpiScaler & scaler)
     m_hex->SetBytesPerRow (bytes);
 
     return width;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockHexPane::FitHexWidthPx
+//
+//  The frame is counted whether or not the block is edited, so entering
+//  and leaving edit mode doesn't move the views.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int BlockHexPane::FitHexWidthPx (int widthPx, const DxuiDpiScaler & scaler)
+{
+    int  frame = std::max (1, scaler.ToPx (DxuiHexView::kEditFrameDip));
+
+
+
+    FitRows (widthPx - 2 * frame, scaler);
+
+    if (m_contentPx == 0)
+    {
+        return widthPx;
+    }
+
+    return std::min (widthPx, m_contentPx + scaler.ToPx ((int) kHexScrollDip) + 2 * frame);
 }
 
 

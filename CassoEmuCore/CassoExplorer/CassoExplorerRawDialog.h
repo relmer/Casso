@@ -126,7 +126,15 @@ public:
         DiskOperations::Numbering    numbering = DiskOperations::Numbering::Logical;
     };
 
-    static Outcome  Ask (HWND owner, const IDxuiTheme * theme, const std::wstring & title, bool sectors, bool reading, int blockCount = CassoExplorerRawChoices::kBlocks);
+    //  `initial`, when given, is where the fields start instead of the
+    //  defaults, such as an inspector's selection.
+    static Outcome  Ask (HWND                  owner,
+                         const IDxuiTheme    * theme,
+                         const std::wstring  & title,
+                         bool                  sectors,
+                         bool                  reading,
+                         int                   blockCount = CassoExplorerRawChoices::kBlocks,
+                         const Outcome       * initial    = nullptr);
 
 protected:
     void  OnCreate     () override;
@@ -142,6 +150,8 @@ private:
     bool                     m_reading    = true;
     int                      m_blocks     = CassoExplorerRawChoices::kBlocks;
     bool                     m_fitted     = false;
+    bool                     m_hasInitial = false;
+    Outcome                  m_initial;
     DxuiButton             * m_ok         = nullptr;
     DxuiFieldValidator       m_validator;
     Outcome                  m_outcome;

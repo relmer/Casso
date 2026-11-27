@@ -29,6 +29,8 @@
 ;                   and the field's volume
 ;   Cancel          during an operation: it stops, and Ready follows
 ;   Label           the user's operation, as text: drawn, and Ready again
+;   Drive note      a drive, then text: drawn on the drive's row in place of
+;                   IDLE or EMPTY until another note, and Ready again
 ;   Log             the PC's hour and minute, then text: a history line,
 ;                   drawn at the top of the history, and Ready again
 ;   Load program    back to the shim, which sends Ready for the program
@@ -75,7 +77,7 @@
 ; Ready is sent again after each second with no reply.
 ;
 ; The disk routines are Casso's own, from Apple's published description of
-; the Disk II and the 6-and-2 encoding Casso's NibblizationLayer writes: the
+; the Disk II and the 6-and-2 encoding Casso's DiskFieldFormat writes: the
 ; arm is stepped by its phases, sectors are found by their address fields,
 ; and data fields are read and written in 6-and-2. Writes go through one
 ; cycle-counted loop, the player, which writes a prepared stream of nibbles
@@ -319,6 +321,7 @@ OPCAPT   = 6                    ; a raw capture: the bar has the quarter track
 
 QUIETDRIVE = $80                ; the drive's bit for a check the PC reports itself
 STATWP     = $40                ; Status's drive bit for a write-protected disk
+STAT13     = $20                ; and for a 13-sector address field seen
 
 ; Errors.
 ERRNONE    = $00
@@ -370,6 +373,7 @@ NIBSTART = WSTART + 8           ; its 343 data field nibbles, after 5 syncs and 
 SYNCEND  = NIBSTART - 3         ; where the prologue starts
 NIBEND   = NIBSTART + 343 - 256 ; where the nibbles end on the second page
 PEND     = $01                  ; the end of a write stream
+RTPAGES  = 150                  ; readtrack: six revolutions of nibbles, in pages
 
 ; Zero page.
 slotx    = $06                  ; as the shim set it
@@ -378,6 +382,7 @@ phi      = $08                  ; request's start, and at its end
 fdata    = $09                  ; buildformat: nonzero for ENCBUF's sectors
 misses   = $0A                  ; revolutions in a row with no address field
 revs     = $0B                  ; Time drive: passes left to report
+pages    = $0B                  ; readtrack: pages of nibbles left to read
 fgap     = $0C                  ; the gap after each sector, in self-sync bytes
 idles    = $0D                  ; Idle replies since the last operation
 vflag    = $0E                  ; nonzero while a written track is read back
@@ -636,7 +641,10 @@ notwtrack: cmp #CMDLABEL
 notlabel: cmp #CMDLOG
         bne notlog
         jmp dolog
-notlog: cmp #CMDTIME
+notlog: cmp #CMDNOTE
+        bne notnote
+        jmp donote
+notnote: cmp #CMDTIME
         bne nottime
         jmp dotime
 nottime: cmp #CMDMEASURE
@@ -1386,7 +1394,11 @@ notedisk: ldx drive
         lda misses
         cmp #8
         bcc ndok
+        lda saw13               ; 2 for a 13-sector disk, 1 for none
+        beq ndnone
         lda #1
+ndnone: clc
+        adc #1
         sta nodisk,x
         rts
 ndok:   lda err
@@ -1394,7 +1406,16 @@ ndok:   lda err
         sta nodisk,x
 nddone: rts
 
-nodisk: .byte 0, 0
+nodisk: .byte 0, 0              ; 1 empty or unrecognized, 2 a 13-sector disk
+
+; notes: each drive's note from the host, 0-terminated, and where each starts.
+NOTELEN = 36                    ; a drive's note's characters, after D1: in 40 columns
+notes:  .ds (NOTELEN + 1) * 2
+noteoff: .byte 0, NOTELEN + 1
+notelo: .byte <notes, <(notes + NOTELEN + 1)
+notehi: .byte >notes, >(notes + NOTELEN + 1)
+saw13:  .byte 0                 ; nonzero once a 13-sector address field passed
+saw16:  .byte 0                 ; nonzero once a 16-sector address field passed
 quiet:  .byte 0                 ; nonzero for a check the PC reports itself
 wpbit:  .byte 0                 ; STATWP when begin found the disk write-protected
 
@@ -1772,6 +1793,8 @@ bgarmed:
         sta idles
         sta misses
         sta wpbit
+        sta saw13
+        sta saw16
         lda PKTBUF
         and #QUIETDRIVE
         sta quiet
@@ -1819,7 +1842,7 @@ bgwp:   sta wpbit
 
 ; sendready: Ready with this program's version, the shim's and the drives:
 ; bit 0 for drive 1, bit 1 for drive 2. Then the ROM's identification bytes,
-; and the program's CRC as selfcrc computed it.
+; the program's CRC as selfcrc computed it, and each slot's firmware bytes.
 sendready: ldx #0
 srloop: lda readypkt,x
         jsr putb
@@ -1828,11 +1851,12 @@ srloop: lda readypkt,x
         bne srloop
         rts
 
-readypkt: .byte $C1, $0B, $00, CMDREADY, $C1 ^ $0B ^ $00 ^ CMDREADY
+readypkt: .byte $C1, $27, $00, CMDREADY, $C1 ^ $27 ^ $00 ^ CMDREADY
           .byte <PROGVER, >PROGVER, READYVER
 readymap: .byte $03                ; probe sets it
 readyrom: .byte 0, 0, 0, 0, 0       ; $FBB3, $FBC0, $FBBF, $FB1E, and 1 on a IIgs
 readycrc: .byte 0, 0                ; selfcrc sets it, low byte first
+readyslot: .ds 28                  ; $Cn01, $Cn03, $Cn05 and $Cn07 of slots 1 to 7
 readychk: .byte 0
 readyend:
 
@@ -1867,13 +1891,37 @@ ridcaps: lda $FBC0
         bcs ridsum
         lda #1
         sta readyrom+4
-ridsum: lda #<PROGVER ^ >PROGVER ^ READYVER
+ridsum: jsr readslots
+        lda #<PROGVER ^ >PROGVER ^ READYVER
         eor readymap
-        ldx #6                  ; readyrom's 5 bytes and readycrc's 2
+        ldx #34                 ; readyrom's 5 bytes, readycrc's 2 and readyslot's 28
 ridnext: eor readyrom,x
         dex
         bpl ridnext
         sta readychk
+        rts
+
+; readslots: the bytes of each slot's firmware that identify a card, as a
+; Disk II's $20, $00, $03, $3C, into readyslot. Reading a slot's page selects
+; its $C800 ROM, so $CFFF deselects them after.
+readslots: ldx #0
+        lda #1
+        sta ptr
+        lda #$C1
+        sta ptr+1
+rsslot: ldy #0
+rsbyte: lda (ptr),y
+        sta readyslot,x
+        inx
+        iny
+        iny
+        cpy #8
+        bne rsbyte
+        inc ptr+1
+        lda ptr+1
+        cmp #$C8
+        bne rsslot
+        lda $CFFF
         rts
 
 ; probe: drive 2 into readymap. A drive at the port reads nibbles from a
@@ -1950,7 +1998,14 @@ ssloop: lda stathdr,x
         sta peor
         lda op
         jsr putpe
-        lda drive
+        lda saw16               ; a 16-sector field passed: not a 13-sector disk
+        bne ss16z
+        lda saw13
+        beq ss16
+        lda #STAT13
+        bne ss16
+ss16z:  lda #0
+ss16:   ora drive
         ora wpbit
         jsr putpe
         lda track
@@ -3858,7 +3913,12 @@ ra2:    lda Q6L,x
 ra3:    lda Q6L,x
         bpl ra3
         cmp #$96
+        beq ra3ok
+        cmp #$B5                ; a 13-sector disk's address field
         bne ra1c
+        sta saw13
+        beq ra1
+ra3ok:  sta saw16
         ldy #0
 ra4:    lda Q6L,x
         bpl ra4
@@ -3958,13 +4018,23 @@ rtmark: lda PKTBUF+3,y
         sta left
         lda #96                 ; address fields to look at: six revolutions
         sta tries
+        lda #RTPAGES
+        sta pages
         lda #0
         sta misses
 rtloop: jsr rdaddr
+        php
+        lda tmp2                ; zero: no address field in a revolution
+        beq rtfree
+        jsr charge
+        bcc rtspent
+rtfree: plp
         bcc rthit
         jsr missed
         bcs rtnone
         bcc rtnext
+rtspent: plp
+        jmp rtnone
 rthit:  lda #0
         sta misses
         lda atrk
@@ -3997,6 +4067,23 @@ rtnone: jsr firstpend
         sec
         rts
 rtdone: clc
+        rts
+
+; charge: the pages of nibbles rdaddr read to find an address field, whole
+; or damaged, taken from pages, with the carry clear once they run out. A
+; track with few address fields ends after about six revolutions, as one
+; with sixteen a revolution does after 96 fields. A revolution with no
+; address field is counted in misses instead.
+charge: lda #32
+        sec
+        sbc tmp2
+        bne chg1
+        lda #1
+chg1:   sta tmp
+        lda pages
+        sec
+        sbc tmp
+        sta pages
         rts
 
 ; firstpend: `sector` at the first physical sector readtrack didn't read, for
@@ -4095,7 +4182,7 @@ wpdone: clc
         rts
 
 ; encode: SECBUF as 6-and-2: WRAUX's 86 two-bit groups, then WRPRI's 256
-; six-bit values, as NibblizationLayer lays them out; the last two groups
+; six-bit values, as DiskFieldFormat lays them out; the last two groups
 ; have no third byte. encodeto puts them on page A and the page after it.
 encode: lda #>WRAUX
 encodeto: sta enauxst+2
@@ -4579,8 +4666,6 @@ ROWER = $06A8                   ; row 13: the last error, when there is one
 ROWHIST = $0728                 ; row 14: the history's title, its lines below
 LOGROWS = 8                     ; the history's lines, rows 15 to 22
 BARCELLS = 35                   ; one a track
-BARTEXT = 14                    ; the column of the track and sector over the bar
-BARTEXTW = 31                   ; and in 80 columns, where a track has two cells
 ROWKEYS = $07D0                 ; row 23: the keys
 KEYSCOL = 4                     ; centered on the standard screen
 FSKEYSCOL = 3                   ; and in a Full Send
@@ -5210,11 +5295,28 @@ stdrive1: sta pcsum+1
         ldx pcsum+1
         lda nodisk-1,x
         beq sdidle
+        cmp #2
+        beq sd13
         lda #<onodisk
         sta ptr
         lda #>onodisk
         sta ptr+1
-sdidle: lda pcsum+1
+        bne sdidle
+sd13:   lda #<o13sec
+        sta ptr
+        lda #>o13sec
+        sta ptr+1
+sdidle: ldx pcsum+1             ; a note in place of IDLE or EMPTY; Y is
+        lda noteoff-1,x         ; the row's column
+        tax
+        lda notes,x
+        beq sdop
+        ldx pcsum+1
+        lda notelo-1,x
+        sta ptr
+        lda notehi-1,x
+        sta ptr+1
+sdop:   lda pcsum+1
         cmp drive
         bne sdput
         lda op
@@ -5289,13 +5391,21 @@ dbput:  jsr putch
         bne dbcell
         lda barover
         beq dbtext
-dbover: lda bartop
+dbover: ldx barx
+        jsr barlen              ; the text centered over the bar
+        sta barlength
+        cmp barlast,x
+        sta barlast,x
+        bcs dbkeep              ; a shorter text leaves the old one's ends,
+        jmp dbcells             ; so the cells are drawn again first
+dbkeep: lda bartop
         sta barcells
-        ldy #BARTEXT
-        bit wide
-        bpl dbcol
-        ldy #BARTEXTW
-dbcol:  ldx barx
+        lda barwidth
+        sec
+        sbc barlength
+        lsr a
+        tay
+        ldx barx
         lda barfail,x
         beq dbtrack
         lda #<ofailed
@@ -5356,10 +5466,30 @@ dbpct2: jsr putdec
         lda #'%'
         jmp putch
 
+; barlen: the length in A of the text drawbar puts over drive X + 1's bar:
+; FAILED, a capture's T07 or T07.25, a verify's T07, or T07 S05.
+barlen: lda barfail,x
+        bne bl6
+        lda op
+        cmp #OPCAPT
+        bne blread
+        lda sector
+        bne bl6
+bl3:    lda #3
+        rts
+blread: lda vflag
+        bne bl3
+        lda #7
+        rts
+bl6:    lda #6
+        rts
+
 barrowlo: .byte <ROWB1, <ROWB2
 barrowhi: .byte >ROWB1, >ROWB2
 barpct:  .byte 0, 0             ; each drive's percentage
 barover: .byte 0
+barlength: .byte 0              ; the length of the text over the bar
+barlast: .byte 0, 0             ; each drive's text length when last drawn
 barx:    .byte 0
 bartop:  .byte 0
 barcells: .byte 0               ; putch inverts left of this column
@@ -5389,6 +5519,8 @@ optext: .word oidle, oread, owrite, oformat
 oidle:   .text "Idle"
          .byte 0
 onodisk: .text "Empty or no recognized sectors"
+         .byte 0
+o13sec:  .text "13-sector disk"
          .byte 0
 oread:   .text "Reading"
          .byte 0
@@ -5555,9 +5687,29 @@ nopc:   lda pcflag
         sta barpct+1
         jsr stplain
         lda fsmode              ; a session with no PC is over
-        beq npdraw
+        beq nplog
         jsr fsleave
+nplog:  jsr lostlog             ; and the history has the PC's leaving
 npdraw: jmp showpc
+
+; lostlog: the history's line for a PC that stopped replying, with --:-- for
+; the time, as the Apple has no clock.
+lostlog: ldx #0
+llcopy: lda losttxt,x
+        beq llend
+        sta PKTBUF+2,x
+        inx
+        bne llcopy
+llend:  inx
+        inx
+        stx lenlo
+        lda #$FF
+        sta PKTBUF
+        sta PKTBUF+1
+        jmp logdraw
+
+losttxt: .text "Link lost: no reply from the PC"
+        .byte 0
 
 pcwait: .text "Waiting"
         .byte 0
@@ -5659,14 +5811,62 @@ lbtext: cpy lenlo
         jmp lbtext
 lbdone: jmp main
 
+; donote: the host's note for a drive, drawn on its row in place of IDLE or
+; EMPTY OR NO RECOGNIZED SECTORS until another note replaces it: the drive,
+; then at most NOTELEN characters. An empty text clears the note. Then Ready
+; again.
+donote: ldx PKTBUF
+        dex
+        cpx #2
+        bcs ntdone
+        lda noteoff,x
+        tax                     ; X: the note's first character in notes
+        ldy #1                  ; Y: the text's first character in the packet
+ntcopy: cpy lenlo
+        bcs ntend
+        cpy #NOTELEN+1
+        bcs ntend
+        lda PKTBUF,y
+        sta notes,x
+        inx
+        iny
+        bne ntcopy              ; always
+ntend:  lda #0
+        sta notes,x
+        jsr showstatus
+ntdone: jmp main
+
 ; clrlabel: the label row cleared. Y is 0.
 clrlabel: ldx #<ROWLB
         lda #>ROWLB
         jmp fullrow
 
-; dolog: the history moved down a row, its last line dropped, and the PC's
-; line at its top: the time as HH:MM, then the text. Then Ready again.
-dolog:  ldx #LOGROWS-1
+; dolog: the PC's line drawn at the top of the history (logdraw). Then Ready
+; again.
+dolog:  jsr logdraw
+        lda PKTBUF+2            ; ERR: the last operation's drive failed
+        cmp #'E'
+        bne lgmain
+        lda PKTBUF+3
+        cmp #'R'
+        bne lgmain
+        lda PKTBUF+4
+        cmp #'R'
+        bne lgmain
+        ldx drive
+        dex
+        cpx #2
+        bcs lgmain
+        lda #1
+        sta barfail,x
+        lda #0
+        jsr drawbar
+lgmain: jmp main
+
+; logdraw: the history moved down a row, its last line dropped, and the line
+; in PKTBUF at its top: the time as HH:MM, or --:-- for an hour of $FF, then
+; the text to lenlo.
+logdraw: ldx #LOGROWS-1
 lgscroll: lda logrowlo-1,x
         sta ptr
         lda logrowhi-1,x
@@ -5696,12 +5896,25 @@ lgnext:
         lda logrowhi
         jsr fullrow
         lda PKTBUF
-        jsr put2
+        cmp #$FF
+        bne lgclock
+        lda #'-'
+        jsr putch
+        lda #'-'
+        jsr putch
+        lda #':'
+        jsr putch
+        lda #'-'
+        jsr putch
+        lda #'-'
+        jsr putch
+        jmp lgsep
+lgclock: jsr put2
         lda #':'
         jsr putch
         lda PKTBUF+1
         jsr put2
-        lda #' '
+lgsep:  lda #' '
         jsr putch
         ldx #2
 lgtext: cpx lenlo
@@ -5712,24 +5925,7 @@ lgtext: cpx lenlo
         jsr putch
         inx
         bne lgtext
-lgdone: lda PKTBUF+2            ; ERR: the last operation's drive failed
-        cmp #'E'
-        bne lgmain
-        lda PKTBUF+3
-        cmp #'R'
-        bne lgmain
-        lda PKTBUF+4
-        cmp #'R'
-        bne lgmain
-        ldx drive
-        dex
-        cpx #2
-        bcs lgmain
-        lda #1
-        sta barfail,x
-        lda #0
-        jsr drawbar
-lgmain: jmp main
+lgdone: rts
 
 ; put2: A, 0 to 99, as two digits from Y. X is overwritten.
 put2:   ldx #0

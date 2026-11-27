@@ -49,6 +49,17 @@ public:
     //  is a raw capture's. Empty with no manifest or no row for the file.
     static HRESULT  FindFingerprint (IDiskFileIo & fileIo, const std::string & folder, const std::string & name, std::string & outFingerprint, bool & outIsRawCapture);
 
+    //  The manifest written to path. A write that fails because another
+    //  process has the file open is repeated after a short sleep, up to
+    //  s_kWriteTries writes in all.
+    static HRESULT  Write (IDiskFileIo & fileIo, const std::string & path, const FullSendManifest & manifest, uint64_t commitTag);
+
+    static constexpr int    s_kWriteTries   = 5;
+    static constexpr DWORD  s_kWriteRetryMs = 200;
+
+    //  The sleep between writes; a test replaces it to run without one.
+    static inline std::function<void (DWORD)>  s_sleep = [] (DWORD ms) { Sleep (ms); };
+
 private:
     static HRESULT  Read  (IDiskFileIo & fileIo, const std::string & path, FullSendManifest & outManifest, bool & outExists);
     static HRESULT  Write (IDiskFileIo & fileIo, const std::string & path, const FullSendManifest & manifest);

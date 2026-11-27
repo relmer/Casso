@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "CassoExplorer/Picker/PickerRequest.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
 #include "CassoExplorer/Window/Managers/ExplorerPickerMode.h"
@@ -18,6 +19,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
+#include "CassoExplorer/Window/Managers/CassoLinkListActions.h"
 #include "CassoExplorer/Window/Managers/FullSendWindowManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
@@ -65,8 +67,8 @@ void ExplorerLayout::ConfigureWidgets()
     m_context.preview.Configure();
 
     //  The commands installed apps add to Explorer's menus, and New's
-    //  choices, read once.
-    m_context.menus.StartPackagedCommands (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerNewChoices);
+    //  choices.
+    m_context.menus.StartPackagedCommands (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerNewChoices, (UINT) AppMessage::ExplorerAssocChanged);
 
     m_treeSplitter->SetOrientation (DxuiSplitter::Orientation::Vertical);
     m_treeSplitter->SetOnMoved ([this] (int dip)
@@ -89,7 +91,7 @@ void ExplorerLayout::ConfigureWidgets()
     m_context.tabManager.Configure();
     m_context.addressBar.Configure();
 
-    m_context.browser.GetTypedPaths().Reset (m_context.prefs.typedPaths);
+    m_context.browser.GetNavigator().GetTypedPaths().Reset (m_context.prefs.typedPaths);
     m_context.listPane.GetColumns().ApplyStoredColumnWidths();
 
     m_context.folderSync.StartWatch();
@@ -100,8 +102,13 @@ void ExplorerLayout::ConfigureWidgets()
     //  Slow shell folders, and host folders on the network, read on threads
     //  of their own and post a message when done.
     m_context.browser.GetShellListings().SetTarget (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerShellListed);
-    m_context.browser.GetHostListings().SetTarget (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerShellListed);
-    m_context.browser.GetHostListings().SetLister ([] (const std::wstring & path, std::vector<FileSystemEntry> & outEntries)
+    m_context.browser.GetLoader().GetHostListings().SetTarget (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerShellListed);
+
+    //  What each image contains, stored for every window of the process.
+    m_context.browser.SetImageRecords (m_context.app.records);
+
+    m_context.browser.GetPreviewer().GetDiskImages().GetDecodes().SetTarget (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerShellListed);
+    m_context.browser.GetLoader().GetHostListings().SetLister ([] (const std::wstring & path, std::vector<FileSystemEntry> & outEntries)
     {
         Win32FileSystem  fs;
 
@@ -145,25 +152,33 @@ void ExplorerLayout::ConfigureWidgets()
     m_context.pickerMode.Start();
 
     //  The tabs of the request, from the session or a torn-off tab, or Home.
-    m_context.browser.RestoreTabs (std::move (m_context.app.request.tabs), m_context.app.request.activeTab);
-    m_context.browser.LeaveMissingLocation();
+    m_context.browser.GetNavigator().RestoreTabs (std::move (m_context.app.request.tabs), m_context.app.request.activeTab);
+    m_context.browser.GetLoader().LeaveMissingLocation();
     m_context.browser.SetCardOpenAllowed (true);
 
     m_context.folderSync.StartPolling();
 
     m_context.treePane.HandleFocusChanged (true);
 
-    if (!m_context.app.request.openPath.empty())
+    if (!m_context.app.request.openPath.empty() || !m_context.app.request.selectPath.empty())
     {
         bool  onHome = m_context.browser.GetBrowserModel().GetTabCount() == 1 && m_context.browser.GetLocation().kind == Location::Kind::None;
 
-        m_context.tabManager.OpenPathInNewTab (m_context.app.request.openPath);
+        if (!m_context.app.request.openPath.empty())
+        {
+            m_context.tabManager.OpenPathInNewTab (m_context.app.request.openPath);
+        }
+
+        if (!m_context.app.request.selectPath.empty())
+        {
+            m_context.tabManager.SelectInFolder (m_context.app.request.selectPath);
+        }
 
         //  A window opened for a path alone has no Home tab beside it, as File
         //  Explorer's new window has none.
         if (onHome && m_context.browser.GetBrowserModel().GetTabCount() > 1)
         {
-            bool  closed = m_context.browser.CloseTab (0);
+            bool  closed = m_context.browser.GetNavigator().CloseTab (0);
 
             IGNORE_RETURN_VALUE (closed, true);
         }
@@ -203,6 +218,7 @@ void ExplorerLayout::RecomputeLayout()
 {
     IDxuiControl  * bands[]     = { &m_tabBand, &m_toolbarBand, &m_menuBand, &m_statusBand, &m_pickerBand, &m_bodyBand };
     bool            picker      = m_context.IsPicker();
+    bool            saveForm    = picker && m_context.app.picker->IsSave();
     RECT            body        = {};
     RECT            right       = {};
     RECT            sashRect    = {};
@@ -223,7 +239,7 @@ void ExplorerLayout::RecomputeLayout()
 
     m_context.toolbars.SetHidden   (expanded);
     m_context.addressBar.SetHidden (expanded);
-    m_context.statusBar.SetHidden  (expanded);
+    m_context.statusBar.SetHidden  (expanded || saveForm);
 
     //  An expanded preview fills the tab below the tab strip. The command bar,
     //  the address bar and the status bar are hidden, with bands of 0.
@@ -232,7 +248,7 @@ void ExplorerLayout::RecomputeLayout()
     m_pickerBand.SetThickness  (expanded ? 0 : m_context.scaler.ToPx (m_context.pickerBar.GetBandDip()));
     m_menuBand.SetThickness    (expanded ? 0 : (int) std::floor (m_context.scaler.ToPxf (kCommandBarDip)));
     m_toolbarBand.SetThickness (expanded ? 0 : (int) std::floor (m_context.scaler.ToPxf (kNavStripFillDip))   + DxuiToolbar::GetEdgePx (m_context.scaler));
-    m_statusBand.SetThickness  (expanded ? 0 : m_context.scaler.ToPx (ExplorerStatusBar::kStatusBandDip));
+    m_statusBand.SetThickness  ((expanded || saveForm) ? 0 : m_context.scaler.ToPx (ExplorerStatusBar::kStatusBandDip));
 
     m_dock.Arrange (m_client, m_context.scaler, bands);
 
@@ -271,7 +287,7 @@ void ExplorerLayout::RecomputeLayout()
 
         m_context.treePane.Layout (RECT { body.left, body.top, body.left, body.top });
         m_context.listPane.Layout (RECT { body.left, body.top, body.left, body.top });
-        m_context.cassoLinkManager.LayoutListActions();
+        m_context.linkListActions.LayoutListActions();
         m_context.preview.Layout (body);
         m_context.statusBar.Layout (m_statusBand.GetBounds());
 
@@ -311,14 +327,14 @@ void ExplorerLayout::RecomputeLayout()
         RECT  previewRect = { sashRect.right, right.top, right.right, right.bottom };
 
         m_context.listPane.Layout        (listRect);
-        m_context.cassoLinkManager.LayoutListActions();
+        m_context.linkListActions.LayoutListActions();
         m_context.preview.Layout     (previewRect);
     }
     else
     {
         m_context.preview.Hide();
         m_context.listPane.Layout       (right);
-        m_context.cassoLinkManager.LayoutListActions();
+        m_context.linkListActions.LayoutListActions();
     }
 
     m_context.statusBar.Layout (m_statusBand.GetBounds());

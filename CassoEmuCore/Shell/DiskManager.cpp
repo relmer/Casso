@@ -8,6 +8,9 @@
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Store/DiskFlusher.h"
+#include "Devices/Disk/Store/DiskBayTable.h"
+#include "Devices/Disk/Store/DiskSourceFormat.h"
 #include "Devices/Disk/Win32ImageWatcher.h"
 #include "Devices/Disk/WriteProtectChange.h"
 #include "Seams/Win32DiskFileIo.h"
@@ -227,7 +230,7 @@ HRESULT DiskManager::ToggleImageWriteProtect (int drive)
 
     CBREx (image != nullptr, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
 
-    hr = DiskImageStore::GetSourceFormatByExtension (path, fmt);
+    hr = DiskSourceFormat::GetSourceFormatByExtension (path, fmt);
     CHR (hr);
 
     wide = fs::path (path).wstring();
@@ -243,7 +246,7 @@ HRESULT DiskManager::ToggleImageWriteProtect (int drive)
 
     if (plan.changesAttribute && plan.protecting)
     {
-        hr = m_diskStore.Flush (6, drive);
+        hr = m_diskStore.GetFlusher().Flush (6, drive);
         CHR (hr);
     }
 
@@ -255,7 +258,7 @@ HRESULT DiskManager::ToggleImageWriteProtect (int drive)
 
     if (plan.changesImageFlag)
     {
-        hr = m_diskStore.SetImageWriteProtect (6, drive, plan.protecting);
+        hr = m_diskStore.GetFlusher().SetImageWriteProtect (6, drive, plan.protecting);
         CHR (hr);
     }
 
@@ -308,7 +311,8 @@ Disk2Controller * DiskManager::FindSlot6Controller()
 //  MountCommandLineDisks
 //
 //  Resolves the per-drive image to mount: explicit command-line path
-//  wins, otherwise the last-session registry remembers it. A missing
+//  wins, otherwise the last-session registry remembers it, except on a
+//  temporary machine. A missing
 //  remembered file is cleared on the spot (FR-047) so a moved or
 //  deleted image stops resurrecting every launch.
 //
@@ -321,10 +325,12 @@ void DiskManager::MountCommandLineDisks (
     HRESULT      hr            = S_OK;
     std::string  resolvedDisk1 = disk1Path;
     std::string  resolvedDisk2 = disk2Path;
+    bool         useSaved      = !m_machine.GetConfig().isTemporary && !m_currentMachineName.empty();
 
 
 
-    if (resolvedDisk1.empty() && !m_currentMachineName.empty())
+    // A temporary machine starts with only the image it was opened with.
+    if (resolvedDisk1.empty() && useSaved)
     {
         std::wstring  saved;
         HRESULT       hrRead = DiskSettings::ReadSavedDiskPath (m_userConfigStore, m_fileSystem,
@@ -346,7 +352,7 @@ void DiskManager::MountCommandLineDisks (
         }
     }
 
-    if (resolvedDisk2.empty() && !m_currentMachineName.empty())
+    if (resolvedDisk2.empty() && useSaved)
     {
         std::wstring  saved;
         HRESULT       hrRead = DiskSettings::ReadSavedDiskPath (m_userConfigStore, m_fileSystem,
@@ -543,7 +549,7 @@ void DiskManager::OnBayChange (int slot, int drive, BayChange change)
 
 
     //  Slot 6 is the only bay with a drive on screen; the store has eight.
-    if (slot != 6 || drive < 0 || drive >= DiskImageStore::kDriveCount)
+    if (slot != 6 || drive < 0 || drive >= DiskBayTable::kDriveCount)
     {
         return;
     }
@@ -654,19 +660,19 @@ void DiskManager::OnBayChange (int slot, int drive, BayChange change)
 
 void DiskManager::RemountSlot6Disks()
 {
-    std::string  savedDisk[DiskImageStore::kDriveCount];
+    std::string  savedDisk[DiskBayTable::kDriveCount];
     HRESULT      hrMount = S_OK;
     int          drive   = 0;
 
 
 
-    for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+    for (drive = 0; drive < DiskBayTable::kDriveCount; drive++)
     {
         savedDisk[drive] = m_diskStore.GetSourcePath (6, drive);
     }
 
     m_programmaticRemount = true;
-    for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+    for (drive = 0; drive < DiskBayTable::kDriveCount; drive++)
     {
         if (!savedDisk[drive].empty())
         {

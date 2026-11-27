@@ -274,7 +274,7 @@ public:
         host.OpenImage();
         Assert::IsTrue (host.browser.IsWriteProtected(), L"the browser reads it when the image loads");
 
-        host.browser.SetSelectedRows ({ 0 });
+        host.browser.GetSelection().SetSelectedRows ({ 0 });
         verbs = host.actions.GetListVerbs();
 
         Assert::IsTrue  (Offers (verbs, CassoExplorerActions::Verb::Get),    L"copying a file out reads only");
@@ -293,7 +293,7 @@ public:
         host.OpenImage();
         Assert::IsFalse (host.browser.IsWriteProtected());
 
-        host.browser.SetSelectedRows ({ 0 });
+        host.browser.GetSelection().SetSelectedRows ({ 0 });
         verbs = host.actions.GetListVerbs();
 
         Assert::IsTrue (Offers (verbs, CassoExplorerActions::Verb::Delete));
@@ -434,6 +434,25 @@ public:
     }
 
 
+    TEST_METHOD (PlanPut_DiskImageGoesInAsDataWithNoAddressPrompt)
+    {
+        std::vector<Byte>              image (143360, 0x00);
+        CassoExplorerActions::PutPlan  pro   = CassoExplorerActions::PlanPut (L"TEST.po", image, VolumeKind::ProDos);
+        CassoExplorerActions::PutPlan  dos   = CassoExplorerActions::PlanPut (L"foo.d13", image, VolumeKind::Dos33);
+
+
+
+        Assert::IsFalse  (pro.guessedAddress);
+        Assert::IsTrue   (pro.usePayload);
+        Assert::AreEqual ((int) ProDosVolume::kTypeBinary, (int) pro.payload.type);
+        Assert::AreEqual ((int) 0, (int) pro.payload.auxType);
+
+        Assert::IsFalse  (dos.guessedAddress);
+        Assert::IsTrue   (dos.usePayload);
+        Assert::AreEqual ((int) Dos33Volume::kTypeBinary, (int) dos.payload.type);
+    }
+
+
     TEST_METHOD (CatalogName_FollowsEachFileSystemsRules)
     {
         Assert::AreEqual (std::string ("A1ST.FILE"),       CassoExplorerActions::MakeCatalogName (L"1st file.txt", VolumeKind::ProDos));
@@ -448,14 +467,14 @@ public:
         std::vector<CassoExplorerActions::Verb>  verbs;
 
         host.OpenImage();
-        host.browser.GoUp();
+        host.browser.GetNavigator().GoUp();
 
-        host.browser.SetSelectedRows ({ host.Find (L"dos33.dsk") });
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"dos33.dsk") });
         verbs = host.actions.GetListVerbs();
         Assert::IsTrue (std::find (verbs.begin(), verbs.end(), CassoExplorerActions::Verb::InsertDrive1) != verbs.end());
 
         host.browser.OpenRow (host.Find (L"dos33.dsk"));
-        host.browser.SetSelectedRows ({ host.Find (L"HELLO") });
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"HELLO") });
         verbs = host.actions.GetListVerbs();
         Assert::IsTrue  (std::find (verbs.begin(), verbs.end(), CassoExplorerActions::Verb::Rename) != verbs.end());
         Assert::IsFalse (std::find (verbs.begin(), verbs.end(), CassoExplorerActions::Verb::InsertDrive1) != verbs.end());
@@ -475,22 +494,129 @@ public:
         host.SeedBytes (ScratchImages::GetDos33 (false), L"C:\\Disks\\second.dsk");
         host.SeedBytes (ScratchImages::GetDos33 (false), L"C:\\Disks\\third.dsk");
         host.OpenImage();
-        host.browser.GoUp();
+        host.browser.GetNavigator().GoUp();
 
-        host.browser.SetSelectedRows ({ host.Find (L"dos33.dsk") });
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"dos33.dsk") });
         verbs = host.actions.GetListVerbs();
         Assert::IsTrue  (has (CassoExplorerActions::Verb::InspectDiskImage));
         Assert::IsFalse (has (CassoExplorerActions::Verb::CompareDiskImages), L"one image");
 
-        host.browser.SetSelectedRows ({ host.Find (L"dos33.dsk"), host.Find (L"second.dsk") });
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"dos33.dsk"), host.Find (L"second.dsk") });
         verbs = host.actions.GetListVerbs();
         Assert::IsTrue  (has (CassoExplorerActions::Verb::InspectDiskImage));
         Assert::IsTrue  (has (CassoExplorerActions::Verb::CompareDiskImages), L"two images");
 
-        host.browser.SetSelectedRows ({ host.Find (L"dos33.dsk"), host.Find (L"second.dsk"), host.Find (L"third.dsk") });
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"dos33.dsk"), host.Find (L"second.dsk"), host.Find (L"third.dsk") });
         verbs = host.actions.GetListVerbs();
         Assert::IsTrue  (has (CassoExplorerActions::Verb::InspectDiskImage));
         Assert::IsFalse (has (CassoExplorerActions::Verb::CompareDiskImages), L"three images");
+    }
+
+
+    TEST_METHOD (AnImage_ListsCassosCommandsThenTheConversions)
+    {
+        Host                                     host;
+        std::vector<CassoExplorerActions::Verb>  verbs;
+        auto                                     at    = [&verbs] (CassoExplorerActions::Verb verb) { return std::find (verbs.begin(), verbs.end(), verb) - verbs.begin(); };
+        auto                                     has   = [&verbs] (CassoExplorerActions::Verb verb) { return std::find (verbs.begin(), verbs.end(), verb) != verbs.end(); };
+
+
+
+        host.OpenImage();
+        host.browser.GetNavigator().GoUp();
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"dos33.dsk") });
+        verbs = host.actions.GetListVerbs();
+
+        Assert::AreEqual ((ptrdiff_t) 0, at (CassoExplorerActions::Verb::Open), L"Open is first");
+        Assert::IsTrue   (at (CassoExplorerActions::Verb::Open)             < at (CassoExplorerActions::Verb::OpenWith));
+        Assert::IsTrue   (at (CassoExplorerActions::Verb::OpenWith)         < at (CassoExplorerActions::Verb::InsertDrive1));
+        Assert::IsTrue   (at (CassoExplorerActions::Verb::OpenInNewCasso)   < at (CassoExplorerActions::Verb::InspectDiskImage));
+        Assert::IsTrue   (at (CassoExplorerActions::Verb::InspectDiskImage) < at (CassoExplorerActions::Verb::SelectForCompare));
+        Assert::IsTrue   (at (CassoExplorerActions::Verb::SelectForCompare) < at (CassoExplorerActions::Verb::Separator));
+        Assert::IsTrue   (at (CassoExplorerActions::Verb::Separator)        < at (CassoExplorerActions::Verb::ExtractFiles));
+        Assert::IsTrue   (at (CassoExplorerActions::Verb::ExtractFiles)     < at (CassoExplorerActions::Verb::Format));
+        Assert::IsTrue   (at (CassoExplorerActions::Verb::Format)           < at (CassoExplorerActions::Verb::MoreOptions));
+
+        Assert::IsFalse  (has (CassoExplorerActions::Verb::Test));
+        Assert::IsFalse  (has (CassoExplorerActions::Verb::AddToA2retroNet));
+        Assert::IsFalse  (has (CassoExplorerActions::Verb::ReadAsCpm));
+        Assert::IsFalse  (has (CassoExplorerActions::Verb::DetectFilesystem));
+        Assert::IsFalse  (has (CassoExplorerActions::Verb::MakeArchive),   L"An image has its ShrinkIt disk under Convert");
+        Assert::IsFalse  (has (CassoExplorerActions::Verb::CompareToPick), L"Nothing is picked yet");
+    }
+
+
+    TEST_METHOD (ComparePick_OffersCompareToOnAnyOtherImage)
+    {
+        Host                                     host;
+        std::vector<CassoExplorerActions::Verb>  verbs;
+        auto                                     has   = [&verbs] (CassoExplorerActions::Verb verb) { return std::find (verbs.begin(), verbs.end(), verb) != verbs.end(); };
+
+
+
+        host.SeedBytes (ScratchImages::GetDos33 (false), L"C:\\Disks\\second.dsk");
+        host.OpenImage();
+        host.browser.GetNavigator().GoUp();
+
+        host.actions.SetComparePick (L"C:\\Disks\\dos33.dsk");
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\dos33.dsk"), host.actions.GetComparePick());
+
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"second.dsk") });
+        verbs = host.actions.GetListVerbs();
+        Assert::IsTrue  (has (CassoExplorerActions::Verb::CompareToPick),    L"another image");
+        Assert::IsTrue  (has (CassoExplorerActions::Verb::SelectForCompare), L"and it can replace the pick");
+
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"dos33.dsk") });
+        verbs = host.actions.GetListVerbs();
+        Assert::IsFalse (has (CassoExplorerActions::Verb::CompareToPick), L"the picked image itself");
+        Assert::IsFalse (host.actions.CanCompareToPick (L"c:\\disks\\DOS33.DSK"), L"paths that differ only in case match");
+
+        host.actions.SetComparePick (L"C:\\Disks\\second.dsk");
+        verbs = host.actions.GetListVerbs();
+        Assert::IsTrue  (has (CassoExplorerActions::Verb::CompareToPick), L"a new pick replaces the old one");
+
+        host.actions.ClearComparePick();
+        verbs = host.actions.GetListVerbs();
+        Assert::IsFalse (has (CassoExplorerActions::Verb::CompareToPick), L"cleared once a comparison opens");
+    }
+
+
+    TEST_METHOD (AFileInAnImage_ListsOpenAndCopyBeforeAddingFiles)
+    {
+        Host                                     host;
+        std::vector<CassoExplorerActions::Verb>  verbs;
+        auto                                     at    = [&verbs] (CassoExplorerActions::Verb verb) { return std::find (verbs.begin(), verbs.end(), verb) - verbs.begin(); };
+
+
+
+        host.OpenImage();
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"HELLO") });
+        verbs = host.actions.GetListVerbs();
+
+        Assert::IsTrue (at (CassoExplorerActions::Verb::Open)           < at (CassoExplorerActions::Verb::Get));
+        Assert::IsTrue (at (CassoExplorerActions::Verb::Get)            < at (CassoExplorerActions::Verb::GetWithOptions));
+        Assert::IsTrue (at (CassoExplorerActions::Verb::GetWithOptions) < at (CassoExplorerActions::Verb::Boot));
+        Assert::IsTrue (at (CassoExplorerActions::Verb::Boot)           < at (CassoExplorerActions::Verb::Lock));
+        Assert::IsTrue (at (CassoExplorerActions::Verb::Lock)           < at (CassoExplorerActions::Verb::Separator));
+        Assert::IsTrue (at (CassoExplorerActions::Verb::Separator)      < at (CassoExplorerActions::Verb::Put));
+    }
+
+
+    TEST_METHOD (RemoveExtraSeparators_KeepsOnlySeparatorsBetweenRows)
+    {
+        using Verb = CassoExplorerActions::Verb;
+
+        std::vector<Verb>  verbs    = { Verb::Separator, Verb::Open, Verb::Separator, Verb::Separator, Verb::Format, Verb::Separator };
+        std::vector<Verb>  expected = { Verb::Open, Verb::Separator, Verb::Format };
+
+
+
+        CassoExplorerActions::RemoveExtraSeparators (verbs);
+        Assert::IsTrue (verbs == expected);
+
+        verbs = { Verb::Separator };
+        CassoExplorerActions::RemoveExtraSeparators (verbs);
+        Assert::IsTrue (verbs.empty());
     }
 
 
@@ -503,21 +629,21 @@ public:
         host.SeedBytes (ScratchImages::GetDos33 (false), L"C:\\Disks\\second.dsk");
         host.SeedBytes   (Bytes ("hello"), L"C:\\Disks\\readme.txt");
         host.OpenImage();
-        host.browser.GoUp();
+        host.browser.GetNavigator().GoUp();
 
-        host.browser.SetSelectedRows ({});
+        host.browser.GetSelection().SetSelectedRows ({});
         Assert::IsFalse (host.actions.CanInspect(), L"nothing selected");
         Assert::IsFalse (host.actions.CanCompare());
 
-        host.browser.SetSelectedRows ({ host.Find (L"dos33.dsk") });
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"dos33.dsk") });
         Assert::IsTrue  (host.actions.CanInspect(), L"one image");
         Assert::IsFalse (host.actions.CanCompare());
 
-        host.browser.SetSelectedRows ({ host.Find (L"dos33.dsk"), host.Find (L"second.dsk") });
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"dos33.dsk"), host.Find (L"second.dsk") });
         Assert::IsTrue  (host.actions.CanInspect(), L"two images");
         Assert::IsTrue  (host.actions.CanCompare());
 
-        host.browser.SetSelectedRows ({ host.Find (L"dos33.dsk"), host.Find (L"readme.txt") });
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"dos33.dsk"), host.Find (L"readme.txt") });
         Assert::IsFalse (host.actions.CanInspect(), L"an image and a text file");
         Assert::IsFalse (host.actions.CanCompare());
 
@@ -525,7 +651,7 @@ public:
         Assert::IsTrue  (host.actions.CanInspect(), L"the open image, with no selection");
         Assert::IsFalse (host.actions.CanCompare());
 
-        host.browser.SetSelectedRows ({ host.Find (L"HELLO") });
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"HELLO") });
         Assert::IsTrue  (host.actions.CanInspect(), L"the open image, with a file selected");
     }
 
@@ -538,9 +664,9 @@ public:
 
         host.SeedBytes (Bytes ("hello"), L"C:\\Disks\\readme.txt");
         host.OpenImage();
-        host.browser.GoUp();
+        host.browser.GetNavigator().GoUp();
 
-        host.browser.SetSelectedRows ({ host.Find (L"readme.txt") });
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"readme.txt") });
         verbs = host.actions.GetListVerbs();
         Assert::IsTrue (has (CassoExplorerActions::Verb::Open));
         Assert::IsTrue (has (CassoExplorerActions::Verb::OpenWith));
@@ -553,21 +679,21 @@ public:
         Assert::IsTrue  (has (CassoExplorerActions::Verb::Share));
 
         //  The folder's background takes a paste.
-        host.browser.SetSelectedRows ({});
+        host.browser.GetSelection().SetSelectedRows ({});
         verbs = host.actions.GetListVerbs();
         Assert::IsTrue  (has (CassoExplorerActions::Verb::Paste));
         Assert::IsFalse (has (CassoExplorerActions::Verb::Cut));
 
         //  An image opens here, and in another program through Open with, as
         //  File Explorer offers it.
-        host.browser.SetSelectedRows ({ host.Find (L"dos33.dsk") });
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"dos33.dsk") });
         verbs = host.actions.GetListVerbs();
         Assert::IsTrue  (has (CassoExplorerActions::Verb::OpenWith));
         Assert::IsTrue  (has (CassoExplorerActions::Verb::MoreOptions));
 
         //  Nothing inside an image is a real file.
         host.browser.OpenRow (host.Find (L"dos33.dsk"));
-        host.browser.SetSelectedRows ({ host.Find (L"HELLO") });
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"HELLO") });
         verbs = host.actions.GetListVerbs();
         Assert::IsFalse (has (CassoExplorerActions::Verb::OpenWith));
         Assert::IsFalse (has (CassoExplorerActions::Verb::MoreOptions));
@@ -580,7 +706,7 @@ public:
         Host  host;
 
         host.OpenImage();
-        host.browser.SetSelectedRows ({ host.Find (L"NOTES") });
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"NOTES") });
 
         CassoExplorerActions::Outcome  outcome = host.actions.DeleteSelected();
 
@@ -596,7 +722,7 @@ public:
         Host  host;
 
         host.OpenImage();
-        host.browser.SetSelectedRows ({ host.Find (L"ODD") });
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"ODD") });
 
         Assert::IsTrue   (host.actions.RenameSelected (L"even").Succeeded());
         Assert::AreEqual (-1, host.Find (L"ODD"));
@@ -612,15 +738,15 @@ public:
         std::vector<FileEntry>                  entries;
 
         host.OpenImage();
-        host.browser.SetSelectedRows ({ host.Find (L"HELLO") });
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"HELLO") });
         verbs = host.actions.GetListVerbs();
         Assert::IsTrue  (has (CassoExplorerActions::Verb::Lock));
         Assert::IsFalse (has (CassoExplorerActions::Verb::Unlock));
 
         Assert::IsTrue (host.actions.SetLockedSelected (true).Succeeded());
 
-        host.browser.SetSelectedRows ({ host.Find (L"HELLO") });
-        host.browser.GetSelectedEntries (entries);
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"HELLO") });
+        host.browser.GetSelection().GetSelectedEntries (entries);
         Assert::IsTrue (entries.size() == 1 && entries[0].isLocked);
 
         verbs = host.actions.GetListVerbs();
@@ -629,8 +755,8 @@ public:
 
         Assert::IsTrue (host.actions.SetLockedSelected (false).Succeeded());
 
-        host.browser.SetSelectedRows ({ host.Find (L"HELLO") });
-        host.browser.GetSelectedEntries (entries);
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"HELLO") });
+        host.browser.GetSelection().GetSelectedEntries (entries);
         Assert::IsFalse (entries[0].isLocked);
     }
 
@@ -642,14 +768,14 @@ public:
         std::vector<FileEntry>  entries;
 
         host.OpenImage();
-        host.browser.SetSelectedRows ({ host.Find (L"HELLO") });
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"HELLO") });
 
         Assert::IsTrue   (host.actions.ConvertSelected (name).Succeeded());
         Assert::AreEqual (std::string ("HELLO.LIST"), name);
         Assert::AreNotEqual (-1, host.Find (L"HELLO"), L"the program stays");
 
-        host.browser.SetSelectedRows ({ host.Find (L"HELLO.LIST") });
-        host.browser.GetSelectedEntries (entries);
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"HELLO.LIST") });
+        host.browser.GetSelection().GetSelectedEntries (entries);
         Assert::IsTrue (entries.size() == 1 && entries[0].type == BasicConversion::kDos33Text);
     }
 
@@ -661,7 +787,7 @@ public:
         CassoExplorerActions::Outcome         outcome;
 
         host.OpenImage();
-        host.browser.SetSelectedRows ({ host.Find (L"HELLO"), host.Find (L"INTPROG"), host.Find (L"ODD") });
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"HELLO"), host.Find (L"INTPROG"), host.Find (L"ODD") });
         Assert::IsTrue (Offers (host.actions.GetListVerbs(), CassoExplorerActions::Verb::ConvertTo));
 
         outcome = host.actions.ConvertSelected (name);
@@ -681,8 +807,8 @@ public:
         std::vector<FileEntry>      entries;
 
         host.OpenImage();
-        host.browser.SetSelectedRows ({ host.Find (L"ODD") });
-        host.browser.GetSelectedEntries (entries);
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"ODD") });
+        host.browser.GetSelection().GetSelectedEntries (entries);
 
         edits.name         = L"EVEN";
         edits.nameEdited   = true;
@@ -692,8 +818,8 @@ public:
         Assert::IsTrue (host.actions.ApplyProperties (entries, edits).Succeeded());
         Assert::AreEqual (-1, host.Find (L"ODD"));
 
-        host.browser.SetSelectedRows ({ host.Find (L"EVEN") });
-        host.browser.GetSelectedEntries (entries);
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"EVEN") });
+        host.browser.GetSelection().GetSelectedEntries (entries);
         Assert::IsTrue (entries.size() == 1 && entries[0].isLocked, L"locked under its new name");
     }
 
@@ -708,19 +834,19 @@ public:
         std::vector<FileEntry>      after;
 
         host.OpenImage();
-        host.browser.SetSelectedRows ({ host.Find (L"HELLO"), host.Find (L"ODD") });
-        host.browser.GetSelectedEntries (entries);
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"HELLO"), host.Find (L"ODD") });
+        host.browser.GetSelection().GetSelectedEntries (entries);
 
         edits.lockedEdited = true;
         edits.locked       = true;
         Assert::IsTrue (host.actions.ApplyProperties (entries, edits).Succeeded());
 
-        host.browser.SetSelectedRows ({});
+        host.browser.GetSelection().SetSelectedRows ({});
         edits.locked = false;
         Assert::IsTrue (host.actions.ApplyProperties (entries, edits).Succeeded());
 
-        host.browser.SetSelectedRows ({ host.Find (L"HELLO"), host.Find (L"ODD") });
-        host.browser.GetSelectedEntries (after);
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"HELLO"), host.Find (L"ODD") });
+        host.browser.GetSelection().GetSelectedEntries (after);
         Assert::IsTrue (after.size() == 2 && !after[0].isLocked && !after[1].isLocked);
     }
 
@@ -730,7 +856,7 @@ public:
         Host  host;
 
         host.OpenImage();
-        host.browser.SetSelectedRows ({ host.Find (L"HELLO"), host.Find (L"ODD") });
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"HELLO"), host.Find (L"ODD") });
 
         CassoExplorerActions::Outcome  outcome = host.actions.GetSelected (L"C:\\Out", HostFileNaming::Style::Descriptive);
 
@@ -749,7 +875,7 @@ public:
         host.OpenImage();
         AssertSucceeded (host.fs.MakeDirectory (L"C:\\Out"));
         AssertSucceeded (host.fs.WriteAllText (L"C:\\Out\\HELLO.Applesoft BASIC.txt", "mine"));
-        host.browser.SetSelectedRows ({ host.Find (L"HELLO") });
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"HELLO") });
 
         CassoExplorerActions::Outcome  outcome = host.actions.GetSelected (L"C:\\Out", HostFileNaming::Style::Descriptive);
 
@@ -777,7 +903,7 @@ public:
             host.OpenImage();
             AssertSucceeded (host.fs.MakeDirectory (L"C:\\Out"));
             AssertSucceeded (host.fs.WriteAllText (kMine, "mine"));
-            host.browser.SetSelectedRows ({ host.Find (L"HELLO") });
+            host.browser.GetSelection().SetSelectedRows ({ host.Find (L"HELLO") });
 
             outcome = host.actions.GetSelected (L"C:\\Out", HostFileNaming::Style::Descriptive,
                                                 [&asked, choice] (const std::wstring &, int index, int count)
@@ -808,7 +934,7 @@ public:
 
         Assert::IsTrue      (host.actions.PutFiles ({ L"C:\\In\\DEMO.S.Merlin.txt" }).Succeeded());
         Assert::AreNotEqual (-1, host.Find (L"T.DEMO"));
-        host.browser.SetSelectedRows ({ host.Find (L"T.DEMO") });
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"T.DEMO") });
 
         CassoExplorerActions::Outcome  outcome = host.actions.GetSelected (L"C:\\Out", HostFileNaming::Style::Descriptive);
 
@@ -830,15 +956,15 @@ public:
         host.OpenImage();
 
         Assert::IsTrue (host.actions.PutFiles ({ L"C:\\In\\DEMO.S.Merlin.txt" }).Succeeded());
-        host.browser.SetSelectedRows ({ host.Find (L"T.DEMO") });
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"T.DEMO") });
 
         std::vector<FileEntry>  entries;
 
-        host.browser.GetSelectedEntries (entries);
+        host.browser.GetSelection().GetSelectedEntries (entries);
 
         bool                           converted = true;
         std::wstring                   name      = DragPayload::GetHostName (entries[0], VolumeKind::Dos33, HostFileNaming::Style::Descriptive, converted, FileFormat::Merlin, true);
-        CassoExplorerActions::Outcome  outcome   = host.actions.GetSelected (L"C:\\Out", HostFileNaming::Style::Descriptive, nullptr, true);
+        CassoExplorerActions::Outcome  outcome   = host.actions.GetSelected (L"C:\\Out", HostFileNaming::Style::Descriptive, nullptr, CassoExplorerActions::CopyForm::Raw);
         std::string                    path      = "C:\\Out\\" + TextEncoding::WideToNarrow (name);
 
         Assert::IsTrue   (outcome.Succeeded(), outcome.message.c_str());
@@ -861,11 +987,11 @@ public:
         host.OpenImage();
 
         Assert::IsTrue (host.actions.PutFiles ({ L"C:\\In\\DEMO.S.Merlin.txt" }).Succeeded());
-        host.browser.SetSelectedRows ({ host.Find (L"T.DEMO") });
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"T.DEMO") });
 
         std::vector<FileEntry>  entries;
 
-        host.browser.GetSelectedEntries (entries);
+        host.browser.GetSelection().GetSelectedEntries (entries);
 
         std::wstring  name = DragPayload::GetHostName (entries[0], VolumeKind::Dos33, HostFileNaming::Style::AppleSingle, converted, FileFormat::Merlin);
 
@@ -893,7 +1019,7 @@ public:
         Assert::IsTrue  (host.browser.OpenRow (host.Find (L"prodos.po")));
         Assert::IsTrue  (host.actions.PutFiles ({ L"C:\\In\\BAD#088066", L"C:\\In\\DEMO.S.Merlin.txt" }).Succeeded());
 
-        host.browser.SetSelectedRows ({ host.Find (L"BAD"), host.Find (L"DEMO.S") });
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"BAD"), host.Find (L"DEMO.S") });
 
         CassoExplorerActions::Outcome  outcome = host.actions.GetSelected (L"C:\\Out", HostFileNaming::Style::Descriptive);
 
@@ -1110,8 +1236,8 @@ public:
         Assert::IsTrue (host.browser.GetOperations().Put ("C:\\Disks\\dos33.dsk", "C:\\In\\one.bin", "ONE", "B", true, 0x0300, DiskOperations::Encoding::Verbatim).Succeeded());
 
         host.OpenImage();
-        host.browser.SetSelectedRows ({ host.Find (L"HELLO"), host.Find (L"NOTES"), host.Find (L"INTPROG"), host.Find (L"ONE") });
-        host.browser.GetSelectedEntries (entries);
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"HELLO"), host.Find (L"NOTES"), host.Find (L"INTPROG"), host.Find (L"ONE") });
+        host.browser.GetSelection().GetSelectedEntries (entries);
 
         Assert::IsTrue (Offers (host.actions.GetListVerbs(), CassoExplorerActions::Verb::ConvertToTapeAudio));
 
@@ -1287,7 +1413,7 @@ public:
         Assert::IsTrue      (host.actions.PutFiles ({ L"C:\\In\\subprog.bas" }).Succeeded());
         Assert::AreNotEqual (-1, host.Find (L"SUBPROG"));
 
-        host.browser.SetSelectedRows ({ host.Find (L"SUBPROG") });
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"SUBPROG") });
         verbs = host.actions.GetListVerbs();
 
         Assert::IsTrue  (std::find (verbs.begin(), verbs.end(), CassoExplorerActions::Verb::Delete) != verbs.end());
@@ -1299,7 +1425,7 @@ public:
         Assert::AreEqual    (-1, host.Find (L"SUBPROG"));
         Assert::AreNotEqual (-1, host.Find (L"MOVED"));
 
-        host.browser.SetSelectedRows ({ host.Find (L"MOVED") });
+        host.browser.GetSelection().SetSelectedRows ({ host.Find (L"MOVED") });
         Assert::IsTrue   (host.actions.DeleteSelected().Succeeded());
         Assert::AreEqual (-1, host.Find (L"MOVED"));
     }
@@ -1644,7 +1770,7 @@ public:
         DiskOperations::NewDiskRequest  request = CassoExplorerNewDiskChoices::MakeRequest (0, 1, L"", false);
 
         host.OpenImage();
-        host.browser.GoUp();
+        host.browser.GetNavigator().GoUp();
 
         Assert::IsTrue   (host.actions.CreateImage (L"C:\\Disks", L"fresh.dsk", request).Succeeded());
         Assert::IsTrue   (host.io.files.count ("C:\\Disks\\fresh.dsk") == 1);
@@ -1706,156 +1832,17 @@ public:
     }
 
 
-    TEST_METHOD (Address_ParsesTheUsualForms)
-    {
-        Word  address = 0;
-
-        Assert::IsTrue   (ActionsGoTo::TryParseAddress (L"$2000", address));
-        Assert::AreEqual ((int) 0x2000, (int) address);
-        Assert::IsTrue   (ActionsGoTo::TryParseAddress (L" 0x0803 ", address));
-        Assert::AreEqual ((int) 0x0803, (int) address);
-        Assert::IsTrue   (ActionsGoTo::TryParseAddress (L"#768", address));
-        Assert::AreEqual ((int) 768, (int) address);
-        Assert::IsFalse  (ActionsGoTo::TryParseAddress (L"$10000", address));
-        Assert::IsFalse  (ActionsGoTo::TryParseAddress (L"zz", address));
-        Assert::IsFalse  (ActionsGoTo::TryParseAddress (L"", address));
-    }
-
-
-    TEST_METHOD (GoTo_ParsesAddressesAndOffsetsFromTheCaret)
-    {
-        int64_t  address = 0;
-        int64_t  last    = 0;
-
-        Assert::IsTrue   (ActionsGoTo::TryParseGoTo (L"$08FF", 0x0800, address, last));
-        Assert::AreEqual ((int64_t) 0x08FF, address);
-        Assert::AreEqual (address, last, L"One address is a range of one");
-        Assert::IsTrue   (ActionsGoTo::TryParseGoTo (L"+10", 0x0800, address, last));
-        Assert::AreEqual ((int64_t) 0x0810, address, L"An offset is hex, as addresses are");
-        Assert::IsTrue   (ActionsGoTo::TryParseGoTo (L"+$A0", 0x0800, address, last));
-        Assert::AreEqual ((int64_t) 0x08A0, address);
-        Assert::IsTrue   (ActionsGoTo::TryParseGoTo (L" -#16 ", 0x0800, address, last));
-        Assert::AreEqual ((int64_t) 0x07F0, address, L"and # marks decimal");
-        Assert::IsFalse  (ActionsGoTo::TryParseGoTo (L"+", 0x0800, address, last));
-        Assert::IsFalse  (ActionsGoTo::TryParseGoTo (L"", 0x0800, address, last));
-        Assert::IsFalse  (ActionsGoTo::TryParseGoTo (L"zz", 0x0800, address, last));
-    }
-
-
-    TEST_METHOD (GoTo_ReachesPastSixteenBitsInALargeFile)
-    {
-        int64_t  first = 0;
-        int64_t  last  = 0;
-
-        Assert::IsTrue   (ActionsGoTo::TryParseGoTo (L"10000", 0, first, last));
-        Assert::AreEqual ((int64_t) 0x10000, first, L"An offset is not an Apple II address and is not capped at $FFFF");
-        Assert::IsTrue   (ActionsGoTo::TryParseGoTo (L"+#1000000", 0x10, first, last));
-        Assert::AreEqual ((int64_t) 1000016, first);
-    }
-
-
-    TEST_METHOD (GoTo_ParsesARangeByLastAddressOrByLength)
-    {
-        int64_t  first = 0;
-        int64_t  last  = 0;
-
-        Assert::IsTrue   (ActionsGoTo::TryParseGoTo (L"$0803-$0810", 0x0800, first, last));
-        Assert::AreEqual ((int64_t) 0x0803, first);
-        Assert::AreEqual ((int64_t) 0x0810, last, L"A hyphen gives the last address");
-
-        Assert::IsTrue   (ActionsGoTo::TryParseGoTo (L"$0803,+10", 0x0800, first, last));
-        Assert::AreEqual ((int64_t) 0x0812, last, L"A comma and a plus give a length of sixteen");
-
-        Assert::IsFalse  (ActionsGoTo::TryParseGoTo (L"$0810-$0803", 0x0800, first, last),
-            L"A range cannot end before it starts");
-        Assert::IsFalse  (ActionsGoTo::TryParseGoTo (L"$0803,+0", 0x0800, first, last),
-            L"or be empty");
-    }
-
-
-    TEST_METHOD (Search_ParsesHexBytesAndQuotedText)
-    {
-        std::vector<Byte>  bytes;
-        bool               isText = false;
-
-        Assert::IsTrue  (ActionsGoTo::TryParseSearch (L" A9 00 8d ", bytes, isText));
-        Assert::IsFalse (isText);
-        Assert::IsTrue  (bytes == std::vector<Byte> { 0xA9, 0x00, 0x8D });
-
-        Assert::IsTrue  (ActionsGoTo::TryParseSearch (L"\"HI\"", bytes, isText));
-        Assert::IsTrue  (isText);
-        Assert::IsTrue  (bytes == std::vector<Byte> { 'H', 'I' });
-
-        Assert::IsTrue  (ActionsGoTo::TryParseSearch (L"ZZ", bytes, isText));
-        Assert::IsTrue  (isText, L"What is not hex digits is text");
-        Assert::IsTrue  (bytes == std::vector<Byte> { 'Z', 'Z' });
-        Assert::IsFalse (ActionsGoTo::TryParseSearch (L"\"\"", bytes, isText));
-        Assert::IsFalse (ActionsGoTo::TryParseSearch (L"", bytes, isText));
-    }
-
-
-    TEST_METHOD (Search_FindsForwardWrapsAndMatchesTextEitherWay)
-    {
-        std::vector<Byte>  haystack = { 0x01, 0xC8, 0xC9, 0x02, 0x48, 0x49 };
-
-        //  "hi" matches high-bit "HI" at 1, then plain "HI" at 4, then wraps.
-        Assert::AreEqual ((size_t) 1, ActionsGoTo::FindBytes (haystack, { 'h', 'i' }, true, 0));
-        Assert::AreEqual ((size_t) 4, ActionsGoTo::FindBytes (haystack, { 'h', 'i' }, true, 2));
-        Assert::AreEqual ((size_t) 1, ActionsGoTo::FindBytes (haystack, { 'h', 'i' }, true, 5));
-
-        //  Bytes match exactly.
-        Assert::AreEqual ((size_t) 4, ActionsGoTo::FindBytes (haystack, { 0x48 }, false, 0));
-        Assert::AreEqual (CassoExplorerActions::kNotFound, ActionsGoTo::FindBytes (haystack, { 0x77 }, false, 0));
-    }
-
-
-    TEST_METHOD (Search_InSourceFindsAMatchAcrossTwoChunksAndWraps)
-    {
-        std::vector<Byte>       haystack (CassoExplorerActions::kSearchChunkBytes * 2 + 100, (Byte) 0);
-        uint64_t                across = CassoExplorerActions::kSearchChunkBytes - 2;
-        CassoExplorerActions::ReadFn  read   = [&haystack] (uint64_t offset, std::span<uint8_t> out)
-        {
-            std::copy_n (haystack.begin() + (ptrdiff_t) offset, out.size(), out.begin());
-        };
-
-        haystack[(size_t) across]     = 0xDE;
-        haystack[(size_t) across + 1] = 0xAD;
-        haystack[(size_t) across + 2] = 0xBE;
-        haystack[(size_t) across + 3] = 0xEF;
-
-        Assert::AreEqual (across, ActionsGoTo::FindInSource (read, haystack.size(), { 0xDE, 0xAD, 0xBE, 0xEF }, false, 0),
-            L"A match that straddles the first chunk's end is found");
-        Assert::AreEqual (across, ActionsGoTo::FindInSource (read, haystack.size(), { 0xDE, 0xAD, 0xBE, 0xEF }, false, across + 1),
-            L"and a search past it wraps back to it");
-        Assert::AreEqual (CassoExplorerActions::kNotFoundOffset, ActionsGoTo::FindInSource (read, haystack.size(), { 0x77 }, false, 0));
-    }
-
-
-    TEST_METHOD (Numbers_ParseSpacesAndCommas)
-    {
-        std::vector<int>  numbers;
-
-        Assert::IsTrue   (ActionsGoTo::TryParseNumbers (L"17 0 2", 2, numbers));
-        Assert::AreEqual ((size_t) 3, numbers.size());
-        Assert::AreEqual (17, numbers[0]);
-        Assert::IsTrue   (ActionsGoTo::TryParseNumbers (L"17,0", 2, numbers));
-        Assert::IsFalse  (ActionsGoTo::TryParseNumbers (L"17", 2, numbers));
-        Assert::IsFalse  (ActionsGoTo::TryParseNumbers (L"1 2 3 4", 1, numbers));
-        Assert::IsFalse  (ActionsGoTo::TryParseNumbers (L"17 x", 1, numbers));
-    }
-
-
     TEST_METHOD (Sectors_RoundTripThroughAHostFile)
     {
         Host  host;
 
         host.OpenImage();
 
-        Assert::IsTrue (host.actions.ReadSectors (17, 0, 1, L"C:\\Out\\vtoc.sec").Succeeded());
+        Assert::IsTrue (host.actions.GetDriveImages().ReadSectors (17, 0, 1, L"C:\\Out\\vtoc.sec").Succeeded());
         Assert::IsTrue (host.io.files.count ("C:\\Out\\vtoc.sec") == 1);
         Assert::AreEqual ((size_t) 256, host.io.files["C:\\Out\\vtoc.sec"].size());
 
-        Assert::IsTrue   (host.actions.WriteSectors (20, 5, L"C:\\Out\\vtoc.sec").Succeeded());
+        Assert::IsTrue   (host.actions.GetDriveImages().WriteSectors (20, 5, L"C:\\Out\\vtoc.sec").Succeeded());
         Assert::AreEqual ((size_t) 1, host.written.size());
     }
 
@@ -1865,7 +1852,7 @@ public:
         Host  host;
 
         host.OpenImage();
-        host.browser.GoUp();
+        host.browser.GetNavigator().GoUp();
 
         Assert::IsFalse (host.actions.PutFiles ({ L"C:\\In\\x.txt" }).Succeeded());
     }

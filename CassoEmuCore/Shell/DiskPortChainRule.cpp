@@ -154,3 +154,42 @@ std::string DiskPortChainRule::GetSwapDevice (const std::string & device)
 
     return other;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskPortChainRule::GetFittingDevices
+//
+//  Any kind fits while the chain has fewer than kMaxChainDrives drives; the
+//  Apple 3.5 Drive and the 5.25-inch drive only below their limits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> DiskPortChainRule::GetFittingDevices (int maxApple35, int maxFloppies, const std::vector<std::string> & drives)
+{
+    std::vector<std::string>  fitting;
+    int                       apple35  = (int) std::count (drives.begin(), drives.end(), std::string (kpszApple35DriveDevice));
+    int                       floppies = (int) std::count (drives.begin(), drives.end(), std::string (kpszDiskIicDevice));
+
+
+
+    if (drives.size() < MachineConfigLoader::kMaxChainDrives)
+    {
+        if (apple35 < maxApple35)
+        {
+            fitting.push_back (kpszApple35DriveDevice);
+        }
+
+        fitting.push_back (kpszUniDisk35Device);
+
+        if (floppies < maxFloppies)
+        {
+            fitting.push_back (kpszDiskIicDevice);
+        }
+    }
+
+    return fitting;
+}

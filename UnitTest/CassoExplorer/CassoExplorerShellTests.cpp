@@ -54,6 +54,34 @@ public:
     }
 
 
+    TEST_METHOD (OpenedFile_IsSelectedButADiskImageOrAPathInsideOneOpens)
+    {
+        CassoExplorerLaunchOptions  options;
+        CassoExplorerLaunchOptions  received;
+
+        options.openPath = L"C:\\Disks\\notes.txt";
+        CassoExplorerShell::SelectOpenedFile (options.openPath, true, options);
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\notes.txt"), options.selectPath, L"A document is selected in its folder");
+        Assert::IsTrue   (options.openPath.empty());
+
+        options          = CassoExplorerLaunchOptions();
+        options.openPath = L"C:\\Disks\\Pics.2mg";
+        CassoExplorerShell::SelectOpenedFile (options.openPath, true, options);
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\Pics.2mg"), options.openPath, L"A disk image opens at its root");
+        Assert::IsTrue   (options.selectPath.empty());
+
+        //  A folder inside an image is no host file, and goes to the running
+        //  app as the path to open.
+        options          = CassoExplorerLaunchOptions();
+        options.openPath = L"C:\\Disks\\Ultimate Desktop Pics.2mg\\PixelJoint\\Misc";
+        CassoExplorerShell::SelectOpenedFile (options.openPath, false, options);
+        Assert::IsTrue   (options.selectPath.empty());
+
+        Assert::AreEqual (S_OK, CassoExplorerShell::ParseArguments (Split (CassoExplorerShell::MakeForwardedArguments (options)), received));
+        Assert::AreEqual (options.openPath, received.openPath);
+    }
+
+
     TEST_METHOD (ForwardedArguments_ParseBack)
     {
         // A second launch sends its command line to the running app, which
@@ -203,6 +231,27 @@ public:
         Assert::AreEqual ((size_t) 1, requests.size());
         Assert::IsTrue   (requests[0].tabs.empty(), L"Neither the session nor the preferences' tabs");
         Assert::AreEqual (std::wstring (L"C:\\Only"), requests[0].openPath);
+    }
+
+
+    //  /select opens the item's folder with it selected, as File Explorer's
+    //  does, even for a disk image, which a path alone opens.
+    TEST_METHOD (Launch_SelectPath_IsSelectedNotOpened)
+    {
+        CassoExplorerLaunchOptions               options;
+        std::vector<CassoExplorerWindowRequest>  requests;
+        CassoExplorerWindowRequest               request;
+
+        options.newWindow  = true;
+        options.selectPath = L"C:\\Disks\\wizardry.po";
+
+        requests = CassoExplorerShell::PlanFirstLaunch (options, {}, CassoExplorerPrefs());
+        request  = CassoExplorerShell::PlanForwardedLaunch (options, CassoExplorerPrefs::Placement());
+
+        Assert::AreEqual (options.selectPath, requests[0].selectPath);
+        Assert::IsTrue   (requests[0].openPath.empty(), L"The image isn't opened");
+        Assert::AreEqual (options.selectPath, request.selectPath);
+        Assert::IsTrue   (request.openPath.empty());
     }
 
 

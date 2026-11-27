@@ -7,13 +7,14 @@
 #include "CassoLink/CassoLinkSession.h"
 #include "CassoLink/LinkBootstrap.h"
 #include "CassoLink/LinkFault.h"
+#include "CassoLink/Session/LinkImageSource.h"
 #include "CassoLink/Session/TrackMeasures.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Machines/Apple2/Common/CpmVolume.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
@@ -232,7 +233,7 @@ public:
 
     static std::vector<Byte>  BuildDos33()
     {
-        std::vector<Byte>  buffer (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  buffer (NibbleFormat::kImageByteSize, 0);
         std::vector<Byte>  next;
 
         AssertSucceeded (Dos33Skeleton::Write (buffer, 254));
@@ -243,7 +244,7 @@ public:
 
     static std::vector<Byte>  BuildProDos()
     {
-        std::vector<Byte>  buffer (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  buffer (NibbleFormat::kImageByteSize, 0);
         std::vector<Byte>  next;
 
         AssertSucceeded (ProDosSkeleton::Write (buffer, "LINKED"));
@@ -400,6 +401,30 @@ public:
 
         Assert::IsFalse (rig.sink.activities.empty());
         Assert::AreEqual (std::string ("Disconnected"), rig.sink.activities.back());
+    }
+
+
+    //  A session stopped on purpose puts its leaving in the Apple's history.
+    TEST_METHOD (Stop_AddsTheDisconnectToTheApplesHistory)
+    {
+        Rig   rig;
+        bool  logged = false;
+
+
+
+        rig.Start();
+        Assert::IsTrue (rig.sink.WaitForState (LinkState::Ready));
+
+        rig.session->Stop();
+
+        {
+            std::lock_guard<std::mutex>  guard (rig.apple.lock);
+
+            //  The line is in capitals for an Apple that may have no lowercase.
+            logged = std::any_of (rig.apple.logs.begin(), rig.apple.logs.end(), [] (const std::string & text) { return _stricmp (text.c_str(), "Disconnected by the PC") == 0; });
+        }
+
+        Assert::IsTrue (logged);
     }
 
 
@@ -746,7 +771,7 @@ public:
     TEST_METHOD (APascalDisk_ListsReadsAndWrites)
     {
         Rig                rig;
-        std::vector<Byte>  disk (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  disk (NibbleFormat::kImageByteSize, 0);
         std::vector<Byte>  expected;
         FilePayload        payload = Binary (PascalVolume::kKindData, 1500, 7);
         const char         name[]  = "LINKED";
@@ -790,7 +815,7 @@ public:
     TEST_METHOD (ADamagedCpmDisk_NeedsAChoice_UntilAnotherDiskIsInTheDrive)
     {
         Rig                rig;
-        std::vector<Byte>  disk (NibblizationLayer::kImageByteSize, CpmVolume::kFree);
+        std::vector<Byte>  disk (NibbleFormat::kImageByteSize, CpmVolume::kFree);
         std::vector<Byte>  expected;
         FilePayload        payload = Binary (0, 2000, 3);
 
@@ -842,7 +867,7 @@ public:
     {
         Rig  rig;
 
-        rig.apple.drives[1] = std::vector<Byte> (NibblizationLayer::kImageByteSize, 0x5A);
+        rig.apple.drives[1] = std::vector<Byte> (NibbleFormat::kImageByteSize, 0x5A);
         rig.Start();
 
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_UNRECOGNIZED_VOLUME), rig.Finish (rig.session->Enumerate (2, FilePath()))->result);
@@ -1006,7 +1031,7 @@ public:
         rig.Start();
 
         AssertSucceeded  (rig.Finish (rig.session->ReadDisk (2, "out.woz", false))->result);
-        Assert::AreEqual (NibblizationLayer::kTrackCount, rig.apple.measuredTracks.load());
+        Assert::AreEqual (NibbleFormat::kTrackCount, rig.apple.measuredTracks.load());
 
         AssertSucceeded (VolumeImage::Load (rig.fileIo.files["out.woz"], "out.woz", sectors, report));
         Assert::IsTrue  (sectors == rig.Drive (2));
@@ -1262,6 +1287,28 @@ public:
 
 
 
+    //  An image made in memory is written as a file's is, its format by the
+    //  extension of its name, with no file read or written.
+    TEST_METHOD (WriteDisk_FromMemory_PutsTheImageOnTheDisk)
+    {
+        Rig                rig;
+        std::vector<Byte>  image  = BuildProDos();
+        std::vector<Byte>  file;
+
+
+
+        VolumeImage::DosLogicalToProDosFile (image, file);
+
+        rig.Start();
+
+        AssertSucceeded (rig.Finish (rig.session->WriteDisk (1, std::make_shared<MemoryImageSource> ("made.po", file)))->result);
+
+        Assert::IsTrue (rig.Drive (1) == image);
+        Assert::IsTrue (rig.fileIo.files.empty(), L"no file");
+    }
+
+
+
 
     //  A sector of zeros is sent as its numbers alone, and written as zeros.
     TEST_METHOD (WriteDisk_SendsSectorsOfZerosAsBlanks)
@@ -1287,29 +1334,6 @@ public:
         Assert::IsTrue   (rig.Drive (1) == image);
         Assert::IsTrue   (blanks > 0, L"the image has sectors of zeros");
         Assert::AreEqual (blanks, (int) rig.apple.blanksReceived);
-    }
-
-
-
-
-    TEST_METHOD (WriteDisk_AnImageWithNonstandardTracks_WritesNothing)
-    {
-        Rig                rig;
-        std::vector<Byte>  nib;
-        std::vector<Byte>  before = rig.apple.drives[0];
-
-        AssertSucceeded (BlankDiskBuilder::WrapInContainer (DiskFormat::Nib, NibbleImageCodec::kNibTrackSize, false, 0, BuildDos33(), nib));
-        std::fill (nib.begin() + 5 * NibbleImageCodec::kNibTrackSize, nib.begin() + 6 * NibbleImageCodec::kNibTrackSize, (Byte) 0);
-        rig.fileIo.files["odd.nib"] = nib;
-
-        rig.Start();
-
-        auto  write = rig.Finish (rig.session->WriteDisk (1, "odd.nib"));
-
-        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), write->result);
-        Assert::IsTrue (write->message.find ("5") != std::string::npos, L"the track is listed");
-        Assert::AreEqual (0, rig.apple.sectorsWritten.load());
-        Assert::IsTrue (rig.Drive (1) == before);
     }
 
 
@@ -1730,6 +1754,25 @@ public:
 
 
 
+    //  The history line of a list of block devices has what it found, as a
+    //  //c with no SmartPort device finds none.
+    TEST_METHOD (DescribeOperation_ListBlockDevices_HasTheDevicesFound)
+    {
+        LinkOperation  operation;
+
+        operation.kind = LinkOperationKind::ListBlockDevices;
+        Assert::AreEqual (std::string ("Listing the block devices"), CassoLinkSession::DescribeOperation (operation));
+        Assert::AreEqual (std::string ("Found no block devices"),    CassoLinkSession::DescribeOperation (operation, std::nullopt, true));
+
+        operation.devicesFound = 1;
+        Assert::AreEqual (std::string ("Found 1 block device"),      CassoLinkSession::DescribeOperation (operation, std::nullopt, true));
+
+        operation.devicesFound = 3;
+        Assert::AreEqual (std::string ("Found 3 block devices"),     CassoLinkSession::DescribeOperation (operation, std::nullopt, true));
+    }
+
+
+
     //  A history line longer than the Apple's line has the image's name cut
     //  short, so the drive is drawn; a line with no name in it is cut at
     //  the end; a line that fits is as it is.
@@ -1752,6 +1795,40 @@ public:
         operation.imagePath.clear();
         line = CassoLinkSession::FitToApple (operation, "ERR The Apple stopped answering in the middle", CassoLinkCodec::kLogLength);
         Assert::AreEqual (std::string ("ERR The Apple stopped answering..."), line);
+    }
+
+
+
+    //  A whole disk read or written puts the image's name on the drive's row
+    //  on the Apple; a disk changed another way, or a failed write, clears
+    //  it; after a catalog read or a failed read it stays.
+    TEST_METHOD (GetDriveNote_NamesTheImageReadOrWritten)
+    {
+        LinkOperation  operation;
+
+        operation.drive     = 1;
+        operation.imagePath = "C:\\Disks\\Prince of Persia side A.woz";
+
+        operation.kind = LinkOperationKind::WriteDisk;
+        Assert::AreEqual (std::string ("Wrote: Prince of Persia side A"), CassoLinkSession::GetDriveNote (operation, true).value_or ("none"));
+        Assert::AreEqual (std::string(), CassoLinkSession::GetDriveNote (operation, false).value_or ("none"), L"a failed write clears it");
+
+        operation.kind = LinkOperationKind::CaptureDisk;
+        Assert::AreEqual (std::string ("Read: Prince of Persia side A"), CassoLinkSession::GetDriveNote (operation, true).value_or ("none"));
+        Assert::IsFalse (CassoLinkSession::GetDriveNote (operation, false).has_value(), L"a failed read leaves it");
+
+        operation.kind = LinkOperationKind::Enumerate;
+        Assert::IsFalse (CassoLinkSession::GetDriveNote (operation, true).has_value(), L"a catalog read leaves it");
+
+        operation.kind = LinkOperationKind::WriteFile;
+        Assert::AreEqual (std::string(), CassoLinkSession::GetDriveNote (operation, true).value_or ("none"), L"a file written clears it");
+
+        operation.kind      = LinkOperationKind::ReadDisk;
+        operation.imagePath = "C:\\Disks\\The Ultimate Collection of Every Game Ever.dsk";
+        Assert::AreEqual (CassoLinkCodec::kNoteLength, CassoLinkSession::GetDriveNote (operation, true).value_or ("").size(), L"a long name is cut to the row");
+
+        operation.drive = 3;
+        Assert::IsFalse (CassoLinkSession::GetDriveNote (operation, true).has_value(), L"a block device has no row");
     }
 
 

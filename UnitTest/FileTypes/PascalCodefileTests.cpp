@@ -114,6 +114,16 @@ public:
         Assert::IsTrue (file.lines[8] == L"    0000  D7           NOP");
         Assert::IsTrue (file.lines.back() == L"    0016  C1 00        RBP   0");
         Assert::IsTrue (file.notes.empty());
+
+        //  The listing is a document of the same lines, each instruction's
+        //  offset and bytes muted, its mnemonic a keyword and its number a
+        //  number, and the segment's heading bold.
+        Assert::IsTrue (file.kind == DecodedFile::Kind::Document);
+        Assert::AreEqual (file.lines.size(), file.paragraphs.size());
+        Assert::IsTrue (file.paragraphs[3].runs[0].bold);
+        Assert::IsTrue (file.paragraphs[8].runs[0].color == RunColor::Muted && file.paragraphs[8].runs[0].text == L"    0000  D7           ");
+        Assert::IsTrue (file.paragraphs[8].runs[1].color == RunColor::Keyword && file.paragraphs[8].runs[1].text == L"NOP");
+        Assert::IsTrue (file.paragraphs.back().runs.back().color == RunColor::Number && file.paragraphs.back().runs.back().text == L"0");
     }
 
 

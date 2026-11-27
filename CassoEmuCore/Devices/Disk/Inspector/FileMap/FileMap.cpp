@@ -90,7 +90,7 @@ static std::wstring LikelyCause (const SectorSource & source)
     {
         if (!SectorSource::IsReadable (source.GetCpm (CpmMapReader::kDirectoryTrack, s).result))
         {
-            cause = std::format (L"Track 3, CP/M sector {}, where a CP/M volume keeps its directory, could not be read", InspectorFormat::FormatSector (s));
+            cause = std::format (L"Track 3, sector {}, where a CP/M volume keeps its directory, could not be read", InspectorFormat::FormatSector (SectorSource::GetCpmPhysical (s)));
         }
     }
 
@@ -116,7 +116,7 @@ vector<FileMap> FileMapBuilder::Build (const DiskAnalysis & analysis)
 
 
 
-    return Build (source, analysis.summary.commonVolume);
+    return Build (source, analysis.summary.commonVolume, analysis.isCpmChosen);
 }
 
 
@@ -132,7 +132,7 @@ vector<FileMap> FileMapBuilder::Build (const DiskAnalysis & analysis)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-vector<FileMap> FileMapBuilder::Build (const SectorSource & source, int volume)
+vector<FileMap> FileMapBuilder::Build (const SectorSource & source, int volume, bool isCpmChosen)
 {
     vector<FileMap>  maps;
     int              tracks  = 0;
@@ -145,6 +145,11 @@ vector<FileMap> FileMapBuilder::Build (const SectorSource & source, int volume)
     if (source.IsThirteenSector())
     {
         maps.push_back (NotMapped (source, NotMappedReason::ThirteenSector, 0, L""));
+    }
+    else if (isCpmChosen)
+    {
+        maps.emplace_back();
+        CpmMapReader::Read (source, maps.back());
     }
     else
     {

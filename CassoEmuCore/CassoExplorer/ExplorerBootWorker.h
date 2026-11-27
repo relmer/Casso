@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "CassoExplorer/Model/BootQueue.h"
 #include "DiskCheck/BootCheck.h"
 #include "DiskCheck/ThumbnailStore.h"
 #include "Devices/Disk/Inspector/FileMap/FileMap.h"
@@ -19,8 +20,9 @@ class IDiskFileIo;
 //
 //  A thread that boots disk images one at a time, with no window, and
 //  stores each one's thumbnail and boot result: a Full Send and Capture raw
-//  disk queue each image they write, and a list queues each image in view
-//  that has no thumbnail. An image waits while the busy function is true,
+//  disk queue each image they write, a list queues each image in view that
+//  has no thumbnail, and FolderThumbnails queues the other images of the
+//  folders it sweeps. BootQueue specifies the order. An image waits while the busy function is true,
 //  as a boot takes a core that a link reading a disk is using.
 //
 //  A result is written to the thumbnail store, to the row of the image in
@@ -38,7 +40,7 @@ public:
         std::string               renamedFrom;  // the file's name before, when the boot renamed it
         std::string               source;       // as given to Queue
         bool                      hasReport  = false;
-        bool                      isComplete = true;    // false for a Full Send image with unreadable sectors or a bad file system
+        bool                      isComplete = true;    // false for a Full Send image that didn't boot, with unreadable sectors or a bad file system
         BootVerdict               verdict    = BootVerdict::Unclear;
         std::string               reason;
         std::string               machine;
@@ -76,7 +78,16 @@ public:
     //  isn't added.
     void    Queue         (const std::wstring & path, const std::string & model, const std::string & source = std::string());
 
+    //  An image of a folder swept for thumbnails, booted after the images
+    //  queued by Queue, in the order of its folder's rank.
+    void    QueueFolderImage   (const std::wstring & path);
+    void    RemoveFolderImages ();
+    void    SetRank            (BootQueue::RankFn rank);
+
     size_t  GetPending    () const;
+
+    //  Whether the image is waiting or being booted.
+    bool    IsPending     (const std::wstring & path) const;
 
     //  Returns once nothing is waiting or being booted.
     void    WaitUntilIdle ();
@@ -96,24 +107,31 @@ public:
     //  A result as a line for an activity list.
     static std::string  Describe (const Result & result);
 
+    //  A disk image's saved game drawn on a text screen of a machine `build`
+    //  makes, in place of the report's frame (SaveSummary). False, with the
+    //  frame as it was, for a disk with no save.
+    static bool         DrawSave      (const std::vector<Byte> & bytes, const std::string & path, const BootCheck::MachineFn & build, BootReport & ioReport);
+    static bool         IsCpmDataDisk (const std::vector<Byte> & bytes, const std::string & path);
+
     //  A file-system verdict as the manifest's fscheck column has it.
     static std::string  GetCheckName (FileSystemVerdict verdict);
 
 private:
-    struct Item
-    {
-        std::wstring  path;
-        std::string   model;
-        std::string   source;
-    };
-
     void  Run ();
+    void  Add (BootQueue::Item item);
 
     static std::string  FindGivenName   (IDiskFileIo & fileIo, GivenNames * given, const std::string & folder, const std::string & name);
     static std::string  DescribeCheck   (const Result & result);
     static void         CheckFileSystem (const std::vector<Byte> & bytes, const std::wstring & path, Result & ioResult);
 
     static constexpr DWORD   s_kBusyPollMs    = 250;
+
+    //  The text page, the bytes between its rows of one third and between its
+    //  thirds, and the high bit of a normal character (DrawSave).
+    static constexpr Word    s_kTextPage      = 0x0400;
+    static constexpr Word    s_kRowStride     = 0x80;
+    static constexpr Word    s_kThirdStride   = 40;
+    static constexpr Byte    s_kNormal        = 0x80;
     static constexpr size_t  s_kMaxTitleChars = 60;
 
     ThumbnailStore           & m_store;
@@ -127,7 +145,9 @@ private:
     mutable std::mutex         m_lock;
     std::condition_variable    m_wake;
     std::condition_variable    m_idle;
-    std::deque<Item>           m_queue;
+    BootQueue                  m_queue;
+    BootQueue::RankFn          m_rank;
+    std::wstring               m_current;   // the image being booted
     bool                       m_working   = false;
     bool                       m_reporting = false;
     bool                       m_stop      = false;

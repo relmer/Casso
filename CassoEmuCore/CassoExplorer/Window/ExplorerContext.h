@@ -9,11 +9,16 @@ class CassoExplorerBrowser;
 class CassoExplorerCommands;
 class CassoLinkConnections;
 class CassoLinkDriveManager;
+class CassoLinkListActions;
 class CassoLinkManager;
 class GivenNames;
 class IDiskPictures;
+class IFolderThumbnails;
+class IImageRecords;
 class ExplorerAddressBar;
 class ExplorerCommandManager;
+class ExplorerImageTools;
+class ExplorerVerbs;
 class ExplorerDragDrop;
 class ExplorerClipboard;
 class ExplorerTransferPrompts;
@@ -38,6 +43,7 @@ class ExplorerToolbars;
 class ExplorerTreePane;
 class FirewallMonitor;
 class FullSendWindowManager;
+class CassoLinkJobManager;
 class IExplorerWindow;
 class IFolderWatcher;
 class IHostDialogs;
@@ -71,21 +77,23 @@ class ExplorerPickerSearch;
 struct CassoExplorerWindowContext
 {
 public:
-    IFileSystem                * fs          = nullptr;
+    IFileSystem                * fs               = nullptr;
     std::wstring                 baseDir;
     std::wstring                 titlePrefix;
     CassoExplorerWindowRequest   request;
-    ICassoExplorerHost         * host        = nullptr;   // other windows, the session and File > Exit; without it the window is the process's only window
-    IFolderWatcher             * watcher     = nullptr;   // without it, a change made elsewhere appears on the next navigation
-    CassoLinkConnections       * links       = nullptr;   // without it, no CassoLink connections are listed
-    RunningCassoRegistry       * running     = nullptr;   // without it, running Cassos are not listed as connections
-    ILinkAnnouncements         * announced   = nullptr;   // without it, no Apple is listed from a universal boot disk's announcements
-    FirewallMonitor            * firewall    = nullptr;   // without it, no connection is reported blocked by Windows Firewall
-    PhysicalCards              * cards       = nullptr;   // without it, no card can be opened
-    IDiskPictures              * pictures    = nullptr;   // without it, a disk image has the floppy icon in every view
-    GivenNames                 * givenNames  = nullptr;   // without it, a renamed image's name isn't stored for its disk's fingerprint
-    const PickerRequest        * picker      = nullptr;   // with it, the window is a picker for this request
-    PickerOutcome              * outcome     = nullptr;   // where a picker's confirm puts the path
+    ICassoExplorerHost         * host             = nullptr;   // other windows, the session and File > Exit; without it the window is the process's only window
+    IFolderWatcher             * watcher          = nullptr;   // without it, a change made elsewhere appears on the next navigation
+    CassoLinkConnections       * links            = nullptr;   // without it, no CassoLink connections are listed
+    RunningCassoRegistry       * running          = nullptr;   // without it, running Cassos are not listed as connections
+    ILinkAnnouncements         * announced        = nullptr;   // without it, no Apple is listed from a universal boot disk's announcements
+    FirewallMonitor            * firewall         = nullptr;   // without it, no connection is reported blocked by Windows Firewall
+    PhysicalCards              * cards            = nullptr;   // without it, no card can be opened
+    IDiskPictures              * pictures         = nullptr;   // without it, a disk image has the floppy icon in every view
+    IFolderThumbnails          * folderThumbnails = nullptr;   // without it, only the disk images in view are booted for thumbnails
+    GivenNames                 * givenNames       = nullptr;   // without it, a renamed image's name isn't stored for its disk's fingerprint
+    IImageRecords              * records          = nullptr;   // without it, every image is read each time it's listed or previewed
+    const PickerRequest        * picker           = nullptr;   // with it, the window is a picker for this request
+    PickerOutcome              * outcome          = nullptr;   // where a picker's confirm puts the path
 };
 
 
@@ -122,13 +130,17 @@ public:
     ExplorerFolderSync          & folderSync;
     CassoLinkManager            & cassoLinkManager;
     CassoLinkDriveManager       & linkDrives;
+    CassoLinkListActions        & linkListActions;
     FullSendWindowManager       & fullSendWindows;
+    CassoLinkJobManager         & linkJobs;
     ExplorerDragDrop            & dragDrop;
     ExplorerTabManager          & tabManager;
     ExplorerPreviewManager      & preview;
     ExplorerAddressBar          & addressBar;
     ExplorerMenus               & menus;
     ExplorerCommandManager      & commandManager;
+    ExplorerVerbs               & verbs;
+    ExplorerImageTools          & imageTools;
     ExplorerClipboard           & clipboard;
     ExplorerTransferPrompts     & prompts;
     ExplorerDeletion            & deletion;

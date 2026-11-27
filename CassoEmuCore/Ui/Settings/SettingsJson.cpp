@@ -860,6 +860,12 @@ HRESULT SettingsJson::ExtractMachineInfo (
     outInfo.supportsGamePortAdapter = MachineDefinitions::Find (machineId) != nullptr &&
                                       MachineDefinitions::Find (machineId)->hasAnnunciators;
 
+    // How many drives of each limited kind the disk port takes.
+    if (MachineDefinitions::Find (machineId) != nullptr)
+    {
+        outInfo.diskPortApple35  = MachineDefinitions::Find (machineId)->diskPortApple35Count;
+        outInfo.diskPortFloppies = MachineDefinitions::Find (machineId)->diskPortFloppyCount;
+    }
 
     hrRead = mergedJson.GetArray ("internalDevices", internalDevices);
     if (SUCCEEDED (hrRead) && internalDevices != nullptr)
@@ -1040,6 +1046,7 @@ HRESULT SettingsJson::ExtractHardware (
         { "serial",                  "Super Serial Card" },
         { "super-serial-card",       "Super Serial Card" },
         { "parallel",                "Parallel printer" },
+        { "parallel-printer",        "Parallel printer card" },
         { "videx",                   "Videx 80-Column" },
         { "ramworks",                "RamWorks" },
         { "ramfactor",               "RAMFactor" },

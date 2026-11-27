@@ -28,6 +28,11 @@ class Microcode;
 //  tables. The dictionary layout is from CiderPress II's notes, and the
 //  rest from the Apple Pascal Operating System Reference Manual.
 //
+//  The listing is a document whose instruction lines are colored: the
+//  offset and bytes muted, the mnemonic a keyword, and in the operand a
+//  jump target, address or name a label, a number a number, and a string
+//  a string.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class PascalCodefile
@@ -77,6 +82,10 @@ private:
     static std::string        GetMachineName (Byte machine);
     static const Microcode  * GetNmosTable   ();
     static void               AddLine        (DecodedFile & ioFile, const std::string & line);
+    static Paragraph          StyleLine      (const std::string & line);
+    static void               StyleOperand   (const std::string & operand, Paragraph & ioParagraph);
+    static void               AddRun         (Paragraph & ioParagraph, const std::string & text, RunColor color, bool bold = false);
+    static bool               IsHex          (const std::string & text, size_t at, size_t count);
     static void               ListHeader     (std::span<const Byte> bytes, int segments, DecodedFile & ioFile);
     static void               ListSegment    (std::span<const Byte> bytes, const Segment & segment, DecodedFile & ioFile);
     static bool               ListProcedures (std::span<const Byte> code, DecodedFile & ioFile);

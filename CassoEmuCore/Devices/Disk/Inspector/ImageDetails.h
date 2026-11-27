@@ -4,6 +4,8 @@
 
 #include "Devices/Disk/Inspector/DiskCopy.h"
 #include "Devices/Disk/Inspector/Finding.h"
+#include "Devices/Disk/Stamp/FormatStamp.h"
+#include "Devices/Disk/Stamp/FormatStampChunk.h"
 
 
 
@@ -16,7 +18,8 @@
 //  What the image file itself has, for the Image tab (FR-050): its format,
 //  size and read-only attribute, and for a WOZ every INFO field, every META
 //  entry, the maps and record table as stored, and the problems the file has
-//  (FR-051). Built from a DiskCopy alone, so it describes the file as read.
+//  (FR-051), and its format stamp. Built from a DiskCopy alone, so it is
+//  the file as read.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,6 +37,8 @@ public:
     WozInfo          info;
     WozFileLayout    layout;
     vector<Finding>  problems;
+    StampState       stampState   = StampState::Absent;
+    FormatStamp      stamp;
 
 private:
     static void  CheckLargestTrack (const WozFileLayout & layout, const WozInfo & info, vector<Finding> & inOut);

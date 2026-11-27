@@ -48,6 +48,9 @@ struct CassoExplorerPrefs
     bool                   previewVisible  = false;
     bool                   navigationPane  = true;    // View > Show's Navigation pane
 
+    //  The CassoLink jobs window opens when a disk read or write begins.
+    bool                   openJobsWindow  = true;
+
     //  File Explorer's Search options that apply to every search.
     bool                   searchSystemFiles = true;
     bool                   searchZipped      = false;
@@ -61,6 +64,7 @@ struct CassoExplorerPrefs
     //  Open in viewer setting would.
     bool                   enterExpandsPreview = false;
     bool                   autoThumbnails      = true;     // a disk image in view with no thumbnail is booted for one
+    bool                   folderThumbnails    = true;     // with autoThumbnails, so is every disk image in the known folders and the folders browsed
     bool                   rawCopyMenu         = true;     // a drag into File Explorer offers Copy here without conversion (raw bytes)
 
     //  The conversion options of a copy, set by Copy to folder with options,
@@ -76,12 +80,19 @@ struct CassoExplorerPrefs
     std::wstring           fullSendFolder;
     std::string            fullSendExtension;
 
+    //  The folder Copy to folder with options last copied to.
+    std::wstring           copyFolder;
+
     //  The Full Send options' Copy-protected disks section.
     FullSendProtectionChoices  fullSendProtection;
 
     //  When each CassoLink receiving folder was last listed, in file time ticks.
     //  Files newer than this are counted on its tree row.
     std::map<std::wstring, long long>  linkFolderSeen;
+
+    //  The ProDOS disks CassoLink virtual drives disks were made from,
+    //  newest first.
+    std::vector<std::wstring>  linkProDosDisks;
 
     //  The file system chosen for each image that detection doesn't recognize.
     FilesystemChoices      filesystemChoices;
@@ -129,6 +140,9 @@ struct CassoExplorerPrefs
     //  Whether a BASIC listing shows where each line starts in memory.
     bool                   lineAddresses   = false;
 
+    //  Whether a picture preview is drawn through the CRT pass.
+    bool                   previewCrt      = true;
+
     //  The navigation pane's options, from the menu below its last node.
     //  Each is empty, following File Explorer's own setting, until the user
     //  sets it here; then it holds Casso Explorer's value alone.
@@ -171,6 +185,9 @@ struct CassoExplorerPrefs
 
     //  The address bar's typed path history, newest first.
     std::vector<std::wstring>  typedPaths;
+
+    //  The search box's queries, newest first.
+    std::vector<std::wstring>  searchHistory;
 
     //  The file list's column widths, in order, or empty for File Explorer's
     //  defaults. A column left at its default stores nothing, so only what was
@@ -220,6 +237,12 @@ struct CassoExplorerPrefs
     HRESULT  SaveFile (const std::wstring & path, IFileSystem & fs) const;
 
     JsonValue  ToJson   () const;
+
+    //  Moves `disk` to the front of linkProDosDisks, adding it when it isn't
+    //  listed, and drops all but the newest kLinkProDosDiskMax.
+    void  RememberLinkProDosDisk (const std::wstring & disk);
+
+    static constexpr size_t  kLinkProDosDiskMax = 10;
     HRESULT    FromJson (const JsonValue & root);
 
     static std::wstring  GetFilePath (const std::wstring & baseDir);
@@ -270,7 +293,7 @@ struct CassoExplorerPrefs
     static constexpr int  kMinPreviewZoom         = 50;
     static constexpr int  kMaxPreviewZoom         = 300;
     static constexpr int  kDefaultTreeWidthDip    = 240;
-    static constexpr int  kDefaultPreviewWidthDip = 360;
+    static constexpr int  kDefaultPreviewWidthDip = 460;   // the screen's picture beside the platter, at full size
 
     //  The name a location's kind is stored under, and the kind a name reads
     //  back as; anything else is no kind.

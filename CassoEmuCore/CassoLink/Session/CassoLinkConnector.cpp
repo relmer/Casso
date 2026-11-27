@@ -259,6 +259,7 @@ HRESULT CassoLinkConnector::Connect (std::stop_token stop, DWORD openAt)
     std::wstring        model;
     HRESULT             logged   = S_OK;
     HRESULT             columns  = S_OK;
+    HRESULT             left     = S_OK;
     DWORD               linkBaud = m_session.m_settings.baud;
 
 
@@ -405,12 +406,19 @@ HRESULT CassoLinkConnector::Connect (std::stop_token stop, DWORD openAt)
         std::lock_guard<std::mutex>  lock (m_lock);
 
         m_modelName = model;
+        m_client    = m_session.m_host->GetClient();
     }
 
     m_session.SetState (LinkState::Ready);
 
     columns = m_session.m_host->SetColumns (!m_session.m_settings.use40);
     IGNORE_RETURN_VALUE (columns, S_OK);
+
+    //  After a Full Send that ended with CE closed or the line down, the
+    //  Apple is on the session's screen; the standard screen is drawn again
+    //  either way.
+    left = m_session.m_host->SendSessionScreen (false, 0, {});
+    IGNORE_RETURN_VALUE (left, S_OK);
 
     logged = LogOnApple ("PC connected");
     IGNORE_RETURN_VALUE (logged, S_OK);
@@ -837,6 +845,7 @@ HRESULT CassoLinkConnector::OpenStream (DWORD baud, std::stop_token stop)
 
         m_session.m_host->SetActivitySink ([this] (const std::string & text) { m_session.m_sink.OnActivity (text); });
         m_session.m_host->SetTraceSink    ([this] (bool sent, const std::string & text) { m_session.m_sink.OnTrace (sent, text); });
+        m_session.m_host->SetVirtualSink  ([this] (const std::wstring & model) { m_session.OnVirtualServed (model); });
         m_session.m_host->SetProgramChip (CassoLinkSession::GetLinkChip (m_session.m_settings.transport));
         m_session.m_host->SetFaultProgram (LinkFaults::IsEnabled());
         m_session.m_host->SetBlockCrc     (!m_session.m_settings.IsEthernet());
