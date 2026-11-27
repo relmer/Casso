@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
+#include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Window/Managers/ExplorerPickerMode.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerSearch.h"
@@ -512,6 +513,11 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
 
     m_context.window.ArmTick();
 
+    if (press)
+    {
+        NoteInput();
+    }
+
     m_context.treePane.UpdateLabelTip (ev);
     m_context.preview.GetListing().UpdateValueTipAt (ev);
     m_context.preview.GetText().UpdatePictureTipAt (ev);
@@ -703,6 +709,11 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
 
 
     m_context.window.ArmTick();
+
+    if (ev.kind == DxuiKeyEventKind::Down)
+    {
+        NoteInput();
+    }
 
     //  Alt+Enter opens a Properties dialog from inside this key-down, and the
     //  dialog's message loop would take the WM_SYSCHAR TranslateMessage has
@@ -912,6 +923,26 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
     m_context.window.Invalidate();
 
     return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerInput::NoteInput
+//
+//  After a click or key press with the Casso node in the active tab, the
+//  known folders' thumbnails start at once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerInput::NoteInput()
+{
+    m_hasInput = true;
+
+    m_context.folderSync.UpdateThumbnailFolders (false);
 }
 
 

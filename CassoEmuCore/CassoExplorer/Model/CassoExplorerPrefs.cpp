@@ -668,6 +668,7 @@ JsonValue CassoExplorerPrefs::ToJson() const
     root.emplace_back ("autoPreview",    JsonValue (autoPreview));
     root.emplace_back ("enterExpandsPreview", JsonValue (enterExpandsPreview));
     root.emplace_back ("autoThumbnails", JsonValue (autoThumbnails));
+    root.emplace_back ("folderThumbnails", JsonValue (folderThumbnails));
     root.emplace_back ("rawCopyMenu",    JsonValue (rawCopyMenu));
     root.emplace_back ("copyOptions",    OptionsToJson (copyOptions));
     root.emplace_back ("hostNaming",     JsonValue (hostNaming));
@@ -913,6 +914,7 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     root.HasBool ("autoPreview",    autoPreview);
     root.HasBool ("enterExpandsPreview", enterExpandsPreview);
     root.HasBool ("autoThumbnails", autoThumbnails);
+    root.HasBool ("folderThumbnails", folderThumbnails);
     root.HasBool ("rawCopyMenu",    rawCopyMenu);
 
     if (root.HasObject ("copyOptions", options))

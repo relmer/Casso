@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "CassoExplorer/Model/BootQueue.h"
 #include "DiskCheck/BootCheck.h"
 #include "DiskCheck/ThumbnailStore.h"
 #include "Devices/Disk/Inspector/FileMap/FileMap.h"
@@ -19,8 +20,9 @@ class IDiskFileIo;
 //
 //  A thread that boots disk images one at a time, with no window, and
 //  stores each one's thumbnail and boot result: a Full Send and Capture raw
-//  disk queue each image they write, and a list queues each image in view
-//  that has no thumbnail. An image waits while the busy function is true,
+//  disk queue each image they write, a list queues each image in view that
+//  has no thumbnail, and FolderThumbnails queues the other images of the
+//  folders it sweeps. BootQueue specifies the order. An image waits while the busy function is true,
 //  as a boot takes a core that a link reading a disk is using.
 //
 //  A result is written to the thumbnail store, to the row of the image in
@@ -76,6 +78,12 @@ public:
     //  isn't added.
     void    Queue         (const std::wstring & path, const std::string & model, const std::string & source = std::string());
 
+    //  An image of a folder swept for thumbnails, booted after the images
+    //  queued by Queue, in the order of its folder's rank.
+    void    QueueFolderImage   (const std::wstring & path);
+    void    RemoveFolderImages ();
+    void    SetRank            (BootQueue::RankFn rank);
+
     size_t  GetPending    () const;
 
     //  Whether the image is waiting or being booted.
@@ -109,14 +117,8 @@ public:
     static std::string  GetCheckName (FileSystemVerdict verdict);
 
 private:
-    struct Item
-    {
-        std::wstring  path;
-        std::string   model;
-        std::string   source;
-    };
-
     void  Run ();
+    void  Add (BootQueue::Item item);
 
     static std::string  FindGivenName   (IDiskFileIo & fileIo, GivenNames * given, const std::string & folder, const std::string & name);
     static std::string  DescribeCheck   (const Result & result);
@@ -143,7 +145,8 @@ private:
     mutable std::mutex         m_lock;
     std::condition_variable    m_wake;
     std::condition_variable    m_idle;
-    std::deque<Item>           m_queue;
+    BootQueue                  m_queue;
+    BootQueue::RankFn          m_rank;
     std::wstring               m_current;   // the image being booted
     bool                       m_working   = false;
     bool                       m_reporting = false;

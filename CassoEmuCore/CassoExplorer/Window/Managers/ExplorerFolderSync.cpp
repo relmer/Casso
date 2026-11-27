@@ -19,6 +19,8 @@
 #include "Devices/Disk/Partitions/PhysicalCards.h"
 #include "CassoExplorer/Browser/BrowserRowPaths.h"
 #include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerInput.h"
+#include "Seams/IFolderThumbnails.h"
 
 
 
@@ -167,6 +169,11 @@ void ExplorerFolderSync::ReloadKnownFolders()
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     folders = KnownFolderStore::ListRootFolders (*m_context.app.fs, m_context.app.baseDir, entries);
+
+    if (m_context.app.folderThumbnails != nullptr)
+    {
+        m_context.app.folderThumbnails->SetKnownFolders (folders);
+    }
 
     m_context.browser.GetTreeModel().SetKnownFolders (folders);
     m_context.browser.GetTreeModel().Invalidate (TreeModel::kCassoRootId);
@@ -503,6 +510,68 @@ void ExplorerFolderSync::HandleDeviceTimer (UINT_PTR timerId)
 {
     KillTimer (m_context.window.GetHwnd(), timerId);
     CheckDrives();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::UpdateThumbnailFolders
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFolderSync::UpdateThumbnailFolders (bool listed)
+{
+    IFolderThumbnails          * thumbnails = m_context.app.folderThumbnails;
+    const BrowserModel         & model      = m_context.browser.GetBrowserModel();
+    std::wstring                 active;
+    std::vector<std::wstring>    others;
+    size_t                       index      = 0;
+    bool                         isCasso    = false;
+
+
+
+    if (thumbnails == nullptr || !model.HasTabs())
+    {
+        return;
+    }
+
+    for (index = 0; index < model.GetTabCount(); index++)
+    {
+        const Location  & location = model.GetTab (index).location;
+
+
+
+        if (location.kind != Location::Kind::HostFolder)
+        {
+            continue;
+        }
+
+        if (index == model.GetActiveIndex())
+        {
+            active = location.path;
+        }
+        else
+        {
+            others.push_back (location.path);
+        }
+    }
+
+    thumbnails->SetWindowFolders (m_context.window.GetHwnd(), active, others);
+
+    if (listed && !active.empty())
+    {
+        thumbnails->SweepFolder (active);
+    }
+
+    isCasso = model.GetActiveTab().location == Location::MakeRoot (TreeModel::kCassoRootId);
+
+    if (isCasso && m_context.input.HasHadInput())
+    {
+        thumbnails->StartKnownFolders();
+    }
 }
 
 

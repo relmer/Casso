@@ -70,6 +70,11 @@ public:
     //  For a list just filled: a storage card that opened for it has its
     //  partitions listed in the tree at once, rather than at the next poll.
     void            CheckOpenedCard             ();
+
+    //  The tabs' host folders, for thumbnails of whole folders. A list just
+    //  filled has its folder swept again. With the Casso node in the active
+    //  tab after any input in the window, the known folders start at once.
+    void            UpdateThumbnailFolders      (bool listed);
     void            ChangeKnownFolder           (const std::wstring & folder, bool add);
 
     void  HandleFolderChanged ();

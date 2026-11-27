@@ -63,6 +63,10 @@ public:
     //  installed.
     void  ForgetQueued ();
 
+    //  False for an image passed to the queue function before at its size and
+    //  time; otherwise the image is marked as passed.
+    bool  TryMarkQueued (const std::wstring & path, uint64_t bytes, int64_t time);
+
     //  The picture scaled to sizePx wide and three quarters as tall, the
     //  proportions of an Apple's screen, centered in a square of sizePx with
     //  the rest clear.

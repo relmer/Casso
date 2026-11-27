@@ -18,6 +18,7 @@
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerSearch.h"
 #include "Config/FileAssociations.h"
+#include "Seams/IFolderThumbnails.h"
 #include "Seams/Win32UserClasses.h"
 #include "Update/Win32InstallEnvironment.h"
 #include "Core/TextEncoding.h"
@@ -789,6 +790,7 @@ void ExplorerCommandManager::ShowOptions()
     std::wstring             cassoExe         = LaunchCommand::GetSiblingPath (folder, LaunchCommand::kCassoExe);
     bool                     packaged         = install.HasPackageIdentity();
     bool                     wasRegistered    = packaged || FileAssociations::IsRegistered (classes, cassoExe, module);
+    bool                     sweepChanged     = false;
     HRESULT                  hr               = S_OK;
 
 
@@ -802,6 +804,7 @@ void ExplorerCommandManager::ShowOptions()
     choices.autoPreview  = m_context.prefs.autoPreview;
     choices.enterExpands = m_context.prefs.enterExpandsPreview;
     choices.autoThumbnails = m_context.prefs.autoThumbnails;
+    choices.folderThumbnails = m_context.prefs.folderThumbnails;
     choices.fullSendFolder    = m_context.prefs.fullSendFolder.empty() ? FullSendWindowManager::GetDefaultFullSendFolder() : m_context.prefs.fullSendFolder;
     choices.fullSendExtension = m_context.prefs.fullSendExtension;
     choices.bootSoundPlace    = m_context.prefs.bootSoundPlace;
@@ -853,7 +856,10 @@ void ExplorerCommandManager::ShowOptions()
 
     m_context.prefs.autoPreview         = choices.autoPreview;
     m_context.prefs.enterExpandsPreview = choices.enterExpands;
+    sweepChanged = choices.autoThumbnails != m_context.prefs.autoThumbnails || choices.folderThumbnails != m_context.prefs.folderThumbnails;
+
     m_context.prefs.autoThumbnails      = choices.autoThumbnails;
+    m_context.prefs.folderThumbnails    = choices.folderThumbnails;
     m_context.prefs.rawCopyMenu         = choices.rawCopyMenu;
     m_context.prefs.fullSendFolder    = choices.fullSendFolder == FullSendWindowManager::GetDefaultFullSendFolder() ? std::wstring() : choices.fullSendFolder;
     m_context.prefs.fullSendExtension = choices.fullSendExtension;
@@ -864,6 +870,11 @@ void ExplorerCommandManager::ShowOptions()
     m_context.prefs.fullSendProtection = choices.fullSendProtection;
     m_context.fullSendWindows.ApplyFullSendPrefs();
     m_context.cassoLinkManager.ApplyVerifyPrefs();
+
+    if (sweepChanged && m_context.app.folderThumbnails != nullptr)
+    {
+        m_context.app.folderThumbnails->ApplySetting();
+    }
 
 
     //  The user's file types change only when the box was changed.

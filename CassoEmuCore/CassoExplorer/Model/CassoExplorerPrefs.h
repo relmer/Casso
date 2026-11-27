@@ -61,6 +61,7 @@ struct CassoExplorerPrefs
     //  Open in viewer setting would.
     bool                   enterExpandsPreview = false;
     bool                   autoThumbnails      = true;     // a disk image in view with no thumbnail is booted for one
+    bool                   folderThumbnails    = true;     // with autoThumbnails, so is every disk image in the known folders and the folders browsed
     bool                   rawCopyMenu         = true;     // a drag into File Explorer offers Copy here without conversion (raw bytes)
 
     //  The conversion options of a copy, set by Copy to folder with options,
