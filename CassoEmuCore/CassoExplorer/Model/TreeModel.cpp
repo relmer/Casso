@@ -26,7 +26,8 @@
 
 TreeModel::TreeModel (IFileSystem & fs, HostFolderReader & hostFolders)
     : m_fs          (fs),
-      m_hostFolders (hostFolders)
+      m_hostFolders (hostFolders),
+      m_hosts       (fs, hostFolders)
 {
 }
 
@@ -1641,223 +1642,24 @@ void TreeModel::ListStorageCard (const std::wstring & path, std::vector<TreeNode
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TreeModel::HasTreeChildren
-//
-//  Whether a host folder holds anything the tree shows, a subfolder or a disk
-//  image, so it gets an expander only then, as Explorer's tree does. A folder
-//  that cannot be read has none. A network path is not looked into, so an
-//  unreachable share never holds up the listing; it keeps its expander.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool TreeModel::HasTreeChildren (const std::wstring & path)
-{
-    HRESULT                       hr      = S_OK;
-    std::vector<FileSystemEntry>  entries;
-    bool                          found   = PathResolver::IsNetworkPath (path);
-
-
-
-    BAIL_OUT_IF (found, S_OK);
-
-    hr = m_fs.EnumerateAllEntries (path, entries);
-    CHR (hr);
-
-    for (const FileSystemEntry & entry : entries)
-    {
-        found = found || (m_hostFolders.IsShown (entry) && (entry.isFolder || HostFolderReader::IsSupportedImage (entry.name)));
-    }
-
-Error:
-    return found;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TreeModel::ListHostFolder
-//
-//  Subfolders first, then the disk images, each group in name order. Plain
-//  files are not nodes; they appear in the file list instead.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT TreeModel::ListHostFolder (bool underCasso, const std::wstring & path, std::vector<TreeNode> & outNodes)
-{
-    HRESULT                       hr      = S_OK;
-    std::vector<FileSystemEntry>  entries;
-    std::vector<TreeNode>         folders;
-    std::vector<TreeNode>         archives;
-    std::vector<TreeNode>         images;
-    std::vector<HostFolderItem>   items;
-    bool                          network = PathResolver::IsNetworkPath (path);
-    bool                          fetched = false;
-
-
-
-    outNodes.clear();
-
-    //  Being read: no nodes yet, and none cached, so the next call takes the
-    //  listing.
-    if (network && m_hostFetch)
-    {
-        fetched = m_hostFetch (path, entries, hr);
-        CBREx (fetched, S_FALSE);   // EHM-ALLOW-SFALSE: still being read; GetChildren keeps nothing for it
-    }
-    else
-    {
-        hr = m_fs.EnumerateAllEntries (path, entries);
-    }
-
-    CHR (hr);
-
-    m_hostFolders.Classify (path, entries, items);
-
-    for (const HostFolderItem & item : items)
-    {
-        TreeNode  node;
-
-        node.hidden = item.entry.isHidden;
-        node.label  = item.label;
-
-        if (item.kind == HostFolderItem::Kind::Folder)
-        {
-            node.id        = GetHostItemId (underCasso, item);
-            node.kind      = TreeNode::Kind::HostFolder;
-            node.location  = Location::MakeHostFolder (item.path);
-            node.canExpand = HasTreeChildren (item.path);
-
-            folders.push_back (node);
-        }
-        else if (item.kind == HostFolderItem::Kind::Archive)
-        {
-            node.id        = GetHostItemId (underCasso, item);
-            node.kind      = TreeNode::Kind::ShellRoot;
-            node.location  = Location::MakeShellFolder (item.path, item.entry.name);
-            node.canExpand = true;
-            node.archive   = true;
-
-            archives.push_back (node);
-        }
-        else if (item.kind == HostFolderItem::Kind::Image)
-        {
-            node.id       = GetHostItemId (underCasso, item);
-            node.kind     = TreeNode::Kind::DiskImage;
-            node.location = Location::MakeDiskImage (item.path);
-
-            //  The image is read when it is expanded, not when its folder
-            //  is listed, so a folder of large images opens at once.
-            node.canExpand = true;
-
-            images.push_back (node);
-        }
-    }
-
-    std::sort (folders.begin(), folders.end(), [] (const TreeNode & a, const TreeNode & b)
-               { return StrCmpLogicalW (a.label.c_str(), b.label.c_str()) < 0; });
-    std::sort (archives.begin(), archives.end(), [] (const TreeNode & a, const TreeNode & b)
-               { return StrCmpLogicalW (a.label.c_str(), b.label.c_str()) < 0; });
-    std::sort (images.begin(), images.end(), [] (const TreeNode & a, const TreeNode & b)
-               { return StrCmpLogicalW (a.label.c_str(), b.label.c_str()) < 0; });
-
-    //  Archives follow the folders, as in Explorer's pane.
-    outNodes.insert (outNodes.end(), folders.begin(), folders.end());
-    outNodes.insert (outNodes.end(), archives.begin(), archives.end());
-    outNodes.insert (outNodes.end(), images.begin(), images.end());
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TreeModel::GetHostItemId
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring TreeModel::GetHostItemId (bool underCasso, const HostFolderItem & item)
-{
-    switch (item.kind)
-    {
-        case HostFolderItem::Kind::Folder:  return MakeFolderId (underCasso, item.path);
-        case HostFolderItem::Kind::Archive: return std::wstring (kShellRootTag) + item.path;
-        case HostFolderItem::Kind::Image:   return MakeImageId (underCasso, item.path);
-        default:                            return std::wstring();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  TreeModel::IsHostListingCurrent
-//
-//  One read of the folder, without looking into each subfolder for an
-//  expander: a subfolder that changes is watched and read on its own.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool TreeModel::IsHostListingCurrent (const std::wstring & id)
 {
-    //  A node's id, label and whether it is hidden.
-    using NodeKey = std::tuple<std::wstring, std::wstring, bool>;
+    auto  cached     = m_children.find (id);
+    bool  underCasso = id.rfind (kCassoRootId, 0) == 0;
+    bool  thisPc     = id.rfind (kThisPcRootId, 0) == 0;
 
 
 
-    HRESULT                       hr         = S_OK;
-    auto                          cached     = m_children.find (id);
-    bool                          underCasso = id.rfind (kCassoRootId, 0) == 0;
-    bool                          thisPc     = id.rfind (kThisPcRootId, 0) == 0;
-    std::wstring                  path;
-    std::vector<FileSystemEntry>  entries;
-    std::vector<HostFolderItem>   items;
-    std::vector<NodeKey>          before;
-    std::vector<NodeKey>          after;
-    bool                          current    = false;
-
-
-
-    BAIL_OUT_IF (cached == m_children.end() || (!underCasso && !thisPc), S_OK);
-
-    path = id.substr (wcslen (underCasso ? kCassoRootId : kThisPcRootId));
-    BAIL_OUT_IF (path.empty() || PathResolver::IsNetworkPath (path), S_OK);
-
-    hr = m_fs.EnumerateAllEntries (path, entries);
-    CHR (hr);
-
-    m_hostFolders.Classify (path, entries, items);
-
-    for (const HostFolderItem & item : items)
+    if (cached == m_children.end() || (!underCasso && !thisPc))
     {
-        std::wstring  itemId = GetHostItemId (underCasso, item);
-
-        if (!itemId.empty())
-        {
-            after.emplace_back (itemId, item.label, item.entry.isHidden);
-        }
+        return false;
     }
 
-    for (const TreeNode & node : cached->second)
-    {
-        before.emplace_back (node.id, node.label, node.hidden);
-    }
-
-    std::sort (before.begin(), before.end());
-    std::sort (after.begin(), after.end());
-
-    current = before == after;
-
-Error:
-    return current;
+    return m_hosts.IsCurrent (underCasso, id.substr (wcslen (underCasso ? kCassoRootId : kThisPcRootId)), cached->second);
 }
 
 
@@ -1984,11 +1786,11 @@ HRESULT TreeModel::GetChildren (const std::wstring & id, std::vector<TreeNode> &
     }
     else if (id.rfind (kCassoRootId, 0) == 0)
     {
-        hr = ListHostFolder (true, id.substr (wcslen (kCassoRootId)), outNodes);
+        hr = m_hosts.List (true, id.substr (wcslen (kCassoRootId)), outNodes);
     }
     else if (id.rfind (kThisPcRootId, 0) == 0)
     {
-        hr = ListHostFolder (false, id.substr (wcslen (kThisPcRootId)), outNodes);
+        hr = m_hosts.List (false, id.substr (wcslen (kThisPcRootId)), outNodes);
     }
     else if (id.starts_with (kPartitionPrefix) && id.find (kSeparator) != std::wstring::npos)
     {
