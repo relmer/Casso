@@ -69,7 +69,7 @@ public:
     //  A raw image's tracks to write, in order of position: each whole track
     //  with data, and each half or quarter position whose data differs from
     //  the whole tracks on either side and isn't them read off center
-    //  (IsOffCenterRead). ERROR_INVALID_DATA for a file that
+    //  (DropOffCenterReads). ERROR_INVALID_DATA for a file that
     //  doesn't load, with outTooLong the first position of a track longer
     //  than the module's buffers, or -1.
     static HRESULT  GetImageTracks (std::span<const Byte> fileBytes, std::vector<RawWriteTrack> & outTracks, int & outTooLong);
@@ -81,6 +81,12 @@ public:
     //  off-center read would overwrite the track beside it. Either neighbor
     //  can be null.
     static bool     IsOffCenterRead (const RawWriteStream & quarter, const RawWriteStream * below, const RawWriteStream * above);
+
+    //  Drops each quarter position that is IsOffCenterRead. A whole track
+    //  beside a half track that is kept, with no sector of its own and at
+    //  least s_kBleedShare of it in that half track, becomes an erase of sync
+    //  bytes moved ahead of the half track.
+    static void     DropOffCenterReads (std::vector<RawWriteTrack> & ioTracks);
 
     //  The stream rotated to start at its seam (FindSeam), the middle of a
     //  sync run, with sync bytes added there, or dropped from the run, so
@@ -113,6 +119,9 @@ private:
     static constexpr size_t  s_kGroupBytes    = 200;      // the stretch a group of prologs is counted over
     static constexpr size_t  s_kWeakZeros     = 16;       // the fewest zero bits FitToTurn leaves in a weak-bit run it shortens
     static constexpr size_t  s_kSectorBytes   = 16;       // the bytes from a D5 AA that IsOffCenterRead looks for in the tracks beside
+    static constexpr size_t  s_kChunkBytes    = 12;       // the chunk GetSharedPart looks for in the tracks beside
+    static constexpr double  s_kBleedShare    = 0.75;     // the part of a whole track found in the half track beside that makes it that half track's edge
+    static constexpr Byte    s_kEraseEnd      = 0x96;     // the byte that ends an erase's sync run
 
     //  The sync bytes a track with no sync run is given at its seam, enough to
     //  take the most the end of the write can overlap its start.
@@ -129,6 +138,9 @@ private:
     //  The longest run of sync bytes, which may wrap past the end: its first
     //  byte and length. False for none.
     bool  FindSyncRun (size_t & outAt, size_t & outLength) const;
+
+    //  The part of a stream's chunks found in either neighbor, 0 to 1.
+    static double  GetSharedPart      (const RawWriteStream & stream, const RawWriteStream * below, const RawWriteStream * above);
 
     //  Where the write's seam goes: the longest run of sync bytes when it has
     //  kSyncRun or more, with outSync set and outLength its length. A track

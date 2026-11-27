@@ -270,6 +270,58 @@ public:
     }
 
 
+    //  As Karateka's tracks 2 to 3: a quarter position that is track 2 read off
+    //  center is dropped, half track 2.5 with a sector of its own is kept, and
+    //  track 3, only 2.5's edge, becomes an erase of sync bytes written ahead
+    //  of 2.5.
+    TEST_METHOD (DropOffCenterReads_ErasesAHalfTracksEdgeBeforeIt)
+    {
+        std::vector<RawWriteTrack>  tracks (4);
+        std::vector<Byte>           two (6000, 0xAB);
+        std::vector<Byte>           half (6000, 0xAD);
+
+
+
+        for (size_t sector = 0; sector < 10; sector++)
+        {
+            PutSector (two,  100 + sector * 500, (uint32_t) sector);
+            PutSector (half, 300 + sector * 500, (uint32_t) (sector + 50));
+        }
+
+        for (size_t at = 0; at < half.size(); at += 37)
+        {
+            half[at] = (Byte) (0x96 + at % 50);
+        }
+
+        tracks[0].position      = 8;
+        tracks[0].stream.values = two;
+        tracks[1].position      = 9;
+        tracks[1].stream.values.assign (two.begin() + 700, two.end());
+        tracks[1].stream.values.insert (tracks[1].stream.values.end(), two.begin(), two.begin() + 700);
+        tracks[2].position      = 10;
+        tracks[2].stream.values = half;
+        tracks[3].position      = 12;
+        tracks[3].stream.values.assign (half.begin() + 1000, half.begin() + 3000);
+
+        for (RawWriteTrack & track : tracks)
+        {
+            track.stream.zeros.assign (track.stream.values.size(), 0);
+        }
+
+        std::erase_if (tracks[3].stream.values, [] (Byte value) { return value == 0xD5; });
+        tracks[3].stream.zeros.resize (tracks[3].stream.values.size());
+
+        RawWriteStream::DropOffCenterReads (tracks);
+
+        Assert::AreEqual ((size_t) 3, tracks.size());
+        Assert::AreEqual (8,  tracks[0].position);
+        Assert::AreEqual (12, tracks[1].position);
+        Assert::AreEqual (10, tracks[2].position);
+        Assert::IsTrue (std::all_of (tracks[1].stream.values.begin(), tracks[1].stream.values.end() - 1, [] (Byte value) { return value == 0xFF; }));
+        Assert::AreNotEqual ((Byte) 0xFF, tracks[1].stream.values.back());
+    }
+
+
     //  A track whose bits don't end on a byte is padded with zero bits.
     TEST_METHOD (FromBits_PadsThePartLastByte)
     {

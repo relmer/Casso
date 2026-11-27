@@ -583,27 +583,7 @@ HRESULT RawWriteStream::GetImageTracks (std::span<const Byte> fileBytes, std::ve
             outTracks.push_back (std::move (entry));
         }
 
-        //  A quarter position that is only its neighbors read off center isn't
-        //  written, since its write would overwrite the whole track beside it.
-        std::erase_if (outTracks, [&outTracks] (const RawWriteTrack & track)
-        {
-            const RawWriteStream  * below = nullptr;
-            const RawWriteStream  * above = nullptr;
-            int                     whole = track.position - track.position % DiskImage::kQuarterTracksPerWholeTrack;
-
-            if (track.position == whole)
-            {
-                return false;
-            }
-
-            for (const RawWriteTrack & other : outTracks)
-            {
-                below = other.position == whole                                         ? &other.stream : below;
-                above = other.position == whole + DiskImage::kQuarterTracksPerWholeTrack ? &other.stream : above;
-            }
-
-            return IsOffCenterRead (track.stream, below, above);
-        });
+        DropOffCenterReads (outTracks);
     }
 
     for (const RawWriteTrack & track : outTracks)
@@ -617,6 +597,157 @@ HRESULT RawWriteStream::GetImageTracks (std::span<const Byte> fileBytes, std::ve
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RawWriteStream::DropOffCenterReads
+//
+//  A quarter position that is only the whole tracks beside it read off
+//  center isn't written, since its write would overwrite them. A whole track
+//  beside a half track that is written, with no sector of its own and mostly
+//  that half track's edge, as Karateka's track 3 beside 2.5, is the blank
+//  between them on the disk that was read: it is erased with sync bytes
+//  before the half track is written, rather than written after it over the
+//  half track's edge. Each decision is made before the list changes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void RawWriteStream::DropOffCenterReads (std::vector<RawWriteTrack> & ioTracks)
+{
+    std::set<int>                          dropped;
+    std::map<int, std::vector<int>>        erasesBefore;
+    std::vector<RawWriteTrack>             kept;
+    int                                    perTrack = DiskImage::kQuarterTracksPerWholeTrack;
+
+
+
+    auto  find = [&ioTracks, &dropped] (int position) -> const RawWriteStream *
+    {
+        for (const RawWriteTrack & track : ioTracks)
+        {
+            if (track.position == position && !dropped.contains (position))
+            {
+                return &track.stream;
+            }
+        }
+
+        return nullptr;
+    };
+
+    for (const RawWriteTrack & track : ioTracks)
+    {
+        int  whole = track.position - track.position % perTrack;
+
+        if (track.position != whole && IsOffCenterRead (track.stream, find (whole), find (whole + perTrack)))
+        {
+            dropped.insert (track.position);
+        }
+    }
+
+    for (const RawWriteTrack & track : ioTracks)
+    {
+        const RawWriteStream  * below = find (track.position - perTrack / 2);
+        const RawWriteStream  * above = find (track.position + perTrack / 2);
+        int                     first = below != nullptr ? track.position - perTrack / 2 : track.position + perTrack / 2;
+
+        if (track.position % perTrack != 0 || (below == nullptr && above == nullptr))
+        {
+            continue;
+        }
+
+        if (IsOffCenterRead (track.stream, below, above) && GetSharedPart (track.stream, below, above) >= s_kBleedShare)
+        {
+            dropped.insert (track.position);
+            erasesBefore[first].push_back (track.position);
+        }
+    }
+
+    for (const RawWriteTrack & track : ioTracks)
+    {
+        for (int erased : erasesBefore[track.position])
+        {
+            RawWriteTrack  erase;
+
+            erase.position = erased;
+
+            for (const RawWriteTrack & source : ioTracks)
+            {
+                if (source.position == erased)
+                {
+                    erase.stream.values.assign (source.stream.GetCellCount() / (kBitsPerByte + kSyncZeros), s_kSyncValue);
+                }
+            }
+
+            //  A last byte that isn't a sync byte ends the run, so it has a seam.
+            erase.stream.zeros.assign (erase.stream.values.size(), (Byte) kSyncZeros);
+            erase.stream.values.push_back (s_kEraseEnd);
+            erase.stream.zeros.push_back (0);
+
+            kept.push_back (std::move (erase));
+        }
+
+        if (!dropped.contains (track.position))
+        {
+            kept.push_back (track);
+        }
+    }
+
+    ioTracks = std::move (kept);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RawWriteStream::GetSharedPart
+//
+//  The part of a stream's s_kChunkBytes-byte chunks found in either neighbor,
+//  each neighbor looked at around twice so a chunk that wraps is found.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double RawWriteStream::GetSharedPart (const RawWriteStream & stream, const RawWriteStream * below, const RawWriteStream * above)
+{
+    std::vector<Byte>  turns[2];
+    size_t             chunks = 0;
+    size_t             found  = 0;
+
+
+
+    for (size_t i = 0; i < 2; i++)
+    {
+        const RawWriteStream  * side = i == 0 ? below : above;
+
+        if (side != nullptr)
+        {
+            turns[i] = side->values;
+            turns[i].insert (turns[i].end(), side->values.begin(), side->values.end());
+        }
+    }
+
+    for (size_t at = 0; at + s_kChunkBytes <= stream.values.size(); at += s_kChunkBytes)
+    {
+        auto  first = stream.values.begin() + (ptrdiff_t) at;
+        auto  last  = first + (ptrdiff_t) s_kChunkBytes;
+        bool  hit   = false;
+
+        for (const std::vector<Byte> & turn : turns)
+        {
+            hit = hit || std::search (turn.begin(), turn.end(), first, last) != turn.end();
+        }
+
+        chunks++;
+        found += hit ? 1 : 0;
+    }
+
+    return chunks == 0 ? 0.0 : (double) found / (double) chunks;
 }
 
 
