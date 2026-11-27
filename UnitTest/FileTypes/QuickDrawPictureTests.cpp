@@ -510,7 +510,9 @@ public:
 
         Assert::IsTrue  (QuickDrawPicture::MatchesPicture (MakeFacts (0xC1, 0x0001), bytes));
         Assert::IsTrue  (QuickDrawPicture::MatchesPacked  (MakeFacts (0xC0, 0x0003), bytes));
-        Assert::IsFalse (QuickDrawPicture::MatchesPicture (MakeFacts (0xC1, 0x0000), bytes));
+        Assert::IsTrue  (QuickDrawPicture::MatchesPicture (MakeFacts (0xC1, 0x0002), bytes), L"Beagle Draw's picture");
+        Assert::IsFalse (QuickDrawPicture::MatchesPicture (MakeFacts (0xC1, 0x0002), std::vector<Byte> (38400)), L"a 3200-color screen");
+        Assert::IsFalse (QuickDrawPicture::MatchesPicture (MakeFacts (0xC1, 0x0000), std::vector<Byte> (32768)), L"a screen");
         Assert::IsTrue  (QuickDrawPicture::MatchesPicture (MakeFacts (0xC1, 0x8000), bytes), L"Beagle Bros clip art");
         Assert::IsFalse (QuickDrawPicture::MatchesPicture (MakeFacts (0xC1, 0x8000), std::vector<Byte> (32)), L"no version opcode");
         Assert::IsFalse (QuickDrawPicture::MatchesPacked  (MakeFacts (0xC0, 0x0001), bytes));

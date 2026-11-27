@@ -13,18 +13,25 @@
 //
 //  QuickDrawPicture::MatchesPicture
 //
-//  $C1/$0001, or a $C1 file of another aux type, other than a screen, that
-//  begins with a picture's header and the version opcode. Beagle Bros
-//  clip art is $C1/$8000.
+//  $C1/$0001, or a $C1 file of another aux type that begins with a
+//  picture's header and the version opcode. Beagle Bros clip art is
+//  $C1/$8000, and Beagle Draw saves pictures as $C1/$0002, the 3200-color
+//  screen's aux type. A file of a screen's aux type and size is a screen.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool QuickDrawPicture::MatchesPicture (const FileFacts & facts, std::span<const Byte> bytes)
 {
-    constexpr Word  kAuxScreen     = 0x0000;
-    constexpr Word  kAuxScreen3200 = 0x0002;
-    constexpr Byte  kVersionLow    = 0x11;
-    constexpr Byte  kVersionHigh   = 0x82;
+    constexpr Word    kAuxScreen       = 0x0000;
+    constexpr Word    kAuxScreen3200   = 0x0002;
+    constexpr size_t  kScreenBytes     = 32768;
+    constexpr size_t  kScreen3200Bytes = 38400;
+    constexpr Byte    kVersionLow      = 0x11;
+    constexpr Byte    kVersionHigh     = 0x82;
+
+
+
+    bool  isScreen = (facts.auxType == kAuxScreen && bytes.size() == kScreenBytes) || (facts.auxType == kAuxScreen3200 && bytes.size() == kScreen3200Bytes);
 
 
 
@@ -33,7 +40,7 @@ bool QuickDrawPicture::MatchesPicture (const FileFacts & facts, std::span<const 
         return !bytes.empty();
     }
 
-    return facts.HasProDosType (kTypePic) && facts.auxType != kAuxScreen && facts.auxType != kAuxScreen3200
+    return facts.HasProDosType (kTypePic) && !isScreen
         && bytes.size() > kHeaderBytes + 1
         && bytes[kHeaderBytes] == kVersionLow && bytes[kHeaderBytes + 1] == kVersionHigh;
 }
