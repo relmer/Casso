@@ -406,23 +406,26 @@ public:
 
 
     //  A track as Karateka's track 27 is: sync bytes, then one long field of
-    //  pages that each end in a B7 followed by one zero bit, read twelve
-    //  times as a //c's IWM marks bytes: one with no zero bits after it at
-    //  8 cycles one time in ten, the B7 four times in five, and the sync
-    //  bytes nearly always. The B7s are written with a zero bit after them,
-    //  and few other bytes are.
+    //  pages that each end in a B7 followed by one zero bit, read as a //c's
+    //  IWM marks bytes. At 8 cycles it marks a byte with no zero bits after
+    //  it one time in ten, the B7 four times in five, and the sync bytes
+    //  nearly always. At 10 cycles it marks the B7 three times in eight and
+    //  a byte with no zero bits never, but for one catch of every 500th
+    //  byte here. Every B7 is written with a zero bit after it, and no other
+    //  byte of the field is.
     TEST_METHOD (ALoudTracksMarkedBytes_AreWrittenWithAZeroBit)
     {
         static constexpr size_t  kSyncs     = 40;
         static constexpr size_t  kPages     = 11;
         static constexpr size_t  kPageBytes = 512;
         static constexpr size_t  kReadBytes = 12000;
-        static constexpr int     kReads     = 12;
-        static constexpr int     kStray     = 10;
+        static constexpr int     kReads     = CassoLinkCapture::kWholeReads + 2 * CassoLinkCapture::kLoudReads;
+        static constexpr size_t  kStrayStep = 500;
 
         std::vector<Byte>                        revolution;
         std::vector<int>                         share8;
         std::vector<int>                         share12;
+        std::vector<int>                         share10;
         std::vector<CassoLinkCapture::Position>  positions (1);
         CassoLinkCapture::Result                 result;
         DiskImage                                image;
@@ -435,42 +438,45 @@ public:
 
         auto  next = [&seed] () { seed = seed * 1103515245u + 12345u; return (int) ((seed >> 16) % 100); };
 
-        auto  add = [&revolution, &share8, &share12] (Byte value, int at8, int at12)
+        auto  add = [&revolution, &share8, &share12, &share10] (Byte value, int at8, int at12, int at10)
         {
             revolution.push_back (value);
             share8.push_back (at8);
             share12.push_back (at12);
+            share10.push_back (at10);
         };
 
         for (size_t each = 0; each < kSyncs; each++)
         {
-            add (0xFF, 98, 56);
+            add (0xFF, 98, 56, 94);
         }
 
-        add (0xAF, 10, 0);
-        add (0xB5, 10, 0);
-        add (0xB6, 10, 0);
+        add (0xAF, 10, 0, 0);
+        add (0xB5, 10, 0, 0);
+        add (0xB6, 10, 0, 0);
 
         for (size_t page = 0; page < kPages; page++)
         {
             for (size_t each = 0; each < kPageBytes; each++)
             {
                 seed = seed * 1103515245u + 12345u;
-                add (s_kDiskBytes[(seed >> 16) % (std::size (s_kDiskBytes) - 1)], 10, 0);
+                add (s_kDiskBytes[(seed >> 16) % (std::size (s_kDiskBytes) - 1)], 10, 0, 0);
             }
 
-            add (0xB7, 80, 10);
+            add (0xB7, 80, 10, 38);
         }
 
         for (int each = 0; each < kReads; each++)
         {
-            Byte               delay = CassoLinkCapture::kWholeDelays[each % CassoLinkCapture::kWholeReads];
+            bool               loud  = each >= CassoLinkCapture::kWholeReads;
+            Byte               delay = loud ? CassoLinkCapture::kLoudDelay : CassoLinkCapture::kWholeDelays[each];
             std::vector<Byte>  read;
 
             for (size_t at = 0; at < kReadBytes; at++)
             {
                 size_t  in     = at % revolution.size();
-                bool    marked = next() < (delay == 0 ? share8[in] : share12[in]);
+                bool    stray  = each == CassoLinkCapture::kWholeReads && at < revolution.size() && in % kStrayStep == kStrayStep / 2;
+                bool    marked = stray || next() < (loud ? share10[in] : (delay == 0 ? share8[in] : share12[in]));
 
                 read.push_back (marked ? (Byte) (revolution[in] & 0x7F) : revolution[in]);
             }
@@ -516,8 +522,8 @@ public:
             stray += (value != 0xB7 && value != 0xFF && zeros > 0) ? 1 : 0;
         }
 
-        Assert::IsTrue (ends >= kPages - 1, std::format (L"B7s written with a zero bit after them: {} of {}", ends, kPages).c_str());
-        Assert::IsTrue (stray <= kStray, std::format (L"Other bytes written with zero bits after them: {}", stray).c_str());
+        Assert::AreEqual (kPages, ends, L"Every B7 is written with a zero bit after it");
+        Assert::AreEqual (0, stray, L"No other byte of the field is");
     }
 
 

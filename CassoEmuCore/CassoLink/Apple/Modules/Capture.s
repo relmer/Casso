@@ -4,7 +4,8 @@
 ;
 ; Request (CMDCAPTURE): the percentages at the request's start and end, the
 ; drive, the quarter-track position, 0 to 139, and the delay of the second
-; read of each byte: 0 for 8 cycles, 1 for 12, with $80 added to take the arm
+; read of each byte: 0 for 8 cycles, 1 for 12, 2 for 10 and 3 for 11,
+; with $80 added to take the arm
 ; to track 0 first (cpknown); then the position to wait on,
 ; $FF for none, the marker's length, up to CMARKMAX, and its bytes. The arm
 ; goes to the position: to the half track with the program's stepto, and for
@@ -316,32 +317,30 @@ cpoff:  ldx p_drive
         lda p_PHASEOFF,x
         rts
 
-; cpdelay: the copy of the loop for the delay in A, 0 for 8 cycles and 1 for
-; 12, into ctempl, clen, ccmp and csta.
-cpdelay: cmp #1
-        beq cpd12
-        lda #<copy8
-        sta ctempl
-        lda #>copy8
-        sta ctempl+1
-        lda #copy8end-copy8
-        sta clen
-        lda #cmp8+1-copy8
-        sta ccmp
-        lda #sta8+2-copy8
-        sta csta
+; cpdelay: the copy of the loop for the delay in A into ctempl, clen, ccmp
+; and csta: 0 for 8 cycles, 1 for 12, 2 for 10 and 3 for 11. The copy for 12
+; has three NOPs before its second read; for 10 the first is a BIT with the
+; other two as its address, and for 11 the second is a BIT of the third's
+; place in the zero page, so the three bytes take 4 cycles or 5.
+cpdelay: tax
+        beq cpdset
+        lda cdpad0-1,x
+        sta cpad12
+        lda cdpad1-1,x
+        sta cpad12+1
+        ldx #5
+cpdset: ldy #4                  ; a record is csta's value first, ctempl's last
+cpdrec: lda cdrec,x
+        sta ctempl,y
+        inx
+        dey
+        bpl cpdrec
         rts
-cpd12:  lda #<copy12
-        sta ctempl
-        lda #>copy12
-        sta ctempl+1
-        lda #copy12end-copy12
-        sta clen
-        lda #cmp12+1-copy12
-        sta ccmp
-        lda #sta12+2-copy12
-        sta csta
-        rts
+
+cdrec:  .byte sta8+2-copy8, cmp8+1-copy8, copy8end-copy8, >copy8, <copy8
+        .byte sta12+2-copy12, cmp12+1-copy12, copy12end-copy12, >copy12, <copy12
+cdpad0: .byte $EA, $2C, $EA     ; 12, 10 and 11 cycles
+cdpad1: .byte $EA, $EA, $24
 
 ; capbuild: the loop's copy for each page at CAPCODE, each storing to its
 ; page, then an RTS. The latch's address is the slot's.
@@ -402,7 +401,7 @@ copy8end:
 copy12:
 cpoll12: lda $C000              ; patched: the slot's latch
         bpl cpoll12
-        nop
+cpad12: nop                     ; patched: the delay's three bytes (cpdelay)
         nop
         nop
 cmp12:  cmp $C000               ; patched: the slot's latch
