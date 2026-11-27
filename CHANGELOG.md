@@ -37,6 +37,8 @@ Entries before versioning was introduced use dates only.
 
 ### Changed
 
+- Refresh (F5) in Casso Explorer reads the folder's disk images again, in
+  place of the results stored from an earlier read.
 - Replaced Casso's disk image picker with one based on Casso Explorer. Each
   drive's picker lists only the images that drive can use, most recently used
   first, and stays open until you insert a disk or close it.

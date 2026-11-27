@@ -745,6 +745,7 @@
     <ClInclude Include="CassoExplorer\ExplorerWindowPartsRig.h" />
     <ClInclude Include="CassoExplorer\FakeFolderWatcher.h" />
     <ClInclude Include="CassoExplorer\FakeDiskPictures.h" />
+    <ClInclude Include="CassoExplorer\FakeImageRecords.h" />
     <ClCompile Include="CassoExplorer\CassoTargetingTests.cpp" />
     <ClCompile Include="CassoExplorer\DragPayloadTests.cpp" />
     <ClCompile Include="UiTests\IntentReplyTests.cpp" />

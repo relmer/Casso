@@ -69,6 +69,9 @@ public:
     void  Queue    (const std::vector<Request> & requests);
     void  Cancel   ();
 
+    //  Discards a file's facts, so they are read again when next queued.
+    void  Erase    (const std::wstring & path);
+
     //  An image's facts, read on the calling thread.
     static VolumeFacts  Read (IDiskFileIo & fileIo, const std::string & path);
 

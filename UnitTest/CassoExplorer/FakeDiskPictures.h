@@ -84,6 +84,7 @@ public:
     HRESULT                   SetThumbnail    (const std::wstring &, std::span<const Byte>) override { return S_OK; }
     std::vector<std::string>  GetKeys         (const std::vector<std::wstring> &) override { return {}; }
     void                      RemoveDeleted   (const std::vector<std::string> &) override  {}
+    void                      RemoveBooted    (const std::vector<std::wstring> &) override {}
     int                       CountUserSet    () override                                  { return 0; }
     HRESULT                   Clear           (bool) override                              { return S_OK; }
     size_t                    GetQueued       () override                                  { return queued; }
