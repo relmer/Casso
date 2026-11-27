@@ -561,6 +561,31 @@ public:
     }
 
 
+    //
+    //  A path from another launch opens in a new tab as a typed address does.
+    //  A directory inside a disk image opens too.
+    //
+    TEST_METHOD (OpenAddressInNewTab_OpensAFolderInsideAnImageInANewTab)
+    {
+        Host  host;
+
+        Assert::IsTrue   (host.browser.GetNavigator().NavigateToAddress (L"C:\\Disks"));
+        Assert::AreEqual ((size_t) 1, host.browser.GetBrowserModel().GetTabCount());
+
+        Assert::IsTrue   (host.browser.GetNavigator().OpenAddressInNewTab (L"C:\\Disks\\prodos.po\\GAMES"));
+        Assert::AreEqual ((size_t) 2, host.browser.GetBrowserModel().GetTabCount(), L"A new tab, not the active one navigated");
+        Assert::IsTrue   (host.browser.GetLocation() == Location::MakeDiskDirectory (L"C:\\Disks\\prodos.po", "GAMES"));
+        Assert::IsTrue   (host.browser.GetBrowserModel().GetTab (0).location == Location::MakeHostFolder (kDisks));
+
+        Assert::IsTrue   (host.browser.GetNavigator().OpenAddressInNewTab (L"C:\\Disks\\prodos.po"));
+        Assert::IsTrue   (host.browser.GetLocation() == Location::MakeDiskImage (L"C:\\Disks\\prodos.po"));
+
+        Assert::IsFalse  (host.browser.GetNavigator().OpenAddressInNewTab (L"C:\\Disks\\gone.po\\GAMES"));
+        Assert::AreEqual ((size_t) 3, host.browser.GetBrowserModel().GetTabCount(), L"A path that is not an address opens no tab");
+        Assert::AreEqual ((size_t) 1, host.browser.GetNavigator().GetTypedPaths().GetEntries().size(), L"A path from another launch is not added to the typed paths");
+    }
+
+
     TEST_METHOD (SelectFolder_ListsHostEntriesAndFlagsImages)
     {
         Host  host;
