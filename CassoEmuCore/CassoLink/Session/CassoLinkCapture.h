@@ -276,6 +276,8 @@ private:
     static void         TimeZeros        (const Position & position, const std::vector<Byte> & bytes, const std::vector<Alignment> & alignments, std::vector<int> & outZeros);
     static bool         IsAboveBase      (double set, double read, double base);
     static uint8_t      CountByteZeros   (const Marks & marks, size_t at, const double (&base)[2]);
+    static uint8_t      CountLoudZeros   (const Marks & marks, size_t at);
+    static bool         IsLoudCandidate  (const Marks & marks, size_t at);
     static bool         IsMarkedOften    (int set, int read, double base);
     static bool         IsQuiet          (const std::vector<Byte> & bytes, const std::vector<bool> & weak, const Marks & marks);
     static bool         IsFourAndFourRun (const std::vector<Byte> & bytes, size_t first, size_t end, bool either);
@@ -371,9 +373,21 @@ private:
     static constexpr double  s_kDeviations         = 3.0;
     static constexpr double  s_kMinimumReads       = 4.0;
     static constexpr double  s_kChanceBytes        = 1000.0;   // the bytes in which a byte's marks may be set by chance once
-    static constexpr double  s_kQuietBase          = 0.1;      // the baseline below which a byte's marks can settle its zero bits
+    static constexpr double  s_kQuietBase          = 0.05;     // the baseline below which a byte's marks can settle its zero bits; a Disk II's is about 0.01 and a //c's about 0.1
     static constexpr size_t  s_kUnsureBytes        = 4;        // the unsure bytes that have a whole track read again
     static constexpr int     s_kTimingReads        = 9;        // and the reads it is given
+
+    //  CountLoudZeros: a //c's IWM marks a byte with no zero bits after it
+    //  about one time in ten at 8 cycles and almost never at 12, and one
+    //  followed by a zero bit about four times in five at 8 and one time in
+    //  ten at 12.
+    static constexpr int     s_kTenths             = 10;
+    static constexpr int     s_kLoudShare          = 5;        // the tenths of the catches at 8 cycles that mark a byte followed by zero bits
+    static constexpr int     s_kLoudReads          = 8;        // after this many catches at 8, at least
+    static constexpr int     s_kLoudTwoShare       = 3;        // the catches at 12 cycles, one in this many, that mark a byte followed by two zero bits
+    static constexpr int     s_kLoudTwoMarks       = 2;        // and the marks at 12 it takes, at least
+    static constexpr int     s_kLoudCandidateShare = 4;        // a byte marked at 8 cycles in three catches of this many is read again
+    static constexpr int     s_kLoudCandidateReads = 3;        // after this many catches at 8, at least
 
     //  TimeZeros: the cycles between polls of the latch, and a mask of every
     //  moment a byte can be caught in them; the cycles a whole byte stays in

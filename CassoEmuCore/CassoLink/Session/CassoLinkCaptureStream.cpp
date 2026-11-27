@@ -861,6 +861,7 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const std::v
     std::vector<bool>                       inData (length, false);
     std::vector<bool>                       bodies;
     bool                                    quiet     = false;
+    bool                                    loud      = false;
     size_t                                  shortest  = fine ? s_kShortestRun : s_kPooledRun;
 
 
@@ -911,6 +912,7 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const std::v
     //  by zero bits, so the baseline for a byte's marks is taken from the
     //  bytes that one read at most marks.
     quiet = fine && base[0] <= s_kQuietBase;
+    loud  = fine && base[0] > s_kQuietBase;
 
     for (int delay = 0; quiet && delay < 2; delay++)
     {
@@ -1013,8 +1015,10 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const std::v
         bool  unsure = false;
 
         outZeros[each] = (alone && quiet) ? CountByteZeros (marks, each, single) : outZeros[each];
+        outZeros[each] = (alone && loud)  ? CountLoudZeros (marks, each): outZeros[each];
         outZeros[each] = known ? (uint8_t) timed[each] : outZeros[each];
         unsure         = !fine && alone && base[0] <= s_kQuietBase && (IsMarkedOften (marks.set[0][each], marks.read[0][each], base[0]) || IsMarkedOften (marks.set[1][each], marks.read[1][each], base[1]));
+        unsure         = unsure || (!fine && alone && base[0] > s_kQuietBase && IsLoudCandidate (marks, each));
 
         outUnsure     += unsure ? 1 : 0;
         outUnsureData += (unsure && inData[each]) ? 1 : 0;
@@ -1112,6 +1116,64 @@ uint8_t CassoLinkCapture::CountByteZeros (const Marks & marks, size_t at, const 
 
 
     return at8 ? ((at12 || all8) ? 2 : 1) : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::CountLoudZeros
+//
+//  The zero bits after a byte outside a run of sync bytes on a track a //c
+//  read, where the reads at 8 cycles mark a byte by chance too often for
+//  CountByteZeros: one when s_kLoudShare tenths or more of s_kLoudReads
+//  catches or more at 8 cycles mark it, or s_kLoudTwoMarks catches at 12
+//  do, and two when one catch at 12 cycles in s_kLoudTwoShare marks it too.
+//  Chance marks aren't spread evenly: a byte such as EB with no zero bits
+//  after it is marked at 8 cycles about half the time, and a byte followed
+//  by one zero bit about four times in five.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint8_t CassoLinkCapture::CountLoudZeros (const Marks & marks, size_t at)
+{
+    int   set8   = marks.set[0][at];
+    int   read8  = marks.read[0][at];
+    int   set12  = marks.set[1][at];
+    int   read12 = marks.read[1][at];
+    bool  at8    = read8 >= s_kLoudReads && set8 * s_kTenths >= read8 * s_kLoudShare;
+    bool  at12   = set12 >= s_kLoudTwoMarks;
+    bool  two    = at12 && set12 * s_kLoudTwoShare >= read12;
+
+
+
+    return (at8 || at12) ? (two ? 2 : 1) : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::IsLoudCandidate
+//
+//  Whether more reads could find zero bits after a byte on a track a //c
+//  read: three of every s_kLoudCandidateShare catches at 8 cycles mark it,
+//  after s_kLoudCandidateReads at least, or a catch at 12 does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkCapture::IsLoudCandidate (const Marks & marks, size_t at)
+{
+    int  set  = marks.set[0][at];
+    int  read = marks.read[0][at];
+
+
+
+    return marks.set[1][at] > 0 || (read >= s_kLoudCandidateReads && set * s_kLoudCandidateShare >= read * (s_kLoudCandidateShare - 1));
 }
 
 
