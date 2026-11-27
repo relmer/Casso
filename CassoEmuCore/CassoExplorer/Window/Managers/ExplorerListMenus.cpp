@@ -652,7 +652,10 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
         if (verb == CassoExplorerActions::Verb::Open)
         {
-            command->menuImage   = m_context.menus.GetOpenMenuImage (browsable, m_context.cassoTarget.GetSelectedImagePath());
+            //  A disk image with no file system opens here too, to show why it can't be listed.
+            bool  opensHere = browsable || (m_context.browser.GetSelectedRows().size() == 1 && m_context.browser.OpensInExplorer (m_context.browser.GetSelectedRows()[0]));
+
+            command->menuImage   = m_context.menus.GetOpenMenuImage (opensHere, m_context.cassoTarget.GetSelectedImagePath());
             command->accelerator = L"Enter";
         }
 
