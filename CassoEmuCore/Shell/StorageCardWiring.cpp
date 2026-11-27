@@ -677,11 +677,17 @@ void StorageCardWiring::WireDeviceAudio()
     for (IFloppy35EventSource * source : refs.floppy35Sources)
     {
         auto     audio  = std::make_unique<Floppy35AudioSource>();
-        HRESULT  hrLoad = audio->LoadSamples (AssetBootstrap::GetDriveSoundsDirectory() / Floppy35AudioSource::kSampleFolder, rate);
+        HRESULT  hrLoad = S_OK;
 
 
 
-        IGNORE_RETURN_VALUE (hrLoad, S_OK);
+        // The rate is 0 until audio starts. ShellAudio loads the samples when
+        // audio starts.
+        if (rate != 0)
+        {
+            hrLoad = audio->LoadSamples (AssetBootstrap::GetDriveSoundsDirectory() / Floppy35AudioSource::kSampleFolder, rate);
+            IGNORE_RETURN_VALUE (hrLoad, S_OK);
+        }
 
         audio->SetVolumes (motor, head, door);
         source->SetFloppy35EventSink (audio.get());
