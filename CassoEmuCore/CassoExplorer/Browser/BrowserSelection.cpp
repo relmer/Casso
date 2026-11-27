@@ -419,17 +419,22 @@ bool BrowserSelection::AreSelectedRowsSearchFiles() const
 bool BrowserSelection::AreSelectedRowsImages() const
 {
     bool  search = AreSelectedRowsSearchFiles();
+    bool  casso  = IsCassoNodeLocation (m_source.GetLocation());
 
 
 
-    if (m_source.IsImageLocation() || m_selectedRows.empty() || (m_source.GetLocation().kind != Location::Kind::HostFolder && !search))
+    if (m_source.IsImageLocation() || m_selectedRows.empty() || (m_source.GetLocation().kind != Location::Kind::HostFolder && !search && !casso))
     {
         return false;
     }
 
     for (int row : m_selectedRows)
     {
-        if (!m_rows[row].isDiskImage || (search && !m_rows[row].containerPath.empty()))
+        const CatalogRow  & entry      = m_rows[row];
+        bool                isInZip    = search && !entry.containerPath.empty();
+        bool                isUnloaded = casso && (entry.hostPath.empty() || (entry.isStockDisk && !entry.stockDownloaded));
+
+        if (!entry.isDiskImage || isInZip || isUnloaded)
         {
             return false;
         }

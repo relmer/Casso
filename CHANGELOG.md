@@ -64,6 +64,9 @@ Entries before versioning was introduced use dates only.
 
 ### Fixed
 
+- The machine ROM download is offered in Casso Explorer before Casso has
+  ever run, so thumbnails can be made.
+- The preview of an image on the Casso node includes its thumbnail.
 - After going back to an older release, a machine that a newer release had set up no longer fails to start with a missing ROM error.
 - Going back to an older release no longer lists machines it doesn't support.
 - Speaker music made with pulse-width modulation, such as Archon's, sounds
