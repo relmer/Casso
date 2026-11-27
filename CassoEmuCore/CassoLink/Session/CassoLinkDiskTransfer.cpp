@@ -1267,12 +1267,6 @@ HRESULT CassoLinkDiskTransfer::WriteRawDisk (LinkOperation & operation, const st
     m_session.m_disks[index]->Clear();
     m_session.m_listings[index].reset();
 
-    //  A raw image has no catalog, so the drive's title is the file's name.
-    if (operation.status != nullptr && (operation.drive == 1 || operation.drive == 2))
-    {
-        operation.status->SetTitle (operation.drive, std::filesystem::path (operation.imagePath).stem().string(), std::string());
-    }
-
     for (size_t i = 0; i < tracks.size(); i++)
     {
         RawWriteTrack  & track = tracks[i];
@@ -1528,6 +1522,9 @@ void CassoLinkDiskTransfer::BeginWriteStatus (LinkOperation & operation)
     status->SetActivity (FullSendActivity::Sending, drive);
     status->BeginDisk (drive, operation.verifyWrites, std::span<const int>());
     status->SetWriting (drive);
+
+    //  The file's name is the title until a sector image's catalog title replaces it.
+    status->SetTitle (drive, std::filesystem::path (operation.imagePath).stem().string(), std::string());
     status->AddLine (std::format ("Writing {} to the disk in drive {}{}", std::filesystem::path (operation.imagePath).filename().string(), drive,
                                   operation.verifyWrites ? ", then reading it back to compare" : ""), drive);
 }
