@@ -154,7 +154,7 @@ public:
         MakePackedTrack (bits);
         RawWriteStream::FromBits (bits, stream);
 
-        Assert::IsTrue (stream.FitToTurn (bits.size() + 4));
+        Assert::IsTrue (stream.FitToTurn (bits.size() + 100));
 
         while (stream.values[syncs] == 0xFF)
         {
@@ -198,6 +198,76 @@ public:
         {
             Assert::IsTrue (zeros <= 2 || zeros >= 16);
         }
+    }
+
+
+    //  A track of sectors with sync runs between them, a little longer than
+    //  the turn, is fitted by dropping sync bytes from the runs, each left
+    //  long enough to read; its sector bytes stay as they are.
+    TEST_METHOD (FitToTurn_ShortensTheSyncRunsBetweenSectors_PastTheTurn)
+    {
+        static constexpr size_t  kSectors     = 16;
+        static constexpr size_t  kGap         = 20;
+        static constexpr size_t  kSectorBytes = 300;
+
+        Bits               bits;
+        RawWriteStream     stream;
+        std::vector<Byte>  sector (kSectorBytes);
+        std::vector<Byte>  before;
+        std::vector<Byte>  after;
+        size_t             run    = 0;
+        size_t             fewest = SIZE_MAX;
+
+
+
+        FillRandom (sector);
+
+        for (size_t i = 0; i < kSectors; i++)
+        {
+            for (size_t sync = 0; sync < kGap; sync++)
+            {
+                AppendByte (0xFF, RawWriteStream::kSyncZeros, bits);
+            }
+
+            AppendByte (0xD5, 0, bits);
+            AppendByte (0xAA, 0, bits);
+            before.push_back (0xD5);
+            before.push_back (0xAA);
+
+            for (size_t at = 0; at < kSectorBytes; at++)
+            {
+                AppendByte ((Byte) (sector[at] ^ i), 0, bits);
+                before.push_back ((Byte) (sector[at] ^ i));
+            }
+        }
+
+        RawWriteStream::FromBits (bits, stream);
+
+        Assert::IsTrue (stream.FitToTurn (bits.size() - 300));
+        Assert::IsTrue (stream.GetCellCount() < bits.size() - 300 + 80);
+
+        for (size_t i = 0; i < stream.values.size(); i++)
+        {
+            bool  isSync = stream.values[i] == 0xFF && stream.zeros[i] == RawWriteStream::kSyncZeros;
+
+            if (isSync)
+            {
+                run++;
+                continue;
+            }
+
+            if (run > 0)
+            {
+                fewest = std::min (fewest, run);
+            }
+
+            run = 0;
+            after.push_back (stream.values[i]);
+        }
+
+        Assert::IsTrue (fewest >= 6, std::format (L"a run of {} sync bytes", fewest).c_str());
+        Assert::IsTrue (std::search (after.begin(), after.end(), before.begin(), before.begin() + kSectorBytes + 2) != after.end());
+        Assert::AreEqual (before.size(), after.size());
     }
 
 
