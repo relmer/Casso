@@ -3,6 +3,7 @@
 #include "../EhmTestHelper.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/Inspector/DiskAnalyzer.h"
+#include "Devices/Disk/Inspector/InspectorImageLoader.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/Nibblizer.h"
 #include "Ui/DiskInspector/EditController.h"
@@ -220,6 +221,90 @@ public:
         edits.DiscardSector (a);
         Assert::AreEqual (1, edits.GetCounts().sectors);
         Assert::AreEqual (static_cast<Byte> (4), edits.GetEdits()[0].sectorNumber);
+    }
+
+
+
+    TEST_METHOD (EachSideHasItsEditsAndBothShareOneUndoHistory)
+    {
+        DiskAnalysis    analysis;
+        EditController  edits;
+        std::wstring    reason;
+        int             index = -1;
+        int             a     = -1;
+        int             b     = -1;
+
+
+
+        AnalyzePlanted (analysis);
+        index = GetSectorIndex (GetTrack (analysis), 2);
+        a     = edits.Begin (GetTrack (analysis), 20, index, reason, 0);
+        b     = edits.Begin (GetTrack (analysis), 20, index, reason, 1);
+
+        Assert::AreNotEqual (a, b, L"the same sector on each side is a separate edit");
+        Assert::AreEqual (a, edits.Find (GetTrack (analysis), index, 0));
+        Assert::AreEqual (b, edits.Find (GetTrack (analysis), index, 1));
+
+        Assert::IsTrue (edits.TypeHexDigit (a, 0, true, L'0'));
+        Assert::IsTrue (edits.TypeHexDigit (b, 1, true, L'0'));
+        Assert::AreEqual (1, edits.GetCounts (0).sectors);
+        Assert::AreEqual (1, edits.GetCounts (1).sectors);
+        Assert::AreEqual (2, edits.GetCounts().sectors);
+        Assert::AreEqual (static_cast<size_t> (1), edits.BuildWrites (analysis, 1).size(), L"each side's writes are its own");
+
+        Assert::IsTrue (edits.Undo());
+        Assert::AreEqual (0, edits.GetCounts (1).sectors, L"the last change, in B, is undone first");
+        Assert::AreEqual (1, edits.GetCounts (0).sectors);
+    }
+
+
+
+    TEST_METHOD (RemovingASideKeepsTheOtherAndSwappingFlipsThem)
+    {
+        DiskAnalysis    analysis;
+        EditController  edits;
+        std::wstring    reason;
+        int             index = -1;
+
+
+
+        AnalyzePlanted (analysis);
+        index = GetSectorIndex (GetTrack (analysis), 2);
+        Assert::IsTrue (edits.TypeHexDigit (edits.Begin (GetTrack (analysis), 20, index, reason, 0), 0, true, L'0'));
+        Assert::IsTrue (edits.TypeHexDigit (edits.Begin (GetTrack (analysis), 20, GetSectorIndex (GetTrack (analysis), 4), reason, 1), 0, true, L'0'));
+
+        edits.SwapSides();
+        Assert::AreEqual (static_cast<Byte> (4), edits.GetEdits()[edits.Find (GetTrack (analysis), GetSectorIndex (GetTrack (analysis), 4), 0)].sectorNumber);
+
+        edits.RemoveSide (1);
+        Assert::AreEqual (1, edits.GetCounts().sectors);
+        Assert::AreEqual (0, edits.GetCounts (1).sectors);
+        Assert::IsFalse (edits.CanUndo(), L"the undo history refers to edits by index");
+    }
+
+
+
+    TEST_METHOD (WritesGoIntoAnImageFilesBytes)
+    {
+        vector<Byte>    sectors (NibbleFormat::kImageByteSize, 0);
+        vector<Byte>    edited;
+        DiskImage       image;
+        DiskAnalysis    analysis;
+        EditController  edits;
+        std::wstring    reason;
+        int             edit = -1;
+
+
+
+        AssertSucceeded (Nibblizer::NibblizeDsk (sectors, image));
+        DiskAnalyzer::Analyze (DiskCopy::MakeFromImage (image, 1, "b.dsk", 0, false), DecodeSettings::MakeStandard(), analysis);
+
+        edit = edits.Begin (*analysis.tracks[analysis.entries[0].slot], 0, 0, reason, 1);
+        Assert::IsTrue (edits.TypeHexDigit (edit, 0, true, L'7'));
+
+        AssertSucceeded (InspectorImageLoader::ApplyWrites (sectors, "b.dsk", edits.BuildWrites (analysis, 1), edited, reason));
+        Assert::AreEqual (sectors.size(), edited.size(), L"the image keeps its format");
+        Assert::AreEqual (static_cast<ptrdiff_t> (1), std::count (edited.begin(), edited.end(), static_cast<Byte> (0x70)), L"one byte has the typed value");
     }
 
 

@@ -6,6 +6,8 @@
 #include "Devices/Disk/Inspector/DiskComparer.h"
 #include "Devices/Disk/Inspector/InspectorClipboard.h"
 #include "Devices/Disk/Inspector/InspectorFormat.h"
+#include "Devices/Disk/Inspector/InspectorImageLoader.h"
+#include "Devices/Disk/Store/DiskFileCommit.h"
 #include "Seams/Win32DiskFileIo.h"
 #include "Seams/Win32HostDialogs.h"
 #include "Ui/DiskInspector/Components/IInspectorComponentHost.h"
@@ -63,25 +65,31 @@ void EditingPart::Create()
         }
     });
 
-    //  The bar is placed between the Sector data tab's header and its bytes,
-    //  where the view reserves its row as it is laid out.
-    m_sectorsView.SetEditRow ([this] (const RECT & rowPx)
+    //  The bar goes at the right of the Sector data tab's first header line
+    //  when its controls fit there, and otherwise on a separate row between
+    //  the header and the bytes.
+    m_sectorsView.SetEditRow ([this] (const RECT & inlinePx, const RECT & rowPx, int & outLeft)
     {
-        int   height = m_editBar->GetHeightPx (rowPx.right - rowPx.left, m_session.scaler);
-        RECT  bounds = { rowPx.left, rowPx.top, rowPx.right, rowPx.top + height };
-        RECT  shown  = m_editBar->GetBounds();
+        int   inlineW = m_editBar->GetInlineWidthPx (m_session.scaler);
+        bool  isIn    = inlineW >= 0 && inlineW <= inlinePx.right - inlinePx.left;
+        int   height  = isIn ? 0 : m_editBar->GetHeightPx (rowPx.right - rowPx.left, m_session.scaler);
+        RECT  bounds  = isIn ? RECT { inlinePx.right - inlineW, inlinePx.top, inlinePx.right, inlinePx.bottom }
+                             : RECT { rowPx.left, rowPx.top, rowPx.right, rowPx.top + height };
+        RECT  shown   = m_editBar->GetBounds();
 
         if (!EqualRect (&bounds, &shown))
         {
             m_editBar->Layout (bounds, m_session.scaler);
         }
 
+        outLeft = isIn ? bounds.left : inlinePx.right;
         return height;
     });
 
     m_editBar->SetOnChecksum      ([this] (bool isOn) { m_session.edits.SetChecksumMode (GetSelectedEdit(), isOn ? ChecksumMode::Recompute : ChecksumMode::KeepStored); });
-    m_editBar->SetOnDiscardSector ([this] () { m_session.edits.DiscardSector (GetSelectedEdit()); });
-    m_editBar->SetOnUseB          ([this] () { UseBBytes(); });
+
+    m_sectorsView.SetCopySector ([this] (int toSide) { return CanCopySector (toSide); },
+                                 [this] (int toSide) { if (toSide == 0) { UseBBytes(); } else { UseABytes(); } });
     m_editBar->SetOnPauseApply    ([this] () { PauseApply(); });
     m_editBar->SetOnCancelApply   ([this] () { CancelApply(); });
     m_editBar->SetOnUndoApplied   ([this] () { UndoApplied(); });
@@ -335,11 +343,125 @@ void EditingPart::OnEjected()
 
 int EditingPart::GetSelectedEdit() const
 {
-    const TrackAnalysis *  track = m_session.model.GetTrack();
+    const TrackAnalysis *  track  = nullptr;
+    int                    sector = -1;
+    int                    side   = 0;
 
 
 
-    return (track != nullptr) ? m_session.edits.Find (*track, m_session.model.GetSectorIndex()) : -1;
+    return GetEditTarget (track, sector, side) ? m_session.edits.Find (*track, sector, side) : -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditingPart::GetEditTarget
+//
+//  The sector edits go to: while comparing, B's paired sector once B's view
+//  was clicked, and otherwise A's selected sector.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EditingPart::GetEditTarget (const TrackAnalysis *& outTrack, int & outSector, int & outSide) const
+{
+    outSide   = m_session.comparison.IsComparing() ? m_sectorsView.GetActiveSide() : 0;
+    outTrack  = (outSide == 0) ? m_session.model.GetTrack() : m_session.context.trackB;
+    outSector = (outSide == 0) ? m_session.model.GetSectorIndex() : m_sectorsView.GetSelectedSectorB();
+
+    return outTrack != nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditingPart::GetBEditBlock
+//
+//  Why B's sectors cannot be edited, or empty when they can: B is saved to
+//  its file, so it must be an image file Casso can write.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring EditingPart::GetBEditBlock() const
+{
+    const DiskCopy *  copy = m_session.comparison.GetB().copy.get();
+
+
+
+    return (copy == nullptr)                                                             ? std::wstring (L"No second image")
+         : (m_session.comparison.GetSourceB().kind != ComparisonSourceKind::ImageFile)   ? std::wstring (L"The second image is a drive's disk; edit it in its own inspector")
+         : copy->isReadOnly                                                              ? std::wstring (L"The second image's file is read-only")
+                                                                                         : std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditingPart::BeginTarget
+//
+//  Begins an edit on the sector edits go to, or finds the one pending.
+//  Returns -1 with the reason when that sector cannot be edited.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int EditingPart::BeginTarget (std::wstring & outReason)
+{
+    const TrackAnalysis *  track  = nullptr;
+    int                    sector = -1;
+    int                    side   = 0;
+    int                    edit   = -1;
+
+
+
+    outReason = GetEditTarget (track, sector, side) ? std::wstring() : std::wstring (L"No track");
+    outReason = (outReason.empty() && side == 1) ? GetBEditBlock() : outReason;
+    outReason = (outReason.empty() && side == 1 && sector < 0) ? std::wstring (L"The second image has no sector to pair with this one") : outReason;
+
+    if (outReason.empty())
+    {
+        edit = m_session.edits.Begin (*track, m_session.model.GetQuarterTrack(), sector, outReason, side);
+    }
+
+    if (edit >= 0 && side == 1)
+    {
+        m_session.editsBMedia = m_session.comparison.GetB().mediaId;
+    }
+
+    return edit;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditingPart::DropStaleBEdits
+//
+//  B's pending edits go with B's disk: when comparing ends or B is another
+//  image, they are discarded.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EditingPart::DropStaleBEdits()
+{
+    bool  hasB = std::any_of (m_session.edits.GetEdits().begin(), m_session.edits.GetEdits().end(), [] (const PendingEdit & edit) { return edit.side == 1; });
+
+
+
+    if (hasB && (!m_session.comparison.IsComparing() || m_session.comparison.GetB().mediaId != m_session.editsBMedia))
+    {
+        m_session.edits.RemoveSide (1);
+        m_session.editNote = L"Unsaved changes to the second image were discarded: it is no longer compared";
+    }
 }
 
 
@@ -370,7 +492,7 @@ void EditingPart::ToggleEditing()
     }
     else if (track != nullptr && IsLiveEditConfirmed())
     {
-        edit               = m_session.edits.Begin (*track, m_session.model.GetQuarterTrack(), m_session.model.GetSectorIndex(), reason);
+        edit               = BeginTarget (reason);
         m_session.editNote = reason;
 
         if (edit >= 0)
@@ -508,20 +630,32 @@ void EditingPart::FollowEdits()
 
 void EditingPart::UpdateEditBar()
 {
-    const TrackAnalysis *  track  = m_session.model.GetTrack();
-    std::wstring           reason = (track != nullptr) ? EditController::GetUneditableReason (*track, m_session.model.GetSectorIndex()) : std::wstring (L"No track");
-    int                    edit   = GetSelectedEdit();
+    const TrackAnalysis *  track    = nullptr;
+    int                    sector   = -1;
+    int                    side     = 0;
+    bool                   hasTrack = GetEditTarget (track, sector, side);
+    std::wstring           reason;
+    int                    edit     = -1;
     EditBarState           state;
-    EditController::Counts counts = m_session.edits.GetCounts();
-    int                    width  = 0;
-    int                    height = 0;
-    PendingEdit::Sector    paired = {};
+    EditController::Counts counts;
+    const DiskCopy *       copyB    = m_session.comparison.GetB().copy.get();
+    bool                   isDskB   = copyB != nullptr && (copyB->format == DiskFormat::Dsk || copyB->format == DiskFormat::Do || copyB->format == DiskFormat::Po);
+    int                    width    = 0;
+    int                    height   = 0;
 
 
+
+    DropStaleBEdits();
+
+    reason = !hasTrack ? std::wstring (L"No track") : (side == 1) ? GetBEditBlock() : std::wstring();
+    reason = (!reason.empty() || !hasTrack) ? reason : (side == 1 && sector < 0) ? std::wstring (L"The second image has no sector to pair with this one")
+                                                                                  : EditController::GetUneditableReason (*track, sector);
+    edit   = GetSelectedEdit();
+    counts = m_session.edits.GetCounts();
 
     if (m_sectorsView.IsEditing() && edit < 0 && reason.empty())
     {
-        edit = m_session.edits.Begin (*track, m_session.model.GetQuarterTrack(), m_session.model.GetSectorIndex(), reason);
+        edit = BeginTarget (reason);
     }
 
     //  The Tracks tab counts the edited sectors of each track.
@@ -531,16 +665,14 @@ void EditingPart::UpdateEditBar()
     state.canEdit          = m_session.context.hasDisk && reason.empty();
     state.isEditing        = m_sectorsView.IsEditing();
     state.hasSectorEdit    = edit >= 0;
-    state.isChecksumOn     = m_session.IsSectorImage() || edit < 0 || m_session.edits.GetEdit (edit).checksumMode == ChecksumMode::Recompute;
-    state.isChecksumLocked = m_session.IsSectorImage();
+    state.isChecksumLocked = (side == 1) ? isDskB : m_session.IsSectorImage();
+    state.isChecksumOn     = state.isChecksumLocked || edit < 0 || m_session.edits.GetEdit (edit).checksumMode == ChecksumMode::Recompute;
     state.bytes            = counts.bytes;
     state.sectors          = counts.sectors;
     state.applyBlocked     = GetApplyBlock (m_session);
     state.canApply         = state.applyBlocked.empty() && m_applyRequest == 0;
     state.isWaiting        = m_isApplyWaiting;
     state.isMachinePaused  = m_isApplyPaused;
-    state.canUseB          = reason.empty() && GetBSectorBytes (paired);
-    state.nameB            = m_session.comparison.HasResult() ? m_session.comparison.GetResult().names.b : std::wstring();
     state.canUndoApplied   = m_historyAt > 0 && m_applyRequest == 0 && state.applyBlocked.empty() && m_session.edits.IsEmpty() &&
                              (IsHistoryCurrent (m_history[m_historyAt - 1].countsAfter) || m_history[m_historyAt - 1].edits.IsCurrentIn (m_session.analysis));
     state.canRedoApplied   = m_historyAt < static_cast<int> (m_history.size()) && m_applyRequest == 0 && state.applyBlocked.empty() &&
@@ -639,7 +771,11 @@ void EditingPart::ApplyEdits()
     vector<std::wstring>   lines;
     std::wstring           records;
     std::wstring           warnings;
-    EditController::Counts counts  = m_session.edits.GetCounts();
+    EditController::Counts counts  = m_session.edits.GetCounts (0);
+    EditController::Counts countsB = m_session.edits.GetCounts (1);
+    vector<SectorWrite>    writesB = m_session.edits.BuildWrites (m_session.comparison.GetB(), 1);
+    std::wstring           lineB   = L"Save " + InspectorText::FormatCount (countsB.bytes, L"byte", L"bytes") + L" in " + InspectorText::FormatCount (countsB.sectors, L"sector", L"sectors")
+                                   + L" to " + m_session.context.GetSideName (1) + L"?";
     bool                   isWoz1  = m_session.analysis.copy != nullptr && m_session.analysis.copy->format == DiskFormat::Woz && m_session.analysis.copy->woz.info.version < 2;
     bool                   isNib   = m_session.analysis.copy != nullptr && m_session.analysis.copy->format == DiskFormat::Nib;
     HRESULT                hr      = S_OK;
@@ -653,7 +789,16 @@ void EditingPart::ApplyEdits()
     request.applyMode = ApplyMode::WaitForStop;
     request.writes    = m_session.edits.BuildWrites (m_session.analysis);
 
-    BAIL_OUT_IF (request.writes.empty(), S_OK);
+    //  With changes only in B, B is saved to its file at once.
+    if (request.writes.empty())
+    {
+        if (!writesB.empty())
+        {
+            (void) SaveBEdits();
+        }
+
+        BAIL_OUT_IF (true, S_OK);
+    }
 
     lines.push_back (L"Save " + EditBar::FormatCount (counts.bytes, counts.sectors).substr (0, EditBar::FormatCount (counts.bytes, counts.sectors).size() - std::wstring (L" changed").size())
                      + L" to " + m_session.GetFileName() + L"?");
@@ -704,13 +849,77 @@ void EditingPart::ApplyEdits()
         lines.push_back (L"This disk is a WOZ 1 image. Casso saves it as WOZ 2.");
     }
 
+    if (!writesB.empty())
+    {
+        lines.push_back (lineB);
+    }
+
     if (lines.size() == 1 || m_host.Confirm (L"Save", lines, L"Save"))
     {
+        if (!writesB.empty())
+        {
+            (void) SaveBEdits();
+        }
+
         PostApply (request);
     }
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditingPart::SaveBEdits
+//
+//  B's pending edits written to B's file, whole or not at all through
+//  DurableCommit; then B is read again and its edits are dropped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EditingPart::SaveBEdits()
+{
+    HRESULT               hr      = S_OK;
+    Win32DiskFileIo       fileIo;
+    CommitPlan::Progress  progress;
+    std::string           path    = TextEncoding::WideToUtf8 (m_session.comparison.GetSourceB().path);
+    std::wstring          name    = m_session.context.GetSideName (1);
+    std::wstring          reason  = GetBEditBlock();
+    vector<SectorWrite>   writes  = m_session.edits.BuildWrites (m_session.comparison.GetB(), 1);
+    vector<Byte>          bytes;
+    vector<Byte>          edited;
+    bool                  canSave = reason.empty();
+
+
+
+    CBR (canSave);
+
+    reason = L"the file could not be read";
+    hr     = DiskFileCommit::ReadFileBytes (path, bytes);
+    CHR (hr);
+
+    hr = InspectorImageLoader::ApplyWrites (bytes, path, writes, edited, reason);
+    CHR (hr);
+
+    reason = L"the file could not be written";
+    hr     = DurableCommit::Commit (fileIo, path, edited, GetTickCount64(), CommitMode::Replace, progress);
+    CHR (hr);
+
+    m_session.edits.RemoveSide (1);
+    m_session.comparison.Reload (ComparisonSession::kSideB, *m_session.host);
+    m_session.editNote = L"Saved the changes to " + name;
+
+Error:
+    if (FAILED (hr))
+    {
+        m_session.editNote = L"Not saved to " + name + L": " + reason;
+    }
+
+    return SUCCEEDED (hr);
 }
 
 
@@ -888,6 +1097,14 @@ void EditingPart::ShowEdit (const PendingEdit & edit, int offset)
     }
 
     track = m_session.model.GetTrack();
+
+    //  B's edit is on B's track: show the track's Sector data tab, and leave
+    //  B's view where it is.
+    if (edit.side == 1)
+    {
+        m_host.ShowTrackTab (kTabSectorData);
+        track = nullptr;
+    }
 
     for (int k = 0; track != nullptr && k < static_cast<int> (track->sectors.size()); k++)
     {
@@ -1094,8 +1311,9 @@ void EditingPart::TakeApplyReply (const InspectorReply & reply)
 //
 //  EditingPart::GetBSectorBytes
 //
-//  B's bytes for the sector paired with A's selected one, while A is the
-//  window's disk as it is now (FR-123).
+//  B's bytes for the sector paired with A's selected one, paired as the
+//  Sectors tab pairs them, while A is the window's disk as it is now
+//  (FR-123).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1103,7 +1321,8 @@ bool EditingPart::GetBSectorBytes (PendingEdit::Sector & outBytes) const
 {
     const TrackAnalysis *  trackA  = m_session.model.GetTrack();
     const TrackAnalysis *  trackB  = m_session.context.trackB;
-    int                    paired  = -1;
+    std::span<const Byte>  bytes;
+    bool                   isLoose = false;
     bool                   isFound = false;
 
 
@@ -1111,12 +1330,13 @@ bool EditingPart::GetBSectorBytes (PendingEdit::Sector & outBytes) const
     if (m_session.comparison.IsComparing() && m_session.sourceA == ComparisonSource { ComparisonSourceKind::DriveNow, m_session.drive } && trackA != nullptr && trackB != nullptr &&
         m_session.model.GetSectorIndex() >= 0)
     {
-        paired  = DiskComparer::FindPairedSector (*trackA, m_session.model.GetSectorIndex(), *trackB);
-        isFound = paired >= 0 && trackB->sectors[paired].dataField >= 0;
+        bytes   = m_sectorsView.GetPairedBytes (*trackA, m_session.model.GetSectorIndex(), isLoose);
+        isFound = !bytes.empty();
 
         if (isFound)
         {
-            outBytes = trackB->fields[trackB->sectors[paired].dataField].data.bytes;
+            outBytes.fill (0);
+            std::copy_n (bytes.begin(), std::min (bytes.size(), outBytes.size()), outBytes.begin());
         }
     }
 
@@ -1152,6 +1372,103 @@ void EditingPart::UseBBytes()
             (void) m_session.edits.SetSector (edit, bytes);
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditingPart::GetASectorBytes
+//
+//  The bytes of A's selected sector in the Sectors tab: its pending edit's
+//  bytes, or its decoded bytes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EditingPart::GetASectorBytes (PendingEdit::Sector & outBytes) const
+{
+    const TrackAnalysis *  track  = m_session.model.GetTrack();
+    int                    sector = m_session.model.GetSectorIndex();
+    int                    edit   = (track != nullptr) ? m_session.edits.Find (*track, sector) : -1;
+    bool                   isData = track != nullptr && sector >= 0 && sector < static_cast<int> (track->sectors.size()) && track->sectors[sector].dataField >= 0;
+
+
+
+    if (edit >= 0)
+    {
+        outBytes = m_session.edits.GetEdit (edit).bytes;
+    }
+    else if (isData)
+    {
+        outBytes = track->fields[track->sectors[sector].dataField].data.bytes;
+    }
+
+    return edit >= 0 || isData;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditingPart::UseABytes
+//
+//  "Copy sector from" A in B's view: B's paired sector takes A's bytes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EditingPart::UseABytes()
+{
+    const TrackAnalysis *  trackB  = m_session.context.trackB;
+    int                    sectorB = m_sectorsView.GetSelectedSectorB();
+    PendingEdit::Sector    bytes   = {};
+    std::wstring           reason  = GetBEditBlock();
+    int                    edit    = -1;
+
+
+
+    if (reason.empty() && trackB != nullptr && sectorB >= 0 && GetASectorBytes (bytes))
+    {
+        edit = m_session.edits.Begin (*trackB, m_session.model.GetQuarterTrack(), sectorB, reason, 1);
+
+        if (edit >= 0)
+        {
+            m_session.editsBMedia = m_session.comparison.GetB().mediaId;
+            (void) m_session.edits.SetSector (edit, bytes);
+        }
+    }
+
+    m_session.editNote = reason;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditingPart::CanCopySector
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EditingPart::CanCopySector (int toSide) const
+{
+    const TrackAnalysis *  track   = m_session.model.GetTrack();
+    const TrackAnalysis *  trackB  = m_session.context.trackB;
+    int                    sectorB = m_sectorsView.GetSelectedSectorB();
+    PendingEdit::Sector    bytes   = {};
+
+
+
+    if (toSide == 0)
+    {
+        return track != nullptr && EditController::GetUneditableReason (*track, m_session.model.GetSectorIndex()).empty() && GetBSectorBytes (bytes);
+    }
+
+    return trackB != nullptr && sectorB >= 0 && GetBEditBlock().empty() && EditController::GetUneditableReason (*trackB, sectorB).empty() && GetASectorBytes (bytes);
 }
 
 

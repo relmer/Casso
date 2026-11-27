@@ -1025,6 +1025,7 @@
     <ClCompile Include="Dxui\DxuiStatusBarTests.cpp" />
     <ClCompile Include="Dxui\DxuiFramebufferViewTests.cpp" />
     <ClCompile Include="Dxui\DxuiHexViewEditingTests.cpp" />
+    <ClCompile Include="Dxui\DxuiHexViewLinkTests.cpp" />
     <ClCompile Include="Dxui\DxuiHexViewRegionTests.cpp" />
     <ClCompile Include="Dxui\DxuiHexViewSelectionContrastTests.cpp" />
     <ClCompile Include="Dxui\DxuiHexViewTests.cpp" />

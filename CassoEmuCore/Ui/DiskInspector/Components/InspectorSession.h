@@ -169,6 +169,7 @@ public:
     EditController                           edits;
     std::set<int>                            appliedSlots;
     std::wstring                             editNote;
+    uint64_t                                 editsBMedia       = 0;   // B's disk when its first pending edit began
     std::wstring                             statusNote;
     bool                                     isDiskGroup       = false;
     int                                      trackTab          = 0;

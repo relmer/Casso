@@ -272,12 +272,16 @@ public:
         bar.Layout ({ 0, 0, widthPx, bar.GetHeightPx (widthPx, scaler) }, scaler);
 
         Assert::AreEqual (heightPx, bar.GetHeightPx (widthPx, scaler), L"the bar's height is constant");
-        Assert::AreEqual (std::wstring (L"Drop the selected sector's pending edits"), bar.GetTip ({ 4, heightPx / 2 }, anchor), L"Undo sector changes is at the left end");
+        Assert::AreEqual (std::wstring (L"Write a new data checksum for the sector's new bytes"), bar.GetTip ({ 4, heightPx / 2 }, anchor), L"the checksum option is at the left end");
 
         for (int x = 0; x < widthPx; x += 4)
         {
             Assert::IsTrue (bar.GetTip ({ x, heightPx / 2 }, anchor).find (L"Save") == std::wstring::npos, L"saving is on the menus");
         }
+
+        state.hasSectorEdit = false;
+        bar.SetState (state);
+        Assert::AreEqual (std::wstring (L"Available once a byte of the selected sector is changed"), bar.GetTip ({ 4, heightPx / 2 }, anchor), L"a disk image with checksums, before an edit");
     }
 
 

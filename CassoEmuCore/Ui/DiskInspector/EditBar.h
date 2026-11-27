@@ -31,8 +31,6 @@ struct EditBarState
     std::wstring  applyBlocked;
     bool          isWaiting        = false;
     bool          isMachinePaused  = false;
-    bool          canUseB          = false;
-    std::wstring  nameB;            // the other side's name in the comparison
     bool          hasChecksum      = true;    // false for an image with no checksums, as one of blocks
     bool          canSaveCopy      = true;    // false where a copy can't be made, as on a storage card
 };
@@ -46,9 +44,8 @@ struct EditBarState
 //  EditBar
 //
 //  The row of editing controls between the Sector data tab's header and its
-//  bytes: "Undo sector changes" and "Recompute the checksum" while editing,
-//  "Use B's bytes", the count of bytes and sectors changed, "Undo save" and
-//  "Redo save". The note between them has why the sector cannot be edited,
+//  bytes: "Recompute the checksum" while editing, the count of bytes and
+//  sectors changed, "Undo save" and "Redo save". The note between them has why the sector cannot be edited,
 //  why saving is unavailable, or the result of the last save. The row is
 //  there whether or not a sector is being edited, so the bytes don't move.
 //
@@ -65,12 +62,10 @@ public:
     EditBar();
 
     void  SetOnChecksum      (CheckFn fn)  { m_onChecksum      = std::move (fn); }
-    void  SetOnDiscardSector (ActionFn fn) { m_onDiscardSector = std::move (fn); }
     void  SetOnUndoApplied   (ActionFn fn) { m_onUndoApplied   = std::move (fn); }
     void  SetOnRedoApplied   (ActionFn fn) { m_onRedoApplied   = std::move (fn); }
     void  SetOnPauseApply    (ActionFn fn) { m_onPauseApply    = std::move (fn); }
     void  SetOnCancelApply   (ActionFn fn) { m_onCancelApply   = std::move (fn); }
-    void  SetOnUseB          (ActionFn fn) { m_onUseB          = std::move (fn); }
 
     void  SetState (const EditBarState & state);
 
@@ -89,6 +84,10 @@ public:
     int   GetRowCount (int widthPx, const DxuiDpiScaler & scaler) const;
     int   GetHeightPx (int widthPx, const DxuiDpiScaler & scaler) const;
 
+    //  The width the controls and the count take on one row, with no note;
+    //  -1 when there is a note, which takes a separate row.
+    int   GetInlineWidthPx (const DxuiDpiScaler & scaler) const;
+
     void  Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
 
 private:
@@ -101,22 +100,18 @@ private:
     DxuiCheckbox  * m_checksum      = nullptr;
     DxuiLabel     * m_count         = nullptr;
     DxuiLabel     * m_note          = nullptr;
-    DxuiButton    * m_discardSector = nullptr;
     DxuiButton    * m_undoApplied   = nullptr;
     DxuiButton    * m_redoApplied   = nullptr;
     DxuiButton    * m_pauseApply    = nullptr;
     DxuiButton    * m_cancelApply   = nullptr;
-    DxuiButton    * m_useB          = nullptr;
     CheckFn         m_onChecksum;
-    ActionFn        m_onDiscardSector;
     ActionFn        m_onUndoApplied;
     ActionFn        m_onRedoApplied;
     ActionFn        m_onPauseApply;
     ActionFn        m_onCancelApply;
-    ActionFn        m_onUseB;
     DxuiDpiScaler   m_layoutScaler;
     bool            m_hasLayout     = false;
+    bool            m_isLocked      = false;   // the checksum is always recomputed
     std::wstring    m_unit          = L"sector";
     std::wstring    m_units         = L"sectors";
-    std::wstring    m_nameB;
 };

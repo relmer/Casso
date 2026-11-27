@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Devices/Disk/Inspector/DiskCopy.h"
+#include "Devices/Disk/SectorFieldWriter.h"
 
 
 
@@ -28,6 +29,11 @@ public:
     static HRESULT  LoadFile  (const std::string & utf8Path, std::shared_ptr<const DiskCopy> & outCopy, std::wstring & outReason);
     static HRESULT  LoadBytes (const vector<Byte> & bytes, const std::string & utf8Path, bool isReadOnly,
                                std::shared_ptr<const DiskCopy> & outCopy, std::wstring & outReason);
+
+    //  An image file's bytes with sector writes made in them, in the file's
+    //  format, for saving edits to an image no drive has.
+    static HRESULT  ApplyWrites (const vector<Byte> & bytes, const std::string & utf8Path, std::span<const SectorWrite> writes,
+                                 vector<Byte> & outBytes, std::wstring & outReason);
 
     static uint64_t  MakeMediaId ();
 };

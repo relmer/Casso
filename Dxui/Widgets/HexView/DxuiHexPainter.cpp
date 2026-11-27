@@ -262,6 +262,12 @@ int DxuiHexPainter::ReadRow (uint64_t row)
     m_view.m_source->ReadBytes (start, std::span<uint8_t> (m_rowBytes.data(), (size_t) count));
     m_view.m_source->ReadMarks (start, std::span<uint8_t> (m_rowMarks.data(), (size_t) count));
 
+    //  Absent bytes at the row's end are left blank.
+    while (count > 0 && m_view.m_source->IsByteAbsent (start + (uint64_t) count - 1))
+    {
+        count--;
+    }
+
     return count;
 }
 
@@ -345,7 +351,7 @@ void DxuiHexPainter::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & them
         {
             FillStyled (text, m_view.m_layout.GetValueSelectionRect (offset, cell), style);
 
-            DrawCell (text, cell, FormatValue (value, present).c_str(), style.ink != 0 ? style.ink : argb, font, style.isBold ? DxuiFontWeight::Bold : DxuiFontWeight::Normal);
+            DrawStyledCells (text, cell, FormatValue (value, present).c_str(), style.ink != 0 ? style.ink : argb, font, style.isBold);
             continue;
         }
 
@@ -417,7 +423,7 @@ void DxuiHexPainter::PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & them
         {
             FillStyled (text, m_view.m_layout.GetSelectionCellRect (offset, index, txtRect, false), style);
 
-            DrawCell (text, txtRect, charOf.c_str(), style.ink != 0 ? style.ink : argb, font, style.isBold ? DxuiFontWeight::Bold : DxuiFontWeight::Normal);
+            DrawStyledCells (text, txtRect, charOf.c_str(), style.ink != 0 ? style.ink : argb, font, style.isBold);
             continue;
         }
 
@@ -594,6 +600,32 @@ void DxuiHexPainter::DrawCell (IDxuiTextRenderer & text, const RECT & rect, cons
                           DxuiTextVAlign::Top,
                           weight,
                           false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexPainter::DrawStyledCells
+//
+//  A byte the host styles, drawn one character to a cell like the runs
+//  around it, so it lines up with them and is as wide.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHexPainter::DrawStyledCells (IDxuiTextRenderer & text, const RECT & rect, const wchar_t * chars, uint32_t argb, const DxuiFontHandle & font, bool isBold) const
+{
+    HRESULT         hr     = S_OK;
+    DxuiFontHandle  styled = font;
+
+
+
+    styled.weight = isBold ? DxuiFontWeight::Bold : DxuiFontWeight::Normal;
+
+    hr = text.DrawCells (chars, (float) rect.left, (float) rect.top, (float) m_view.m_cellWidthDip, (float) (rect.bottom - rect.top), argb, styled);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
 

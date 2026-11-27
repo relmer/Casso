@@ -100,6 +100,10 @@ struct InspectorViewContext
     }
 
     const TrackAnalysis *  GetTrack () const { return (model != nullptr && hasDisk) ? model->GetTrack() : nullptr; }
+
+    //  The name a comparison's text uses for a side: its file name, with a
+    //  folder added where the two match, from DiskComparer::GetSideNames.
+    std::wstring  GetSideName (int side) const { return (comparison != nullptr) ? comparison->names.Get (side) : SideNames().Get (side); }
 };
 
 

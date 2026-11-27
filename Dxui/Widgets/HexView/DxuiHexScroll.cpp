@@ -30,7 +30,16 @@ DxuiHexScroll::DxuiHexScroll (DxuiHexView & view)
 
 void DxuiHexScroll::SetLeftPx (int leftPx)
 {
+    int  was = m_leftPx;
+
+
+
     m_leftPx = (std::max) (0, (std::min) (leftPx, m_view.m_layout.GetContentWidthPx() - m_view.m_layout.GetViewWidthPx()));
+
+    if (m_leftPx != was && m_view.m_onScrolled)
+    {
+        m_view.m_onScrolled();
+    }
 }
 
 
@@ -80,7 +89,16 @@ void DxuiHexScroll::KeepCaretInView()
 
 void DxuiHexScroll::SetTopRow (uint64_t row)
 {
+    uint64_t  was = m_topRow;
+
+
+
     m_topRow = (std::min) (row, m_view.m_layout.GetMaxTopRow());
+
+    if (m_topRow != was && m_view.m_onScrolled)
+    {
+        m_view.m_onScrolled();
+    }
 }
 
 

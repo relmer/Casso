@@ -172,6 +172,7 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Widgets/DxuiAddressBar.h"
 #include "Widgets/DxuiFieldError.h"
 #include "Widgets/DxuiHexView.h"
+#include "Widgets/HexView/DxuiHexViewLink.h"
 #include "Widgets/DxuiInPlaceTip.h"
 #include "Widgets/DxuiSelectableText.h"
 #include "Widgets/DxuiSuggestionList.h"

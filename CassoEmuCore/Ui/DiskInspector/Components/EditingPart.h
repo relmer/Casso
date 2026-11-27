@@ -90,7 +90,15 @@ private:
     void                      TakeApplyReply      (const InspectorReply & reply);
     void                      TakeSaveCopyReply   (const InspectorReply & reply);
     bool                      GetBSectorBytes     (PendingEdit::Sector & outBytes) const;
+    bool                      GetASectorBytes     (PendingEdit::Sector & outBytes) const;
     void                      UseBBytes           ();
+    void                      UseABytes           ();
+    bool                      CanCopySector       (int toSide) const;
+    bool                      GetEditTarget       (const TrackAnalysis *& outTrack, int & outSector, int & outSide) const;
+    std::wstring              GetBEditBlock       () const;
+    int                       BeginTarget         (std::wstring & outReason);
+    void                      DropStaleBEdits     ();
+    bool                      SaveBEdits          ();
     int                       GetSelectedEdit     () const;
     void                      ShowEdit            (const PendingEdit & edit, int offset);
     static bool               IsSameFile          (const std::filesystem::path & a, const std::filesystem::path & b);

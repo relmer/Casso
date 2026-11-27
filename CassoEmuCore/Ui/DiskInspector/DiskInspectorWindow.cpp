@@ -1479,6 +1479,12 @@ void DiskInspectorWindow::ShowTrackTab (int tab)
 {
     m_session.trackTab    = tab;
     m_session.isDiskGroup = false;
+
+    if (tab == kTabSectorData)
+    {
+        m_session.views.sectors->ScrollToSelected();
+    }
+
     ShowTabContent();
 }
 

@@ -5,6 +5,7 @@
 #include "Theme/DxuiColor.h"
 #include "Render/IDxuiPainter.h"
 #include "Render/DxuiRoundedOutline.h"
+#include "Core/DxuiTextElide.h"
 
 
 
@@ -356,7 +357,7 @@ bool DxuiHexRegions::TryGetLabelSegment (uint64_t row, int unit, LabelSegment & 
 //
 //  Space opens between two rows only where an outline's edge runs between
 //  them: a lane a label fits in where a label sits on the edge, a thin one
-//  for an edge alone.
+//  for an edge alone, unless the edges are tight.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -395,6 +396,14 @@ int DxuiHexRegions::GetLaneAbove (uint64_t row) const
     if (hasLabel)
     {
         return GetLabelLane();
+    }
+
+    //  With tight edges, an edge alone between two rows fits in the rows'
+    //  spacing; only the edges above the first row and below the last get a
+    //  lane.
+    if (m_isTightEdges && row > 0 && row < m_view.m_layout.GetRowCount())
+    {
+        return 0;
     }
 
     return hasEdge ? m_view.m_scaler.ToPx (kEdgeLaneDip) : 0;
@@ -650,6 +659,9 @@ void DxuiHexRegions::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
     lastRow = (std::min) (lastRow, (int64_t) m_view.m_layout.GetRowCount() - 1);
 
+    m_runs.clear();
+    m_cutLabels.clear();
+
     for (int64_t row = firstRow; row <= lastRow; row++)
     {
         for (int unit = 0; unit < units; unit++)
@@ -660,7 +672,7 @@ void DxuiHexRegions::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
             {
                 if (runRegion != 0)
                 {
-                    PaintRun (painter, text, theme, runRow, runUnit, prevRow, prevUnit, runRegion);
+                    m_runs.push_back ({ runRow, runUnit, prevRow, prevUnit, runRegion });
                 }
 
                 runRegion = region;
@@ -675,7 +687,20 @@ void DxuiHexRegions::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
     if (runRegion != 0)
     {
-        PaintRun (painter, text, theme, runRow, runUnit, prevRow, prevUnit, runRegion);
+        m_runs.push_back ({ runRow, runUnit, prevRow, prevUnit, runRegion });
+    }
+
+    //  A raised region goes last, so the edges it shares with its neighbors
+    //  are in its color.
+    for (bool isRaised : { false, true })
+    {
+        for (const Run & run : m_runs)
+        {
+            if (m_view.m_source->IsRegionRaised (run.region) == isRaised)
+            {
+                PaintRun (painter, text, theme, run.firstRow, run.firstUnit, run.lastRow, run.lastUnit, run.region);
+            }
+        }
     }
 }
 
@@ -717,6 +742,7 @@ void DxuiHexRegions::PaintRun (
     float                    edgeY  = 0.0f;
     float                    width  = 0.0f;
     float                    height = 0.0f;
+    float                    limit  = 0.0f;
     HRESULT                  hr     = S_OK;
 
 
@@ -784,11 +810,25 @@ void DxuiHexRegions::PaintRun (
                          m_view.m_scaler.ToPxf ((float) kLabelLeadDip), GetUnitLeft (0), GetUnitRight (units - 1));
 
     font.sizeDip = m_view.m_scaler.ToPxf (font.sizeDip * m_view.m_painter.m_zoom) * kLabelScale;
+    limit        = (float) (m_view.m_boundsDip.left + m_view.m_layout.GetViewWidthPx());
+
+    //  A label that runs past the view's right is cut off with an ellipsis,
+    //  and its full text is the tip over it.
+    if (left + width > limit && limit - left > 0.0f)
+    {
+        float  pad = (float) m_view.m_scaler.ToPx (kLabelPadDip);
+
+
+
+        width = limit - left;
+        m_cutLabels.push_back ({ RECT { (LONG) left, (LONG) (edgeY - height / 2.0f), (LONG) (left + width), (LONG) (edgeY + height / 2.0f) }, label });
+        label = DxuiTextElide::ToWidth (text, label, font.sizeDip, font.face, (std::max) (width - 2.0f * pad, 0.0f), DxuiElide::Tail);
+    }
 
     DxuiHexPainter::FillCell (text, RECT { (LONG) left, (LONG) (edgeY - height / 2.0f),
                                            (LONG) (left + width), (LONG) (edgeY + height / 2.0f) }, theme.TextViewBackground());
 
-    hr = text.DrawString (label.c_str(), left, edgeY - height / 2.0f, width, height, argb,
+    hr = text.DrawString (label.c_str(), left, edgeY - height / 2.0f, width, height, m_view.m_source->GetRegionLabelArgb (region, argb),
                           font.sizeDip, font.face, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
@@ -838,4 +878,29 @@ void DxuiHexRegions::DrawOutline (IDxuiPainter & painter, const std::vector<Dxui
     {
         painter.DrawLine (segment.from.x, segment.from.y, segment.to.x, segment.to.y, thickness, argb);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHexRegions::TryGetCutLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHexRegions::TryGetCutLabel (POINT pointDip, std::wstring & outText, RECT & outRect) const
+{
+    for (const CutLabel & cut : m_cutLabels)
+    {
+        if (PtInRect (&cut.rect, pointDip))
+        {
+            outText = cut.text;
+            outRect = cut.rect;
+            return true;
+        }
+    }
+
+    return false;
 }

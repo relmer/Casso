@@ -36,7 +36,8 @@ public:
     void  EnsureCellSize (IDxuiTextRenderer & text, const IDxuiTheme & theme);
 
     //  One cell run of the fixed-width face, and the fill behind it.
-    static void  DrawCell (IDxuiTextRenderer & text, const RECT & rect, const wchar_t * chars, uint32_t argb, const DxuiFontHandle & font, DxuiFontWeight weight = DxuiFontWeight::Normal);
+    static void  DrawCell        (IDxuiTextRenderer & text, const RECT & rect, const wchar_t * chars, uint32_t argb, const DxuiFontHandle & font, DxuiFontWeight weight = DxuiFontWeight::Normal);
+    void         DrawStyledCells (IDxuiTextRenderer & text, const RECT & rect, const wchar_t * chars, uint32_t argb, const DxuiFontHandle & font, bool isBold) const;
 
     //  The addresses' strength as a fraction of the bytes'.
     static constexpr float  s_kAddressStrength  = 0.55f;

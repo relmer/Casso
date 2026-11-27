@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/DiskInspector/Components/ViewTables.h"
+#include "Devices/Disk/Inspector/DiskComparer.h"
 #include "Ui/DiskInspector/Components/IInspectorComponentHost.h"
 #include "Ui/DiskInspector/Components/InspectorSession.h"
 #include "Ui/DiskInspector/InspectorMarquee.h"
@@ -136,21 +137,8 @@ void ViewTables::RefreshTables()
 
 std::wstring ViewTables::GetSideName (int side) const
 {
-    const DiskCopy *  copy = (side == 0) ? m_session.analysis.copy.get() : m_session.comparison.GetB().copy.get();
-    std::wstring      name;
-
-
-
-    if (m_session.comparison.HasResult())
-    {
-        name = m_session.comparison.GetResult().names.Get (side);
-    }
-    else if (copy != nullptr)
-    {
-        name = std::filesystem::path (copy->fileName).filename().wstring();
-    }
-
-    return name.empty() ? SideNames().Get (side) : name;
+    return m_session.comparison.HasResult() ? m_session.comparison.GetResult().names.Get (side)
+                                            : DiskComparer::GetSideNames (m_session.analysis, m_session.comparison.GetB()).Get (side);
 }
 
 

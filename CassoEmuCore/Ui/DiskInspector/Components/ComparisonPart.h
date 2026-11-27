@@ -74,7 +74,6 @@ private:
     void  PaintSectorsNote     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
 
     std::wstring         GetPath     (int side) const;
-    static std::wstring  GetLeafName (const std::wstring & path);
     static int           FindSector  (const TrackAnalysis & track, int sector);
 
     InspectorSession         & m_session;

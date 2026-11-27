@@ -1157,6 +1157,8 @@ void ComparisonPart::SwapSides()
 
 
     m_session.comparison.Swap (m_session.analysis, m_session.scheduler, m_session.sourceA);
+    m_session.edits.SwapSides();
+    m_session.editsBMedia = m_session.comparison.GetB().mediaId;
 
     //  Each side's view moves to the other image, so the zoom, the track and
     //  the place on it remain where they were.
@@ -1478,27 +1480,13 @@ std::wstring ComparisonPart::GetPath (int side) const
 //
 //  ComparisonPart::GetImageName
 //
-//  A side's name in the comparison's text once there is a result, its file
-//  name before.
+//  A side's name in the comparison's text: from the result once there is
+//  one, and from DiskComparer::GetSideNames before.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring ComparisonPart::GetImageName (int side) const
 {
-    return m_session.comparison.HasResult() ? m_session.comparison.GetResult().names.Get (side) : GetLeafName (GetPath (side));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ComparisonPart::GetLeafName
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring ComparisonPart::GetLeafName (const std::wstring & path)
-{
-    return std::filesystem::path (path).filename().wstring();
+    return m_session.comparison.HasResult() ? m_session.comparison.GetResult().names.Get (side)
+                                            : DiskComparer::GetSideNames (GetPath (ComparisonSession::kSideA), GetPath (ComparisonSession::kSideB)).Get (side);
 }

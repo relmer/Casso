@@ -93,6 +93,31 @@ public:
         (void) outLabel;
         return false;
     }
+
+    //  Whether a region's outline is drawn over its neighbors', so the edges
+    //  they share are in its color, as for a selected region.
+    virtual bool  IsRegionRaised (uint16_t region) const
+    {
+        (void) region;
+        return false;
+    }
+
+    //  Whether a byte is padding the source has no value for, such as the
+    //  rest of a row after a run ends. The bytes at a row's end that are
+    //  absent are not drawn.
+    virtual bool  IsByteAbsent (uint64_t offset) const
+    {
+        (void) offset;
+        return false;
+    }
+
+    //  The color of a region's label, which can differ from its outline's,
+    //  as for a selected region with a problem.
+    virtual uint32_t  GetRegionLabelArgb (uint16_t region, uint32_t outlineArgb) const
+    {
+        (void) region;
+        return outlineArgb;
+    }
 };
 
 
@@ -210,6 +235,10 @@ public:
     //  typed, so the tip never sits over an edit in progress.
     bool       TryGetByteTipAt  (POINT clientDip, RECT & outCellDip, std::wstring & outTip) const;
 
+    //  The full text of a region label cut off at the view's right, when a
+    //  point is on it, and the label's rect.
+    bool       TryGetLabelTipAt (POINT clientDip, RECT & outRectDip, std::wstring & outTip) const { return m_regions.TryGetCutLabel (clientDip, outTip, outRectDip); }
+
     //  Selection. `SelectByte` starts a new run, `ExtendSelectionTo` moves the
     //  moving end of it, and the anchor stays where the run began.
     void  SelectByte        (uint64_t offset, Column column) { m_selection.SelectByte (offset, column); }
@@ -252,6 +281,12 @@ public:
     //  values hidden, there are none.
     void  SetShowRegions    (bool show)       { m_regions.SetShow (show); }
     bool  IsShowingRegions  () const          { return m_regions.IsShowing(); }
+
+    //  Space between rows only for a label, the edges between them drawn in
+    //  the rows' spacing, for a view with few regions next to each other.
+    //  Off by default.
+    void  SetTightRegionEdges (bool tight)    { m_regions.SetTight (tight); }
+
     bool  AreRegionsDrawn   () const          { return m_regions.IsDrawn(); }
 
     //  The space above a row that the outlines need, where a row's values
@@ -274,6 +309,9 @@ public:
 
     void  SetOnBuildContextMenu (BuildMenuFn fn) { m_onBuildMenu = std::move (fn); }
     void  SetOnSettingsChanged  (SettingsFn fn)  { m_onSettings  = std::move (fn); }
+
+    //  Called after the top row or the left edge changes, however it moved.
+    void  SetOnScrolled         (std::function<void ()> fn) { m_onScrolled = std::move (fn); }
     void  ShowContextMenu       (POINT atDip);
 
     //  The menu's items, the host's included; ShowContextMenu shows them.
@@ -423,6 +461,7 @@ private:
     BuildMenuFn                    m_onBuildMenu;
     SettingsFn                     m_onSettings;
     std::function<void ()>         m_onSelectionChanged;
+    std::function<void ()>         m_onScrolled;
     RECT                           m_frameDip       = {};
     bool                           m_hasFocus       = false;
 

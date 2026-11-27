@@ -93,6 +93,51 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  InspectorImageLoader::ApplyWrites
+//
+//  The image loads as LoadBytes loads it, the writes go in with the
+//  editor's policy, all or none, and the image is serialized again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT InspectorImageLoader::ApplyWrites (const vector<Byte> & bytes, const std::string & utf8Path, std::span<const SectorWrite> writes,
+                                           vector<Byte> & outBytes, std::wstring & outReason)
+{
+    HRESULT                   hr     = S_OK;
+    DiskFormat                format = DiskFormat::Dsk;
+    std::wstring              name   = fs::path (TextEncoding::Utf8ToWide (utf8Path)).filename().wstring();
+    DiskImage                 image;
+    vector<SectorWriteError>  errors;
+    bool                      isRead = false;
+
+
+
+    outBytes.clear();
+    outReason.clear();
+
+    hr = DiskSourceFormat::GetSourceFormatByExtension (utf8Path, format);
+    CHRF (hr, outReason = std::format (L"{} is not a disk image Casso opens.", name));
+
+    image.LoadFromBytes (format, bytes, utf8Path);
+    isRead = image.IsLoaded();
+    CBRF (isRead, outReason = std::format (L"{} could not be read as a disk image.", name));
+
+    hr = SectorFieldWriter::Write (image, writes, SectorWritePolicy::Editor, errors);
+    CHRF (hr, outReason = errors.empty() ? std::wstring (L"The sectors could not be written") : TextEncoding::Utf8ToWide (SectorFieldWriter::Describe (errors.front())));
+
+    hr = image.Serialize (outBytes);
+    CHRF (hr, outReason = L"The disk could not be saved in its format");
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  InspectorImageLoader::MakeMediaId
 //
 ////////////////////////////////////////////////////////////////////////////////

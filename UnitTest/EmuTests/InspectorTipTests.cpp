@@ -404,6 +404,10 @@ public:
 
         row.Layout   ({ 0, 0, 900, 200 }, scaler);
         bytes.Layout ({ 0, 0, 900, 700 }, scaler);
+
+        //  The hex view measures its cells on the first paint, and the selected
+        //  sector is scrolled to the top for the row width on the next.
+        bytes.Paint  (painter, text, theme);
         bytes.Paint  (painter, text, theme);
 
         for (int y = 0; y < 200 && tip.find (L"Sector $3") == std::wstring::npos; y += 2)

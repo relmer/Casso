@@ -420,7 +420,7 @@ bool NibblesView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & outA
         //  (FR-121).
         if (m_context.nibbleDiffs != nullptr && trackB != nullptr && ComparisonText::FindInHunk (*m_context.nibbleDiffs, nibble, nibbleB))
         {
-            std::wstring  other = (m_context.comparison != nullptr) ? m_context.comparison->names.Get (1) : SideNames().Get (1);
+            std::wstring  other = m_context.GetSideName (1);
 
             outText += (nibbleB >= 0 && !trackB->framed.nibbles.empty())
                      ? std::format (L"\n{} has ${:02X}", other, trackB->framed.nibbles[static_cast<size_t> (nibbleB) % trackB->framed.nibbles.size()].value)

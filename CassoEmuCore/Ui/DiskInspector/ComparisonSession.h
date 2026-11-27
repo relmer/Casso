@@ -61,6 +61,9 @@ public:
     void  Begin (const ComparisonSource & a, const ComparisonSource & b, bool isLoadingA, const DecodeSettings & settings, IDiskInspectorHost & host);
     void  End   ();
 
+    //  Reads a side's source again, as after its edits are saved.
+    void  Reload (int side, IDiskInspectorHost & host) { StartRead (side, host); }
+
     //  A host reply to one of the session's reads; false for any other.
     bool  OfferReply (const InspectorReply & reply);
 

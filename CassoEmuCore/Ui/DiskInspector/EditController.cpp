@@ -165,9 +165,9 @@ bool EditController::IsChecksumGoodAfter (const PendingEdit & edit, const TrackA
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int EditController::Begin (const TrackAnalysis & track, int quarterTrack, int sectorIndex, std::wstring & outReason)
+int EditController::Begin (const TrackAnalysis & track, int quarterTrack, int sectorIndex, std::wstring & outReason, int side)
 {
-    int  edit = Find (track, sectorIndex);
+    int  edit = Find (track, sectorIndex, side);
 
 
 
@@ -179,6 +179,7 @@ int EditController::Begin (const TrackAnalysis & track, int quarterTrack, int se
         const LocatedField   &  data   = track.fields[sector.dataField];
         PendingEdit             pending;
 
+        pending.side              = side;
         pending.slot              = track.slot;
         pending.quarterTrack      = quarterTrack;
         pending.fieldStartCell    = data.startCell;
@@ -205,7 +206,7 @@ int EditController::Begin (const TrackAnalysis & track, int quarterTrack, int se
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int EditController::Find (int slot, uint32_t fieldStartCell) const
+int EditController::Find (int slot, uint32_t fieldStartCell, int side) const
 {
     int  found = -1;
 
@@ -213,7 +214,7 @@ int EditController::Find (int slot, uint32_t fieldStartCell) const
 
     for (size_t i = 0; found < 0 && i < m_edits.size(); i++)
     {
-        found = (m_edits[i].slot == slot && m_edits[i].fieldStartCell == fieldStartCell) ? static_cast<int> (i) : -1;
+        found = (m_edits[i].side == side && m_edits[i].slot == slot && m_edits[i].fieldStartCell == fieldStartCell) ? static_cast<int> (i) : -1;
     }
 
     return found;
@@ -229,7 +230,7 @@ int EditController::Find (int slot, uint32_t fieldStartCell) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int EditController::Find (const TrackAnalysis & track, int sectorIndex) const
+int EditController::Find (const TrackAnalysis & track, int sectorIndex, int side) const
 {
     int  found = -1;
 
@@ -237,7 +238,7 @@ int EditController::Find (const TrackAnalysis & track, int sectorIndex) const
 
     if (sectorIndex >= 0 && sectorIndex < static_cast<int> (track.sectors.size()) && track.sectors[sectorIndex].dataField >= 0)
     {
-        found = Find (track.slot, track.fields[track.sectors[sectorIndex].dataField].startCell);
+        found = Find (track.slot, track.fields[track.sectors[sectorIndex].dataField].startCell, side);
     }
 
     return found;
@@ -537,6 +538,61 @@ void EditController::DiscardSector (int edit)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EditController::RemoveSide
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EditController::RemoveSide (int side)
+{
+    size_t  count = m_edits.size();
+
+
+
+    std::erase_if (m_edits, [side] (const PendingEdit & edit) { return edit.side == side; });
+
+    if (m_edits.size() != count)
+    {
+        m_actions.clear();
+        m_undoAt      = 0;
+        m_digitAction = -1;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditController::SwapSides
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EditController::SwapSides()
+{
+    for (PendingEdit & edit : m_edits)
+    {
+        edit.side = 1 - edit.side;
+    }
+
+    for (Action & action : m_actions)
+    {
+        for (vector<PendingEdit> * set : { &action.setBefore, &action.setAfter })
+        {
+            for (PendingEdit & edit : *set)
+            {
+                edit.side = 1 - edit.side;
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EditController::SetChecksumMode
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -584,7 +640,7 @@ bool EditController::SetSector (int edit, const PendingEdit::Sector & bytes)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EditController::Follow (const DiskAnalysis & analysis, vector<PendingEdit> & outDiscarded)
+void EditController::Follow (const DiskAnalysis & analysis, vector<PendingEdit> & outDiscarded, int side)
 {
     vector<PendingEdit>  remaining;
     int                  field     = -1;
@@ -598,8 +654,9 @@ void EditController::Follow (const DiskAnalysis & analysis, vector<PendingEdit> 
         bool                   isSlot = edit.slot >= 0 && edit.slot < static_cast<int> (analysis.tracks.size());
         const TrackAnalysis *  track  = isSlot ? analysis.tracks[edit.slot].get() : nullptr;
 
-        //  After a reload, an edit on a record with no analysis yet is not dropped.
-        if (isSlot && track == nullptr)
+        //  After a reload, an edit on a record with no analysis yet is not
+        //  dropped, nor is an edit of the other side.
+        if ((isSlot && track == nullptr) || edit.side != side)
         {
             remaining.push_back (edit);
             continue;
@@ -663,7 +720,7 @@ void EditController::Follow (const DiskAnalysis & analysis, vector<PendingEdit> 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-vector<SectorWrite> EditController::BuildWrites (const DiskAnalysis & analysis) const
+vector<SectorWrite> EditController::BuildWrites (const DiskAnalysis & analysis, int side) const
 {
     vector<SectorWrite>  writes;
     int                  field = -1;
@@ -675,7 +732,7 @@ vector<SectorWrite> EditController::BuildWrites (const DiskAnalysis & analysis) 
         const TrackAnalysis *  track = (edit.slot >= 0 && edit.slot < static_cast<int> (analysis.tracks.size())) ? analysis.tracks[edit.slot].get() : nullptr;
         SectorWrite            write;
 
-        if (edit.CountChanged() == 0)
+        if (edit.side != side || edit.CountChanged() == 0)
         {
             continue;
         }
@@ -709,10 +766,10 @@ vector<SectorWrite> EditController::BuildWrites (const DiskAnalysis & analysis) 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EditController::HasChanges (int slot, Byte sectorNumber) const
+bool EditController::HasChanges (int slot, Byte sectorNumber, int side) const
 {
     return std::any_of (m_edits.begin(), m_edits.end(),
-                        [&] (const PendingEdit & edit) { return edit.slot == slot && edit.sectorNumber == sectorNumber && edit.CountChanged() > 0; });
+                        [&] (const PendingEdit & edit) { return edit.side == side && edit.slot == slot && edit.sectorNumber == sectorNumber && edit.CountChanged() > 0; });
 }
 
 
@@ -725,9 +782,9 @@ bool EditController::HasChanges (int slot, Byte sectorNumber) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int EditController::CountChangedSectors (int slot) const
+int EditController::CountChangedSectors (int slot, int side) const
 {
-    return static_cast<int> (std::count_if (m_edits.begin(), m_edits.end(), [slot] (const PendingEdit & edit) { return edit.slot == slot && edit.CountChanged() > 0; }));
+    return static_cast<int> (std::count_if (m_edits.begin(), m_edits.end(), [slot, side] (const PendingEdit & edit) { return edit.side == side && edit.slot == slot && edit.CountChanged() > 0; }));
 }
 
 
@@ -742,6 +799,26 @@ int EditController::CountChangedSectors (int slot) const
 
 EditController::Counts EditController::GetCounts() const
 {
+    Counts  a = GetCounts (0);
+    Counts  b = GetCounts (1);
+
+
+
+    return { a.bytes + b.bytes, a.sectors + b.sectors };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditController::GetCounts
+//
+////////////////////////////////////////////////////////////////////////////////
+
+EditController::Counts EditController::GetCounts (int side) const
+{
     Counts  counts;
     int     changed = 0;
 
@@ -749,6 +826,11 @@ EditController::Counts EditController::GetCounts() const
 
     for (const PendingEdit & edit : m_edits)
     {
+        if (edit.side != side)
+        {
+            continue;
+        }
+
         changed         = edit.CountChanged();
         counts.bytes   += changed;
         counts.sectors += (changed > 0) ? 1 : 0;
@@ -767,7 +849,7 @@ EditController::Counts EditController::GetCounts() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-EditController EditController::MakeOverCurrent (bool isReverse) const
+EditController EditController::MakeOverCurrent (bool isReverse, int side) const
 {
     EditController  result;
 
@@ -775,7 +857,7 @@ EditController EditController::MakeOverCurrent (bool isReverse) const
 
     for (const PendingEdit & edit : m_edits)
     {
-        if (edit.CountChanged() > 0)
+        if (edit.side == side && edit.CountChanged() > 0)
         {
             PendingEdit  over = edit;
 
@@ -803,7 +885,7 @@ EditController EditController::MakeOverCurrent (bool isReverse) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EditController::IsCurrentIn (const DiskAnalysis & analysis) const
+bool EditController::IsCurrentIn (const DiskAnalysis & analysis, int side) const
 {
     bool  isCurrent = true;
     int   field     = -1;
@@ -814,7 +896,7 @@ bool EditController::IsCurrentIn (const DiskAnalysis & analysis) const
     {
         const TrackAnalysis *  track = (edit.slot >= 0 && edit.slot < static_cast<int> (analysis.tracks.size())) ? analysis.tracks[edit.slot].get() : nullptr;
 
-        if (!isCurrent || edit.CountChanged() == 0)
+        if (!isCurrent || edit.side != side || edit.CountChanged() == 0)
         {
             continue;
         }
@@ -841,11 +923,11 @@ bool EditController::IsCurrentIn (const DiskAnalysis & analysis) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EditController::SetWriteCount (int slot, uint64_t count)
+void EditController::SetWriteCount (int slot, uint64_t count, int side)
 {
     for (PendingEdit & edit : m_edits)
     {
-        edit.writeCountAtStart = (edit.slot == slot) ? count : edit.writeCountAtStart;
+        edit.writeCountAtStart = (edit.side == side && edit.slot == slot) ? count : edit.writeCountAtStart;
     }
 }
 
@@ -889,7 +971,7 @@ bool EditController::HasSameChanges (const EditController & other) const
 
     for (size_t i = 0; isSame && i < mine.size(); i++)
     {
-        isSame = mine[i]->slot == theirs[i]->slot && mine[i]->sectorNumber == theirs[i]->sectorNumber && mine[i]->fieldKind == theirs[i]->fieldKind &&
+        isSame = mine[i]->side == theirs[i]->side && mine[i]->slot == theirs[i]->slot && mine[i]->sectorNumber == theirs[i]->sectorNumber && mine[i]->fieldKind == theirs[i]->fieldKind &&
                  mine[i]->bytes == theirs[i]->bytes && mine[i]->bytesAtStart == theirs[i]->bytesAtStart && mine[i]->checksumMode == theirs[i]->checksumMode;
     }
 

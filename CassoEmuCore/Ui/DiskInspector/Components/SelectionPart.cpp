@@ -279,7 +279,7 @@ void SelectionPart::ExtendSelection (WPARAM vk)
 {
     const TrackAnalysis *  track  = m_session.model.GetTrack();
     bool                   isByte = m_session.keyTarget == KeyTarget::SectorData;
-    int                    row    = isByte ? SectorsView::kBytesPerRow : std::max (m_session.views.nibbles->GetPerRow(), 1);
+    int                    row    = isByte ? m_session.views.sectors->GetBytesPerRow() : std::max (m_session.views.nibbles->GetPerRow(), 1);
     int                    first  = isByte ? m_session.model.GetFirstByte()  : m_session.model.GetFirstNibble();
     int                    count  = isByte ? m_session.model.GetByteCount()  : m_session.model.GetNibbleCount();
     int                    anchor = isByte ? m_session.model.GetByteAnchor() : m_session.model.GetNibbleAnchor();
@@ -414,6 +414,11 @@ void SelectionPart::ShowContextMenu (POINT pointPx)
     std::shared_ptr<DxuiCommand>      save   = std::make_shared<DxuiCommand>();
 
 
+
+    if (host != nullptr && m_session.keyTarget == KeyTarget::SectorData && m_session.views.sectors->TryShowHexMenu (pointPx, *host))
+    {
+        return;
+    }
 
     copy->label          = L"Copy";
     copy->accelerator    = L"Ctrl+C";

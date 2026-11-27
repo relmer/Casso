@@ -96,3 +96,56 @@ void BlockHexSource::ReadMarks (uint64_t offset, std::span<uint8_t> out) const
         out[i] = offset + i < m_marks.size() ? m_marks[offset + i] : kMarkNone;
     }
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockHexSource::ReadRegions
+//
+//  Region n is the nth in the list, counting from one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockHexSource::ReadRegions (uint64_t offset, std::span<uint16_t> out) const
+{
+    size_t  next = 0;
+
+
+
+    for (size_t i = 0; i < out.size(); i++)
+    {
+        uint64_t  at = offset + i;
+
+        while (next < m_regions.size() && m_regions[next].first + m_regions[next].count <= at)
+        {
+            next++;
+        }
+
+        out[i] = (next < m_regions.size() && at >= m_regions[next].first) ? static_cast<uint16_t> (next + 1) : uint16_t (0);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockHexSource::TryGetRegionStyle
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BlockHexSource::TryGetRegionStyle (uint16_t region, uint32_t & outArgb, std::wstring & outLabel) const
+{
+    if (region == 0 || region > m_regions.size())
+    {
+        return false;
+    }
+
+    outArgb  = m_regions[region - 1].argb;
+    outLabel = m_regions[region - 1].label;
+    return true;
+}

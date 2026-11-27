@@ -52,6 +52,7 @@ public:
 
     bool  IsShowing () const { return m_showRegions; }
     void  SetShow   (bool show);
+    void  SetTight  (bool tight) { m_isTightEdges = tight; m_lanesTopRow = UINT64_MAX; }
     bool  IsDrawn   () const;
 
     //  The space above a row that the outlines need, in the bounds' units:
@@ -83,6 +84,9 @@ public:
 
     void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
 
+    //  The full text of a label the last paint cut off, when a point is on it.
+    bool  TryGetCutLabel (POINT pointDip, std::wstring & outText, RECT & outRect) const;
+
 private:
     //  A unit is one value of the hex column; a region is read at each value's
     //  first byte. Rows past either end are in no region.
@@ -101,7 +105,27 @@ private:
 
     DxuiHexView  & m_view;
 
-    bool  m_showRegions = false;
+    struct Run
+    {
+        int64_t   firstRow  = 0;
+        int       firstUnit = 0;
+        int64_t   lastRow   = 0;
+        int       lastUnit  = 0;
+        uint16_t  region    = 0;
+    };
+
+    std::vector<Run>  m_runs;   // the runs on screen, reused so a paint does not allocate
+
+    struct CutLabel
+    {
+        RECT          rect = {};
+        std::wstring  text;
+    };
+
+    std::vector<CutLabel>  m_cutLabels;   // the labels the last paint cut off
+
+    bool  m_showRegions  = false;
+    bool  m_isTightEdges = false;
 
     //  Each row's top, down from the bounds' top, from the top row on, as the
     //  last refresh of the lanes found them.

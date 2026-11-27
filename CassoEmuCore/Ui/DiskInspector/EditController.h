@@ -29,6 +29,7 @@ struct PendingEdit
 {
     using Sector = std::array<Byte, DiskFieldFormat::kSectorBytes>;
 
+    int            side              = 0;    // 0 for the window's disk (A), 1 for the comparison's other image (B)
     int            slot              = -1;
     int            quarterTrack      = -1;
     uint32_t       fieldStartCell    = 0;
@@ -80,11 +81,13 @@ public:
 
     //  Starts editing a sector, or finds the edit already pending on it.
     //  Returns its index, or -1 with the reason the sector cannot be edited.
-    int   Begin (const TrackAnalysis & track, int quarterTrack, int sectorIndex, std::wstring & outReason);
+    //  `side` is 0 for A's sectors and 1 for B's; the edits of both sides
+    //  share one undo history.
+    int   Begin (const TrackAnalysis & track, int quarterTrack, int sectorIndex, std::wstring & outReason, int side = 0);
 
     //  The pending edit on a sector, or -1.
-    int   Find  (int slot, uint32_t fieldStartCell) const;
-    int   Find  (const TrackAnalysis & track, int sectorIndex) const;
+    int   Find  (int slot, uint32_t fieldStartCell, int side = 0) const;
+    int   Find  (const TrackAnalysis & track, int sectorIndex, int side = 0) const;
 
     //  Sets the hex digit at `offset`, high nibble when `isHighNibble`.
     bool  TypeHexDigit (int edit, int offset, bool isHighNibble, wchar_t digit);
@@ -110,6 +113,13 @@ public:
     void  DiscardAll    ();
     void  DiscardSector (int edit);
 
+    //  Drops one side's edits once they are saved or that side's image is
+    //  gone, and with them the undo history, which refers to edits by index.
+    void  RemoveSide (int side);
+
+    //  A and B changed places, so each edit's side flips.
+    void  SwapSides  ();
+
     void  SetChecksumMode (int edit, ChecksumMode mode);
 
     //  All 256 bytes of a sector at once, as one action, for "Use B's
@@ -121,32 +131,34 @@ public:
     //  or reload. An edit whose sector's bytes changed is marked out of date;
     //  one whose sector cannot be found or edited is dropped, and its sector
     //  number is added to `outDiscarded`.
-    void  Follow (const DiskAnalysis & analysis, vector<PendingEdit> & outDiscarded);
+    void  Follow (const DiskAnalysis & analysis, vector<PendingEdit> & outDiscarded, int side = 0);
 
     //  The writer's requests for every edit with changes. An out-of-date
     //  edit writes only the bytes the user changed over the sector's current
     //  contents (FR-108).
-    vector<SectorWrite>  BuildWrites (const DiskAnalysis & analysis) const;
+    vector<SectorWrite>  BuildWrites (const DiskAnalysis & analysis, int side = 0) const;
 
     //  Edits that write these edits' changed bytes over each sector's current
     //  bytes, or with `isReverse` the bytes they replaced, for undoing or
     //  redoing a save after the guest wrote the track.
-    EditController       MakeOverCurrent (bool isReverse) const;
+    EditController       MakeOverCurrent (bool isReverse, int side = 0) const;
 
     //  Whether each changed byte has its edited value in the sectors as now
     //  decoded.
-    bool                 IsCurrentIn (const DiskAnalysis & analysis) const;
+    bool                 IsCurrentIn (const DiskAnalysis & analysis, int side = 0) const;
 
     //  The guest write count of each edit on a record, from the count a save
     //  or undo left.
-    void                 SetWriteCount (int slot, uint64_t count);
+    void                 SetWriteCount (int slot, uint64_t count, int side = 0);
 
     //  Whether a sector of a record has changed bytes pending, and how many
     //  of a record's sectors do, for the marks in other views (FR-097).
-    bool  HasChanges          (int slot, Byte sectorNumber) const;
-    int   CountChangedSectors (int slot) const;
+    bool  HasChanges          (int slot, Byte sectorNumber, int side = 0) const;
+    int   CountChangedSectors (int slot, int side = 0) const;
 
+    //  The changes on both sides, or on one.
     Counts                       GetCounts      () const;
+    Counts                       GetCounts      (int side) const;
     bool                         IsEmpty        () const { return GetCounts().sectors == 0; }
     bool                         HasSameChanges (const EditController & other) const;
     const vector<PendingEdit>  & GetEdits       () const { return m_edits; }

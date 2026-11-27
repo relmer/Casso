@@ -35,7 +35,20 @@ void DxuiHexView::BuildContextMenu (std::vector<DxuiPopupMenuItem> & items)
         command->isChecked = std::move (checked);
         command->dispatch  = [this, apply = std::move (apply)]()
         {
+            //  The caret's byte stays on the same line of the view, the rows
+            //  scrolling around it, when the layout changes.
+            uint64_t  caret = GetCaret();
+            uint64_t  top   = m_scroll.GetTopRow();
+            uint64_t  row   = m_layout.GetRowOfOffset (caret);
+            uint64_t  line  = (row >= top) ? row - top : 0;
+            uint64_t  now   = 0;
+
+
+
             apply();
+
+            now = m_layout.GetRowOfOffset (caret);
+            m_scroll.SetTopRow ((now >= line) ? now - line : 0);
 
             if (m_onSettings)
             {
