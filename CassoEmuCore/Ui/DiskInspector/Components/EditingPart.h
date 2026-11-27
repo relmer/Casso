@@ -99,6 +99,7 @@ private:
     int                       BeginTarget         (std::wstring & outReason);
     void                      DropStaleBEdits     ();
     bool                      SaveBEdits          ();
+    void                      SaveBEditedCopy     ();
     int                       GetSelectedEdit     () const;
     void                      ShowEdit            (const PendingEdit & edit, int offset);
     static bool               IsSameFile          (const std::filesystem::path & a, const std::filesystem::path & b);

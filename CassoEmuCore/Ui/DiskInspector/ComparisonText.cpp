@@ -123,7 +123,7 @@ std::wstring ComparisonText::FormatResult (const DiskComparison & comparison)
 
     comparison.Count (identical, differ, onlyInA, onlyInB, notCompared);
 
-    for (const auto & [count, label] : { std::pair { identical, L"identical" }, std::pair { differ, L"differ" }, std::pair { onlyInA, inA.c_str() },
+    for (const auto & [count, label] : { std::pair { identical, L"identical" }, std::pair { differ, (differ == 1) ? L"differs" : L"differ" }, std::pair { onlyInA, inA.c_str() },
                                          std::pair { onlyInB, inB.c_str() }, std::pair { notCompared, L"not compared" } })
     {
         if (count > 0)

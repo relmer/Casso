@@ -924,6 +924,7 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
     in.toolbarPx     = m_toolbar->GetHeightPx (scaler);
     in.isComparing   = m_session.comparison.IsComparing();
     in.minColumnPx   = m_corners->GetMinWidthPx (scaler);
+    in.minTrackPx    = m_trackColumn->GetMinWidthPx (scaler);
     in.cornerBandPx  = m_corners->GetBottomBandPx (scaler);
     in.noticePx      = m_comparisonPart->GetNoticeHeightPx (width - 2 * margin, scaler);
     f                = InspectorWindowLayout::Plan (in, scaler);

@@ -9,6 +9,7 @@
 #include "Ui/DiskInspector/Views/DifferencesView.h"
 #include "Ui/DiskInspector/Views/FilesView.h"
 #include "Ui/DiskInspector/Views/IssuesView.h"
+#include "Ui/DiskInspector/Views/SectorsView.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Devices/Disk/Inspector/Repair/DiskRepair.h"
 
@@ -295,6 +296,7 @@ void ViewTables::SelectSectorB (int quarterTrack, int sector)
         if (trackB->sectors[i].sector == sector)
         {
             m_session.modelB.SelectSector (quarterTrack, static_cast<int> (i));
+            m_session.views.sectors->SelectSectorB (static_cast<int> (i));
             break;
         }
     }

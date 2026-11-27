@@ -490,6 +490,68 @@ public:
 
 
 
+    TEST_METHOD (BsSectorWithNoSectorOfAIsSelectedInItsSlot)
+    {
+        DiskAnalysis                    analysis;
+        DiskAnalysis                    other;
+        InspectorViewModel              model;
+        InspectorViewContext            context;
+        std::shared_ptr<TrackAnalysis>  lacking;
+        const TrackAnalysis           * trackB  = nullptr;
+        DxuiTheme                       theme   = DxuiTheme::Dark();
+        DxuiDpiScaler                   scaler;
+        MockDxuiPainter                 painter;
+        MockDxuiTextRenderer            text;
+        int                             sectorB = -1;
+
+
+
+        analysis = GetDsk();
+        other    = GetDsk();
+        trackB   = other.tracks[other.entries[68].slot].get();
+        lacking  = std::make_shared<TrackAnalysis> (*analysis.tracks[analysis.entries[68].slot]);
+
+        //  A has sector $F's data field but not its address field.
+        std::erase_if (lacking->sectors, [] (const AnalyzedSector & sector) { return sector.sector == 0xF; });
+        analysis.tracks[analysis.entries[68].slot] = lacking;
+
+        for (size_t i = 0; i < trackB->sectors.size(); i++)
+        {
+            sectorB = (trackB->sectors[i].sector == 0xF) ? static_cast<int> (i) : sectorB;
+        }
+
+        model.SetDisk      (1);
+        model.SetAnalysis  (&analysis);
+        model.SelectSector (68, 0);
+        context.analysis = &analysis;
+        context.model    = &model;
+        context.hasDisk  = true;
+        context.trackB   = trackB;
+
+        SectorsView  bytes (context);
+
+        bytes.Layout ({ 0, 0, 900, 700 }, scaler);
+        bytes.Paint  (painter, text, theme);
+        bytes.Paint  (painter, text, theme);
+
+        Assert::IsTrue (sectorB >= 0, L"B has sector $F");
+
+        bytes.SelectSectorB (sectorB);
+        bytes.Paint         (painter, text, theme);
+
+        Assert::AreEqual (-1, model.GetSectorIndex(), L"A has no sector selected");
+        Assert::AreEqual (sectorB, bytes.GetSelectedSectorB(), L"B's sector $F is selected in its slot");
+
+        bytes.Paint (painter, text, theme);
+        Assert::AreEqual (sectorB, bytes.GetSelectedSectorB(), L"and stays selected");
+
+        model.SelectSector (68, 0);
+        bytes.Paint        (painter, text, theme);
+        Assert::AreNotEqual (sectorB, bytes.GetSelectedSectorB(), L"selecting A's sector moves on from it");
+    }
+
+
+
     TEST_METHOD (ASectorTipDrawsItsChecksumErrorInTheFailedColor)
     {
         DiskAnalysis                    analysis;

@@ -34,7 +34,7 @@ InspectorWindowLayout::Frames InspectorWindowLayout::Plan (const Inputs & in, co
     int           areaH     = std::max (0, bandTop - top - 2 * margin);
     int           side      = IntRange::Limit (column, areaH, 0);
     int           minColumn = in.minColumnPx;
-    int           maxColumn = std::max (minColumn, width - 4 * margin - scaler.ToPx (s_kSplitterDip) - scaler.ToPx (s_kMinTrackColumnDip));
+    int           maxColumn = std::max (minColumn, width - 4 * margin - scaler.ToPx (s_kSplitterDip) - in.minTrackPx);
     int           y         = 0;
     Frames        f;
 

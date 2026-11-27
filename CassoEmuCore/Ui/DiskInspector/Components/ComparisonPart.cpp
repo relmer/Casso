@@ -18,6 +18,7 @@
 #include "Ui/DiskInspector/InspectorTableView.h"
 #include "Ui/DiskInspector/TrackStripView.h"
 #include "Ui/DiskInspector/Views/FilesView.h"
+#include "Ui/DiskInspector/Views/SectorsView.h"
 
 
 
@@ -1338,6 +1339,7 @@ void ComparisonPart::SelectDifference (const Difference & difference)
                 if (trackB->sectors[i].sector == difference.sector)
                 {
                     m_session.modelB.SelectSector (difference.quarterTrack, static_cast<int> (i));
+                    m_session.views.sectors->SelectSectorB (static_cast<int> (i));
                     break;
                 }
             }

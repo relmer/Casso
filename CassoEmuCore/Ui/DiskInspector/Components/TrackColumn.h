@@ -49,6 +49,9 @@ public:
     //  the area; returns where the views' content starts.
     int   Layout         (const RECT & area, const DxuiDpiScaler & scaler);
     bool  IsLayoutStale  () const;
+
+    //  The least width with each selector segment as wide as its label.
+    int   GetMinWidthPx  (const DxuiDpiScaler & scaler) const;
     RECT  GetBoundsPx    () const { return m_columnPx; }
 
     TrackHeaderView &  GetHeader    () { return *m_header; }
@@ -60,6 +63,7 @@ public:
 private:
     int   GetSelectedIndex () const;
     void  CountIssues      ();
+    int   GetSegmentPx     (const DxuiDpiScaler & scaler) const;
     void  Choose           (int index);
 
     InspectorSession         & m_session;

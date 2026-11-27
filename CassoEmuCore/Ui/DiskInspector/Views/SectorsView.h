@@ -98,6 +98,10 @@ public:
     int   GetActiveSide        () const { return m_isB ? m_activeSide : 0; }
     int   GetSelectedSectorB   () const;
 
+    //  Selects B's sector `sectorB` of the current track where A has no sector
+    //  paired with it. A's selection is cleared.
+    void  SelectSectorB        (int sectorB);
+
     //  Called with the byte double-clicked.
     using OpenFn = std::function<void (int offset)>;
     void  SetOnOpen  (OpenFn fn)    { m_onOpen = std::move (fn); }
@@ -133,6 +137,8 @@ private:
     void   PaintToggle             (IDxuiPainter & painter);
     void   FollowSelection         ();
     void   TakeSelection           ();
+    void   SelectUnpairedSlot      (int slot);
+    bool   IsUnpairedSelected      () const;
     int    HitTest                 (POINT pointPx) const;
     bool   PickStyle               (const BlockHexSource & source, uint64_t offset, uint8_t mark, bool isSelected, DxuiHexViewTypes::ByteStyle & outStyle) const;
 
@@ -164,6 +170,8 @@ private:
 
     vector<Slot>    m_slots;                   // A's data fields, then sectors only B has, a slot of the views' bytes each
     int             m_selectedSlot    = -1;    // the selected sector's slot
+    int             m_unpairedSlot    = -1;    // a selected slot with no sector of A, while A's selection is m_unpairedAt
+    int             m_pendingSectorB  = -1;    // B's sector to select at the next layout of the slots
     int             m_shownSlot       = -1;    // the slot last scrolled to the top
     int             m_shownPerRow     = 0;     // and the bytes across a row then
     size_t          m_slotLen         = DiskFieldFormat::kSectorBytes;  // a sector's slot: its bytes, then padding to the end of the row
@@ -177,4 +185,6 @@ private:
     bool            m_isFollowing     = false; // the main hex view is being set from the view model
     bool            m_isCopyingSel    = false; // one view's selection is being copied to the other
     bool            m_isB             = false;
+
+    InspectorSelection  m_unpairedAt;          // A's selection when the unpaired slot was selected
 };

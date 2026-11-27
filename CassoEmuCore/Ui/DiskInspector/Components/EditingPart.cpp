@@ -1479,9 +1479,10 @@ bool EditingPart::CanCopySector (int toSide) const
 //
 //  EditingPart::SaveEditedCopy
 //
-//  "Save as..." (FR-101): the emulation thread builds the copy's
-//  bytes from the drive's disk and the pending edits, and the reply opens
-//  the Save dialog.
+//  "Save as..." (FR-101): a copy of each image with pending edits. For A,
+//  the emulation thread builds the copy's bytes from the drive's disk and
+//  the pending edits, and the reply opens the Save dialog. B's copy is
+//  saved first.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1491,12 +1492,100 @@ void EditingPart::SaveEditedCopy()
 
 
 
-    request.kind       = InspectorRequestKind::SaveCopy;
-    request.drive      = m_session.drive;
-    request.mediaId    = m_session.analysis.mediaId;
-    request.writes     = m_session.edits.BuildWrites (m_session.analysis);
-    m_saveCopyRequest  = m_session.host->PostInspectorRequest (request);
-    m_session.editNote = L"Preparing the copy...";
+    if (m_session.edits.GetCounts (1).sectors > 0)
+    {
+        SaveBEditedCopy();
+    }
+
+    if (m_session.edits.GetCounts (0).sectors > 0)
+    {
+        request.kind       = InspectorRequestKind::SaveCopy;
+        request.drive      = m_session.drive;
+        request.mediaId    = m_session.analysis.mediaId;
+        request.writes     = m_session.edits.BuildWrites (m_session.analysis);
+        m_saveCopyRequest  = m_session.host->PostInspectorRequest (request);
+        m_session.editNote = L"Preparing the copy...";
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditingPart::SaveBEditedCopy
+//
+//  A copy of B's file with B's pending edits, saved to a new file the user
+//  chooses, never B's file or A's, whole or not at all through
+//  DurableCommit. The edits stay pending and B's file is left as it was.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EditingPart::SaveBEditedCopy()
+{
+    HRESULT                hr        = S_OK;
+    Win32HostDialogs       dialogs;
+    Win32DiskFileIo        fileIo;
+    FileDialogSpec         spec;
+    CommitPlan::Progress   progress;
+    std::filesystem::path  image     = m_session.comparison.GetSourceB().path;
+    std::filesystem::path  imageA    = std::filesystem::path (TextEncoding::Utf8ToWide (m_session.analysis.copy != nullptr ? m_session.analysis.copy->fileName : std::string()));
+    std::filesystem::path  target;
+    std::wstring           name      = m_session.context.GetSideName (1);
+    std::wstring           extension = image.has_extension() ? image.extension().wstring().substr (1) : std::wstring (L"dsk");
+    std::wstring           reason    = L"the second image is a drive's disk";
+    vector<Byte>           bytes;
+    vector<Byte>           edited;
+    bool                   isFile    = m_session.comparison.GetSourceB().kind == ComparisonSourceKind::ImageFile;
+    bool                   isPicked  = false;
+    bool                   isTaken   = true;
+
+
+
+    CBR (isFile);
+
+    reason = L"the file could not be read";
+    hr     = DiskFileCommit::ReadFileBytes (TextEncoding::WideToUtf8 (image.wstring()), bytes);
+    CHR (hr);
+
+    hr = InspectorImageLoader::ApplyWrites (bytes, TextEncoding::WideToUtf8 (image.wstring()), m_session.edits.BuildWrites (m_session.comparison.GetB(), 1), edited, reason);
+    CHR (hr);
+
+    spec.filters          = { { L"Disk images", L"*." + extension } };
+    spec.content          = FileDialogContent::Images;
+    spec.defaultExtension = extension;
+    spec.defaultFileName  = image.stem().wstring() + L" edited." + extension;
+    spec.initialFolder    = image.parent_path();
+    spec.title            = L"Save a copy of " + name;
+
+    //  Open the Save dialog again until the file is neither image's file.
+    while (isTaken)
+    {
+        hr = dialogs.PickFileToSave (m_host.GetOwnerHwnd(), spec, target, isPicked);
+        CHR (hr);
+        BAIL_OUT_IF (!isPicked, S_OK);
+
+        isTaken = IsSameFile (target, image) || IsSameFile (target, imageA);
+
+        if (isTaken)
+        {
+            (void) DxuiMessageBox (m_host.GetOwnerHwnd(), m_session.theme, L"That file is one of the images being compared. Choose another file for the copy.", L"Save as", MB_OK | MB_ICONWARNING);
+        }
+    }
+
+    reason = L"the copy could not be written to " + target.filename().wstring();
+    hr     = DurableCommit::Commit (fileIo, TextEncoding::WideToUtf8 (target.wstring()), edited, GetTickCount64(),
+                                    std::filesystem::exists (target) ? CommitMode::Replace : CommitMode::CreateNew, progress);
+    CHR (hr);
+
+    m_session.editNote = L"Saved a copy of " + name + L" with its pending edits to " + target.filename().wstring();
+
+Error:
+    if (FAILED (hr) || !isFile)
+    {
+        m_session.editNote = L"Not saved: " + reason;
+    }
 }
 
 
@@ -1551,6 +1640,7 @@ void EditingPart::TakeSaveCopyReply (const InspectorReply & reply)
     spec.defaultExtension = extension;
     spec.defaultFileName  = image.stem().wstring() + L" edited." + extension;
     spec.initialFolder    = image.parent_path();
+    spec.title            = m_session.comparison.IsComparing() ? L"Save a copy of " + m_session.context.GetSideName (0) : std::wstring();
 
     //  Open the Save dialog again until the file is neither the disk's file
     //  nor one in a drive.

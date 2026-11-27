@@ -927,7 +927,18 @@ void SectorsView::ShowBytes (const TrackAnalysis & track)
     for (size_t slot = 0; slot < m_slots.size(); slot++)
     {
         m_selectedSlot = (m_slots[slot].sector >= 0 && m_slots[slot].sector == current) ? static_cast<int> (slot) : m_selectedSlot;
+        m_unpairedSlot = (m_pendingSectorB >= 0 && m_slots[slot].sector < 0 && m_slots[slot].sectorB == m_pendingSectorB) ? static_cast<int> (slot) : m_unpairedSlot;
     }
+
+    m_pendingSectorB = -1;
+
+    //  A slot with no sector of A stays selected until A's selection changes.
+    if (m_unpairedSlot >= 0 && (m_unpairedSlot >= static_cast<int> (m_slots.size()) || m_slots[m_unpairedSlot].sector >= 0 || !(m_context.model->GetSelection() == m_unpairedAt)))
+    {
+        m_unpairedSlot = -1;
+    }
+
+    m_selectedSlot = (m_selectedSlot < 0) ? m_unpairedSlot : m_selectedSlot;
 
     bytesA.assign (m_slots.size() * slotLen, 0);
     marksA.assign (bytesA.size(), s_kMarkPad);
@@ -1427,6 +1438,20 @@ void SectorsView::FollowSelection()
 
 
 
+    //  In a slot with no sector of A, the views' selection is left as it is,
+    //  or moved into the slot when it is elsewhere.
+    if (IsUnpairedSelected())
+    {
+        if (!m_hexA.HasSelection() || m_hexA.GetSelectionAnchor() / m_slotLen != static_cast<uint64_t> (m_selectedSlot))
+        {
+            m_isFollowing = true;
+            m_hexA.SelectByte (base, column);
+            m_isFollowing = false;
+        }
+
+        return;
+    }
+
     m_isFollowing = true;
 
     if (m_selectedSlot < 0)
@@ -1504,6 +1529,18 @@ void SectorsView::TakeSelection()
         m_context.model->SelectSector (m_context.model->GetQuarterTrack(), m_slots[slot].sector);
         m_selectedSlot = slot;
         m_shownSlot    = slot;
+        m_unpairedSlot = -1;
+    }
+
+    //  A slot with no sector of A has its bytes selected in the views alone.
+    if (m_slots[slot].sector < 0)
+    {
+        if (slot != m_selectedSlot)
+        {
+            SelectUnpairedSlot (slot);
+        }
+
+        return;
     }
 
     anchor = std::min (anchor, base + s_kSector - 1);
@@ -1515,6 +1552,77 @@ void SectorsView::TakeSelection()
     {
         m_context.model->ExtendBytes (static_cast<int> (caret - base));
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SectorsView::SelectUnpairedSlot
+//
+//  A slot with no sector of A: A's data field with no address field, its
+//  nibbles selected, or a sector only B has, with A's selection cleared.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SectorsView::SelectUnpairedSlot (int slot)
+{
+    const TrackAnalysis *  track = m_context.model->GetTrack();
+    int                    field = m_slots[static_cast<size_t> (slot)].field;
+
+
+
+    if (track != nullptr && field >= 0 && field < static_cast<int> (track->fields.size()))
+    {
+        m_context.model->SelectNibbles (m_context.model->GetQuarterTrack(), track->fields[static_cast<size_t> (field)].firstNibble, track->fields[static_cast<size_t> (field)].nibbleCount);
+    }
+    else
+    {
+        m_context.model->ClearSelection();
+    }
+
+    m_unpairedAt   = m_context.model->GetSelection();
+    m_unpairedSlot = slot;
+    m_selectedSlot = slot;
+    m_shownSlot    = slot;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SectorsView::IsUnpairedSelected
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SectorsView::IsUnpairedSelected() const
+{
+    return m_unpairedSlot >= 0 && m_selectedSlot == m_unpairedSlot && m_context.model->GetSelection() == m_unpairedAt;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SectorsView::SelectSectorB
+//
+//  The slot is found when the slots are laid out for the track.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SectorsView::SelectSectorB (int sectorB)
+{
+    m_context.model->ClearSelection();
+
+    m_pendingSectorB = sectorB;
+    m_unpairedAt     = m_context.model->GetSelection();
+    m_shownSlot      = -1;
 }
 
 
@@ -1723,7 +1831,7 @@ bool SectorsView::OnEditKey (const DxuiKeyEvent & ev)
 
 
 
-    if (!m_isEditing || (GetActiveSide() == 0 ? GetEdit() : GetEditB()) < 0 || m_context.model->GetFirstByte() < 0 || ev.ctrl || ev.alt)
+    if (!m_isEditing || (GetActiveSide() == 0 ? GetEdit() : GetEditB()) < 0 || (m_context.model->GetFirstByte() < 0 && !IsUnpairedSelected()) || ev.ctrl || ev.alt)
     {
         return false;
     }

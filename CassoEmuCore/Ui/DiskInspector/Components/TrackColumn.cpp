@@ -396,6 +396,52 @@ bool TrackColumn::IsLayoutStale() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TrackColumn::GetSegmentPx
+//
+//  A selector segment's width: that of the longest label on the selector,
+//  with room for the count badge after Issues.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int TrackColumn::GetSegmentPx (const DxuiDpiScaler & scaler) const
+{
+    int  segment = scaler.ToPx (s_kMinSegmentDip);
+
+
+
+    for (const View & view : m_shown)
+    {
+        segment = std::max (segment, scaler.ToPx (static_cast<int> (std::ceil (wcslen (view.label) * InspectorMetrics::kCharWidthDip)) + s_kSegmentPadDip +
+                                                  ((view.isDisk && view.tab == kTabFindings) ? s_kBadgeRoomDip : 0)));
+    }
+
+    return segment;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackColumn::GetMinWidthPx
+//
+//  The least width at which every segment of the selector is as wide as its
+//  label. The rest of the column wraps or scrolls in less.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int TrackColumn::GetMinWidthPx (const DxuiDpiScaler & scaler) const
+{
+    return GetSegmentPx (scaler) * std::max (1, static_cast<int> (m_shown.size()));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TrackColumn::Layout
 //
 //  The header, then rows of sector buttons, each row past the first moving
@@ -410,7 +456,7 @@ int TrackColumn::Layout (const RECT & area, const DxuiDpiScaler & scaler)
     int     header  = scaler.ToPx (TrackHeaderView::kLineDip * TrackHeaderView::kLines);
     int     margin  = scaler.ToPx (InspectorMetrics::kMarginDip);
     int     rowsH   = 0;
-    int     segment = scaler.ToPx (s_kMinSegmentDip);
+    int     segment = GetSegmentPx (scaler);
     int     count   = std::max (1, static_cast<int> (m_shown.size()));
     int     y       = area.top;
 
@@ -423,12 +469,6 @@ int TrackColumn::Layout (const RECT & area, const DxuiDpiScaler & scaler)
     rowsH  = scaler.ToPx (s_kSectorRowDip) + (m_rows - 1) * scaler.ToPx (SectorRowView::kRowDip + SectorRowView::kGapDip);
     m_sectorRow->Layout ({ area.left, y, area.right, y + rowsH }, scaler);
     y += rowsH;
-
-    for (const View & view : m_shown)
-    {
-        segment = std::max (segment, scaler.ToPx (static_cast<int> (std::ceil (wcslen (view.label) * InspectorMetrics::kCharWidthDip)) + s_kSegmentPadDip +
-                                                  ((view.isDisk && view.tab == kTabFindings) ? s_kBadgeRoomDip : 0)));
-    }
 
     segment = std::min (segment, width / count);
     m_columnPx = { area.left, area.top, area.right, y };

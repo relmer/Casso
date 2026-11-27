@@ -29,6 +29,7 @@ public:
         int     toolbarPx      = 0;
         bool    isComparing    = false;
         int     minColumnPx    = 0;    // the platter's control row
+        int     minTrackPx     = 0;    // the track column's least width
         int     cornerBandPx   = 0;    // the band under the platter for its corner groups
         int     noticePx       = 0;    // the comparison's infobar under its bar
     };
@@ -52,7 +53,7 @@ public:
     };
 
     //  Wherever the splitter is, the platter column is at least as wide as
-    //  its control row, and the track column is at least its least width.
+    //  its control row, and the track column is at least minTrackPx wide.
     //  The platter is centered in a column wider than it is tall.
     static Frames  Plan (const Inputs & in, const DxuiDpiScaler & scaler);
 
@@ -61,5 +62,4 @@ private:
     static constexpr int  s_kStripDip            = 64;
     static constexpr int  s_kSplitterDip         = 6;
     static constexpr int  s_kBarDip              = 36;
-    static constexpr int  s_kMinTrackColumnDip   = 400;
 };

@@ -51,6 +51,9 @@ vector<Difference> DiskComparison::GetListed (const ComparisonOptions & options)
 //
 //  DiskComparison::Count
 //
+//  When either side is a sector image, the same sector data is all a track
+//  can match, so it counts as identical.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskComparison::Count (int & outIdentical, int & outDiffer, int & outOnlyInA, int & outOnlyInB, int & outNotCompared) const
@@ -63,7 +66,9 @@ void DiskComparison::Count (int & outIdentical, int & outDiffer, int & outOnlyIn
 
     for (const TrackComparison & t : tracks)
     {
-        switch (t.verdict)
+        TrackVerdict  verdict = (isSectorsOnly && t.verdict == TrackVerdict::SameSectorData) ? TrackVerdict::Identical : t.verdict;
+
+        switch (verdict)
         {
             case TrackVerdict::NothingRecorded:
             case TrackVerdict::StandardLayout:                       break;

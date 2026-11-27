@@ -66,9 +66,10 @@ public:
 
 
         in.splitFraction = 1.0;
+        in.minTrackPx    = 500;
         f                = InspectorWindowLayout::Plan (in, MakeScaler());
 
-        Assert::IsTrue (f.trackColumn.right - f.trackColumn.left >= 400);
+        Assert::IsTrue (f.trackColumn.right - f.trackColumn.left >= in.minTrackPx);
         Assert::IsTrue (f.platterColumn.right - f.platterColumn.left > f.platter.right - f.platter.left);
     }
 

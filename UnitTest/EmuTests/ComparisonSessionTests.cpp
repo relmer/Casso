@@ -413,7 +413,10 @@ public:
         c.tracks[4].verdict = TrackVerdict::OnlyInB;
         c.tracks[5].verdict = TrackVerdict::NothingRecorded;
 
-        Assert::AreEqual (std::format (L"2 identical {0} 1 differ {0} 1 only in B", s_kpszMiddleDot), ComparisonText::FormatResult (c));
+        Assert::AreEqual (std::format (L"2 identical {0} 1 differs {0} 1 only in B", s_kpszMiddleDot), ComparisonText::FormatResult (c));
+
+        c.isSectorsOnly = true;
+        Assert::AreEqual (std::format (L"3 identical {0} 1 only in B", s_kpszMiddleDot), ComparisonText::FormatResult (c), L"with a sector image, the same sector data is identical");
     }
 
 
