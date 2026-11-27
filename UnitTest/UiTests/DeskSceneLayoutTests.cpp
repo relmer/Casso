@@ -1930,4 +1930,18 @@ public:
         }
     }
 
+
+    //  Name and caption rows that would run past the viewport's bottom are
+    //  reported, so they go on the drive's front instead of being cut off.
+    TEST_METHOD (LabelRows_PastTheViewportBottom_AreReported)
+    {
+        RECT  viewport = { 0, 0, 1920, 960 };
+
+
+
+        Assert::IsFalse (DeskSceneLayout::DoLabelRowsLeaveViewport (viewport, 880, 4, 30), L"both rows fit");
+        Assert::IsTrue  (DeskSceneLayout::DoLabelRowsLeaveViewport (viewport, 900, 4, 30), L"the caption row runs off");
+        Assert::IsFalse (DeskSceneLayout::DoLabelRowsLeaveViewport (viewport, 896, 4, 30), L"rows ending at the edge fit");
+    }
+
 };

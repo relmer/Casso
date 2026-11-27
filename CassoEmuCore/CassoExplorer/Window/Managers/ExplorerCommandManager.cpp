@@ -18,6 +18,7 @@
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerSearch.h"
 #include "Config/FileAssociations.h"
+#include "Config/ShellExtensionRegistration.h"
 #include "Seams/IFolderThumbnails.h"
 #include "Seams/Win32UserClasses.h"
 #include "Update/Win32InstallEnvironment.h"
@@ -835,6 +836,23 @@ void ExplorerCommandManager::ShowOptions()
     }
 
     display.themeDefaults = m_context.preview.GetPicture().GetCrtDefaults();
+
+    //  A debug build registers its shell extension only on request, as
+    //  several copies from different worktrees often run at once.
+#if defined (_DEBUG)
+    display.registerShellExtension = [this] (HWND owner)
+    {
+        std::wstring  copy;
+        HRESULT       result = ShellExtensionRegistration::RegisterDeveloperCopy (copy);
+
+        UNREFERENCED_PARAMETER (owner);
+
+        m_context.window.ShowMessage (SUCCEEDED (result) ? L"Registered " + copy + L" as File Explorer's developer drag handler. Restart File Explorer if it has an earlier copy loaded."
+                                                         : L"Windows did not take the shell extension's registration.",
+                                      SUCCEEDED (result) ? MB_ICONINFORMATION : MB_ICONERROR);
+    };
+#endif
+
     display.preview       = [this] (const CassoExplorerOptionsDialog::Choices & shown)
     {
         m_context.prefs.crtOverrides      = shown.crtOverrides;

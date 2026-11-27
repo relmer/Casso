@@ -52,9 +52,10 @@ void Disk2NibbleEngine::SetDiskImage (DiskImage * disk)
 {
     CommitPendingWrite();
 
-    m_disk        = disk;
-    m_bitPos      = 0;
-    m_headWindow  = 0;
+    m_disk             = disk;
+    m_bitPos           = 0;
+    m_headWindow       = 0;
+    m_isWritePrepared  = false;
 
     ResolveSlot();
     PlaceHead (0);
@@ -101,6 +102,8 @@ void Disk2NibbleEngine::SetWriteMode (bool q7)
     if (!q7)
     {
         CommitPendingWrite();
+
+        m_isWritePrepared = false;
     }
 
     m_writeMode = q7;
@@ -167,8 +170,9 @@ void Disk2NibbleEngine::SetCurrentTrack (int track)
         // out and reports a checksum error.
         CommitPendingWrite();
 
-        angle          = GetAngle();
-        m_currentTrack = clamped;
+        angle             = GetAngle();
+        m_currentTrack    = clamped;
+        m_isWritePrepared = false;
 
         ResolveSlot();
         PlaceHead (angle);
@@ -411,6 +415,36 @@ void Disk2NibbleEngine::RecordFluxWriteBit (uint8_t bit)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PrepareWrite
+//
+//  Once per write, as it starts: DiskImage::PrepareQuarterTrackWrite returns
+//  the slot for a write at this quarter track, which can be a new one, so
+//  that a half track's write doesn't replace the whole track beside it. A new
+//  slot is a copy of the one under the head, or a blank one as long as a
+//  blank position's turn, so the head stays at the same point of the
+//  revolution.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2NibbleEngine::PrepareWrite()
+{
+    if (m_isWritePrepared || m_disk == nullptr || m_disk->IsWriteProtected())
+    {
+        return;
+    }
+
+    m_isWritePrepared = true;
+
+    (void) m_disk->PrepareQuarterTrackWrite (m_currentTrack, kUnformattedTrackBits);
+    ResolveSlot();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CommitPendingWrite
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -485,19 +519,20 @@ void Disk2NibbleEngine::Reset()
 
     CommitPendingWrite();
 
-    m_motorOn        = false;
-    m_writeMode      = false;
-    m_shiftLoadMode  = false;
-    m_bitPos         = 0;
-    m_lssState       = kLssInitialState;
-    m_lssClock       = 0;
-    m_readLatch      = 0;
-    m_bus            = 0;
-    m_latchIsFresh   = false;
-    m_readNibbles    = 0;
-    m_writeNibbles   = 0;
-    m_headWindow     = 0;
-    m_fakeBitState   = kFakeBitSeed;
+    m_motorOn         = false;
+    m_writeMode       = false;
+    m_shiftLoadMode   = false;
+    m_bitPos          = 0;
+    m_lssState        = kLssInitialState;
+    m_lssClock        = 0;
+    m_readLatch       = 0;
+    m_bus             = 0;
+    m_latchIsFresh    = false;
+    m_readNibbles     = 0;
+    m_writeNibbles    = 0;
+    m_headWindow      = 0;
+    m_fakeBitState    = kFakeBitSeed;
+    m_isWritePrepared = false;
 
     ResolveSlot();
     PlaceHead (0);
@@ -562,6 +597,11 @@ uint8_t Disk2NibbleEngine::StepCell (bool isWriting, uint8_t bit)
     if (m_disk != nullptr && m_disk->GetLayoutGeneration() != m_layoutGeneration)
     {
         RefreshSlot();
+    }
+
+    if (isWriting)
+    {
+        PrepareWrite();
     }
 
     hasTrack = (m_slot >= 0);
@@ -661,6 +701,11 @@ void Disk2NibbleEngine::StepLss()
     if (m_disk != nullptr && m_disk->GetLayoutGeneration() != m_layoutGeneration)
     {
         RefreshSlot();
+    }
+
+    if (m_writeMode)
+    {
+        PrepareWrite();
     }
 
     // A mapped track implies a disk; with no disk the slot is -1.

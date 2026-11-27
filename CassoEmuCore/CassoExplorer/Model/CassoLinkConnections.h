@@ -232,6 +232,10 @@ public:
     //  Whether any connection is in a transfer.
     bool  IsAnyTransferring () const;
 
+    //  Whether any connection has a job queued or running, a transfer, or a
+    //  Full Send, during which the PC is kept from sleeping.
+    bool  IsAnyBusy         () const;
+
     //  Whether an image is being written to a drive, or waits to be.
     bool  IsWritingDisk (const std::string & name, int drive) const;
 

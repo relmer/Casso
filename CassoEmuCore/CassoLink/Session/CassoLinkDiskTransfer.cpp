@@ -549,6 +549,13 @@ void CassoLinkDiskTransfer::EndStatus (LinkOperation & operation, const char * m
     row.status     = manifestStatus;
     row.unreadable = (int) operation.unreadable.size();
 
+    //  A raw capture has no catalog read, so the drive's title is the file's
+    //  name.
+    if (strcmp (manifestStatus, FullSendManifest::kStatusRawCapture) == 0)
+    {
+        status->SetTitle (operation.drive, std::filesystem::path (operation.imagePath).stem().string(), std::string());
+    }
+
     status->EndDisk (operation.drive, row, bytes);
     status->AddLine ("Saved as " + row.file, operation.drive);
 }
@@ -785,14 +792,15 @@ std::string CassoLinkDiskTransfer::FormatUnreadableList (const std::vector<std::
 
 HRESULT CassoLinkDiskTransfer::ReadBootSector (LinkOperation & operation)
 {
-    HRESULT                           hr       = S_OK;
-    std::vector<Byte>                 sectors (NibbleFormat::kImageByteSize, 0);
-    std::vector<Byte>                 boot;
-    std::vector<Byte>                 universal;
-    std::vector<std::pair<int, int>>  unreadable;
-    LinkShimOptions                   options;
-    bool                              loader   = false;
-    bool                              matches  = false;
+    static constexpr Byte  kBootSector[] = { 0 };
+    HRESULT                hr            = S_OK;
+    std::vector<Byte>      sector;
+    std::vector<bool>      read;
+    std::vector<Byte>      boot;
+    std::vector<Byte>      universal;
+    CassoLinkStatus        status;
+    LinkShimOptions        options;
+    bool                   matches       = false;
 
 
 
@@ -805,14 +813,16 @@ HRESULT CassoLinkDiskTransfer::ReadBootSector (LinkOperation & operation)
     hr = LinkProgram::BuildUniversalBootDisk (options, universal);
     CHR (hr);
 
-    hr = ReadTrack (operation.drive, 0, sectors, unreadable);
+    //  Only sector 0 is read: a copy-protected disk's other sectors aren't
+    //  found, and the Apple searching for each one took about a minute.
+    hr = m_session.m_host->ReadSectors ((Byte) operation.drive, 0, kBootSector, sector, read, status);
     CHR (hr);
 
-    matches = std::equal (boot.begin(),      boot.begin()      + NibbleFormat::kSectorByteSize, sectors.begin())
-           || std::equal (universal.begin(), universal.begin() + NibbleFormat::kSectorByteSize, sectors.begin());
-    loader  = matches && std::none_of (unreadable.begin(), unreadable.end(), [] (const std::pair<int, int> & sector) { return sector.second == 0; });
+    matches = !read.empty() && read[0] && sector.size() >= NibbleFormat::kSectorByteSize
+           && (std::equal (boot.begin(),      boot.begin()      + NibbleFormat::kSectorByteSize, sector.begin())
+            || std::equal (universal.begin(), universal.begin() + NibbleFormat::kSectorByteSize, sector.begin()));
 
-    operation.linkDisk = loader;
+    operation.linkDisk = matches;
 
 Error:
     return hr;
@@ -1272,7 +1282,7 @@ HRESULT CassoLinkDiskTransfer::WriteRawDisk (LinkOperation & operation, const st
 
         m_session.Report (operation, (int) (i * 100 / tracks.size()));
 
-        hr = m_session.m_host->WriteRawTrack ((Byte) operation.drive, (Byte) track.position, track.stream, status);
+        hr = m_session.m_host->WriteRawTrack ((Byte) operation.drive, (Byte) track.position, track.stream, CassoLinkHost::GetStepPercents (i, tracks.size()), status);
         CHR (hr);
 
         hr = CassoLinkSession::FromStatusError (status.error);
@@ -1281,6 +1291,29 @@ HRESULT CassoLinkDiskTransfer::WriteRawDisk (LinkOperation & operation, const st
         if (track.position % DiskImage::kQuarterTracksPerWholeTrack == 0)
         {
             MarkWrittenTrack (operation, track.position / DiskImage::kQuarterTracksPerWholeTrack);
+        }
+    }
+
+    //  A track the image has nothing on, as past the end of a disk that uses
+    //  fewer than 35 tracks, is marked so, not left as not yet written.
+    if (operation.status != nullptr && (operation.drive == 1 || operation.drive == 2))
+    {
+        std::array<bool, FullSendDriveStatus::kTracks>  hasData = {};
+
+        for (const RawWriteTrack & track : tracks)
+        {
+            if (track.position / DiskImage::kQuarterTracksPerWholeTrack < FullSendDriveStatus::kTracks)
+            {
+                hasData[(size_t) (track.position / DiskImage::kQuarterTracksPerWholeTrack)] = true;
+            }
+        }
+
+        for (int track = 0; track < FullSendDriveStatus::kTracks; track++)
+        {
+            if (!hasData[(size_t) track])
+            {
+                operation.status->MarkTrack (operation.drive, track, FullSendTrackMark::NotInImage);
+            }
         }
     }
 
@@ -1451,6 +1484,12 @@ HRESULT CassoLinkDiskTransfer::WriteWholeDisk (LinkOperation & operation)
     EndWriteStatus (operation, sectors.size());
 
 Error:
+    //  A write that failed after it began stops its time on the jobs window.
+    if (FAILED (hr) && operation.status != nullptr && (operation.drive == 1 || operation.drive == 2))
+    {
+        operation.status->FailDisk (operation.drive);
+    }
+
     return hr;
 }
 
@@ -1483,6 +1522,9 @@ void CassoLinkDiskTransfer::BeginWriteStatus (LinkOperation & operation)
     status->SetActivity (FullSendActivity::Sending, drive);
     status->BeginDisk (drive, operation.verifyWrites, std::span<const int>());
     status->SetWriting (drive);
+
+    //  The file's name is the title until a sector image's catalog title replaces it.
+    status->SetTitle (drive, std::filesystem::path (operation.imagePath).stem().string(), std::string());
     status->AddLine (std::format ("Writing {} to the disk in drive {}{}", std::filesystem::path (operation.imagePath).filename().string(), drive,
                                   operation.verifyWrites ? ", then reading it back to compare" : ""), drive);
 }

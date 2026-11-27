@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoLink/FullSend/FullSendStatus.h"
+#include "CassoLink/FullSend/FullSendManifest.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -157,6 +158,58 @@ public:
 
         rig.status.BeginDisk (2, true, {});
         Assert::IsTrue (rig.status.GetSnapshot().drives[1].secondsLeft < 0.0, L"no verified disk was sent");
+    }
+
+
+
+    TEST_METHOD (ACaptureOnItsOwn_TakesTheTimeFromItsStart)
+    {
+        Rig               rig;
+        FullSendSnapshot  snapshot;
+        FullSendRow       row;
+
+
+
+        rig.now = 340000.0;
+        rig.status.Begin();
+        rig.status.BeginCapture (2);
+        rig.now += 120.0;
+
+        row.file   = "Slot 6 Drive 2.woz";
+        row.drive  = 2;
+        row.status = FullSendManifest::kStatusRawCapture;
+        rig.status.EndDisk (2, row, 0);
+
+        snapshot = rig.status.GetSnapshot();
+
+        Assert::AreEqual (120.0, snapshot.drives[1].elapsed, 0.001);
+    }
+
+
+
+    //  A write that fails stops its time where it failed, and its track marks
+    //  stay.
+    TEST_METHOD (AFailedWrite_StopsItsTime_AndKeepsItsTracks)
+    {
+        Rig               rig;
+        FullSendSnapshot  snapshot;
+
+
+
+        rig.now = 1000.0;
+        rig.status.Begin();
+        rig.status.BeginDisk (2, false, std::span<const int>());
+        rig.status.MarkTrack (2, 0, FullSendTrackMark::Read);
+        rig.now += 9.0;
+
+        rig.status.FailDisk (2);
+        rig.now += 60.0;
+
+        snapshot = rig.status.GetSnapshot();
+
+        Assert::IsTrue   (snapshot.drives[1].state == FullSendDiskState::Failed);
+        Assert::AreEqual (9.0, snapshot.drives[1].elapsed, 0.001);
+        Assert::IsTrue   (snapshot.drives[1].tracks[0] == FullSendTrackMark::Read);
     }
 
 

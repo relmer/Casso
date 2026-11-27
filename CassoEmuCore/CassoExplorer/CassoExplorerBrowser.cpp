@@ -718,6 +718,33 @@ bool CassoExplorerBrowser::OpenRow (int row)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerBrowser::OpensInExplorer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerBrowser::OpensInExplorer (int row)
+{
+    Location  target;
+    bool      valid = row >= 0 && (size_t) row < m_list.rows.size();
+
+
+
+    if (!valid || m_list.rows[(size_t) row].isMissing)
+    {
+        return false;
+    }
+
+    return !m_list.rows[(size_t) row].imagePath.empty()
+        || BrowserRowPaths::TryGetRowLocation (GetRowListing(), row, target)
+        || m_loader.TryGetImageLocation (row, target);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerBrowser::GetRowListing
 //
 ////////////////////////////////////////////////////////////////////////////////

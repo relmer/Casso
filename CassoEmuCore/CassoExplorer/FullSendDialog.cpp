@@ -210,7 +210,7 @@ std::wstring FullSendPanel::DescribeSummary (const FullSendSnapshot & snapshot, 
 std::wstring FullSendPanel::DescribeCell (const FullSendDriveStatus & drive, int position)
 {
     std::wstring  track = (position % 4 == 0) ? std::format (L"Track {}", position / 4) : std::format (L"Track {:.2f}", position / 4.0);
-    std::wstring  state = L"not read yet";
+    std::wstring  state = drive.writing ? L"not written yet" : L"not read yet";
 
 
 
@@ -228,11 +228,12 @@ std::wstring FullSendPanel::DescribeCell (const FullSendDriveStatus & drive, int
     {
         switch (drive.tracks[(size_t) position / 4])
         {
-            case FullSendTrackMark::Read:       state = L"read";                                  break;
-            case FullSendTrackMark::Verified:   state = L"read and verified";                     break;
-            case FullSendTrackMark::Unreliable: state = L"a sector's reads disagree";             break;
-            case FullSendTrackMark::Unreadable: state = L"a sector could not be read";            break;
-            default:                                                                              break;
+            case FullSendTrackMark::Read:       state = drive.writing ? L"written" : L"read";                           break;
+            case FullSendTrackMark::Verified:   state = drive.writing ? L"written and verified" : L"read and verified"; break;
+            case FullSendTrackMark::NotInImage: state = L"no data in the image";                                        break;
+            case FullSendTrackMark::Unreliable: state = L"a sector's reads disagree";                                   break;
+            case FullSendTrackMark::Unreadable: state = L"a sector could not be read";                                  break;
+            default:                                                                                                    break;
         }
     }
 
@@ -685,6 +686,7 @@ std::wstring FullSendPanel::DescribeDrive (const FullSendDriveStatus & drive)
         case FullSendDiskState::Duplicate: state = L"Duplicate";                             break;
         case FullSendDiskState::Empty:     state = L"Unformatted, or no disk";               break;
         case FullSendDiskState::Blank:     state = L"Blank";                                 break;
+        case FullSendDiskState::Failed:    state = L"Failed";                                break;
         default:                           state = L"No disk read yet";                      break;
     }
 
@@ -718,6 +720,11 @@ std::wstring FullSendPanel::DescribeTimes (const FullSendDriveStatus & drive)
     if (done)
     {
         return std::format (L"Took {}", FormatSeconds (drive.elapsed));
+    }
+
+    if (drive.state == FullSendDiskState::Failed)
+    {
+        return std::format (L"Failed after {}", FormatSeconds (drive.elapsed));
     }
 
     if (!busy)
@@ -1106,6 +1113,11 @@ void FullSendPanel::PaintCells (IDxuiPainter & painter, const IDxuiTheme & theme
 
         painter.FillRect (span.left, cellTop, span.width, height, GetCellColor (drive, track, theme));
 
+        if (drive.positions.empty() && drive.tracks[(size_t) track] == FullSendTrackMark::NotInImage)
+        {
+            PaintNoData (painter, theme, span.left, cellTop, span.width, height);
+        }
+
         for (int quarter = 1; quarter < 4 && (size_t) (track * 4 + quarter) < drive.positions.size(); quarter++)
         {
             if (TryGetQuarterColor (drive.positions[(size_t) (track * 4 + quarter)], quarter, shade))
@@ -1114,6 +1126,29 @@ void FullSendPanel::PaintCells (IDxuiPainter & painter, const IDxuiTheme & theme
             }
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendPanel::PaintNoData
+//
+//  A track with no data in the image: the cell's lower-right half is blue,
+//  below the diagonal from its bottom-left to its top-right corner.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendPanel::PaintNoData (IDxuiPainter & painter, const IDxuiTheme & theme, float left, float top, float width, float height)
+{
+    float  right  = left + width;
+    float  bottom = top + height;
+
+
+
+    painter.FillConvexQuad (right, top, right, bottom, left, bottom, left, bottom, GetColor (FullSendTrackMark::Read, theme));
 }
 
 
@@ -1199,9 +1234,10 @@ float FullSendPanel::PaintLegend (IDxuiPainter & painter, IDxuiTextRenderer & te
     {
         uint32_t         color;
         const wchar_t  * label;
+        bool             noData = false;
     };
 
-    const Entry  entries[] =
+    const Entry  readEntries[] =
     {
         { GetColor (FullSendTrackMark::Read, theme),          L"Read" },
         { GetColor (FullSendTrackMark::Verified, theme),      L"Verified" },
@@ -1210,12 +1246,22 @@ float FullSendPanel::PaintLegend (IDxuiPainter & painter, IDxuiTextRenderer & te
         { GetColor (FullSendPositionMark::Unstable, theme),   L"Reads differ in length" },
     };
 
-    HRESULT  hr     = S_OK;
-    RECT     bounds = GetBounds();
-    float    x      = (float) bounds.left;
-    float    lineH  = m_scaler.ToPxf (kLineDip);
-    float    swatch = m_scaler.ToPxf (kSwatchDip);
-    float    gap    = m_scaler.ToPxf (kColumnGapDip);
+    const Entry  writeEntries[] =
+    {
+        { GetColor (FullSendTrackMark::Read, theme),          L"Written" },
+        { GetColor (FullSendTrackMark::Verified, theme),      L"Verified" },
+        { GetColor (FullSendTrackMark::NotInImage, theme),    L"No data in the image", true },
+    };
+
+    HRESULT                 hr      = S_OK;
+    RECT                    bounds  = GetBounds();
+    float                   x       = (float) bounds.left;
+    float                   lineH   = m_scaler.ToPxf (kLineDip);
+    float                   swatch  = m_scaler.ToPxf (kSwatchDip);
+    float                   gap     = m_scaler.ToPxf (kColumnGapDip);
+    bool                    writing = (m_view.snapshot.present[0] && m_view.snapshot.drives[0].writing)
+                                   || (m_view.snapshot.present[1] && m_view.snapshot.drives[1].writing);
+    std::span<const Entry>  entries = writing ? std::span<const Entry> (writeEntries) : std::span<const Entry> (readEntries);
 
 
 
@@ -1228,6 +1274,12 @@ float FullSendPanel::PaintLegend (IDxuiPainter & painter, IDxuiTextRenderer & te
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         painter.FillRect (x, top + (lineH - swatch) * 0.5f, swatch, swatch, entry.color);
+
+        if (entry.noData)
+        {
+            PaintNoData (painter, theme, x, top + (lineH - swatch) * 0.5f, swatch, swatch);
+        }
+
         DrawLine (text, entry.label, x + swatch * 1.6f, top, width + swatch, theme.ForegroundMuted());
 
         x += swatch * 1.6f + width + gap;

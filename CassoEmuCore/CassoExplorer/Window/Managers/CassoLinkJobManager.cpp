@@ -50,10 +50,44 @@ CassoLinkJobManager::~CassoLinkJobManager() = default;
 
 void CassoLinkJobManager::Update()
 {
-    ULONGLONG    now   = GetTickCount64();
     std::string  ended;
+    std::string  started;
 
 
+
+    Track (started, ended);
+
+    if (!ended.empty())
+    {
+        Show (ended, false);
+    }
+    else if (!started.empty() && m_context.prefs.openJobsWindow)
+    {
+        Show (started, false);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkJobManager::Track
+//
+//  Only disk jobs have a tab, so another kind of job, as a Full Send, makes
+//  no entry.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkJobManager::Track (std::string & outStarted, std::string & outEnded)
+{
+    ULONGLONG  now = GetTickCount64();
+
+
+
+    outStarted.clear();
+    outEnded.clear();
 
     if (m_context.app.links == nullptr)
     {
@@ -62,9 +96,18 @@ void CassoLinkJobManager::Update()
 
     for (const auto & [link, operation] : m_context.app.links->GetPendingJobsByLink())
     {
-        Job  & job = m_jobs[link];
+        if (!CassoLinkJobView::IsDiskJob (operation->kind))
+        {
+            continue;
+        }
 
-        if (!CassoLinkJobView::IsDiskJob (operation->kind) || job.operation == operation)
+        Job                 & job     = m_jobs[link];
+        LinkOperationState    current = (job.operation != nullptr) ? job.operation->state.load() : LinkOperationState::Done;
+        bool                  pending = current == LinkOperationState::Queued || current == LinkOperationState::Running;
+
+        //  A link can have a second job queued behind the one shown, which
+        //  takes the job's place once the first ends.
+        if (job.operation == operation || pending)
         {
             continue;
         }
@@ -78,25 +121,26 @@ void CassoLinkJobManager::Update()
     {
         LinkOperationState  state = (job.operation != nullptr) ? job.operation->state.load() : LinkOperationState::Done;
 
+        if (job.operation == nullptr)
+        {
+            continue;
+        }
+
         if (job.startedMs == 0 && state != LinkOperationState::Queued)
         {
             job.startedMs = now;
+            outStarted    = link;
         }
 
-        if (job.endedMs == 0 && job.operation != nullptr && state != LinkOperationState::Queued && state != LinkOperationState::Running)
+        if (job.endedMs == 0 && state != LinkOperationState::Queued && state != LinkOperationState::Running)
         {
             job.endedMs  = now;
             job.isUnseen = true;
-            ended        = link;
+            outEnded     = link;
         }
     }
 
     std::erase_if (m_jobs, [] (const auto & entry) { return entry.second.operation == nullptr; });
-
-    if (!ended.empty())
-    {
-        Show (ended, false);
-    }
 }
 
 
@@ -166,12 +210,20 @@ void CassoLinkJobManager::Show (const std::string & link, bool activate)
 
 
 
+    //  Anything the window does while it's being shown can't show it again.
+    if (m_isShowing)
+    {
+        return;
+    }
+
     m_selected = link;
 
     if (m_window != nullptr && m_window->IsCreated())
     {
+        m_isShowing = true;
         m_window->Select (link);
         m_window->ShowModelessDialog (IDCANCEL, activate);
+        m_isShowing = false;
         return;
     }
 
@@ -211,10 +263,28 @@ void CassoLinkJobManager::Show (const std::string & link, bool activate)
             found->second.isCanceling = true;
         }
     };
-    actions.showInFolder = [this] (const std::wstring & imagePath) { m_context.tabManager.SelectInFolder (imagePath); };
-    actions.open         = [this] (const std::wstring & imagePath) { SelectFile (imagePath, true); };
+    //  The job window is owned by the main window and covers it, so it closes
+    //  once the file is selected or opened.
+    actions.autoOpen     = m_context.prefs.openJobsWindow;
+    actions.setAutoOpen  = [this] (bool checked)
+    {
+        m_context.prefs.openJobsWindow = checked;
+        m_context.window.SaveSession();
+    };
+    actions.showInFolder = [this] (const std::wstring & imagePath)
+    {
+        m_context.tabManager.SelectInFolder (imagePath);
+        m_window->EndDialog (IDCANCEL);
+    };
+    actions.open         = [this] (const std::wstring & imagePath)
+    {
+        SelectFile (imagePath, true);
+        m_window->EndDialog (IDCANCEL);
+    };
 
-    m_window = CassoLinkJobDialog::Open (m_context.window.GetHwnd(), m_context.theme, activate, std::move (actions), link);
+    m_isShowing = true;
+    m_window    = CassoLinkJobDialog::Open (m_context.window.GetHwnd(), m_context.theme, activate, std::move (actions), link);
+    m_isShowing = false;
 }
 
 
@@ -232,10 +302,14 @@ void CassoLinkJobManager::Show (const std::string & link, bool activate)
 std::vector<CassoLinkJobView> CassoLinkJobManager::BuildViews()
 {
     std::vector<CassoLinkJobView>  views;
+    std::string                    started;
+    std::string                    ended;
 
 
 
-    Update();
+    //  The window calls this to refresh, so it only tracks the jobs: showing
+    //  the window from here would refresh it again.
+    Track (started, ended);
 
     for (auto & [link, job] : m_jobs)
     {
@@ -409,6 +483,6 @@ void CassoLinkJobManager::SelectFile (const std::wstring & imagePath, bool open)
 
     if (selected && open)
     {
-        m_context.opener.OpenSelectedEntries();
+        m_context.opener.OpenEachSelected();
     }
 }

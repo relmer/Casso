@@ -130,7 +130,10 @@ public:
 
     //  Opens a folder or disk image row in place, as a double-click does.
     //  False, with nothing changed, for a row that is neither.
-    bool  OpenRow (int row);
+    bool  OpenRow         (int row);
+
+    //  Whether OpenRow opens the row in place, without opening it.
+    bool  OpensInExplorer (int row);
 
     //  What an address bar separator lists: the folders and images in a host
     //  folder.

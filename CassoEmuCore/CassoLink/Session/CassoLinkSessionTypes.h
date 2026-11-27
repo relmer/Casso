@@ -147,6 +147,9 @@ struct LinkOperation
     std::atomic<bool>                fullSendChecking { false };
     std::string                      fullSendSummary;
 
+    //  The devices a List block devices found, for the Apple's history.
+    size_t                           devicesFound     = 0;
+
     //  Set for an operation queued while a Full Send runs, which isn't run:
     //  the Full Send has the drives until it ends.
     bool                             isBlocked        = false;

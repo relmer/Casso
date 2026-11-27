@@ -141,6 +141,8 @@ void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScal
     int  thumbsEnd    = thumbsTop + fieldH;
     int  foldersTop   = thumbsEnd;
     int  foldersEnd   = foldersTop + fieldH;
+    int  devTop       = foldersEnd + groupGap;
+    int  devEnd       = devTop + fieldH;
 
 
 
@@ -154,7 +156,12 @@ void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScal
     m_thumbnails->Layout  (RECT { boundsDip.left, thumbsTop, boundsDip.right, thumbsEnd }, scaler);
     m_folderThumbs->Layout (RECT { boundsDip.left + scaler.ToPx (kNoteIndentDip), foldersTop, boundsDip.right, foldersEnd }, scaler);
 
-    SetContentHeightPx (foldersEnd - boundsDip.top);
+    if (m_devRegister != nullptr)
+    {
+        m_devRegister->Layout (RECT { boundsDip.left, devTop, boundsDip.left + scaler.ToPx (DxuiButtonRow::GetWidthForLabel (m_devRegister->GetAccessibleName())), devEnd }, scaler);
+    }
+
+    SetContentHeightPx (((m_devRegister != nullptr) ? devEnd : foldersEnd) - boundsDip.top);
 }
 
 
@@ -170,7 +177,7 @@ void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScal
 bool CassoExplorerGeneralPage::OnMouse (const DxuiMouseEvent & ev)
 {
     return m_autoPreview->OnMouse (ev) || m_enterExpands->OnMouse (ev) || m_register->OnMouse (ev) || m_rawCopyMenu->OnMouse (ev) || m_thumbnails->OnMouse (ev)
-        || m_folderThumbs->OnMouse (ev);
+        || m_folderThumbs->OnMouse (ev) || (m_devRegister != nullptr && m_devRegister->OnMouse (ev));
 }
 
 
@@ -676,6 +683,13 @@ void CassoExplorerOptionsDialog::OnBuildPages()
 
 
     m_general->Init (m_previewNote, m_autoPreview, m_enterExpands, m_register, m_rawCopyMenu, m_autoThumbnails, m_folderThumbnails);
+
+    if (m_display.registerShellExtension)
+    {
+        m_devRegister.SetLabel   (L"DEBUG: Register CassoShellExtension");
+        m_devRegister.SetOnClick ([this]() { m_display.registerShellExtension (GetHwnd()); });
+        m_general->SetDevButton  (m_devRegister);
+    }
 
     m_hostNames = CreatePage<CassoExplorerHostNamesPage> (L"Host file names");
     m_hostNames->Init (m_namingNote, m_naming);

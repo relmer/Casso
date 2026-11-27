@@ -445,12 +445,17 @@ public:
     //  A track written as its bits by the 13-sector module, which must be
     //  loaded, at a quarter-track position from 0 to 139
     //  (CassoLinkCodec::kWriteRawTrack). E_INVALIDARG for a stream longer
-    //  than the module's buffers.
-    HRESULT  WriteRawTrack       (Byte drive, Byte position, const RawWriteStream & stream, CassoLinkStatus & outStatus);
+    //  than the module's buffers. `percents` is the Apple bar's percentage at
+    //  the track's start and end (GetTrackPercents or GetStepPercents).
+    HRESULT  WriteRawTrack       (Byte drive, Byte position, const RawWriteStream & stream, std::array<Byte, 2> percents, CassoLinkStatus & outStatus);
 
     //  A 13-sector request's last two bytes: the whole disk's percentage at
     //  the track's start and at its end, for the Apple's bar.
     static std::array<Byte, 2>  GetTrackPercents (Byte track);
+
+    //  The same for step `index` of `count`, for an image whose tracks end
+    //  before track 34.
+    static std::array<Byte, 2>  GetStepPercents  (size_t index, size_t count);
 
     //  A 13-sector track's sectors in `requested`, a bit each, read by the
     //  13-sector module, which must be loaded (CassoLinkCodec::kReadThirteenTrack).

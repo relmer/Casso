@@ -404,6 +404,25 @@ public:
     }
 
 
+    TEST_METHOD (RegisterDeveloper_WritesASecondHandler_AndLeavesTheReleasesAlone)
+    {
+        FakeUserClasses  classes;
+        std::wstring     value;
+
+        AssertSucceeded (ShellExtensionRegistration::Register (classes, kDll));
+        AssertSucceeded (ShellExtensionRegistration::RegisterDeveloper (classes, L"C:\\Dev\\CassoShellExtension-1.dll"));
+        AssertSucceeded (ShellExtensionRegistration::RegisterDeveloper (classes, L"C:\\Dev\\CassoShellExtension-2.dll"));
+
+        Assert::IsTrue   (classes.GetValue (L"CLSID\\{E79562C9-1380-4A9B-90BF-61BED8E3F1EA}\\InprocServer32", L"", value));
+        Assert::AreEqual (std::wstring (L"C:\\Dev\\CassoShellExtension-2.dll"), value, L"the later copy replaces the earlier one");
+        Assert::IsTrue   (classes.GetValue (L"Directory\\shellex\\DragDropHandlers\\CassoExplorerDev", L"", value));
+        Assert::AreEqual (std::wstring (L"{E79562C9-1380-4A9B-90BF-61BED8E3F1EA}"), value);
+        Assert::IsTrue   (classes.GetValue (L"Drive\\shellex\\DragDropHandlers\\CassoExplorerDev", L"", value));
+
+        Assert::IsTrue   (ShellExtensionRegistration::IsRegistered (classes, kDll), L"the release's registration is untouched");
+    }
+
+
     TEST_METHOD (IsRegistered_OnlyForThisDll)
     {
         FakeUserClasses  classes;

@@ -377,6 +377,12 @@ void FullSendStatus::BeginCapture (int drive)
 
 
 
+    //  A capture after a sector read of the disk counts from the read's start.
+    if (status.state != FullSendDiskState::Sending)
+    {
+        status.started = m_seconds();
+    }
+
     status.state       = FullSendDiskState::Capturing;
     status.positions.assign (FullSendDriveStatus::kPositions, FullSendPositionMark::Unread);
     status.pass        = 1;
@@ -541,6 +547,32 @@ void FullSendStatus::ClearDisk (int drive, FullSendDiskState state)
     GetDrive (drive)       = FullSendDriveStatus();
     GetDrive (drive).state = state;
     m_snapshot.revision++;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::FailDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendStatus::FailDisk (int drive)
+{
+    std::lock_guard        lock   (m_lock);
+    FullSendDriveStatus  & status = GetDrive (drive);
+
+
+
+    if (status.state == FullSendDiskState::Sending || status.state == FullSendDiskState::Capturing)
+    {
+        status.elapsed     = m_seconds() - status.started;
+        status.secondsLeft = -1.0;
+        status.state       = FullSendDiskState::Failed;
+        m_snapshot.revision++;
+    }
 }
 
 

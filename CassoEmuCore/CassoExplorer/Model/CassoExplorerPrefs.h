@@ -48,6 +48,9 @@ struct CassoExplorerPrefs
     bool                   previewVisible  = false;
     bool                   navigationPane  = true;    // View > Show's Navigation pane
 
+    //  The CassoLink jobs window opens when a disk read or write begins.
+    bool                   openJobsWindow  = true;
+
     //  File Explorer's Search options that apply to every search.
     bool                   searchSystemFiles = true;
     bool                   searchZipped      = false;

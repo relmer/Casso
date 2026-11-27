@@ -195,4 +195,116 @@ public:
         Assert::AreEqual (size_t (143360), bytes.size(),
             L"Phase 10: a default 35-track DSK serializes to 143360 bytes");
     }
+
+
+    //  Each whole track of a sector image, 64 bits of its number.
+    static void MakeTracks (DiskImage & img)
+    {
+        for (int track = 0; track < DiskImage::kDefaultTrackCount; track++)
+        {
+            img.ResizeTrack (track, 64);
+
+            for (size_t at = 0; at < 64; at++)
+            {
+                img.WriteBit (track, at, (uint8_t) ((track >> (at % 6)) & 1));
+            }
+        }
+    }
+
+
+    //  Writes at tracks 2, 2.5 and 3 of a sector image, whose quarter tracks
+    //  8 to 11 all map to track 2: 2.5 gets a new slot, so track 2 is as it
+    //  was written, and each quarter track maps to the write nearest it.
+    TEST_METHOD (AHalfTrackWrite_GetsItsOwnSlot_AndLeavesTheTrackBeside)
+    {
+        DiskImage  img;
+        int        two     = 0;
+        int        half    = 0;
+        int        three   = 0;
+
+
+
+        MakeTracks (img);
+
+        two   = img.PrepareQuarterTrackWrite (8, 64);
+        half  = img.PrepareQuarterTrackWrite (10, 64);
+
+        img.WriteBit (half, 0, 1);
+        img.WriteBit (half, 1, 1);
+
+        three = img.PrepareQuarterTrackWrite (12, 64);
+
+        Assert::AreEqual (2, two);
+        Assert::AreEqual (3, three);
+        Assert::AreEqual (DiskImage::kDefaultTrackCount, half, L"the half track's write is in a new slot");
+
+        Assert::AreEqual (2,     img.ResolveQuarterTrack (7));
+        Assert::AreEqual (2,     img.ResolveQuarterTrack (8));
+        Assert::AreEqual (half,  img.ResolveQuarterTrack (9));
+        Assert::AreEqual (half,  img.ResolveQuarterTrack (10));
+        Assert::AreEqual (3,     img.ResolveQuarterTrack (11));
+        Assert::AreEqual (3,     img.ResolveQuarterTrack (12));
+
+        //  Track 2's bits: 2 is 0b10, so bit 0 is 0 and bit 1 is 1.
+        Assert::AreEqual ((uint8_t) 0, img.ReadBit (2, 0));
+        Assert::AreEqual ((uint8_t) 1, img.ReadBit (half, 0));
+    }
+
+
+    //  A write at the same half track again goes into the slot it has.
+    TEST_METHOD (AHalfTrackWrittenAgain_KeepsItsSlot)
+    {
+        DiskImage  img;
+        int        first  = 0;
+        int        second = 0;
+
+
+
+        MakeTracks (img);
+
+        first  = img.PrepareQuarterTrackWrite (10, 64);
+        second = img.PrepareQuarterTrackWrite (10, 64);
+
+        Assert::AreEqual (first, second);
+        Assert::AreEqual (DiskImage::kDefaultTrackCount + 1, img.GetTrackCount());
+    }
+
+
+    //  A write at a whole track of a sector image goes into that track.
+    TEST_METHOD (AWholeTrackWrite_GoesIntoItsTrack)
+    {
+        DiskImage  img;
+
+
+
+        MakeTracks (img);
+
+        Assert::AreEqual (5, img.PrepareQuarterTrackWrite (20, 64));
+        Assert::AreEqual (DiskImage::kDefaultTrackCount, img.GetTrackCount());
+    }
+
+
+    //  A write where the image has no data gets a blank slot of the given
+    //  length, past the tracks the map has entries for but no slot.
+    TEST_METHOD (AWriteWithNoDataUnderTheHead_GetsABlankSlot)
+    {
+        DiskImage  img;
+        int        slot = 0;
+
+
+
+        MakeTracks (img);
+
+        slot = img.PrepareQuarterTrackWrite (100, 64);
+
+        Assert::AreEqual (25, slot);
+        Assert::AreEqual (-1, img.ResolveQuarterTrack (140), L"track 35 has no data");
+
+        slot = img.PrepareQuarterTrackWrite (142, 500);
+
+        Assert::AreEqual (DiskImage::kDefaultTrackCount, slot);
+        Assert::AreEqual ((size_t) 500, img.GetTrackBitCount (slot));
+        Assert::AreEqual (slot, img.ResolveQuarterTrack (142));
+        Assert::AreEqual (-1,   img.ResolveQuarterTrack (144), L"track 36 has no data");
+    }
 };

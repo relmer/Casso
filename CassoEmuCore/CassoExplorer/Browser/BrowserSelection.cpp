@@ -384,6 +384,34 @@ bool BrowserSelection::TryGetSelectedShellIds (std::vector<std::wstring> & outId
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BrowserSelection::AreSelectedRowsCassoFiles
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BrowserSelection::AreSelectedRowsCassoFiles() const
+{
+    if (m_selectedRows.empty() || !IsCassoNodeLocation (m_source.GetLocation()))
+    {
+        return false;
+    }
+
+    for (int row : m_selectedRows)
+    {
+        if (row < 0 || (size_t) row >= m_rows.size() || m_rows[(size_t) row].hostPath.empty() || !m_rows[(size_t) row].imagePath.empty() || m_rows[(size_t) row].isStockDisk)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BrowserSelection::AreSelectedRowsSearchFiles
 //
 ////////////////////////////////////////////////////////////////////////////////

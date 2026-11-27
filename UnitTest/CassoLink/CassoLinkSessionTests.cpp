@@ -404,6 +404,30 @@ public:
     }
 
 
+    //  A session stopped on purpose puts its leaving in the Apple's history.
+    TEST_METHOD (Stop_AddsTheDisconnectToTheApplesHistory)
+    {
+        Rig   rig;
+        bool  logged = false;
+
+
+
+        rig.Start();
+        Assert::IsTrue (rig.sink.WaitForState (LinkState::Ready));
+
+        rig.session->Stop();
+
+        {
+            std::lock_guard<std::mutex>  guard (rig.apple.lock);
+
+            //  The line is in capitals for an Apple that may have no lowercase.
+            logged = std::any_of (rig.apple.logs.begin(), rig.apple.logs.end(), [] (const std::string & text) { return _stricmp (text.c_str(), "Disconnected by the PC") == 0; });
+        }
+
+        Assert::IsTrue (logged);
+    }
+
+
 
 
     TEST_METHOD (Enumerate_ListsBothDrives)
@@ -1726,6 +1750,25 @@ public:
         operation.kind = LinkOperationKind::Krunch;
         Assert::AreEqual (std::string ("Krunching D1"), CassoLinkSession::DescribeOperation (operation));
         Assert::AreEqual (std::string ("Krunched D1"),  CassoLinkSession::DescribeOperation (operation, std::nullopt, true));
+    }
+
+
+
+    //  The history line of a list of block devices has what it found, as a
+    //  //c with no SmartPort device finds none.
+    TEST_METHOD (DescribeOperation_ListBlockDevices_HasTheDevicesFound)
+    {
+        LinkOperation  operation;
+
+        operation.kind = LinkOperationKind::ListBlockDevices;
+        Assert::AreEqual (std::string ("Listing the block devices"), CassoLinkSession::DescribeOperation (operation));
+        Assert::AreEqual (std::string ("Found no block devices"),    CassoLinkSession::DescribeOperation (operation, std::nullopt, true));
+
+        operation.devicesFound = 1;
+        Assert::AreEqual (std::string ("Found 1 block device"),      CassoLinkSession::DescribeOperation (operation, std::nullopt, true));
+
+        operation.devicesFound = 3;
+        Assert::AreEqual (std::string ("Found 3 block devices"),     CassoLinkSession::DescribeOperation (operation, std::nullopt, true));
     }
 
 

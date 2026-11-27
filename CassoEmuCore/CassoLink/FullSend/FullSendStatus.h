@@ -38,6 +38,7 @@ enum class FullSendTrackMark : Byte
     Verified,
     Unreliable,
     Unreadable,
+    NotInImage,     // a write: the image has no data for the track
 };
 
 enum class FullSendPositionMark : Byte
@@ -59,6 +60,7 @@ enum class FullSendDiskState : Byte
     Duplicate,
     Empty,
     Blank,
+    Failed,
 };
 
 
@@ -228,6 +230,9 @@ public:
 
     //  A drive with no disk, or a disk left unsent.
     void  ClearDisk      (int drive, FullSendDiskState state);
+
+    //  A disk whose transfer failed: its time stops and its tracks stay.
+    void  FailDisk       (int drive);
 
     //  A blank disk, counted in the totals.
     void  AddBlank       ();

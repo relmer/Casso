@@ -59,6 +59,10 @@ private:
         std::function<void()>  readAgain;
     };
 
+    //  The pending jobs looked at again, with outStarted and outEnded the
+    //  connection of a job that started or ended since the last look. The
+    //  window isn't touched, so the window's own refresh can call it.
+    void                           Track      (std::string & outStarted, std::string & outEnded);
     void                           Show       (const std::string & link, bool activate);
     CassoLinkJobView               MakeView   (const std::string & link, const LinkOperation & operation) const;
     void                           TakeOffer  (const std::string & link, bool captureRaw);
@@ -71,4 +75,5 @@ private:
     std::map<std::string, Offer>           m_offers;
     std::string                            m_selected;
     std::unique_ptr<CassoLinkJobDialog>    m_window;
+    bool                                   m_isShowing = false;    // Show is running, and the window's refresh can't show it again
 };
