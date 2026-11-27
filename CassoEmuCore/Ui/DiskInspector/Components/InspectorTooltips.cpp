@@ -260,6 +260,7 @@ void InspectorTooltips::MergeTips (const InspectorTip (& tips)[2], const SideNam
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  InspectorTooltips::GetButtonTip
