@@ -77,7 +77,10 @@ private:
         ComPtr<ID2D1Bitmap>  bitmap;
         int                  width  = 0;
         int                  height = 0;
+        uint64_t             key    = 0;   // the uploaded pixels' hash and size
     };
+
+    HRESULT  UploadFramebuffer (FramebufferBitmap & cached, const uint32_t * pixels, int width, int height);
 
     static constexpr size_t  s_kMaxFramebufferBitmaps = 16;
 

@@ -194,17 +194,16 @@ Error:
 //
 //  Uploads a BGRA8 CPU pixel buffer into the cached ID2D1Bitmap for its
 //  address and draws it into the destination DIP rect with linear
-//  interpolation, or nearest-neighbor for a sharp frame. A frame drawn at
-//  anything but its size or a whole multiple of it is first resampled to
-//  the drawn size, each pixel the mean of the source area it covers. Below
-//  twice the source's size, each pixel averages at least two source pixels:
-//  sampled, a dithered picture's one-pixel stripes beat against the
-//  screen's pixels, in color bands that move with every size. At twice the
-//  size and up, a source pixel covers two screen pixels or more, so the
-//  stripes can't beat, and blending would only blur the edges. The bitmap is
-//  created lazily and recreated when the uploaded size changes; otherwise
-//  CopyFromMemory rewrites the pixels in place each call. The cache is
-//  emptied once it has s_kMaxFramebufferBitmaps buffers.
+//  interpolation, or nearest-neighbor for a sharp frame. On an axis drawn
+//  below twice the source's size, other than at exactly its size, the frame
+//  is first resampled to the drawn size, each pixel averaged over at least
+//  two source pixels: sampled, a dithered picture's one-pixel stripes beat
+//  against the screen's pixels, in color bands that move with every size.
+//  From twice the size up, a source pixel covers two screen pixels or more,
+//  so the stripes can't beat, and Direct2D scales that axis. The upload is
+//  skipped while the pixels and the uploaded size match the last ones, so
+//  a repaint at the same size costs only the draw. The cache is emptied
+//  once it has s_kMaxFramebufferBitmaps buffers.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -225,13 +224,12 @@ HRESULT DxuiRenderIcons::DrawFramebuffer (
     float                dpiY      = 96.0f;
     int                  drawnW    = 0;
     int                  drawnH    = 0;
-    bool                 resampleX = false;
-    bool                 resampleY = false;
     bool                 blendX    = false;
     bool                 blendY    = false;
     const uint32_t     * pixels    = srcBgraPixels;
     int                  width     = srcWidthPx;
     int                  height    = srcHeightPx;
+    uint64_t             key       = 0;
 
 
 
@@ -246,18 +244,11 @@ HRESULT DxuiRenderIcons::DrawFramebuffer (
     drawnW = std::max (1, (int) std::lround (destWidthDip  * dpiX / 96.0f));
     drawnH = std::max (1, (int) std::lround (destHeightDip * dpiY / 96.0f));
 
-    resampleX = !IsWholeMultiple (drawnW, srcWidthPx);
-    resampleY = !IsWholeMultiple (drawnH, srcHeightPx);
-    blendX    = resampleX && drawnW < 2 * srcWidthPx;
-    blendY    = resampleY && drawnH < 2 * srcHeightPx;
-
-    if (resampleX || resampleY)
-    {
-        Resample (srcBgraPixels, srcWidthPx, srcHeightPx, drawnW, drawnH, blendX, blendY, m_resampled);
-        pixels = m_resampled.data();
-        width  = drawnW;
-        height = drawnH;
-    }
+    blendX = drawnW < 2 * srcWidthPx  && !IsWholeMultiple (drawnW, srcWidthPx);
+    blendY = drawnH < 2 * srcHeightPx && !IsWholeMultiple (drawnH, srcHeightPx);
+    width  = blendX ? drawnW : srcWidthPx;
+    height = blendY ? drawnH : srcHeightPx;
+    key    = HashPixels (srcBgraPixels, (size_t) srcWidthPx * (size_t) srcHeightPx) ^ ((uint64_t) width << 40) ^ ((uint64_t) height << 20);
 
     if (m_framebufferBitmaps.size() >= s_kMaxFramebufferBitmaps && !m_framebufferBitmaps.contains (srcBgraPixels))
     {
@@ -266,30 +257,18 @@ HRESULT DxuiRenderIcons::DrawFramebuffer (
 
     cached = &m_framebufferBitmaps[srcBgraPixels];
 
-    if (cached->bitmap == nullptr ||
-        cached->width  != width ||
-        cached->height != height)
+    if (cached->bitmap == nullptr || cached->key != key)
     {
-        D2D1_BITMAP_PROPERTIES  props = {};
+        if (blendX || blendY)
+        {
+            Resample (srcBgraPixels, srcWidthPx, srcHeightPx, width, height, blendX, blendY, m_resampled);
+            pixels = m_resampled.data();
+        }
 
-        props.pixelFormat.format    = DXGI_FORMAT_B8G8R8A8_UNORM;
-        props.pixelFormat.alphaMode = D2D1_ALPHA_MODE_IGNORE;
-        props.dpiX                  = 96.0f;
-        props.dpiY                  = 96.0f;
+        hr = UploadFramebuffer (*cached, pixels, width, height);
+        CHR (hr);
 
-        cached->bitmap.Reset();
-        hr = m_renderer.m_d2dContext->CreateBitmap (D2D1::SizeU ((UINT32) width, (UINT32) height),
-                                         nullptr, 0, &props, &cached->bitmap);
-        CHRA (hr);
-        cached->width  = width;
-        cached->height = height;
-    }
-
-    {
-        D2D1_RECT_U  srcRect = D2D1::RectU (0, 0, (UINT32) width, (UINT32) height);
-
-        hr = cached->bitmap->CopyFromMemory (&srcRect, pixels, (UINT32) (width * sizeof (uint32_t)));
-        CHRA (hr);
+        cached->key = key;
     }
 
     dest.left   = destXDip;
@@ -301,6 +280,50 @@ HRESULT DxuiRenderIcons::DrawFramebuffer (
                               &dest, m_renderer.m_globalAlpha,
                               sharp ? D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR : D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
                               nullptr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UploadFramebuffer
+//
+//  The pixels copied into the cached bitmap, which is created again when
+//  their size changes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiRenderIcons::UploadFramebuffer (FramebufferBitmap & cached, const uint32_t * pixels, int width, int height)
+{
+    HRESULT      hr      = S_OK;
+    D2D1_RECT_U  srcRect = D2D1::RectU (0, 0, (UINT32) width, (UINT32) height);
+
+
+
+    if (cached.bitmap == nullptr || cached.width != width || cached.height != height)
+    {
+        D2D1_BITMAP_PROPERTIES  props = {};
+
+        props.pixelFormat.format    = DXGI_FORMAT_B8G8R8A8_UNORM;
+        props.pixelFormat.alphaMode = D2D1_ALPHA_MODE_IGNORE;
+        props.dpiX                  = 96.0f;
+        props.dpiY                  = 96.0f;
+
+        cached.bitmap.Reset();
+        hr = m_renderer.m_d2dContext->CreateBitmap (D2D1::SizeU ((UINT32) width, (UINT32) height), nullptr, 0, &props, &cached.bitmap);
+        CHRA (hr);
+
+        cached.width  = width;
+        cached.height = height;
+    }
+
+    hr = cached.bitmap->CopyFromMemory (&srcRect, pixels, (UINT32) (width * sizeof (uint32_t)));
+    CHRA (hr);
 
 Error:
     return hr;
