@@ -456,8 +456,9 @@ void ExplorerPickerBar::SetNameText (const std::wstring & text)
 //  ExplorerPickerBar::SelectFilterForName
 //
 //  Selects the image type that matches the extension in the name box, when
-//  the selected type does not, so a clicked, typed or pasted name and the
-//  type list agree.
+//  the selected type does not, or when another matching type has fewer
+//  extensions, so a clicked, typed or pasted name and the selected type
+//  have the same extension.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -477,19 +478,37 @@ void ExplorerPickerBar::SelectFilterForName()
     name   = m_name->GetText();
     active = m_context.pickerMode.GetActiveFilter();
 
-    if (std::filesystem::path (name).extension().empty()
-        || (active < request->filters.size() && FileMaskSet (request->filters[active].pattern).Matches (name)))
+    if (std::filesystem::path (name).extension().empty())
     {
         return;
     }
 
+    //  The matching type with the fewest extensions, so a name ending in
+    //  .woz selects .woz, not Automatic, whose masks include it.
+    auto  getExtensions = [&name, request] (size_t index)
+    {
+        FileMaskSet  masks (request->filters[index].pattern);
+
+        return masks.Matches (name) ? std::max<size_t> (1, masks.GetPlainExtensions().size()) : SIZE_MAX;
+    };
+
+    size_t  best      = SIZE_MAX;
+    size_t  bestCount = (active < request->filters.size()) ? getExtensions (active) : SIZE_MAX;
+
     for (size_t index = 0; index < request->filters.size(); index++)
     {
-        if (FileMaskSet (request->filters[index].pattern).Matches (name))
+        size_t  count = getExtensions (index);
+
+        if (count < bestCount)
         {
-            m_context.pickerMode.SetActiveFilter (index);
-            return;
+            best      = index;
+            bestCount = count;
         }
+    }
+
+    if (best != SIZE_MAX)
+    {
+        m_context.pickerMode.SetActiveFilter (best);
     }
 }
 

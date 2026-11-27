@@ -599,6 +599,36 @@ public:
 
 
 
+    //  A name ending in .woz selects the .woz type, not Automatic, whose masks
+    //  include it. A name with no extension doesn't change the type.
+    TEST_METHOD (PickerSaveForm_NameWithAnExtension_SelectsTheTypeWithFewestExtensions)
+    {
+        Rig            rig;
+        PickerRequest  request;
+        PickerOutcome  outcome;
+
+
+
+        request.form            = PickerForm::ModalSave;
+        request.filters         = { { L"Automatic", L"*.dsk;*.po;*.woz" }, { L".dsk", L"*.dsk" }, { L".woz", L"*.woz" } };
+        request.defaultFileName = L"Slot 6 Drive 2";
+
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\dos33.dsk");
+        rig.app.picker  = &request;
+        rig.app.outcome = &outcome;
+        rig.Open();
+
+        Assert::AreEqual ((size_t) 0, rig.parts->pickerMode.GetActiveFilter(), L"no extension, so Automatic stays");
+
+        rig.parts->pickerBar.SetNameText (L"Karateka recapture 6.woz");
+        Assert::AreEqual ((size_t) 2, rig.parts->pickerMode.GetActiveFilter(), L".woz, not Automatic");
+
+        rig.parts->pickerBar.SetNameText (L"Karateka recapture 7.dsk");
+        Assert::AreEqual ((size_t) 1, rig.parts->pickerMode.GetActiveFilter(), L".dsk");
+    }
+
+
+
     //  A name that is not taken is returned without a question, with the
     //  filter's extension when none was typed. The Casso node's list is no
     //  folder to save in. New folder is a save form's command and no other
