@@ -135,6 +135,8 @@ void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScal
     int  rawCopyEnd   = rawCopyTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
     int  thumbsTop    = rawCopyEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 4);
     int  thumbsEnd    = thumbsTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
+    int  devTop       = thumbsEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 4);
+    int  devEnd       = devTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
 
 
 
@@ -147,7 +149,12 @@ void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScal
     m_rawCopyMenu->Layout (RECT { boundsDip.left, rawCopyTop, boundsDip.right, rawCopyEnd }, scaler);
     m_thumbnails->Layout  (RECT { boundsDip.left, thumbsTop, boundsDip.right, thumbsEnd }, scaler);
 
-    SetContentHeightPx (thumbsEnd - boundsDip.top);
+    if (m_devRegister != nullptr)
+    {
+        m_devRegister->Layout (RECT { boundsDip.left, devTop, boundsDip.left + scaler.ToPx (DxuiButtonRow::GetWidthForLabel (m_devRegister->GetAccessibleName())), devEnd }, scaler);
+    }
+
+    SetContentHeightPx (((m_devRegister != nullptr) ? devEnd : thumbsEnd) - boundsDip.top);
 }
 
 
@@ -162,7 +169,8 @@ void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScal
 
 bool CassoExplorerGeneralPage::OnMouse (const DxuiMouseEvent & ev)
 {
-    return m_autoPreview->OnMouse (ev) || m_enterExpands->OnMouse (ev) || m_register->OnMouse (ev) || m_rawCopyMenu->OnMouse (ev) || m_thumbnails->OnMouse (ev);
+    return m_autoPreview->OnMouse (ev) || m_enterExpands->OnMouse (ev) || m_register->OnMouse (ev) || m_rawCopyMenu->OnMouse (ev) || m_thumbnails->OnMouse (ev)
+        || (m_devRegister != nullptr && m_devRegister->OnMouse (ev));
 }
 
 
@@ -663,6 +671,13 @@ void CassoExplorerOptionsDialog::OnBuildPages()
 
 
     m_general->Init (m_previewNote, m_autoPreview, m_enterExpands, m_register, m_rawCopyMenu, m_autoThumbnails);
+
+    if (m_display.registerShellExtension)
+    {
+        m_devRegister.SetLabel   (L"DEBUG: Register CassoShellExtension");
+        m_devRegister.SetOnClick ([this]() { m_display.registerShellExtension (GetHwnd()); });
+        m_general->SetDevButton  (m_devRegister);
+    }
 
     m_hostNames = CreatePage<CassoExplorerHostNamesPage> (L"Host file names");
     m_hostNames->Init (m_namingNote, m_naming);

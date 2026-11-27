@@ -51,7 +51,11 @@ public:
     static constexpr UINT  kHexDumpCommand = 1;
 
     //  {8E3B6C41-2F7A-4D59-B1C8-6A0E9D24F713}
-    static constexpr CLSID  kClsid = { 0x8e3b6c41, 0x2f7a, 0x4d59, { 0xb1, 0xc8, 0x6a, 0x0e, 0x9d, 0x24, 0xf7, 0x13 } };
+    static constexpr CLSID  kClsid    = { 0x8e3b6c41, 0x2f7a, 0x4d59, { 0xb1, 0xc8, 0x6a, 0x0e, 0x9d, 0x24, 0xf7, 0x13 } };
+
+    //  {E79562C9-1380-4A9B-90BF-61BED8E3F1EA}: the same handler, registered
+    //  from a developer build beside the release's.
+    static constexpr CLSID  kDevClsid = { 0xe79562c9, 0x1380, 0x4a9b, { 0x90, 0xbf, 0x61, 0xbe, 0xd8, 0xe3, 0xf1, 0xea } };
 
     //  A handler with one reference the caller releases.
     static HRESULT  Create (REFIID riid, void ** ppv);
