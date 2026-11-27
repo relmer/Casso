@@ -11,6 +11,7 @@
 #include "CassoExplorer/ICassoExplorerHost.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "CassoExplorer/Model/DiskImagePictures.h"
+#include "CassoExplorer/Model/FolderThumbnails.h"
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
 #include "CassoExplorer/Model/CassoExplorerSession.h"
 #include "Config/Win32FileSystem.h"
@@ -263,6 +264,7 @@ private:
     std::atomic<bool>                         m_rom13Wanted    { false };   // a 13-sector image waits for the 13-sector Disk II ROM
     bool                                      m_rom13Offered   = false;
     DiskImagePictures                         m_pictures       { m_thumbnails, [this] (const std::wstring & path) { QueueBoot (path); } };
+    std::unique_ptr<FolderThumbnails>         m_folderThumbnails;   // its thread queues on m_bootWorker
     Win32ImageWatcher                         m_cacheWatcher;
     Win32ProcessProbe                         m_processProbe;
     RunningCassoRegistry                      m_running;

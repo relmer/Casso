@@ -147,6 +147,7 @@ bool DiskImagePictures::Read (const std::wstring & path, RgbaImage & outPicture,
     int64_t                time     = 0;
     std::vector<Byte>      png;
     bool                   isNew    = false;
+    bool                   isSwept  = false;
     bool                   found    = false;
 
 
@@ -158,15 +159,14 @@ bool DiskImagePictures::Read (const std::wstring & path, RgbaImage & outPicture,
 
     if (png.empty())
     {
-        time = (int64_t) std::filesystem::last_write_time (file, failed).time_since_epoch().count();
+        time  = (int64_t) std::filesystem::last_write_time (file, failed).time_since_epoch().count();
+        isNew = TryMarkQueued (path, bytes, time);
 
-        {
-            std::lock_guard  lock (m_lock);
+        //  An image a folder sweep queued is queued again, to be booted ahead
+        //  of the sweep's other images, now that it's in view.
+        isSwept = !isNew && m_isPending && m_isPending (path);
 
-            isNew = m_queued.insert (std::format (L"{}|{}|{}", path, bytes, time)).second;
-        }
-
-        if (isNew && m_queue)
+        if ((isNew || isSwept) && m_queue)
         {
             m_queue (path);
         }
@@ -181,6 +181,25 @@ bool DiskImagePictures::Read (const std::wstring & path, RgbaImage & outPicture,
 
 Error:
     return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImagePictures::TryMarkQueued
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImagePictures::TryMarkQueued (const std::wstring & path, uint64_t bytes, int64_t time)
+{
+    std::lock_guard  lock (m_lock);
+
+
+
+    return m_queued.insert (std::format (L"{}|{}|{}", path, bytes, time)).second;
 }
 
 

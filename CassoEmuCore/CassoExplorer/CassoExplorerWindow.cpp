@@ -13,6 +13,7 @@
 #include "CassoExplorer/Picker/ExplorerPickerHost.h"
 #include "CassoExplorer/Picker/PickerRequest.h"
 #include "Seams/CassoHostDialogs.h"
+#include "Seams/IFolderThumbnails.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
 #include "CassoExplorer/Model/IFolderWatcher.h"
 #include "CassoExplorer/Model/FolderWatch.h"
@@ -128,6 +129,11 @@ CassoExplorerWindow::~CassoExplorerWindow()
         m_context.links->SetViewing (&m_parts->context, std::string());
     }
 
+
+    if (m_context.folderThumbnails != nullptr)
+    {
+        m_context.folderThumbnails->RemoveWindow (GetHwnd());
+    }
 
     m_parts->services.shellVerbs->UnwatchRecycleBin();
     m_parts->dragDrop.GetDropTarget().Shutdown();

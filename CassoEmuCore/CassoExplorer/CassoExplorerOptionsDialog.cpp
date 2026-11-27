@@ -95,7 +95,7 @@ std::vector<FileDialogFilter> CassoExplorerFullSendPage::GetFormatFilters()
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassoExplorerGeneralPage::Init (DxuiLabel & previewNote, DxuiCheckbox & autoPreview, DxuiCheckbox & enterExpands, DxuiCheckbox & registration, DxuiCheckbox & rawCopyMenu,
-                                     DxuiCheckbox & autoThumbnails)
+                                     DxuiCheckbox & autoThumbnails, DxuiCheckbox & folderThumbnails)
 {
     m_previewNote  = &previewNote;
     m_autoPreview  = &autoPreview;
@@ -103,6 +103,7 @@ void CassoExplorerGeneralPage::Init (DxuiLabel & previewNote, DxuiCheckbox & aut
     m_register     = &registration;
     m_rawCopyMenu  = &rawCopyMenu;
     m_thumbnails   = &autoThumbnails;
+    m_folderThumbs = &folderThumbnails;
 
     Adopt (previewNote);
     Adopt (autoPreview);
@@ -110,6 +111,7 @@ void CassoExplorerGeneralPage::Init (DxuiLabel & previewNote, DxuiCheckbox & aut
     Adopt (registration);
     Adopt (rawCopyMenu);
     Adopt (autoThumbnails);
+    Adopt (folderThumbnails);
 }
 
 
@@ -124,17 +126,21 @@ void CassoExplorerGeneralPage::Init (DxuiLabel & previewNote, DxuiCheckbox & aut
 
 void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    int  previewEnd   = boundsDip.top + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
-    int  noteTop      = previewEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip);
+    int  fieldH       = scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
+    int  groupGap     = scaler.ToPx (kGroupGapDip);
+    int  previewEnd   = boundsDip.top + fieldH;
+    int  noteTop      = previewEnd;
     int  noteBottom   = noteTop + scaler.ToPx (kNoteHeightDip);
-    int  enterTop     = noteBottom + scaler.ToPx (ExplorerMetrics::kStackGapDip * 2);
-    int  enterEnd     = enterTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
-    int  registerTop  = enterEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 4);
-    int  registerEnd  = registerTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
-    int  rawCopyTop   = registerEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 2);
-    int  rawCopyEnd   = rawCopyTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
-    int  thumbsTop    = rawCopyEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 4);
-    int  thumbsEnd    = thumbsTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
+    int  enterTop     = noteBottom;
+    int  enterEnd     = enterTop + fieldH;
+    int  registerTop  = enterEnd + groupGap;
+    int  registerEnd  = registerTop + fieldH;
+    int  rawCopyTop   = registerEnd;
+    int  rawCopyEnd   = rawCopyTop + fieldH;
+    int  thumbsTop    = rawCopyEnd + groupGap;
+    int  thumbsEnd    = thumbsTop + fieldH;
+    int  foldersTop   = thumbsEnd;
+    int  foldersEnd   = foldersTop + fieldH;
 
 
 
@@ -146,8 +152,9 @@ void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScal
     m_register->Layout    (RECT { boundsDip.left, registerTop, boundsDip.right, registerEnd }, scaler);
     m_rawCopyMenu->Layout (RECT { boundsDip.left, rawCopyTop, boundsDip.right, rawCopyEnd }, scaler);
     m_thumbnails->Layout  (RECT { boundsDip.left, thumbsTop, boundsDip.right, thumbsEnd }, scaler);
+    m_folderThumbs->Layout (RECT { boundsDip.left + scaler.ToPx (kNoteIndentDip), foldersTop, boundsDip.right, foldersEnd }, scaler);
 
-    SetContentHeightPx (thumbsEnd - boundsDip.top);
+    SetContentHeightPx (foldersEnd - boundsDip.top);
 }
 
 
@@ -162,7 +169,8 @@ void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScal
 
 bool CassoExplorerGeneralPage::OnMouse (const DxuiMouseEvent & ev)
 {
-    return m_autoPreview->OnMouse (ev) || m_enterExpands->OnMouse (ev) || m_register->OnMouse (ev) || m_rawCopyMenu->OnMouse (ev) || m_thumbnails->OnMouse (ev);
+    return m_autoPreview->OnMouse (ev) || m_enterExpands->OnMouse (ev) || m_register->OnMouse (ev) || m_rawCopyMenu->OnMouse (ev) || m_thumbnails->OnMouse (ev)
+        || m_folderThumbs->OnMouse (ev);
 }
 
 
@@ -639,7 +647,7 @@ void CassoExplorerOptionsDialog::OnBuildPages()
     m_namingNote.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
 
     //  Writes the user's file types only when OK is pressed with it changed.
-    m_register.SetLabel   (L"Open disk images in Casso (.dsk, .do, .po, .woz, .nib, .nb2)");
+    m_register.SetLabel   (L"Boot disk images in Casso when you double-click them in File Explorer (.dsk, .do, .po, .woz, .nib, .nb2)");
     m_register.SetChecked (m_choices.registered);
     m_register.SetEnabled (!m_choices.packaged);
 
@@ -660,9 +668,14 @@ void CassoExplorerOptionsDialog::OnBuildPages()
     m_general = CreatePage<CassoExplorerGeneralPage> (L"General");
     m_autoThumbnails.SetLabel   (L"Automatically create thumbnails for disk images by booting them headlessly and capturing the screen");
     m_autoThumbnails.SetChecked (m_choices.autoThumbnails);
+    m_autoThumbnails.SetOnChange ([this] (bool checked) { m_folderThumbnails.SetEnabled (checked); });
+
+    m_folderThumbnails.SetLabel   (L"Create thumbnails for disk images in Casso's known folders list and folders that you browse");
+    m_folderThumbnails.SetChecked (m_choices.folderThumbnails);
+    m_folderThumbnails.SetEnabled (m_choices.autoThumbnails);
 
 
-    m_general->Init (m_previewNote, m_autoPreview, m_enterExpands, m_register, m_rawCopyMenu, m_autoThumbnails);
+    m_general->Init (m_previewNote, m_autoPreview, m_enterExpands, m_register, m_rawCopyMenu, m_autoThumbnails, m_folderThumbnails);
 
     m_hostNames = CreatePage<CassoExplorerHostNamesPage> (L"Host file names");
     m_hostNames->Init (m_namingNote, m_naming);
@@ -1154,6 +1167,7 @@ HRESULT CassoExplorerOptionsDialog::OnOk()
     m_choices.autoPreview  = m_autoPreview.IsChecked();
     m_choices.enterExpands = m_enterExpands.IsChecked();
     m_choices.autoThumbnails = m_autoThumbnails.IsChecked();
+    m_choices.folderThumbnails = m_folderThumbnails.IsChecked();
     m_choices.fullSendExtension = s_kFullSendFormats[(size_t) GetFormatIndex (m_fullSendFormat.list.GetSelectedIndex())].extension;
     m_choices.bootSoundPlace    = m_fullSendSounds.GetSelected();
     m_choices.verifyReads       = m_verifyRows[0].toggle.IsChecked();

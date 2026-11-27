@@ -1185,6 +1185,7 @@ void ExplorerListPane::FillList()
     m_homeShown = m_context.browser.IsHomeLocation();
 
     m_context.folderSync.CheckOpenedCard();
+    m_context.folderSync.UpdateThumbnailFolders (true);
 
     if (m_context.browser.GetRowOrder().IsHomeSectioned())
     {

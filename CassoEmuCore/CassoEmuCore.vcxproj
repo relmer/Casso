@@ -732,6 +732,8 @@
     <ClCompile Include="FileTypes\QuickDrawFontLibrary.cpp" />
     <ClCompile Include="FileTypes\QuickDrawText.cpp" />
     <ClCompile Include="CassoExplorer\Model\RemovableMediaWatch.cpp" />
+    <ClCompile Include="CassoExplorer\Model\BootQueue.cpp" />
+    <ClCompile Include="CassoExplorer\Model\FolderThumbnails.cpp" />
     <ClCompile Include="FileTypes\QuickDrawPicture.cpp" />
     <ClCompile Include="FileTypes\Disassembler65816.cpp" />
     <ClCompile Include="FileTypes\MacPaintPicture.cpp" />
@@ -2068,6 +2070,9 @@
     <ClInclude Include="FileTypes\QuickDrawFontLibrary.h" />
     <ClInclude Include="FileTypes\QuickDrawText.h" />
     <ClInclude Include="CassoExplorer\Model\RemovableMediaWatch.h" />
+    <ClInclude Include="CassoExplorer\Model\BootQueue.h" />
+    <ClInclude Include="CassoExplorer\Model\FolderThumbnails.h" />
+    <ClInclude Include="Seams\IFolderThumbnails.h" />
     <ClInclude Include="FileTypes\QuickDrawPicture.h" />
     <ClInclude Include="FileTypes\Disassembler65816.h" />
     <ClInclude Include="FileTypes\MacPaintPicture.h" />
