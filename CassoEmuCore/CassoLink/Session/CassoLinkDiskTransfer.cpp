@@ -1242,6 +1242,8 @@ HRESULT CassoLinkDiskTransfer::WriteRawDisk (LinkOperation & operation, const st
     size_t                              index    = (size_t) operation.drive - 1;
     std::vector<Byte>                   module;
     std::vector<RawWriteTrack>          tracks;
+    std::vector<int>                    skipped;
+    RawWriteFit                         fit;
     CassoLinkStatus                     status;
     int                                 tooLong  = -1;
     int                                 turn     = 0;
@@ -1252,7 +1254,7 @@ HRESULT CassoLinkDiskTransfer::WriteRawDisk (LinkOperation & operation, const st
 
 
 
-    hr = RawWriteStream::GetImageTracks (fileBytes, tracks, tooLong);
+    hr = RawWriteStream::GetImageTracks (fileBytes, tracks, skipped, tooLong);
 
     if (FAILED (hr) && tooLong >= 0)
     {
@@ -1278,15 +1280,22 @@ HRESULT CassoLinkDiskTransfer::WriteRawDisk (LinkOperation & operation, const st
     m_session.m_disks[index]->Clear();
     m_session.m_listings[index].reset();
 
+    if (!skipped.empty())
+    {
+        m_session.m_sink.OnActivity (RawWriteStream::DescribeSkipped (skipped));
+    }
+
     for (size_t i = 0; i < tracks.size(); i++)
     {
         RawWriteTrack  & track = tracks[i];
 
-        if (!track.stream.FitToTurn ((size_t) turn))
+        if (!track.stream.FitToTurn ((size_t) turn, fit))
         {
             wrapped += std::format ("{}{}", wraps == 0 ? "" : ", ", track.position / 4.0);
             wraps++;
         }
+
+        m_session.m_sink.OnActivity (RawWriteStream::DescribeTrack (track, fit));
 
         canceled = m_session.m_canceled.load();
         CBREx (!canceled, HRESULT_FROM_WIN32 (ERROR_CANCELLED));

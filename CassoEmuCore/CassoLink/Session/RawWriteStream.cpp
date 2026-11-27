@@ -328,7 +328,7 @@ size_t RawWriteStream::GetCellCount() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool RawWriteStream::FitToTurn (size_t cells)
+bool RawWriteStream::FitToTurn (size_t cells, RawWriteFit & outFit)
 {
     constexpr size_t  kSyncCells = kBitsPerByte + kSyncZeros;
 
@@ -346,6 +346,10 @@ bool RawWriteStream::FitToTurn (size_t cells)
     bool    sync      = false;
 
 
+
+    outFit       = RawWriteFit();
+    outFit.cells = GetCellCount();
+    outFit.turn  = cells;
 
     //  A track shorter than the turn is lengthened at the seam, and only a
     //  sync run is trimmed.
@@ -378,6 +382,7 @@ bool RawWriteStream::FitToTurn (size_t cells)
         total     += kSyncCells;
         headCells += kSyncCells;
         headSyncs++;
+        outFit.addedSyncs++;
     }
 
     //  The end of the write overlaps the stream by the cells past the turn,
@@ -389,6 +394,7 @@ bool RawWriteStream::FitToTurn (size_t cells)
         values.pop_back();
         zeros.pop_back();
         tailSyncs--;
+        outFit.tailSyncs++;
     }
 
     //  A weak-bit stretch is a long run of zero bits, which reads as noise at
@@ -404,8 +410,9 @@ bool RawWriteStream::FitToTurn (size_t cells)
             break;
         }
 
-        *longest = (Byte) (*longest - cut);
-        total   -= cut;
+        *longest         = (Byte) (*longest - cut);
+        total           -= cut;
+        outFit.weakCells += cut;
     }
 
     //  Then the longest runs of sync bytes between sectors, one sync byte at
@@ -418,9 +425,15 @@ bool RawWriteStream::FitToTurn (size_t cells)
         {
             break;
         }
+
+        outFit.gapSyncs++;
     }
 
-    return total <= GetLongestFit (cells, headCells);
+    outFit.written = total;
+    outFit.longest = GetLongestFit (cells, headCells);
+    outFit.fits    = total <= outFit.longest;
+
+    return outFit.fits;
 }
 
 
@@ -644,7 +657,7 @@ bool RawWriteStream::IsRawImage (std::span<const Byte> fileBytes)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT RawWriteStream::GetImageTracks (std::span<const Byte> fileBytes, std::vector<RawWriteTrack> & outTracks, int & outTooLong)
+HRESULT RawWriteStream::GetImageTracks (std::span<const Byte> fileBytes, std::vector<RawWriteTrack> & outTracks, std::vector<int> & outSkipped, int & outTooLong)
 {
     HRESULT               hr        = S_OK;
     DiskImage             image;
@@ -659,6 +672,7 @@ HRESULT RawWriteStream::GetImageTracks (std::span<const Byte> fileBytes, std::ve
 
 
     outTracks.clear();
+    outSkipped.clear();
     outTooLong = -1;
     CBREx (known, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
@@ -703,7 +717,7 @@ HRESULT RawWriteStream::GetImageTracks (std::span<const Byte> fileBytes, std::ve
             outTracks.push_back (std::move (entry));
         }
 
-        DropOffCenterReads (outTracks);
+        DropOffCenterReads (outTracks, outSkipped);
     }
 
     for (const RawWriteTrack & track : outTracks)
@@ -737,14 +751,17 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void RawWriteStream::DropOffCenterReads (std::vector<RawWriteTrack> & ioTracks)
+void RawWriteStream::DropOffCenterReads (std::vector<RawWriteTrack> & ioTracks, std::vector<int> & outSkipped)
 {
     std::set<int>                          dropped;
+    std::set<int>                          erasedAll;
     std::map<int, std::vector<int>>        erasesBefore;
     std::vector<RawWriteTrack>             kept;
     int                                    perTrack = DiskImage::kQuarterTracksPerWholeTrack;
 
 
+
+    outSkipped.clear();
 
     auto  find = [&ioTracks, &dropped] (int position) -> const RawWriteStream *
     {
@@ -783,6 +800,7 @@ void RawWriteStream::DropOffCenterReads (std::vector<RawWriteTrack> & ioTracks)
         if (IsOffCenterRead (track.stream, below, above) && GetSharedPart (track.stream, below, above) >= s_kBleedShare)
         {
             dropped.insert (track.position);
+            erasedAll.insert (track.position);
             erasesBefore[first].push_back (track.position);
         }
     }
@@ -794,6 +812,7 @@ void RawWriteStream::DropOffCenterReads (std::vector<RawWriteTrack> & ioTracks)
             RawWriteTrack  erase;
 
             erase.position = erased;
+            erase.isErase  = true;
 
             //  Sync bytes in runs as an ordinary track's gaps are: thousands of
             //  $FF in a row arrived damaged on every try over a real //c's
@@ -819,9 +838,116 @@ void RawWriteStream::DropOffCenterReads (std::vector<RawWriteTrack> & ioTracks)
         {
             kept.push_back (track);
         }
+        else if (!erasedAll.contains (track.position))
+        {
+            outSkipped.push_back (track.position);
+        }
     }
 
     ioTracks = std::move (kept);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RawWriteStream::FormatPosition
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string RawWriteStream::FormatPosition (int position)
+{
+    int  perTrack = DiskImage::kQuarterTracksPerWholeTrack;
+
+
+
+    return (position % perTrack == 0) ? std::to_string (position / perTrack) : std::format ("{:g}", position / (double) perTrack);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RawWriteStream::DescribeTrack
+//
+//  As "Raw write of track 2.5: 51040 bits, 51190 fit a turn of 51250. Added
+//  6 sync bytes at the seam." A track that doesn't fit wraps, and the line
+//  has the excess.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string RawWriteStream::DescribeTrack (const RawWriteTrack & track, const RawWriteFit & fit)
+{
+    std::string               text    = std::format ("Raw write of track {}: {}{} bits, {} fit a turn of {}.", FormatPosition (track.position), track.isErase ? "an erase of sync bytes, " : "",
+                                                     fit.written, fit.longest, fit.turn);
+    std::vector<std::string>  dropped;
+
+
+
+    if (!fit.fits)
+    {
+        text += std::format (" Too long by {} bits, so it wraps.", fit.written - fit.longest);
+    }
+
+    if (fit.addedSyncs > 0)
+    {
+        text += std::format (" Added {} sync bytes at the seam.", fit.addedSyncs);
+    }
+
+    if (fit.tailSyncs > 0)
+    {
+        dropped.push_back (std::format ("{} sync bytes at the end", fit.tailSyncs));
+    }
+
+    if (fit.weakCells > 0)
+    {
+        dropped.push_back (std::format ("{} bits from weak-bit runs", fit.weakCells));
+    }
+
+    if (fit.gapSyncs > 0)
+    {
+        dropped.push_back (std::format ("{} sync bytes between sectors", fit.gapSyncs));
+    }
+
+    for (size_t each = 0; each < dropped.size(); each++)
+    {
+        text += (each == 0) ? " Dropped " : (each + 1 == dropped.size()) ? " and " : ", ";
+        text += dropped[each];
+    }
+
+    text += dropped.empty() ? "" : ".";
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RawWriteStream::DescribeSkipped
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string RawWriteStream::DescribeSkipped (const std::vector<int> & skipped)
+{
+    std::string  list;
+    bool         one  = skipped.size() == 1;
+
+
+
+    for (int position : skipped)
+    {
+        list += (list.empty() ? "" : ", ") + FormatPosition (position);
+    }
+
+    return list.empty() ? list : std::format ("{} {} {} not written in a raw write: {} of the tracks beside {}.", one ? "Track" : "Tracks", list, one ? "is" : "are",
+                                              one ? "it is an off-center read" : "they are off-center reads", one ? "it" : "them");
 }
 
 

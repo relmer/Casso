@@ -300,6 +300,8 @@ public:
         std::vector<Byte>                   module;
         std::vector<Byte>                   file;
         std::vector<RawWriteTrack>          tracks;
+        std::vector<int>                    skipped;
+        RawWriteFit                         fit;
         CassoLinkStatus                     status;
         wchar_t                             path[MAX_PATH] = {};
         int                                 tooLong        = -1;
@@ -323,7 +325,7 @@ public:
             file.assign (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
         }
 
-        AssertSucceeded (RawWriteStream::GetImageTracks (file, tracks, tooLong));
+        AssertSucceeded (RawWriteStream::GetImageTracks (file, tracks, skipped, tooLong));
 
         //  CASSO_RAW_WRITE_TURN sets every track to that many bits of sync
         //  bytes, for a drive slower than the emulated disk's tracks allow.
@@ -357,7 +359,8 @@ public:
             size_t                padding = 0;
             size_t                syncs   = 0;
 
-            fits.push_back (track.stream.FitToTurn (turn));
+            fits.push_back (track.stream.FitToTurn (turn, fit));
+            Logger::WriteMessage ((RawWriteStream::DescribeTrack (track, fit) + "\n").c_str());
 
             AssertSucceeded (rig.host->WriteRawTrack (1, (Byte) track.position, track.stream, CassoLinkHost::GetStepPercents ((size_t) (&track - tracks.data()), tracks.size()), status));
             Assert::AreEqual ((Byte) 0, status.error);
