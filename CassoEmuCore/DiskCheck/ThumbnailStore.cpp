@@ -69,9 +69,10 @@ std::filesystem::path ThumbnailStore::GetPath (const std::string & hash, const w
 
 HRESULT ThumbnailStore::ReadFile (const std::filesystem::path & path, std::vector<Byte> & outBytes)
 {
-    HRESULT        hr = S_OK;
-    std::ifstream  in (path, std::ios::binary);
-    bool           isOpen = in.is_open();
+    HRESULT         hr     = S_OK;
+    std::ifstream   in (path, std::ios::binary | std::ios::ate);
+    bool            isOpen = in.is_open();
+    std::streamoff  size   = 0;
 
 
 
@@ -79,7 +80,14 @@ HRESULT ThumbnailStore::ReadFile (const std::filesystem::path & path, std::vecto
 
     CBREx (isOpen, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
 
-    outBytes.assign (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
+    //  Read in one call; a character iterator costs a call a byte.
+    size = (std::streamoff) in.tellg();
+    CBREx (size >= 0, E_FAIL);
+
+    outBytes.resize ((size_t) size);
+    in.seekg (0);
+    in.read ((char *) outBytes.data(), (std::streamsize) size);
+    CBREx (in.gcount() == (std::streamsize) size, E_FAIL);
 
 Error:
     return hr;
