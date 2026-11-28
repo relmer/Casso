@@ -610,6 +610,7 @@
     <ClCompile Include="CassoLink\DiskDriverTimingTests.cpp" />
     <ClCompile Include="CassoLink\KrunchProgramTests.cpp" />
     <ClCompile Include="CassoLink\ModuleProgramTests.cpp" />
+    <ClCompile Include="CassoLink\ModuleFitTests.cpp" />
     <ClCompile Include="CassoLink\CassoLinkBlockTransferTests.cpp" />
     <ClCompile Include="CassoLink\CassoLinkVirtualDrivesTests.cpp" />
     <ClCompile Include="CassoLink\CaptureProgramTests.cpp" />

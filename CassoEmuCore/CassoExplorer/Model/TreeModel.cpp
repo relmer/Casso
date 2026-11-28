@@ -1888,7 +1888,8 @@ std::wstring TreeModel::GetHostItemId (bool underCasso, const HostFolderItem & i
 //  TreeModel::IsHostListingCurrent
 //
 //  One read of the folder, without looking into each subfolder for an
-//  expander: a subfolder that changes is watched and read on its own.
+//  expander. A closed subfolder whose modified time changed is queued for a
+//  check. An open subfolder is watched and read separately.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1929,6 +1930,15 @@ bool TreeModel::IsHostListingCurrent (const std::wstring & id)
         if (!itemId.empty())
         {
             after.emplace_back (itemId, item.label, item.entry.isHidden);
+        }
+
+        //  A closed subfolder modified since its check is checked again, so
+        //  its expander appears or goes away once the check finishes.
+        if (item.kind == HostFolderItem::Kind::Folder && !itemId.empty() && !m_children.contains (itemId))
+        {
+            bool  expands = false;
+
+            m_childChecks.TryGet (item.path, item.entry.modifiedUnix, expands);
         }
     }
 
