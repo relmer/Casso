@@ -9,6 +9,7 @@
 #include "CassoLink/CassoLinkHost.h"
 #include "CassoLink/LinkFault.h"
 #include "CassoLink/LinkProgram.h"
+#include "CassoLink/Session/RawWriteStream.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Common/SectorInterleave.h"
 #include "Seams/InProcessByteStream.h"
@@ -518,6 +519,48 @@ public:
 
         rig.Arm ("pc:flip@700");
         rig.Connect();
+        rig.AssertApplied();
+    }
+
+
+
+    //  A byte of a raw track's stream left out: the Apple requests that
+    //  piece of the stream again, and the track is written.
+    TEST_METHOD (PcDrop_InARawTracksStream_ResendsThePiece)
+    {
+        static constexpr size_t  kBytes    = 6000;
+        static constexpr Byte    kPosition = 20;
+
+        Rig                   rig;
+        RawWriteStream        stream;
+        std::vector<Byte>     module;
+        std::vector<uint8_t>  bits;
+        CassoLinkStatus       status;
+
+
+
+        for (size_t i = 0; i < kBytes; i++)
+        {
+            Byte  value = (Byte) (0x96 | (i * 37));
+
+            for (int bit = 7; bit >= 0; bit--)
+            {
+                bits.push_back ((uint8_t) ((value >> bit) & 1));
+            }
+        }
+
+        RawWriteStream::FromBits (bits, stream);
+
+        rig.Connect();
+        Assert::AreEqual (S_OK, rig.host->BuildRawWriteModule (module));
+        Assert::AreEqual (S_OK, rig.Run ([&] () { return rig.host->EnsureModule (module); }));
+
+        rig.Arm ("pc:drop@5000");
+
+        Assert::AreEqual (S_OK, rig.Run ([&] () { return rig.host->WriteRawTrack (1, kPosition, stream, CassoLinkHost::GetTrackPercents (kPosition / 4), status); }));
+        Assert::AreEqual<int> (CassoLinkHost::kErrorNone, status.error);
+
+        Assert::IsTrue (rig.HasActivity (": damaged on the Apple"), L"the resend is in the log");
         rig.AssertApplied();
     }
 

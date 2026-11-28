@@ -402,7 +402,7 @@ HRESULT CassoLinkHost::WriteRawTrack (Byte drive, Byte position, const RawWriteS
 
     request = { drive, position, (Byte) (count & 0xFF), (Byte) (count >> 8), percents[0], percents[1] };
 
-    hr = SendStreamRequest (CassoLinkCodec::kWriteRawTrack, request, moduleStream, std::format ("track {}'s bits", position / 4.0), outStatus);
+    hr = SendStreamRequest (CassoLinkCodec::kWriteRawTrack, request, moduleStream, std::format ("track {}'s bits", position / 4.0), outStatus, kRawPieceBytes);
     CHR (hr);
 
 Error:
@@ -432,7 +432,7 @@ HRESULT CassoLinkHost::WriteRawPass (Byte drive, const RawWritePass & pass, std:
 
     request = { drive, (Byte) pass.position, (Byte) (pass.count & 0xFF), (Byte) (pass.count >> 8), percents[0], percents[1] };
 
-    hr = SendStreamRequest (CassoLinkCodec::kWriteRawTrack, request, pass.stream, std::format ("the arcs from track {}", pass.position / 4.0), outStatus);
+    hr = SendStreamRequest (CassoLinkCodec::kWriteRawTrack, request, pass.stream, std::format ("the arcs from track {}", pass.position / 4.0), outStatus, kRawPieceBytes);
     CHR (hr);
 
 Error:
@@ -448,22 +448,23 @@ Error:
 //  CassoLinkHost::SendStreamRequest
 //
 //  The Apple requests the stream with an Acknowledge, and requests it again
-//  with a NAK when it arrived damaged.
+//  with a NAK when it arrived damaged. With a piece size, the stream is sent
+//  in pieces of that many bytes: the second byte of each Acknowledge or NAK
+//  is the piece the Apple requests.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoLinkHost::SendStreamRequest (Byte command, std::span<const Byte> request, std::span<const Byte> stream, const std::string & item, CassoLinkStatus & outStatus)
+HRESULT CassoLinkHost::SendStreamRequest (Byte command, std::span<const Byte> request, std::span<const Byte> stream, const std::string & item, CassoLinkStatus & outStatus, size_t pieceBytes)
 {
     HRESULT            hr      = S_OK;
     CassoLinkPacket    packet;
-    std::vector<Byte>  payload (stream.begin(), stream.end());
-    Word               crc     = CassoLinkCodec::ComputeCrc (stream);
+    std::vector<Byte>  payload;
+    size_t             piece   = pieceBytes == 0 ? stream.size() : pieceBytes;
+    size_t             start   = 0;
+    Word               crc     = 0;
     bool               valid   = false;
 
 
-
-    payload.push_back ((Byte) (crc & 0xFF));
-    payload.push_back ((Byte) (crc >> 8));
 
     hr = AwaitReady();
     CHR (hr);
@@ -487,6 +488,15 @@ HRESULT CassoLinkHost::SendStreamRequest (Byte command, std::span<const Byte> re
         CBREx (valid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
         ReportNak (packet, item);
+
+        start = pieceBytes == 0 ? 0 : packet.payload[1] * piece;
+        valid = start + piece <= stream.size();
+        CBREx (valid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        crc = CassoLinkCodec::ComputeCrc (stream.subspan (start, piece));
+        payload.assign (stream.begin() + start, stream.begin() + start + piece);
+        payload.push_back ((Byte) (crc & 0xFF));
+        payload.push_back ((Byte) (crc >> 8));
 
         hr = SendPacket (CassoLinkCodec::kNibbleData, payload);
         CHR (hr);
