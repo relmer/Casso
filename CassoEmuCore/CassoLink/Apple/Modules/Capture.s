@@ -65,9 +65,6 @@ CAPEND     = $9000
 CAPPAGES   = (CAPEND - CAPBUF) / 256
 CAPCODE    = $5470              ; the loop, a copy for each page, up to CAPBUF
 
-; The sequence number and the 256 bytes and the CRC: the payload's length.
-CAPLEN     = 1 + 256 + 2
-
 ; The range of revolution lengths for findrev, and its second sample's offset.
 LMIN       = 4800
 LMAX       = 7000
@@ -80,7 +77,7 @@ CFMAX      = 20000              ; the bytes cpfind reads before giving up, about
 CAPPAGE1   = CAPBUF / 256 + 1   ; the page after CAPBUF's first
 
         .org $5000
-        .byte 'C', 'M', 1, 11   ; capture, version 11
+        .byte 'C', 'M', 1, 12   ; capture, version 12
         .word PROGVER
         .word modend - $5000
         .word 0                 ; the CRC, which the PC fills in
@@ -98,8 +95,8 @@ csta     = $46                  ; the offset of its store's page
 esrc     = $47                  ; and $48: the next byte to encode
 epred    = $49                  ; and $4A: the byte a revolution before it
 elen     = $4B                  ; and $4C: the revolution's length, or 0
-ecount   = $51                  ; the bytes left in the open packet
-eopen    = $52                  ; nonzero while a packet is open
+ecount   = $51                  ; the bytes in PAGEBUF not yet sent
+esavy    = $52                  ; emitb: Y as it came
 eseq     = $53                  ; the next packet's sequence number
 ecap     = $54                  ; the most bytes a token can have here
 en       = $55                  ; a token's count
@@ -108,7 +105,6 @@ etq      = $58                  ; and $59: the byte a revolution before it
 eyy      = $5A                  ; esrc's offset of the byte being encoded
 ebyte    = $5B                  ; that byte
 evalid   = $5C                  ; $80 once copies are allowed
-etmp     = $5D
 evpage   = $5E                  ; the page copies are allowed from
 eend     = $5F                  ; nonzero once every byte is given
 csync    = $60                  ; the position to wait on, $FF for none
@@ -418,10 +414,9 @@ copy12end:
 ; the next 3 values are the same, else the value as it is; then the marks
 ; (emarks). Values are compared with the top bit shifted out, or set. Copies
 ; start only from the page after the one with the first byte a revolution in,
-; so the check costs a BIT. Each byte of the encoding goes out as it is made,
-; so the work overlaps the chip's sending.
+; so the check costs a BIT. The encoding is sent a page at a time (emitb).
 encode: lda #0
-        sta eopen
+        sta ecount
         sta eseq
         sta evalid
         sta eend
@@ -489,7 +484,7 @@ enlit:  ldy eyy
 ennext: lda eend
         beq enloop
 envals: jsr emarks
-enpad:  lda eopen               ; zeros to the end of the last packet
+enpad:  lda ecount              ; zeros to the end of the last packet
         beq endone
         lda #0
         jsr emitb
@@ -682,63 +677,21 @@ fr3:    lda elen
         sta elen+1
         rts
 
-; emitb: A as the encoding's next byte, in the open packet or a new one,
-; with the CRC by the program's tables; a full packet is ended. Y is saved.
-emitb:  sta etmp
-        lda eopen
-        bne ebopen
-        jsr pktbegin
-ebopen: lda etmp
-        eor p_peor
-        sta p_peor
-        lda etmp
-        eor p_crchi
-        tax
-        lda p_crclo
-        eor p_CRCHI,x
-        sta p_crchi
-        lda p_CRCLO,x
-        sta p_crclo
-        lda etmp
-        jsr p_putb
-        dec ecount
+; emitb: A as the encoding's next byte, in the program's PAGEBUF; once it
+; has 256, they are sent as a Capture data packet, at the line's rate, by
+; the program's sendpage. Y is saved; X is changed.
+emitb:  ldx ecount
+        sta p_PAGEBUF,x
+        inx
+        stx ecount
         bne ebdone
-        jsr pktend
-ebdone: rts
-
-; pktbegin: a Capture data packet's header and sequence number.
-pktbegin: lda #$C1
-        jsr p_putb
-        lda #<CAPLEN
-        jsr p_putb
-        lda #>CAPLEN
-        jsr p_putb
+        sty esavy
         lda #CMDCAPDATA
-        jsr p_putb
-        lda #$C1 ^ <CAPLEN ^ >CAPLEN ^ CMDCAPDATA
-        jsr p_putb
-        lda #0
-        sta p_crclo
-        sta p_crchi
-        sta ecount              ; 256 bytes
-        lda eseq
-        sta p_peor
-        jsr p_putb
-        lda #1
-        sta eopen
-        rts
-
-; pktend: the packet's CRC and check byte.
-pktend: lda p_crclo
-        jsr p_putpe
-        lda p_crchi
-        jsr p_putpe
-        lda p_peor
-        jsr p_putb
+        ldx eseq
+        jsr p_sendpage
         inc eseq
-        lda #0
-        sta eopen
-        rts
+        ldy esavy
+ebdone: rts
 
 cmark:  .byte 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 

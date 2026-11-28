@@ -17,6 +17,8 @@
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/Stamp/FormatStamp.h"
 #include "Devices/Disk/Stamp/FormatStampChunk.h"
+#include "CaptureModuleCpu.h"
+#include "CaptureModuleModel.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -144,9 +146,43 @@ public:
 
 
 
-        hr = LinkProgram::AssembleModule (LinkProgram::GetCaptureModuleSource(), module, errors);
-        Assert::IsTrue (SUCCEEDED (hr), TextEncoding::NarrowToWide (errors).c_str());
-        Assert::IsTrue (module.size() <= kRoom, std::format (L"{} bytes", module.size()).c_str());
+        for (LinkChip chip : { LinkChip::Acia, LinkChip::W5100, LinkChip::Cassette, LinkChip::Network })
+        {
+            for (bool faults : { false, true })
+            {
+                hr = LinkProgram::AssembleModule (LinkProgram::GetCaptureModuleSource(), module, errors, chip, faults);
+                Assert::IsTrue (SUCCEEDED (hr), TextEncoding::NarrowToWide (errors).c_str());
+
+                Logger::WriteMessage (std::format ("chip {}, faults {}: {} bytes\n", (int) chip, faults, module.size()).c_str());
+                Assert::IsTrue (module.size() <= kRoom, std::format (L"chip {}, faults {}: {} bytes", (int) chip, faults, module.size()).c_str());
+            }
+        }
+    }
+
+
+    //  Every build of the program ends below PAGEBUF, the page sendpage sends
+    //  a module's data from.
+    TEST_METHOD (TheProgram_EndsBelowItsPageBuffer)
+    {
+        static constexpr size_t  kPageBuffer = 0x3800;
+
+        std::vector<Byte>  program;
+        std::string        errors;
+        HRESULT            hr     = S_OK;
+
+
+
+        for (LinkChip chip : { LinkChip::Acia, LinkChip::W5100, LinkChip::Cassette, LinkChip::Network })
+        {
+            for (bool faults : { false, true })
+            {
+                hr = LinkProgram::AssembleProgram (program, errors, chip, faults);
+                Assert::IsTrue (SUCCEEDED (hr), TextEncoding::NarrowToWide (errors).c_str());
+
+                Logger::WriteMessage (std::format ("chip {}, faults {}: ends at ${:04X}\n", (int) chip, faults, LinkProgram::kProgramAddress + program.size()).c_str());
+                Assert::IsTrue (LinkProgram::kProgramAddress + program.size() <= kPageBuffer, std::format (L"chip {}, faults {}", (int) chip, faults).c_str());
+            }
+        }
     }
 
 
@@ -1775,5 +1811,89 @@ public:
         Assert::AreEqual (woz.ResolveQuarterTrack (4), woz.ResolveQuarterTrack (3), L"Quarter track 3 is track 1's stream");
         Assert::AreNotEqual (woz.ResolveQuarterTrack (0), woz.ResolveQuarterTrack (4));
         Assert::AreEqual (-1, woz.ResolveQuarterTrack (2), L"The half track");
+    }
+
+
+    //  The index of the first byte of `sent` that differs from the model's,
+    //  for the assertion's message.
+    static std::wstring  DescribeMismatch (const std::vector<Byte> & sent, const std::vector<Byte> & expected)
+    {
+        size_t  at = 0;
+
+
+
+        while (at < sent.size() && at < expected.size() && sent[at] == expected[at])
+        {
+            at++;
+        }
+
+        return std::format (L"{} bytes sent, {} expected, first difference at {}", sent.size(), expected.size(), at);
+    }
+
+
+    //  A read at 8 cycles on an emulated 6502: its packets are byte for byte
+    //  the ones Capture.s specifies: the values as tokens, the marks eight
+    //  to a byte and the last packet padded.
+    TEST_METHOD (AReadsPackets_AreTheEncodingsPackets)
+    {
+        static constexpr uint32_t  kStrayShare = 4;
+
+        CaptureModuleCpu   cpu;
+        std::vector<Byte>  read     = CaptureModuleModel::MakeRead (1234, kStrayShare, 1);
+        std::vector<Byte>  expected = CaptureModuleModel::EncodeValues (read);
+
+
+
+        Assert::AreNotEqual ((size_t) 0, CaptureModuleModel::FindLength (read), L"the read repeats");
+
+        CaptureModuleModel::AppendMarkBits (read, expected);
+        expected = CaptureModuleModel::BuildPackets (expected);
+
+        cpu.Load();
+        cpu.Encode (read);
+
+        Logger::WriteMessage (std::format ("{} bytes sent\n", cpu.sent.size()).c_str());
+        Assert::IsTrue (cpu.sent == expected, DescribeMismatch (cpu.sent, expected).c_str());
+    }
+
+
+    //  The bytes of a packet's 256 go out faster than the line takes them: at
+    //  115,200 baud, a byte every 88 cycles of a 1.023 MHz 6502. The 6551
+    //  here is always ready, so the gap between two stores to its data
+    //  register is the send loop's time for a byte.
+    TEST_METHOD (APacketsBytes_AreSentFasterThanTheLine)
+    {
+        static constexpr uint64_t  kLineCycles = 88;
+        static constexpr size_t    kHeader     = 6;
+        static constexpr size_t    kPacket     = 5 + CaptureModuleModel::kPayload + 1;
+
+        CaptureModuleCpu   cpu;
+        std::vector<Byte>  read    = CaptureModuleModel::MakeRead (0, 0, 2);
+        uint64_t           slowest = 0;
+        uint64_t           total   = 0;
+        size_t             gaps    = 0;
+
+
+
+        cpu.Load();
+        cpu.Encode (read);
+
+        Assert::AreEqual ((size_t) 0, cpu.sent.size() % kPacket, L"whole packets");
+        Assert::IsTrue (cpu.sent.size() > kPacket, L"more than one packet");
+
+        for (size_t start = 0; start < cpu.sent.size(); start += kPacket)
+        {
+            for (size_t at = start + kHeader + 1; at < start + kHeader + CaptureModuleModel::kPage; at++)
+            {
+                uint64_t  gap = cpu.sentAt[at] - cpu.sentAt[at - 1];
+
+                slowest = std::max (slowest, gap);
+                total  += gap;
+                gaps++;
+            }
+        }
+
+        Logger::WriteMessage (std::format ("send loop: {} cycles a byte at most, {:.1f} on average\n", slowest, (double) total / (double) gaps).c_str());
+        Assert::IsTrue (slowest <= kLineCycles, std::format (L"{} cycles for a byte", slowest).c_str());
     }
 };
