@@ -444,8 +444,8 @@ public:
 
     TEST_METHOD (TheProbe_AtApplesoftsPrompt_SendsA5_OnAnApple2Plus)                 { RunProbe        ("Apple2Plus"); }
     TEST_METHOD (TheProbe_AtIntegerBasicsPrompt_SendsA5_OnAnApple2)                   { RunProbe        ("Apple2"); }
-    TEST_METHOD (TheBootstrap_AndALink_ReadAndWriteTheDisk_AndExit_OnAnApple2Plus)    { RunLink         ("Apple2Plus"); }
-    TEST_METHOD (TheBootstrap_AndALink_ReadAndWriteTheDisk_AndExit_OnAnApple2)        { RunLink         ("Apple2"); }
+    TEST_METHOD (TheBootstrap_AndALink_ReadWriteCaptureAndRawWrite_AndExit_OnAnApple2Plus) { RunLink         ("Apple2Plus"); }
+    TEST_METHOD (TheBootstrap_AndALink_ReadWriteCaptureAndRawWrite_AndExit_OnAnApple2)     { RunLink         ("Apple2"); }
     TEST_METHOD (ControlReset_DuringALink_EndsAtApplesoft_OnAnApple2Plus)             { RunControlReset ("Apple2Plus"); }
     TEST_METHOD (ControlReset_DuringALink_EndsAtTheOldMonitor_OnAnApple2)             { RunControlReset ("Apple2"); }
 };
