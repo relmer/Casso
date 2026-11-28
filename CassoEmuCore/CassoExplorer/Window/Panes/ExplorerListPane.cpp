@@ -1133,6 +1133,8 @@ void ExplorerListPane::FillList()
 
 
 
+    m_menus.InvalidateOfferedVerbs();
+
     m_context.cassoLinkManager.ReleaseIdleConnections();
     m_context.cassoLinkManager.NoteListFilled();
 

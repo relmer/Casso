@@ -950,6 +950,9 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
 
 
 
+    //  A worker's result can change what the selection offers.
+    m_parts->listPane.GetMenus().InvalidateOfferedVerbs();
+
     if (msg == (UINT) AppMessage::ExplorerLaunch)
     {
         std::vector<std::wstring>  launches = std::move (m_pendingLaunches);
