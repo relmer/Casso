@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoLink/Session/CaptureStream.h"
+#include "CassoLink/Session/CaptureMarks.h"
 
 
 
@@ -57,11 +58,10 @@ bool CaptureStream::FindRevolution (std::span<const Byte> bytes, size_t & outLen
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CaptureStream::Decode (std::span<const Byte> encoded, size_t count, std::vector<Byte> & outBytes)
+bool CaptureStream::Decode (std::span<const Byte> encoded, size_t count, Byte moduleVersion, std::vector<Byte> & outBytes)
 {
     size_t  at       = 2;
     size_t  distance = 0;
-    size_t  marks    = (count + s_kMarksPerByte - 1) / s_kMarksPerByte;
     bool    valid    = encoded.size() >= 2;
 
 
@@ -109,14 +109,7 @@ bool CaptureStream::Decode (std::span<const Byte> encoded, size_t count, std::ve
         }
     }
 
-    valid = valid && outBytes.size() == count && at + marks <= encoded.size();
-
-    for (size_t each = 0; valid && each < count; each++)
-    {
-        bool  isMarked = ((encoded[at + each / s_kMarksPerByte] << (each % s_kMarksPerByte)) & s_kTopBit) == 0;
-
-        outBytes[each] = isMarked ? (Byte) (outBytes[each] & ~s_kTopBit) : outBytes[each];
-    }
+    valid = valid && outBytes.size() == count && CaptureMarks::Apply (encoded, moduleVersion, at, outBytes);
 
     return valid;
 }

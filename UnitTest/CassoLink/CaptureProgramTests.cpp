@@ -5,6 +5,7 @@
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/CassoLinkHost.h"
 #include "CassoLink/LinkProgram.h"
+#include "CassoLink/Session/CaptureMarks.h"
 #include "CassoLink/Session/CaptureStream.h"
 #include "CassoLink/Session/CassoLinkCapture.h"
 #include "CassoLink/Session/CassoLinkThirteenSector.h"
@@ -17,6 +18,8 @@
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/Stamp/FormatStamp.h"
 #include "Devices/Disk/Stamp/FormatStampChunk.h"
+#include "CaptureModuleCpu.h"
+#include "CaptureModuleModel.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -118,17 +121,75 @@ public:
 
 
 
-        Assert::IsTrue  (CaptureStream::Decode (encoded, std::size (expected), bytes));
+        Assert::IsTrue  (CaptureStream::Decode (encoded, std::size (expected), kBitsVersion, bytes));
         Assert::IsTrue  (bytes == std::vector<Byte> (std::begin (expected), std::end (expected)));
-        Assert::IsFalse (CaptureStream::Decode (encoded, std::size (expected) + 3, bytes), L"Too few values");
+        Assert::IsFalse (CaptureStream::Decode (encoded, std::size (expected) + 3, kBitsVersion, bytes), L"Too few values");
 
         const Byte         early[] = { 3, 0, 0x00, 0x01 };
 
-        Assert::IsFalse (CaptureStream::Decode (early, 3, bytes), L"A copy from before the first value");
+        Assert::IsFalse (CaptureStream::Decode (early, 3, kBitsVersion, bytes), L"A copy from before the first value");
 
         const Byte         noMarks[] = { 3, 0, 0xD5, 0xAA };
 
-        Assert::IsFalse (CaptureStream::Decode (noMarks, 2, bytes), L"No marks");
+        Assert::IsFalse (CaptureStream::Decode (noMarks, 2, kBitsVersion, bytes), L"No marks");
+
+        const Byte         runs[] = { 3, 0, 0xD5, 0xAA, 0x96, 0x00, 0x81, 0xFF, 0x00, 0x02, CaptureMarks::kRuns, 3, 1, 4, 1, 2, 0x00 };
+
+        Assert::IsTrue  (CaptureStream::Decode (runs, std::size (expected), CaptureMarks::kRunsVersion, bytes), L"The marks as runs");
+        Assert::IsTrue  (bytes == std::vector<Byte> (std::begin (expected), std::end (expected)));
+        Assert::IsFalse (CaptureStream::Decode (encoded, std::size (expected), CaptureMarks::kRunsVersion, bytes), L"No byte ahead of the bits");
+    }
+
+    //  The last capture module to send its marks only as bits.
+    static constexpr Byte  kBitsVersion = CaptureMarks::kRunsVersion - 1;
+
+
+    //  A read's marks through each encoding come back as they went in: runs
+    //  of each kind, ones longer than 255 and of exactly 255, and a first
+    //  byte marked.
+    TEST_METHOD (AReadsMarks_RoundTripThroughBothEncodings)
+    {
+        static constexpr size_t  kBytes = 3000;
+
+        std::vector<Byte>  stored;
+        uint32_t           seed   = 7;
+
+
+
+        for (size_t at = 0; at < kBytes; at++)
+        {
+            bool  marked = false;
+
+            seed   = seed * 1103515245u + 12345u;
+            marked = at == 0 || (at >= 400 && at < 655) || (at >= 1000 && at < 1600) || (at >= 2000 && (seed >> 16) % 5 == 0);
+
+            stored.push_back (marked ? (Byte) 0x55 : (Byte) 0xD5);
+        }
+
+        for (Byte encoding : { CaptureMarks::kBits, CaptureMarks::kRuns })
+        {
+            std::vector<Byte>  encoded { encoding };
+            std::vector<Byte>  bytes (kBytes, 0xD5);
+            size_t             at = 0;
+
+            if (encoding == CaptureMarks::kBits)
+            {
+                CaptureMarks::EncodeBits (stored, encoded);
+            }
+            else
+            {
+                CaptureMarks::EncodeRuns (stored, encoded);
+            }
+
+            Assert::IsTrue (CaptureMarks::Apply (encoded, CaptureMarks::kRunsVersion, at, bytes), std::format (L"encoding {}", encoding).c_str());
+            Assert::IsTrue (bytes == stored, std::format (L"encoding {}", encoding).c_str());
+            Assert::AreEqual (encoded.size(), at, L"every byte of the marks read");
+
+            encoded.pop_back();
+            at = 0;
+
+            Assert::IsFalse (CaptureMarks::Apply (encoded, CaptureMarks::kRunsVersion, at, bytes), std::format (L"encoding {}, short", encoding).c_str());
+        }
     }
 
 
@@ -144,9 +205,43 @@ public:
 
 
 
-        hr = LinkProgram::AssembleModule (LinkProgram::GetCaptureModuleSource(), module, errors);
-        Assert::IsTrue (SUCCEEDED (hr), TextEncoding::NarrowToWide (errors).c_str());
-        Assert::IsTrue (module.size() <= kRoom, std::format (L"{} bytes", module.size()).c_str());
+        for (LinkChip chip : { LinkChip::Acia, LinkChip::W5100, LinkChip::Cassette, LinkChip::Network })
+        {
+            for (bool faults : { false, true })
+            {
+                hr = LinkProgram::AssembleModule (LinkProgram::GetCaptureModuleSource(), module, errors, chip, faults);
+                Assert::IsTrue (SUCCEEDED (hr), TextEncoding::NarrowToWide (errors).c_str());
+
+                Logger::WriteMessage (std::format ("chip {}, faults {}: {} bytes\n", (int) chip, faults, module.size()).c_str());
+                Assert::IsTrue (module.size() <= kRoom, std::format (L"chip {}, faults {}: {} bytes", (int) chip, faults, module.size()).c_str());
+            }
+        }
+    }
+
+
+    //  Every build of the program ends below PAGEBUF, the page sendpage sends
+    //  a module's data from.
+    TEST_METHOD (TheProgram_EndsBelowItsPageBuffer)
+    {
+        static constexpr size_t  kPageBuffer = 0x3800;
+
+        std::vector<Byte>  program;
+        std::string        errors;
+        HRESULT            hr     = S_OK;
+
+
+
+        for (LinkChip chip : { LinkChip::Acia, LinkChip::W5100, LinkChip::Cassette, LinkChip::Network })
+        {
+            for (bool faults : { false, true })
+            {
+                hr = LinkProgram::AssembleProgram (program, errors, chip, faults);
+                Assert::IsTrue (SUCCEEDED (hr), TextEncoding::NarrowToWide (errors).c_str());
+
+                Logger::WriteMessage (std::format ("chip {}, faults {}: ends at ${:04X}\n", (int) chip, faults, LinkProgram::kProgramAddress + program.size()).c_str());
+                Assert::IsTrue (LinkProgram::kProgramAddress + program.size() <= kPageBuffer, std::format (L"chip {}, faults {}", (int) chip, faults).c_str());
+            }
+        }
     }
 
 
@@ -1775,5 +1870,141 @@ public:
         Assert::AreEqual (woz.ResolveQuarterTrack (4), woz.ResolveQuarterTrack (3), L"Quarter track 3 is track 1's stream");
         Assert::AreNotEqual (woz.ResolveQuarterTrack (0), woz.ResolveQuarterTrack (4));
         Assert::AreEqual (-1, woz.ResolveQuarterTrack (2), L"The half track");
+    }
+
+
+    //  The index of the first byte of `sent` that differs from the model's,
+    //  for the assertion's message.
+    static std::wstring  DescribeMismatch (const std::vector<Byte> & sent, const std::vector<Byte> & expected)
+    {
+        size_t  at = 0;
+
+
+
+        while (at < sent.size() && at < expected.size() && sent[at] == expected[at])
+        {
+            at++;
+        }
+
+        return std::format (L"{} bytes sent, {} expected, first difference at {}", sent.size(), expected.size(), at);
+    }
+
+
+    //  `read` encoded by the module on an emulated 6502: the packets it sends
+    //  are byte for byte the ones Capture.s specifies, the values as tokens,
+    //  the marks in `encoding` and the last packet padded; and the PC decodes
+    //  them to the read. Returns the marks' length in bytes.
+    static size_t  AssertSendsTheEncoding (const std::vector<Byte> & read, Byte encoding)
+    {
+        static constexpr size_t  kHeader = 6;
+        static constexpr size_t  kPacket = 5 + CaptureModuleModel::kPayload + 1;
+
+        CaptureModuleCpu   cpu;
+        std::vector<Byte>  encoded = CaptureModuleModel::EncodeValues (read);
+        size_t             values  = encoded.size();
+        std::vector<Byte>  payload;
+        std::vector<Byte>  decoded;
+        std::vector<Byte>  expected;
+
+
+
+        Assert::AreNotEqual ((size_t) 0, CaptureModuleModel::FindLength (read), L"the read repeats");
+
+        CaptureModuleModel::AppendMarks (read, encoded);
+        Assert::AreEqual (encoding, encoded[values], L"the marks' encoding");
+
+        expected = CaptureModuleModel::BuildPackets (encoded);
+
+        cpu.Load();
+        cpu.Encode (read);
+
+        Assert::AreEqual (LinkProgram::kCaptureModuleVersion, cpu.module[3], L"the module's version");
+        Assert::IsTrue (cpu.sent == expected, DescribeMismatch (cpu.sent, expected).c_str());
+
+        for (size_t start = 0; start + kPacket <= cpu.sent.size(); start += kPacket)
+        {
+            payload.insert (payload.end(), cpu.sent.begin() + start + kHeader, cpu.sent.begin() + start + kHeader + CaptureModuleModel::kPage);
+        }
+
+        Assert::IsTrue (CaptureStream::Decode (payload, read.size(), LinkProgram::kCaptureModuleVersion, decoded), L"the PC decodes it");
+        Assert::IsTrue (decoded == read, L"to the read");
+
+        Logger::WriteMessage (std::format ("{} bytes sent, {} of them the marks\n", cpu.sent.size(), encoded.size() - values - 1).c_str());
+
+        return encoded.size() - values - 1;
+    }
+
+
+    //  A read at 8 cycles marks about one byte in four at random. Its runs
+    //  are longer than RUNBUF, so its marks are sent as bits.
+    TEST_METHOD (AReadWithManyMarks_SendsItsMarksAsBits)
+    {
+        static constexpr uint32_t  kStrayShare = 4;
+
+        std::vector<Byte>  runs;
+        std::vector<Byte>  read = CaptureModuleModel::MakeRead (1234, kStrayShare, 1);
+
+
+
+        CaptureMarks::EncodeRuns (read, runs);
+        Assert::IsTrue (runs.size() > CaptureModuleModel::kRunRoom, std::format (L"{} bytes of runs", runs.size()).c_str());
+
+        Assert::AreEqual (CaptureModuleModel::kReadBytes / 8, AssertSendsTheEncoding (read, CaptureMarks::kBits));
+    }
+
+
+    //  A read at 10 cycles marks the sync bytes and few others, so its marks
+    //  are sent as runs, in a fraction of the bits' bytes.
+    TEST_METHOD (AReadWithFewMarks_SendsItsMarksAsRuns)
+    {
+        static constexpr uint32_t  kStrayShare = 500;
+
+        std::vector<Byte>  read  = CaptureModuleModel::MakeRead (77, kStrayShare, 3);
+        size_t             marks = AssertSendsTheEncoding (read, CaptureMarks::kRuns);
+
+
+
+        Logger::WriteMessage (std::format ("marks: {} bytes as runs, against {} as bits\n", marks, CaptureModuleModel::kReadBytes / 8).c_str());
+        Assert::IsTrue (marks < CaptureModuleModel::kReadBytes / 8);
+    }
+
+    //  The bytes of a packet's 256 go out faster than the line takes them: at
+    //  115,200 baud, a byte every 88 cycles of a 1.023 MHz 6502. The 6551
+    //  here is always ready, so the gap between two stores to its data
+    //  register is the send loop's time for a byte.
+    TEST_METHOD (APacketsBytes_AreSentFasterThanTheLine)
+    {
+        static constexpr uint64_t  kLineCycles = 88;
+        static constexpr size_t    kHeader     = 6;
+        static constexpr size_t    kPacket     = 5 + CaptureModuleModel::kPayload + 1;
+
+        CaptureModuleCpu   cpu;
+        std::vector<Byte>  read    = CaptureModuleModel::MakeRead (0, 0, 2);
+        uint64_t           slowest = 0;
+        uint64_t           total   = 0;
+        size_t             gaps    = 0;
+
+
+
+        cpu.Load();
+        cpu.Encode (read);
+
+        Assert::AreEqual ((size_t) 0, cpu.sent.size() % kPacket, L"whole packets");
+        Assert::IsTrue (cpu.sent.size() > kPacket, L"more than one packet");
+
+        for (size_t start = 0; start < cpu.sent.size(); start += kPacket)
+        {
+            for (size_t at = start + kHeader + 1; at < start + kHeader + CaptureModuleModel::kPage; at++)
+            {
+                uint64_t  gap = cpu.sentAt[at] - cpu.sentAt[at - 1];
+
+                slowest = std::max (slowest, gap);
+                total  += gap;
+                gaps++;
+            }
+        }
+
+        Logger::WriteMessage (std::format ("send loop: {} cycles a byte at most, {:.1f} on average\n", slowest, (double) total / (double) gaps).c_str());
+        Assert::IsTrue (slowest <= kLineCycles, std::format (L"{} cycles for a byte", slowest).c_str());
     }
 };

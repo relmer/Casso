@@ -51,11 +51,14 @@
 ;   0 n      n of 1 to 127: n + 2 values the same as those a revolution earlier
 ;   0 $80+n  n of 0 to 127: the next value, repeated n + 3 times
 ;
-; Then the marks, eight bytes' to a byte of the encoding, the first byte's in
-; the top bit: 1 for a byte stored with its top bit set, 0 for one stored with
-; it clear. A read at 8 cycles marks about one byte in four at random, so a
-; revolution's marks differ from the one before every few bytes, where its
-; values don't; the marks apart from the values let the copies run on.
+; Then the marks: a byte of 1, then eight bytes' marks to a byte of the
+; encoding, the first byte's in the top bit: 1 for a byte stored with its top
+; bit set, 0 for one stored with it clear. Or a byte of 0, then the marks as
+; runs (emruns), when they fit in RUNBUF: a read at 10 cycles marks few bytes
+; outside the sync runs, and its runs take about a tenth of the bits. A read
+; at 8 cycles marks about one byte in four at random, so a revolution's marks
+; differ from the one before every few bytes, where its values don't; the
+; marks apart from the values let the copies run on.
 ; ---------------------------------------------------------------------------
 
 ; CMDCAPTURE and CMDCAPDATA are assigned ahead of this source by
@@ -64,9 +67,8 @@ CAPBUF     = $5900
 CAPEND     = $9000
 CAPPAGES   = (CAPEND - CAPBUF) / 256
 CAPCODE    = $5470              ; the loop, a copy for each page, up to CAPBUF
-
-; The sequence number and the 256 bytes and the CRC: the payload's length.
-CAPLEN     = 1 + 256 + 2
+RUNBUF     = CAPCODE            ; the marks as runs, over the loop once the read ends
+RUNEND     = CAPBUF
 
 ; The range of revolution lengths for findrev, and its second sample's offset.
 LMIN       = 4800
@@ -76,11 +78,12 @@ SAMPLEN    = 32
 
 RUNMAX     = 129                ; the most bytes in a repeat or a copy
 CMARKMAX   = 16                 ; the longest marker
+CMARK      = p_PAGEBUF          ; the marker, where sendpage's bytes go after the read
 CFMAX      = 20000              ; the bytes cpfind reads before giving up, about 3 revolutions
 CAPPAGE1   = CAPBUF / 256 + 1   ; the page after CAPBUF's first
 
         .org $5000
-        .byte 'C', 'M', 1, 11   ; capture, version 11
+        .byte 'C', 'M', 1, 13   ; capture, version 13
         .word PROGVER
         .word modend - $5000
         .word 0                 ; the CRC, which the PC fills in
@@ -98,8 +101,8 @@ csta     = $46                  ; the offset of its store's page
 esrc     = $47                  ; and $48: the next byte to encode
 epred    = $49                  ; and $4A: the byte a revolution before it
 elen     = $4B                  ; and $4C: the revolution's length, or 0
-ecount   = $51                  ; the bytes left in the open packet
-eopen    = $52                  ; nonzero while a packet is open
+ecount   = $51                  ; the bytes in PAGEBUF not yet sent
+esavy    = $52                  ; emitb: Y as it came
 eseq     = $53                  ; the next packet's sequence number
 ecap     = $54                  ; the most bytes a token can have here
 en       = $55                  ; a token's count
@@ -108,7 +111,6 @@ etq      = $58                  ; and $59: the byte a revolution before it
 eyy      = $5A                  ; esrc's offset of the byte being encoded
 ebyte    = $5B                  ; that byte
 evalid   = $5C                  ; $80 once copies are allowed
-etmp     = $5D
 evpage   = $5E                  ; the page copies are allowed from
 eend     = $5F                  ; nonzero once every byte is given
 csync    = $60                  ; the position to wait on, $FF for none
@@ -116,6 +118,7 @@ cmlen    = $61                  ; the marker's length
 cfcnt    = $62                  ; and $63: the bytes cpfind may still read
 cspun    = $64                  ; the drive whose motor ran before the request
 crecal   = $65                  ; $80 when the arm is taken to track 0 first
+cphase   = $5D                  ; cpphases: on or off
 
 capture: lda #p_OPCAPT
         sta p_op
@@ -148,7 +151,7 @@ capture: lda #p_OPCAPT
         cmp #3
         bcc cpdrive
 cpbaddrive: lda #p_ERRDRIVE
-        sta p_err
+cperr:  sta p_err
         jmp p_opdone
 cpdrive: lda cpos
         cmp #140
@@ -164,7 +167,7 @@ cpmlen: sta cmlen
 cpmark: cpy cmlen
         beq cpshow
         lda p_PKTBUF+7,y
-        sta cmark,y
+        sta CMARK,y
         iny
         bne cpmark
 cpshow: jsr p_showop
@@ -175,12 +178,11 @@ cpshow: jsr p_showop
         lda cspun               ; a read just after the motor starts would
         cmp p_drive             ; read the disk below speed, so it waits
         beq cpsafe              ; another 750 ms
-        lda #250
+        ldx #3
+cpwait: lda #250
         jsr p_delayms
-        lda #250
-        jsr p_delayms
-        lda #250
-        jsr p_delayms
+        dex
+        bne cpwait
 cpsafe: jsr cpknown
         php                     ; no interrupt from here to the read's end:
         sei                     ; one costs bytes, and the wait's timing
@@ -194,8 +196,7 @@ cpsafe: jsr cpknown
         bcc cpgo
         plp
         lda #p_ERRNOTFND
-        sta p_err
-        jmp p_opdone
+        bne cperr               ; always
 cpgo:   lda cpos
         lsr a
         sta p_target
@@ -225,7 +226,7 @@ cpread: ldx p_diskx
 cpsend: jsr encode
         jmp p_opdone
 
-; cpfind: the latch read until the cmlen bytes of cmark pass in a row,
+; cpfind: the latch read until the cmlen bytes of CMARK pass in a row,
 ; returning with C clear right after the last; with C set after CFMAX bytes
 ; without them. From the read that finds a byte to the next poll is 26 cycles
 ; on each path, so the same byte is never read twice and the next is never
@@ -240,14 +241,14 @@ cpfind: ldx p_diskx
         ldy #0
 cfpoll: lda p_Q6L,x
         bpl cfpoll
-        cmp cmark,y
+        cmp CMARK,y
         bne cfmiss
         iny
         cpy cmlen
         beq cffound
         bne cfnext
 cfmiss: ldy #0                  ; the byte may start the marker again
-        cmp cmark
+        cmp CMARK
         bne cfnext
         iny
 cfnext: dec cfcnt
@@ -278,41 +279,29 @@ ckdone: rts
 
 ; cpquarter: the half track's phase and the next one's on, and a pause
 ; while the arm settles between them.
-cpquarter: ldx p_drive
-        lda p_curhalf-1,x
-        and #3
-        asl a
-        ora p_diskx
-        tax
-        lda p_PHASEON,x
-        ldx p_drive
-        lda p_curhalf-1,x
-        clc
-        adc #1
-        and #3
-        asl a
-        ora p_diskx
-        tax
-        lda p_PHASEON,x
+cpquarter: lda #p_PHASEON-p_PHASEOFF
+        jsr cpphases
         lda #25
         jmp p_delayms
 
 ; cpoff: both of the quarter's phases off. The arm is left between the half
 ; tracks; the program's next step is from the half track before it.
-cpoff:  ldx p_drive
+cpoff:  lda #0
+
+; cpphases: the half track's phase and the next one's, each at PHASEOFF plus
+; A: off for 0, on for PHASEON less PHASEOFF.
+cpphases: sta cphase
+        ldx p_drive
         lda p_curhalf-1,x
-        and #3
-        asl a
-        ora p_diskx
-        tax
-        lda p_PHASEOFF,x
+        jsr cpphase
         ldx p_drive
         lda p_curhalf-1,x
         clc
         adc #1
-        and #3
+cpphase: and #3
         asl a
         ora p_diskx
+        ora cphase
         tax
         lda p_PHASEOFF,x
         rts
@@ -418,10 +407,9 @@ copy12end:
 ; the next 3 values are the same, else the value as it is; then the marks
 ; (emarks). Values are compared with the top bit shifted out, or set. Copies
 ; start only from the page after the one with the first byte a revolution in,
-; so the check costs a BIT. Each byte of the encoding goes out as it is made,
-; so the work overlaps the chip's sending.
+; so the check costs a BIT. The encoding is sent a page at a time (emitb).
 encode: lda #0
-        sta eopen
+        sta ecount
         sta eseq
         sta evalid
         sta eend
@@ -489,7 +477,7 @@ enlit:  ldy eyy
 ennext: lda eend
         beq enloop
 envals: jsr emarks
-enpad:  lda eopen               ; zeros to the end of the last packet
+enpad:  lda ecount              ; zeros to the end of the last packet
         beq endone
         lda #0
         jsr emitb
@@ -565,11 +553,9 @@ setptrs: lda esrc
         lda epred+1
         adc #0
         sta etq+1
-        lda #>CAPEND
-        sec
-        sbc esrc+1
-        cmp #2
-        bcs spmax
+        lda esrc+1
+        cmp #>CAPEND-1
+        bcc spmax
         lda #0                  ; the last page: 256 less eyy
         sec
         sbc eyy
@@ -607,14 +593,39 @@ npend:  lda esrc+1
         cmp #>CAPEND
         rts
 
-; emarks: CAPBUF's marks, each byte's top bit shifted into ebyte, eight to a
+; emarks: CAPBUF's marks, as runs (emruns) when they fit in RUNBUF, after a
+; byte of 0, or else eight to a byte (embits), after a byte of 1. The runs
+; that fit are shorter than the bits.
+emarks: jsr emruns
+        lda #0
+        rol a                   ; 1 when the runs don't fit
+        pha
+        jsr emitb
+        pla
+        bne embits
+        lda #<RUNBUF
+        sta etp
+        lda #>RUNBUF
+        sta etp+1
+        ldy #0
+emsend: lda etp                 ; RUNBUF's bytes up to etq
+        cmp etq
+        bne emnext
+        lda etp+1
+        cmp etq+1
+        beq emdone
+emnext: lda (etp),y
+        jsr emitb
+        inc etp
+        bne emsend
+        inc etp+1
+        bne emsend              ; always
+emdone: rts
+
+; embits: CAPBUF's marks, each byte's top bit shifted into ebyte, eight to a
 ; byte of the encoding. A page is a whole number of eights, so a byte of
 ; marks never spans two pages. emitb uses X, which is set again for each.
-emarks: lda #<CAPBUF
-        sta esrc
-        lda #>CAPBUF
-        sta esrc+1
-        ldy #0
+embits: jsr atcap
 emloop: ldx #8
 embit:  lda (esrc),y
         asl a
@@ -626,12 +637,70 @@ embit:  lda (esrc),y
         jsr emitb
         tya
         bne emloop
-        inc esrc+1
-        lda esrc+1
-        cmp #>CAPEND
+        jsr newpage
         bne emloop
         rts
 
+; emruns: CAPBUF's marks as runs, from RUNBUF to etq, returning with C clear;
+; with C set when they don't fit. A byte of 0 to 254 is a run of that
+; many bytes, and the next run is of the other kind; 255 is a run of 255, and
+; the next run is of the same kind. The first run is of bytes stored with
+; their top bit set. The loop takes 16 cycles for a byte of a run.
+emruns: lda #<RUNBUF
+        sta etq
+        lda #>RUNBUF
+        sta etq+1
+        lda #$10                ; BPL: the first run is of unmarked bytes
+        sta erbr
+        jsr atcap
+        ldx #255                ; 255 less the run's length so far
+erloop: lda (esrc),y
+erbr:   bpl erflip              ; patched: BPL in a run of unmarked bytes, BMI in a marked one
+        dex
+        beq erfull
+ernext: iny
+        bne erloop
+        jsr newpage
+        bne erloop
+        txa                     ; the last run
+        eor #$FF
+        jmp erput
+erfull: lda #255
+        jsr erput
+        bcs erdone
+        ldx #255
+        bne ernext              ; always
+erflip: txa                     ; the run's length
+        eor #$FF
+        jsr erput
+        bcs erdone
+        lda erbr                ; the other kind: BPL and BMI differ in bit 5
+        eor #$20
+        sta erbr
+        ldx #255
+        bne erloop              ; always
+erdone: rts
+
+; erput: A at etq, and etq moved on, returning with C clear; with C set
+; and A not stored when RUNBUF is full. X is changed.
+erput:  ldx etq+1
+        cpx #>RUNEND
+        bcs epfull
+        ldx #0
+        sta (etq,x)
+        inc etq
+        bne epdone
+        inc etq+1
+epdone: clc
+epfull: rts
+
+; atcap: esrc at CAPBUF, and Y 0.
+atcap:  lda #<CAPBUF
+        sta esrc
+        lda #>CAPBUF
+        sta esrc+1
+        ldy #0
+        rts
 ; findrev: in elen, the first length from LMIN to LMAX at which CAPBUF's
 ; first SAMPLEN bytes repeat, and those from SAMPLE too, with the marks
 ; ignored; 0 when none does. A wrong length makes the encoding longer, not
@@ -640,11 +709,10 @@ findrev: lda #<LMIN
         sta elen
         lda #>LMIN
         sta elen+1
-frloop: lda #<CAPBUF
-        clc
-        adc elen
+frloop: lda elen                ; CAPBUF is on a page's start
         sta etp
         lda #>CAPBUF
+        clc
         adc elen+1
         sta etp+1
         ldy #0
@@ -682,64 +750,20 @@ fr3:    lda elen
         sta elen+1
         rts
 
-; emitb: A as the encoding's next byte, in the open packet or a new one,
-; with the CRC by the program's tables; a full packet is ended. Y is saved.
-emitb:  sta etmp
-        lda eopen
-        bne ebopen
-        jsr pktbegin
-ebopen: lda etmp
-        eor p_peor
-        sta p_peor
-        lda etmp
-        eor p_crchi
-        tax
-        lda p_crclo
-        eor p_CRCHI,x
-        sta p_crchi
-        lda p_CRCLO,x
-        sta p_crclo
-        lda etmp
-        jsr p_putb
-        dec ecount
+; emitb: A as the encoding's next byte, in the program's PAGEBUF; once it
+; has 256, they are sent as a Capture data packet, at the line's rate, by
+; the program's sendpage. Y is saved; X is changed.
+emitb:  ldx ecount
+        sta p_PAGEBUF,x
+        inx
+        stx ecount
         bne ebdone
-        jsr pktend
-ebdone: rts
-
-; pktbegin: a Capture data packet's header and sequence number.
-pktbegin: lda #$C1
-        jsr p_putb
-        lda #<CAPLEN
-        jsr p_putb
-        lda #>CAPLEN
-        jsr p_putb
+        sty esavy
         lda #CMDCAPDATA
-        jsr p_putb
-        lda #$C1 ^ <CAPLEN ^ >CAPLEN ^ CMDCAPDATA
-        jsr p_putb
-        lda #0
-        sta p_crclo
-        sta p_crchi
-        sta ecount              ; 256 bytes
-        lda eseq
-        sta p_peor
-        jsr p_putb
-        lda #1
-        sta eopen
-        rts
-
-; pktend: the packet's CRC and check byte.
-pktend: lda p_crclo
-        jsr p_putpe
-        lda p_crchi
-        jsr p_putpe
-        lda p_peor
-        jsr p_putb
+        ldx eseq
+        jsr p_sendpage
         inc eseq
-        lda #0
-        sta eopen
-        rts
-
-cmark:  .byte 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        ldy esavy
+ebdone: rts
 
 modend:

@@ -353,6 +353,8 @@ AUXA0    = $4D00                ; sendsector: a sector's bits, 86 per third
 AUXA1    = AUXA0 + 86
 AUXA2    = AUXA1 + 86
 PENDING  = $4980                ; read: a flag per physical sector not yet read
+PAGEBUF  = $3800                ; sendpage: a packet's 256 bytes, above every build's end
+                                ; and over Universal.s's ZPCOPY, read only before a shim starts
 ENCBUF   = $7000                ; write track: each sector's 86 groups on one
                                 ; page and 256 values on the next, to $8FFF
 ENCT0    = $9000                ; encode: a byte's low two bits, swapped, for
@@ -489,9 +491,11 @@ slotok:
         adc #<ACIADATA
         sta pbsta+1
         sta sdsta+1             ; sendsector's own store and status read,
-        clc                     ; absolute for the same reason as putb's
+        sta pgsta+1             ; and sendpage's, absolute for the same
+        clc                     ; reason as putb's
         adc #1
         sta sdwait+1
+        sta pgwait+1
         endif
         endif
         endif
@@ -2131,6 +2135,75 @@ sddone:
 
 datahdr: .byte $C1, $04, $01, CMDDATA, $C1 ^ $04 ^ $01 ^ CMDDATA
 dataend:
+
+; sendpage: a packet of the command in A whose payload is the sequence number
+; in X, the 256 bytes at PAGEBUF and their CRC-16/XMODEM, low byte first, for
+; a module's data. As in sendsector, each byte goes to the 6551 as soon as the
+; chip takes it, and is added to the EOR and the CRC while the chip sends it.
+; A card run through its firmware, a build that buffers its bytes and a byte
+; sent while a fault is armed go through putb.
+PAGELEN  = 1 + 256 + 2
+sendpage: sta pgcmd
+        stx pgseq
+        ldx #0
+pghead: lda pghdr,x
+        jsr putb
+        inx
+        cpx #pghdrend-pghdr
+        bne pghead
+        lda pgcmd
+        jsr putb
+        lda pgcmd
+        eor #$C1 ^ <PAGELEN ^ >PAGELEN
+        jsr putb
+        lda pgseq
+        sta peor
+        jsr putb
+        ldy #0
+        sty crclo
+        sty crchi
+        ifndef BUFFERED
+        bit SHIMPAS             ; through putb for a card run through its firmware
+        bmi pgslow
+        ifdef FAULTS
+        lda fltact              ; and while a fault is armed
+        bne pgslow
+        endif
+pgfast: ldx PAGEBUF,y
+pgwait: lda ACIASTAT            ; set for the port at startup
+        and #TDRE
+        beq pgwait
+pgsta:  stx ACIADATA            ; set for the port at startup
+        txa
+        jsr pgsum
+        iny
+        bne pgfast
+        beq pgtail
+        endif
+pgslow: lda PAGEBUF,y
+        jsr putb
+        lda PAGEBUF,y
+        jsr pgsum
+        iny
+        bne pgslow
+pgtail: lda crclo
+        jsr putpe
+        lda crchi
+        jsr putpe
+        lda peor
+        jmp putb
+
+; pgsum: A added to the payload's EOR and CRC. X and Y are saved.
+pgsum:  pha
+        eor peor
+        sta peor
+        pla
+        jmp crcupd
+
+pghdr:  .byte $C1, <PAGELEN, >PAGELEN
+pghdrend:
+pgcmd:  .byte 0
+pgseq:  .byte 0
 
 ; isfill: the carry set when the sector's 256 bytes are all one value, which
 ; is then in A. Its six-bit values at (dstp) are all the same, and so are the
