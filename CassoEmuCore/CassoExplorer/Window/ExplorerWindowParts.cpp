@@ -228,6 +228,17 @@ void ExplorerWindowParts::Configure()
 
     services.shellIcons->SetSizePx (MulDiv (DxuiTreeView::s_kIconDip, dpi, (int) DxuiDpiScaler::kBaseDpi));
     context.browser.SetShellIcons (services.shellIcons.get());
+
+    //  With a window to post to, the tree starts with its fixed roots, and
+    //  the shell's are added when the read finishes.
+    if (hwnd != nullptr && services.shellVerbs != nullptr)
+    {
+        shellRoots = std::make_unique<PickerShellRoots> (&PickerShellRoots::ReadFromShell);
+        shellRoots->SetTarget (hwnd, (UINT) AppMessage::ExplorerShellListed);
+        shellRoots->Refresh();
+        context.browser.GetTreeModel().SetShellRoots ({}, {});
+    }
+
     context.browser.SetShellVerbs (services.shellVerbs.get());
     context.browser.GetPreviewer().GetMonitorChoice().SetPreviewMonitor (preview.GetPicture().GetMonitor(), context.prefs.previewCustomArgb);
     context.browser.GetPreviewer().GetViewState().SetDefaultDecodeOptions (context.prefs.copyOptions);
@@ -247,6 +258,36 @@ void ExplorerWindowParts::Configure()
     services.infoTips->Start (hwnd, (UINT) AppMessage::ExplorerInfoTip);
 
     layout.ConfigureWidgets();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerWindowParts::TakeShellRoots
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerWindowParts::TakeShellRoots()
+{
+    PickerShellRoots::Folders  navRoots;
+    PickerShellRoots::Folders  pinned;
+
+
+
+    if (shellRoots == nullptr || !shellRoots->TryGet (navRoots, pinned))
+    {
+        return;
+    }
+
+    shellRoots.reset();
+
+    context.browser.GetTreeModel().SetShellRoots (std::move (navRoots), std::move (pinned));
+    context.browser.GetTreeModel().SetShellVerbs (services.shellVerbs.get());
+    treePane.RefreshTree();
+    treePane.RevealLocationInTree();
 }
 
 
@@ -336,6 +377,7 @@ bool ExplorerWindowParts::HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lPar
         }
 
         treePane.ApplyChildChecks();
+        TakeShellRoots();
 
         //  A disk image decoded for the preview: the preview is made again,
         //  and the decode is now cached.

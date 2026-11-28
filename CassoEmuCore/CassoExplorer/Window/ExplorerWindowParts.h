@@ -4,6 +4,7 @@
 
 #include "CassoExplorer/CassoExplorerCommands.h"
 #include "CassoExplorer/Model/FolderOptions.h"
+#include "CassoExplorer/Picker/PickerShellRoots.h"
 #include "CassoExplorer/Window/ExplorerContext.h"
 #include "CassoExplorer/Window/Managers/CassoLinkDriveManager.h"
 #include "CassoExplorer/Window/Managers/CassoLinkListActions.h"
@@ -98,10 +99,15 @@ struct ExplorerWindowParts
     void  CreateControls   ();
     void  Configure        ();
     bool  HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lParam);
+    void  TakeShellRoots   ();
     bool  HandleTimer      (UINT_PTR timerId);
 
     ExplorerServices                        services;
     FolderOptions                           explorerOptions;
+
+    //  The shell's roots and pinned folders, read on a thread at startup so
+    //  the window draws first; null once they are in the tree.
+    std::unique_ptr<PickerShellRoots>       shellRoots;
     std::vector<Win32IntentChannel::Reply>  pendingReplies;
     CassoExplorerCommands                   commands;
     ExplorerContext                         context;
