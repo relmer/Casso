@@ -1598,4 +1598,44 @@ public:
 
         Assert::IsFalse (rig.parts->HandleTimer ((UINT_PTR) AppTimerId::ExplorerTooltip));
     }
+
+
+    //  A move that stays on one tree row doesn't repaint the window; a move to
+    //  another row does.
+    TEST_METHOD (TreeHover_RepaintsOnlyWhenTheRowChanges)
+    {
+        Rig             rig;
+        DxuiMouseEvent  mouse;
+        RECT            tree   = {};
+        POINT           other  = {};
+        int             before = 0;
+
+
+
+        rig.Open();
+        rig.parts->layout.RecomputeLayout();
+
+        tree  = rig.parts->treePane.GetBounds();
+        other = { tree.left + 40, tree.top + 4 };
+
+        Assert::IsTrue (rig.parts->treePane.GetVisibleCount() >= 2, L"the tree has rows");
+
+        mouse.kind        = DxuiMouseEventKind::Move;
+        mouse.positionDip = { tree.left + 40, tree.top + 4 };
+        rig.parts->input.HandleMouse (mouse);
+
+        mouse.positionDip.x += 3;
+        before = rig.window.invalidates;
+        rig.parts->input.HandleMouse (mouse);
+        Assert::AreEqual (before, rig.window.invalidates, L"the same row");
+
+        while (other.y < tree.bottom && rig.parts->treePane.HitTestRow (other) == rig.parts->treePane.HitTestRow (mouse.positionDip))
+        {
+            other.y++;
+        }
+
+        mouse.positionDip = other;
+        rig.parts->input.HandleMouse (mouse);
+        Assert::IsTrue (rig.window.invalidates > before, L"another row");
+    }
 };

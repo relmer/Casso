@@ -371,8 +371,8 @@ bool DxuiListItemLayout::MeasureItemTextLines (IDxuiTextRenderer & text, const s
             continue;
         }
 
-        lines = DxuiTextElide::WrapToLines (text, cells[0].text, fontPx, DxuiTheme::kBodyFace, (float) (label.right - label.left),
-                                            (m_list.m_view == DxuiListViewTypes::View::Tiles) ? 2 : DxuiListView::s_kItemNameMaxLines, true, true).size();
+        lines = m_list.m_wrapCache.WrapToLines (text, cells[0].text, fontPx, DxuiTheme::kBodyFace, (float) (label.right - label.left),
+                                                (m_list.m_view == DxuiListViewTypes::View::Tiles) ? 2 : DxuiListView::s_kItemNameMaxLines, true, true).size();
         lines = std::clamp (lines, (size_t) 1, (size_t) DxuiListView::s_kItemNameMaxLines);
 
         //  A tile keeps its name's lines in the low bits and the details shown

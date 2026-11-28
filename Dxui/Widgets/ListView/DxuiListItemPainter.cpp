@@ -513,8 +513,8 @@ void DxuiListItemPainter::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer 
         //  size) while three lines last, the whole block centered in the box.
         if (m_list.m_view == DxuiListViewTypes::View::Tiles)
         {
-            std::vector<std::wstring>  name     = DxuiTextElide::WrapToLines (text, cells[0].text, fontPx, DxuiTheme::kBodyFace,
-                                                                               (float) (label.right - label.left), 2, true, true);
+            std::vector<std::wstring>  name     = m_list.m_wrapCache.WrapToLines (text, cells[0].text, fontPx, DxuiTheme::kBodyFace,
+                                                                                   (float) (label.right - label.left), 2, true, true);
             std::vector<const DxuiListViewTypes::Cell *>  details;
             float                                         top      = 0.0f;
             int                                           lineStep = m_list.m_items.GetTileLinePx();
@@ -566,8 +566,8 @@ void DxuiListItemPainter::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer 
         //  that runs on ends in an ellipsis inside its cell.
         {
             int                        lines = metrics.labelBelow ? DxuiListView::s_kItemNameMaxLines : 1;
-            std::vector<std::wstring>  shown = DxuiTextElide::WrapToLines (text, cells[0].text, fontPx, DxuiTheme::kBodyFace,
-                                                                            (float) (label.right - label.left), lines, true, metrics.labelBelow);
+            std::vector<std::wstring>  shown = m_list.m_wrapCache.WrapToLines (text, cells[0].text, fontPx, DxuiTheme::kBodyFace,
+                                                                                (float) (label.right - label.left), lines, true, metrics.labelBelow);
 
             if (!shown.empty() && shown.back().ends_with (L"\x2026") && !cells[0].text.ends_with (L"\x2026"))
             {

@@ -875,4 +875,36 @@ public:
 
         Assert::IsTrue (std::vector<std::wstring> { L"casso:", L"k1", L"pc:" } == RowIds (tv));
     }
+
+
+    TEST_METHOD (FindRowById_FollowsExpandCollapseAddAndRemove)
+    {
+        DxuiTreeView  tv;
+        DxuiTreeNode  a = MakeUnread (L"a");
+
+        a.childrenLoaded = true;
+        a.expanded       = true;
+        a.children.push_back (MakeUnread (L"a1"));
+        a.children.push_back (MakeUnread (L"a2"));
+
+        tv.SetNodes ({ a, MakeUnread (L"b") });
+        Assert::AreEqual (3, tv.FindRowById (L"b"));
+        Assert::AreEqual (2, tv.FindRowById (L"a2"));
+
+        tv.SetRowExpanded (0, false);
+        Assert::AreEqual (1,  tv.FindRowById (L"b"),  L"collapsed");
+        Assert::AreEqual (-1, tv.FindRowById (L"a2"), L"a collapsed child has no row");
+
+        tv.SetRowExpanded (0, true);
+        Assert::AreEqual (3, tv.FindRowById (L"b"), L"expanded");
+
+        Assert::IsTrue  (tv.ReplaceChildren (L"a", { MakeUnread (L"a1") }));
+        Assert::AreEqual (2,  tv.FindRowById (L"b"),  L"a child removed");
+        Assert::AreEqual (-1, tv.FindRowById (L"a2"));
+
+        Assert::IsTrue  (tv.ReplaceChildren (L"a", { MakeUnread (L"a1"), MakeUnread (L"a3"), MakeUnread (L"a4") }));
+        Assert::AreEqual (4, tv.FindRowById (L"b"),  L"children added");
+        Assert::AreEqual (3, tv.FindRowById (L"a4"));
+        Assert::AreEqual (std::wstring (L"a4"), tv.GetNodeAt (3)->id);
+    }
 };

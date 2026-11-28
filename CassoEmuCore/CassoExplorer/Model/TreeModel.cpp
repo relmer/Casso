@@ -28,6 +28,7 @@ TreeModel::TreeModel (IFileSystem & fs, HostFolderReader & hostFolders)
     : m_fs          (fs),
       m_hostFolders (hostFolders)
 {
+    m_childChecks.SetChecker ([this] (const std::wstring & path) { return HasTreeChildren (path); });
 }
 
 
@@ -1421,6 +1422,7 @@ void TreeModel::Invalidate (const std::wstring & id)
 void TreeModel::InvalidateAll()
 {
     m_children.clear();
+    m_childChecks.Clear();
 }
 
 
@@ -1678,6 +1680,90 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TreeModel::GetFolderExpands
+//
+//  A folder already listed expands when it has children. A network folder
+//  expands without a check. Any other is checked on the worker, and has no
+//  expander until the check finishes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TreeModel::GetFolderExpands (const std::wstring & id, const HostFolderItem & item)
+{
+    auto  listed      = m_children.find (id);
+    bool  hasChildren = false;
+
+
+
+    if (listed != m_children.end())
+    {
+        return !listed->second.empty();
+    }
+
+    if (PathResolver::IsNetworkPath (item.path))
+    {
+        return true;
+    }
+
+    if (!m_childChecks.TryGet (item.path, item.entry.modifiedUnix, hasChildren))
+    {
+        hasChildren = false;
+    }
+
+    return hasChildren;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::ApplyChildChecks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::pair<std::wstring, bool>> TreeModel::ApplyChildChecks()
+{
+    std::vector<TreeChildChecks::Result>        results = m_childChecks.TakeResults();
+    std::map<std::wstring, bool>                byPath;
+    std::vector<std::pair<std::wstring, bool>>  ids;
+
+
+
+    for (const TreeChildChecks::Result & result : results)
+    {
+        byPath[result.path] = result.hasChildren;
+    }
+
+    if (byPath.empty())
+    {
+        return ids;
+    }
+
+    for (auto & [parent, nodes] : m_children)
+    {
+        for (TreeNode & node : nodes)
+        {
+            auto  found = node.kind == TreeNode::Kind::HostFolder ? byPath.find (node.location.path) : byPath.end();
+
+            if (found != byPath.end() && !m_children.contains (node.id))
+            {
+                node.canExpand = found->second;
+                ids.emplace_back (node.id, node.canExpand);
+            }
+        }
+    }
+
+    return ids;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TreeModel::ListHostFolder
 //
 //  Subfolders first, then the disk images, each group in name order. Plain
@@ -1728,7 +1814,7 @@ HRESULT TreeModel::ListHostFolder (bool underCasso, const std::wstring & path, s
             node.id        = GetHostItemId (underCasso, item);
             node.kind      = TreeNode::Kind::HostFolder;
             node.location  = Location::MakeHostFolder (item.path);
-            node.canExpand = HasTreeChildren (item.path);
+            node.canExpand = GetFolderExpands (node.id, item);
 
             folders.push_back (node);
         }
@@ -1802,7 +1888,8 @@ std::wstring TreeModel::GetHostItemId (bool underCasso, const HostFolderItem & i
 //  TreeModel::IsHostListingCurrent
 //
 //  One read of the folder, without looking into each subfolder for an
-//  expander: a subfolder that changes is watched and read on its own.
+//  expander. A closed subfolder whose modified time changed is queued for a
+//  check. An open subfolder is watched and read separately.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1843,6 +1930,15 @@ bool TreeModel::IsHostListingCurrent (const std::wstring & id)
         if (!itemId.empty())
         {
             after.emplace_back (itemId, item.label, item.entry.isHidden);
+        }
+
+        //  A closed subfolder modified since its check is checked again, so
+        //  its expander appears or goes away once the check finishes.
+        if (item.kind == HostFolderItem::Kind::Folder && !itemId.empty() && !m_children.contains (itemId))
+        {
+            bool  expands = false;
+
+            m_childChecks.TryGet (item.path, item.entry.modifiedUnix, expands);
         }
     }
 

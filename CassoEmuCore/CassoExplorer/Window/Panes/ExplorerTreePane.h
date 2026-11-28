@@ -68,6 +68,7 @@ public:
     void                              RefreshTree          ();
     void                              RefreshTreeIcons     ();
     void                              ReloadChildren       (const std::wstring & id);
+    void                              ApplyChildChecks     ();
     void                              ExpandNode           (const std::wstring & id) { m_tree->SetRowExpanded (m_tree->FindRowById (id), true); }
     void                              SetActivityPulse     (float pulse) { m_tree->SetActivityPulse (pulse); }
     void                              ApplyNavPaneOptions  ();

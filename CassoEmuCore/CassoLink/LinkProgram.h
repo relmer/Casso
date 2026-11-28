@@ -103,7 +103,7 @@ struct LinkShimOptions
 class LinkProgram
 {
 public:
-    static constexpr Word    kProgramVersion    = 116;
+    static constexpr Word    kProgramVersion    = 117;
     static constexpr Byte    kShimVersion       = 12;
     static constexpr Word    kShimAddress       = 0x3A00;
 
@@ -157,6 +157,10 @@ public:
     //  reports them as loaded, as the block requests are in it.
     static constexpr Byte    kBlockModuleId      = 2;
     static constexpr Byte    kBlockModuleVersion = 2;
+
+    //  The capture module's version in its header (Capture.s), which selects
+    //  how the PC decodes its marks.
+    static constexpr Byte    kCaptureModuleVersion = 13;
 
     //  The universal boot disk's payload: the first stage, which finds the
     //  machine's interfaces and waits for the PC on all of them, then each
@@ -213,6 +217,7 @@ public:
     static HRESULT      BuildCaptureModule        (std::vector<Byte> & outModule, LinkChip chip = LinkChip::Acia, bool faults = false);
     static HRESULT      BuildBlockModule          (std::vector<Byte> & outModule, LinkChip chip = LinkChip::Acia, bool faults = false);
     static HRESULT      BuildThirteenSectorModule (std::vector<Byte> & outModule, LinkChip chip = LinkChip::Acia, bool faults = false);
+    static HRESULT      BuildRawWriteModule       (std::vector<Byte> & outModule, LinkChip chip = LinkChip::Acia, bool faults = false);
 
     //  The CassoLink ProDOS disk's CASSOLINK file, loaded and run at
     //  kInstallerAddress: the installer, then the driver as assembled at
@@ -284,6 +289,7 @@ public:
     static std::string  GetCaptureModuleSource        ();
     static std::string  GetBlockModuleSource          ();
     static std::string  GetThirteenSectorModuleSource ();
+    static std::string  GetRawWriteModuleSource       ();
     static std::string  GetVirtualDriveSource         ();
     static std::string  GetSosInterpSource            ();
 

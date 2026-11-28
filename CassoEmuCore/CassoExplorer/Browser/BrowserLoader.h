@@ -102,6 +102,17 @@ public:
     const std::map<std::wstring, TreeNode>  & GetNodes        () const { return m_nodes; }
     CassoExplorerHostListings               & GetHostListings ()       { return m_hostListings; }
 
+    //  The Casso node's images, read on a thread so a tab switch draws at
+    //  once. The folders are the id, one to a line. While a read is under way
+    //  the list has the rows of the last one.
+    CassoExplorerListings<CatalogRow>       & GetCassoImages  ()       { return m_cassoImages; }
+
+    static constexpr const wchar_t *  s_kCassoImagesKey = L"cassoimages:";
+
+    //  Starts a read of the Casso node's images, unless one is under way or
+    //  waiting, so the first visit to the node has its rows.
+    void  StartCassoImages ();
+
     //  The linked machine or drive last listed. Returning to a tab lists what
     //  was last read there; forgetting the visit reads its disks again.
     void  SetLinkVisit    (const Location & location) { m_linkVisit = location; }
@@ -125,10 +136,15 @@ private:
     bool      IsVolumeLocation () const { return m_parts.list.isImage || m_parts.list.isAppleDrive; }
     bool      IsCardInDrive    (int number);
 
+    //  The Casso node's folders, one to a line, as the read of its images
+    //  takes them; and the node's children.
+    HRESULT   GetCassoImagesId (std::vector<TreeNode> & outNodes, std::wstring & outId);
+
     BrowserParts                         m_parts;
     const BrowserArchives              & m_archives;
     IBrowserLoaderHost                 & m_host;
     CassoExplorerHostListings            m_hostListings;
+    CassoExplorerListings<CatalogRow>    m_cassoImages;
     Location                             m_linkVisit;    // the linked machine or drive last listed
     std::map<std::wstring, ULONGLONG>    m_linkReadAt;   // when each linked machine or drive was last read again
     std::map<std::wstring, TreeNode>     m_nodes;

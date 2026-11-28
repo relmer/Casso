@@ -52,11 +52,11 @@ public:
     //  revolution's length, low byte first; then each byte's value, with its
     //  top bit set, as itself, and 0 to begin a token: 1 to 127 for a copy of
     //  3 to 129 values a revolution earlier, $80 and up for a repeat of 3 to
-    //  130 of the next value; then the marks, a bit for each byte, the first
-    //  byte's in the top bit of the first, and 0 to clear the byte's top bit.
-    //  Bytes past the last are padding. False when the tokens decode to more
-    //  or fewer values, copy from before the first, or the marks are short.
-    static bool  Decode (std::span<const Byte> encoded, size_t count, std::vector<Byte> & outBytes);
+    //  130 of the next value; then the marks, as module `moduleVersion`
+    //  encodes them (CaptureMarks). Bytes past the last are padding. False
+    //  when the tokens decode to more or fewer values, copy from before the
+    //  first, or the marks are short.
+    static bool  Decode (std::span<const Byte> encoded, size_t count, Byte moduleVersion, std::vector<Byte> & outBytes);
 
 private:
     static constexpr Byte    s_kTopBit        = 0x80;
@@ -66,5 +66,4 @@ private:
     static constexpr Byte    s_kCountMask     = 0x7F;
     static constexpr size_t  s_kCopyBase      = 2;
     static constexpr size_t  s_kRepeatBase    = 3;
-    static constexpr size_t  s_kMarksPerByte  = 8;
 };

@@ -380,10 +380,14 @@ void ExplorerInput::StepToolbarFocus (bool preview, bool forward)
 
 bool ExplorerInput::RouteToControls (const DxuiMouseEvent & ev)
 {
-    DxuiPanel  & panel   = m_context.window.GetChildPanel();
-    bool         hover   = ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Leave;
-    bool         handled = false;
-    bool         over    = false;
+    DxuiPanel      & panel   = m_context.window.GetChildPanel();
+    bool             hover   = ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Leave;
+    bool             handled = false;
+    bool             over    = false;
+    bool             changed = false;
+    uint64_t         before  = 0;
+    uint64_t         after   = 0;
+    IDxuiControl   * under   = nullptr;
 
 
 
@@ -393,11 +397,19 @@ bool ExplorerInput::RouteToControls (const DxuiMouseEvent & ev)
         bool            routed = child->IsVisible() && child->IsEnabled();
         bool            inside = routed && ev.kind != DxuiMouseEventKind::Leave && ExplorerLayout::Contains (child->GetBounds(), ev.positionDip);
 
-        over = over || inside;
+        over  = over || inside;
+        under = (inside && under == nullptr) ? child : under;
 
         if (routed && hover)
         {
+            //  A control that reports its hover is repainted only when the
+            //  hover changed; any other, while the pointer is or was over it.
+            bool  known = child->TryGetHoverState (before);
+
             m_context.window.OfferMouse (*child, ev);
+
+            known   = known && child->TryGetHoverState (after);
+            changed = changed || (known ? before != after : (inside || child == m_overChild));
         }
         else if (inside)
         {
@@ -410,12 +422,13 @@ bool ExplorerInput::RouteToControls (const DxuiMouseEvent & ev)
     }
 
     //  A repaint for a hover that began, moved or ended.
-    if (handled || over || m_overControl)
+    if (handled || (hover ? (changed || under != m_overChild) : (over || m_overControl)))
     {
         m_context.window.Invalidate();
     }
 
     m_overControl = over;
+    m_overChild   = hover ? under : m_overChild;
 
     return handled;
 }

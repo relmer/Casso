@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Core/DxuiWrapCache.h"
 #include "Widgets/ListView/DxuiListScrollbars.h"
 #include "Widgets/ListView/DxuiListGroups.h"
 #include "Widgets/ListView/DxuiListHeader.h"
@@ -44,9 +45,12 @@ public:
 
     // Configuration.
     void  SetDpi          (UINT dpi);
-    UINT  GetDpi          () const                         { return m_scaler.GetDpi(); }
-    void  SetTheme        (const IDxuiTheme * theme)       { m_theme = theme; }
-    void  SetShowHeader   (bool b)                         { m_showHeader = b; }
+
+    //  How many labels were wrapped since the list was made, for tests.
+    size_t  GetLabelWrapCount () const { return m_wrapCache.GetWrapCount(); }
+    UINT    GetDpi            () const                         { return m_scaler.GetDpi(); }
+    void    SetTheme          (const IDxuiTheme * theme)       { m_theme = theme; }
+    void    SetShowHeader     (bool b)                         { m_showHeader = b; }
 
     //  Lays Details out as File Explorer's: rows and header set in from the
     //  left, the name's icon and each column's text where Explorer puts them,
@@ -578,6 +582,7 @@ public:
 private:
     bool     OnMouse           (const DxuiMouseEvent & ev) override;
     LPCWSTR  GetCursorForPoint (POINT clientPx) const      override;
+    bool     TryGetHoverState  (uint64_t & outState) const override;
 
     static constexpr int    s_kRowHeightDip          = 30;
     static constexpr int    s_kHeaderHeightDip       = 32;
@@ -703,6 +708,7 @@ private:
     float  m_fontDip            = s_kFontDip;
     std::function<int (UINT)> m_rowHeightPxFn;
     DxuiDpiScaler             m_scaler;
+    mutable DxuiWrapCache     m_wrapCache;
     // Virtual (provider) row model ? see SetRowProvider. When m_virtual is
     // true, m_rowData is empty and rows are pulled on demand into m_providerScratch.
     bool                       m_virtual             = false;

@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 struct RawWriteTrack;
+struct RawWriteArcPlan;
 
 
 
@@ -86,6 +87,8 @@ public:
     //  with data, and each half or quarter position whose data differs from
     //  the whole tracks on either side and isn't them read off center
     //  (DropOffCenterReads), with outSkipped the positions left out.
+    //  Positions less than a full track apart with arcs of data (RawWriteArcs)
+    //  are one entry with a plan, after the erases of their positions.
     //  ERROR_INVALID_DATA for a file that doesn't load, with outTooLong the
     //  first position of a track longer than the module's buffers, or -1.
     static HRESULT  GetImageTracks (std::span<const Byte> fileBytes, std::vector<RawWriteTrack> & outTracks, std::vector<int> & outSkipped, int & outTooLong);
@@ -137,6 +140,14 @@ public:
     //  than kMaxBytes bytes.
     bool    BuildModuleStream (std::vector<Byte> & outStream, size_t & outCount) const;
 
+    //  The stream's bytes as BuildModuleStream has them, added to a list of
+    //  values and a list of counts of zeros.
+    void    AppendModuleBytes (std::vector<Byte> & ioValues, std::vector<Byte> & ioZeros) const;
+
+    //  An erase of sync bytes for a track of `cells`: runs of sync bytes,
+    //  each ended by a byte that isn't one, a little shorter than the track.
+    static void  MakeErase (size_t cells, RawWriteStream & outStream);
+
 private:
     static constexpr size_t  s_kMinRevolution = 5600;
     static constexpr size_t  s_kMatchBytes    = 64;
@@ -155,7 +166,7 @@ private:
     static constexpr size_t  s_kErasePercent  = 97;       // an erase's length, as a percentage of the track it replaces
 
     //  The cells the module writes around the stream: ahead of it, the
-    //  self-sync byte write mode starts with (rplay in ThirteenSector.s);
+    //  self-sync byte write mode starts with (rplay in RawWrite.s);
     //  after it, the program's two self-sync bytes and the zero bits the drive
     //  writes until write mode is turned off (pdone in Program.s).
     static constexpr size_t  s_kLeadInCells   = kBitsPerByte + kSyncZeros;
@@ -195,6 +206,12 @@ private:
     //  byte and length. False for none.
     bool  FindSyncRun (size_t & outAt, size_t & outLength) const;
 
+    //  Whether a position is one a plan's arcs and erases are written over.
+    static bool  IsInPlan (const RawWriteArcPlan & plan, int position);
+
+    //  A plan's erases and its arcs added to the tracks, in their place.
+    static void  AddPlan  (const RawWriteArcPlan & plan, std::vector<RawWriteTrack> & ioTracks);
+
     //  A quarter-track position as a track number: 3, 2.25 or 2.5.
     static std::string  FormatPosition (int position);
 
@@ -219,7 +236,8 @@ private:
 //  A track of a raw image to write, at its quarter-track position.
 struct RawWriteTrack
 {
-    int             position = 0;
-    RawWriteStream  stream;
-    bool            isErase  = false;    // sync bytes in place of a whole track beside a half track (DropOffCenterReads)
+    int                                     position = 0;
+    RawWriteStream                          stream;
+    bool                                    isErase  = false;    // sync bytes in place of a whole track beside a half track (DropOffCenterReads), or before a plan's arcs
+    std::shared_ptr<const RawWriteArcPlan>  plan;                // the arcs written from this position on, in place of a stream
 };

@@ -78,6 +78,26 @@ void PickerShellRoots::Refresh()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PickerShellRoots::SetTarget
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PickerShellRoots::SetTarget (HWND hwnd, UINT message)
+{
+    std::lock_guard<std::mutex>  guard (m_lock);
+
+
+
+    m_hwnd    = hwnd;
+    m_message = message;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PickerShellRoots::TryGet
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -113,7 +133,9 @@ void PickerShellRoots::Read()
 {
     Folders  navRoots;
     Folders  pinned;
-    HRESULT  hr = m_reader ? m_reader (navRoots, pinned) : E_NOTIMPL;
+    HRESULT  hr      = m_reader ? m_reader (navRoots, pinned) : E_NOTIMPL;
+    HWND     hwnd    = nullptr;
+    UINT     message = 0;
 
 
 
@@ -130,6 +152,13 @@ void PickerShellRoots::Read()
         }
 
         m_isReading = false;
+        hwnd        = m_hwnd;
+        message     = m_message;
+    }
+
+    if (hwnd != nullptr)
+    {
+        PostMessageW (hwnd, message, 0, 0);
     }
 }
 

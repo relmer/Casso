@@ -130,6 +130,7 @@
     <ClCompile Include="CassoExplorer\Model\DiskImageCatalog.cpp" />
     <ClCompile Include="CassoExplorer\Model\DiskMessageText.cpp" />
     <ClCompile Include="CassoExplorer\Model\HostFolderReader.cpp" />
+    <ClCompile Include="CassoExplorer\Model\TreeChildChecks.cpp" />
     <ClCompile Include="CassoExplorer\Model\TreeImageNodes.cpp" />
     <ClCompile Include="Devices\Disk\BlankDiskSpecResolver.cpp" />
     <ClCompile Include="Devices\Disk\DiskCommandText.cpp" />
@@ -303,6 +304,7 @@
     <ClCompile Include="CassoLink\Session\CassoLinkDiskTransfer.cpp" />
     <ClCompile Include="CassoLink\Session\TrackVerifier.cpp" />
     <ClCompile Include="CassoLink\Session\CaptureStamp.cpp" />
+    <ClCompile Include="CassoLink\Session\CaptureMarks.cpp" />
     <ClCompile Include="CassoLink\Session\CaptureStream.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkBlockDevices.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkBlockTransfer.cpp" />
@@ -314,6 +316,8 @@
     <ClCompile Include="CassoLink\Session\CassoLinkResume.cpp" />
     <ClCompile Include="CassoLink\Session\LinkImageSource.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkThirteenSector.cpp" />
+    <ClCompile Include="CassoLink\Session\RawWriteArcs.cpp" />
+    <ClCompile Include="CassoLink\Session\RawWritePass.cpp" />
     <ClCompile Include="CassoLink\Session\RawWriteStream.cpp" />
     <ClCompile Include="DiskCheck\ImageRecordStore.cpp" />
     <ClCompile Include="DiskCheck\ThumbnailStore.cpp" />
@@ -1529,6 +1533,7 @@
     <ClInclude Include="CassoExplorer\Model\DiskImageCatalog.h" />
     <ClInclude Include="CassoExplorer\Model\DiskMessageText.h" />
     <ClInclude Include="CassoExplorer\Model\HostFolderReader.h" />
+    <ClInclude Include="CassoExplorer\Model\TreeChildChecks.h" />
     <ClInclude Include="CassoExplorer\Model\TreeImageNodes.h" />
     <ClInclude Include="Devices\Disk\BlankDiskSpecResolver.h" />
     <ClInclude Include="Devices\Disk\DiskCommandText.h" />
@@ -2256,6 +2261,7 @@
     <ClInclude Include="CassoLink\Session\CassoLinkDiskTransfer.h" />
     <ClInclude Include="CassoLink\Session\TrackVerifier.h" />
     <ClInclude Include="CassoLink\Session\CaptureStamp.h" />
+    <ClInclude Include="CassoLink\Session\CaptureMarks.h" />
     <ClInclude Include="CassoLink\Session\CaptureStream.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkBlockDevices.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkBlockTransfer.h" />
@@ -2263,6 +2269,8 @@
     <ClInclude Include="CassoLink\Session\CassoLinkResume.h" />
     <ClInclude Include="CassoLink\Session\LinkImageSource.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkThirteenSector.h" />
+    <ClInclude Include="CassoLink\Session\RawWriteArcs.h" />
+    <ClInclude Include="CassoLink\Session\RawWritePass.h" />
     <ClInclude Include="CassoLink\Session\RawWriteStream.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkFullSend.h" />
     <ClInclude Include="DiskCheck\ImageRecordStore.h" />
@@ -2745,6 +2753,7 @@
     <None Include="CassoLink\Apple\SlotFinder.s" />
     <None Include="CassoLink\Apple\NetStack.s" />
     <None Include="CassoLink\Apple\Modules\Block.s" />
+    <None Include="CassoLink\Apple\Modules\RawWrite.s" />
     <None Include="CassoLink\Apple\Modules\ThirteenSector.s" />
     <None Include="CassoLink\Apple\VirtualDrive.s" />
     <None Include="CassoLink\Apple\Modules\Capture.s" />

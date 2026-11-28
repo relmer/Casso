@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoLink/CassoLinkHost.h"
+#include "CassoLink/Session/RawWritePass.h"
 #include "CassoLink/Session/RawWriteStream.h"
 #include "Seams/IByteStream.h"
 #include "CassoLink/CassoLinkCodec.h"
@@ -298,7 +299,7 @@ HRESULT CassoLinkHost::CaptureQuarterTrack (Byte drive, Byte position, Byte dela
 
     BAIL_OUT_IF (outStatus.error != 0, S_OK);
 
-    decoded = CaptureStream::Decode (encoded, CassoLinkCodec::kCapturePages * CassoLinkCodec::kPageSize, outBytes);
+    decoded = CaptureStream::Decode (encoded, CassoLinkCodec::kCapturePages * CassoLinkCodec::kPageSize, LinkProgram::kCaptureModuleVersion, outBytes);
     CBREx (decoded, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     outTiming.diskMs    = (double) (first.QuadPart - sent.QuadPart)  * 1000.0 / (double) frequency.QuadPart;
@@ -402,6 +403,36 @@ HRESULT CassoLinkHost::WriteRawTrack (Byte drive, Byte position, const RawWriteS
     request = { drive, position, (Byte) (count & 0xFF), (Byte) (count >> 8), percents[0], percents[1] };
 
     hr = SendStreamRequest (CassoLinkCodec::kWriteRawTrack, request, moduleStream, std::format ("track {}'s bits", position / 4.0), outStatus);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::WriteRawPass
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::WriteRawPass (Byte drive, const RawWritePass & pass, std::array<Byte, 2> percents, CassoLinkStatus & outStatus)
+{
+    HRESULT            hr      = S_OK;
+    std::vector<Byte>  request;
+    bool               valid   = pass.position >= 0 && pass.position < CassoLinkCodec::kQuarterTracks && pass.count > 0 && pass.stream.size() == 2 * RawWriteStream::kMaxBytes;
+
+
+
+    outStatus = {};
+    CBRAEx (valid, E_INVALIDARG);
+
+    request = { drive, (Byte) pass.position, (Byte) (pass.count & 0xFF), (Byte) (pass.count >> 8), percents[0], percents[1] };
+
+    hr = SendStreamRequest (CassoLinkCodec::kWriteRawTrack, request, pass.stream, std::format ("the arcs from track {}", pass.position / 4.0), outStatus);
     CHR (hr);
 
 Error:
@@ -561,6 +592,21 @@ Error:
 HRESULT CassoLinkHost::BuildCaptureModule (std::vector<Byte> & outModule) const
 {
     return LinkProgram::BuildCaptureModule (outModule, m_programChip, m_faultProgram);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::BuildRawWriteModule
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::BuildRawWriteModule (std::vector<Byte> & outModule) const
+{
+    return LinkProgram::BuildRawWriteModule (outModule, m_programChip, m_faultProgram);
 }
 
 

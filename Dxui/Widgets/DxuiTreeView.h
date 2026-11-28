@@ -266,6 +266,7 @@ public:
     void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool                OnMouse           (const DxuiMouseEvent & ev) override;
+    bool                TryGetHoverState  (uint64_t & outState) const override { outState = (uint64_t) (int64_t) m_hoverRow; return true; }
 
     //  Windows' scrollbar menu when the point is on one of the bars, in the
     //  coordinates OnMouse takes; empty elsewhere. Its rows scroll the view.
@@ -368,6 +369,11 @@ private:
     bool                       m_focused        = false;
     std::vector<DxuiTreeNode>  m_nodes;
     std::vector<FlatRow>       m_flatRows;
+
+    //  Each row's node id, by id, set when the rows are flattened. A row found
+    //  here is checked against its node before it is returned.
+    std::unordered_map<std::wstring, int>  m_rowById;
+
     ToggleFn                   m_toggle;
     DxuiDpiScaler              m_scaler;
     int                        m_topRow         = 0;

@@ -60,6 +60,7 @@ public:
     void  SetTarget         (HWND hwnd, UINT message)  { m_hwnd = hwnd; m_message = message; }
     void  SetLister         (Lister lister)            { m_lister = std::move (lister); }
     bool  HasLister         () const                   { return (bool) m_lister; }
+    bool  HasTarget         () const                   { return m_hwnd != nullptr; }
     void  SetProgressSetter (ProgressSetter setter)    { m_progressSetter = std::move (setter); }
     void  SetStoppedSetter  (StoppedSetter setter)     { m_stoppedSetter = std::move (setter); }
 

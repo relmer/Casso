@@ -1440,3 +1440,58 @@ The owner checked the hex dump conversion on screen in Casso Explorer.
 
 Not checked here: the hex dump item on File Explorer's right-drag menu, as
 the registered shell extension was an older build. The 033 gate wasn't run.
+
+## Explorer speed in big folders (T1436 to T1441, 2026-11-27)
+
+Checked on screen with the Debug x64 build of 2026-11-27 20:14, opened on the
+Temp folder:
+
+- The tree draws with Casso, This PC and the other fixed roots, and the pinned
+  folders appear once the shell's read finishes (T1441).
+- Under C: and AppData\Local, a folder has an expander only when it has a
+  subfolder or a disk image: AMD, Google and NuGet have one; DiscCache,
+  inetpub, gk and matplotlib don't (T1436).
+- At startup the tree opens down to Temp, including folders whose check
+  hadn't finished yet. The first build stopped at Users; the fix is in the same
+  change.
+- The list draws its rows and labels, and the toolbar's buttons are enabled
+  for the selection (T1437, T1439).
+
+Unit tests for each task pass.
+
+Checked again with the Debug x64 build of 2026-11-27 23:35:
+
+- In a scratch folder under Temp, a subfolder with a child folder has an
+  expander and an empty one doesn't. With the parent open, a folder made in
+  the empty one and the child deleted from the other swapped the expanders
+  within 5 seconds. The first build left both expanders as they were, even
+  after Refresh: the parent's subfolder names were the same, so the tree
+  skipped reading it again. A closed subfolder whose modified time changed
+  is now checked again; the fix is in the same change.
+- The Screenshots folder, about 1,700 pictures and no subfolders, drew its
+  thumbnails within 3 seconds of launch, and its tree row has no expander.
+
+Not checked here: traces before and after, since WPR needs an elevated
+prompt, and the 033 gate.
+
+Not checked here: traces before and after, since WPR needs an elevated prompt;
+the Screenshots folder; and the 033 gate.
+
+## Second batch of reads at 10 cycles, before the part-turn count (T1461, 2026-11-27)
+
+Counted from the saved reads of the "Karateka recapture 9 (D1)" capture
+(drive 1, 2026-11-27, 19:20 to 19:57). The link log has one request and one
+status line per read and no cycle count, so the delay of each read comes from
+the reads file. The log has 671 read requests and the reads file has 660
+reads, 188 at 8 cycles, 48 at 12 and 424 at 10.
+
+| Whole tracks | Count |
+|---|---|
+| in the capture | 35 |
+| with one batch of 8 reads at 10 cycles | 15 |
+| with the second batch, 16 reads at 10 cycles | 19 |
+| with no read at 10 cycles | 1 |
+
+This capture was made before part turns were counted, so it is the "before"
+number only. T1461 stays open: in a capture made with the current program,
+far fewer tracks must take the second batch, about 2 by the replay.

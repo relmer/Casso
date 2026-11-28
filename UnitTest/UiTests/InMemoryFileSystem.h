@@ -248,9 +248,15 @@ public:
         for (const std::wstring & d : dirs)
         {
             FileSystemEntry  entry;
+            auto             time = m_folderTimes.find (Normalize (prefix + d));
 
             entry.name     = d;
             entry.isFolder = true;
+
+            if (time != m_folderTimes.end())
+            {
+                entry.modifiedUnix = time->second;
+            }
 
             outEntries.push_back (std::move (entry));
         }
@@ -356,6 +362,14 @@ public:
     }
 
 
+    void        SetFolderModifiedUnix (const std::wstring & path, int64_t modifiedUnix)
+    {
+        std::lock_guard<std::mutex>  lock (m_mutex);
+
+        m_folderTimes[Normalize (path)] = modifiedUnix;
+    }
+
+
     void        SetAttributes (const std::wstring & path, bool hidden, bool system, bool compressed)
     {
         std::lock_guard<std::mutex>  lock (m_mutex);
@@ -427,6 +441,7 @@ private:
 
     std::mutex                            m_mutex;
     std::map<std::wstring, Entry>         m_files;
+    std::map<std::wstring, int64_t>       m_folderTimes;
     std::set<std::wstring>                m_directories;
     std::map<std::wstring, std::wstring>  m_links;
 };

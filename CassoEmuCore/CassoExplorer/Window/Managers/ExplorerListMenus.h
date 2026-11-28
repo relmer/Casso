@@ -42,15 +42,22 @@ public:
     static bool                     IsFavorite          (const std::vector<std::wstring> & labels) { return std::find (labels.begin(), labels.end(), L"Remove from Favorites") != labels.end(); }
 
     bool                            IsListVerbOffered      (CassoExplorerActions::Verb verb) const;
-    std::vector<DxuiPopupMenuItem>  GetSortChoices         (bool commandBar);
-    std::vector<DxuiPopupMenuItem>  GetGroupedSortChoices  (GroupChoices::Folder folder);
-    std::vector<DxuiPopupMenuItem>  GetSeeMoreRows         ();
-    std::vector<DxuiPopupMenuItem>  GetGroupChoices        (bool commandBar);
-    std::vector<DxuiPopupMenuItem>  GetColumnGroupChoices  (bool grouped);
-    bool                            IsSearchIndexed        ();
-    static std::wstring             GetSearchScopeFolder   (const Location & shown);
-    std::vector<DxuiPopupMenuItem>  GetSearchOptionChoices ();
-    std::vector<DxuiPopupMenuItem>  GetViewChoices         (bool withKeys);
+
+    //  The selection's verbs, built again when the location or the selected
+    //  rows change, or after InvalidateOfferedVerbs. The toolbar's buttons
+    //  query them on every paint.
+    const std::vector<CassoExplorerActions::Verb>  & GetOfferedVerbs        () const;
+    void                                             InvalidateOfferedVerbs () const { m_offered.valid = false; }
+    int                                              GetOfferedBuildCount   () const { return m_offered.builds; }
+    std::vector<DxuiPopupMenuItem>                   GetSortChoices         (bool commandBar);
+    std::vector<DxuiPopupMenuItem>                   GetGroupedSortChoices  (GroupChoices::Folder folder);
+    std::vector<DxuiPopupMenuItem>                   GetSeeMoreRows         ();
+    std::vector<DxuiPopupMenuItem>                   GetGroupChoices        (bool commandBar);
+    std::vector<DxuiPopupMenuItem>                   GetColumnGroupChoices  (bool grouped);
+    bool                                             IsSearchIndexed        ();
+    static std::wstring                              GetSearchScopeFolder   (const Location & shown);
+    std::vector<DxuiPopupMenuItem>                   GetSearchOptionChoices ();
+    std::vector<DxuiPopupMenuItem>                   GetViewChoices         (bool withKeys);
 
     //  A separator only between two rows, and never two in a row.
     static void  AddSeparator          (std::vector<DxuiPopupMenuItem> & items);
@@ -74,7 +81,17 @@ private:
     void  AddCardRows     (std::vector<DxuiPopupMenuItem> & items, const Location & card);
     void  InsertSubmenu   (std::vector<DxuiPopupMenuItem> & items, size_t at, const wchar_t * label, const wchar_t * svg, std::shared_ptr<const DxuiIconImage> image, std::vector<DxuiPopupMenuItem> choices);
 
-    ExplorerListPane     & m_pane;
-    ExplorerContext      & m_context;
-    ExplorerPickerMenus    m_pickerMenus { *this, m_context };
+    struct OfferedVerbs
+    {
+        bool                                     valid  = false;
+        Location                                 location;
+        std::vector<int>                         rows;
+        std::vector<CassoExplorerActions::Verb>  verbs;
+        int                                      builds = 0;
+    };
+
+    ExplorerListPane       & m_pane;
+    ExplorerContext        & m_context;
+    ExplorerPickerMenus      m_pickerMenus { *this, m_context };
+    mutable OfferedVerbs     m_offered;
 };

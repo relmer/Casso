@@ -589,6 +589,8 @@
     <ClCompile Include="DiskCheck\BootProbeTests.cpp" />
     <ClCompile Include="CassoLink\FullSendManifestRenameTests.cpp" />
     <ClCompile Include="CassoLink\FullSendProtectionTests.cpp" />
+    <ClCompile Include="CassoLink\RawWriteArcsTests.cpp" />
+    <ClCompile Include="CassoLink\RawWritePassTests.cpp" />
     <ClCompile Include="CassoLink\RawWriteStreamTests.cpp" />
     <ClCompile Include="CassoLink\FullSendStatusTests.cpp" />
     <ClCompile Include="CassoLink\TrackMeasuresTests.cpp" />
@@ -608,6 +610,7 @@
     <ClCompile Include="CassoLink\DiskDriverTimingTests.cpp" />
     <ClCompile Include="CassoLink\KrunchProgramTests.cpp" />
     <ClCompile Include="CassoLink\ModuleProgramTests.cpp" />
+    <ClCompile Include="CassoLink\ModuleFitTests.cpp" />
     <ClCompile Include="CassoLink\CassoLinkBlockTransferTests.cpp" />
     <ClCompile Include="CassoLink\CassoLinkVirtualDrivesTests.cpp" />
     <ClCompile Include="CassoLink\CaptureProgramTests.cpp" />
@@ -700,6 +703,7 @@
     <ClCompile Include="CassoExplorer\OpenOnCommandTests.cpp" />
     <ClCompile Include="CassoExplorer\RawCopyDropHandlerTests.cpp" />
     <ClCompile Include="CassoExplorer\DiskOperationsTests.cpp" />
+    <ClCompile Include="CassoExplorer\TreeChildChecksTests.cpp" />
     <ClCompile Include="CassoExplorer\TreeModelTests.cpp" />
     <ClCompile Include="CassoExplorer\LinkImageDropRuleTests.cpp" />
     <ClCompile Include="CassoExplorer\BrowserModelTests.cpp" />
