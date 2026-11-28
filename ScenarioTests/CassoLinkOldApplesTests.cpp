@@ -367,7 +367,7 @@ public:
         }
 
         RawWriteStream::FromBits (bits, stream);
-        AssertSucceeded (LinkProgram::BuildThirteenSectorModule (module));
+        AssertSucceeded (LinkProgram::BuildRawWriteModule (module));
         AssertSucceeded (host->EnsureModule (module));
         AssertSucceeded (host->WriteRawTrack (2, 120, stream, CassoLinkHost::GetTrackPercents (30), status));
         Assert::AreEqual<int> (CassoLinkHost::kErrorNone, status.error, rig.Widen ("the raw write").c_str());
