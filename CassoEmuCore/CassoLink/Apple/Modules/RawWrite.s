@@ -5,9 +5,9 @@
 ;
 ; Write raw track (CMDWRAW): the drive, the quarter-track position, 0 to 139,
 ; the count of bytes, 1 to RPAGES * 256, low byte first, and the two
-; percentages. The stream is requested as Write nibble track's is, RLEN bytes:
-; RPAGES pages of the bytes' values, then RPAGES pages of the zero bits
-; written after each byte, 0 to 7. Each value is stored in the data register
+; percentages. The stream is RLEN bytes: RPAGES pages of the bytes' values,
+; then RPAGES pages of the zero bits written after each byte, 0 to 7. It is
+; requested in pieces of RPIECE pages (nask). Each value is stored in the data register
 ; 32 cycles plus 4 for each zero bit after the one before, so the drive
 ; writes its eight bits and then shifts in zeros until the next store: the
 ; track's bits as the PC split them (RawWriteStream). An odd position is
@@ -45,6 +45,8 @@ RZERO      = RVALS + RPAGES * 256
 RCODE      = RZERO + RPAGES * 256 ; the raw loop's copies, after the stream
 RCOPY      = 64                 ; the bytes for each copy, so none crosses a page
 RLEN       = RPAGES * 512
+RPIECE     = 4                  ; the pages of a piece of the stream
+RPIECES    = RPAGES * 2 / RPIECE
 RNOPS      = 14                 ; the nops in each run: two for each of 7 zero bits
 RGAP       = 8                  ; the count of zeros of a stretch not written
 RGUP       = 8                  ; after a wait: the arm is a half track up
@@ -52,7 +54,7 @@ RGDOWN     = 9                  ; or down
 RGWRITE    = $FF                ; or the drive writes again
 
         .org $5000
-        .byte 'C', 'M', 4, 1    ; raw write, version 1
+        .byte 'C', 'M', 4, 2    ; raw write, version 2
         .word PROGVER
         .word modend - $5000
         .word 0                 ; the CRC, which the PC fills in
@@ -61,7 +63,7 @@ RGWRITE    = $FF                ; or the drive writes again
         .word wraw
 
 ; Zero page the program doesn't use.
-nlen     = $50                  ; and $51: the stream's length
+npiece   = $50                  ; the piece of the stream requested
 nsrc     = $52                  ; and $53: the next byte of NBUF
 ncrc     = $54                  ; and $55: the CRC the host sent
 ntry     = $56                  ; the attempts left for the stream
@@ -131,10 +133,10 @@ nstrack: lda nhalf
         sta p_target
         jmp p_stepto
 
-; getnib: the host's Nibble data into NBUF, nlen bytes, then PEND after them
-; for the player. C is set on a timeout, a packet that isn't Nibble data or a
-; failed CRC. At 115,200 baud a byte comes every 89 cycles, too few for the
-; CRC as well, so the bytes are stored as they arrive and checked after.
+; getnib: a piece of the stream, RPIECE pages of Nibble data, at its place in
+; NBUF. C is set on a timeout, a packet that isn't Nibble data or a failed
+; CRC. At 115,200 baud a byte comes every 89 cycles, too few for the CRC as
+; well, so the bytes are stored as they arrive and checked after.
 getnib: jsr p_getenvt
         bcs gnlost
         cmp #CMDCANCEL
@@ -145,8 +147,7 @@ gncmd:  cmp #CMDNIBDATA
 gnlost: sec
         rts
 gnread: jsr gnstart
-        beq gnpart
-gnpage: jsr p_getbtq            ; the whole pages
+gnpage: jsr p_getbtq
         bcs gnlost
         sta (nsrc),y
         iny
@@ -154,28 +155,18 @@ gnpage: jsr p_getbtq            ; the whole pages
         inc nsrc+1
         dex
         bne gnpage
-gnpart: cpy nlen                ; then the rest
-        beq gnend
-        jsr p_getbtq
-        bcs gnlost
-        sta (nsrc),y
-        iny
-        jmp gnpart
-gnend:  lda #p_PEND
-        sta (nsrc),y
         jsr p_getbtq
         bcs gnlost
         sta ncrc
         jsr p_getbtq
         bcs gnlost
         sta ncrc+1
-        jsr p_getbtq            ; the payload's EOR; the CRC checks the stream
+        jsr p_getbtq            ; the payload's EOR; the CRC checks the piece
         bcs gnlost
         lda #0
         sta p_crclo
         sta p_crchi
         jsr gnstart
-        beq gnspart
 gnspage: lda (nsrc),y
         jsr p_crcupd
         iny
@@ -183,13 +174,7 @@ gnspage: lda (nsrc),y
         inc nsrc+1
         dex
         bne gnspage
-gnspart: cpy nlen
-        beq gncheck
-        lda (nsrc),y
-        jsr p_crcupd
-        iny
-        jmp gnspart
-gncheck: lda p_crclo
+        lda p_crclo
         cmp ncrc
         bne gnlost
         lda p_crchi
@@ -198,21 +183,29 @@ gncheck: lda p_crclo
         clc
         rts
 
-; gnstart: nsrc at NBUF, Y 0, and X the stream's whole pages, Z set for none.
-gnstart: lda #<NBUF
+; gnstart: nsrc at piece npiece of NBUF, Y 0, and X the pages of a piece.
+gnstart: lda #0
         sta nsrc
-        lda #>NBUF
+        lda npiece
+        asl a
+        asl a
+        clc
+        adc #>NBUF
         sta nsrc+1
         ldy #0
-        ldx nlen+1
+        ldx #RPIECE
         rts
 
-; nask: the stream requested with an Acknowledge, and again with a NAK when
-; it arrives damaged, TRIES times at most. C is set when it never arrives.
-nask:   lda #TRIES
+; nask: the stream requested a piece at a time, so that a byte lost on the
+; line costs one piece and not the stream. Each piece is requested with an
+; Acknowledge whose second byte is the piece, and again with a NAK when it
+; arrives damaged, TRIES times at most. C is set when a piece never arrives.
+nask:   lda #0
+        sta npiece
+napiece: lda #TRIES
         sta ntry
         lda #p_ACK
-naloop: ldx #0
+naloop: ldx npiece
         ldy #0
         jsr p_sendack
         jsr getnib
@@ -222,7 +215,11 @@ naloop: ldx #0
         beq nafail
         lda #p_NAK
         jmp naloop
-nagot:  clc
+nagot:  inc npiece
+        lda npiece
+        cmp #RPIECES
+        bne napiece
+        clc
         rts
 nafail: sec
         rts
@@ -251,11 +248,7 @@ wraw:   lda #p_OPWRITE
 wrbad:  lda #p_ERRDRIVE
         sta p_err
         jmp p_opdone
-wrshow: lda #<RLEN
-        sta nlen
-        lda #>RLEN
-        sta nlen+1
-        lda wpos
+wrshow: lda wpos
         lsr a
         jsr nseekh
         jsr p_protected

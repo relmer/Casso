@@ -184,6 +184,9 @@ public:
     static constexpr size_t  kNibbleCapture      = 13312;
     static constexpr size_t  kNibbleTrackSize    = 6656;
 
+    //  A raw write's stream is sent in pieces of this many bytes.
+    static constexpr size_t  kRawPieceBytes      = 1024;
+
     //  Casso's client's Status error codes.
     static constexpr Byte    kErrorNone           = 0x00;
     static constexpr Byte    kErrorWriteProtected = 0x10;
@@ -540,7 +543,7 @@ private:
 
     //  A request whose stream the Apple requests with an Acknowledge, and
     //  again with a NAK, then a Status.
-    HRESULT  SendStreamRequest (Byte command, std::span<const Byte> request, std::span<const Byte> stream, const std::string & item, CassoLinkStatus & outStatus);
+    HRESULT  SendStreamRequest (Byte command, std::span<const Byte> request, std::span<const Byte> stream, const std::string & item, CassoLinkStatus & outStatus, size_t pieceBytes = 0);
 
     HRESULT  ServeReady        (const CassoLinkPacket & packet);
     HRESULT  ServeVirtualBlock (const CassoLinkPacket & packet);
