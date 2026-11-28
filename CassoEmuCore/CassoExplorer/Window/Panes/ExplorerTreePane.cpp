@@ -918,6 +918,13 @@ int ExplorerTreePane::WalkTreeLabels (int row, const std::wstring & path)
             continue;
         }
 
+        //  A folder whose subfolder check hasn't finished has no expander yet,
+        //  so its children are read here.
+        if (DxuiTreeNode * pending = m_tree->GetNodeAtMutable (row); pending != nullptr && pending->childrenLoaded && pending->children.empty())
+        {
+            pending->childrenLoaded = false;
+        }
+
         m_tree->SetRowExpanded (row, true);
         node = m_tree->GetNodeAt (row);
 
