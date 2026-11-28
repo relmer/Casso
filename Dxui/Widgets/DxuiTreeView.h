@@ -368,6 +368,10 @@ private:
     bool                       m_focused        = false;
     std::vector<DxuiTreeNode>  m_nodes;
     std::vector<FlatRow>       m_flatRows;
+
+    //  Each row's node id, by id, set when the rows are flattened. A row found
+    //  here is checked against its node before it is returned.
+    std::unordered_map<std::wstring, int>  m_rowById;
     ToggleFn                   m_toggle;
     DxuiDpiScaler              m_scaler;
     int                        m_topRow         = 0;
