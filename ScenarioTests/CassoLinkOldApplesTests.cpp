@@ -63,8 +63,6 @@ public:
     static constexpr const char *  kCommunicationsSw1 = "off off off on on on on";
     static constexpr const char *  kShippedSw2        = "on on off on off off off";
 
-    static constexpr const char *  kMachines[] = { "Apple2Plus", "Apple2" };
-
     static bool  IsIntegerBasic (const std::string & machineId)
     {
         return machineId == "Apple2";
@@ -288,22 +286,19 @@ public:
 
     //  The PC's prompt probe, at Applesoft's ] prompt and at Integer BASIC's >,
     //  under DOS 3.3 with IN#2 typed, sends $A5 within the probe's wait.
-    TEST_METHOD (TheProbe_AtEitherBasicsPrompt_SendsA5)
+    static void  RunProbe (const char * machineId)
     {
-        for (const char * machineId : kMachines)
-        {
-            Rig                       rig (machineId);
-            std::vector<std::string>  lines (std::begin (CassoLinkConnector::kPromptProbe), std::end (CassoLinkConnector::kPromptProbe));
+        Rig                       rig (machineId);
+        std::vector<std::string>  lines (std::begin (CassoLinkConnector::kPromptProbe), std::end (CassoLinkConnector::kPromptProbe));
 
 
 
-            Assert::IsTrue (rig.IsAtPrompt (IsIntegerBasic (machineId) ? '>' : ']'), rig.Widen (rig.Screen()).c_str());
+        Assert::IsTrue (rig.IsAtPrompt (IsIntegerBasic (machineId) ? '>' : ']'), rig.Widen (rig.Screen()).c_str());
 
-            lines.insert (lines.begin(), LinkBootstrap::kCancelLine);
-            rig.Send (lines);
+        lines.insert (lines.begin(), LinkBootstrap::kCancelLine);
+        rig.Send (lines);
 
-            Assert::IsTrue (rig.AwaitReady (kProbeWait), rig.Widen ("the probe's $A5: " + rig.Screen()).c_str());
-        }
+        Assert::IsTrue (rig.AwaitReady (kProbeWait), rig.Widen ("the probe's $A5: " + rig.Screen()).c_str());
     }
 
 
@@ -312,97 +307,94 @@ public:
     //  track read as a Full Send reads it, a sector written and read back,
     //  a raw capture of a track, and a raw write of a track. The PC's Exit
     //  then returns to the machine's BASIC at its prompt, with DOS working.
-    TEST_METHOD (TheBootstrap_AndALink_ReadAndWriteTheDisk_AndExitToBasic)
+    static void  RunLink (const char * machineId)
     {
-        for (const char * machineId : kMachines)
+        Rig                             rig (machineId);
+        InMemoryCassoLinkFolder         folder;
+        std::unique_ptr<CassoLinkHost>  host;
+        std::vector<Byte>               sectors = AllSectors();
+        std::vector<Byte>               data;
+        std::vector<Byte>               pattern (256, 0x5A);
+        std::vector<Byte>               module;
+        std::vector<Byte>               bytes;
+        std::vector<uint8_t>            bits;
+        RawWriteStream                  stream;
+        CassoLinkStatus                 status;
+        CaptureTiming                   timing;
+        const Byte                      sector[] = { 3 };
+        char                            prompt   = IsIntegerBasic (machineId) ? '>' : ']';
+
+
+
+        rig.Bootstrap();
+        host = MakeHost (rig, folder);
+
+        //  The catalog, then every track.
+        AssertSucceeded (host->ReadSectors (2, kCatalogTrack, sectors, data, status));
+        Assert::AreEqual<int> (CassoLinkHost::kErrorNone, status.error, rig.Widen ("the catalog").c_str());
+        Assert::IsTrue (data == rig.ImageTrack (kCatalogTrack), rig.Widen ("drive 2's catalog track").c_str());
+
+        for (Byte track = 0; track < kTracks; track++)
         {
-            Rig                             rig (machineId);
-            InMemoryCassoLinkFolder         folder;
-            std::unique_ptr<CassoLinkHost>  host;
-            std::vector<Byte>               sectors = AllSectors();
-            std::vector<Byte>               data;
-            std::vector<Byte>               pattern (256, 0x5A);
-            std::vector<Byte>               module;
-            std::vector<Byte>               bytes;
-            std::vector<uint8_t>            bits;
-            RawWriteStream                  stream;
-            CassoLinkStatus                 status;
-            CaptureTiming                   timing;
-            const Byte                      sector[] = { 3 };
-            char                            prompt   = IsIntegerBasic (machineId) ? '>' : ']';
-
-
-
-            rig.Bootstrap();
-            host = MakeHost (rig, folder);
-
-            //  The catalog, then every track.
-            AssertSucceeded (host->ReadSectors (2, kCatalogTrack, sectors, data, status));
-            Assert::AreEqual<int> (CassoLinkHost::kErrorNone, status.error, rig.Widen ("the catalog").c_str());
-            Assert::IsTrue (data == rig.ImageTrack (kCatalogTrack), rig.Widen ("drive 2's catalog track").c_str());
-
-            for (Byte track = 0; track < kTracks; track++)
-            {
-                AssertSucceeded (host->ReadSectors (2, track, sectors, data, status));
-                Assert::IsTrue (data == rig.ImageTrack (track), rig.Widen (std::format ("track {}", track)).c_str());
-            }
-
-            //  A sector written and read back.
-            AssertSucceeded (host->WriteSectors (2, 20, sector, pattern, status));
-            Assert::AreEqual<int> (CassoLinkHost::kErrorNone, status.error, rig.Widen ("the write").c_str());
-            AssertSucceeded (host->ReadSectors (2, 20, sector, data, status));
-            Assert::IsTrue (data == pattern, rig.Widen ("the sector written reads back").c_str());
-
-            //  A raw capture of track 0.
-            AssertSucceeded (LinkProgram::BuildCaptureModule (module));
-            AssertSucceeded (host->EnsureModule (module));
-            AssertSucceeded (host->CaptureQuarterTrack (2, 0, 0, 0, 100, CassoLinkHost::kNoSync, {}, bytes, status, timing));
-            Assert::AreEqual<int> (CassoLinkHost::kErrorNone, status.error, rig.Widen ("the raw capture").c_str());
-            Assert::IsTrue (bytes.size() > 6000, rig.Widen (std::format ("the capture's {} bytes", bytes.size())).c_str());
-
-            //  A raw write of track 30: a sync run, then bytes.
-            bits.assign (400, 0);
-
-            for (int i = 0; i < 5000; i++)
-            {
-                Byte  value = (Byte) (0x96 + (i % 0x69));
-
-                for (int bit = 7; bit >= 0; bit--)
-                {
-                    bits.push_back ((uint8_t) (((value | 0x80) >> bit) & 1));
-                }
-            }
-
-            RawWriteStream::FromBits (bits, stream);
-            AssertSucceeded (LinkProgram::BuildThirteenSectorModule (module));
-            AssertSucceeded (host->EnsureModule (module));
-            AssertSucceeded (host->WriteRawTrack (2, 120, stream, CassoLinkHost::GetTrackPercents (30), status));
-            Assert::AreEqual<int> (CassoLinkHost::kErrorNone, status.error, rig.Widen ("the raw write").c_str());
-
-            //  The PC's Exit: the machine's BASIC, with DOS's CATALOG working.
-            AssertSucceeded (host->Exit());
-            host.reset();
-            rig.machine.RunCycles (2 * kClockHz);
-
-            Assert::IsTrue (rig.IsAtPrompt (prompt), rig.Widen ("BASIC's prompt after Exit: " + rig.Screen()).c_str());
-
-            //  BASIC's program is empty: LIST prints nothing.
-            rig.Type ("LIST\r");
-            rig.machine.RunCycles (kClockHz);
-            {
-                std::string  screen = rig.Screen();
-                size_t       listed = screen.rfind (std::string (1, prompt) + "LIST|");
-
-                size_t       next   = screen.find_first_not_of ('|', listed + 6);
-
-                Assert::IsTrue (listed != std::string::npos && next != std::string::npos && screen[next] == prompt, rig.Widen ("LIST after Exit: " + screen).c_str());
-            }
-
-            rig.Type ("CATALOG\r");
-            rig.machine.RunCycles (5 * kClockHz);
-            Assert::AreEqual (std::string::npos, rig.Screen().find ("ERROR"), rig.Widen (rig.Screen()).c_str());
-            Assert::AreNotEqual (std::string::npos, rig.Screen().find ("HELLO"), rig.Widen (rig.Screen()).c_str());
+            AssertSucceeded (host->ReadSectors (2, track, sectors, data, status));
+            Assert::IsTrue (data == rig.ImageTrack (track), rig.Widen (std::format ("track {}", track)).c_str());
         }
+
+        //  A sector written and read back.
+        AssertSucceeded (host->WriteSectors (2, 20, sector, pattern, status));
+        Assert::AreEqual<int> (CassoLinkHost::kErrorNone, status.error, rig.Widen ("the write").c_str());
+        AssertSucceeded (host->ReadSectors (2, 20, sector, data, status));
+        Assert::IsTrue (data == pattern, rig.Widen ("the sector written reads back").c_str());
+
+        //  A raw capture of track 0.
+        AssertSucceeded (LinkProgram::BuildCaptureModule (module));
+        AssertSucceeded (host->EnsureModule (module));
+        AssertSucceeded (host->CaptureQuarterTrack (2, 0, 0, 0, 100, CassoLinkHost::kNoSync, {}, bytes, status, timing));
+        Assert::AreEqual<int> (CassoLinkHost::kErrorNone, status.error, rig.Widen ("the raw capture").c_str());
+        Assert::IsTrue (bytes.size() > 6000, rig.Widen (std::format ("the capture's {} bytes", bytes.size())).c_str());
+
+        //  A raw write of track 30: a sync run, then bytes.
+        bits.assign (400, 0);
+
+        for (int i = 0; i < 5000; i++)
+        {
+            Byte  value = (Byte) (0x96 + (i % 0x69));
+
+            for (int bit = 7; bit >= 0; bit--)
+            {
+                bits.push_back ((uint8_t) (((value | 0x80) >> bit) & 1));
+            }
+        }
+
+        RawWriteStream::FromBits (bits, stream);
+        AssertSucceeded (LinkProgram::BuildThirteenSectorModule (module));
+        AssertSucceeded (host->EnsureModule (module));
+        AssertSucceeded (host->WriteRawTrack (2, 120, stream, CassoLinkHost::GetTrackPercents (30), status));
+        Assert::AreEqual<int> (CassoLinkHost::kErrorNone, status.error, rig.Widen ("the raw write").c_str());
+
+        //  The PC's Exit: the machine's BASIC, with DOS's CATALOG working.
+        AssertSucceeded (host->Exit());
+        host.reset();
+        rig.machine.RunCycles (2 * kClockHz);
+
+        Assert::IsTrue (rig.IsAtPrompt (prompt), rig.Widen ("BASIC's prompt after Exit: " + rig.Screen()).c_str());
+
+        //  BASIC's program is empty: LIST prints nothing.
+        rig.Type ("LIST\r");
+        rig.machine.RunCycles (kClockHz);
+        {
+            std::string  screen = rig.Screen();
+            size_t       listed = screen.rfind (std::string (1, prompt) + "LIST|");
+
+            size_t       next   = screen.find_first_not_of ('|', listed + 6);
+
+            Assert::IsTrue (listed != std::string::npos && next != std::string::npos && screen[next] == prompt, rig.Widen ("LIST after Exit: " + screen).c_str());
+        }
+
+        rig.Type ("CATALOG\r");
+        rig.machine.RunCycles (5 * kClockHz);
+        Assert::AreEqual (std::string::npos, rig.Screen().find ("ERROR"), rig.Widen (rig.Screen()).c_str());
+        Assert::AreNotEqual (std::string::npos, rig.Screen().find ("HELLO"), rig.Widen (rig.Screen()).c_str());
     }
 
 
@@ -412,42 +404,48 @@ public:
     //  The ]['s old monitor ignores the vector, so the reset lands at the
     //  monitor's * prompt; 3D0G, DOS's warm start, returns to Integer BASIC, and
     //  DOS's CATALOG works.
-    TEST_METHOD (ControlReset_DuringALink_EndsAtBasic_OrAtTheOldMonitor)
+    static void  RunControlReset (const char * machineId)
     {
-        for (const char * machineId : kMachines)
+        Rig                             rig (machineId);
+        InMemoryCassoLinkFolder         folder;
+        std::unique_ptr<CassoLinkHost>  host;
+        std::vector<Byte>               sectors = AllSectors();
+        std::vector<Byte>               data;
+        CassoLinkStatus                 status;
+        bool                            integer = IsIntegerBasic (machineId);
+
+
+
+        rig.Bootstrap();
+        host = MakeHost (rig, folder);
+
+        AssertSucceeded (host->ReadSectors (2, kCatalogTrack, sectors, data, status));
+        host.reset();
+
+        rig.machine.SoftReset();
+        rig.machine.RunCycles (2 * kClockHz);
+
+        Assert::IsTrue (rig.IsAtPrompt (integer ? '*' : ']'), rig.Widen ("the prompt after Control-Reset: " + rig.Screen()).c_str());
+
+        if (integer)
         {
-            Rig                             rig (machineId);
-            InMemoryCassoLinkFolder         folder;
-            std::unique_ptr<CassoLinkHost>  host;
-            std::vector<Byte>               sectors = AllSectors();
-            std::vector<Byte>               data;
-            CassoLinkStatus                 status;
-            bool                            integer = IsIntegerBasic (machineId);
-
-
-
-            rig.Bootstrap();
-            host = MakeHost (rig, folder);
-
-            AssertSucceeded (host->ReadSectors (2, kCatalogTrack, sectors, data, status));
-            host.reset();
-
-            rig.machine.SoftReset();
-            rig.machine.RunCycles (2 * kClockHz);
-
-            Assert::IsTrue (rig.IsAtPrompt (integer ? '*' : ']'), rig.Widen ("the prompt after Control-Reset: " + rig.Screen()).c_str());
-
-            if (integer)
-            {
-                rig.Type ("3D0G\r");
-                rig.machine.RunCycles (kClockHz);
-                Assert::IsTrue (rig.IsAtPrompt ('>'), rig.Widen ("Integer BASIC's prompt: " + rig.Screen()).c_str());
-            }
-
-            rig.Type ("CATALOG\r");
-            rig.machine.RunCycles (5 * kClockHz);
-            Assert::AreEqual (std::string::npos, rig.Screen().find ("ERROR"), rig.Widen (rig.Screen()).c_str());
-            Assert::AreNotEqual (std::string::npos, rig.Screen().find ("HELLO"), rig.Widen (rig.Screen()).c_str());
+            rig.Type ("3D0G\r");
+            rig.machine.RunCycles (kClockHz);
+            Assert::IsTrue (rig.IsAtPrompt ('>'), rig.Widen ("Integer BASIC's prompt: " + rig.Screen()).c_str());
         }
+
+        rig.Type ("CATALOG\r");
+        rig.machine.RunCycles (5 * kClockHz);
+        Assert::AreEqual (std::string::npos, rig.Screen().find ("ERROR"), rig.Widen (rig.Screen()).c_str());
+        Assert::AreNotEqual (std::string::npos, rig.Screen().find ("HELLO"), rig.Widen (rig.Screen()).c_str());
     }
+
+
+
+    TEST_METHOD (TheProbe_AtApplesoftsPrompt_SendsA5_OnAnApple2Plus)                 { RunProbe        ("Apple2Plus"); }
+    TEST_METHOD (TheProbe_AtIntegerBasicsPrompt_SendsA5_OnAnApple2)                   { RunProbe        ("Apple2"); }
+    TEST_METHOD (TheBootstrap_AndALink_ReadAndWriteTheDisk_AndExit_OnAnApple2Plus)    { RunLink         ("Apple2Plus"); }
+    TEST_METHOD (TheBootstrap_AndALink_ReadAndWriteTheDisk_AndExit_OnAnApple2)        { RunLink         ("Apple2"); }
+    TEST_METHOD (ControlReset_DuringALink_EndsAtApplesoft_OnAnApple2Plus)             { RunControlReset ("Apple2Plus"); }
+    TEST_METHOD (ControlReset_DuringALink_EndsAtTheOldMonitor_OnAnApple2)             { RunControlReset ("Apple2"); }
 };

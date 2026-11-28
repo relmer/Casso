@@ -230,6 +230,7 @@
     <ClCompile Include="RealPascalCpmDiskTests.cpp" />
     <ClCompile Include="CassoLinkDosProbeTests.cpp" />
     <ClCompile Include="CassoLinkOldApplesTests.cpp" />
+    <ClCompile Include="CassoLinkSessionScenarioTests.cpp" />
     <ClCompile Include="CassoLinkDriveLinksTests.cpp" />
     <ClCompile Include="CassoLinkNetworkTests.cpp" />
     <ClCompile Include="CassoLinkSuperSerialTests.cpp" />
