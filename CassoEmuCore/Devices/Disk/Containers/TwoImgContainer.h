@@ -59,19 +59,20 @@ public:
     static void     Build    (const TwoImgHeader & header, std::span<const Byte> payload, std::vector<Byte> & outBytes);
 
 private:
-    static constexpr Word    kVersion       = 1;
-    static constexpr size_t  kOffCreator    = 4;
-    static constexpr size_t  kOffHeaderSize = 8;
-    static constexpr size_t  kOffVersion    = 10;
-    static constexpr size_t  kOffFormat     = 12;
-    static constexpr size_t  kOffFlags      = 16;
-    static constexpr size_t  kOffBlocks     = 20;
-    static constexpr size_t  kOffData       = 24;
-    static constexpr size_t  kOffDataLength = 28;
-    static constexpr size_t  kOffComment    = 32;
-    static constexpr size_t  kOffCommentLen = 36;
-    static constexpr size_t  kOffCreator2   = 40;
-    static constexpr size_t  kOffCreatorLen = 44;
+    static constexpr Word      kVersion       = 1;
+    static constexpr uint32_t  kBlockBytes    = 512;
+    static constexpr size_t    kOffCreator    = 4;
+    static constexpr size_t    kOffHeaderSize = 8;
+    static constexpr size_t    kOffVersion    = 10;
+    static constexpr size_t    kOffFormat     = 12;
+    static constexpr size_t    kOffFlags      = 16;
+    static constexpr size_t    kOffBlocks     = 20;
+    static constexpr size_t    kOffData       = 24;
+    static constexpr size_t    kOffDataLength = 28;
+    static constexpr size_t    kOffComment    = 32;
+    static constexpr size_t    kOffCommentLen = 36;
+    static constexpr size_t    kOffCreator2   = 40;
+    static constexpr size_t    kOffCreatorLen = 44;
 
     static uint32_t  ReadLittle32  (std::span<const Byte> bytes, size_t at);
     static void      WriteLittle32 (std::vector<Byte> & bytes, size_t at, uint32_t value);

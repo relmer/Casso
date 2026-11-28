@@ -24,6 +24,16 @@ IDR_CASSO_EXPLORER_PICTURE_PNG      RCDATA "Assets\\CassoExplorer.png"
 // The photograph itself, which heads the About box.
 IDR_CASSO_EXPLORER_CASSOWARY_PNG    RCDATA "Assets\\Cassowary.png"
 
+// The same machine configurations Casso embeds, extracted by
+// AssetBootstrap::EnsureMachineConfigs so a disk image can be booted for its
+// thumbnail, and its machine's ROMs offered, before Casso has ever run.
+IDR_MACHINE_APPLE2      RCDATA "..\\Resources\\Machines\\Apple2\\Apple2.json"
+IDR_MACHINE_APPLE2PLUS  RCDATA "..\\Resources\\Machines\\Apple2Plus\\Apple2Plus.json"
+IDR_MACHINE_APPLE2E     RCDATA "..\\Resources\\Machines\\Apple2e\\Apple2e.json"
+IDR_MACHINE_APPLE2C     RCDATA "..\\Resources\\Machines\\Apple2c\\Apple2c.json"
+IDR_MACHINE_APPLE2C_PLUS RCDATA "..\\Resources\\Machines\\Apple2cPlus\\Apple2cPlus.json"
+IDR_MACHINE_APPLE2E_ENHANCED RCDATA "..\\Resources\\Machines\\Apple2eEnhanced\\Apple2eEnhanced.json"
+
 // The same built-in themes Casso embeds. AssetBootstrap::EnsureThemes compares
 // the files on disk against the running module's embedded copies, so both
 // programs must embed identical ones or each would rewrite the other's.

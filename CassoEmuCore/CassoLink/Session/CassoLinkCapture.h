@@ -72,6 +72,11 @@ public:
     //  The delays of a whole track's reads.
     static constexpr Byte    kWholeDelays[kWholeReads] = { 0, 1, 0 };
 
+    //  The delay of the reads a //c's whole track is given after those: 2,
+    //  for 10 cycles. A track gets kLoudReads of them, once or twice.
+    static constexpr Byte    kLoudDelay      = 2;
+    static constexpr int     kLoudReads      = 8;
+
     struct Result
     {
         std::vector<Byte>      woz;
@@ -179,11 +184,12 @@ private:
         std::vector<int>      timed;             // each byte's zero bits from the moments the reads caught it, -1 unknown (TimeZeros)
     };
 
-    //  The marks of each byte, at each delay: the count set and the count read.
+    //  The marks of each byte, at 8, at 12 and at 10 cycles: the count set
+    //  and the count read.
     struct Marks
     {
-        std::vector<int>  set[2];
-        std::vector<int>  read[2];
+        std::vector<int>  set[3];
+        std::vector<int>  read[3];
     };
 
     //  A revolution of a read aligned to a stream (Align).
@@ -208,6 +214,7 @@ private:
         int                      done           = 0;
         int                      planned        = 0;
         int                      pass           = 1;
+        bool                     loud           = false; // a //c read a whole track (IsLoud)
         int                      percent        = 0;
         bool                     writeProtected = false;
         StopFn                   stop;
@@ -224,7 +231,9 @@ private:
 
     static HRESULT              ReadOnce       (Run & run, int position, Byte delay, int read, int reads, Byte syncPosition, std::span<const Byte> marker, std::vector<Byte> & outBytes, bool & outMissed);
     static HRESULT              ReadPosition   (Run & run, int position, int reads, Position & outPosition);
-    static HRESULT              ReadMore       (Run & run, int reads, Position & ioPosition);
+    static HRESULT              ReadMore       (Run & run, int reads, Position & ioPosition, bool loud = false);
+    static bool                 IsLoud         (const Position & position);
+    static HRESULT              ReadLoud       (Run & run, Position & ioPosition);
     static bool                 IsUnsure       (const Position & position, bool isStandard);
     static bool                 IsTimed        (const Position & position);
     static HRESULT              ReadUnsure     (Run & run, bool isStandard, Position & ioPosition);
@@ -276,6 +285,8 @@ private:
     static void         TimeZeros        (const Position & position, const std::vector<Byte> & bytes, const std::vector<Alignment> & alignments, std::vector<int> & outZeros);
     static bool         IsAboveBase      (double set, double read, double base);
     static uint8_t      CountByteZeros   (const Marks & marks, size_t at, const double (&base)[2]);
+    static uint8_t      CountLoudZeros   (const std::vector<Byte> & bytes, const Marks & marks, size_t at);
+    static bool         IsLoudCandidate  (const Marks & marks, size_t at);
     static bool         IsMarkedOften    (int set, int read, double base);
     static bool         IsQuiet          (const std::vector<Byte> & bytes, const std::vector<bool> & weak, const Marks & marks);
     static bool         IsFourAndFourRun (const std::vector<Byte> & bytes, size_t first, size_t end, bool either);
@@ -305,6 +316,7 @@ private:
     static constexpr uint8_t  s_kMaxSyncZeros = 3;
     static constexpr size_t   s_kGapSyncs     = 32;
     static constexpr size_t   s_kResyncBytes  = 8;
+    static constexpr size_t   s_kUnitedRun    = 5;     // the FF in a row whose zero bits UniteSyncZeros makes the same
 
     //  The range of revolution lengths for FindLength, and its sample; the
     //  step between FindReference's starts, the values a start's bytes
@@ -371,9 +383,15 @@ private:
     static constexpr double  s_kDeviations         = 3.0;
     static constexpr double  s_kMinimumReads       = 4.0;
     static constexpr double  s_kChanceBytes        = 1000.0;   // the bytes in which a byte's marks may be set by chance once
-    static constexpr double  s_kQuietBase          = 0.1;      // the baseline below which a byte's marks can settle its zero bits
+    static constexpr double  s_kQuietBase          = 0.05;     // the baseline below which a byte's marks can settle its zero bits; a Disk II's is about 0.01 and a //c's about 0.1
     static constexpr size_t  s_kUnsureBytes        = 4;        // the unsure bytes that have a whole track read again
     static constexpr int     s_kTimingReads        = 9;        // and the reads it is given
+
+    //  CountLoudZeros: the marks at 10 cycles that count a zero bit after a
+    //  byte, and the tenths of its catches there that count two.
+    static constexpr int     s_kTenths             = 10;
+    static constexpr int     s_kLoudMarks          = 2;
+    static constexpr int     s_kLoudTwoShare       = 7;
 
     //  TimeZeros: the cycles between polls of the latch, and a mask of every
     //  moment a byte can be caught in them; the cycles a whole byte stays in

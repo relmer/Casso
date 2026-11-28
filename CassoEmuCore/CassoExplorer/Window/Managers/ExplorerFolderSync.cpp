@@ -19,6 +19,8 @@
 #include "Devices/Disk/Partitions/PhysicalCards.h"
 #include "CassoExplorer/Browser/BrowserRowPaths.h"
 #include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerInput.h"
+#include "Seams/IFolderThumbnails.h"
 
 
 
@@ -31,7 +33,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 ExplorerFolderSync::ExplorerFolderSync (ExplorerContext & context)
-    : m_context (context)
+    : m_context    (context),
+      m_mediaWatch (&HostFolderNames::IsMediaPresent, &GetLogicalDrives)
 {
 }
 
@@ -169,6 +172,12 @@ void ExplorerFolderSync::ReloadKnownFolders()
 
     m_context.browser.GetTreeModel().SetKnownFolders (folders);
     m_context.browser.GetTreeModel().Invalidate (TreeModel::kCassoRootId);
+
+    if (m_context.app.folderThumbnails != nullptr)
+    {
+        m_context.app.folderThumbnails->SetKnownFolders (GetCassoFolders());
+    }
+
     m_context.treePane.ReloadChildren (TreeModel::kCassoRootId);
     UpdateWatchedFolders();
     m_context.window.Invalidate();
@@ -326,7 +335,7 @@ void ExplorerFolderSync::CheckDrives()
 {
     HRESULT   hr           = S_OK;
     DWORD     mask         = GetLogicalDrives();
-    DWORD     media        = GetRemovableMediaMask (mask);
+    DWORD     media        = m_mediaWatch.GetMask (mask);
     bool      cardsChanged = UpdateStorageCards();
     Location  showing;
 
@@ -446,43 +455,15 @@ void ExplorerFolderSync::LeaveDriveWithoutMedia (DWORD media)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerFolderSync::GetRemovableMediaMask
-//
-//  One bit per drive with media in it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DWORD ExplorerFolderSync::GetRemovableMediaMask (DWORD driveMask)
-{
-    DWORD  media = 0;
-
-
-
-    for (int drive = 0; drive < 26; drive++)
-    {
-        std::wstring  root = { (wchar_t) (L'A' + drive), L':', L'\\' };
-
-        if ((driveMask & (1u << drive)) != 0 && HostFolderNames::IsMediaPresent (root))
-        {
-            media |= 1u << drive;
-        }
-    }
-
-    return media;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ExplorerFolderSync::PollDrives
 //
 //  Listing the cards calls GetVolumeInformationW for each volume, and for a
 //  volume Windows can't read, as a CFFA card's are, Windows reads the card
 //  again for each file system it has. So the cards are listed only when the
 //  drive letters changed, or Windows reports a device attached or removed.
+//  Which drives have media comes from the media watch's last check, since a
+//  drive can take half a second to answer and the window can't move while
+//  its thread waits.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -492,7 +473,7 @@ void ExplorerFolderSync::PollDrives()
 
 
 
-    if (mask != m_driveMask || GetRemovableMediaMask (mask) != m_mediaMask)
+    if (mask != m_driveMask || m_mediaWatch.GetMask (mask) != m_mediaMask)
     {
         CheckDrives();
     }
@@ -510,6 +491,8 @@ void ExplorerFolderSync::PollDrives()
 
 void ExplorerFolderSync::HandleDeviceChange()
 {
+    m_mediaWatch.Kick();
+
     SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerDeviceSoon, kDeviceSoonMs, nullptr);
     SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerDeviceLate, kDeviceLateMs, nullptr);
 }
@@ -528,6 +511,144 @@ void ExplorerFolderSync::HandleDeviceTimer (UINT_PTR timerId)
 {
     KillTimer (m_context.window.GetHwnd(), timerId);
     CheckDrives();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::UpdateThumbnailFolders
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFolderSync::UpdateThumbnailFolders (bool listed)
+{
+    IFolderThumbnails          * thumbnails = m_context.app.folderThumbnails;
+    const BrowserModel         & model      = m_context.browser.GetBrowserModel();
+    Location                     casso      = Location::MakeRoot (TreeModel::kCassoRootId);
+    ThumbnailTabs                tabs;
+    size_t                       index      = 0;
+    bool                         isActive   = false;
+
+
+
+    if (thumbnails == nullptr || !model.HasTabs())
+    {
+        return;
+    }
+
+    for (index = 0; index < model.GetTabCount(); index++)
+    {
+        const Location  & location = model.GetTab (index).location;
+
+
+
+        isActive = index == model.GetActiveIndex();
+
+        if (location == casso)
+        {
+            tabs.casso = isActive ? ThumbnailTabs::CassoNode::Active
+                                  : (tabs.casso == ThumbnailTabs::CassoNode::None ? ThumbnailTabs::CassoNode::Other : tabs.casso);
+        }
+
+        if (location.kind != Location::Kind::HostFolder)
+        {
+            continue;
+        }
+
+        if (isActive)
+        {
+            tabs.active = location.path;
+        }
+        else
+        {
+            tabs.others.push_back (location.path);
+        }
+    }
+
+    thumbnails->SetWindowTabs (m_context.window.GetHwnd(), tabs);
+
+    if (listed && !tabs.active.empty())
+    {
+        thumbnails->SweepFolder (tabs.active);
+    }
+
+    if (listed && model.GetActiveTab().location == casso)
+    {
+        thumbnails->SetKnownFolders (GetCassoFolders());
+        thumbnails->SetCassoImages  (GetCassoImages());
+    }
+
+    if (tabs.casso == ThumbnailTabs::CassoNode::Active && m_context.input.HasHadInput())
+    {
+        thumbnails->StartKnownFolders();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::GetCassoImages
+//
+//  The images the Casso node's list has, when the list is at the node.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> ExplorerFolderSync::GetCassoImages()
+{
+    std::vector<std::wstring>  paths;
+
+
+
+    for (const CatalogRow & row : m_context.browser.GetRows())
+    {
+        if (!row.hostPath.empty())
+        {
+            paths.push_back (row.hostPath);
+        }
+    }
+
+    return paths;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::GetCassoFolders
+//
+//  The host folders the Casso node lists images from.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> ExplorerFolderSync::GetCassoFolders()
+{
+    HRESULT                    hr = S_OK;
+    std::vector<TreeNode>      nodes;
+    std::vector<std::wstring>  folders;
+
+
+
+    hr = m_context.browser.GetTreeModel().GetChildren (TreeModel::kCassoRootId, nodes);
+    CHR (hr);
+
+    for (const TreeNode & node : nodes)
+    {
+        if (!node.missing && node.location.kind == Location::Kind::HostFolder && !node.location.path.empty())
+        {
+            folders.push_back (node.location.path);
+        }
+    }
+
+Error:
+    return folders;
 }
 
 
@@ -1028,7 +1149,8 @@ void ExplorerFolderSync::StartPolling()
 
 
     m_driveMask = GetLogicalDrives();
-    m_mediaMask = GetRemovableMediaMask (m_driveMask);
+    m_mediaMask = m_mediaWatch.GetMask (m_driveMask);
+    m_mediaWatch.Start (kDrivePollMs);
     CheckDrives();
     SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerDrive, kDrivePollMs, nullptr);
 

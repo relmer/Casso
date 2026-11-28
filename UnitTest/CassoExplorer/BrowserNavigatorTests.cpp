@@ -29,6 +29,7 @@ public:
     public:
         void      ReloadAfterNavigation() override                                           { reloads++; }
         void      ReturnToTab           (const std::vector<std::wstring> & rowKeys) override { returns++; lastKeys = rowKeys; }
+        void      SelectRowsByKeys      (const std::vector<std::wstring> & rowKeys) override { selected = rowKeys; }
         bool      IsOnMissingDrive      (const Location & location) const override           { return location.path == L"Q:\\Gone"; }
         bool      IsHomeLocation() const override                                            { return false; }
         void      RequestHomeRead() override                                                 { homeReads++; }
@@ -38,6 +39,7 @@ public:
         int                        returns   = 0;
         int                        homeReads = 0;
         std::vector<std::wstring>  lastKeys;
+        std::vector<std::wstring>  selected;
     };
 
 
@@ -82,6 +84,23 @@ public:
         Assert::AreEqual (std::wstring (L"C:\\Disks\\Sub"), rig.model.GetActiveTab().location.path);
         Assert::IsFalse  (rig.navigator.GoForwardBy (2), L"Nothing ahead to move to");
         Assert::AreEqual (4, rig.listing.reloads);
+    }
+
+
+
+    TEST_METHOD (GoBack_SelectsTheRowsSelectedWhenTheLocationWasLeft)
+    {
+        Rig  rig;
+
+
+
+        rig.navigator.NavigateToLocation (Location::MakeHostFolder (L"C:\\Disks"));
+        rig.model.SetSelection ({ L"Sub" });
+        rig.navigator.NavigateToLocation (Location::MakeHostFolder (L"C:\\Disks\\Sub"));
+
+        Assert::IsTrue   (rig.navigator.GoBack());
+        Assert::AreEqual ((size_t) 1, rig.listing.selected.size());
+        Assert::AreEqual (std::wstring (L"Sub"), rig.listing.selected[0]);
     }
 
 

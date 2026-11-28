@@ -101,6 +101,23 @@ public:
     }
 
 
+    TEST_METHOD (PixelAspect_ScalesTheHeight)
+    {
+        DxuiFramebufferView    view;
+        std::vector<uint32_t>  pixels (100 * 50);
+        RECT                   dest = {};
+
+        view.SetFramebuffer (pixels.data(), 100, 50, 2.0f);
+        view.SetScaling (false, true);
+        LayOut (view, 400, 300);
+
+        dest = view.GetDestinationRect();
+
+        Assert::AreEqual (300L, dest.right - dest.left);
+        Assert::AreEqual (300L, dest.bottom - dest.top);
+    }
+
+
     TEST_METHOD (Paint_DrawsTheBufferOnce)
     {
         DxuiFramebufferView    view;

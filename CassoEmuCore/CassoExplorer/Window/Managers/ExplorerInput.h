@@ -58,8 +58,14 @@ public:
     bool     RouteToCapture    (const DxuiMouseEvent & ev);
     bool     HandleKey         (const DxuiKeyEvent & ev);
 
+    //  Whether the window has had a click or a key press since it opened.
+    bool  HasHadInput () const { return m_hasInput; }
+
 private:
+    void  NoteInput ();
+
     ExplorerContext  & m_context;
+    bool               m_hasInput         = false;
     ExplorerPane       m_focus            = ExplorerPane::Tree;
     IDxuiControl     * m_pressed          = nullptr;   // the control with the press from RouteToControls, until the release
     bool               m_overControl      = false;     // the pointer was over one of those controls at the last move
@@ -67,4 +73,5 @@ private:
     int                m_commandBarFocus  = 0;
     int                m_pickerButton     = 0;         // the picker bar's focused button, left to right
     float              m_iconWheelNotches = 0.0f;   // a touchpad's part notches of Ctrl with the wheel, until they make one
+    float              m_zoomWheelNotches = 0.0f;   // the same over the preview, which zooms it
 };

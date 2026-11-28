@@ -91,6 +91,11 @@ public:
     //  another program may have changed what it shows.
     HRESULT  Reload (bool keepSelection);
 
+    //  Deletes what is stored of each listed disk image: its stored read,
+    //  its catalog and its volume facts, so the images are read again on the
+    //  next listing. Returns the images' paths.
+    std::vector<std::wstring>  ClearListedImageReads ();
+
     //  What the tree's context menu can do with a node: add a host folder to
     //  Casso's known folders, or remove a known folder from them.
     bool  CanAddToCasso      (const std::wstring & id) const;
@@ -311,6 +316,7 @@ private:
     //  IBrowserListing, for the navigator.
     void      ReloadAfterNavigation () override                                          { m_loader.ReloadAfterNavigation(); }
     void      ReturnToTab           (const std::vector<std::wstring> & rowKeys) override;
+    void      SelectRowsByKeys      (const std::vector<std::wstring> & rowKeys) override { m_selection.SelectRowsByKeys (rowKeys); }
     bool      IsOnMissingDrive      (const Location & location) const override           { return m_loader.IsOnMissingDrive (location); }
     Location  GetShellParent        () const override                                    { return m_list.shellParent; }
 

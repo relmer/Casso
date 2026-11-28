@@ -11,6 +11,7 @@
 #include "CassoExplorer/ICassoExplorerHost.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "CassoExplorer/Model/DiskImagePictures.h"
+#include "CassoExplorer/Model/FolderThumbnails.h"
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
 #include "CassoExplorer/Model/CassoExplorerSession.h"
 #include "Config/BackgroundFileWriter.h"
@@ -122,6 +123,10 @@ public:
     //  `path` made full against this process's current folder, since the app
     //  it goes to has its own; empty for an empty path or one with no full form.
     static std::wstring  GetFullPath (const std::wstring & path);
+
+    //  A host file given to open, such as a document through Open with, is
+    //  selected in its folder instead. A disk image opens at its root.
+    static void  SelectOpenedFile (const std::wstring & fullPath, bool isFile, CassoExplorerLaunchOptions & options);
 
     //  `text` to `hwnd` in a WM_COPYDATA with `id`, as UTF-16, waiting a few
     //  seconds at most for a window that has stopped answering.
@@ -265,6 +270,7 @@ private:
     std::atomic<bool>                         m_rom13Wanted    { false };   // a 13-sector image waits for the 13-sector Disk II ROM
     bool                                      m_rom13Offered   = false;
     DiskImagePictures                         m_pictures       { m_thumbnails, [this] (const std::wstring & path) { QueueBoot (path); } };
+    std::unique_ptr<FolderThumbnails>         m_folderThumbnails;   // its thread queues on m_bootWorker
     Win32ImageWatcher                         m_cacheWatcher;
     Win32ProcessProbe                         m_processProbe;
     RunningCassoRegistry                      m_running;

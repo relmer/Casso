@@ -145,6 +145,40 @@ void ImageRecordStore::StoreSavedGame (const std::wstring & path, bool hasSavedG
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ImageRecordStore::Remove
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ImageRecordStore::Remove (const std::wstring & path)
+{
+    HRESULT          hr = S_OK;
+    std::string      hash;
+    std::error_code  error;
+
+
+
+    hr = GetHash (path, hash);
+    CHR (hr);
+
+    {
+        std::lock_guard  lock (m_lock);
+
+        m_records.erase (hash);
+        m_previous.erase (path);
+    }
+
+    std::filesystem::remove (GetCachePath (hash), error);
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ImageRecordStore::GetHash
 //
 //  E_NOT_SUFFICIENT_BUFFER for an image larger than kMaxImageBytes.

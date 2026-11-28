@@ -664,8 +664,8 @@ void EmulatorShell::ApplyPersistedChromePrefs()
         m_mouseConnected = mouseConn;
     }
 
-    // The cassette recorder, connected unless it was disconnected.
-    m_tapeDeck->SetRecorderConnected (true);
+    // The cassette recorder, disconnected unless it was connected.
+    m_tapeDeck->SetRecorderConnected (false);
     m_tapeDeck->LoadRecorderConnected (*uiPrefs);
 
 

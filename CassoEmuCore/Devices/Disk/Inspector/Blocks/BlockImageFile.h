@@ -119,6 +119,10 @@ public:
     static bool  IsDiskCopyHeader  (std::span<const Byte> header, uint64_t fileBytes);
     static bool  IsBlockExtension  (const std::string & path);
 
+    //  A 2IMG payload's length. Sweet16 writes 0 for a ProDOS-order image,
+    //  which is then its block count times 512, as other readers take it.
+    static uint64_t  GetTwoImgDataBytes (std::span<const Byte> header);
+
 private:
     static constexpr size_t    kDcDataSum        = 72;
     static constexpr size_t    kDcTagSum         = 76;

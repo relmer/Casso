@@ -40,6 +40,7 @@ static constexpr float     s_kChipTextDip = 12.0f;
 static constexpr float     s_kHotRingDip  = 2.0f;
 static constexpr float     s_kHotBoxDip   = 6.0f;      // the corner of the box around a hot block map
 static constexpr LPCWSTR   s_kpszWaiting  = L"Analyzing";
+static constexpr LPCWSTR   s_kpszBooting  = L"Getting thumbnail...";
 static constexpr LPCWSTR   s_kpszNote35   = L"Casso does not analyze 3.5\" disks";
 
 
@@ -430,6 +431,11 @@ void ThumbnailScreen::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
                                   (float) (bounds.right - bounds.left), (float) (bounds.bottom - bounds.top));
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
+    else if (!m_waiting.empty())
+    {
+        text.DrawString (m_waiting.c_str(), (float) bounds.left, (float) bounds.top, (float) (bounds.right - bounds.left), (float) (bounds.bottom - bounds.top),
+                         theme.ForegroundMuted(), m_textPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    }
 }
 
 
@@ -657,8 +663,13 @@ void PreviewDiskThumbnail::RefreshScreen()
         found = m_context.app.pictures->Find (m_path, picture, result);
     }
 
+    //  A boot for the picture takes several seconds, so waiting text is in
+    //  the picture's place until it is done.
+    m_isBooting = !found && !m_path.empty() && m_context.app.pictures != nullptr && m_context.app.pictures->IsBooting (m_path);
+
     m_picture = found ? picture : nullptr;
     m_screen->SetPicture (m_picture);
+    m_screen->SetWaitingText (m_isBooting ? s_kpszBooting : L"");
     m_bootLine->SetText (result);
 }
 

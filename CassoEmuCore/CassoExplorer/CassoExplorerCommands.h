@@ -198,6 +198,12 @@ public:
         //  The Full Send window, on the View menu.
         kFullSendStatus,
 
+        //  A picture preview drawn through the CRT pass or as its pixels.
+        kPictureCrt,
+
+        //  The IIgs fonts downloaded, for a picture's text.
+        kGetFonts,
+
         //  kSortByColumn + the column's index, one per list column.
         kSortByColumn = 400,
 
@@ -459,6 +465,8 @@ private:
         { kCancelLinkOperation, Menu::Count, L"Cancel",            nullptr,     false },
         { kAddLink,           Menu::Count, L"Add a CassoLink connection...", nullptr, false },
         { kSavePicture,       Menu::Count, L"&Save picture as...", nullptr,     false },
+        { kPictureCrt,        Menu::Count, L"CRT effect",          nullptr,     true  },
+        { kGetFonts,          Menu::Count, L"Get fonts",           nullptr,     false },
         { kEditWozMetadata,   Menu::Count, L"&Edit metadata...",   nullptr,     false },
         { kCharsetAppleText,  Menu::Count, L"&Apple text",         nullptr,     true  },
         { kCharsetMacOsRoman, Menu::Count, L"&Mac OS Roman",       nullptr,     true  },
@@ -604,6 +612,7 @@ private:
         { kFind,              DxuiToolbar::Kind::Command, 1, nullptr,             L"Search",        L"",                                                       false, true },
         { kPictureMonochrome, DxuiToolbar::Kind::Toggle,  0, s_kpszMdl2Contrast,  L"Monochrome",    L"Draw the picture as its bits, on a monochrome monitor" },
         { kPictureColor,      DxuiToolbar::Kind::Toggle,  0, s_kpszMdl2Palette,   L"Color",         L"Draw the picture in color, on the color monitor"      },
+        { kPictureCrt,        DxuiToolbar::Kind::Toggle,  0, s_kpszMdl2Monitor,   L"CRT",           L"Apply CRT effects" },
         { kEditWozMetadata,   DxuiToolbar::Kind::Command, 0, s_kpszMdl2Edit,      L"Edit metadata", L"Edit the image's title, publisher and other metadata" },
         { kCharsetAppleText,  DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Apple text",    L"Read the text as Apple II text"                        },
         { kCharsetMacOsRoman, DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Mac OS Roman",  L"Read the text as Mac OS Roman, the Apple IIgs set"     },

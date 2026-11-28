@@ -766,7 +766,8 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
                   + headerCount * (s_kHeaderHeightDp + s_kRowGapDp + s_kHeaderGapAboveDp)
                   + rowCount    * (s_kRowHeightDp    + s_kRowGapDp);
 
-        dlg.ConfigureDownload (std::move (content), requiresRoms, s_kTickIntervalMs);
+        //  A dialog opened from inside the app has Cancel, so it has no Skip.
+        dlg.ConfigureDownload (std::move (content), requiresRoms || prompt != nullptr, s_kTickIntervalMs);
 
         if (prompt != nullptr)
         {

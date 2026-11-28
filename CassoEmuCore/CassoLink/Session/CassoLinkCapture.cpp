@@ -66,6 +66,7 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
         bool      made       = false;
         bool      isStandard = false;
         bool      unsure     = false;
+        bool      loud       = false;
         int       before     = run.done;
 
         //  Each whole track after the first waits on a marker on the one
@@ -95,14 +96,21 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
         hr = Analyze (run, [&] () { isStandard = IsStandardTrack (read); });
         CHR (hr);
 
-        hr = Analyze (run, [&] () { unsure = IsUnsure (read, isStandard); });
+        hr = Analyze (run, [&] () { unsure = IsUnsure (read, isStandard); loud = IsLoud (read); });
         CHR (hr);
 
-        if (unsure)
+        if (loud)
+        {
+            hr = ReadLoud (run, read);
+            CHR (hr);
+        }
+        else if (unsure)
         {
             hr = ReadUnsure (run, isStandard, read);
             CHR (hr);
         }
+
+        run.loud = run.loud || loud;
 
         standard.push_back (isStandard);
         positions.push_back (std::move (read));
@@ -167,7 +175,9 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
             hr = ReadPosition (run, position, kWholeReads, read);
             CHR (hr);
 
-            hr = Analyze (run, [&] () { isStandard = IsStandardTrack (read); unsure = IsUnsure (read, isStandard); });
+            //  Between the tracks of a disk a //c reads, nothing counts a
+            //  byte's zero bits, so a position there isn't read again.
+            hr = Analyze (run, [&] () { isStandard = IsStandardTrack (read); unsure = !run.loud && IsUnsure (read, isStandard); });
             CHR (hr);
 
             if (unsure)
@@ -743,7 +753,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoLinkCapture::ReadMore (Run & run, int reads, Position & ioPosition)
+HRESULT CassoLinkCapture::ReadMore (Run & run, int reads, Position & ioPosition, bool loud)
 {
     HRESULT  hr = S_OK;
 
@@ -754,16 +764,17 @@ HRESULT CassoLinkCapture::ReadMore (Run & run, int reads, Position & ioPosition)
     for (int read = 0; read < reads; read++)
     {
         std::vector<Byte>  bytes;
+        Byte               delay   = loud ? kLoudDelay : kWholeDelays[read % kWholeReads];
         bool               stopped = run.stop && run.stop();
         bool               missed  = false;
 
         CBREx (!stopped, HRESULT_FROM_WIN32 (ERROR_CANCELLED));
 
-        hr = ReadOnce (run, ioPosition.position, kWholeDelays[read % kWholeReads], read + 1, reads, CassoLinkHost::kNoSync, {}, bytes, missed);
+        hr = ReadOnce (run, ioPosition.position, delay, read + 1, reads, CassoLinkHost::kNoSync, {}, bytes, missed);
         CHR (hr);
 
         ioPosition.reads.push_back (std::move (bytes));
-        ioPosition.delays.push_back (kWholeDelays[read % kWholeReads]);
+        ioPosition.delays.push_back (delay);
         ioPosition.writeProtected = run.writeProtected;
     }
 
@@ -926,6 +937,79 @@ bool CassoLinkCapture::IsTimed (const Position & position)
     }
 
     return !stream.timed.empty();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::IsLoud
+//
+//  Whether a //c's IWM read a position: its reads at 8 cycles mark the
+//  bytes with no zero bits after them too often to count a byte's zero bits
+//  (IsQuiet).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkCapture::IsLoud (const Position & position)
+{
+    Stream  stream;
+    bool    unstable = false;
+
+
+
+    return MakeStream (position, stream, unstable, true) && !stream.quiet;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::ReadLoud
+//
+//  kLoudReads more reads of a whole track a //c read, at kLoudDelay, and
+//  kLoudReads more when a byte outside the sync bytes is marked in only one
+//  catch: a byte followed by a zero bit is marked there in about three
+//  catches of eight, and a byte with none in about one of a hundred
+//  thousand, so two marks count a zero bit and one mark is unsure.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkCapture::ReadLoud (Run & run, Position & ioPosition)
+{
+    HRESULT  hr     = S_OK;
+    bool     unsure = false;
+
+
+
+    run.planned += kLoudReads;
+
+    hr = ReadMore (run, kLoudReads, ioPosition, true);
+    CHR (hr);
+
+    hr = Analyze (run, [&] ()
+    {
+        Stream  stream;
+        bool    unstable = false;
+
+        unsure = MakeStream (ioPosition, stream, unstable, true) && stream.unsure > 0;
+    });
+    CHR (hr);
+
+    if (unsure)
+    {
+        run.planned += kLoudReads;
+
+        hr = ReadMore (run, kLoudReads, ioPosition, true);
+        CHR (hr);
+    }
+
+Error:
+    return hr;
 }
 
 

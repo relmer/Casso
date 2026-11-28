@@ -391,9 +391,61 @@ void BrowserNavigator::NavigateToLocation (const Location & location)
 
 bool BrowserNavigator::NavigateToAddress (const std::wstring & text)
 {
-    std::wstring  rooted = RootOnSystemDrive (ExpandVariables (text));
-    Location      location;
-    bool          parsed = BrowserModel::ParseAddress (m_fs, rooted, location);
+    Location  location;
+    bool      parsed = ParseAddress (RootOnSystemDrive (ExpandVariables (text)), location);
+
+
+
+    if (parsed)
+    {
+        NavigateToLocation (location);
+
+        //  After the navigation, so that a path going nowhere is never offered
+        //  back.
+        m_typedPaths.Add (RootOnSystemDrive (text));
+    }
+
+    return parsed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserNavigator::OpenAddressInNewTab
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BrowserNavigator::OpenAddressInNewTab (const std::wstring & text)
+{
+    Location  location;
+    bool      parsed = ParseAddress (RootOnSystemDrive (ExpandVariables (text)), location);
+
+
+
+    if (parsed)
+    {
+        OpenInNewTab (location);
+    }
+
+    return parsed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserNavigator::ParseAddress
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BrowserNavigator::ParseAddress (const std::wstring & rooted, Location & outLocation)
+{
+    bool  parsed = BrowserModel::ParseAddress (m_fs, rooted, outLocation);
 
 
 
@@ -404,28 +456,19 @@ bool BrowserNavigator::NavigateToAddress (const std::wstring & text)
 
         if (m_hostFolders.IsArchive (rooted.substr (0, next)))
         {
-            location = Location::MakeShellFolder (rooted, std::filesystem::path (rooted).filename().wstring());
-            parsed   = true;
+            outLocation = Location::MakeShellFolder (rooted, std::filesystem::path (rooted).filename().wstring());
+            parsed      = true;
         }
 
         end = next;
     }
 
     //  A shell folder typed by the shell's name for it shows the name it has.
-    if (parsed && location.kind == Location::Kind::ShellFolder && location.label.empty() && m_shellVerbs != nullptr)
+    if (parsed && outLocation.kind == Location::Kind::ShellFolder && outLocation.label.empty() && m_shellVerbs != nullptr)
     {
-        HRESULT  hr = m_shellVerbs->GetShellItemName (location.path, location.label);
+        HRESULT  hr = m_shellVerbs->GetShellItemName (outLocation.path, outLocation.label);
 
         IGNORE_RETURN_VALUE (hr, S_OK);
-    }
-
-    if (parsed)
-    {
-        NavigateToLocation (location);
-
-        //  After the navigation, so that a path going nowhere is never offered
-        //  back.
-        m_typedPaths.Add (RootOnSystemDrive (text));
     }
 
     return parsed;
@@ -509,6 +552,30 @@ std::wstring BrowserNavigator::ExpandVariables (const std::wstring & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BrowserNavigator::ReloadWithSelection
+//
+//  The location Back or Forward returned to is listed with the rows that
+//  were selected when it was left. Listing it clears the selection, so the
+//  keys are copied first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BrowserNavigator::ReloadWithSelection()
+{
+    std::vector<std::wstring>  keys = m_model.GetActiveTab().selection;
+
+
+
+    m_listing.ReloadAfterNavigation();
+    m_listing.SelectRowsByKeys (keys);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BrowserNavigator::GoBackBy
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -519,14 +586,14 @@ bool BrowserNavigator::GoBackBy (size_t steps)
 
 
 
-    while (moved < steps && m_model.HasTabs() && m_model.GoBack())
+    while (moved < steps && m_model.HasTabs() && m_model.GoBack (moved == 0))
     {
         moved++;
     }
 
     if (moved > 0)
     {
-        m_listing.ReloadAfterNavigation();
+        ReloadWithSelection();
     }
 
     return moved > 0;
@@ -548,14 +615,14 @@ bool BrowserNavigator::GoForwardBy (size_t steps)
 
 
 
-    while (moved < steps && m_model.HasTabs() && m_model.GoForward())
+    while (moved < steps && m_model.HasTabs() && m_model.GoForward (moved == 0))
     {
         moved++;
     }
 
     if (moved > 0)
     {
-        m_listing.ReloadAfterNavigation();
+        ReloadWithSelection();
     }
 
     return moved > 0;
@@ -734,7 +801,7 @@ bool BrowserNavigator::GoBack()
         return false;
     }
 
-    m_listing.ReloadAfterNavigation();
+    ReloadWithSelection();
 
     return true;
 }
@@ -756,7 +823,7 @@ bool BrowserNavigator::GoForward()
         return false;
     }
 
-    m_listing.ReloadAfterNavigation();
+    ReloadWithSelection();
 
     return true;
 }

@@ -137,9 +137,16 @@ struct PreviewContent
     std::vector<uint32_t>      bgra;
     int                        width  = 0;
     int                        height = 0;
+
+    //  A picture's pixel height over its width on the machine's monitor. A
+    //  IIgs screen fills a 4:3 monitor, so its pixels are taller than wide.
+    float                      pixelAspect = 1.0f;
     std::vector<CatalogRow>    rows;
     std::vector<Paragraph>     paragraphs;
     Grid                       grid;
+
+    //  A note for each font of the picture's text that isn't available.
+    std::vector<std::wstring>  fontNotes;
 
     //  The rows are what an archive holds, shown as the file list shows a
     //  folder rather than as a catalog.

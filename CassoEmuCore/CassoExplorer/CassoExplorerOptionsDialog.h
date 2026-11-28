@@ -20,7 +20,8 @@ class DisplayPage;
 //  CassoExplorerGeneralPage
 //
 //  Automatic preview, its description below its box, then the disk image
-//  types, File Explorer's raw copy menu item, and automatic thumbnails.
+//  types, File Explorer's raw copy menu item, and automatic thumbnails, with
+//  whole folders' thumbnails indented under them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,7 +31,7 @@ public:
     explicit CassoExplorerGeneralPage (std::wstring title) : DxuiPropertyPage (std::move (title)) {}
 
     void  Init    (DxuiLabel & previewNote, DxuiCheckbox & autoPreview, DxuiCheckbox & enterExpands, DxuiCheckbox & registration, DxuiCheckbox & rawCopyMenu,
-                   DxuiCheckbox & autoThumbnails);
+                   DxuiCheckbox & autoThumbnails, DxuiCheckbox & folderThumbnails);
     void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
@@ -40,6 +41,7 @@ public:
 
     static constexpr int  kNoteHeightDip = 40;
     static constexpr int  kNoteIndentDip = 22;   // under the checkbox's label
+    static constexpr int  kGroupGapDip   = 30;   // between the preview, File Explorer and thumbnail options
 
 private:
     DxuiLabel     * m_previewNote  = nullptr;
@@ -48,6 +50,7 @@ private:
     DxuiCheckbox  * m_register     = nullptr;
     DxuiCheckbox  * m_rawCopyMenu  = nullptr;
     DxuiCheckbox  * m_thumbnails   = nullptr;
+    DxuiCheckbox  * m_folderThumbs = nullptr;
     DxuiButton    * m_devRegister  = nullptr;
 };
 
@@ -269,8 +272,11 @@ public:
         bool  autoPreview  = true;
         bool  enterExpands = false;
 
-        //  Whether a disk image in view with no thumbnail is booted for one.
-        bool  autoThumbnails = true;
+        //  Whether a disk image in view with no thumbnail is booted for one,
+        //  and with it, every disk image in the known folders and the folders
+        //  browsed.
+        bool  autoThumbnails   = true;
+        bool  folderThumbnails = true;
 
         //  A Full Send's folder and its extension, each empty for the default.
         std::wstring  fullSendFolder;
@@ -360,6 +366,7 @@ private:
     DxuiCheckbox                                   m_autoPreview;
     DxuiCheckbox                                   m_enterExpands;
     DxuiCheckbox                                   m_autoThumbnails;
+    DxuiCheckbox                                   m_folderThumbnails;
     DxuiCheckbox                                   m_register;
     DxuiCheckbox                                   m_rawCopyMenu;
     DxuiButton                                     m_devRegister;

@@ -183,9 +183,10 @@ public:
                                float            destXDip,
                                float            destYDip,
                                float            destWidthDip,
-                               float            destHeightDip) override
+                               float            destHeightDip,
+                               bool             sharp = false) override
     {
-        return m_icons.DrawFramebuffer (srcBgraPixels, srcWidthPx, srcHeightPx, destXDip, destYDip, destWidthDip, destHeightDip);
+        return m_icons.DrawFramebuffer (srcBgraPixels, srcWidthPx, srcHeightPx, destXDip, destYDip, destWidthDip, destHeightDip, sharp);
     }
 
     // Same shape as DrawFramebuffer but keeps its own cache, one bitmap per

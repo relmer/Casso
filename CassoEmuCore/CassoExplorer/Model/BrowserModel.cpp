@@ -202,9 +202,9 @@ size_t BrowserModel::GetNextIndex() const
 //
 //  BrowserModel::NavigateTo
 //
-//  Going somewhere new pushes the old location behind and drops the forward
-//  stack, as every browser does; the selection belongs to the old location
-//  and is dropped with it.
+//  Going somewhere new pushes the old location behind, with its selection
+//  and top row, and drops the forward stack, as every browser does. The new
+//  location opens at its top with nothing selected.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -216,12 +216,15 @@ void BrowserModel::NavigateTo (const Location & location)
 
     if (tab.location.kind != Location::Kind::None)
     {
+        tab.backViews.push_back (TakeView (tab, true));
         tab.back.push_back (tab.location);
     }
 
     tab.forward.clear();
+    tab.forwardViews.clear();
     tab.selection.clear();
-    tab.previewScroll = 0;
+    tab.listTopRow      = 0;
+    tab.previewScroll   = 0;
     tab.location        = location;
     tab.previewExpanded = false;
 }
@@ -266,7 +269,7 @@ bool BrowserModel::CanGoForward() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool BrowserModel::GoBack()
+bool BrowserModel::GoBack (bool readTopRow)
 {
     Tab &  tab = GetActiveTab();
 
@@ -277,12 +280,14 @@ bool BrowserModel::GoBack()
         return false;
     }
 
+    tab.forwardViews.push_back (TakeView (tab, readTopRow));
     tab.forward.push_back (tab.location);
     tab.location        = tab.back.back();
     tab.previewExpanded = false;
     tab.back.pop_back();
-    tab.selection.clear();
     tab.previewScroll = 0;
+
+    RestoreView (tab, tab.backViews);
 
     return true;
 }
@@ -297,7 +302,7 @@ bool BrowserModel::GoBack()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool BrowserModel::GoForward()
+bool BrowserModel::GoForward (bool readTopRow)
 {
     Tab &  tab = GetActiveTab();
 
@@ -308,14 +313,66 @@ bool BrowserModel::GoForward()
         return false;
     }
 
+    tab.backViews.push_back (TakeView (tab, readTopRow));
     tab.back.push_back (tab.location);
     tab.location        = tab.forward.back();
     tab.previewExpanded = false;
     tab.forward.pop_back();
-    tab.selection.clear();
     tab.previewScroll = 0;
 
+    RestoreView (tab, tab.forwardViews);
+
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserModel::TakeView
+//
+//  The active location's view. With readTopRow, the top row is read from the
+//  list first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+BrowserModel::View BrowserModel::TakeView (Tab & tab, bool readTopRow) const
+{
+    if (readTopRow && m_topRow)
+    {
+        tab.listTopRow = m_topRow();
+    }
+
+    return View { tab.selection, tab.listTopRow };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserModel::RestoreView
+//
+//  The view saved with the entry just taken from the stack. A history
+//  restored from a session has no views, so its entries open at the top.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BrowserModel::RestoreView (Tab & tab, std::vector<View> & views)
+{
+    if (views.empty())
+    {
+        tab.selection.clear();
+        tab.listTopRow = 0;
+        return;
+    }
+
+    tab.selection  = std::move (views.back().selection);
+    tab.listTopRow = views.back().listTopRow;
+    views.pop_back();
 }
 
 
@@ -502,8 +559,10 @@ size_t BrowserModel::MoveTabsOffCard (const std::wstring & cardPath, const Locat
             continue;
         }
 
+        tab.backViews.push_back (View { tab.selection, tab.listTopRow });
         tab.back.push_back (tab.location);
         tab.forward.clear();
+        tab.forwardViews.clear();
         tab.selection.clear();
         tab.previewScroll   = 0;
         tab.previewExpanded = false;

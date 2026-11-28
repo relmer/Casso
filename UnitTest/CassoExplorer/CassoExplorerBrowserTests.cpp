@@ -9,6 +9,7 @@
 #include "../EmuTests/FakeDiskFileIo.h"
 #include "../EmuTests/FixtureProvider.h"
 #include "ScratchImages.h"
+#include "FakeImageRecords.h"
 #include "FakeRecycleBin.h"
 #include "../UiTests/InMemoryFileSystem.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
@@ -560,6 +561,31 @@ public:
     }
 
 
+    //
+    //  A path from another launch opens in a new tab as a typed address does.
+    //  A directory inside a disk image opens too.
+    //
+    TEST_METHOD (OpenAddressInNewTab_OpensAFolderInsideAnImageInANewTab)
+    {
+        Host  host;
+
+        Assert::IsTrue   (host.browser.GetNavigator().NavigateToAddress (L"C:\\Disks"));
+        Assert::AreEqual ((size_t) 1, host.browser.GetBrowserModel().GetTabCount());
+
+        Assert::IsTrue   (host.browser.GetNavigator().OpenAddressInNewTab (L"C:\\Disks\\prodos.po\\GAMES"));
+        Assert::AreEqual ((size_t) 2, host.browser.GetBrowserModel().GetTabCount(), L"A new tab, not the active one navigated");
+        Assert::IsTrue   (host.browser.GetLocation() == Location::MakeDiskDirectory (L"C:\\Disks\\prodos.po", "GAMES"));
+        Assert::IsTrue   (host.browser.GetBrowserModel().GetTab (0).location == Location::MakeHostFolder (kDisks));
+
+        Assert::IsTrue   (host.browser.GetNavigator().OpenAddressInNewTab (L"C:\\Disks\\prodos.po"));
+        Assert::IsTrue   (host.browser.GetLocation() == Location::MakeDiskImage (L"C:\\Disks\\prodos.po"));
+
+        Assert::IsFalse  (host.browser.GetNavigator().OpenAddressInNewTab (L"C:\\Disks\\gone.po\\GAMES"));
+        Assert::AreEqual ((size_t) 3, host.browser.GetBrowserModel().GetTabCount(), L"A path that is not an address opens no tab");
+        Assert::AreEqual ((size_t) 1, host.browser.GetNavigator().GetTypedPaths().GetEntries().size(), L"A path from another launch is not added to the typed paths");
+    }
+
+
     TEST_METHOD (SelectFolder_ListsHostEntriesAndFlagsImages)
     {
         Host  host;
@@ -570,6 +596,54 @@ public:
         Assert::IsTrue   (host.browser.GetRows()[FindRow (host.browser, L"prodos.po")].isDiskImage);
         Assert::IsFalse  (host.browser.GetRows()[FindRow (host.browser, L"readme.txt")].isDiskImage);
         Assert::AreEqual (std::wstring (L"3 items"), host.browser.GetStatus().selection);
+    }
+
+
+    TEST_METHOD (ClearListedImageReads_RemovesOnlyTheFoldersRecords)
+    {
+        FakeImageRecords           records;
+        Host                       host;
+        ImageContents              stale;
+        std::vector<std::wstring>  forgotten;
+        std::vector<std::wstring>  removed;
+        std::vector<std::wstring>  expected = { L"C:\\Disks\\dos33.dsk", L"C:\\Disks\\prodos.po" };
+
+        stale.broken = true;
+        stale.error  = L"Stored failure";
+
+        records.StoreContents (L"C:\\Disks\\prodos.po", stale);
+        records.StoreContents (L"C:\\Other\\game.dsk",  stale);
+        host.browser.SetImageRecords (&records);
+
+        AssertSucceeded (host.browser.SelectTreeNode (host.OpenDisksFolder()));
+
+        forgotten = host.browser.ClearListedImageReads();
+        removed   = records.GetRemoved();
+
+        std::sort (forgotten.begin(), forgotten.end());
+        std::sort (removed.begin(),   removed.end());
+
+        Assert::IsTrue  (forgotten == expected, L"Only the folder's disk images are forgotten");
+        Assert::IsTrue  (removed   == expected, L"Only the folder's disk images lose their records");
+        Assert::IsFalse (records.HasContents (L"C:\\Disks\\prodos.po"));
+        Assert::IsTrue  (records.HasContents (L"C:\\Other\\game.dsk"), L"Another folder's record stays");
+    }
+
+
+    TEST_METHOD (ClearListedImageReads_InsideAnImage_RemovesThatImagesRecord)
+    {
+        FakeImageRecords           records;
+        Host                       host;
+        std::vector<std::wstring>  removed;
+
+        host.browser.SetImageRecords (&records);
+        host.browser.GetNavigator().NavigateToLocation (Location::MakeDiskImage (L"C:\\Disks\\prodos.po"));
+
+        host.browser.ClearListedImageReads();
+        removed = records.GetRemoved();
+
+        Assert::AreEqual ((size_t) 1, removed.size());
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\prodos.po"), removed[0]);
     }
 
 

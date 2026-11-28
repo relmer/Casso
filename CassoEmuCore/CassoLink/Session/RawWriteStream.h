@@ -6,6 +6,22 @@ struct RawWriteTrack;
 
 
 
+//  The changes FitToTurn makes to a stream, for the log.
+struct RawWriteFit
+{
+    size_t  cells      = 0;        // the stream's cells before
+    size_t  written    = 0;        // and after
+    size_t  turn       = 0;        // the turn's cells
+    size_t  longest    = 0;        // the most cells the write could have and fit
+    size_t  addedSyncs = 0;        // sync bytes added ahead of the seam
+    size_t  tailSyncs  = 0;        // sync bytes dropped from the run at the end
+    size_t  weakCells  = 0;        // zero bits dropped from weak-bit runs
+    size_t  gapSyncs   = 0;        // sync bytes dropped from runs between sectors
+    bool    fits       = false;
+};
+
+
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -69,10 +85,10 @@ public:
     //  A raw image's tracks to write, in order of position: each whole track
     //  with data, and each half or quarter position whose data differs from
     //  the whole tracks on either side and isn't them read off center
-    //  (DropOffCenterReads). ERROR_INVALID_DATA for a file that
-    //  doesn't load, with outTooLong the first position of a track longer
-    //  than the module's buffers, or -1.
-    static HRESULT  GetImageTracks (std::span<const Byte> fileBytes, std::vector<RawWriteTrack> & outTracks, int & outTooLong);
+    //  (DropOffCenterReads), with outSkipped the positions left out.
+    //  ERROR_INVALID_DATA for a file that doesn't load, with outTooLong the
+    //  first position of a track longer than the module's buffers, or -1.
+    static HRESULT  GetImageTracks (std::span<const Byte> fileBytes, std::vector<RawWriteTrack> & outTracks, std::vector<int> & outSkipped, int & outTooLong);
 
     //  Whether a quarter-track position's stream is only the whole tracks on
     //  either side read off center, as a capture stores it: each D5 AA in it
@@ -85,8 +101,15 @@ public:
     //  Drops each quarter position that is IsOffCenterRead. A whole track
     //  beside a half track that is kept, with no sector of its own and at
     //  least s_kBleedShare of it in that half track, becomes an erase of sync
-    //  bytes moved ahead of the half track.
-    static void     DropOffCenterReads (std::vector<RawWriteTrack> & ioTracks);
+    //  bytes moved ahead of the half track. outSkipped has the positions
+    //  dropped, other than those erased.
+    static void     DropOffCenterReads (std::vector<RawWriteTrack> & ioTracks, std::vector<int> & outSkipped);
+
+    //  A track for the activity log: its bits, the most that fit the drive's
+    //  turn, and the sync bytes and weak bits added or dropped to fit. The
+    //  positions not written get one line, or none when there are none.
+    static std::string  DescribeTrack   (const RawWriteTrack & track, const RawWriteFit & fit);
+    static std::string  DescribeSkipped (const std::vector<int> & skipped);
 
     //  The stream rotated to start at its seam (FindSeam), the middle of a
     //  sync run, with at least s_kSeamSyncs sync bytes ahead of the seam, so
@@ -96,8 +119,8 @@ public:
     //  are dropped from the run at its end, then bits from its longest runs
     //  of zero bits, which are weak-bit stretches, to no fewer than
     //  s_kWeakZeros, then sync bytes from runs between sectors. False when
-    //  the excess can't be dropped.
-    bool    FitToTurn (size_t cells);
+    //  the excess can't be dropped. outFit has what was added and dropped.
+    bool    FitToTurn (size_t cells, RawWriteFit & outFit);
 
     //  The bits the stream writes, one to a byte, for a check of FromBits.
     void    ToBits (std::vector<uint8_t> & outBits) const;
@@ -172,6 +195,9 @@ private:
     //  byte and length. False for none.
     bool  FindSyncRun (size_t & outAt, size_t & outLength) const;
 
+    //  A quarter-track position as a track number: 3, 2.25 or 2.5.
+    static std::string  FormatPosition (int position);
+
     //  The part of a stream's chunks found in either neighbor, 0 to 1.
     static double  GetSharedPart      (const RawWriteStream & stream, const RawWriteStream * below, const RawWriteStream * above);
 
@@ -195,4 +221,5 @@ struct RawWriteTrack
 {
     int             position = 0;
     RawWriteStream  stream;
+    bool            isErase  = false;    // sync bytes in place of a whole track beside a half track (DropOffCenterReads)
 };

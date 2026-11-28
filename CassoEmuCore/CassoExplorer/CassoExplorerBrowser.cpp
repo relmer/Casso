@@ -935,6 +935,66 @@ HRESULT CassoExplorerBrowser::Reload (bool keepSelection)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerBrowser::ClearListedImageReads
+//
+//  The images are the disk image rows of a host folder or a search, and the
+//  image whose contents are listed. What is stored of images in other
+//  folders is not deleted.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> CassoExplorerBrowser::ClearListedImageReads()
+{
+    Location                   location = GetLocation();
+    IImageRecords            * records  = m_records.load();
+    bool                       isFolder = location.kind == Location::Kind::HostFolder && !location.path.empty();
+    bool                       isImage  = location.kind == Location::Kind::DiskImage || location.kind == Location::Kind::DiskDirectory;
+    std::vector<std::wstring>  paths;
+
+
+
+    if (isImage)
+    {
+        paths.push_back (location.path);
+    }
+
+    for (const CatalogRow & row : m_list.rows)
+    {
+        if (!row.isDiskImage || row.isDirectory)
+        {
+            continue;
+        }
+
+        if (!row.hostPath.empty())
+        {
+            paths.push_back (row.hostPath);
+        }
+        else if (isFolder)
+        {
+            paths.push_back (BrowserRowPaths::JoinPath (location.path, row.name));
+        }
+    }
+
+    for (const std::wstring & path : paths)
+    {
+        if (records != nullptr)
+        {
+            records->Remove (path);
+        }
+
+        m_volumeFacts.Erase (path);
+        m_model.InvalidateCatalog (path);
+    }
+
+    return paths;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerBrowser::TryGetNodePath
 //
 ////////////////////////////////////////////////////////////////////////////////

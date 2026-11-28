@@ -1236,11 +1236,11 @@ public:
 
         st.LoadFromMachine ("X", v, v);
         Assert::IsTrue (st.SecondDriveAttached());
-        Assert::IsTrue (st.GetPrefs().tapeRecorderConnected, L"the recorder is connected by default");
+        Assert::IsFalse (st.GetPrefs().tapeRecorderConnected, L"the recorder is disconnected by default");
 
         menu.LoadFromMachine ("X", v, v);
         menu.SetSecondDriveAttached (false);
-        menu.SetTapeRecorderConnected (false);
+        menu.SetTapeRecorderConnected (true);
         saved = menu.BuildCurrentJson();
 
         st.RefreshMergedJson (saved);
@@ -1248,7 +1248,7 @@ public:
 
         reloaded.LoadFromMachine ("X", outJson, outJson);
         Assert::IsFalse (reloaded.SecondDriveAttached(),               L"the menu's detach survives the sheet's OK");
-        Assert::IsFalse (reloaded.GetPrefs().tapeRecorderConnected,     L"and so does its disconnected recorder");
+        Assert::IsTrue  (reloaded.GetPrefs().tapeRecorderConnected,     L"and so does its connected recorder");
         Assert::IsFalse (sink.lastExternalDriveConnected,               L"and OK does not put the drive back live");
     }
 

@@ -317,7 +317,7 @@ void DxuiTextLayout::BuildLines (int columns, float pxPerDip)
         std::wstring    last   = row.cells.empty() ? std::wstring() : row.cells.back();
         int             start  = GetCellStart (row, (int) row.cells.size() - 1);
         int             length = (int) last.size();
-        int             avail  = (m_noWrap && !row.warning) ? (std::max) (1, length) : (std::max) (1, columns - start);
+        int             avail  = (m_noWrap && !row.HasMark()) ? (std::max) (1, length) : (std::max) (1, columns - start);
         int             indent = GetWrapIndent (row, avail);
         int             pos    = 0;
         bool            first  = true;
@@ -459,7 +459,7 @@ int DxuiTextLayout::FindLine (const Line & top) const
 
 float DxuiTextLayout::GetCellX (const Row & row, int cell) const
 {
-    float                       x       = row.warning ? (float) kWarningCells * m_cellAdvance : 0.0f;
+    float                       x       = row.HasMark() ? (float) kWarningCells * m_cellAdvance : 0.0f;
     const std::vector<float>  * columns = FindGroupColumns (m_columnPx, row);
 
 
@@ -558,7 +558,7 @@ int DxuiTextLayout::GetNearestChar (int row, int cell, int from, int to, float x
 
 int DxuiTextLayout::GetCellStart (const Row & row, int cell) const
 {
-    int                       column  = row.warning ? kWarningCells : 0;
+    int                       column  = row.HasMark() ? kWarningCells : 0;
     const std::vector<int>  * columns = FindGroupColumns (m_columnCells, row);
 
 
@@ -592,7 +592,7 @@ int DxuiTextLayout::GetContentColumns() const
     //  A warning wraps, so it doesn't widen the content.
     for (const Row & row : m_rows)
     {
-        if (!row.cells.empty() && !row.warning)
+        if (!row.cells.empty() && !row.HasMark())
         {
             widest = (std::max) (widest, GetCellStart (row, (int) row.cells.size() - 1) + (int) row.cells.back().size());
         }

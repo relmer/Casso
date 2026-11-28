@@ -32,7 +32,7 @@ public:
         IImageRecords::SavedGame  savedGame   = IImageRecords::SavedGame::Unknown;
     };
 
-    static constexpr int  kVersion = 1;
+    static constexpr int  kVersion = 2;
 
     static std::string  Format (const Record & record);
     static bool         Parse  (const std::string & json, Record & outRecord);

@@ -41,12 +41,11 @@ public:
                           VolumeKind                     & outKind);
 
 private:
-    //  The .2mg header's fields: the image format, where the volume starts
-    //  and its length.
+    //  The .2mg header's fields: the image format and where the volume
+    //  starts.
     static constexpr size_t    s_k2mgHeaderBytes = 64;
     static constexpr size_t    s_k2mgFormat      = 0x0C;
     static constexpr size_t    s_k2mgDataOffset  = 0x18;
-    static constexpr size_t    s_k2mgDataLength  = 0x1C;
     static constexpr uint32_t  s_k2mgProDosOrder = 1;
 
     //  A ProDOS volume's directory header, the key block's first entry, and

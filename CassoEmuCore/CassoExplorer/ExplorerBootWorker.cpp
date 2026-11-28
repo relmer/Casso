@@ -50,7 +50,7 @@ ExplorerBootWorker::~ExplorerBootWorker()
         std::lock_guard  lock (m_lock);
 
         m_stop = true;
-        m_queue.clear();
+        m_queue.Clear();
     }
 
     m_wake.notify_all();
@@ -168,30 +168,106 @@ void ExplorerBootWorker::SetLimits (const BootProbe::Limits & limits)
 
 void ExplorerBootWorker::Queue (const std::wstring & path, const std::string & model, const std::string & source)
 {
+    //  An image a connection just wrote goes ahead of those a list queued.
+    Add ({ path, model, source, source.empty() ? BootQueue::Urgency::InView : BootQueue::Urgency::Connection });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBootWorker::QueueFolderImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerBootWorker::QueueFolderImage (const std::wstring & path)
+{
+    Add ({ path, std::string(), std::string(), BootQueue::Urgency::Folder });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBootWorker::RemoveFolderImages
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerBootWorker::RemoveFolderImages()
+{
     CountFn  onCount;
+    size_t   removed = 0;
 
 
 
     {
         std::lock_guard  lock (m_lock);
-        bool             isWaiting = std::any_of (m_queue.begin(), m_queue.end(), [&path] (const Item & item) { return _wcsicmp (item.path.c_str(), path.c_str()) == 0; });
 
-        if (m_stop || isWaiting)
+        removed = m_queue.RemoveFolderImages();
+        onCount = m_onCount;
+    }
+
+    if (removed > 0 && onCount)
+    {
+        onCount();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBootWorker::SetRank
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerBootWorker::SetRank (BootQueue::RankFn rank)
+{
+    std::lock_guard  lock (m_lock);
+
+
+
+    m_rank = std::move (rank);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBootWorker::Add
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerBootWorker::Add (BootQueue::Item item)
+{
+    CountFn  onCount;
+    bool     isAdded = false;
+
+
+
+    {
+        std::lock_guard  lock (m_lock);
+
+        if (m_stop)
         {
             return;
         }
 
-        //  An image a connection just wrote goes ahead of those a list queued.
-        if (source.empty())
-        {
-            m_queue.push_back ({ path, model, source });
-        }
-        else
-        {
-            m_queue.push_front ({ path, model, source });
-        }
-
+        isAdded = m_queue.TryAdd (std::move (item));
         onCount = m_onCount;
+    }
+
+    if (!isAdded)
+    {
+        return;
     }
 
     m_wake.notify_all();
@@ -237,7 +313,30 @@ size_t ExplorerBootWorker::GetPending() const
 
 
 
-    return m_queue.size() + (m_working ? 1 : 0);
+    return m_queue.GetCount() + (m_working ? 1 : 0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBootWorker::IsPending
+//
+//  The image is cleared before its result is reported, so a window that
+//  reads it on the result's message finds it done.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerBootWorker::IsPending (const std::wstring & path) const
+{
+    std::lock_guard  lock (m_lock);
+    bool             isWaiting = m_queue.Contains (path);
+
+
+
+    return isWaiting || _wcsicmp (m_current.c_str(), path.c_str()) == 0;
 }
 
 
@@ -256,7 +355,7 @@ void ExplorerBootWorker::WaitUntilIdle()
 
 
 
-    m_idle.wait (lock, [this]() { return m_queue.empty() && !m_working && !m_reporting; });
+    m_idle.wait (lock, [this]() { return m_queue.GetCount() == 0 && !m_working && !m_reporting; });
 }
 
 
@@ -673,16 +772,17 @@ void ExplorerBootWorker::Run()
 
     for (;;)
     {
-        Item     item;
-        DoneFn   done;
-        BusyFn   isBusy;
-        CountFn  onCount;
-        Result   result;
+        BootQueue::Item  item;
+        DoneFn           done;
+        BusyFn           isBusy;
+        CountFn          onCount;
+        Result           result;
+        bool             isTaken = false;
 
         {
             std::unique_lock  lock (m_lock);
 
-            m_wake.wait (lock, [this]() { return m_stop || !m_queue.empty(); });
+            m_wake.wait (lock, [this]() { return m_stop || m_queue.GetCount() > 0; });
 
             if (m_stop)
             {
@@ -713,10 +813,16 @@ void ExplorerBootWorker::Run()
                 return;
             }
 
-            item      = m_queue.front();
-            m_working = true;
+            isTaken = m_queue.TryTakeNext (m_rank, item);
 
-            m_queue.pop_front();
+            //  The folder images can be removed while the emulator is busy.
+            if (!isTaken)
+            {
+                continue;
+            }
+
+            m_working = true;
+            m_current = item.path;
         }
 
         result        = Check (item.path, item.model);
@@ -726,6 +832,7 @@ void ExplorerBootWorker::Run()
             std::lock_guard  lock (m_lock);
 
             done = m_done;
+            m_current.clear();
         }
 
         if (done)

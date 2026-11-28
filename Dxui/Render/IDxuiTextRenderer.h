@@ -373,14 +373,17 @@ public:
     // Blit an opaque BGRA8 frame that changes from call to call (an emulator
     // framebuffer, a picture preview) scaled into the destination rect.
     // Implementations keep the frame in its own cached GPU bitmap, separate
-    // from the icon cache, and re-upload the pixels on every call.
+    // from the icon cache, and re-upload the pixels on every call. A sharp
+    // frame is enlarged with nearest-neighbor, so each pixel stays a square.
+    // Any frame drawn smaller than its pixels is averaged.
     virtual HRESULT  DrawFramebuffer (const uint32_t * srcBgraPixels,
                                       int              srcWidthPx,
                                       int              srcHeightPx,
                                       float            destXDip,
                                       float            destYDip,
                                       float            destWidthDip,
-                                      float            destHeightDip)           = 0;
+                                      float            destHeightDip,
+                                      bool             sharp = false)           = 0;
 
     // Blit a premultiplied BGRA8 bitmap (e.g. the app icon harvested
     // from an HICON) into the target. Implementations cache the source
@@ -442,7 +445,7 @@ public:
         return E_NOTIMPL;
     }
 
-    HRESULT  DrawFramebuffer (const uint32_t *, int, int, float, float, float, float) override
+    HRESULT  DrawFramebuffer (const uint32_t *, int, int, float, float, float, float, bool = false) override
     {
         return S_OK;
     }

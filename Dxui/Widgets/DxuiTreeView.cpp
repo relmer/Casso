@@ -349,7 +349,9 @@ bool DxuiTreeView::HitTestToggle (int x, int y, int flatRow) const
 
 void DxuiTreeView::SetMouseHover (int x, int y)
 {
-    m_hoverRow = HitTestRow (x, y);
+    //  A row cut off by a scrollbar is not hovered through the bar; its
+    //  highlight would show as a sliver along the bar's edge.
+    m_hoverRow = IsOverScrollbar (POINT { x, y }) ? -1 : HitTestRow (x, y);
 }
 
 

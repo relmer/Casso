@@ -722,6 +722,12 @@
     <ClCompile Include="CassoExplorer\BasicListingOutputTests.cpp" />
     <ClCompile Include="CassoExplorer\CopyOptionRowsTests.cpp" />
     <ClCompile Include="FileTypes\HexDumpTests.cpp" />
+    <ClCompile Include="FileTypes\QuickDrawPictureTests.cpp" />
+    <ClCompile Include="FileTypes\QuickDrawFontLibraryTests.cpp" />
+    <ClCompile Include="FileTypes\QuickDrawTextTests.cpp" />
+    <ClCompile Include="CassoExplorer\RemovableMediaWatchTests.cpp" />
+    <ClCompile Include="CassoExplorer\BootQueueTests.cpp" />
+    <ClCompile Include="CassoExplorer\FolderThumbnailsTests.cpp" />
     <ClCompile Include="CassoExplorer\HostAppleFileTests.cpp" />
     <ClCompile Include="CassoExplorer\SearchExpressionTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoLinkJobViewTests.cpp" />
@@ -746,7 +752,10 @@
     <ClInclude Include="CassoExplorer\RecordingExplorerServices.h" />
     <ClInclude Include="CassoExplorer\ExplorerWindowPartsRig.h" />
     <ClInclude Include="CassoExplorer\FakeFolderWatcher.h" />
+    <ClInclude Include="FileTypes\FakeQuickDrawFonts.h" />
     <ClInclude Include="CassoExplorer\FakeDiskPictures.h" />
+    <ClInclude Include="CassoExplorer\FakeFolderSeams.h" />
+    <ClInclude Include="CassoExplorer\FakeImageRecords.h" />
     <ClCompile Include="CassoExplorer\CassoTargetingTests.cpp" />
     <ClCompile Include="CassoExplorer\DragPayloadTests.cpp" />
     <ClCompile Include="UiTests\IntentReplyTests.cpp" />
@@ -1026,6 +1035,7 @@
     <ClCompile Include="Dxui\DxuiSplitterTests.cpp" />
     <ClCompile Include="Dxui\DxuiStatusBarTests.cpp" />
     <ClCompile Include="Dxui\DxuiFramebufferViewTests.cpp" />
+    <ClCompile Include="Dxui\DxuiRenderIconsTests.cpp" />
     <ClCompile Include="Dxui\DxuiHexViewTests.cpp" />
     <ClCompile Include="Dxui\DxuiStandardCommandTests.cpp" />
     <ClCompile Include="Dxui\DxuiSystemColorsTests.cpp" />

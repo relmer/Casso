@@ -148,11 +148,31 @@ void PreviewViewState::SetFormulas (bool formulas)
 
 DecodeOptions PreviewViewState::GetDecodeOptions (const std::wstring & imagePath, const std::string & entryPath) const
 {
-    auto  found = m_decodeOptions.find (imagePath + L"|" + TextEncoding::NarrowToWide (entryPath));
+    auto           found   = m_decodeOptions.find (imagePath + L"|" + TextEncoding::NarrowToWide (entryPath));
+    DecodeOptions  options = (found != m_decodeOptions.end()) ? found->second : m_defaultOptions;
 
 
 
-    return (found != m_decodeOptions.end()) ? found->second : m_defaultOptions;
+    options.quickDrawFonts = m_fonts.get();
+    return options;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewViewState::SetQuickDrawFonts
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewViewState::SetQuickDrawFonts (std::unique_ptr<QuickDrawFontLibrary> fonts)
+{
+    if (m_fonts == nullptr)
+    {
+        m_fonts = std::move (fonts);
+    }
 }
 
 

@@ -69,6 +69,8 @@ ExplorerListPane::ExplorerListPane (ExplorerContext & context)
 
 ExplorerListPane::~ExplorerListPane()
 {
+    m_context.browser.GetBrowserModel().SetTopRowSource (nullptr);
+
     if (m_context.app.pictures != nullptr && m_picturesHwnd != nullptr)
     {
         m_context.app.pictures->RemoveTarget (m_picturesHwnd);
@@ -102,6 +104,9 @@ void ExplorerListPane::Create()
     m_listMessage = m_context.window.CreateChild<DxuiLabel> (L"", DxuiTextRole::Muted, DxuiTextHAlign::Center, DxuiTextVAlign::Center);
 
     m_context.window.SetMouseHandler (m_list, [this] (const DxuiMouseEvent & ev) { return HandleListMouse (ev); });
+
+    //  The row the list is scrolled to is saved with a location left, for Back.
+    m_context.browser.GetBrowserModel().SetTopRowSource ([this]() { return m_list->GetTopRow(); });
 
     m_bars.Create ([this]()
     {
@@ -1185,6 +1190,7 @@ void ExplorerListPane::FillList()
     m_homeShown = m_context.browser.IsHomeLocation();
 
     m_context.folderSync.CheckOpenedCard();
+    m_context.folderSync.UpdateThumbnailFolders (true);
 
     if (m_context.browser.GetRowOrder().IsHomeSectioned())
     {
@@ -1218,17 +1224,18 @@ void ExplorerListPane::FillList()
     }
 
     //  A new location opens at its top-left corner, as Explorer's does, rather
-    //  than wherever the list was scrolled for the last one. THE COLUMNS STAY AS
-    //  THEY ARE: their widths belong to the view rather than to the folder, so
-    //  they neither twitch from one folder to the next nor pay to re-measure
-    //  every cell of every row on each navigation.
+    //  than wherever the list was scrolled for the last one; Back or Forward
+    //  opens at the row the list was scrolled to when it was left. THE
+    //  COLUMNS STAY AS THEY ARE: their widths are the view's rather than the
+    //  folder's, so they neither twitch from one folder to the next nor cost
+    //  a re-measure of every cell of every row on each navigation.
     if (m_context.browser.GetLocation() != m_listLocation)
     {
         m_listLocation = m_context.browser.GetLocation();
         m_context.addressBar.HandleLocationChanged (m_listLocation);
         m_context.toolbars.SetCommandBarDropDowns();
 
-        m_list->SetTopRow (0);
+        m_list->SetTopRow (m_context.browser.GetTabTopRow());
         m_list->SetLeftPx (0);
 
         if (m_context.treePane.IsNavOptionOn (&CassoExplorerPrefs::navExpandToCurrent))

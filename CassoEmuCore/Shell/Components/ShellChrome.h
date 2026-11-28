@@ -271,6 +271,10 @@ private:
     // The DPI the bar is drawn at: the window's times the bar's zoom.
     UINT                       m_driveBarZoomedDpi     = 96;
 
+    // The height of the drive bar once it has slid up under auto-hide, or 0
+    // when the bar is empty or the drives aren't auto-hidden.
+    int                        m_driveBarSlideHeightPx = 0;
+
     // The last drive clicked in each class, drawn in the class's widget
     // while the class is closed (DriveBarFan::PutFirst). A click while the fan is open takes effect
     // when it closes, so the fan isn't rearranged under the pointer.

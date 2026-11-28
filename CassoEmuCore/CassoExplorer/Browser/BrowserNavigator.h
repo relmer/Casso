@@ -70,6 +70,10 @@ public:
     void  NavigateToLocation (const Location & location);
     bool  NavigateToAddress  (const std::wstring & text);
 
+    //  A path parsed as a typed address and opened in a new tab. False, with
+    //  no tab opened, for a path that is not a typed address.
+    bool  OpenAddressInNewTab (const std::wstring & text);
+
     //  The paths typed into the address bar, added once a typed path's
     //  navigation succeeds. Seeded from the stored copy at startup.
     TypedPathHistory        & GetTypedPaths ()                             { return m_typedPaths; }
@@ -85,7 +89,9 @@ public:
     static std::wstring  ExpandVariables   (const std::wstring & text);
 
 private:
-    Location  GetLocation () const                                         { return m_model.HasTabs() ? m_model.GetActiveTab().location : Location(); }
+    Location  GetLocation         () const                                 { return m_model.HasTabs() ? m_model.GetActiveTab().location : Location(); }
+    void      ReloadWithSelection ();
+    bool      ParseAddress        (const std::wstring & rooted, Location & outLocation);
 
     BrowserModel      & m_model;
     IFileSystem       & m_fs;

@@ -5,6 +5,7 @@
 #include "Devices/Disk/BlockImage.h"
 #include "Devices/Disk/FileBlockStore.h"
 #include "Devices/Disk/IDiskFileIo.h"
+#include "Devices/Disk/Inspector/Blocks/BlockImageFile.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
 #include "Machines/Apple2/Common/HfsVolume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
@@ -67,7 +68,7 @@ bool BlockVolumeOpener::TryOpen (IDiskFileIo                    & fileIo,
         BAIL_OUT_IF (!std::equal (header.begin(), header.begin() + 4, "2IMG") || ReadLong (header, s_k2mgFormat) != s_k2mgProDosOrder, S_OK);
 
         offset = ReadLong (header, s_k2mgDataOffset);
-        length = ReadLong (header, s_k2mgDataLength);
+        length = BlockImageFile::GetTwoImgDataBytes (header);
 
         BAIL_OUT_IF (offset + length > stamp.sizeBytes, S_OK);
     }

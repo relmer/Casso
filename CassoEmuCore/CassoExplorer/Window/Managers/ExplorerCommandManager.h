@@ -44,6 +44,7 @@ public:
 private:
     void  ChooseCharset   (Charset charset);
     void  ChooseSheetForm (bool formulas);
+    void  GetFonts        ();
 
     ExplorerContext  & m_context;
 };

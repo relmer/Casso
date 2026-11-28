@@ -27,9 +27,14 @@ public:
     DxuiFramebufferView() = default;
     ~DxuiFramebufferView() override = default;
 
-    void  SetFramebuffer (const uint32_t * bgra, int width, int height);
+    //  `pixelAspect` is a pixel's height over its width as drawn.
+    void  SetFramebuffer (const uint32_t * bgra, int width, int height, float pixelAspect = 1.0f);
     void  Clear          ();
     void  SetScaling     (bool integer, bool keepAspect) { m_integer = integer; m_keepAspect = keepAspect; }
+
+    //  Whether the pixels are scaled with nearest-neighbor, each a sharp
+    //  square, rather than blended.
+    void  SetSharp       (bool sharp) { m_sharp = sharp; }
 
     //  A multiple of the fitted size. Past 1 the picture is larger than its
     //  bounds and is cut off at their edges, still centered.
@@ -84,23 +89,25 @@ private:
     static constexpr int  s_kScrollbarWidthDip = 10;
     static constexpr int  s_kWheelStepDip      = 48;
 
-    int                    m_panX       = 0;
-    int                    m_panY       = 0;
-    bool                   m_panning    = false;
-    POINT                  m_panFrom    = {};
-    int                    m_panFromX   = 0;
-    int                    m_panFromY   = 0;
+    int                    m_panX        = 0;
+    int                    m_panY        = 0;
+    bool                   m_panning     = false;
+    POINT                  m_panFrom     = {};
+    int                    m_panFromX    = 0;
+    int                    m_panFromY    = 0;
     DxuiDpiScaler          m_scaler;
     DxuiScrollbar          m_vertScroll;
     DxuiScrollbar          m_horzScroll;
     std::vector<uint32_t>  m_pixels;
     std::vector<uint32_t>  m_display;
-    int                    m_displayW   = 0;
-    int                    m_displayH   = 0;
-    int                    m_displayPad = 0;
-    int                    m_width      = 0;
-    int                    m_height     = 0;
-    bool                   m_integer    = true;
-    bool                   m_keepAspect = true;
-    float                  m_zoom       = 1.0f;
+    int                    m_displayW    = 0;
+    int                    m_displayH    = 0;
+    int                    m_displayPad  = 0;
+    int                    m_width       = 0;
+    int                    m_height      = 0;
+    float                  m_pixelAspect = 1.0f;
+    bool                   m_integer     = true;
+    bool                   m_keepAspect  = true;
+    bool                   m_sharp       = false;
+    float                  m_zoom        = 1.0f;
 };

@@ -669,6 +669,7 @@ JsonValue CassoExplorerPrefs::ToJson() const
     root.emplace_back ("autoPreview",    JsonValue (autoPreview));
     root.emplace_back ("enterExpandsPreview", JsonValue (enterExpandsPreview));
     root.emplace_back ("autoThumbnails", JsonValue (autoThumbnails));
+    root.emplace_back ("folderThumbnails", JsonValue (folderThumbnails));
     root.emplace_back ("rawCopyMenu",    JsonValue (rawCopyMenu));
     root.emplace_back ("copyOptions",    OptionsToJson (copyOptions));
     root.emplace_back ("hostNaming",     JsonValue (hostNaming));
@@ -689,6 +690,7 @@ JsonValue CassoExplorerPrefs::ToJson() const
     root.emplace_back ("hexGrouping",    JsonValue ((double) hexGrouping));
     root.emplace_back ("cffaAdapter",    JsonValue ((double) cffaAdapter));
     root.emplace_back ("lineAddresses",  JsonValue (lineAddresses));
+    root.emplace_back ("previewCrt",     JsonValue (previewCrt));
     root.emplace_back ("skipElevationNotice", JsonValue (skipElevationNotice));
     root.emplace_back ("hexColumns",     JsonValue ((double) hexColumns));
     root.emplace_back ("hexShowValues",  JsonValue (hexShowValues));
@@ -914,6 +916,7 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     root.HasBool ("autoPreview",    autoPreview);
     root.HasBool ("enterExpandsPreview", enterExpandsPreview);
     root.HasBool ("autoThumbnails", autoThumbnails);
+    root.HasBool ("folderThumbnails", folderThumbnails);
     root.HasBool ("rawCopyMenu",    rawCopyMenu);
 
     if (root.HasObject ("copyOptions", options))
@@ -922,6 +925,7 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     }
 
     root.HasBool ("lineAddresses",  lineAddresses);
+    root.HasBool ("previewCrt",     previewCrt);
     root.HasBool ("skipElevationNotice", skipElevationNotice);
     root.HasBool ("hexShowValues",  hexShowValues);
     root.HasBool ("treeCassoOpen",     treeCassoOpen);

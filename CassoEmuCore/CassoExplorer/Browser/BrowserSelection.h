@@ -76,7 +76,8 @@ public:
     //  its folders, which act as they do in their folders. A stock disk is not one.
     bool  AreSelectedRowsCassoFiles  () const;
 
-    //  Whether the selected rows are all disk images in a host folder.
+    //  Whether the selected rows are all disk image files, in a host folder,
+    //  a search or the Casso node. A stock disk not downloaded is not a file.
     bool  AreSelectedRowsImages      () const;
 
 private:

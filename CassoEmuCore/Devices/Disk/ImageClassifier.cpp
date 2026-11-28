@@ -500,7 +500,7 @@ ImageClass ImageClassifier::ClassifyTwoImg (uint64_t fileBytes, std::span<const 
 {
     uint32_t  format     = BlockImageFile::ReadLittleLong (head, BlockImageFile::kTwoImgFormat);
     uint64_t  dataOffset = BlockImageFile::ReadLittleLong (head, BlockImageFile::kTwoImgDataOffset);
-    uint64_t  dataBytes  = BlockImageFile::ReadLittleLong (head, BlockImageFile::kTwoImgDataLength);
+    uint64_t  dataBytes  = BlockImageFile::GetTwoImgDataBytes (head);
 
 
 

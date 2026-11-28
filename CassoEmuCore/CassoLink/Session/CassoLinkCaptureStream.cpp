@@ -215,7 +215,7 @@ bool CassoLinkCapture::CollectMarks (const Position & position, Stream & outStre
     differing.assign (length, 0);
     counted.assign (length, SIZE_MAX);
 
-    for (int delay = 0; delay < 2; delay++)
+    for (int delay = 0; delay < 3; delay++)
     {
         outMarks.set[delay].assign (length, 0);
         outMarks.read[delay].assign (length, 0);
@@ -224,7 +224,8 @@ bool CassoLinkCapture::CollectMarks (const Position & position, Stream & outStre
     for (const Alignment & alignment : alignments)
     {
         const std::vector<Byte>  & bytes = position.reads[alignment.read];
-        int                        delay = (alignment.read < position.delays.size() && position.delays[alignment.read] == 1) ? 1 : 0;
+        Byte                       code  = alignment.read < position.delays.size() ? position.delays[alignment.read] : 0;
+        int                        delay = (code == 1) ? 1 : (code == kLoudDelay ? 2 : 0);
 
         for (size_t at = 0; at < length; at++)
         {
@@ -861,6 +862,7 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const std::v
     std::vector<bool>                       inData (length, false);
     std::vector<bool>                       bodies;
     bool                                    quiet     = false;
+    bool                                    loud      = false;
     size_t                                  shortest  = fine ? s_kShortestRun : s_kPooledRun;
 
 
@@ -911,6 +913,7 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const std::v
     //  by zero bits, so the baseline for a byte's marks is taken from the
     //  bytes that one read at most marks.
     quiet = fine && base[0] <= s_kQuietBase;
+    loud  = fine && base[0] > s_kQuietBase;
 
     for (int delay = 0; quiet && delay < 2; delay++)
     {
@@ -1012,9 +1015,11 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const std::v
         bool  known  = alone && quiet && each < timed.size() && timed[each] >= 0 && (timed[each] == 0 || marked);
         bool  unsure = false;
 
-        outZeros[each] = (alone && quiet) ? CountByteZeros (marks, each, single) : outZeros[each];
+        outZeros[each] = (alone && quiet) ? CountByteZeros (marks, each, single)        : outZeros[each];
+        outZeros[each] = (alone && loud)  ? CountLoudZeros (bytes, marks, each)         : outZeros[each];
         outZeros[each] = known ? (uint8_t) timed[each] : outZeros[each];
         unsure         = !fine && alone && base[0] <= s_kQuietBase && (IsMarkedOften (marks.set[0][each], marks.read[0][each], base[0]) || IsMarkedOften (marks.set[1][each], marks.read[1][each], base[1]));
+        unsure         = unsure || (alone && base[0] > s_kQuietBase && IsLoudCandidate (marks, each));
 
         outUnsure     += unsure ? 1 : 0;
         outUnsureData += (unsure && inData[each]) ? 1 : 0;
@@ -1051,7 +1056,9 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const std::v
 //  A protection times every address field of its track, so a byte marked
 //  after only a few of them is chance. An RWTS such as Microsoft Adventure's
 //  reads the byte after DF at once, and two zero bits there make it read DF
-//  twice and fail.
+//  twice and fail. An FF is passed over: 4-and-4 nibbles in a long data
+//  field, as on Karateka's track 0, pass for an address field, and the FF
+//  after them is data that a loader reads twice with two zero bits.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1072,7 +1079,7 @@ void CassoLinkCapture::CountEndingZeros (const std::vector<Byte> & bytes, const 
 
         fields       += first ? 1 : 0;
         fieldMarked   = first ? false : fieldMarked;
-        counted[each] = endings[each] && !weak[each] && ioZeros[each] == 0 && marked;
+        counted[each] = endings[each] && !weak[each] && ioZeros[each] == 0 && marked && (bytes[each] | 0x80) != s_kSyncByte;
 
         markedFields += (counted[each] && !fieldMarked) ? 1 : 0;
         fieldMarked   = fieldMarked || counted[each];
@@ -1112,6 +1119,61 @@ uint8_t CassoLinkCapture::CountByteZeros (const Marks & marks, size_t at, const 
 
 
     return at8 ? ((at12 || all8) ? 2 : 1) : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::CountLoudZeros
+//
+//  The zero bits after a byte outside a run of sync bytes on a track a //c
+//  read, from its catches at 10 cycles. A //c's IWM marks a byte with no
+//  zero bits after it in about one catch of ten at 8 cycles, and far more
+//  often between some pairs of bytes, so those catches count nothing. At 10
+//  cycles it marks such a byte in about one catch of a hundred thousand, a
+//  byte followed by one zero bit in about three of eight, and one followed
+//  by two in more than nine of ten. At 12 it marks a byte with none never,
+//  and one followed by a zero bit in about one catch of twelve. So a byte
+//  has a zero bit after it with s_kLoudMarks marks at 10 cycles, or with
+//  one there and one at 12, and two zero bits when s_kLoudTwoShare tenths
+//  of kLoudReads catches or more at 10 mark it. An FF outside a run of sync
+//  bytes is data, such as Karateka's track 0 field has, and gets one zero
+//  bit at most: with two, a loader that reads the field as fast as the
+//  bytes arrive reads the FF twice.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint8_t CassoLinkCapture::CountLoudZeros (const std::vector<Byte> & bytes, const Marks & marks, size_t at)
+{
+    int   set10  = marks.set[2][at];
+    int   read10 = marks.read[2][at];
+    bool  one    = set10 >= s_kLoudMarks || (set10 > 0 && marks.set[1][at] > 0);
+    bool  two    = one && read10 >= kLoudReads && set10 * s_kTenths >= read10 * s_kLoudTwoShare && (bytes[at] | 0x80) != s_kSyncByte;
+
+
+
+    return one ? (two ? 2 : 1) : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::IsLoudCandidate
+//
+//  Whether more reads could find a zero bit after a byte on a track a //c
+//  read: one catch at 10 cycles marks it, and none at 12.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkCapture::IsLoudCandidate (const Marks & marks, size_t at)
+{
+    return marks.set[2][at] == 1 && marks.set[1][at] == 0;
 }
 
 
@@ -1598,6 +1660,28 @@ void CassoLinkCapture::UniteSyncZeros (std::map<int, Stream> & ioStreams)
 
 
 
+    //  A sync byte here is one in a run of s_kUnitedRun FF or more; a shorter
+    //  run, or a lone FF, is data, as Karateka's track 0 field has.
+    auto  isSync = [] (const Stream & stream, size_t at)
+    {
+        size_t  length = stream.bytes.size();
+        size_t  run    = 1;
+
+        auto  isFF = [&stream, length] (size_t here) { return (stream.bytes[here % length] | 0x80) == s_kSyncByte; };
+
+        for (size_t back = 1; run < s_kUnitedRun && back < length && isFF (at + length - back); back++)
+        {
+            run++;
+        }
+
+        for (size_t ahead = 1; run < s_kUnitedRun && ahead < length && isFF (at + ahead); ahead++)
+        {
+            run++;
+        }
+
+        return isFF (at) && !stream.weak[at] && stream.zeros[at] >= 1 && stream.zeros[at] <= 2 && run >= s_kUnitedRun;
+    };
+
     for (const auto & [position, stream] : ioStreams)
     {
         size_t  counts[3] = {};
@@ -1609,7 +1693,7 @@ void CassoLinkCapture::UniteSyncZeros (std::map<int, Stream> & ioStreams)
 
         for (size_t at = 0; at < stream.bytes.size(); at++)
         {
-            bool  sync = (stream.bytes[at] | 0x80) == s_kSyncByte && !stream.weak[at] && stream.zeros[at] >= 1 && stream.zeros[at] <= 2;
+            bool  sync = isSync (stream, at);
 
             counts[sync ? stream.zeros[at] : 0]++;
         }
@@ -1631,7 +1715,7 @@ void CassoLinkCapture::UniteSyncZeros (std::map<int, Stream> & ioStreams)
 
         for (size_t at = 0; at < stream.bytes.size(); at++)
         {
-            bool  sync = (stream.bytes[at] | 0x80) == s_kSyncByte && !stream.weak[at] && stream.zeros[at] >= 1 && stream.zeros[at] <= 2;
+            bool  sync = isSync (stream, at);
 
             stream.zeros[at] = sync ? zeros : stream.zeros[at];
         }

@@ -34,6 +34,8 @@ its decoder is written. The table is the test list for
 | Paintworks | $C0/$0000 | none | picture | `NAME.Super Hi-Res.png` | no | SuperHiRes |
 | 3200-color | $C1/$0002 | none | picture | `NAME.3200 Color.png` | no | SuperHiRes |
 | DreamGrafix | $C0/$8005 | none | picture | `NAME.3200 Color.png` | no | SuperHiRes |
+| QuickDraw II picture | $C1/$0001, or a $C1 file of another aux type that starts with a picture's header and the version opcode, as Beagle Bros clip art's $C1/$8000 and Beagle Draw's $C1/$0002 do, unless it has a screen's aux type and size: the port's SCB, the frame, then opcodes to the end of the file, as IIgs Technical Note 46 sets them out | none | picture, the frame's size, drawn by running the opcodes in the standard palette; text is drawn with its face, mode, colors and spacing in a IIgs font of its family, from System 6.0.3's SystemTools1 and Fonts disks and Shaston 8 from the IIgs ROM 01, once they're downloaded. While they aren't, the notes have one link that opens the download dialog. Text in a font that isn't available is listed in the notes, by family and size | `NAME.QuickDraw II.png` | no | SuperHiRes |
+| Packed QuickDraw II picture | $C0/$0003: a $C1/$0001 picture packed with PackBytes | none | picture, as the unpacked picture | `NAME.QuickDraw II.png` | no | SuperHiRes |
 | 3201 | BIN, name ending `.3201`, starting `APP` $00 or `NRL` $00 | none | picture | `NAME.3200 Color.png` | no | SuperHiRes |
 | IIgs animation | $C2/$0000 | none | picture, first frame | `NAME.Animation.png` | no | PaintworksAnim |
 | LZ4FH | $08/$8066 | none | picture | `NAME.LZ4FH.png` | no | HiRes, fhpack |
@@ -86,7 +88,8 @@ enum class FileFormat { None, PascalText, RandomText, Merlin, ScAssembler, Lisa,
                         Lz4fh, PrintShopGraphic, PrintShopGsClipArt, ShapeTable,
                         IigsIcons, HiResFont, Apple3Font, FontrixFont, PrintShopFont,
                         IigsFont, WizardryScenario, InfocomStory, HiResScreen,
-                        DoubleHiResScreen, LoResScreen, MacPaint };
+                        DoubleHiResScreen, LoResScreen, MacPaint, QuickDrawPicture,
+                        PackedQuickDrawPicture };
 
 class FileFormatTable
 {

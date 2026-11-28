@@ -795,6 +795,28 @@ int DxuiListView::HitTestRow (int xPx, int yPx) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsOverBarStrip
+//
+//  Whether a list-relative point lies in the strip of a showing scrollbar.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::IsOverBarStrip (int xPx, int yPx) const
+{
+    DxuiListViewTypes::HorzScrollbarMetrics  horz = m_scrollbars.GetHorzScrollbarGeometry();
+    DxuiListViewTypes::ScrollbarMetrics      vert = m_scrollbars.GetScrollbarGeometry();
+
+
+
+    return (horz.visible && yPx >= horz.barY) || (vert.visible && xPx >= vert.barX);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MakePalette
 //
 //  Derives the per-element ARGB colors from the active theme. Called
@@ -1370,6 +1392,16 @@ bool DxuiListView::OnDrag (int lx, int ly, bool inside)
     }
 
     m_header.OnHover (lx, ly, inside);
+
+    //  A row cut off by a scrollbar is not hovered through the bar; its
+    //  highlight would show as a sliver along the bar's edge.
+    if (inside && IsOverBarStrip (lx, ly))
+    {
+        SetHoveredRow (-1);
+        m_grouping.ClearHover();
+        m_homeHoverAction = -1;
+        return true;
+    }
 
     if (!inside)
     {

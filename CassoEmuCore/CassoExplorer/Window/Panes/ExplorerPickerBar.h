@@ -83,15 +83,16 @@ public:
     bool  HandleButtonKey (int index, const DxuiKeyEvent & ev);
 
 private:
-    int                       LayoutButtons  (int top, int right);
-    void                      LayoutSaveRows (const RECT & band, int listLeft);
-    int                       GetSaveBoxLeft (const RECT & band, int listLeft) const;
-    void                      FillFilterList ();
-    bool                      HasFilterNotes () const;
-    std::vector<DxuiButton *> GetButtons     () const;
-    int                       GetVerifyStop  () const { return (m_verify != nullptr) ? 0 : -1; }
-    int                       GetFilterStop  () const { return (m_filter != nullptr) ? ((m_verify != nullptr) ? 1 : 0) : -1; }
-    int                       GetLeadStops   () const { return ((m_verify != nullptr) ? 1 : 0) + ((m_filter != nullptr) ? 1 : 0); }
+    int                        LayoutButtons       (int top, int right);
+    void                       LayoutSaveRows      (const RECT & band, int listLeft);
+    int                        GetSaveBoxLeft      (const RECT & band, int listLeft) const;
+    void                       FillFilterList      ();
+    void                       SelectFilterForName ();
+    bool                       HasFilterNotes      () const;
+    std::vector<DxuiButton *>  GetButtons          () const;
+    int                        GetVerifyStop       () const { return (m_verify != nullptr) ? 0 : -1; }
+    int                        GetFilterStop       () const { return (m_filter != nullptr) ? ((m_verify != nullptr) ? 1 : 0) : -1; }
+    int                        GetLeadStops        () const { return ((m_verify != nullptr) ? 1 : 0) + ((m_filter != nullptr) ? 1 : 0); }
 
     ExplorerContext      & m_context;
     ExplorerPickerChips  * m_chips            = nullptr;

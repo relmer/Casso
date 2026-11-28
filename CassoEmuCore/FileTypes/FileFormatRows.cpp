@@ -15,6 +15,7 @@
 #include "FileTypes/OmfFile.h"
 #include "FileTypes/PascalCodefile.h"
 #include "FileTypes/PascalText.h"
+#include "FileTypes/QuickDrawPicture.h"
 #include "FileTypes/RandomText.h"
 #include "FileTypes/ScAssemblerSource.h"
 #include "FileTypes/ScreenPicture.h"
@@ -63,6 +64,8 @@ std::vector<FileFormatTable::Row> FileFormatRows::Make()
         Row { FileFormat::WizardryScenario, &WizardryScenario::Matches,  &WizardryScenario::Decode,    nullptr,               L".Wizardry.rtf",         false },
         Row { FileFormat::WizardryRoster, &WizardryRoster::Matches,      &WizardryRoster::Decode,      nullptr,               L".Wizardry.rtf",         false },
 
+        Row { FileFormat::QuickDrawPicture,       &QuickDrawPicture::MatchesPicture, &QuickDrawPicture::Decode, nullptr, L".QuickDraw II.png", true },
+        Row { FileFormat::PackedQuickDrawPicture, &QuickDrawPicture::MatchesPacked,  &QuickDrawPicture::Decode, nullptr, L".QuickDraw II.png", true },
         Row { FileFormat::SuperHiRes,         &SuperHiRes::MatchesScreen,          &SuperHiRes::DecodeScreen,          nullptr, L".Super Hi-Res.png", true },
         Row { FileFormat::PackedSuperHiRes,   &SuperHiRes::MatchesPacked,          &SuperHiRes::DecodePacked,          nullptr, L".Super Hi-Res.png", true },
         Row { FileFormat::Paintworks,         &SuperHiRes::MatchesPaintworks,      &SuperHiRes::DecodePaintworks,      nullptr, L".Super Hi-Res.png", true },
