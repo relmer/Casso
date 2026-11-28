@@ -4,6 +4,7 @@
 
 #include "CassoExplorer/Model/HostFolderReader.h"
 #include "CassoExplorer/Model/Location.h"
+#include "CassoExplorer/Model/TreeChildChecks.h"
 #include "CassoExplorer/Model/TreeImageNodes.h"
 #include "Config/IFileSystem.h"
 #include "Seams/IShellItemVerbs.h"
@@ -302,6 +303,11 @@ public:
     HRESULT              ReadImageNode   (TreeNode & inOutNode);
 
     TreeImageNodes &     GetImageNodes   () { return m_images; }
+    TreeChildChecks &    GetChildChecks  () { return m_childChecks; }
+
+    //  Sets the expander of each listed host folder whose check finished, and
+    //  returns each node's id and whether it expands.
+    std::vector<std::pair<std::wstring, bool>>  ApplyChildChecks ();
 
     static std::wstring  GetLeaf         (const std::wstring & path);
 
@@ -395,6 +401,7 @@ private:
     bool             IsHiddenDrive      (const std::wstring & path) const;
     HRESULT          ListHostFolder     (bool underCasso, const std::wstring & path, std::vector<TreeNode> & outNodes);
     bool             HasTreeChildren    (const std::wstring & path);
+    bool             GetFolderExpands   (const std::wstring & id, const HostFolderItem & item);
 
     //  The node id for an item ListHostFolder lists, or empty for a plain file.
     static std::wstring  GetHostItemId (bool underCasso, const HostFolderItem & item);
@@ -425,4 +432,7 @@ private:
     bool                                             m_showDemoDisks  = false;
     std::vector<LinkTreeEntry>                       m_links;
     std::wstring                                     m_fullSendFolder;
+
+    //  Last, so its worker stops before the members its checks read.
+    TreeChildChecks                                  m_childChecks;
 };

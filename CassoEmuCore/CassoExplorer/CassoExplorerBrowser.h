@@ -108,6 +108,10 @@ public:
     bool  TryGetNodeLocation (const std::wstring & id, Location & outLocation) const;
     bool  TryGetTreeNode     (const std::wstring & id, DxuiTreeNode & outNode) const;
 
+    //  The tree folders whose subfolder checks finished: each id, and whether
+    //  it expands.
+    std::vector<std::pair<std::wstring, bool>>  ApplyChildChecks ();
+
     //  The listing BrowserRowPaths reads a row's location and path from.
     BrowserRowPaths::Listing  GetRowListing () override;
 

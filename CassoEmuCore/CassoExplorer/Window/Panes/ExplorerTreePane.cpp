@@ -771,6 +771,44 @@ void ExplorerTreePane::UpdateReadNode (const std::wstring & id)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerTreePane::ApplyChildChecks
+//
+//  A folder whose subfolder check finished is drawn with an expander or
+//  without one. A folder already opened isn't changed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerTreePane::ApplyChildChecks()
+{
+    bool  changed = false;
+
+
+
+    for (const auto & [id, expands] : m_context.browser.ApplyChildChecks())
+    {
+        DxuiTreeNode  * node = m_tree->GetNodeAtMutable (m_tree->FindRowById (id));
+
+        if (node == nullptr || !node->children.empty() || node->childrenLoaded == !expands)
+        {
+            continue;
+        }
+
+        node->childrenLoaded = !expands;
+        changed              = true;
+    }
+
+    if (changed)
+    {
+        m_context.window.Invalidate();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerTreePane::ScrollTreeToRow
 //
 //  Into view now, or at the first layout when the tree has no height yet.

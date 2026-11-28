@@ -28,6 +28,7 @@ TreeModel::TreeModel (IFileSystem & fs, HostFolderReader & hostFolders)
     : m_fs          (fs),
       m_hostFolders (hostFolders)
 {
+    m_childChecks.SetChecker ([this] (const std::wstring & path) { return HasTreeChildren (path); });
 }
 
 
@@ -1421,6 +1422,7 @@ void TreeModel::Invalidate (const std::wstring & id)
 void TreeModel::InvalidateAll()
 {
     m_children.clear();
+    m_childChecks.Clear();
 }
 
 
@@ -1678,6 +1680,90 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TreeModel::GetFolderExpands
+//
+//  A folder already listed expands when it has children. A network folder
+//  expands without a check. Any other is checked on the worker, and has no
+//  expander until the check finishes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TreeModel::GetFolderExpands (const std::wstring & id, const HostFolderItem & item)
+{
+    auto  listed      = m_children.find (id);
+    bool  hasChildren = false;
+
+
+
+    if (listed != m_children.end())
+    {
+        return !listed->second.empty();
+    }
+
+    if (PathResolver::IsNetworkPath (item.path))
+    {
+        return true;
+    }
+
+    if (!m_childChecks.TryGet (item.path, item.entry.modifiedUnix, hasChildren))
+    {
+        hasChildren = false;
+    }
+
+    return hasChildren;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::ApplyChildChecks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::pair<std::wstring, bool>> TreeModel::ApplyChildChecks()
+{
+    std::vector<TreeChildChecks::Result>        results = m_childChecks.TakeResults();
+    std::map<std::wstring, bool>                byPath;
+    std::vector<std::pair<std::wstring, bool>>  ids;
+
+
+
+    for (const TreeChildChecks::Result & result : results)
+    {
+        byPath[result.path] = result.hasChildren;
+    }
+
+    if (byPath.empty())
+    {
+        return ids;
+    }
+
+    for (auto & [parent, nodes] : m_children)
+    {
+        for (TreeNode & node : nodes)
+        {
+            auto  found = node.kind == TreeNode::Kind::HostFolder ? byPath.find (node.location.path) : byPath.end();
+
+            if (found != byPath.end() && !m_children.contains (node.id))
+            {
+                node.canExpand = found->second;
+                ids.emplace_back (node.id, node.canExpand);
+            }
+        }
+    }
+
+    return ids;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TreeModel::ListHostFolder
 //
 //  Subfolders first, then the disk images, each group in name order. Plain
@@ -1728,7 +1814,7 @@ HRESULT TreeModel::ListHostFolder (bool underCasso, const std::wstring & path, s
             node.id        = GetHostItemId (underCasso, item);
             node.kind      = TreeNode::Kind::HostFolder;
             node.location  = Location::MakeHostFolder (item.path);
-            node.canExpand = HasTreeChildren (item.path);
+            node.canExpand = GetFolderExpands (node.id, item);
 
             folders.push_back (node);
         }

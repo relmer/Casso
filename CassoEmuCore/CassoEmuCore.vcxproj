@@ -130,6 +130,7 @@
     <ClCompile Include="CassoExplorer\Model\DiskImageCatalog.cpp" />
     <ClCompile Include="CassoExplorer\Model\DiskMessageText.cpp" />
     <ClCompile Include="CassoExplorer\Model\HostFolderReader.cpp" />
+    <ClCompile Include="CassoExplorer\Model\TreeChildChecks.cpp" />
     <ClCompile Include="CassoExplorer\Model\TreeImageNodes.cpp" />
     <ClCompile Include="Devices\Disk\BlankDiskSpecResolver.cpp" />
     <ClCompile Include="Devices\Disk\DiskCommandText.cpp" />
@@ -1529,6 +1530,7 @@
     <ClInclude Include="CassoExplorer\Model\DiskImageCatalog.h" />
     <ClInclude Include="CassoExplorer\Model\DiskMessageText.h" />
     <ClInclude Include="CassoExplorer\Model\HostFolderReader.h" />
+    <ClInclude Include="CassoExplorer\Model\TreeChildChecks.h" />
     <ClInclude Include="CassoExplorer\Model\TreeImageNodes.h" />
     <ClInclude Include="Devices\Disk\BlankDiskSpecResolver.h" />
     <ClInclude Include="Devices\Disk\DiskCommandText.h" />
