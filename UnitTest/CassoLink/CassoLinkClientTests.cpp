@@ -472,7 +472,9 @@ public:
         Assert::IsTrue (client.GetModelName().empty(), L"the shim's Ready has no ROM identification");
 
         client.hasRomId = true;
-        client.romId    = { 0x38, 0x00, 0x00, 0xEA, 0 };
+        client.romId    = { 0x38, 0x60, 0x2F, 0xAD, 0 };
+        Assert::AreEqual (std::wstring (L"Apple ]["),           client.GetModelName());
+        client.romId    = { 0xEA, 0xEA, 0xEA, 0xAD, 0 };
         Assert::AreEqual (std::wstring (L"Apple ][+"),          client.GetModelName());
         client.romId    = { 0x06, 0xEA, 0x00, 0x00, 0 };
         Assert::AreEqual (std::wstring (L"Apple //e"),          client.GetModelName());
@@ -525,9 +527,9 @@ public:
         Assert::IsFalse (client.HasLowercase());
 
         client.hasRomId = true;
-        client.romId    = { 0x38, 0x00, 0x00, 0xAD, 0 };
+        client.romId    = { 0x38, 0x60, 0x2F, 0xAD, 0 };
         Assert::IsFalse (client.HasLowercase(), L"Apple ][");
-        client.romId    = { 0x38, 0x00, 0x00, 0xEA, 0 };
+        client.romId    = { 0xEA, 0xEA, 0xEA, 0xAD, 0 };
         Assert::IsFalse (client.HasLowercase(), L"Apple ][+");
         client.romId    = { 0x06, 0xEA, 0x00, 0x00, 0 };
         Assert::IsTrue  (client.HasLowercase(), L"Apple //e");

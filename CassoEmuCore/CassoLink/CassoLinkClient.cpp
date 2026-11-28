@@ -57,7 +57,13 @@ std::wstring CassoLinkClient::GetModelName() const
 
     if (family == 0x38)
     {
-        return (romId[3] == 0xAD) ? L"Apple ][" : L"Apple ][+";
+        return L"Apple ][";
+    }
+
+    // $FBB3 is $EA on a ][+, which has $AD at $FB1E as the ][ does.
+    if (family == 0xEA)
+    {
+        return L"Apple ][+";
     }
 
     if (family != 0x06)
