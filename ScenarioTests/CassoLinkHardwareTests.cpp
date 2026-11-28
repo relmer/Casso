@@ -454,8 +454,9 @@ public:
 
         for (const auto & [quarter, read] : firstReads)
         {
-            int  lowest  = INT_MAX;
-            int  highest = INT_MIN;
+            int     lowest  = INT_MAX;
+            int     highest = INT_MIN;
+            double  share   = 0.0;
 
             if (quarter % 4 != 0)
             {
@@ -474,7 +475,7 @@ public:
                     continue;
                 }
 
-                double  share = GetWindowShare (*found->second, *read);
+                share = GetWindowShare (*found->second, *read);
 
                 log += std::format (" {:5.2f}", share);
 

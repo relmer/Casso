@@ -14,9 +14,11 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  ModuleFitTests
 //
-//  The program and each module as assembled: they have no 65C02 instruction,
-//  and their code and buffers stay between the module area and the top of
-//  main memory at $C000, which is all an Apple II or II Plus has.
+//  The program and each module as assembled: they have no 65C02 instruction.
+//  The program ends below $C000, the top of the 48K an Apple II or II Plus
+//  has. A module and its buffers are inside the module area, which ends at
+//  kModuleAddress + kModuleLimit. The SOS build is not covered: an Apple ///
+//  is not a 48K machine.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,6 +27,8 @@ TEST_CLASS (ModuleFitTests)
 public:
 
     static constexpr size_t  kMemoryTop = 0xC000;
+    static constexpr size_t  kModuleTop = LinkProgram::kModuleAddress + LinkProgram::kModuleLimit;
+    static constexpr size_t  kRawCopies = 26 * 64;   // RPAGES * RCOPY in RawWrite.s
 
     struct ModuleCase
     {
@@ -45,17 +49,18 @@ public:
             { L"capture",         LinkProgram::GetCaptureModuleSource(),        { "CAPBUF", "CAPEND", "CAPCODE" } },
             { L"block",           LinkProgram::GetBlockModuleSource(),          { "BLKBUF", "VFYBUF", "ZPBUF", "DEVTAB", "STBUF" } },
             { L"13-sector",       LinkProgram::GetThirteenSectorModuleSource(), { "NBUF", "NEND", "SBUF" } },
+            { L"raw write",       LinkProgram::GetRawWriteModuleSource(),       { "NBUF", "RVALS", "RZERO", "RCODE" } },
         };
     }
 
     static void  AssertInsideModuleArea (const wchar_t * what, size_t address)
     {
         std::wstring  message = std::format (L"{} is at ${:04X}, outside ${:04X} to ${:04X}",
-                                             what, address, (size_t) LinkProgram::kModuleAddress, kMemoryTop - 1);
+                                             what, address, (size_t) LinkProgram::kModuleAddress, kModuleTop);
 
 
 
-        Assert::IsTrue (address >= LinkProgram::kModuleAddress && address <= kMemoryTop, message.c_str());
+        Assert::IsTrue (address >= LinkProgram::kModuleAddress && address <= kModuleTop, message.c_str());
     }
 
 
@@ -129,6 +134,13 @@ public:
 
                     Assert::IsTrue (found != symbols.end(), TextEncoding::NarrowToWide (std::format ("The {} module has no symbol {}", TextEncoding::WideToNarrow (module.name), name)).c_str());
                     AssertInsideModuleArea (TextEncoding::NarrowToWide (name).c_str(), found->second);
+                }
+
+                //  The raw write's copies of its loop are built at run time
+                //  from RCODE, with no symbol at their end.
+                if (symbols.contains ("RCODE"))
+                {
+                    AssertInsideModuleArea (std::format (L"The {} module's loop copies for chip {}", module.name, (int) chip).c_str(), symbols["RCODE"] + kRawCopies);
                 }
             }
         }
