@@ -72,8 +72,10 @@ void AppleMouse::MoveBy (int dx, int dy)
 //  CPU thread, once per instruction via the EmuCpu cycle fan-out. Two jobs:
 //
 //  1. VBL latch: on the display->vblank transition, latch the VBL interrupt
-//     flag ($C019 bit 7). Latched regardless of ENVBL (the enable masks only
-//     the IRQ line); cleared by a $C070 read.
+//     flag ($C019 bit 7) while ENVBL is on. In Apple //c Technical Note
+//     #9, a program that polls VBL turns ENVBL on first. With ENVBL off,
+//     as in Karateka, $C019 bit 7 reads clear on a real //c. Cleared by a
+//     $C07x access.
 //
 //  2. Movement latches: drain the host deltas, then, for each axis with no
 //     unacknowledged interrupt, latch one movement unit -- direction line
@@ -114,7 +116,7 @@ void AppleMouse::Tick (uint32_t cpuCycles)
         {
             bool  inVblank = m_videoTiming->IsInVblank();
 
-            if (inVblank && !m_lastInVblank)
+            if (inVblank && !m_lastInVblank && m_vblEnabled)
             {
                 m_vblInt   = true;
                 irqChanged = true;

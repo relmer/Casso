@@ -263,10 +263,11 @@ public:
     }
 
 
-    // VBL: the latch sets at vblank onset regardless of ENVBL (the enable
-    // masks only the IRQ line), reads at $C019 bit 7, and clears on the
-    // $C070 access. The line is gated by ENVBL/DISVBL.
-    TEST_METHOD (VblLatch_OnsetSetsFlag_EnvblGatesLine_PtrigClears)
+    // VBL: the latch sets at vblank onset only while ENVBL is on, reads at
+    // $C019 bit 7, and clears on the $C070 access. With ENVBL off, as after
+    // a reset, $C019 bit 7 reads clear through vblank, so a program that
+    // waits while the bit is set, as Karateka does, goes on.
+    TEST_METHOD (VblLatch_OnsetSetsFlagWhileEnabled_PtrigClears)
     {
         InterruptController  ic;
         AppleMouse           mouse;
@@ -283,16 +284,21 @@ public:
         // that cadence, so the onset edge is always caught.
         auto advance = [&] (uint32_t cyc) { vt.Tick (cyc); mouse.Tick (cyc); };
 
-        // Masked VBL: tick into vblank -- flag latches, line stays low.
+        // Masked VBL: tick into vblank -- the flag and the line stay low.
         advance (VideoTiming::kVblankStartCycle + 1);
-        Assert::AreEqual<Byte> (0x80, mouse.ReadVblInterrupt(), L"latch sets at onset even when masked");
+        Assert::AreEqual<Byte> (0x00, mouse.ReadVblInterrupt(), L"no latch at onset while masked");
         Assert::IsFalse (ic.IsAnyAsserted(), L"DISVBL (default) masks the line");
 
-        // Enable: pending latch surfaces on the line immediately.
+        // Enable: the next onset latches and asserts.
         mouse.WriteIouAccess (true);
         mouse.AccessIouSwitch (s_kEnbVbl);
         mouse.WriteIouAccess (false);
-        Assert::IsTrue (ic.IsAnyAsserted(), L"ENVBL with a pending latch asserts");
+        Assert::IsFalse (ic.IsAnyAsserted(), L"ENVBL alone asserts nothing");
+
+        advance (VideoTiming::kCyclesPerFrame - 4000);
+        advance (4000);
+        Assert::AreEqual<Byte> (0x80, mouse.ReadVblInterrupt(), L"the onset after ENVBL latches");
+        Assert::IsTrue (ic.IsAnyAsserted(), L"and asserts the line");
 
         // $C070 acknowledge.
         mouse.AccessPtrig();
