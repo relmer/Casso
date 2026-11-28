@@ -144,6 +144,44 @@ public:
 
 
 
+    //  When a subfolder is made or deleted inside a closed folder, the
+    //  parent's listing is the same, but the closed folder's expander changes.
+    TEST_METHOD (Tree_ACurrentListingRechecksAModifiedSubfolder)
+    {
+        InMemoryFileSystem     fs;
+        HostFolderReader       hostFolders;
+        TreeModel              model (fs, hostFolders);
+        std::vector<TreeNode>  nodes;
+        std::wstring           folderId = TreeModel::MakeFolderId (true, kDisks);
+
+        AssertSucceeded (fs.WriteAllText (L"C:\\Disks\\Plain\\x.txt", "x"));
+
+        model.SetKnownFolders ({ kDisks });
+        model.GetChildChecks().SetManualRun (true);
+
+        AssertSucceeded (model.GetChildren (folderId, nodes));
+        model.GetChildChecks().RunQueued();
+        model.ApplyChildChecks();
+        Assert::IsTrue  (model.IsHostListingCurrent (folderId));
+        model.GetChildChecks().RunQueued();
+        Assert::AreEqual ((size_t) 0, model.ApplyChildChecks().size(), L"an unmodified subfolder isn't checked again");
+
+        AssertSucceeded (fs.WriteAllText (L"C:\\Disks\\Plain\\Sub\\y.txt", "y"));
+        fs.SetFolderModifiedUnix (L"C:\\Disks\\Plain", 50);
+
+        Assert::IsTrue (model.IsHostListingCurrent (folderId), L"the parent lists the same subfolder");
+
+        model.GetChildChecks().RunQueued();
+
+        std::vector<std::pair<std::wstring, bool>>  applied = model.ApplyChildChecks();
+
+        Assert::AreEqual ((size_t) 1, applied.size());
+        Assert::IsTrue   (applied[0].second, L"Plain has a subfolder now");
+        Assert::AreEqual ((size_t) 2, model.GetChildChecks().GetCheckCount());
+    }
+
+
+
     TEST_METHOD (Tree_AListedFolderUsesItsChildren)
     {
         InMemoryFileSystem     fs;

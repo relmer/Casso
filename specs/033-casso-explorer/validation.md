@@ -1459,5 +1459,17 @@ Temp folder:
 
 Unit tests for each task pass.
 
-Not checked here: traces before and after, since WPR needs an elevated prompt;
-the Screenshots folder; and the 033 gate.
+Checked again with the Debug x64 build of 2026-11-27 23:35:
+
+- In a scratch folder under Temp, a subfolder with a child folder has an
+  expander and an empty one doesn't. With the parent open, a folder made in
+  the empty one and the child deleted from the other swapped the expanders
+  within 5 seconds. The first build left both expanders as they were, even
+  after Refresh: the parent's subfolder names were the same, so the tree
+  skipped reading it again. A closed subfolder whose modified time changed
+  is now checked again; the fix is in the same change.
+- The Screenshots folder, about 1,700 pictures and no subfolders, drew its
+  thumbnails within 3 seconds of launch, and its tree row has no expander.
+
+Not checked here: traces before and after, since WPR needs an elevated
+prompt, and the 033 gate.
