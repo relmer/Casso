@@ -119,6 +119,15 @@ private:
         std::shared_ptr<DxuiIconImage>   image;
     };
 
+    //  The folder of the last item a loader thread created. The items of one
+    //  folder are created relative to it, since parsing each path from the
+    //  desktop down costs about 10 ms an item in a OneDrive folder.
+    struct ParentFolder
+    {
+        std::wstring        path;
+        ComPtr<IShellItem>  item;
+    };
+
     std::shared_ptr<const DxuiIconImage>  Remember (const std::wstring & key, HICON icon, int overlay = 0);
     std::wstring                          GetSizedKey (const std::wstring & key) const { return std::to_wstring (m_sizePx) + L"|" + key; }
     std::shared_ptr<const DxuiIconImage>  LoadPicture      (const std::wstring & key, const std::wstring & file);
@@ -150,7 +159,8 @@ private:
     static HICON                           LoadByAttributes       (const std::wstring & path, bool isDirectory, int sizePx);
     static HICON                           LoadLargerByAttributes (bool isDirectory, int sizePx);
     static HICON                           LoadShellItemIcon      (const std::wstring & path, int sizePx, SIIGBF flags);
-    static HICON                           LoadThumbnail          (const std::wstring & path, int sizePx);
+    static HICON                           LoadThumbnail          (ParentFolder & parent, const std::wstring & path, int sizePx);
+    static HRESULT                         CreateItem             (ParentFolder & parent, const std::wstring & path, REFIID iid, void ** outItem);
     static int                             GetOverlayIndex        (const std::wstring & path);
     static HICON                           LoadForShellName       (const std::wstring & name, bool overlays, int * outOverlay = nullptr);
     static std::shared_ptr<DxuiIconImage>  Rasterize              (HICON icon, int sizePx, UINT dpi = 0);
