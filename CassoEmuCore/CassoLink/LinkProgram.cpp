@@ -13,6 +13,7 @@
 #include "SlotFinder.s.h"
 #include "Capture.s.h"
 #include "Block.s.h"
+#include "RawWrite.s.h"
 #include "ThirteenSector.s.h"
 #include "VirtualDrive.s.h"
 #include "SosInterp.s.h"
@@ -677,6 +678,40 @@ void LinkProgram::MakeSosBlockModule (std::vector<Byte> & outModule)
 
     outModule[kModuleCrcOffset]     = (Byte) (crc & 0xFF);
     outModule[kModuleCrcOffset + 1] = (Byte) (crc >> 8);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::GetRawWriteModuleSource
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string LinkProgram::GetRawWriteModuleSource()
+{
+    return std::string (reinterpret_cast<const char *> (s_kRawWriteModuleSource), sizeof (s_kRawWriteModuleSource) - 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::BuildRawWriteModule
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkProgram::BuildRawWriteModule (std::vector<Byte> & outModule, LinkChip chip, bool faults)
+{
+    std::string  errors;
+
+
+
+    return AssembleModule (GetRawWriteModuleSource(), outModule, errors, chip, faults);
 }
 
 

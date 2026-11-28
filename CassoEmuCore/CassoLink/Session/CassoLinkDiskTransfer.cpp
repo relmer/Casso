@@ -5,6 +5,7 @@
 #include "CassoLink/Session/CassoLinkDiskStatus.h"
 #include "CassoLink/Session/CassoLinkThirteenSector.h"
 #include "CassoLink/Session/LinkImageSource.h"
+#include "CassoLink/Session/RawWritePass.h"
 #include "CassoLink/Session/RawWriteStream.h"
 #include "CassoLink/Session/TrackMeasures.h"
 #include "CassoLink/Session/TrackVerifier.h"
@@ -1246,7 +1247,10 @@ HRESULT CassoLinkDiskTransfer::WriteRawDisk (LinkOperation & operation, const st
     Byte                                gap      = 0;
     bool                                canceled = false;
     std::string                         wrapped;
+    std::string                         arcsMessage;
     int                                 wraps    = 0;
+    RawWritePass                        pass;
+    bool                                arcsFit  = true;
 
 
 
@@ -1267,7 +1271,7 @@ HRESULT CassoLinkDiskTransfer::WriteRawDisk (LinkOperation & operation, const st
 
     turn = TrackMeasures::GetBitsPerTurn (m_revolutionMs[index]);
 
-    hr = m_session.m_host->BuildThirteenSectorModule (module);
+    hr = m_session.m_host->BuildRawWriteModule (module);
     CHR (hr);
 
     hr = m_session.m_host->EnsureModule (module);
@@ -1285,6 +1289,37 @@ HRESULT CassoLinkDiskTransfer::WriteRawDisk (LinkOperation & operation, const st
     {
         RawWriteTrack  & track = tracks[i];
 
+        canceled = m_session.m_canceled.load();
+        CBREx (!canceled, HRESULT_FROM_WIN32 (ERROR_CANCELLED));
+
+        m_session.Report (operation, (int) (i * 100 / tracks.size()));
+
+        //  Arcs of positions less than a full track apart, in one pass.
+        if (track.plan != nullptr)
+        {
+            m_session.m_sink.OnActivity (RawWriteArcs::DescribePlan (*track.plan));
+
+            arcsFit = pass.Build (*track.plan, (size_t) turn);
+
+            if (!arcsFit || !track.plan->lost.empty())
+            {
+                arcsMessage = std::format ("Tracks {} to {} have data closer together than this drive can write. This copy may not work.", track.plan->positions.front() / 4.0, track.plan->positions.back() / 4.0);
+            }
+
+            if (!arcsFit)
+            {
+                continue;
+            }
+
+            hr = m_session.m_host->WriteRawPass ((Byte) operation.drive, pass, CassoLinkHost::GetStepPercents (i, tracks.size()), status);
+            CHR (hr);
+
+            hr = CassoLinkSession::FromStatusError (status.error);
+            CHR (hr);
+
+            continue;
+        }
+
         if (!track.stream.FitToTurn ((size_t) turn, fit))
         {
             wrapped += std::format ("{}{}", wraps == 0 ? "" : ", ", track.position / 4.0);
@@ -1292,11 +1327,6 @@ HRESULT CassoLinkDiskTransfer::WriteRawDisk (LinkOperation & operation, const st
         }
 
         m_session.m_sink.OnActivity (RawWriteStream::DescribeTrack (track, fit));
-
-        canceled = m_session.m_canceled.load();
-        CBREx (!canceled, HRESULT_FROM_WIN32 (ERROR_CANCELLED));
-
-        m_session.Report (operation, (int) (i * 100 / tracks.size()));
 
         hr = m_session.m_host->WriteRawTrack ((Byte) operation.drive, (Byte) track.position, track.stream, CassoLinkHost::GetStepPercents (i, tracks.size()), status);
         CHR (hr);
@@ -1331,6 +1361,11 @@ HRESULT CassoLinkDiskTransfer::WriteRawDisk (LinkOperation & operation, const st
                 operation.status->MarkTrack (operation.drive, track, FullSendTrackMark::NotInImage);
             }
         }
+    }
+
+    if (!arcsMessage.empty())
+    {
+        operation.message = arcsMessage;
     }
 
     if (wraps == 1)

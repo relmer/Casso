@@ -10,6 +10,7 @@
 
 class IByteStream;
 class CassoLinkVirtualDrives;
+class RawWritePass;
 class RawWriteStream;
 
 
@@ -449,6 +450,10 @@ public:
     //  the track's start and end (GetTrackPercents or GetStepPercents).
     HRESULT  WriteRawTrack       (Byte drive, Byte position, const RawWriteStream & stream, std::array<Byte, 2> percents, CassoLinkStatus & outStatus);
 
+    //  A pass of arcs written from a quarter-track position on, as
+    //  RawWritePass has built it, with the same command.
+    HRESULT  WriteRawPass        (Byte drive, const RawWritePass & pass, std::array<Byte, 2> percents, CassoLinkStatus & outStatus);
+
     //  A 13-sector request's last two bytes: the whole disk's percentage at
     //  the track's start and at its end, for the Apple's bar.
     static std::array<Byte, 2>  GetTrackPercents (Byte track);
@@ -464,6 +469,7 @@ public:
     //  sector with no data field.
     HRESULT  ReadThirteenTrack         (Byte drive, Byte track, Word requested, std::vector<std::vector<Byte>> & outFields, Word & outUnwritten, CassoLinkStatus & outStatus);
     HRESULT  BuildThirteenSectorModule (std::vector<Byte> & outModule) const;
+    HRESULT  BuildRawWriteModule       (std::vector<Byte> & outModule) const;
 
     //  The block module's requests (Block.s), which must be loaded: each
     //  block device and SmartPort unit the Apple has; `count` blocks read

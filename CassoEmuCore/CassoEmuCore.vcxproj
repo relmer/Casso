@@ -315,6 +315,8 @@
     <ClCompile Include="CassoLink\Session\CassoLinkResume.cpp" />
     <ClCompile Include="CassoLink\Session\LinkImageSource.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkThirteenSector.cpp" />
+    <ClCompile Include="CassoLink\Session\RawWriteArcs.cpp" />
+    <ClCompile Include="CassoLink\Session\RawWritePass.cpp" />
     <ClCompile Include="CassoLink\Session\RawWriteStream.cpp" />
     <ClCompile Include="DiskCheck\ImageRecordStore.cpp" />
     <ClCompile Include="DiskCheck\ThumbnailStore.cpp" />
@@ -2265,6 +2267,8 @@
     <ClInclude Include="CassoLink\Session\CassoLinkResume.h" />
     <ClInclude Include="CassoLink\Session\LinkImageSource.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkThirteenSector.h" />
+    <ClInclude Include="CassoLink\Session\RawWriteArcs.h" />
+    <ClInclude Include="CassoLink\Session\RawWritePass.h" />
     <ClInclude Include="CassoLink\Session\RawWriteStream.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkFullSend.h" />
     <ClInclude Include="DiskCheck\ImageRecordStore.h" />
@@ -2747,6 +2751,7 @@
     <None Include="CassoLink\Apple\SlotFinder.s" />
     <None Include="CassoLink\Apple\NetStack.s" />
     <None Include="CassoLink\Apple\Modules\Block.s" />
+    <None Include="CassoLink\Apple\Modules\RawWrite.s" />
     <None Include="CassoLink\Apple\Modules\ThirteenSector.s" />
     <None Include="CassoLink\Apple\VirtualDrive.s" />
     <None Include="CassoLink\Apple\Modules\Capture.s" />
