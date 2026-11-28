@@ -38,6 +38,9 @@ public:
     //  preferences under `baseDir`; empty when they can't be read.
     static std::vector<DiskMru::Entry>  LoadRecent (IFileSystem & fs, const std::wstring & baseDir);
 
+    //  Sets each row's time Casso last loaded it from the recent list.
+    static void  SetLoadTimes (const std::vector<DiskMru::Entry> & recent, std::vector<CatalogRow> & inOutRows);
+
     //  The key two spellings of one path have in common.
     static std::wstring  MakePathKey (const std::wstring & path);
 };

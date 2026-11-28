@@ -1921,6 +1921,16 @@ void ExplorerListPane::HandleShellListed (const std::wstring & key)
             }
         }
     }
+    else if (key.starts_with (BrowserLoader::s_kCassoImagesKey))
+    {
+        if (m_context.browser.GetLocation().kind == Location::Kind::Root && m_context.browser.GetLocation().path == TreeModel::kCassoRootId
+            && m_context.browser.GetLoader().GetCassoImages().IsReadOrReading (key))
+        {
+            hr = m_context.browser.Refresh();
+            IGNORE_RETURN_VALUE (hr, S_OK);
+            FillList();
+        }
+    }
     else if (key.starts_with (hostKey))
     {
         if (m_context.browser.GetLocation().kind == Location::Kind::HostFolder && m_context.browser.GetLocation().path == key.substr (hostKey.size()))

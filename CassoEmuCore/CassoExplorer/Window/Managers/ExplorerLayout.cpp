@@ -1,5 +1,9 @@
 #include "Pch.h"
 #include "CassoExplorer/Picker/PickerRequest.h"
+#include "CassoExplorer/Model/CassoImagesListing.h"
+#include "Devices/Disk/Archives/ContainerDiskFileIo.h"
+#include "Devices/Disk/ImageClassCache.h"
+#include "Seams/Win32DiskFileIo.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
 #include "CassoExplorer/Window/Managers/ExplorerPickerMode.h"
@@ -114,6 +118,29 @@ void ExplorerLayout::ConfigureWidgets()
         Win32FileSystem  fs;
 
         return fs.EnumerateAllEntries (path, outEntries);
+    });
+
+    //  The Casso node's images open every image in its folders, so they are
+    //  read on a thread. The classes are stored for the process, for the
+    //  next read.
+    m_context.browser.GetLoader().GetCassoImages().SetTarget (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerShellListed);
+    m_context.browser.GetLoader().GetCassoImages().SetLister ([] (const std::wstring & id, std::vector<CatalogRow> & outRows)
+    {
+        static ImageClassCache     s_classes;
+        Win32FileSystem            fs;
+        Win32DiskFileIo            disk;
+        ContainerDiskFileIo        fileIo (disk);
+        std::vector<std::wstring>  folders;
+        size_t                     start = 0;
+
+        for (size_t end = id.find (L'\n'); end != std::wstring::npos; start = end + 1, end = id.find (L'\n', start))
+        {
+            folders.push_back (id.substr (start, end - start));
+        }
+
+        CassoImagesListing::Build (fs, fileIo, s_classes, folders, {}, outRows);
+
+        return S_OK;
     });
 
     //  The CassoLink connections are under CassoLink; each is started when it is

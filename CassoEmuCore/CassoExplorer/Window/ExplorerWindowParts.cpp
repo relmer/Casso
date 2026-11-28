@@ -376,6 +376,11 @@ bool ExplorerWindowParts::HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lPar
             listPane.HandleShellListed (key);
         }
 
+        for (const std::wstring & key : context.browser.GetLoader().GetCassoImages().TakeArrivedKeys())
+        {
+            listPane.HandleShellListed (key);
+        }
+
         treePane.ApplyChildChecks();
         TakeShellRoots();
 

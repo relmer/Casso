@@ -766,7 +766,28 @@ HRESULT BrowserLoader::LoadCassoImages()
         recent = m_parts.sources.recentLoads();
     }
 
-    CassoImagesListing::Build (m_parts.fs, m_parts.fileIo, m_parts.imageClasses, folders, recent, rows);
+    if (m_cassoImages.HasLister())
+    {
+        std::wstring  id;
+        HRESULT       hrList = S_OK;
+
+        for (const std::wstring & folder : folders)
+        {
+            id += folder + L"\n";
+        }
+
+        if (!m_cassoImages.TryTake (s_kCassoImagesKey, id, rows, hrList))
+        {
+            m_cassoImages.TryGetLatest (s_kCassoImagesKey, rows);
+        }
+
+        //  The read on the thread has no load times; they are set here.
+        CassoImagesListing::SetLoadTimes (recent, rows);
+    }
+    else
+    {
+        CassoImagesListing::Build (m_parts.fs, m_parts.fileIo, m_parts.imageClasses, folders, recent, rows);
+    }
 
     for (const CatalogRow & row : rows)
     {
