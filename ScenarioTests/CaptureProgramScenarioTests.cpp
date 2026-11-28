@@ -9,6 +9,7 @@
 #include "CassoLink/Session/CassoLinkCapture.h"
 #include "CassoLink/Session/CassoLinkDiskTransfer.h"
 #include "CassoLink/Session/CassoLinkThirteenSector.h"
+#include "CassoLink/Session/RawWriteArcs.h"
 #include "CassoLink/Session/RawWriteStream.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
@@ -401,6 +402,60 @@ public:
         }
 
         Assert::AreEqual (0, failed);
+    }
+
+
+    //  The arcs of the WOZ image in CASSO_RAW_WRITE_IMAGE at positions less
+    //  than a full track apart, and the position each is written at.
+    TEST_METHOD (OnDemand_ARawImagesArcs_AreListed)
+    {
+        std::vector<Byte>              file;
+        std::vector<RawWriteArcPlan>   plans;
+        std::vector<RawWriteArcGroup>  groups;
+        wchar_t                        path[MAX_PATH] = {};
+
+
+
+        if (GetEnvironmentVariableW (L"CASSO_RAW_WRITE_IMAGE", path, MAX_PATH) == 0)
+        {
+            Logger::WriteMessage ("CASSO_RAW_WRITE_IMAGE isn't set; nothing to list.\n");
+            return;
+        }
+
+        {
+            std::ifstream  in (path, std::ios::binary);
+
+            file.assign (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
+        }
+
+        AssertSucceeded (RawWriteArcs::PlanImage (file, plans, groups));
+
+        for (const RawWriteArcGroup & group : groups)
+        {
+            for (const RawWriteArc & arc : group.arcs)
+            {
+                std::string  line = std::format ("arc at {:.1f}% of {} cells, {} bytes, found at", 100.0 * (double) arc.start / (double) group.turn, group.turn, arc.stream.values.size());
+
+                for (int position : arc.positions)
+                {
+                    line += std::format (" {}", position / 4.0);
+                }
+
+                line += "; a part at";
+
+                for (int position : arc.partPositions)
+                {
+                    line += std::format (" {}", position / 4.0);
+                }
+
+                Logger::WriteMessage ((line + "\n").c_str());
+            }
+        }
+
+        for (const RawWriteArcPlan & plan : plans)
+        {
+            Logger::WriteMessage (std::format ("lean {:.2f}: {}\n", plan.lean, RawWriteArcs::DescribePlan (plan)).c_str());
+        }
     }
 
 

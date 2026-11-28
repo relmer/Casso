@@ -314,6 +314,7 @@
     <ClCompile Include="CassoLink\Session\CassoLinkResume.cpp" />
     <ClCompile Include="CassoLink\Session\LinkImageSource.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkThirteenSector.cpp" />
+    <ClCompile Include="CassoLink\Session\RawWriteArcs.cpp" />
     <ClCompile Include="CassoLink\Session\RawWriteStream.cpp" />
     <ClCompile Include="DiskCheck\ImageRecordStore.cpp" />
     <ClCompile Include="DiskCheck\ThumbnailStore.cpp" />
@@ -2263,6 +2264,7 @@
     <ClInclude Include="CassoLink\Session\CassoLinkResume.h" />
     <ClInclude Include="CassoLink\Session\LinkImageSource.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkThirteenSector.h" />
+    <ClInclude Include="CassoLink\Session\RawWriteArcs.h" />
     <ClInclude Include="CassoLink\Session\RawWriteStream.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkFullSend.h" />
     <ClInclude Include="DiskCheck\ImageRecordStore.h" />
