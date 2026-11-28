@@ -103,6 +103,26 @@ public:
 
 
 
+    //  A raw capture has no catalog read, so from its first read the drive's
+    //  title is the image file's name.
+    TEST_METHOD (ARawCapture_TitlesItsDriveWithTheFileName_FromTheStart)
+    {
+        LinkOperation       operation;
+        FullSendSnapshot    snapshot;
+
+        operation.drive     = 1;
+        operation.imagePath = "C:/Disks/Karateka side A.woz";
+        operation.status    = std::make_shared<FullSendStatus> ([] () { return 0.0; }, [] () { return std::string(); });
+
+        CassoLinkDiskTransfer::BeginStatus (operation, true);
+
+        snapshot = operation.status->GetSnapshot();
+        Assert::IsTrue   (snapshot.drives[0].state == FullSendDiskState::Capturing);
+        Assert::AreEqual (std::string ("Karateka side A"), snapshot.drives[0].title);
+    }
+
+
+
     TEST_METHOD (Automatic_ATrack0WithNoSectorRead_IsCapturedRaw)
     {
         std::vector<Byte>                  disk (NibbleFormat::kImageByteSize, 0);
