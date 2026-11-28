@@ -1205,6 +1205,7 @@ void DxuiListView::SetDpi (UINT dpi)
 
 
     m_scaler.SetDpi (dpi);
+    m_wrapCache.Clear();
 
     if (old == 0 || old == dpi)
     {

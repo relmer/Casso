@@ -106,6 +106,7 @@
 #include "Core/DxuiFrameRate.h"
 #include "Core/DxuiSystemSettings.h"
 #include "Core/DxuiTextElide.h"
+#include "Core/DxuiWrapCache.h"
 #include "Core/DxuiSlide.h"
 #include "Core/DxuiClipboard.h"
 #include "Core/DxuiIconImage.h"
