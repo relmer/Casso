@@ -38,11 +38,11 @@ public:
     void                      SelectGroup     (int group);
 
     //  A press on a group's header, and the header under the pointer.
-    bool                      OnPress    (int lx, int ly);
-    void                      OnHover    (int lx, int ly) { m_hoverGroup = HitTestGroupHeader (lx, ly); m_hoverX = lx; }
-    void                      ClearHover () { m_hoverGroup = -1; }
-    int                       GetHoverGroup () const { return m_hoverGroup; }
-    int                       GetHoverX  () const { return m_hoverX; }
+    bool  OnPress       (int lx, int ly);
+    void  OnHover       (int lx, int ly) { m_hoverGroup = HitTestGroupHeader (lx, ly); m_hoverX = lx; }
+    void  ClearHover    () { m_hoverGroup = -1; }
+    int   GetHoverGroup () const { return m_hoverGroup; }
+    int   GetHoverX     () const { return m_hoverX; }
     static constexpr int    s_kGroupChevronCenterDip = 12;   // a group header's chevron, from the list's left, as Explorer's
     static constexpr float  s_kGroupChevronArmDip    = 3.5f;   // half its height
     static constexpr int    s_kListGroupLabelDip     = 8;    // List's, which has no chevron before it

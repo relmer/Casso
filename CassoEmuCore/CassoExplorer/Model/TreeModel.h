@@ -302,8 +302,8 @@ public:
     //  and sets the node's error and whether it expands.
     HRESULT              ReadImageNode   (TreeNode & inOutNode);
 
-    TreeImageNodes &     GetImageNodes   () { return m_images; }
-    TreeChildChecks &    GetChildChecks  () { return m_childChecks; }
+    TreeImageNodes   & GetImageNodes  () { return m_images; }
+    TreeChildChecks  & GetChildChecks () { return m_childChecks; }
 
     //  Sets the expander of each listed host folder whose check finished, and
     //  returns each node's id and whether it expands.

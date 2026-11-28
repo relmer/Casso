@@ -48,9 +48,9 @@ public:
 
     //  How many labels were wrapped since the list was made, for tests.
     size_t  GetLabelWrapCount () const { return m_wrapCache.GetWrapCount(); }
-    UINT  GetDpi          () const                         { return m_scaler.GetDpi(); }
-    void  SetTheme        (const IDxuiTheme * theme)       { m_theme = theme; }
-    void  SetShowHeader   (bool b)                         { m_showHeader = b; }
+    UINT    GetDpi            () const                         { return m_scaler.GetDpi(); }
+    void    SetTheme          (const IDxuiTheme * theme)       { m_theme = theme; }
+    void    SetShowHeader     (bool b)                         { m_showHeader = b; }
 
     //  Lays Details out as File Explorer's: rows and header set in from the
     //  left, the name's icon and each column's text where Explorer puts them,

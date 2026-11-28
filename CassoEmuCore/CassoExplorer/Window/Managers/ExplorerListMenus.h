@@ -46,18 +46,18 @@ public:
     //  The selection's verbs, built again when the location or the selected
     //  rows change, or after InvalidateOfferedVerbs. The toolbar's buttons
     //  query them on every paint.
-    const std::vector<CassoExplorerActions::Verb> &  GetOfferedVerbs        () const;
+    const std::vector<CassoExplorerActions::Verb>  & GetOfferedVerbs        () const;
     void                                             InvalidateOfferedVerbs () const { m_offered.valid = false; }
     int                                              GetOfferedBuildCount   () const { return m_offered.builds; }
-    std::vector<DxuiPopupMenuItem>  GetSortChoices         (bool commandBar);
-    std::vector<DxuiPopupMenuItem>  GetGroupedSortChoices  (GroupChoices::Folder folder);
-    std::vector<DxuiPopupMenuItem>  GetSeeMoreRows         ();
-    std::vector<DxuiPopupMenuItem>  GetGroupChoices        (bool commandBar);
-    std::vector<DxuiPopupMenuItem>  GetColumnGroupChoices  (bool grouped);
-    bool                            IsSearchIndexed        ();
-    static std::wstring             GetSearchScopeFolder   (const Location & shown);
-    std::vector<DxuiPopupMenuItem>  GetSearchOptionChoices ();
-    std::vector<DxuiPopupMenuItem>  GetViewChoices         (bool withKeys);
+    std::vector<DxuiPopupMenuItem>                   GetSortChoices         (bool commandBar);
+    std::vector<DxuiPopupMenuItem>                   GetGroupedSortChoices  (GroupChoices::Folder folder);
+    std::vector<DxuiPopupMenuItem>                   GetSeeMoreRows         ();
+    std::vector<DxuiPopupMenuItem>                   GetGroupChoices        (bool commandBar);
+    std::vector<DxuiPopupMenuItem>                   GetColumnGroupChoices  (bool grouped);
+    bool                                             IsSearchIndexed        ();
+    static std::wstring                              GetSearchScopeFolder   (const Location & shown);
+    std::vector<DxuiPopupMenuItem>                   GetSearchOptionChoices ();
+    std::vector<DxuiPopupMenuItem>                   GetViewChoices         (bool withKeys);
 
     //  A separator only between two rows, and never two in a row.
     static void  AddSeparator          (std::vector<DxuiPopupMenuItem> & items);

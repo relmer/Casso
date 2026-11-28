@@ -188,8 +188,8 @@ public:
     {
         Rig                        rig;
         PickerRequest              request;
-        const ExplorerListMenus  & menus = rig.parts->listPane.GetMenus();
-        int                        builds = 0;
+        const ExplorerListMenus  & menus   = rig.parts->listPane.GetMenus();
+        int                        builds  = 0;
 
 
 
