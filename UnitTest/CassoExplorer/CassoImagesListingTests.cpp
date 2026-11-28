@@ -179,33 +179,22 @@ public:
     }
 
 
-    //  With a lister, the folders are read through it, one to a line, and the
-    //  load times are set from the recent list afterward.
-    TEST_METHOD (CassoNode_ReadThroughTheLister_SetsTheLoadTimes)
+    //  A read on a thread has no load times; they are set from the recent
+    //  list afterward, by the path whatever its spelling.
+    TEST_METHOD (SetLoadTimes_MatchesTheRecentList)
     {
-        Host                       host;
-        CassoExplorerBrowser       browser { host.fs, host.io };
-        std::vector<DxuiTreeNode>  roots;
-        std::wstring               asked;
+        Host                         host;
+        std::vector<CatalogRow>      rows;
+        std::vector<DiskMru::Entry>  recent = { { L"c:\\work/SYSTEM.po", 900 } };
 
 
 
-        browser.GetTreeModel().SetKnownFolders ({ kGames, kWork });
-        browser.GetTreeModel().SetDrives ({});
-        browser.GetTreeModel().SetDirectoryProbe ([] (const std::wstring & path) { return _wcsicmp (path.c_str(), kGames) == 0 || _wcsicmp (path.c_str(), kWork) == 0; });
-        browser.SetRecentLoads ([] () { return std::vector<DiskMru::Entry> { { L"C:\\Work\\system.po", 900 } }; });
-        browser.GetLoader().GetCassoImages().SetLister ([&] (const std::wstring & id, std::vector<CatalogRow> & outRows)
-        {
-            asked = id;
-            CassoImagesListing::Build (host.fs, host.io, host.cache, { kGames, kWork }, {}, outRows);
-            return S_OK;
-        });
+        CassoImagesListing::Build (host.fs, host.io, host.cache, { kGames, kWork }, {}, rows);
+        Assert::AreEqual ((int64_t) 0, Find (rows, L"system.po")->lastUsedUnix);
 
-        browser.GetTreeRoots (roots);
-        AssertSucceeded (browser.SelectTreeNode (TreeModel::kCassoRootId));
+        CassoImagesListing::SetLoadTimes (recent, rows);
 
-        Assert::AreEqual (std::wstring (kGames) + L"\n" + kWork + L"\n", asked);
-        Assert::AreEqual ((size_t) 3, browser.GetRows().size());
-        Assert::AreEqual ((int64_t) 900, Find (browser.GetRows(), L"system.po")->lastUsedUnix);
+        Assert::AreEqual ((int64_t) 900, Find (rows, L"system.po")->lastUsedUnix);
+        Assert::AreEqual ((int64_t) 0,   Find (rows, L"karateka.dsk")->lastUsedUnix);
     }
 };

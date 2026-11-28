@@ -109,6 +109,10 @@ public:
 
     static constexpr const wchar_t *  s_kCassoImagesKey = L"cassoimages:";
 
+    //  Starts a read of the Casso node's images, unless one is under way or
+    //  waiting, so the first visit to the node has its rows.
+    void  StartCassoImages ();
+
     //  The linked machine or drive last listed. Returning to a tab lists what
     //  was last read there; forgetting the visit reads its disks again.
     void  SetLinkVisit    (const Location & location) { m_linkVisit = location; }
@@ -131,6 +135,10 @@ private:
     Location  GetLocation      () const { return m_parts.model.HasTabs() ? m_parts.model.GetActiveTab().location : Location(); }
     bool      IsVolumeLocation () const { return m_parts.list.isImage || m_parts.list.isAppleDrive; }
     bool      IsCardInDrive    (int number);
+
+    //  The Casso node's folders, one to a line, as the read of its images
+    //  takes them; and the node's children.
+    HRESULT   GetCassoImagesId (std::vector<TreeNode> & outNodes, std::wstring & outId);
 
     BrowserParts                         m_parts;
     const BrowserArchives              & m_archives;

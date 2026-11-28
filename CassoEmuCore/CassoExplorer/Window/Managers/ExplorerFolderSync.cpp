@@ -179,6 +179,7 @@ void ExplorerFolderSync::ReloadKnownFolders()
     }
 
     m_context.treePane.ReloadChildren (TreeModel::kCassoRootId);
+    m_context.browser.GetLoader().StartCassoImages();
     UpdateWatchedFolders();
     m_context.window.Invalidate();
 

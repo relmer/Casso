@@ -143,6 +143,9 @@ void ExplorerLayout::ConfigureWidgets()
         return S_OK;
     });
 
+    //  Read before the node is first opened, so it opens at once.
+    m_context.browser.GetLoader().StartCassoImages();
+
     //  The CassoLink connections are under CassoLink; each is started when it is
     //  opened, and posts here when an operation finishes or its state
     //  changes.
