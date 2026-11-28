@@ -247,6 +247,11 @@ bool CassoLinkCapture::CollectMarks (const Position & position, Stream & outStre
         }
     }
 
+    if (!noisy)
+    {
+        CollectParts (position, outStream.bytes, alignments, outMarks);
+    }
+
     //  The first read's revolution never differs from itself, so with two
     //  reads aligned, one that differs is enough.
     weakReads = (noisy && aligned.size() == 2) ? 1 : weakReads;
@@ -1027,13 +1032,17 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const std::v
 
     CountEndingZeros (bytes, weak, marks, outZeros);
 
+    //  An address field's body and a 4-and-4 nibble have no zero bits: a
+    //  chance mark at 8 cycles there is passed over. A byte with kLoudReads
+    //  reads at 10 cycles is counted from those alone, wherever it is.
     bodies = FindAddressBodies (bytes);
 
     for (size_t each = 0; each < length; each++)
     {
         bool  inField = (bytes[each] | 0x80) != s_kSyncByte && IsFourAndFourRun (bytes, each, each + 1, false);
+        bool  counted = loud && marks.read[2][each] >= kLoudReads;
 
-        outZeros[each] = (bodies[each] || inField) ? 0 : outZeros[each];
+        outZeros[each] = ((bodies[each] || inField) && !counted) ? 0 : outZeros[each];
     }
 }
 
@@ -1058,7 +1067,10 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const std::v
 //  reads the byte after DF at once, and two zero bits there make it read DF
 //  twice and fail. An FF is passed over: 4-and-4 nibbles in a long data
 //  field, as on Karateka's track 0, pass for an address field, and the FF
-//  after them is data that a loader reads twice with two zero bits.
+//  after them is data that a loader reads twice with two zero bits. A byte
+//  with kLoudReads reads at 10 cycles is counted from those reads alone
+//  (CountLoudZeros): they mark a byte followed by two zero bits nearly
+//  every time, and a //c's reads at 8 cycles mark one byte in ten by chance.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1074,7 +1086,7 @@ void CassoLinkCapture::CountEndingZeros (const std::vector<Byte> & bytes, const 
 
     for (size_t each = 0; each < bytes.size(); each++)
     {
-        bool  marked = marks.read[0][each] >= s_kEndingMarks && marks.set[0][each] == marks.read[0][each];
+        bool  marked = marks.read[0][each] >= s_kEndingMarks && marks.set[0][each] == marks.read[0][each] && marks.read[2][each] < kLoudReads;
         bool  first  = endings[each] && (each == 0 || !endings[each - 1]);
 
         fields       += first ? 1 : 0;

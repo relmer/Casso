@@ -244,6 +244,8 @@ private:
     static size_t               GetBitOffset   (const Stream & stream, size_t byte);
     static void                 Write32        (std::vector<Byte> & bytes, size_t at, uint32_t value);
     static bool                 CollectMarks   (const Position & position, Stream & outStream, Marks & outMarks, bool & outUnstable, bool tolerant);
+    static void                 CollectParts   (const Position & position, const std::vector<Byte> & stream, const std::vector<Alignment> & alignments, Marks & ioMarks);
+    static void                 CountPart      (std::span<const Byte> bytes, const std::vector<Byte> & stream, ptrdiff_t mine, ptrdiff_t at, int step, Marks & ioMarks);
     static bool                 AlignStream    (const Position & position, Stream & outStream, std::vector<Alignment> & outAlignments, bool & outUnstable);
     static bool                 AlignNoisy     (const Position & position, Stream & outStream, std::vector<Alignment> & outAlignments, bool & outUnstable);
     static bool                 FindNoisyStart (std::span<const Byte> read, size_t & outStart, size_t & outLength);
@@ -361,6 +363,8 @@ private:
     static constexpr size_t  s_kSpliceBytes        = 16;
     static constexpr size_t  s_kEndingBytes        = 2;      // where DE AA is: read before a write starts, so no splice falls there
     static constexpr size_t  s_kAddressNibbles     = 8;      // volume, track, sector and checksum, two 4-and-4 nibbles each
+    static constexpr int     s_kPartSkip           = 24;     // the bytes a part turn's read and the stream can differ by at one place, at most
+    static constexpr int     s_kPartSame           = 8;      // the bytes that pair up, past one a part turn's read has more or fewer
     static constexpr int     s_kEndingMarks        = 2;      // the reads at 8 cycles that mark an ending's byte, at least, to count its zero bits
     static constexpr uint8_t s_kEndingZeros        = 2;
     static constexpr size_t  s_kEndingFieldShare   = 2;      // one address field in this many, at least, has a marked ending for any to count
