@@ -180,7 +180,7 @@ public:
 
 
     //  A read on a thread has no load times; they are set from the recent
-    //  list afterward, by the path whatever its spelling.
+    //  list afterward, matched by path in any case or separator.
     TEST_METHOD (SetLoadTimes_MatchesTheRecentList)
     {
         Host                         host;

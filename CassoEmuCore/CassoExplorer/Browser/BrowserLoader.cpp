@@ -837,7 +837,7 @@ HRESULT BrowserLoader::LoadCassoImages()
     }
 
     //  Without a window to post to, the images are read here, through the
-    //  browser's own file system.
+    //  browser's file system.
     if (m_cassoImages.HasLister() && m_cassoImages.HasTarget())
     {
         if (!m_cassoImages.TryTake (s_kCassoImagesKey, id, rows, hrList))
