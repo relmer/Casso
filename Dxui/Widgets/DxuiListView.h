@@ -582,6 +582,7 @@ public:
 private:
     bool     OnMouse           (const DxuiMouseEvent & ev) override;
     LPCWSTR  GetCursorForPoint (POINT clientPx) const      override;
+    bool     TryGetHoverState  (uint64_t & outState) const override;
 
     static constexpr int    s_kRowHeightDip          = 30;
     static constexpr int    s_kHeaderHeightDip       = 32;

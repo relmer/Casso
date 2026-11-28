@@ -36,6 +36,7 @@ public:
     //  The header under the pointer, which is drawn highlighted; none when the
     //  pointer is outside the list or on a divider.
     void  OnHover          (int lx, int ly, bool inside);
+    int   GetHoverColumn   () const { return m_hoverCol; }
     bool  OnRelease        (int lx, int ly);
     bool  IsInteracting    () const { return m_resizeColumn >= 0 || m_headerPressCol >= 0; }
     bool  IsResizingColumn () const { return m_resizeColumn >= 0; }

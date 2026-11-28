@@ -1262,6 +1262,28 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiListView::TryGetHoverState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::TryGetHoverState (uint64_t & outState) const
+{
+    int  group = m_grouping.GetHoverGroup();
+
+
+
+    //  A group header's hover depends on where the pointer is across it.
+    outState = std::hash<std::wstring>{} (std::format (L"{},{},{},{},{}", m_hovered, m_homeHoverAction, m_header.GetHoverColumn(), group, group >= 0 ? m_grouping.GetHoverX() : 0));
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiListView::OnMouse  (IDxuiControl override)
 //
 //  Self-contained mouse handling. ev.positionDip is in the parent's

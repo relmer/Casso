@@ -69,6 +69,7 @@ private:
     ExplorerPane       m_focus            = ExplorerPane::Tree;
     IDxuiControl     * m_pressed          = nullptr;   // the control with the press from RouteToControls, until the release
     bool               m_overControl      = false;     // the pointer was over one of those controls at the last move
+    IDxuiControl     * m_overChild        = nullptr;   // the topmost of those controls the pointer was over at the last move
     int                m_toolbarFocus     = 0;
     int                m_commandBarFocus  = 0;
     int                m_pickerButton     = 0;         // the picker bar's focused button, left to right
