@@ -1473,3 +1473,25 @@ Checked again with the Debug x64 build of 2026-11-27 23:35:
 
 Not checked here: traces before and after, since WPR needs an elevated
 prompt, and the 033 gate.
+
+Not checked here: traces before and after, since WPR needs an elevated prompt;
+the Screenshots folder; and the 033 gate.
+
+## Second batch of reads at 10 cycles, before the part-turn count (T1461, 2026-11-27)
+
+Counted from the saved reads of the "Karateka recapture 9 (D1)" capture
+(drive 1, 2026-11-27, 19:20 to 19:57). The link log has one request and one
+status line per read and no cycle count, so the delay of each read comes from
+the reads file. The log has 671 read requests and the reads file has 660
+reads, 188 at 8 cycles, 48 at 12 and 424 at 10.
+
+| Whole tracks | Count |
+|---|---|
+| in the capture | 35 |
+| with one batch of 8 reads at 10 cycles | 15 |
+| with the second batch, 16 reads at 10 cycles | 19 |
+| with no read at 10 cycles | 1 |
+
+This capture was made before part turns were counted, so it is the "before"
+number only. T1461 stays open: in a capture made with the current program,
+far fewer tracks must take the second batch, about 2 by the replay.

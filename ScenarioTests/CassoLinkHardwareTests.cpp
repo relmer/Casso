@@ -351,6 +351,159 @@ public:
         LogBoot ("its sectors alone", result.woz, sectors, false);
     }
 
+    //  The share of a read's 8-byte windows that also occur in a reference
+    //  read, with the high bit of every byte set and windows that are nearly
+    //  all $FF skipped. Returns -1 when no window is left to compare.
+    static double  GetWindowShare (const std::vector<Byte> & read, const std::vector<Byte> & reference)
+    {
+        constexpr size_t  kWindow     = 8;
+        constexpr int     kMaxFfBytes = 6;
+        constexpr Byte    kHighBit    = 0x80;
+
+        std::set<uint64_t>  known;
+        size_t              compared = 0;
+        size_t              matched  = 0;
+
+
+
+        auto  GetWindowAt = [] (const std::vector<Byte> & bytes, size_t start, uint64_t & window)
+        {
+            int  ffBytes = 0;
+
+
+
+            window = 0;
+
+            for (size_t i = 0; i < kWindow; i++)
+            {
+                Byte  value = (Byte) (bytes[start + i] | kHighBit);
+
+                ffBytes += (value == 0xFF) ? 1 : 0;
+                window   = (window << kWindow) | value;
+            }
+
+            return ffBytes <= kMaxFfBytes;
+        };
+
+        for (size_t start = 0; start + kWindow <= reference.size(); start++)
+        {
+            uint64_t  window = 0;
+
+            if (GetWindowAt (reference, start, window))
+            {
+                known.insert (window);
+            }
+        }
+
+        for (size_t start = 0; start + kWindow <= read.size(); start++)
+        {
+            uint64_t  window = 0;
+
+            if (GetWindowAt (read, start, window))
+            {
+                compared++;
+                matched += known.contains (window) ? 1 : 0;
+            }
+        }
+
+        return (compared == 0) ? -1.0 : (double) matched / (double) compared;
+    }
+
+
+
+    //  A real capture's reads, from CASSO_CAPTURE_READS: for each whole
+    //  track, the share of each position's first read, from three quarter
+    //  tracks below to three above, that is the track's stream, and the
+    //  range of positions at or above kReadsTrack. Run only when
+    //  CASSO_CAPTURE_READS is set.
+    TEST_METHOD (RealReads_PositionsThatReadATrack)
+    {
+        constexpr double  kReadsTrack = 0.9;
+        constexpr int     kSpan       = 3;
+
+        std::string                              path  = GetSetting ("CASSO_CAPTURE_READS", "");
+        std::vector<Byte>                        file;
+        std::vector<CassoLinkCapture::Position>  positions;
+        std::map<int, const std::vector<Byte> *> firstReads;
+        std::string                              log;
+        int                                      tracks = 0;
+
+
+
+        if (path.empty())
+        {
+            Logger::WriteMessage ("CASSO_CAPTURE_READS isn't set; no reads to measure.\n");
+            return;
+        }
+
+        {
+            std::ifstream  in (path, std::ios::binary);
+
+            file.assign (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
+        }
+
+        AssertSucceeded (CassoLinkCapture::ParseReads (file, positions));
+
+        for (const CassoLinkCapture::Position & position : positions)
+        {
+            if (!position.reads.empty())
+            {
+                firstReads[position.position] = &position.reads.front();
+            }
+        }
+
+        for (const auto & [quarter, read] : firstReads)
+        {
+            int     lowest  = INT_MAX;
+            int     highest = INT_MIN;
+            double  share   = 0.0;
+
+            if (quarter % 4 != 0)
+            {
+                continue;
+            }
+
+            log += std::format ("track {:2}:", quarter / 4);
+
+            for (int offset = -kSpan; offset <= kSpan; offset++)
+            {
+                auto  found = firstReads.find (quarter + offset);
+
+                if (found == firstReads.end())
+                {
+                    log += "    -- ";
+                    continue;
+                }
+
+                share = GetWindowShare (*found->second, *read);
+
+                log += std::format (" {:5.2f}", share);
+
+                if (share >= kReadsTrack)
+                {
+                    lowest  = std::min (lowest,  offset);
+                    highest = std::max (highest, offset);
+                }
+            }
+
+            if (lowest <= highest)
+            {
+                log += std::format ("  reads at {:+d} to {:+d}\n", lowest, highest);
+            }
+            else
+            {
+                log += "  no position reads it\n";
+            }
+
+            tracks++;
+        }
+
+        Assert::IsTrue (tracks > 0, L"The reads have no whole track to measure.");
+        Logger::WriteMessage (log.c_str());
+    }
+
+
+
     //  An emulated //c booted from the image, or from its sectors as a plain
     //  image, with the text screen and a hash of each hi-res page logged
     //  every s_kBootStep cycles, so a protected disk's two boots can be
