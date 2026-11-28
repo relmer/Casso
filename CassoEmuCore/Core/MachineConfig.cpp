@@ -831,6 +831,82 @@ int MachineConfig::CountDiskPortFloppies() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MachineConfig::IsDiskDriveAttached
+//
+//  A Disk ][ card with no declared ports has both drives. The //c family has
+//  a banked system ROM and its drives at slot 6: the //c's internal drive is
+//  drive 1, and the //c Plus, whose internal drive is a 3.5-inch one, has
+//  only the disk port's 5.25-inch drives.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MachineConfig::IsDiskDriveAttached (int slot, int drive) const
+{
+    constexpr int  kDiskPortSlot = 6;
+    bool           attached      = true;
+
+
+
+    if (systemRom.romBankSize != 0)
+    {
+        if (slot == kDiskPortSlot)
+        {
+            int  floppies = CountDiskPortFloppies();
+
+            attached = (FindPort ("internal") != nullptr) ? drive < floppies : (drive == 0 || floppies > 0);
+        }
+
+        return attached;
+    }
+
+    for (const SlotConfig & entry : slots)
+    {
+        if (entry.enabled && entry.slot == slot && entry.device == kpszDiskIiDevice && !entry.ports.empty())
+        {
+            attached = drive < (int) entry.ports.size() && !entry.ports[(size_t) drive].device.empty();
+        }
+    }
+
+    return attached;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineConfig::SetDiskPortAttached
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MachineConfig::SetDiskPortAttached (bool attached)
+{
+    bool  found = false;
+
+
+
+    if (FindPort ("internal") == nullptr)
+    {
+        for (PortConfig & port : ports)
+        {
+            if (!found && port.name == "disk" && port.chain.empty())
+            {
+                port.device = attached ? s_kpszDiskIicDrive : string();
+                found       = true;
+            }
+        }
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ResolveDiskPortChains
 //
 //  A machine port's SmartPort chain: at most `maxApple35` Apple 3.5 Drives,

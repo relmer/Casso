@@ -720,6 +720,16 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
         }
     }
 
+    // A bay with no drive behind it fails a mount instead of taking a disk
+    // the guest can never read.
+    for (int slot = 0; slot < DiskBayTable::kSlotCount; slot++)
+    {
+        for (int drive = 0; drive < DiskBayTable::kDriveCount; drive++)
+        {
+            m_host.GetDiskStore().SetDriveAttached (slot, drive, config.IsDiskDriveAttached (slot, drive));
+        }
+    }
+
     // Drive-audio wiring (spec 005-disk-ii-audio FR-008 / FR-012 /
     // FR-015 / FR-016). Allocate one Disk2AudioSource per drive, register
     // each with the mixer, and route the controller's audio-sink events into

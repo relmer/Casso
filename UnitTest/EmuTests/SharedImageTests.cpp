@@ -219,6 +219,32 @@ public:
     }
 
 
+    //  A //c with nothing on its disk port has no drive 2, so a disk put
+    //  there would never be read.
+    TEST_METHOD (ABayWithNoDriveFailsTheMount)
+    {
+        SharedImageRig  rig;
+        MountDiagnosis  diagnosis;
+        HRESULT         hr        = S_OK;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        rig.store.SetDriveAttached (kSlot, kDrive, false);
+
+        hr = rig.store.Mount (kSlot, kDrive, kImagePath, diagnosis);
+
+        Assert::IsTrue  (FAILED (hr));
+        Assert::IsTrue  (diagnosis.failure == MountFailure::NoDrive);
+        Assert::IsFalse (rig.store.IsMounted (kSlot, kDrive));
+        Assert::AreEqual (std::wstring (L"This machine has not configured Drive " + std::to_wstring (kDrive + 1)),
+                          diagnosis.FormatSentence (L"This file"));
+
+        rig.store.SetDriveAttached (kSlot, kDrive, true);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+    }
+
+
 
     //  AND PUTTING THE SAME FILE BACK INTO THE SAME DRIVE IS NOT THAT. A
     //  machine switch and a reload both re-mount, so the bay being mounted

@@ -478,6 +478,13 @@ struct MachineConfig
     int  CountDiskPortFloppies () const;
 
 
+    // Whether a 5.25-inch drive is attached as `drive` (0 or 1) of `slot`: a
+    // Disk ][ card's connector with a drive on it; on a //c, the internal
+    // drive, and drive 2 only with a Disk IIc on the disk port; on a //c
+    // Plus, the disk port's 5.25-inch drives.
+    bool  IsDiskDriveAttached (int slot, int drive) const;
+
+
     // Every byte of RAM the machine has, in K: its regions, plus a language
     // card's 16K for each bank -- main, and aux on a machine that has one.
     // ROM is not counted.
@@ -547,6 +554,12 @@ struct MachineConfig
 
         return false;
     }
+
+
+    // Attach or detach a Disk IIc on a //c's disk port. Returns false when
+    // the machine has no disk port, when the port has a chain of drives, or
+    // when the machine has an internal-drive port, as the //c Plus does.
+    bool  SetDiskPortAttached (bool attached);
 };
 
 

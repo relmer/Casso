@@ -331,6 +331,51 @@ public:
     }
 
 
+    //  A //c has its internal drive always, and drive 2 only while a Disk IIc
+    //  is on the disk port.
+    TEST_METHOD (IsDiskDriveAttached_TracksTheIicDiskPort)
+    {
+        MachineConfig  config;
+        PortConfig     disk;
+
+
+
+        config.systemRom.romBankSize = 0x4000;
+        disk.name    = "disk";
+        config.ports = { disk };
+
+        Assert::IsTrue  (config.IsDiskDriveAttached (6, 0));
+        Assert::IsFalse (config.IsDiskDriveAttached (6, 1), L"nothing on the disk port");
+
+        Assert::IsTrue (config.SetDiskPortAttached (true));
+        Assert::IsTrue (config.IsDiskDriveAttached (6, 1));
+
+        Assert::IsTrue  (config.SetDiskPortAttached (false));
+        Assert::IsFalse (config.IsDiskDriveAttached (6, 1));
+    }
+
+
+    //  A Disk ][ card's drive is attached while its connector lists a drive.
+    TEST_METHOD (IsDiskDriveAttached_TracksTheDiskIiConnectors)
+    {
+        MachineConfig  config;
+        SlotConfig     card;
+
+
+
+        card.slot    = 6;
+        card.enabled = true;
+        card.device  = kpszDiskIiDevice;
+        config.slots = { card };
+
+        Assert::IsTrue (config.IsDiskDriveAttached (6, 1), L"an undeclared card has both drives");
+
+        Assert::IsTrue  (config.SetDiskIiPortAttached (1, false));
+        Assert::IsTrue  (config.IsDiskDriveAttached (6, 0));
+        Assert::IsFalse (config.IsDiskDriveAttached (6, 1));
+    }
+
+
     TEST_METHOD (Place_ParsesAndFormats)
     {
         Assert::IsTrue (DeskDrivePlan::ParsePlace ("desk") == P::Desk);

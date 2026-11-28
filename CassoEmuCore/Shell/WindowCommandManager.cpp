@@ -602,6 +602,13 @@ void WindowCommandManager::OnExternalDriveCommand (int id)
         fChanged = true;
     }
 
+    if (m_shell.m_machine.GetConfig().SetDiskPortAttached (connected))
+    {
+        fChanged = true;
+    }
+
+    m_shell.m_machine.GetDiskStore().SetDriveAttached (6, 1, m_shell.m_machine.GetConfig().IsDiskDriveAttached (6, 1));
+
     if (!fChanged)
     {
         return;

@@ -131,6 +131,12 @@ string MountDiagnosis::Describe() const
             text = kpsz35In525;
             break;
 
+        case MountFailure::NoDrive:
+            snprintf (note, sizeof (note), "This machine has not configured Drive %d", missingDrive + 1);
+
+            text = note;
+            break;
+
         case MountFailure::None:
         default:
             text = "could not be opened for an unknown reason. Please report this "
@@ -160,7 +166,7 @@ bool MountDiagnosis::IsWholeSentence() const
 
 
 
-    return failure == MountFailure::WozNot525 || (failure == MountFailure::WrongSizeForFormat && is35Size);
+    return failure == MountFailure::WozNot525 || failure == MountFailure::NoDrive || (failure == MountFailure::WrongSizeForFormat && is35Size);
 }
 
 

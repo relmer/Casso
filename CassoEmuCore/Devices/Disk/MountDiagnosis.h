@@ -54,6 +54,9 @@
 //      WozNot525           a WOZ image whose INFO marks a disk other than a
 //                          5.25-inch one, such as a 3.5-inch disk, which a
 //                          3.5-inch drive mounts and a Disk II doesn't
+//      NoDrive             the machine has no drive there: a Disk II
+//                          connector with nothing on it, or a //c's disk
+//                          port with no Disk IIc
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,6 +74,7 @@ enum class MountFailure
     NotANibbleStream,
     AlreadyMounted,
     WozNot525,
+    NoDrive,
 };
 
 
@@ -108,6 +112,9 @@ public:
     //  Specifying which one is the whole use of the message: "already mounted"
     //  on its own sends the reader to look in both drives.
     int           occupiedDrive = -1;
+
+    //  The drive with nothing attached, zero-based, for NoDrive alone.
+    int           missingDrive  = -1;
 
     bool    HasFailure      () const { return failure != MountFailure::None; }
 

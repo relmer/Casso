@@ -75,6 +75,13 @@ public:
     bool                        IsMounted                 (int slot, int drive) const;
     const string              & GetSourcePath             (int slot, int drive) const;
 
+    //  Whether the machine has a drive at the bay: a Disk II connector with a
+    //  drive on it, or the //c's disk port with a Disk IIc. A mount into a
+    //  bay with no drive fails with MountFailure::NoDrive. Every bay has a
+    //  drive until SetDriveAttached detaches it. Safe on any thread.
+    void                        SetDriveAttached          (int slot, int drive, bool attached);
+    bool                        IsDriveAttached           (int slot, int drive) const;
+
     //  Set once at mount. Free to call: no decoding.
     bool                        IsSalvageOffered          (int slot, int drive) const;
 
@@ -136,4 +143,6 @@ private:
     ExternalChangeMonitor       m_changeMonitor { m_bays, m_hooks, m_files, m_changeActions };
     BayWatchRegistry            m_watches       { m_bays, m_hooks, m_changeMonitor };
     string                      m_emptyPath;
+
+    std::array<std::array<std::atomic<bool>, DiskBayTable::kDriveCount>, DiskBayTable::kSlotCount>  m_detached {};
 };

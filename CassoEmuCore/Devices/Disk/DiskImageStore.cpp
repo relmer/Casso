@@ -103,6 +103,7 @@ HRESULT DiskImageStore::LoadIntoBay (
     HRESULT                 hr         = S_OK;
     bool                    wasMounted = false;
     bool                    is525      = true;
+    bool                    isAttached = false;
     WozLoader::Description  about;
 
 
@@ -112,6 +113,10 @@ HRESULT DiskImageStore::LoadIntoBay (
     outDiagnosis.fileByteSize = bytes.size();
 
     CBRAEx (slot >= 0 && slot < DiskBayTable::kSlotCount && drive >= 0 && drive < DiskBayTable::kDriveCount, E_INVALIDARG);
+
+    isAttached                = IsDriveAttached (slot, drive);
+    outDiagnosis.missingDrive = drive;
+    CBRFEx (isAttached, HRESULT_FROM_WIN32 (ERROR_DEV_NOT_EXIST), outDiagnosis.failure = MountFailure::NoDrive);
 
     if (fmt == DiskFormat::Woz)
     {
@@ -460,6 +465,39 @@ void DiskImageStore::NoteStateRestored (int slot, int drive)
 bool DiskImageStore::IsMounted (int slot, int drive) const
 {
     return DiskBayTable::IsValidBay (slot, drive) && m_bays.GetBay (slot, drive).mounted;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDriveAttached
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::SetDriveAttached (int slot, int drive, bool attached)
+{
+    if (DiskBayTable::IsValidBay (slot, drive))
+    {
+        m_detached[(size_t) slot][(size_t) drive] = !attached;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsDriveAttached
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImageStore::IsDriveAttached (int slot, int drive) const
+{
+    return !DiskBayTable::IsValidBay (slot, drive) || !m_detached[(size_t) slot][(size_t) drive];
 }
 
 

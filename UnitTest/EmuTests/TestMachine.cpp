@@ -278,6 +278,7 @@ void TestMachine::Construct (
     //  it walk a list the build is entitled to rewrite as it goes.
     MachineConfig         config;
     MachineBuildServices  unused;
+    bool                  hasDiskPort = false;
 
 
 
@@ -292,6 +293,11 @@ void TestMachine::Construct (
         std::erase_if (config.slots,
                        [] (const SlotConfig & slot) { return slot.slot != 6; });
     }
+
+    //  A //c test machine has a Disk IIc on its disk port, so drive 2 takes a
+    //  disk. The shipped //c has nothing there.
+    hasDiskPort = config.SetDiskPortAttached (true);
+    IGNORE_RETURN_VALUE (hasDiskPort, false);
 
     if (customize)
     {
