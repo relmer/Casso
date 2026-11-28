@@ -158,6 +158,10 @@ public:
     static constexpr Byte    kBlockModuleId      = 2;
     static constexpr Byte    kBlockModuleVersion = 2;
 
+    //  The capture module's version in its header (Capture.s), which selects
+    //  how the PC decodes its marks.
+    static constexpr Byte    kCaptureModuleVersion = 13;
+
     //  The universal boot disk's payload: the first stage, which finds the
     //  machine's interfaces and waits for the PC on all of them, then each
     //  shim as built for its own address, which the stage copies there.

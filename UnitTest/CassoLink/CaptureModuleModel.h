@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "CassoLink/CassoLinkCodec.h"
+#include "CassoLink/Session/CaptureMarks.h"
 
 
 
@@ -36,6 +37,7 @@ public:
     static constexpr Byte    kLowBits    = 0x7F;
     static constexpr Byte    kPacketMark = 0xC1;
     static constexpr size_t  kPayload    = 1 + kPage + 2;
+    static constexpr size_t  kRunRoom    = 0x5900 - 0x5470;
 
     //  findrev: the first length at which the read's first kSampleLen bytes,
     //  and those from kSample, repeat with the marks ignored; 0 for none.
@@ -157,20 +159,26 @@ public:
         return at / kPage != before && kFirstPage + at / kPage >= copyPage;
     }
 
-    //  The marks eight to a byte, the first byte's in the top bit: 1 for a
-    //  byte stored with its top bit set.
-    static void  AppendMarkBits (const std::vector<Byte> & read, std::vector<Byte> & ioOut)
+    //  The marks as emarks sends them: a byte of CaptureMarks::kRuns and the
+    //  runs when they fit in RUNBUF, else a byte of CaptureMarks::kBits and
+    //  the bits.
+    static void  AppendMarks (const std::vector<Byte> & read, std::vector<Byte> & ioOut)
     {
-        for (size_t at = 0; at < read.size(); at += 8)
+        std::vector<Byte>  runs;
+
+
+
+        CaptureMarks::EncodeRuns (read, runs);
+
+        if (runs.size() <= kRunRoom)
         {
-            Byte  bits = 0;
-
-            for (size_t bit = 0; bit < 8; bit++)
-            {
-                bits = (Byte) ((bits << 1) | (read[at + bit] >> 7));
-            }
-
-            ioOut.push_back (bits);
+            ioOut.push_back (CaptureMarks::kRuns);
+            ioOut.insert (ioOut.end(), runs.begin(), runs.end());
+        }
+        else
+        {
+            ioOut.push_back (CaptureMarks::kBits);
+            CaptureMarks::EncodeBits (read, ioOut);
         }
     }
 
