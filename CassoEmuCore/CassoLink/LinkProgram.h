@@ -213,6 +213,7 @@ public:
     static HRESULT      BuildCaptureModule        (std::vector<Byte> & outModule, LinkChip chip = LinkChip::Acia, bool faults = false);
     static HRESULT      BuildBlockModule          (std::vector<Byte> & outModule, LinkChip chip = LinkChip::Acia, bool faults = false);
     static HRESULT      BuildThirteenSectorModule (std::vector<Byte> & outModule, LinkChip chip = LinkChip::Acia, bool faults = false);
+    static HRESULT      BuildRawWriteModule       (std::vector<Byte> & outModule, LinkChip chip = LinkChip::Acia, bool faults = false);
 
     //  The CassoLink ProDOS disk's CASSOLINK file, loaded and run at
     //  kInstallerAddress: the installer, then the driver as assembled at
@@ -284,6 +285,7 @@ public:
     static std::string  GetCaptureModuleSource        ();
     static std::string  GetBlockModuleSource          ();
     static std::string  GetThirteenSectorModuleSource ();
+    static std::string  GetRawWriteModuleSource       ();
     static std::string  GetVirtualDriveSource         ();
     static std::string  GetSosInterpSource            ();
 

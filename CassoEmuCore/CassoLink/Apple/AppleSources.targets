@@ -33,6 +33,9 @@
     <CassoAppleSource Include="$(MSBuildThisFileDirectory)Modules\ThirteenSector.s">
       <Symbol>s_kThirteenSectorModuleSource</Symbol>
     </CassoAppleSource>
+    <CassoAppleSource Include="$(MSBuildThisFileDirectory)Modules\RawWrite.s">
+      <Symbol>s_kRawWriteModuleSource</Symbol>
+    </CassoAppleSource>
     <CassoAppleSource Include="$(MSBuildThisFileDirectory)VirtualDrive.s">
       <Symbol>s_kVirtualDriveSource</Symbol>
     </CassoAppleSource>

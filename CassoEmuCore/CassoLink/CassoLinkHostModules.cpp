@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoLink/CassoLinkHost.h"
+#include "CassoLink/Session/RawWritePass.h"
 #include "CassoLink/Session/RawWriteStream.h"
 #include "Seams/IByteStream.h"
 #include "CassoLink/CassoLinkCodec.h"
@@ -414,6 +415,36 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkHost::WriteRawPass
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::WriteRawPass (Byte drive, const RawWritePass & pass, std::array<Byte, 2> percents, CassoLinkStatus & outStatus)
+{
+    HRESULT            hr      = S_OK;
+    std::vector<Byte>  request;
+    bool               valid   = pass.position >= 0 && pass.position < CassoLinkCodec::kQuarterTracks && pass.count > 0 && pass.stream.size() == 2 * RawWriteStream::kMaxBytes;
+
+
+
+    outStatus = {};
+    CBRAEx (valid, E_INVALIDARG);
+
+    request = { drive, (Byte) pass.position, (Byte) (pass.count & 0xFF), (Byte) (pass.count >> 8), percents[0], percents[1] };
+
+    hr = SendStreamRequest (CassoLinkCodec::kWriteRawTrack, request, pass.stream, std::format ("the arcs from track {}", pass.position / 4.0), outStatus);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkHost::SendStreamRequest
 //
 //  The Apple requests the stream with an Acknowledge, and requests it again
@@ -561,6 +592,21 @@ Error:
 HRESULT CassoLinkHost::BuildCaptureModule (std::vector<Byte> & outModule) const
 {
     return LinkProgram::BuildCaptureModule (outModule, m_programChip, m_faultProgram);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::BuildRawWriteModule
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::BuildRawWriteModule (std::vector<Byte> & outModule) const
+{
+    return LinkProgram::BuildRawWriteModule (outModule, m_programChip, m_faultProgram);
 }
 
 

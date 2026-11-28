@@ -10,6 +10,7 @@
 #include "CassoLink/Session/CassoLinkDiskTransfer.h"
 #include "CassoLink/Session/CassoLinkThirteenSector.h"
 #include "CassoLink/Session/RawWriteArcs.h"
+#include "CassoLink/Session/RawWritePass.h"
 #include "CassoLink/Session/RawWriteStream.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
@@ -259,7 +260,7 @@ public:
         bits.clear();
         stream.ToWrittenBits (bits);
 
-        AssertSucceeded (LinkProgram::BuildThirteenSectorModule (module));
+        AssertSucceeded (LinkProgram::BuildRawWriteModule (module));
 
         Assert::IsTrue (module.size() <= 0x500, std::format (L"The module is {} bytes, past its buffers", module.size()).c_str());
         AssertSucceeded (rig.host->EnsureModule (module));
@@ -311,6 +312,7 @@ public:
         double                              revolution     = 0.0;
         std::vector<std::vector<uint8_t>>   written;
         std::vector<bool>                   fits;
+        std::set<int>                       arcsOver;
 
 
 
@@ -347,7 +349,7 @@ public:
         }
 
         AssertSucceeded (rig.host->TimeDrive (1, 0, CassoLinkDiskTransfer::kTimedRevolutions, revolution, status));
-        AssertSucceeded (LinkProgram::BuildThirteenSectorModule (module));
+        AssertSucceeded (LinkProgram::BuildRawWriteModule (module));
         AssertSucceeded (rig.host->EnsureModule (module));
 
         //  The PC times the drive by its clock, which a stepped machine's
@@ -359,6 +361,34 @@ public:
             std::vector<uint8_t>  bits;
             size_t                padding = 0;
             size_t                syncs   = 0;
+
+            //  Arcs of positions less than a full track apart, in one pass:
+            //  each arc is looked for after, at the position it was written.
+            if (track.plan != nullptr)
+            {
+                RawWritePass  pass;
+
+                fits.push_back (pass.Build (*track.plan, turn));
+                written.push_back ({});
+                arcsOver.insert (track.plan->erased.begin(), track.plan->erased.end());
+                Logger::WriteMessage ((RawWriteArcs::DescribePlan (*track.plan) + "\n").c_str());
+
+                AssertSucceeded (rig.host->WriteRawPass (1, pass, CassoLinkHost::GetStepPercents ((size_t) (&track - tracks.data()), tracks.size()), status));
+                Assert::AreEqual ((Byte) 0, status.error);
+
+                for (const RawWritePassArc & arc : pass.arcs)
+                {
+                    bool  onDisk = false;
+
+                    track.plan->arcs[arc.index].stream.ToWrittenBits (bits);
+                    onDisk = IsWithin (bits, GetTrackBits (rig, arc.position));
+
+                    failed += onDisk ? 0 : 1;
+                    Logger::WriteMessage (std::format ("An arc at position {}, {} cells after the first: {}\n", arc.position, arc.cell, onDisk ? "on the disk" : "MISSING").c_str());
+                }
+
+                continue;
+            }
 
             fits.push_back (track.stream.FitToTurn (turn, fit));
             Logger::WriteMessage ((RawWriteStream::DescribeTrack (track, fit) + "\n").c_str());
@@ -389,6 +419,12 @@ public:
             std::vector<uint8_t>  onDisk = GetTrackBits (rig, tracks[i].position);
             bool                  same   = IsWithin (written[i], onDisk);
 
+            //  An erase before a plan's arcs has those arcs written over it.
+            if (tracks[i].isErase && arcsOver.contains (tracks[i].position))
+            {
+                continue;
+            }
+
             failed += (same && fits[i]) ? 0 : 1;
             Logger::WriteMessage (std::format ("Position {}: {} bits{}, {} on the disk, {}\n", tracks[i].position, tracks[i].stream.GetCellCount(), fits[i] ? "" : " (doesn't fit)", onDisk.size(), same ? "the same" : "DIFFERENT").c_str());
         }
@@ -402,6 +438,158 @@ public:
         }
 
         Assert::AreEqual (0, failed);
+    }
+
+
+    //  The raw write module and the 13-sector module each assemble, and end
+    //  below the buffers at $5500.
+    TEST_METHOD (TheRawWriteAndThirteenSectorModules_EndBelowTheirBuffers)
+    {
+        static constexpr size_t  kBufferOffset = 0x500;
+
+        std::vector<Byte>  module;
+        std::string        errors;
+
+
+
+        AssertSucceeded (LinkProgram::AssembleModule (LinkProgram::GetRawWriteModuleSource(), module, errors), TextEncoding::NarrowToWide (errors).c_str());
+        Assert::IsTrue (module.size() <= kBufferOffset, std::format (L"The raw write module is {} bytes", module.size()).c_str());
+
+        AssertSucceeded (LinkProgram::AssembleModule (LinkProgram::GetThirteenSectorModuleSource(), module, errors), TextEncoding::NarrowToWide (errors).c_str());
+        Assert::IsTrue (module.size() <= kBufferOffset, std::format (L"The 13-sector module is {} bytes", module.size()).c_str());
+    }
+
+
+    //  Where `bits` start in a track taken twice around, or -1.
+    static ptrdiff_t  FindBits (const std::vector<uint8_t> & bits, const std::vector<uint8_t> & track)
+    {
+        std::vector<uint8_t>  twice = track;
+
+
+
+        twice.insert (twice.end(), track.begin(), track.end());
+
+        auto  found = std::search (twice.begin(), twice.end(), bits.begin(), bits.end());
+
+        return found == twice.end() ? -1 : found - twice.begin();
+    }
+
+
+    //  Two arcs at one position and two a half track above, written over the
+    //  link in one pass: each is on the emulated disk at its position, as far
+    //  around the turn from the first as the pass has it, and the turn
+    //  between a position's arcs is what it was before. The arm is where the
+    //  program has it after, so the next track written is at its position.
+    TEST_METHOD (ArcsAHalfTrackApart_AreWrittenInOnePass_OverTheLink)
+    {
+        static constexpr size_t  kArcBytes  = 800;
+        static constexpr size_t  kSyncs     = 8;
+        static constexpr int     kLow       = 20;
+        static constexpr int     kHigh      = 22;
+        static constexpr int     kNext      = 24;
+        static constexpr size_t  kTolerance = 2;
+        static constexpr size_t  kMargin    = 300;
+
+        static constexpr size_t  kPercents[] = { 10, 60, 35, 85 };
+
+        ProgramRig                         rig (MakeDisk());
+        std::vector<Byte>                  module;
+        RawWriteArcPlan                    plan;
+        RawWritePass                       pass;
+        CassoLinkStatus                    status;
+        std::vector<uint8_t>               before[2];
+        std::vector<uint8_t>               after[2];
+        std::vector<uint8_t>               bits;
+        std::vector<ptrdiff_t>             found;
+        size_t                             turn    = 0;
+        size_t                             written = 0;
+        uint32_t                           seed    = 7;
+
+
+
+        turn      = GetTrackBits (rig, kLow).size();
+        before[0] = GetTrackBits (rig, kLow);
+        before[1] = GetTrackBits (rig, kHigh);
+        plan.turn = turn;
+
+        for (size_t i = 0; i < std::size (kPercents); i++)
+        {
+            RawWriteArcPlan::Arc  arc;
+
+            for (size_t each = 0; each < kArcBytes; each++)
+            {
+                seed = seed * 1103515245 + 12345;
+                arc.stream.values.push_back (each < kSyncs ? (Byte) 0xFF : (Byte) (0x96 | (seed >> 16)));
+                arc.stream.zeros.push_back  (each < kSyncs ? (Byte) 2 : (Byte) 0);
+            }
+
+            arc.position = i < 2 ? kLow : kHigh;
+            arc.start    = turn * kPercents[i] / 100;
+            arc.cells    = arc.stream.GetCellCount();
+            plan.arcs.push_back (std::move (arc));
+        }
+
+        Assert::IsTrue (pass.Build (plan, turn), L"The pass is built");
+        Assert::AreEqual (kLow, pass.position);
+
+        AssertSucceeded (LinkProgram::BuildRawWriteModule (module));
+        Assert::IsTrue (module.size() <= 0x500, std::format (L"The module is {} bytes, past its buffers", module.size()).c_str());
+        AssertSucceeded (rig.host->EnsureModule (module));
+
+        AssertSucceeded (rig.host->WriteRawPass (1, pass, CassoLinkHost::GetTrackPercents ((Byte) (kLow / 4)), status));
+        Assert::AreEqual ((Byte) 0, status.error);
+
+        after[0] = GetTrackBits (rig, kLow);
+        after[1] = GetTrackBits (rig, kHigh);
+
+        for (const RawWritePassArc & arc : pass.arcs)
+        {
+            plan.arcs[arc.index].stream.ToBits (bits);
+            found.push_back (FindBits (bits, after[arc.position == kLow ? 0 : 1]));
+
+            Assert::IsTrue (found.back() >= 0, std::format (L"The arc at {}% is on the disk at position {}", kPercents[arc.index], arc.position).c_str());
+
+            //  The emulated drive starts a half track it first writes as a
+            //  copy of the track beside it, so the lower arcs are at both.
+            if (arc.position == kHigh)
+            {
+                Assert::AreEqual ((ptrdiff_t) -1, FindBits (bits, after[0]), L"And not at the lower position");
+            }
+        }
+
+        for (size_t i = 1; i < pass.arcs.size(); i++)
+        {
+            size_t  onDisk = ((size_t) found[i] + turn - (size_t) found[0] % turn) % turn;
+            size_t  wanted = pass.arcs[i].cell % turn;
+            size_t  apart  = (onDisk + turn - wanted) % turn;
+
+            Assert::IsTrue (std::min (apart, turn - apart) <= kTolerance, std::format (L"Arc {} is {} cells after the first on the disk, and {} in the pass", i, onDisk, wanted).c_str());
+        }
+
+        //  The lower position is written only at its arcs, and the sync bytes
+        //  around each.
+        for (size_t cell = 0; cell < turn; cell++)
+        {
+            bool  inArc = false;
+
+            for (size_t i = 0; i < pass.arcs.size(); i++)
+            {
+                size_t  past = (cell + turn + kMargin - (size_t) found[i] % turn) % turn;
+
+                inArc = inArc || (pass.arcs[i].position == kLow && past < pass.arcs[i].cells + 2 * kMargin);
+            }
+
+            written += (!inArc && after[0][cell] != before[0][cell]) ? 1 : 0;
+        }
+
+        Assert::AreEqual ((size_t) 0, written, L"Cells written at the lower position outside its arcs");
+
+        //  The next track is written at its position.
+        plan.arcs[0].stream.ToBits (bits);
+
+        AssertSucceeded (rig.host->WriteRawTrack (1, kNext, plan.arcs[0].stream, CassoLinkHost::GetTrackPercents ((Byte) (kNext / 4)), status));
+        Assert::AreEqual ((Byte) 0, status.error);
+        Assert::IsTrue (FindBits (bits, GetTrackBits (rig, kNext)) >= 0, L"The next track's bits");
     }
 
 

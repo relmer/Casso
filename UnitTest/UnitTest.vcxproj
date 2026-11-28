@@ -590,6 +590,7 @@
     <ClCompile Include="CassoLink\FullSendManifestRenameTests.cpp" />
     <ClCompile Include="CassoLink\FullSendProtectionTests.cpp" />
     <ClCompile Include="CassoLink\RawWriteArcsTests.cpp" />
+    <ClCompile Include="CassoLink\RawWritePassTests.cpp" />
     <ClCompile Include="CassoLink\RawWriteStreamTests.cpp" />
     <ClCompile Include="CassoLink\FullSendStatusTests.cpp" />
     <ClCompile Include="CassoLink\TrackMeasuresTests.cpp" />

@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "CassoLink/Session/RawWriteArcs.h"
 #include "CassoLink/Session/RawWriteStream.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
@@ -588,24 +589,7 @@ bool RawWriteStream::BuildModuleStream (std::vector<Byte> & outStream, size_t & 
     outStream.clear();
     outCount = 0;
 
-    for (size_t i = 0; i < values.size(); i++)
-    {
-        size_t  count  = zeros[i];
-        Byte    filler = count >= s_kWeakZeros ? s_kWeakFlux : (Byte) 0;
-
-        moduleValues.push_back (values[i]);
-        moduleZeros.push_back  ((Byte) (count % kBitsPerByte));
-
-        //  A weak-bit stretch keeps one flux change each eight cells: a real
-        //  drive's read amplifier, given none for that long, takes time to
-        //  settle again and loses the data between weak stretches. Seven
-        //  cells with no change still read as noise.
-        for (size_t eight = 0; eight < count / kBitsPerByte; eight++)
-        {
-            moduleValues.push_back (filler);
-            moduleZeros.push_back  (0);
-        }
-    }
+    AppendModuleBytes (moduleValues, moduleZeros);
 
     if (moduleValues.empty() || moduleValues.size() > kMaxBytes)
     {
@@ -621,6 +605,71 @@ bool RawWriteStream::BuildModuleStream (std::vector<Byte> & outStream, size_t & 
     outStream.insert (outStream.end(), moduleZeros.begin(), moduleZeros.end());
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RawWriteStream::AppendModuleBytes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void RawWriteStream::AppendModuleBytes (std::vector<Byte> & ioValues, std::vector<Byte> & ioZeros) const
+{
+    for (size_t i = 0; i < values.size(); i++)
+    {
+        size_t  count  = zeros[i];
+        Byte    filler = count >= s_kWeakZeros ? s_kWeakFlux : (Byte) 0;
+
+        ioValues.push_back (values[i]);
+        ioZeros.push_back  ((Byte) (count % kBitsPerByte));
+
+        //  A weak-bit stretch keeps one flux change each eight cells: a real
+        //  drive's read amplifier, given none for that long, takes time to
+        //  settle again and loses the data between weak stretches. Seven
+        //  cells with no change still read as noise.
+        for (size_t eight = 0; eight < count / kBitsPerByte; eight++)
+        {
+            ioValues.push_back (filler);
+            ioZeros.push_back  (0);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RawWriteStream::MakeErase
+//
+//  Sync bytes in runs as an ordinary track's gaps are: thousands of $FF in a
+//  row arrived damaged on every try over a real //c's serial port at 115,200
+//  baud. It is a little shorter than the track, so FitToTurn lengthens it at
+//  its seam to the turn.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void RawWriteStream::MakeErase (size_t cells, RawWriteStream & outStream)
+{
+    size_t  count = cells * s_kErasePercent / 100 / (kBitsPerByte + kSyncZeros);
+
+
+
+    outStream.values.clear();
+    outStream.zeros.clear();
+
+    for (size_t i = 0; i < count; i++)
+    {
+        bool  end = i % s_kEraseRun == s_kEraseRun - 1 || i == count - 1;
+
+        outStream.values.push_back (end ? s_kEraseEnd : s_kSyncValue);
+        outStream.zeros.push_back  (end ? (Byte) 0 : (Byte) kSyncZeros);
+    }
 }
 
 
@@ -659,15 +708,17 @@ bool RawWriteStream::IsRawImage (std::span<const Byte> fileBytes)
 
 HRESULT RawWriteStream::GetImageTracks (std::span<const Byte> fileBytes, std::vector<RawWriteTrack> & outTracks, std::vector<int> & outSkipped, int & outTooLong)
 {
-    HRESULT               hr        = S_OK;
-    DiskImage             image;
-    std::vector<Byte>     raw (fileBytes.begin(), fileBytes.end());
-    std::vector<Byte>     moduleStream;
-    std::vector<uint8_t>  bits;
-    size_t                trackSize = fileBytes.size() / NibbleImageCodec::kTrackCount;
-    size_t                count     = 0;
-    bool                  nib       = fileBytes.size() == NibbleImageCodec::kNibImageSize || fileBytes.size() == NibbleImageCodec::kNb2ImageSize;
-    bool                  known     = IsRawImage (fileBytes);
+    HRESULT                        hr        = S_OK;
+    DiskImage                      image;
+    std::vector<Byte>              raw (fileBytes.begin(), fileBytes.end());
+    std::vector<Byte>              moduleStream;
+    std::vector<uint8_t>           bits;
+    std::vector<RawWriteArcPlan>   plans;
+    std::vector<RawWriteArcGroup>  groups;
+    size_t                         trackSize = fileBytes.size() / NibbleImageCodec::kTrackCount;
+    size_t                         count     = 0;
+    bool                           nib       = fileBytes.size() == NibbleImageCodec::kNibImageSize || fileBytes.size() == NibbleImageCodec::kNb2ImageSize;
+    bool                           known     = IsRawImage (fileBytes);
 
 
 
@@ -717,12 +768,27 @@ HRESULT RawWriteStream::GetImageTracks (std::span<const Byte> fileBytes, std::ve
             outTracks.push_back (std::move (entry));
         }
 
+        //  The positions of a plan are written as its arcs, so they are
+        //  taken out before the tracks beside them are compared with them.
+        hr = RawWriteArcs::PlanImage (fileBytes, plans, groups);
+        CHR (hr);
+
+        for (const RawWriteArcPlan & plan : plans)
+        {
+            std::erase_if (outTracks, [&plan] (const RawWriteTrack & track) { return IsInPlan (plan, track.position); });
+        }
+
         DropOffCenterReads (outTracks, outSkipped);
+
+        for (const RawWriteArcPlan & plan : plans)
+        {
+            AddPlan (plan, outTracks);
+        }
     }
 
     for (const RawWriteTrack & track : outTracks)
     {
-        if (!track.stream.BuildModuleStream (moduleStream, count))
+        if (track.plan == nullptr && !track.stream.BuildModuleStream (moduleStream, count))
         {
             outTooLong = track.position;
             CBREx (false, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
@@ -731,6 +797,67 @@ HRESULT RawWriteStream::GetImageTracks (std::span<const Byte> fileBytes, std::ve
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RawWriteStream::IsInPlan
+//
+//  From the lowest of a plan's positions and erases to the highest.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool RawWriteStream::IsInPlan (const RawWriteArcPlan & plan, int position)
+{
+    int  first = std::min (plan.positions.front(), plan.erased.front());
+    int  last  = std::max (plan.positions.back(),  plan.erased.back());
+
+
+
+    return position >= first && position <= last;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RawWriteStream::AddPlan
+//
+//  The plan's erases, in order, and then its arcs, ahead of the first track
+//  above them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void RawWriteStream::AddPlan (const RawWriteArcPlan & plan, std::vector<RawWriteTrack> & ioTracks)
+{
+    std::vector<RawWriteTrack>  added;
+    RawWriteTrack               arcs;
+    auto                        above = std::find_if (ioTracks.begin(), ioTracks.end(), [&plan] (const RawWriteTrack & track) { return track.position > plan.erased.back(); });
+
+
+
+    for (int position : plan.erased)
+    {
+        RawWriteTrack  erase;
+
+        erase.position = position;
+        erase.isErase  = true;
+
+        MakeErase (plan.turn, erase.stream);
+        added.push_back (std::move (erase));
+    }
+
+    arcs.position = plan.arcs.front().position;
+    arcs.plan     = std::make_shared<const RawWriteArcPlan> (plan);
+    added.push_back (std::move (arcs));
+
+    ioTracks.insert (above, std::make_move_iterator (added.begin()), std::make_move_iterator (added.end()));
 }
 
 
@@ -814,20 +941,11 @@ void RawWriteStream::DropOffCenterReads (std::vector<RawWriteTrack> & ioTracks, 
             erase.position = erased;
             erase.isErase  = true;
 
-            //  Sync bytes in runs as an ordinary track's gaps are: thousands of
-            //  $FF in a row arrived damaged on every try over a real //c's
-            //  serial port at 115,200 baud. It is a little shorter than the
-            //  track, so FitToTurn lengthens it at its seam to the turn.
             for (const RawWriteTrack & source : ioTracks)
             {
-                size_t  count = source.position == erased ? source.stream.GetCellCount() * s_kErasePercent / 100 / (kBitsPerByte + kSyncZeros) : 0;
-
-                for (size_t i = 0; i < count; i++)
+                if (source.position == erased)
                 {
-                    bool  end = i % s_kEraseRun == s_kEraseRun - 1 || i == count - 1;
-
-                    erase.stream.values.push_back (end ? s_kEraseEnd : s_kSyncValue);
-                    erase.stream.zeros.push_back  (end ? (Byte) 0 : (Byte) kSyncZeros);
+                    MakeErase (source.stream.GetCellCount(), erase.stream);
                 }
             }
 
