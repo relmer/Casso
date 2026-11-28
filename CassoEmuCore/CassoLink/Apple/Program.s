@@ -688,8 +688,8 @@ tomain: jmp main
 ; exitlink: CassoLink ends, by Control-Reset, Escape or the PC's Exit, and
 ; control returns to BASIC. The drive is in read mode with its motor off and
 ; the 6551's DTR off, so the PC's DSR drops; the zero page and reset
-; vector the shim saved are put back; BASIC's program is emptied as NEW
-; does, since the program was loaded over it; input and output are the
+; vector the shim saved are put back; the program of Applesoft or Integer
+; BASIC is emptied as NEW does, since the program was loaded over it; input and output are the
 ; keyboard and screen; and DOS's warm start follows, or Applesoft's warm
 ; start when there is no DOS.
 exitlink: sei
@@ -771,7 +771,18 @@ lvbasic: lda #0                 ; text output plain, whatever was saved:
         sta $69                 ; program and no variables
         sta $6B
         sta $6D
-        jsr $FE89               ; SETKBD: input from the keyboard
+        lda $E000               ; a JSR in Integer BASIC, a JMP in Applesoft
+        cmp #$20
+        bne lvkbd
+        lda $4C                 ; Integer BASIC's NEW: its program, PP, empty
+        sta $CA                 ; at HIMEM, and its variables, PV, at LOMEM
+        lda $4D
+        sta $CB
+        lda $4A
+        sta $CC
+        lda $4B
+        sta $CD
+lvkbd:  jsr $FE89               ; SETKBD: input from the keyboard
         jsr $FE93               ; SETVID: output to the screen
         jsr $FB2F               ; INIT: the text screen, the whole window
         jsr $FC58               ; HOME
@@ -795,7 +806,7 @@ lvbasic: lda #0                 ; text output plain, whatever was saved:
         cmp #$9D
         bcc lvwarm
         jmp $03D0
-lvwarm: jmp $E003               ; Applesoft's warm start, at its ] prompt
+lvwarm: jmp $E003               ; BASIC's warm start, at its ] or > prompt
 
 ; Time drive: sector 0's address field found on the track, then $A5 sent as
 ; each later pass of it is read, one a revolution; the time between the

@@ -331,9 +331,9 @@ public:
     //  changed with no new version fails here.
     TEST_METHOD (Program_ChangesOnlyWithANewVersion)
     {
-        static constexpr Word      s_kHashedVersion = 115;
-        static constexpr uint64_t  s_kAciaHash      = 0xDB6E913F0262F4F4;
-        static constexpr uint64_t  s_kW5100Hash     = 0x1BFAA1932FA1AE4B;
+        static constexpr Word      s_kHashedVersion = 116;
+        static constexpr uint64_t  s_kAciaHash      = 0x46CD4B6288F033E3;
+        static constexpr uint64_t  s_kW5100Hash     = 0x69AB3D51D04A414D;
 
         std::vector<Byte>  acia;
         std::vector<Byte>  w5100;

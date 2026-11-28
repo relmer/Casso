@@ -35,7 +35,7 @@ public:
     //  A Wi-Fi modem's port not opened because the firewall does not admit it.
     static constexpr HRESULT  kDeferredByFirewall = HRESULT_FROM_WIN32 (ERROR_NETWORK_ACCESS_DENIED);
 
-    //  Typed at the bootstrap speed after Ctrl-X: Applesoft stores $A5 in the
+    //  Typed at the bootstrap speed after Ctrl-X: BASIC stores $A5 in the
     //  6551 of the slot IN# set, which sends it to the PC. KSW's high byte at
     //  $39 is $Cn for slot n, and the 6551's data register is at $C088 +
     //  n * 16. Under DOS 3.3, KSW is DOS's input routine at $9E81, and the
@@ -47,12 +47,16 @@ public:
     //  doesn't buffer input, and the 6551 has room for one byte, so only
     //  one of the bytes that arrive during a scroll is read. On a real //c,
     //  the first characters typed after a line runs are sometimes dropped,
-    //  so each line starts with spaces, which Applesoft ignores. For any
-    //  value of S, the POKE is a store to a slot's I/O or is skipped.
+    //  so each line starts with spaces, which BASIC ignores. For any
+    //  value of S, the POKE is a store to a slot's I/O or is skipped. The
+    //  lines run in Applesoft and in the original Apple ]['s Integer BASIC,
+    //  whose numbers are -32767 to 32767, so each address past 32767 is
+    //  written as the address less 65536: $AA56 is -21930, and $C088 + n *
+    //  16 is n * 16 - 16248.
     static constexpr const char *  kPromptProbe[]     = { "    S=PEEK(57)\r",
-                                                          "    IF S=158 THEN S=PEEK(43606)\r",
-                                                          "    S=S*16+46216\r",
-                                                          "    IF ABS(S-49352)<49 THEN POKE S,165\r" };
+                                                          "    IF S=158 THEN S=PEEK(-21930)\r",
+                                                          "    S=S*16-19320\r",
+                                                          "    IF ABS(S+16184)<49 THEN POKE S,165\r" };
     static constexpr DWORD         kPromptProbeWaitMs = 1500;
     static constexpr DWORD         kSpeedSliceMs      = 2000;   // each speed's turn while a line waits for a Ready at two
     HRESULT  StartWithBootstrap   (const CassoLinkSettings & settings, std::shared_ptr<LinkOperation> & outOperation);

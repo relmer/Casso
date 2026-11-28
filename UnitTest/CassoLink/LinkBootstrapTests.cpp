@@ -171,4 +171,49 @@ public:
             Assert::IsTrue (1 + shown < 40, TextEncoding::NarrowToWide (line).c_str());
         }
     }
+
+
+    //  The original Apple ]['s Integer BASIC fails a line with a number past
+    //  32767 with *** >32767 ERR, so every number in the prompt probe is in
+    //  -32767 to 32767. Run with Integer BASIC's 16-bit arithmetic, the
+    //  probe's store is to slot n's 6551 data register, $C088 + n * 16, for
+    //  KSW's high byte $Cn, and DOS's copy of KSW is read from $AA56.
+    TEST_METHOD (ThePromptProbe_RunsInIntegerBasic_AndStoresToTheSlotsDataRegister)
+    {
+        static const std::regex  kNumber ("-?[0-9]+");
+
+        std::vector<int>  numbers;
+
+
+
+        for (const char * line : CassoLinkConnector::kPromptProbe)
+        {
+            std::string  text (line);
+
+            for (auto it = std::sregex_iterator (text.begin(), text.end(), kNumber); it != std::sregex_iterator(); ++it)
+            {
+                int  value = std::stoi (it->str());
+
+                Assert::IsTrue (value >= -32767 && value <= 32767, TextEncoding::NarrowToWide (text).c_str());
+
+                numbers.push_back (value);
+            }
+        }
+
+        // S=PEEK(57), IF S=158 THEN S=PEEK(a), S=S*16+b, IF ABS(S+c)<49 THEN POKE S,165.
+        Assert::AreEqual<size_t> (8, numbers.size());
+        Assert::AreEqual (0xAA56, (int) (uint16_t) numbers[2], L"DOS's copy of KSW's high byte");
+
+        for (int slot = 1; slot <= 7; slot++)
+        {
+            int  s = (0xC0 + slot) * numbers[3] + numbers[4];
+
+            Assert::IsTrue (s >= -32767 && s <= 32767, L"the address is an Integer BASIC number");
+            Assert::AreEqual (0xC088 + slot * 16, (int) (uint16_t) s, std::format (L"slot {}'s data register", slot).c_str());
+            Assert::IsTrue (std::abs (s + numbers[5]) < numbers[6], std::format (L"slot {} is stored to", slot).c_str());
+        }
+
+        // Keyboard input, KSW at $FD1B, is skipped.
+        Assert::IsFalse (std::abs (0xFD * numbers[3] + numbers[4] + numbers[5]) < numbers[6], L"no store without IN#");
+    }
 };
