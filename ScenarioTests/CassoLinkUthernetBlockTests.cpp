@@ -2,7 +2,9 @@
 
 #include "EhmTestHelper.h"
 #include "FakeDiskFileIo.h"
+#include "FixtureProvider.h"
 #include "GuestSession.h"
+#include "Machines/Apple2/Common/SectorInterleave.h"
 #include "TestMachine.h"
 #include "CassoLink/CassoLinkHost.h"
 #include "CassoLink/InMemoryCassoLinkFolder.h"
@@ -202,5 +204,87 @@ public:
 
         Assert::IsTrue (read == disk, L"the volume read through the link is the image");
         Logger::WriteMessage (std::format ("{} blocks, {} cycles a block\n", kBlocks, cycles / kBlocks).c_str());
+    }
+
+
+
+    //  A ][ plus boots the link disk with its Uthernet II in slot 3, and the
+    //  PC reads a track of the DOS 3.3 fixture in drive 2.
+    TEST_METHOD (AnApple2Plus_BootsTheLinkDisk_AndReadsATrack_ThroughAnUthernetII)
+    {
+        static constexpr Byte  kTrack = 17;
+
+        FakeHostNetwork                   network;
+        FixtureProvider                   fixtures;
+        std::vector<uint8_t>              bytes;
+        std::vector<Byte>                 disk;
+        std::vector<Byte>                 boot;
+        std::vector<Byte>                 sectors (16);
+        std::vector<Byte>                 data;
+        std::vector<Byte>                 expected;
+        std::shared_ptr<FakeSocketState>  listener;
+        std::shared_ptr<FakeSocketState>  connection;
+        InMemoryCassoLinkFolder           folder;
+        std::unique_ptr<CassoLinkHost>    host;
+        LinkShimOptions                   options;
+        CassoLinkStatus                   status;
+        uint64_t                          spent = 0;
+
+
+
+        TestMachine  machine ("Apple2Plus", TestMachine::Slots::AsShipped, [&network] (MachineConfig & config, MachineBuildServices & services)
+        {
+            for (SlotConfig & slot : config.slots)
+            {
+                if (slot.device == "uthernet2")
+                {
+                    slot.enabled = true;
+                }
+            }
+
+            services.hostNetwork = &network;
+        });
+
+        Assert::IsNotNull (machine.GetRefs().uthernet, L"the card must be installed");
+
+        AssertSucceeded (fixtures.OpenFixture ("CassoExplorer/dos33.dsk", bytes));
+        disk.assign (bytes.begin(), bytes.end());
+
+        options.chip            = LinkChip::W5100;
+        options.slot            = kCardSlot;
+        options.network.address = { 127, 0, 0, 1 };
+        options.network.port    = kPort;
+        AssertSucceeded (LinkProgram::BuildBootDisk (options, boot));
+
+        GuestSession::Mount (machine, boot);
+        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Dsk, disk));
+        machine.RunCycles (kBootCycles);
+
+        for (listener = network.FindBound (HostSocketKind::Tcp, kPort);
+             !(listener && listener->listening && !listener->destroyed) && spent < kWaitCycles;
+             listener = network.FindBound (HostSocketKind::Tcp, kPort))
+        {
+            machine.RunCycles (MachineSocketStream::kStepCycles);
+            spent += MachineSocketStream::kStepCycles;
+        }
+
+        Assert::IsTrue (listener && listener->listening, L"the card listens");
+
+        connection = network.OfferConnection (listener, HostEndpoint { FakeHostNetwork::kLoopback, 50000 });
+        host       = std::make_unique<CassoLinkHost> (std::make_shared<MachineSocketStream> (machine, connection), folder, [] () { return std::array<Byte, 4> {}; });
+
+        AssertSucceeded (host->PromptReady());
+
+        for (size_t i = 0; i < sectors.size(); i++)
+        {
+            size_t  offset = (size_t) (kTrack * 16 + SectorInterleave::GetDosFileIndexForPhysicalSector ((int) i)) * 256;
+
+            sectors[i] = (Byte) i;
+            expected.insert (expected.end(), disk.begin() + (ptrdiff_t) offset, disk.begin() + (ptrdiff_t) offset + 256);
+        }
+
+        AssertSucceeded (host->ReadSectors (2, kTrack, sectors, data, status));
+        Assert::AreEqual<int> (CassoLinkHost::kErrorNone, status.error);
+        Assert::IsTrue (data == expected, L"drive 2's track through the Uthernet II");
     }
 };

@@ -6,6 +6,7 @@
 #include "Machines/Apple2/Common/Denibblizer.h"
 #include "Machines/Apple2/Common/NibbleFormat.h"
 #include "Machines/Apple2/Common/SectorInterleave.h"
+#include "KeystrokeInjector.h"
 #include "TestMachine.h"
 #include "TextScreenScraper.h"
 #include "CassoLink/EmulatedCassetteAudio.h"
@@ -237,7 +238,7 @@ public:
         {
             for (size_t i = 0; text[i] != '\0'; i++)
             {
-                machine.GetRefs().iieKeyboard->PressKey ((Byte) text[i]);
+                AssertSucceeded (KeystrokeInjector::InjectKey (machine, (Byte) text[i]));
                 machine.RunCycles (100'000ULL);
             }
         }
@@ -307,7 +308,17 @@ public:
     //  then runs over the same cassette ports.
     TEST_METHOD (TheProgram_LoadsFromTape_AndReadsATrack)
     {
-        Rig          rig    ("Apple2e", EmulatedCassetteAudio::Faults(), 44100, Start::FromTape);
+        LoadsFromTapeAndReadsATrack ("Apple2e");
+    }
+
+    TEST_METHOD (TheProgram_LoadsFromTape_AndReadsATrack_OnAnApple2Plus)
+    {
+        LoadsFromTapeAndReadsATrack ("Apple2Plus");
+    }
+
+    static void  LoadsFromTapeAndReadsATrack (const char * model)
+    {
+        Rig          rig    (model, EmulatedCassetteAudio::Faults(), 44100, Start::FromTape);
         std::string  screen = rig.Screen();
 
 
