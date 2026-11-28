@@ -298,7 +298,7 @@ HRESULT CassoLinkHost::CaptureQuarterTrack (Byte drive, Byte position, Byte dela
 
     BAIL_OUT_IF (outStatus.error != 0, S_OK);
 
-    decoded = CaptureStream::Decode (encoded, CassoLinkCodec::kCapturePages * CassoLinkCodec::kPageSize, outBytes);
+    decoded = CaptureStream::Decode (encoded, CassoLinkCodec::kCapturePages * CassoLinkCodec::kPageSize, LinkProgram::kCaptureModuleVersion, outBytes);
     CBREx (decoded, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     outTiming.diskMs    = (double) (first.QuadPart - sent.QuadPart)  * 1000.0 / (double) frequency.QuadPart;
