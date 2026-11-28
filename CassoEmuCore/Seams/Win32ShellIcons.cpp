@@ -372,7 +372,8 @@ bool Win32ShellIcons::HasThumbnail (const std::wstring & extension)
 
 void Win32ShellIcons::RunLoader()
 {
-    HRESULT  hrCom = CoInitializeEx (nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    HRESULT       hrCom  = CoInitializeEx (nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    ParentFolder  parent;
 
 
 
@@ -404,7 +405,7 @@ void Win32ShellIcons::RunLoader()
         }
         else if (request.thumbnail)
         {
-            HICON  thumbnail = LoadThumbnail (request.path, request.sizePx);
+            HICON  thumbnail = LoadThumbnail (parent, request.path, request.sizePx);
 
             image = Rasterize ((thumbnail != nullptr) ? thumbnail : LoadSized (request.path, false, request.sizePx, request.overlays, &overlay), request.sizePx, m_dpi);
         }
@@ -452,6 +453,9 @@ void Win32ShellIcons::RunLoader()
             PostMessageW (m_notifyHwnd, m_notifyMessage, 0, 0);
         }
     }
+
+    //  Released before COM is uninitialized on this thread.
+    parent = ParentFolder();
 
     if (SUCCEEDED (hrCom))
     {
@@ -1214,6 +1218,53 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetLinkBadge()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32ShellIcons::CreateItem
+//
+//  A file path's item, created from its folder's item. An encoded id, or a
+//  path without a folder, is parsed whole.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ShellIcons::CreateItem (ParentFolder & parent, const std::wstring & path, REFIID iid, void ** outItem)
+{
+    HRESULT       hr     = S_OK;
+    size_t        slash  = path.find_last_of (L'\\');
+    bool          whole  = ShellItemId::IsEncoded (path) || slash == std::wstring::npos || slash + 1 == path.size();
+    std::wstring  folder = whole ? std::wstring() : path.substr (0, slash);
+
+
+
+    //  A backslash is added after a drive letter, so "C:" is not read as the
+    //  drive's current folder.
+    if (!folder.empty() && folder.back() == L':')
+    {
+        folder += L'\\';
+    }
+
+    if (!whole && (parent.item == nullptr || parent.path != folder))
+    {
+        parent = ParentFolder();
+
+        hr = SHCreateItemFromParsingName (folder.c_str(), nullptr, IID_PPV_ARGS (&parent.item));
+        CHR (hr);
+
+        parent.path = folder;
+    }
+
+    hr = whole ? ShellItemId::ToItem (path, iid, outItem)
+               : SHCreateItemFromRelativeName (parent.item.Get(), path.c_str() + slash + 1, nullptr, iid, outItem);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32ShellIcons::LoadThumbnail
 //
 //  The shell's thumbnail, fitted into the square and set on its bottom
@@ -1223,7 +1274,7 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetLinkBadge()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HICON Win32ShellIcons::LoadThumbnail (const std::wstring & path, int sizePx)
+HICON Win32ShellIcons::LoadThumbnail (ParentFolder & parent, const std::wstring & path, int sizePx)
 {
     HRESULT                         hr       = S_OK;
     ComPtr<IShellItemImageFactory>  factory;
@@ -1244,7 +1295,7 @@ HICON Win32ShellIcons::LoadThumbnail (const std::wstring & path, int sizePx)
 
 
 
-    hr = ShellItemId::ToItem (path, IID_PPV_ARGS (&factory));
+    hr = CreateItem (parent, path, IID_PPV_ARGS (&factory));
     CHR (hr);
 
     hr = factory->GetImage (SIZE { sizePx, sizePx }, SIIGBF_THUMBNAILONLY, &thumb);

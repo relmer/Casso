@@ -14,6 +14,7 @@
 #include "CassoExplorer/Model/FolderThumbnails.h"
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
 #include "CassoExplorer/Model/CassoExplorerSession.h"
+#include "Config/BackgroundFileWriter.h"
 #include "Config/Win32FileSystem.h"
 #include "DiskCheck/GivenNames.h"
 #include "DiskCheck/ImageRecordStore.h"
@@ -237,6 +238,7 @@ private:
     void  SaveSessionWith (const std::vector<CassoExplorerSessionWindow> & closed);
 
     Win32FileSystem                           m_fs;
+    BackgroundFileWriter                      m_writer         { m_fs };
     Win32DiskFileIo                           m_fileIo;
     Win32PhysicalCardHost                     m_cardHost;
     PhysicalCards                             m_cards          { m_cardHost };

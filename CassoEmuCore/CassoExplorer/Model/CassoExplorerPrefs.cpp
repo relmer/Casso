@@ -1361,13 +1361,12 @@ HRESULT CassoExplorerPrefs::Save (const std::wstring & baseDir, IFileSystem & fs
 
 HRESULT CassoExplorerPrefs::SaveFile (const std::wstring & path, IFileSystem & fs) const
 {
-    HRESULT              hr = S_OK;
-    std::string          text;
-    JsonWriter::Options  options;
+    HRESULT      hr = S_OK;
+    std::string  text;
 
 
 
-    hr = JsonWriter::Write (ToJson(), options, text);
+    hr = ToText (text);
     CHR (hr);
 
     hr = fs.WriteAllText (path, text);
@@ -1375,4 +1374,23 @@ HRESULT CassoExplorerPrefs::SaveFile (const std::wstring & path, IFileSystem & f
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerPrefs::ToText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoExplorerPrefs::ToText (std::string & outText) const
+{
+    JsonWriter::Options  options;
+
+
+
+    return JsonWriter::Write (ToJson(), options, outText);
 }

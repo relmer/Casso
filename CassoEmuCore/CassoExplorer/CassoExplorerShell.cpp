@@ -1449,6 +1449,7 @@ void CassoExplorerShell::SaveSessionWith (const std::vector<CassoExplorerSession
 {
     HRESULT                                  hr      = S_OK;
     std::vector<CassoExplorerSessionWindow>  session = GetOpenSession();
+    std::string                              prefs;
 
 
 
@@ -1461,11 +1462,14 @@ void CassoExplorerShell::SaveSessionWith (const std::vector<CassoExplorerSession
 
     session.insert (session.end(), closed.begin(), closed.end());
 
-    hr = CassoExplorerSession::Save (m_fs, m_baseDir, session);
-    IGNORE_RETURN_VALUE (hr, S_OK);
+    m_writer.Write (CassoExplorerSession::GetFilePath (m_baseDir), CassoExplorerSession::Write (session));
 
-    hr = m_prefs.Save (m_baseDir, m_fs);
-    IGNORE_RETURN_VALUE (hr, S_OK);
+    hr = m_prefs.ToText (prefs);
+
+    if (SUCCEEDED (hr))
+    {
+        m_writer.Write (CassoExplorerPrefs::GetFilePath (m_baseDir), std::move (prefs));
+    }
 }
 
 
@@ -1902,6 +1906,9 @@ int CassoExplorerShell::RunMessageLoop()
     {
         m_inspectors->CloseAll();
     }
+
+    //  The queued saves land first, so this one is the last.
+    m_writer.Flush();
 
     hr = m_prefs.Save (m_baseDir, m_fs);
     IGNORE_RETURN_VALUE (hr, S_OK);

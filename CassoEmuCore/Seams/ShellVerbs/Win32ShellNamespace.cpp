@@ -10,6 +10,13 @@
 
 
 
+//  The shell's answer for each file extension, for every window in the
+//  process: the first ask for a type can take the shell tens of milliseconds.
+static std::mutex                     s_archiveLock;
+static std::map<std::wstring, bool>   s_archiveExtensions;
+
+
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1364,7 +1371,8 @@ Error:
 //
 //  The shell's own answer, so an archive type Windows learns to open, as it
 //  learned 7z and rar, is one here too, and one it hands to another program
-//  is not.
+//  is not. Every file of a type has the same answer, so the shell is asked
+//  once for each extension.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1373,8 +1381,27 @@ bool Win32ShellNamespace::IsArchive (const std::wstring & path)
     HRESULT             hr         = S_OK;
     ComPtr<IShellItem>  item;
     SFGAOF              attributes = 0;
+    std::wstring        extension  = std::filesystem::path (path).extension().wstring();
+    bool                archive    = false;
+    bool                cached     = false;
 
 
+
+    std::transform (extension.begin(), extension.end(), extension.begin(), ::towlower);
+
+    if (!extension.empty())
+    {
+        std::lock_guard<std::mutex>  guard (s_archiveLock);
+        auto                         known = s_archiveExtensions.find (extension);
+
+        if (known != s_archiveExtensions.end())
+        {
+            archive = known->second;
+            cached  = true;
+        }
+    }
+
+    BAIL_OUT_IF (cached, S_OK);
 
     hr = SHCreateItemFromParsingName (path.c_str(), nullptr, IID_PPV_ARGS (&item));
     CHR (hr);
@@ -1382,8 +1409,17 @@ bool Win32ShellNamespace::IsArchive (const std::wstring & path)
     hr = item->GetAttributes (SFGAO_FOLDER | SFGAO_STREAM, &attributes);
     CHR (hr);
 
+    archive = (attributes & SFGAO_FOLDER) != 0 && (attributes & SFGAO_STREAM) != 0;
+
+    if (!extension.empty())
+    {
+        std::lock_guard<std::mutex>  guard (s_archiveLock);
+
+        s_archiveExtensions[extension] = archive;
+    }
+
 Error:
-    return SUCCEEDED (hr) && (attributes & SFGAO_FOLDER) != 0 && (attributes & SFGAO_STREAM) != 0;
+    return SUCCEEDED (hr) && archive;
 }
 
 

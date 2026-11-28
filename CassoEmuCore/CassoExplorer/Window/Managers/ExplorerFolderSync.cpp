@@ -954,7 +954,9 @@ bool ExplorerFolderSync::IsShownFolderIn (const std::vector<std::wstring> & fold
 //  ExplorerFolderSync::RefreshOpenTreeFolders
 //
 //  Reads again, in place, what the tree shows under each open node the changed
-//  folders hold: a folder's subfolders, or a disk image's. Returns whether any
+//  folders hold: a folder's subfolders, or a disk image's. A folder whose
+//  subfolders, archives and images match the tree's is passed over, since a
+//  file written in it changes nothing the tree shows. Returns whether any
 //  node was read again.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -962,7 +964,8 @@ bool ExplorerFolderSync::IsShownFolderIn (const std::vector<std::wstring> & fold
 bool ExplorerFolderSync::RefreshOpenTreeFolders (const std::vector<std::wstring> & folders)
 {
     std::vector<std::wstring>  stale;
-    int                        row = 0;
+    int                        row      = 0;
+    bool                       reloaded = false;
 
 
 
@@ -990,14 +993,15 @@ bool ExplorerFolderSync::RefreshOpenTreeFolders (const std::vector<std::wstring>
     //  away has no row by the time its turn comes, and is passed over.
     for (const std::wstring & id : stale)
     {
-        if (m_context.treePane.HasNode (id))
+        if (m_context.treePane.HasNode (id) && !m_context.browser.GetTreeModel().IsHostListingCurrent (id))
         {
             m_context.browser.GetTreeModel().Invalidate (id);
             m_context.treePane.ReloadChildren (id);
+            reloaded = true;
         }
     }
 
-    return !stale.empty();
+    return reloaded;
 }
 
 
