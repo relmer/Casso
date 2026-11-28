@@ -164,6 +164,52 @@ public:
     }
 
 
+    //  The revolution's spare length is spread between the sectors, so the
+    //  address marks are evenly spaced all the way round, and the gap after
+    //  each data field is far longer than the six sync groups ahead of the
+    //  next address field. ROM 05 on a //c Plus starts each data field's
+    //  write well after the address field, and with the spare length at the
+    //  end of the track the write ran into the next sector's address field.
+    TEST_METHOD (Track_SpreadsItsSpareLengthBetweenSectors)
+    {
+        constexpr uint32_t  kAddressMark = 0xD5AA96;
+
+        for (int track : { 0, 20, 79 })
+        {
+            int                  sectors = Gcr35Track::GetSectorsPerTrack (track);
+            std::vector<Byte>    data    = MakeBytes ((size_t) sectors * Gcr35Track::kDataBytes, (uint32_t) track + 7);
+            std::vector<Byte>    bits;
+            std::vector<size_t>  marks;
+            uint32_t             window  = 0;
+
+
+
+            Gcr35Track::BuildTrack (track, 0, Gcr35Track::kFormatTwoSides, data, bits);
+
+            for (size_t at = 0; at < bits.size(); at++)
+            {
+                window = ((window << 1) | bits[at]) & 0xFFFFFF;
+
+                if (window == kAddressMark)
+                {
+                    marks.push_back (at);
+                }
+            }
+
+            Assert::AreEqual ((size_t) sectors, marks.size(), std::format (L"track {}'s address marks", track).c_str());
+
+            for (size_t i = 0; i < marks.size(); i++)
+            {
+                size_t  next    = marks[(i + 1) % marks.size()] + ((i + 1 == marks.size()) ? bits.size() : 0);
+                size_t  spacing = next - marks[i];
+                size_t  sector  = bits.size() / (size_t) sectors;
+
+                Assert::IsTrue (spacing + 20 >= sector && spacing <= sector + 10 * ((size_t) sectors + 1), std::format (L"track {}, sector {}: {} cells to the next, against {}", track, i, spacing, sector).c_str());
+            }
+        }
+    }
+
+
     //  The other side's track has its sectors' address fields marked side 1,
     //  so it doesn't decode as side 0.
     TEST_METHOD (Track_WrongSideFindsNothing)

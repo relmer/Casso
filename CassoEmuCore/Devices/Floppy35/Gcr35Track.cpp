@@ -23,6 +23,13 @@ static constexpr int   s_kZoneRpm[]    = { 394, 429, 472, 525, 590 };
 //  Sync groups before the address field and before the data field.
 static constexpr int   s_kSyncBefore   = 6;
 
+//  A sync group's cells, and a sector's: the sync before each field, the
+//  address field's marks, five values and slip bytes, and the data field's
+//  marks, sector number, nibbles and slip bytes.
+static constexpr int     s_kSyncBits     = 10;
+static constexpr size_t  s_kSectorBits   = (size_t) (2 * s_kSyncBefore * s_kSyncBits) + (3 + 5 + 2) * 8
+                                         + (3 + 1 + Gcr35Track::kDataNibbles + Gcr35Track::kSumNibbles + 2) * 8;
+
 
 
 
@@ -335,7 +342,10 @@ bool Gcr35Track::TryDecodeSector (std::span<const Byte> nibbles, std::vector<Byt
 //  BuildTrack
 //
 //  Each sector in interleave order: sync, the address field, sync, the data
-//  field; the rest of the revolution is sync.
+//  field, then sync to the next sector. The revolution's spare length is
+//  spread evenly between the sectors, so a data field written a little late
+//  ends ahead of the next sector's address field. ROM 05 on a //c Plus, at
+//  1 MHz, starts its writes well after the address field.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -347,6 +357,7 @@ void Gcr35Track::BuildTrack (int track, int side, Byte format, std::span<const B
     Byte               sideByte = (Byte) ((side != 0 ? s_kSideBit : 0) | (track >> 6));
     std::vector<Byte>  sector (kSectorBytes, 0);
     std::vector<Byte>  nibbles;
+    int                gap      = (int) ((total - (size_t) sectors * s_kSectorBits) / (size_t) sectors / s_kSyncBits);
 
 
 
@@ -359,7 +370,7 @@ void Gcr35Track::BuildTrack (int track, int side, Byte format, std::span<const B
 
 
 
-        AppendSync (outBits, s_kSyncBefore);
+        AppendSync (outBits, s_kSyncBefore + gap);
 
         for (Byte value : { s_kMark1, s_kMark2, s_kAddressMark3 })
         {

@@ -16,6 +16,7 @@
 #include "Devices/Floppy35/Apple35ControllerCard.h"
 #include "Devices/Floppy35/Gcr35Track.h"
 #include "Devices/Floppy35/LironCard.h"
+#include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/StockDisk800K.h"
 #include "Machines/Apple2/Common/WozLoader.h"
@@ -775,6 +776,56 @@ public:
         rows = GuestSession::TypeAndCollect (machine, "CATALOG");
 
         Assert::IsTrue (GuestSession::AnyRowContains (rows, "CPLUS"), L"the catalog lists the program DOS saved");
+    }
+
+
+    //  A //C PLUS SAVES A FILE OF MANY BLOCKS to its internal drive: ProDOS,
+    //  booted from a Disk IIc, saves 16K to an empty 800K volume, and the
+    //  image has every block of it. ROM 05 writes at 1 MHz and starts each
+    //  data field's write well after the address field, so this fails when
+    //  a track has only its six sync groups between sectors.
+    TEST_METHOD (Apple2cPlus_SavesAFileOfManyBlocksToTheInternalDrive)
+    {
+        FakeDiskFileIo            io;
+        FixtureProvider           fixtures;
+        std::vector<Byte>         merlin;
+        std::vector<Byte>         volume (kBlocks800K * 2 * kSector, 0);
+        std::vector<PortConfig>   ports (2);
+        std::vector<std::string>  rows;
+        VolumeListing             listing;
+        size_t                    blocks = 0;
+
+
+
+        AssertSucceeded (fixtures.OpenFixture ("Disks/Merlin-proProdos2.33-b.dsk", merlin));
+        AssertSucceeded (ProDosSkeleton::Write (volume, "BIGVOL"));
+        io.files[kDiskPath]  = volume;
+        io.stamps[kDiskPath] = FileStamp { volume.size(), 1 };
+
+        ports[0].name            = "internal";
+        ports[0].device          = kpszApple35DriveDevice;
+        ports[0].image           = kDiskPath;
+        ports[1].name            = "disk";
+        ports[1].chain.resize (1);
+        ports[1].chain[0].device = kpszDiskIicDevice;
+
+        TestMachine  machine ("Apple2cPlus", ports, io);
+
+        GuestSession::BootToPrompt (machine, merlin);
+        GuestSession::TryPageToPrompt (machine, rows);
+
+        rows = GuestSession::TypeAndCollect (machine, "BSAVE /BIGVOL/BIG,A$800,L$4000");
+        Assert::IsFalse (GuestSession::AnyRowContains (rows, "ERROR"), L"ProDOS saves without an error");
+
+        AssertSucceeded (machine.GetRefs().apple2cPlusDiskPort->GetInternalDrive().Flush());
+        AssertSucceeded (ProDosVolume (io.files[kDiskPath]).Enumerate (listing));
+
+        for (const FileEntry & entry : listing.entries)
+        {
+            blocks = (entry.name == "BIG") ? entry.sizeUnits : blocks;
+        }
+
+        Assert::AreEqual<size_t> (33, blocks, L"the image has the file's 32 data blocks and its index block");
     }
 
 
