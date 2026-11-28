@@ -1046,6 +1046,35 @@ bool CassoExplorerBrowser::TryGetNodeLocation (const std::wstring & id, Location
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerBrowser::ApplyChildChecks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::pair<std::wstring, bool>> CassoExplorerBrowser::ApplyChildChecks()
+{
+    std::vector<std::pair<std::wstring, bool>>  ids = m_tree.ApplyChildChecks();
+
+
+
+    for (const auto & [id, expands] : ids)
+    {
+        auto  found = m_loader.GetNodes().find (id);
+
+        if (found != m_loader.GetNodes().end())
+        {
+            found->second.canExpand = expands;
+        }
+    }
+
+    return ids;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerBrowser::TryGetTreeNode
 //
 //  A tree node as it was last read, such as an image read when it was

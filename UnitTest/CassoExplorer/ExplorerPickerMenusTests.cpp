@@ -182,6 +182,42 @@ public:
     }
 
 
+    //  The toolbar queries several verbs on every paint; the list is built
+    //  once until the selection changes or a result arrives.
+    TEST_METHOD (OfferedVerbs_AreBuiltOnceUntilTheSelectionChanges)
+    {
+        Rig                        rig;
+        PickerRequest              request;
+        const ExplorerListMenus  & menus   = rig.parts->listPane.GetMenus();
+        int                        builds  = 0;
+
+
+
+        request.form = PickerForm::ModalOpen;
+        OpenOnImage (rig, request);
+
+        menus.IsListVerbOffered (Verb::Rename);
+        builds = menus.GetOfferedBuildCount();
+
+        menus.IsListVerbOffered (Verb::Copy);
+        menus.IsListVerbOffered (Verb::Cut);
+        menus.IsListVerbOffered (Verb::Delete);
+        Assert::AreEqual (builds, menus.GetOfferedBuildCount(), L"a paint with no change doesn't build the list again");
+
+        menus.InvalidateOfferedVerbs();
+        menus.IsListVerbOffered (Verb::Rename);
+        Assert::AreEqual (builds + 1, menus.GetOfferedBuildCount());
+
+        rig.parts->listPane.SetListSelection ({ 0 });
+        menus.IsListVerbOffered (Verb::Rename);
+        builds = menus.GetOfferedBuildCount();
+
+        rig.parts->listPane.SetListSelection ({});
+        menus.IsListVerbOffered (Verb::Rename);
+        Assert::AreEqual (builds + 1, menus.GetOfferedBuildCount(), L"a new selection builds it again");
+    }
+
+
     //  The Casso node is no folder on the disk and has no menu; a folder has
     //  Open and Properties.
     TEST_METHOD (TreeMenu_FolderOnly)

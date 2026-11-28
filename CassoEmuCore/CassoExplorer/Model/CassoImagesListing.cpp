@@ -105,6 +105,35 @@ void CassoImagesListing::Build (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoImagesListing::SetLoadTimes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoImagesListing::SetLoadTimes (const std::vector<DiskMru::Entry> & recent, std::vector<CatalogRow> & inOutRows)
+{
+    std::unordered_map<std::wstring, int64_t>  loadedAt;
+
+
+
+    for (const DiskMru::Entry & entry : recent)
+    {
+        loadedAt.emplace (MakePathKey (entry.path.wstring()), entry.lastLoadedUnix);
+    }
+
+    for (CatalogRow & row : inOutRows)
+    {
+        auto  found = loadedAt.find (MakePathKey (row.hostPath));
+
+        row.lastUsedUnix = (found != loadedAt.end()) ? found->second : 0;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoImagesListing::MakePathKey
 //
 ////////////////////////////////////////////////////////////////////////////////

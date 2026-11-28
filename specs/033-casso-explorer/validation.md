@@ -1440,3 +1440,24 @@ The owner checked the hex dump conversion on screen in Casso Explorer.
 
 Not checked here: the hex dump item on File Explorer's right-drag menu, as
 the registered shell extension was an older build. The 033 gate wasn't run.
+
+## Explorer speed in big folders (T1436 to T1441, 2026-11-27)
+
+Checked on screen with the Debug x64 build of 2026-11-27 20:14, opened on the
+Temp folder:
+
+- The tree draws with Casso, This PC and the other fixed roots, and the pinned
+  folders appear once the shell's read finishes (T1441).
+- Under C: and AppData\Local, a folder has an expander only when it has a
+  subfolder or a disk image: AMD, Google and NuGet have one; DiscCache,
+  inetpub, gk and matplotlib don't (T1436).
+- At startup the tree opens down to Temp, including folders whose check
+  hadn't finished yet. The first build stopped at Users; the fix is in the same
+  change.
+- The list draws its rows and labels, and the toolbar's buttons are enabled
+  for the selection (T1437, T1439).
+
+Unit tests for each task pass.
+
+Not checked here: traces before and after, since WPR needs an elevated prompt;
+the Screenshots folder; and the 033 gate.

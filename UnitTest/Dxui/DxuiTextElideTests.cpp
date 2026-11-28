@@ -240,4 +240,28 @@ public:
         Assert::AreEqual (std::wstring (L"dot.ted.na"), fill[0], L"no space: the line fills");
         Assert::AreEqual (std::wstring (L"me.x"),       fill[1]);
     }
+
+
+    //  A label is wrapped once for its text, font and width; a new width
+    //  wraps it again.
+    TEST_METHOD (WrapCache_WrapsALabelOnceUntilItsWidthChanges)
+    {
+        MockDxuiTextRenderer  r;
+        DxuiWrapCache         cache;
+
+        std::vector<std::wstring>  first = cache.WrapToLines (r, L"about_tab.0.png", kFont, L"Segoe UI", 70.0f, 2, true, false);
+
+        Assert::IsTrue  (first == DxuiTextElide::WrapToLines (r, L"about_tab.0.png", kFont, L"Segoe UI", 70.0f, 2));
+        Assert::AreEqual ((size_t) 1, cache.GetWrapCount());
+
+        cache.WrapToLines (r, L"about_tab.0.png", kFont, L"Segoe UI", 70.0f, 2, true, false);
+        Assert::AreEqual ((size_t) 1, cache.GetWrapCount(), L"a second paint doesn't wrap again");
+
+        cache.WrapToLines (r, L"about_tab.0.png", kFont, L"Segoe UI", 90.0f, 2, true, false);
+        Assert::AreEqual ((size_t) 2, cache.GetWrapCount(), L"a new width does");
+
+        cache.Clear();
+        cache.WrapToLines (r, L"about_tab.0.png", kFont, L"Segoe UI", 70.0f, 2, true, false);
+        Assert::AreEqual ((size_t) 3, cache.GetWrapCount());
+    }
 };

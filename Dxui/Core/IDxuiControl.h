@@ -144,6 +144,11 @@ public:
     //  The point is in client pixels, as the control's mouse events are.
     virtual bool  IsOverScrollbar (POINT clientDip) const                       { (void) clientDip; return false; }
 
+    //  A value that differs whenever the control draws its hover differently,
+    //  so a host can skip the repaint for a move that changed nothing. False
+    //  for a control without one; every move over it is repainted.
+    virtual bool  TryGetHoverState (uint64_t & outState) const                 { (void) outState; return false; }
+
     //  Opens Windows' scrollbar menu over the window when the point, in
     //  client pixels, is on one of the control's scrollbars. Returns whether
     //  it was.

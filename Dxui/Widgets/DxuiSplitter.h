@@ -55,6 +55,7 @@ public:
     bool                OnMouse           (const DxuiMouseEvent & ev) override;
     bool                OnKey             (const DxuiKeyEvent & ev) override;
     LPCWSTR             GetCursorForPoint (POINT clientPx) const override;
+    bool                TryGetHoverState  (uint64_t & outState) const override { outState = ((uint64_t) m_hovered << 1) | (uint64_t) m_dragging; return true; }
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Custom; }
     std::wstring        GetAccessibleName () const override { return L"Splitter"; }
 

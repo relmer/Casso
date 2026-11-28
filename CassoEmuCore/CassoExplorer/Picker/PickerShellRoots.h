@@ -31,6 +31,9 @@ public:
     //  Starts a read on a background thread, unless one is under way.
     void  Refresh ();
 
+    //  Where a message is posted when a read finishes.
+    void  SetTarget (HWND hwnd, UINT message);
+
     //  The folders of the last read that finished; false before one has.
     bool  TryGet  (Folders & outNavRoots, Folders & outPinned) const;
 
@@ -45,6 +48,8 @@ private:
     std::thread         m_thread;
     bool                m_isReading = false;
     bool                m_hasRead   = false;
+    HWND                m_hwnd      = nullptr;
+    UINT                m_message   = 0;
     Folders             m_navRoots;
     Folders             m_pinned;
 };

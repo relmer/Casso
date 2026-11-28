@@ -1240,11 +1240,42 @@ void ExplorerListMenus::AddOpenWithMenu (std::vector<DxuiPopupMenuItem> & items)
 
 bool ExplorerListMenus::IsListVerbOffered (CassoExplorerActions::Verb verb) const
 {
-    std::vector<CassoExplorerActions::Verb>  verbs = m_context.IsPicker() ? ExplorerPickerMenus::GetPickerVerbs (m_context.actions.GetListVerbs()) : m_context.actions.GetListVerbs();
+    const std::vector<CassoExplorerActions::Verb>  & verbs = GetOfferedVerbs();
 
 
 
     return std::find (verbs.begin(), verbs.end(), verb) != verbs.end();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListMenus::GetOfferedVerbs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const std::vector<CassoExplorerActions::Verb> & ExplorerListMenus::GetOfferedVerbs() const
+{
+    const Location          & location = m_context.browser.GetLocation();
+    const std::vector<int>  & rows     = m_context.browser.GetSelectedRows();
+
+
+
+    if (m_offered.valid && m_offered.location == location && m_offered.rows == rows)
+    {
+        return m_offered.verbs;
+    }
+
+    m_offered.verbs    = m_context.IsPicker() ? ExplorerPickerMenus::GetPickerVerbs (m_context.actions.GetListVerbs()) : m_context.actions.GetListVerbs();
+    m_offered.location = location;
+    m_offered.rows     = rows;
+    m_offered.valid    = true;
+    m_offered.builds++;
+
+    return m_offered.verbs;
 }
 
 

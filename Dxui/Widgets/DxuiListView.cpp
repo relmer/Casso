@@ -1205,6 +1205,7 @@ void DxuiListView::SetDpi (UINT dpi)
 
 
     m_scaler.SetDpi (dpi);
+    m_wrapCache.Clear();
 
     if (old == 0 || old == dpi)
     {
@@ -1253,6 +1254,28 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     }
 
     static_cast<const DxuiListView *> (this)->Paint (painter, text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::TryGetHoverState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::TryGetHoverState (uint64_t & outState) const
+{
+    int  group = m_grouping.GetHoverGroup();
+
+
+
+    //  A group header's hover depends on where the pointer is across it.
+    outState = std::hash<std::wstring>{} (std::format (L"{},{},{},{},{}", m_hovered, m_homeHoverAction, m_header.GetHoverColumn(), group, group >= 0 ? m_grouping.GetHoverX() : 0));
+
+    return true;
 }
 
 

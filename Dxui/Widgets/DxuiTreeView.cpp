@@ -28,6 +28,7 @@ void DxuiTreeView::RebuildFlatRows()
 
 
     m_flatRows.clear();
+    m_rowById.clear();
 
     for (i = 0; i < m_nodes.size(); ++i)
     {
@@ -73,6 +74,7 @@ void DxuiTreeView::FlattenRecursive (const DxuiTreeNode & node, std::vector<int>
 
     row.pathStack = path;
     row.depth     = depth;
+    m_rowById.try_emplace (node.id, (int) m_flatRows.size());
     m_flatRows.push_back (row);
 
     if (!node.expanded)
@@ -141,7 +143,7 @@ const DxuiTreeNode * DxuiTreeView::GetNodeAt (int flatIndex) const
 //
 //  The tree is stored as nested vectors while the view addresses rows by a
 //  single flat index, so every lookup has to walk a child PATH down from the
-//  roots. That path is what GetPath computes; this function is the descent.
+//  roots. The row's path is read in place, with no copy.
 //
 //  It cannot be written in terms of the const NodeAt without casting away
 //  constness, and duplicating the descent is the lesser evil -- the walk is
@@ -155,14 +157,13 @@ const DxuiTreeNode * DxuiTreeView::GetNodeAt (int flatIndex) const
 
 DxuiTreeNode * DxuiTreeView::GetNodeAtMutable (int flatIndex)
 {
-    std::vector<int>    path;
-    DxuiTreeNode      * cursor = nullptr;
-    size_t              i      = 0;
-    int                 idx    = 0;
+    static const std::vector<int>    s_kNoPath;
+    const std::vector<int>         & path   = (flatIndex >= 0 && flatIndex < (int) m_flatRows.size()) ? m_flatRows[(size_t) flatIndex].pathStack : s_kNoPath;
+    DxuiTreeNode                   * cursor = nullptr;
+    size_t                           i      = 0;
+    int                              idx    = 0;
 
 
-
-    path = GetPath (flatIndex);
 
     if (!path.empty())
     {
@@ -884,10 +885,22 @@ const DxuiTreeNode * DxuiTreeView::FindNodeById (const std::wstring & id) const
 
 int DxuiTreeView::FindRowById (const std::wstring & id) const
 {
-    int  i = 0;
+    int   i     = 0;
+    auto  found = id.empty() ? m_rowById.end() : m_rowById.find (id);
 
 
 
+    if (found != m_rowById.end())
+    {
+        const DxuiTreeNode *  n = GetNodeAt (found->second);
+
+        if (n != nullptr && n->id == id)
+        {
+            return found->second;
+        }
+    }
+
+    //  A node changed since the rows were flattened: look through them all.
     for (i = 0; i < (int) m_flatRows.size() && !id.empty(); ++i)
     {
         const DxuiTreeNode *  n = GetNodeAt (i);

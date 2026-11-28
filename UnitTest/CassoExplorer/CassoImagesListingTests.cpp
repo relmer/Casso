@@ -177,4 +177,24 @@ public:
         Assert::AreEqual ((int64_t) 900, Find (browser.GetRows(), L"system.po")->lastUsedUnix);
         Assert::AreEqual ((size_t) 2, browser.GetTreeChildren (TreeModel::kCassoRootId).size(), L"the tree still has the folders");
     }
+
+
+    //  A read on a thread has no load times; they are set from the recent
+    //  list afterward, matched by path in any case or separator.
+    TEST_METHOD (SetLoadTimes_MatchesTheRecentList)
+    {
+        Host                         host;
+        std::vector<CatalogRow>      rows;
+        std::vector<DiskMru::Entry>  recent = { { L"c:\\work/SYSTEM.po", 900 } };
+
+
+
+        CassoImagesListing::Build (host.fs, host.io, host.cache, { kGames, kWork }, {}, rows);
+        Assert::AreEqual ((int64_t) 0, Find (rows, L"system.po")->lastUsedUnix);
+
+        CassoImagesListing::SetLoadTimes (recent, rows);
+
+        Assert::AreEqual ((int64_t) 900, Find (rows, L"system.po")->lastUsedUnix);
+        Assert::AreEqual ((int64_t) 0,   Find (rows, L"karateka.dsk")->lastUsedUnix);
+    }
 };

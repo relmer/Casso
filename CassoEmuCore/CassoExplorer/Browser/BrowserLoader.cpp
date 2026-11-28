@@ -728,6 +728,77 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BrowserLoader::GetCassoImagesId
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT BrowserLoader::GetCassoImagesId (std::vector<TreeNode> & outNodes, std::wstring & outId)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    outId.clear();
+
+    hr = m_parts.tree.GetChildren (TreeModel::kCassoRootId, outNodes);
+    CHR (hr);
+
+    for (const TreeNode & node : outNodes)
+    {
+        if (!node.missing && node.location.kind == Location::Kind::HostFolder && !node.location.path.empty())
+        {
+            outId += node.location.path + L"\n";
+        }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserLoader::StartCassoImages
+//
+//  A read that finished and wasn't taken is the one the next visit takes,
+//  so it isn't started again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BrowserLoader::StartCassoImages()
+{
+    HRESULT                  hr      = S_OK;
+    HRESULT                  hrList  = S_OK;
+    std::vector<TreeNode>    nodes;
+    std::vector<CatalogRow>  rows;
+    std::wstring             id;
+    bool                     arrived = false;
+
+
+
+    if (!m_cassoImages.HasLister() || !m_cassoImages.HasTarget() || m_cassoImages.IsReadOrReading (s_kCassoImagesKey))
+    {
+        return;
+    }
+
+    hr = GetCassoImagesId (nodes, id);
+
+    if (SUCCEEDED (hr))
+    {
+        arrived = m_cassoImages.TryTake (s_kCassoImagesKey, id, rows, hrList);
+        IGNORE_RETURN_VALUE (arrived, false);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BrowserLoader::LoadCassoImages
 //
 //  The images of the Casso node's folders, as CassoImagesListing builds
@@ -738,27 +809,26 @@ Error:
 
 HRESULT BrowserLoader::LoadCassoImages()
 {
-    HRESULT                      hr = S_OK;
+    HRESULT                      hr     = S_OK;
+    HRESULT                      hrList = S_OK;
     std::vector<TreeNode>        nodes;
     std::vector<std::wstring>    folders;
     std::vector<DiskMru::Entry>  recent;
     std::vector<CatalogRow>      rows;
     std::vector<CatalogRow>      stock;
     std::set<std::wstring>       listed;
+    std::wstring                 id;
 
 
 
     m_parts.list.rootChildren.clear();
 
-    hr = m_parts.tree.GetChildren (TreeModel::kCassoRootId, nodes);
+    hr = GetCassoImagesId (nodes, id);
     CHR (hr);
 
-    for (const TreeNode & node : nodes)
+    for (size_t start = 0, end = id.find (L'\n'); end != std::wstring::npos; start = end + 1, end = id.find (L'\n', start))
     {
-        if (!node.missing && node.location.kind == Location::Kind::HostFolder && !node.location.path.empty())
-        {
-            folders.push_back (node.location.path);
-        }
+        folders.push_back (id.substr (start, end - start));
     }
 
     if (m_parts.sources.recentLoads)
@@ -766,7 +836,22 @@ HRESULT BrowserLoader::LoadCassoImages()
         recent = m_parts.sources.recentLoads();
     }
 
-    CassoImagesListing::Build (m_parts.fs, m_parts.fileIo, m_parts.imageClasses, folders, recent, rows);
+    //  Without a window to post to, the images are read here, through the
+    //  browser's file system.
+    if (m_cassoImages.HasLister() && m_cassoImages.HasTarget())
+    {
+        if (!m_cassoImages.TryTake (s_kCassoImagesKey, id, rows, hrList))
+        {
+            m_cassoImages.TryGetLatest (s_kCassoImagesKey, rows);
+        }
+
+        //  The read on the thread has no load times; they are set here.
+        CassoImagesListing::SetLoadTimes (recent, rows);
+    }
+    else
+    {
+        CassoImagesListing::Build (m_parts.fs, m_parts.fileIo, m_parts.imageClasses, folders, recent, rows);
+    }
 
     for (const CatalogRow & row : rows)
     {

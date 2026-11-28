@@ -1133,6 +1133,8 @@ void ExplorerListPane::FillList()
 
 
 
+    m_menus.InvalidateOfferedVerbs();
+
     m_context.cassoLinkManager.ReleaseIdleConnections();
     m_context.cassoLinkManager.NoteListFilled();
 
@@ -1917,6 +1919,16 @@ void ExplorerListPane::HandleShellListed (const std::wstring & key)
                 m_context.browser.GetTreeModel().Invalidate (nodeId);
                 m_context.treePane.ReloadChildren (nodeId);
             }
+        }
+    }
+    else if (key.starts_with (BrowserLoader::s_kCassoImagesKey))
+    {
+        if (m_context.browser.GetLocation().kind == Location::Kind::Root && m_context.browser.GetLocation().path == TreeModel::kCassoRootId
+            && m_context.browser.GetLoader().GetCassoImages().IsReadOrReading (key))
+        {
+            hr = m_context.browser.Refresh();
+            IGNORE_RETURN_VALUE (hr, S_OK);
+            FillList();
         }
     }
     else if (key.starts_with (hostKey))
