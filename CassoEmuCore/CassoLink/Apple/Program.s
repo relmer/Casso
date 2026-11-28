@@ -354,6 +354,7 @@ AUXA1    = AUXA0 + 86
 AUXA2    = AUXA1 + 86
 PENDING  = $4980                ; read: a flag per physical sector not yet read
 PAGEBUF  = $3800                ; sendpage: a packet's 256 bytes, above every build's end
+                                ; and over Universal.s's ZPCOPY, read only before a shim starts
 ENCBUF   = $7000                ; write track: each sector's 86 groups on one
                                 ; page and 256 values on the next, to $8FFF
 ENCT0    = $9000                ; encode: a byte's low two bits, swapped, for
