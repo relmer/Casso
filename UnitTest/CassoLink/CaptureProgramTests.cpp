@@ -63,6 +63,50 @@ public:
     }
 
 
+    //  A WOZ's track 0 as its bytes, each with the zero bits after it.
+    static std::vector<std::pair<Byte, size_t>>  FrameTrack (const std::vector<Byte> & woz)
+    {
+        DiskImage                             image;
+        std::vector<std::pair<Byte, size_t>>  framed;
+        int                                   slot  = 0;
+        size_t                                count = 0;
+        size_t                                at    = 0;
+
+
+
+        AssertSucceeded (WozLoader::Load (woz, image));
+
+        slot  = image.ResolveQuarterTrack (0);
+        count = image.GetTrackBitCount (slot);
+
+        while (at < count && image.ReadBit (slot, at) == 0)
+        {
+            at++;
+        }
+
+        while (at + 8 <= count)
+        {
+            Byte    value = 0;
+            size_t  zeros = 0;
+
+            for (int bit = 0; bit < 8; bit++)
+            {
+                value = (Byte) ((value << 1) | image.ReadBit (slot, at++));
+            }
+
+            while (at < count && image.ReadBit (slot, at) == 0)
+            {
+                zeros++;
+                at++;
+            }
+
+            framed.push_back ({ value, zeros });
+        }
+
+        return framed;
+    }
+
+
     //  Each token: values as they are, a repeat, and a copy of a revolution
     //  before, then the marks, with the padding after the last ignored. The
     //  copy's values are the same, and its marks aren't.
@@ -524,6 +568,183 @@ public:
 
         Assert::AreEqual (kPages, ends, L"Every B7 is written with a zero bit after it");
         Assert::AreEqual (0, stray, L"No other byte of the field is");
+    }
+
+
+    //  A loud track's bytes are counted from its reads at 10 cycles, inside
+    //  an address field and after one too. Each page here ends in a field
+    //  that passes for an address field. Every read at 8 cycles marks the
+    //  first byte of its ending, as a //c can by chance, and no read at 10
+    //  does: the byte is written with no zero bits. The field's AE is
+    //  followed by one zero bit and marked as the B7 of Karateka's track 27
+    //  is: it is written with one.
+    TEST_METHOD (ALoudTracksAddressFields_AreCountedFromTheReadsAt10Cycles)
+    {
+        static constexpr size_t  kSyncs     = 40;
+        static constexpr size_t  kPages     = 11;
+        static constexpr size_t  kPageBytes = 500;
+        static constexpr size_t  kReadBytes = 12000;
+        static constexpr int     kReads     = CassoLinkCapture::kWholeReads + 2 * CassoLinkCapture::kLoudReads;
+        static constexpr size_t  kZeroAt    = 5;
+        static constexpr size_t  kEndingAt  = 11;
+
+        std::vector<Byte>                        revolution;
+        std::vector<int>                         share8;
+        std::vector<int>                         share12;
+        std::vector<int>                         share10;
+        std::vector<CassoLinkCapture::Position>  positions (1);
+        CassoLinkCapture::Result                 result;
+        std::vector<std::pair<Byte, size_t>>     framed;
+        uint32_t                                 seed    = 9876;
+        size_t                                   fields  = 0;
+
+
+
+        auto  next = [&seed] () { seed = seed * 1103515245u + 12345u; return (int) ((seed >> 16) % 100); };
+
+        auto  add = [&revolution, &share8, &share12, &share10] (Byte value, int at8, int at12, int at10)
+        {
+            revolution.push_back (value);
+            share8.push_back (at8);
+            share12.push_back (at12);
+            share10.push_back (at10);
+        };
+
+        for (size_t each = 0; each < kSyncs; each++)
+        {
+            add (0xFF, 98, 56, 94);
+        }
+
+        for (size_t page = 0; page < kPages; page++)
+        {
+            for (size_t each = 0; each < kPageBytes; each++)
+            {
+                seed = seed * 1103515245u + 12345u;
+                add (s_kDiskBytes[(seed >> 16) % (std::size (s_kDiskBytes) - 1)], 10, 0, 0);
+            }
+
+            for (Byte value : { 0xD5, 0xAA, 0xBE, 0xAA, 0xAB })
+            {
+                add (value, 10, 0, 0);
+            }
+
+            add (0xAE, 80, 10, 38);
+
+            for (Byte value : { 0xAF, 0xBA, 0xBB, 0xBE, 0xEA })
+            {
+                add (value, 10, 0, 0);
+            }
+
+            add (0xED, 100, 0, 0);
+            add (0xEC, 10, 0, 0);
+        }
+
+        for (int each = 0; each < kReads; each++)
+        {
+            bool               loud  = each >= CassoLinkCapture::kWholeReads;
+            Byte               delay = loud ? CassoLinkCapture::kLoudDelay : CassoLinkCapture::kWholeDelays[each];
+            std::vector<Byte>  read;
+
+            for (size_t at = 0; at < kReadBytes; at++)
+            {
+                size_t  in     = at % revolution.size();
+                bool    marked = next() < (loud ? share10[in] : (delay == 0 ? share8[in] : share12[in]));
+
+                read.push_back (marked ? (Byte) (revolution[in] & 0x7F) : revolution[in]);
+            }
+
+            positions[0].reads.push_back (read);
+            positions[0].delays.push_back (delay);
+        }
+
+        AssertSucceeded (CassoLinkCapture::BuildWoz (positions, 0, "2026-11-27T00:00:00Z", 1, result));
+
+        framed = FrameTrack (result.woz);
+
+        for (size_t each = 0; each + kEndingAt < framed.size(); each++)
+        {
+            if (framed[each].first == 0xD5 && framed[each + 1].first == 0xAA && framed[each + 2].first == 0xBE && framed[each + kEndingAt].first == 0xED)
+            {
+                Assert::AreEqual ((size_t) 1, framed[each + kZeroAt].second, L"The AE is written with its zero bit");
+                Assert::AreEqual ((size_t) 0, framed[each + kEndingAt].second, L"The ending's byte is written with no zero bits");
+
+                fields++;
+            }
+        }
+
+        Assert::AreEqual (kPages, fields, L"Every field is checked");
+    }
+
+
+    //  A read has about two turns and a fifth, and only its whole turns are
+    //  aligned. A B7 followed by one zero bit, which the reads at 10 cycles
+    //  mark only in their last, part turn, is written with its zero bit: a
+    //  part turn's marks count too.
+    TEST_METHOD (ALoudTracksPartTurns_AreCountedToo)
+    {
+        static constexpr size_t  kSyncs     = 40;
+        static constexpr size_t  kPages     = 11;
+        static constexpr size_t  kPageBytes = 512;
+        static constexpr size_t  kReadBytes = 12000;
+        static constexpr int     kReads     = CassoLinkCapture::kWholeReads + 2 * CassoLinkCapture::kLoudReads;
+
+        std::vector<Byte>                        revolution;
+        std::vector<CassoLinkCapture::Position>  positions (1);
+        CassoLinkCapture::Result                 result;
+        std::vector<std::pair<Byte, size_t>>     framed;
+        uint32_t                                 seed    = 2468;
+        size_t                                   target  = 0;
+        size_t                                   ends    = 0;
+
+
+
+        auto  next = [&seed] () { seed = seed * 1103515245u + 12345u; return (int) ((seed >> 16) % 100); };
+
+        revolution.assign (kSyncs, 0xFF);
+        revolution.insert (revolution.end(), { 0xAF, 0xB5, 0xB6 });
+
+        for (size_t page = 0; page < kPages; page++)
+        {
+            for (size_t each = 0; each < kPageBytes; each++)
+            {
+                seed = seed * 1103515245u + 12345u;
+                revolution.push_back (s_kDiskBytes[(seed >> 16) % (std::size (s_kDiskBytes) - 1)]);
+            }
+
+            target = (page == 0) ? revolution.size() : target;
+            revolution.push_back (page == 0 ? 0xB7 : 0xB6);
+        }
+
+        for (int each = 0; each < kReads; each++)
+        {
+            bool               loud  = each >= CassoLinkCapture::kWholeReads;
+            Byte               delay = loud ? CassoLinkCapture::kLoudDelay : CassoLinkCapture::kWholeDelays[each];
+            std::vector<Byte>  read;
+
+            for (size_t at = 0; at < kReadBytes; at++)
+            {
+                size_t  in     = at % revolution.size();
+                bool    sync   = in < kSyncs;
+                int     share  = sync ? (loud ? 94 : (delay == 0 ? 98 : 56)) : ((loud || delay != 0) ? 0 : 10);
+                bool    marked = next() < share || (loud && in == target && at >= 2 * revolution.size());
+
+                read.push_back (marked ? (Byte) (revolution[in] & 0x7F) : revolution[in]);
+            }
+
+            positions[0].reads.push_back (read);
+            positions[0].delays.push_back (delay);
+        }
+
+        AssertSucceeded (CassoLinkCapture::BuildWoz (positions, 0, "2026-11-27T00:00:00Z", 1, result));
+
+        framed = FrameTrack (result.woz);
+
+        for (const auto & [value, zeros] : framed)
+        {
+            ends += (value == 0xB7 && zeros == 1) ? 1 : 0;
+        }
+
+        Assert::IsTrue (ends >= 1, L"The B7 is written with its zero bit");
     }
 
 

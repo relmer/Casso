@@ -631,3 +631,130 @@ bool CassoLinkCapture::IsAddressPrologAt (std::span<const Byte> revolution, size
 
     return second == s_kProlog1 && (third & s_kAddress16) == s_kAddress16 && IsAddressFieldAt (revolution, at);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::CollectParts
+//
+//  The marks of the part turns of each read at kLoudDelay. A read has
+//  about two turns and a fifth, and Align takes whole turns from a stable
+//  start, so the bytes before a read's first aligned turn and after its
+//  last are counted here (CountPart). They nearly double the reads of a
+//  byte at 10 cycles, and a byte followed by one zero bit is marked in
+//  about a third of those.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkCapture::CollectParts (const Position & position, const std::vector<Byte> & stream, const std::vector<Alignment> & alignments, Marks & ioMarks)
+{
+    ptrdiff_t  length = (ptrdiff_t) stream.size();
+
+
+
+    for (const Alignment & alignment : alignments)
+    {
+        const std::vector<Byte>  & bytes = position.reads[alignment.read];
+        bool                       loud  = alignment.read < position.delays.size() && position.delays[alignment.read] == kLoudDelay;
+        bool                       first = true;
+        bool                       last  = true;
+        int                        low   = -1;
+        int                        high  = -1;
+
+        for (const Alignment & other : alignments)
+        {
+            first = first && (other.read != alignment.read || other.from >= alignment.from);
+            last  = last  && (other.read != alignment.read || other.from <= alignment.from);
+        }
+
+        for (ptrdiff_t at = 0; at < length; at++)
+        {
+            low  = (low < 0) ? alignment.map[(size_t) at] : low;
+            high = (alignment.map[(size_t) at] >= 0) ? alignment.map[(size_t) at] : high;
+        }
+
+        if (loud && first && low > 0)
+        {
+            CountPart (bytes, stream, low - 1, length - 1, -1, ioMarks);
+        }
+
+        if (loud && last && high >= 0)
+        {
+            CountPart (bytes, stream, high + 1, 0, 1, ioMarks);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::CountPart
+//
+//  A part turn's marks at kLoudDelay: the read's bytes from `mine` paired
+//  with the stream's from `at`, each one `step` on from the last. Where
+//  the two differ, up to s_kPartSkip bytes of the read and of the stream
+//  are passed over to the nearest place where the next s_kPartSame bytes
+//  pair up: a run of sync bytes is framed with one more or one fewer on
+//  each pass, and the write splice at the turn's seam reads otherwise each
+//  time. The count stops where no such place is found.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkCapture::CountPart (std::span<const Byte> bytes, const std::vector<Byte> & stream, ptrdiff_t mine, ptrdiff_t at, int step, Marks & ioMarks)
+{
+    ptrdiff_t  size   = (ptrdiff_t) bytes.size();
+    ptrdiff_t  length = (ptrdiff_t) stream.size();
+
+
+
+    auto  pairsUp = [&] (ptrdiff_t read, ptrdiff_t place)
+    {
+        bool  same = true;
+
+        for (ptrdiff_t each = 0; same && each < s_kPartSame; each++)
+        {
+            ptrdiff_t  theirs = read  + each * step;
+            ptrdiff_t  ours   = place + each * step;
+
+            same = theirs >= 0 && theirs < size && ours >= 0 && ours < length && (bytes[(size_t) theirs] | 0x80) == (stream[(size_t) ours] | 0x80);
+        }
+
+        return same;
+    };
+
+    while (mine >= 0 && mine < size && at >= 0 && at < length)
+    {
+        bool  found = false;
+
+        if ((bytes[(size_t) mine] | 0x80) == (stream[(size_t) at] | 0x80))
+        {
+            ioMarks.set[2][(size_t) at]  += CaptureStream::IsSync (bytes[(size_t) mine]) ? 1 : 0;
+            ioMarks.read[2][(size_t) at] += 1;
+
+            mine += step;
+            at   += step;
+            continue;
+        }
+
+        for (ptrdiff_t total = 1; !found && total <= s_kPartSkip; total++)
+        {
+            for (ptrdiff_t more = 0; !found && more <= total; more++)
+            {
+                found = pairsUp (mine + more * step, at + (total - more) * step);
+                mine += found ? more * step : 0;
+                at   += found ? (total - more) * step : 0;
+            }
+        }
+
+        if (!found)
+        {
+            break;
+        }
+    }
+}

@@ -490,6 +490,9 @@ void CassoLinkDiskTransfer::BeginStatus (LinkOperation & operation, bool isCaptu
 
     if (isCapture)
     {
+        //  A raw capture has no catalog read, so the drive's title is the
+        //  file's name.
+        status->SetTitle (drive, std::filesystem::path (operation.imagePath).stem().string(), std::string());
         status->BeginCapture (drive);
         status->AddLine (std::format ("Capturing the disk in drive {} raw, every track and the positions between them", drive), drive);
         return;
@@ -559,13 +562,6 @@ void CassoLinkDiskTransfer::EndStatus (LinkOperation & operation, const char * m
     row.drive      = operation.drive;
     row.status     = manifestStatus;
     row.unreadable = (int) operation.unreadable.size();
-
-    //  A raw capture has no catalog read, so the drive's title is the file's
-    //  name.
-    if (strcmp (manifestStatus, FullSendManifest::kStatusRawCapture) == 0)
-    {
-        status->SetTitle (operation.drive, std::filesystem::path (operation.imagePath).stem().string(), std::string());
-    }
 
     status->EndDisk (operation.drive, row, bytes);
     status->AddLine ("Saved as " + row.file, operation.drive);

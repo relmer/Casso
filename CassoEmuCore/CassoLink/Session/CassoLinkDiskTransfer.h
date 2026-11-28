@@ -66,8 +66,11 @@ public:
     //  protection the choices check, or a track 0 with no sector read.
     static bool     IsAutomaticRaw (const std::vector<Byte> & sectors, const std::vector<std::pair<int, int>> & unreadable, const FullSendProtectionChoices & choices);
 
+    //  The job's status at its start. A raw capture's drive has the image
+    //  file's name for its title from the first read.
+    static void     BeginStatus    (LinkOperation & operation, bool isCapture);
+
     HRESULT  ReadWholeDisk      (LinkOperation & operation);
-    void     BeginStatus        (LinkOperation & operation, bool isCapture);
     void     NoteTrack          (LinkOperation & operation, int track, size_t newUnreadable, size_t newMarks);
     void     EndStatus          (LinkOperation & operation, const char * manifestStatus, size_t bytes);
     HRESULT  ChooseAutomatic    (LinkOperation & operation, const std::vector<Byte> & sectors, DiskFormat & outFormat, std::vector<CassoLinkHost::TrackMeasure> & outMeasures, int & outBitsPerTurn, bool & outRaw);
